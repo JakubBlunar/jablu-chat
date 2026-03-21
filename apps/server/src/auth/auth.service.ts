@@ -33,7 +33,40 @@ export class AuthService {
     private readonly uploads: UploadsService,
   ) {}
 
-  async register(username: string, email: string, password: string) {
+  async register(username: string, email: string, password: string, inviteCode?: string) {
+    const mode = this.config.get<string>('REGISTRATION_MODE', 'open');
+
+    let invite: {
+      id: string;
+      email: string;
+      serverId: string | null;
+    } | null = null;
+
+    if (mode === 'invite') {
+      if (!inviteCode) {
+        throw new BadRequestException('An invite code is required to register');
+      }
+      invite = await this.prisma.registrationInvite.findUnique({
+        where: { code: inviteCode.toUpperCase().trim() },
+        select: { id: true, email: true, serverId: true, used: true, expiresAt: true },
+      }) as typeof invite & { used: boolean; expiresAt: Date | null } | null;
+
+      if (!invite) {
+        throw new BadRequestException('Invalid invite code');
+      }
+
+      const full = invite as typeof invite & { used: boolean; expiresAt: Date | null };
+      if (full.used) {
+        throw new BadRequestException('This invite code has already been used');
+      }
+      if (full.expiresAt && full.expiresAt < new Date()) {
+        throw new BadRequestException('This invite code has expired');
+      }
+      if (invite.email.toLowerCase() !== email.toLowerCase()) {
+        throw new BadRequestException('This invite code is not for this email address');
+      }
+    }
+
     const existingUser = await this.prisma.user.findFirst({
       where: { OR: [{ email }, { username }] },
     });
@@ -50,8 +83,26 @@ export class AuthService {
       select: PROFILE_SELECT,
     });
 
+    if (invite) {
+      await this.prisma.registrationInvite.update({
+        where: { id: invite.id },
+        data: { used: true, usedAt: new Date(), usedById: user.id },
+      });
+
+      if (invite.serverId) {
+        await this.prisma.serverMember.create({
+          data: { userId: user.id, serverId: invite.serverId },
+        }).catch(() => {});
+      }
+    }
+
     const tokens = await this.generateTokens(user.id);
     return { ...tokens, user };
+  }
+
+  getRegistrationMode() {
+    const mode = this.config.get<string>('REGISTRATION_MODE', 'open');
+    return { mode };
   }
 
   async login(email: string, password: string) {

@@ -44,16 +44,16 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#313338]">
+    <div className="flex min-h-screen items-center justify-center bg-surface">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-md rounded-lg bg-[#2b2d31] p-8 shadow-xl"
+        className="w-full max-w-md rounded-lg bg-surface-dark p-8 shadow-xl"
       >
         <h1 className="mb-2 text-center text-2xl font-bold text-white">
           Connect to Server
         </h1>
         <p className="mb-6 text-center text-sm text-gray-400">
-          Enter the address of your chat server
+          Enter the address of your Nook server
         </p>
 
         <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">
@@ -64,7 +64,7 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="http://192.168.1.100:3001"
-          className="mb-4 w-full rounded-md bg-[#1e1f22] px-3 py-2 text-white outline-none ring-1 ring-white/10 focus:ring-[#5865f2]"
+          className="mb-4 w-full rounded-md bg-surface-darkest px-3 py-2 text-white outline-none ring-1 ring-white/10 focus:ring-primary"
         />
 
         {error && (
@@ -74,7 +74,7 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
         <button
           type="submit"
           disabled={testing}
-          className="w-full rounded-md bg-[#5865f2] py-2.5 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+          className="w-full rounded-md bg-primary py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
           {testing ? "Connecting..." : "Connect"}
         </button>

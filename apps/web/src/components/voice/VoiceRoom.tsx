@@ -231,7 +231,7 @@ function FocusedLayout({
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
-      <div ref={fsRef} className="relative min-h-0 flex-1 bg-[#1e1f22]">
+      <div ref={fsRef} className="relative min-h-0 flex-1 bg-surface-darkest">
         <button
           type="button"
           className="h-full w-full text-left"
@@ -312,7 +312,7 @@ function VoiceRoomHeader({
   }, [disconnect]);
 
   return (
-    <div className="flex h-12 shrink-0 items-center border-b border-black/20 bg-[#313338] px-4 shadow-sm">
+    <div className="flex h-12 shrink-0 items-center border-b border-black/20 bg-surface px-4 shadow-sm">
       <svg className="mr-2 h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
         <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
       </svg>

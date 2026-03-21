@@ -94,7 +94,7 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
     return (
       <div className="mt-1">
         <textarea
-          className="w-full rounded bg-[#383a40] px-3 py-1.5 text-sm text-gray-100 outline-none ring-1 ring-white/10 focus:ring-[#5865f2]"
+          className="w-full rounded bg-surface-raised px-3 py-1.5 text-sm text-gray-100 outline-none ring-1 ring-white/10 focus:ring-primary"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={(e) => {
@@ -136,7 +136,7 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
 
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
-      <div className="flex items-center gap-0.5 rounded bg-[#2b2d31] shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100">
         <ActionBtn title="React" onClick={openEmojiPicker}>
           <SmileIcon />
         </ActionBtn>

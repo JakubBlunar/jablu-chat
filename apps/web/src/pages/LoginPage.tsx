@@ -50,9 +50,9 @@ export function LoginPage() {
 
   if (isAuthLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#1a1a2e]">
+      <div className="flex min-h-screen items-center justify-center bg-auth-bg">
         <div
-          className="h-10 w-10 animate-spin rounded-full border-2 border-[#5865f2] border-t-transparent"
+          className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent"
           aria-hidden
         />
         <span className="sr-only">Checking session</span>
@@ -88,7 +88,7 @@ export function LoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-[#1e1f22] px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-[#5865f2] focus:outline-none focus:ring-1 focus:ring-[#5865f2]"
+            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             placeholder="you@example.com"
             required
           />
@@ -108,7 +108,7 @@ export function LoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-[#1e1f22] px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-[#5865f2] focus:outline-none focus:ring-1 focus:ring-[#5865f2]"
+            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             placeholder="••••••••"
             required
           />
@@ -117,7 +117,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-2 w-full rounded-md bg-[#5865f2] py-2.5 text-sm font-semibold text-white transition hover:bg-[#4752c4] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865f2] focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2d31]"
+          className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
         >
           {isSubmitting ? "Signing in…" : "Log In"}
         </button>
@@ -126,7 +126,7 @@ export function LoginPage() {
       <div className="mt-6 flex flex-col gap-3 text-center text-sm">
         <Link
           to="/forgot-password"
-          className="text-[#5865f2] hover:underline focus:outline-none focus-visible:underline"
+          className="text-primary hover:underline focus:outline-none focus-visible:underline"
         >
           Forgot your password?
         </Link>
@@ -134,7 +134,7 @@ export function LoginPage() {
           Need an account?{" "}
           <Link
             to="/register"
-            className="font-medium text-[#5865f2] hover:underline focus:outline-none focus-visible:underline"
+            className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
           >
             Register
           </Link>

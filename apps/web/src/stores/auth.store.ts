@@ -23,6 +23,7 @@ type AuthState = {
     username: string,
     email: string,
     password: string,
+    inviteCode?: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -55,8 +56,8 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      register: async (username, email, password) => {
-        const data = await api.register(username, email, password);
+      register: async (username, email, password, inviteCode?) => {
+        const data = await api.register(username, email, password, inviteCode);
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,

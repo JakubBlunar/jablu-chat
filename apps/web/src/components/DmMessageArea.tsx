@@ -106,7 +106,7 @@ export function DmMessageArea() {
 
   if (!currentConvId || !currentConv) {
     return (
-      <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 bg-[#313338] text-center">
+      <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 bg-surface text-center">
         <p className="text-lg font-semibold text-white">
           Select a conversation
         </p>
@@ -118,7 +118,7 @@ export function DmMessageArea() {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-[#313338]">
+    <div className="flex min-w-0 flex-1 flex-col bg-surface">
       <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
         <AtIcon />
         <h2 className="text-[15px] font-semibold text-white">{otherName}</h2>
@@ -131,7 +131,7 @@ export function DmMessageArea() {
       >
         {isLoading && messages.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-[#5865f2]" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
           </div>
         ) : (
           <>
@@ -140,7 +140,7 @@ export function DmMessageArea() {
                 type="button"
                 onClick={loadMore}
                 disabled={isLoading}
-                className="mb-2 self-center text-xs text-[#5865f2] hover:underline disabled:opacity-50"
+                className="mb-2 self-center text-xs text-primary hover:underline disabled:opacity-50"
               >
                 {isLoading ? "Loading…" : "Load older messages"}
               </button>
@@ -232,7 +232,7 @@ function DmMessageRow({
       className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition hover:bg-white/[0.03] ${showHeader ? "mt-3 first:mt-1" : "-mt-0.5"}`}
     >
       {/* Actions toolbar */}
-      <div className="absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-[#2b2d31] opacity-0 shadow ring-1 ring-white/10 transition group-hover:opacity-100">
+      <div className="absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-surface-dark opacity-0 shadow ring-1 ring-white/10 transition group-hover:opacity-100">
         <div className="relative">
           <ActionBtn title="React" onClick={() => setEmojiOpen((p) => !p)}>
             😀
@@ -314,7 +314,7 @@ function DmMessageRow({
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEdit(); }
                 if (e.key === "Escape") setEditing(false);
               }}
-              className="w-full rounded bg-[#383a40] px-3 py-2 text-sm text-white outline-none"
+              className="w-full rounded bg-surface-raised px-3 py-2 text-sm text-white outline-none"
               rows={2}
               autoFocus
             />
@@ -336,13 +336,13 @@ function DmMessageRow({
             href={lp.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 block max-w-md rounded border-l-4 border-[#5865f2] bg-[#2b2d31] p-3"
+            className="mt-1 block max-w-md rounded border-l-4 border-primary bg-surface-dark p-3"
           >
             {lp.siteName && (
               <p className="text-xs text-gray-400">{lp.siteName}</p>
             )}
             {lp.title && (
-              <p className="text-sm font-semibold text-[#00aff4]">{lp.title}</p>
+              <p className="text-sm font-semibold text-link">{lp.title}</p>
             )}
             {lp.description && (
               <p className="mt-1 text-xs text-gray-300 line-clamp-2">
@@ -368,8 +368,8 @@ function DmMessageRow({
                   }}
                   className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${
                     isMine
-                      ? "bg-[#5865f2]/20 text-[#5865f2] ring-1 ring-[#5865f2]/40"
-                      : "bg-[#2b2d31] text-gray-300 ring-1 ring-white/10 hover:bg-[#35373c]"
+                      ? "bg-primary/20 text-primary ring-1 ring-primary/40"
+                      : "bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover"
                   }`}
                 >
                   <span>{r.emoji}</span>
@@ -493,7 +493,7 @@ function DmInput({
   return (
     <div className="shrink-0 px-4 pb-6 pt-1">
       {replyTarget && (
-        <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-[#2b2d31] px-3 py-2 text-xs text-gray-400">
+        <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-surface-dark px-3 py-2 text-xs text-gray-400">
           <ReplyArrowIcon />
           <span>
             Replying to{" "}
@@ -512,11 +512,11 @@ function DmInput({
       )}
 
       {files.length > 0 && (
-        <div className="mb-2 flex gap-2 overflow-x-auto rounded-lg bg-[#2b2d31] p-2">
+        <div className="mb-2 flex gap-2 overflow-x-auto rounded-lg bg-surface-dark p-2">
           {files.map((f, i) => (
             <div
               key={i}
-              className="relative h-16 w-16 shrink-0 rounded bg-[#1e1f22]"
+              className="relative h-16 w-16 shrink-0 rounded bg-surface-darkest"
             >
               {f.preview ? (
                 <img
@@ -541,7 +541,7 @@ function DmInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2 rounded-lg bg-[#383a40] px-4 py-2.5">
+      <div className="flex items-end gap-2 rounded-lg bg-surface-raised px-4 py-2.5">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}

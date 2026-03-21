@@ -23,7 +23,19 @@ type AdminUser = {
   _count: { serverMemberships: number; messages: number };
 };
 
-type Tab = "servers" | "users";
+type AdminInvite = {
+  id: string;
+  code: string;
+  email: string;
+  used: boolean;
+  usedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  server: { id: string; name: string } | null;
+  usedBy: { id: string; username: string } | null;
+};
+
+type Tab = "servers" | "users" | "invites";
 
 function getStoredPassword(): string {
   return sessionStorage.getItem(ADMIN_STORAGE_KEY) ?? "";
@@ -86,10 +98,10 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#1e1f22] p-4">
+    <div className="flex min-h-screen items-center justify-center bg-surface-darkest p-4">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-sm rounded-lg bg-[#2b2d31] p-8 shadow-2xl ring-1 ring-white/10"
+        className="w-full max-w-sm rounded-lg bg-surface-dark p-8 shadow-2xl ring-1 ring-white/10"
       >
         <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
         <p className="mt-2 text-sm text-gray-400">
@@ -101,13 +113,13 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           autoFocus
-          className="mt-5 w-full rounded-md bg-[#1e1f22] px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-[#5865f2]"
+          className="mt-5 w-full rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
         />
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
         <button
           type="submit"
           disabled={busy || !password}
-          className="mt-4 w-full rounded-md bg-[#5865f2] py-2.5 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
           {busy ? "Checking…" : "Login"}
         </button>
@@ -122,18 +134,24 @@ function AdminDashboard() {
   const [tab, setTab] = useState<Tab>("servers");
   const [servers, setServers] = useState<AdminServer[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [invites, setInvites] = useState<AdminInvite[]>([]);
+  const [regMode, setRegMode] = useState("open");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const fetchAll = useCallback(async () => {
     setError("");
     try {
-      const [s, u] = await Promise.all([
+      const [s, u, inv, settings] = await Promise.all([
         adminFetch<AdminServer[]>("/api/admin/servers"),
         adminFetch<AdminUser[]>("/api/admin/users"),
+        adminFetch<AdminInvite[]>("/api/admin/invites"),
+        adminFetch<{ mode: string }>("/api/admin/settings/registration"),
       ]);
       setServers(s);
       setUsers(u);
+      setInvites(inv);
+      setRegMode(settings.mode);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load";
       if (msg.includes("Unauthorized") || msg.includes("admin password")) {
@@ -153,14 +171,14 @@ function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#1e1f22]">
+      <div className="flex min-h-screen items-center justify-center bg-surface-darkest">
         <div className="text-gray-400">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1e1f22] p-6 text-white">
+    <div className="min-h-screen bg-surface-darkest p-6 text-white">
       <div className="mx-auto max-w-5xl">
         {error && (
           <div className="mb-4 rounded-md bg-red-900/30 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/30">
@@ -183,31 +201,42 @@ function AdminDashboard() {
         </div>
 
         <div className="mt-4 flex gap-1 border-b border-white/10">
-          {(["servers", "users"] as const).map((t) => (
+          {(["servers", "users", "invites"] as const).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={`rounded-t-md px-4 py-2.5 text-sm font-medium capitalize transition ${
                 tab === t
-                  ? "bg-[#2b2d31] text-white"
+                  ? "bg-surface-dark text-white"
                   : "text-gray-400 hover:text-white"
               }`}
             >
-              {t} ({t === "servers" ? servers.length : users.length})
+              {t === "invites"
+                ? `Invites (${invites.length})`
+                : `${t} (${t === "servers" ? servers.length : users.length})`}
             </button>
           ))}
         </div>
 
         <div className="mt-4">
-          {tab === "servers" ? (
+          {tab === "servers" && (
             <ServersTab
               servers={servers}
               setServers={setServers}
               users={users}
             />
-          ) : (
+          )}
+          {tab === "users" && (
             <UsersTab users={users} setUsers={setUsers} />
+          )}
+          {tab === "invites" && (
+            <InvitesTab
+              invites={invites}
+              setInvites={setInvites}
+              servers={servers}
+              regMode={regMode}
+            />
           )}
         </div>
       </div>
@@ -282,14 +311,14 @@ function ServersTab({
         <button
           type="button"
           onClick={() => setShowCreate(!showCreate)}
-          className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium transition hover:bg-[#4752c4]"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover"
         >
           {showCreate ? "Cancel" : "Create Server"}
         </button>
       </div>
 
       {showCreate && (
-        <div className="mt-4 rounded-lg bg-[#2b2d31] p-5 ring-1 ring-white/10">
+        <div className="mt-4 rounded-lg bg-surface-dark p-5 ring-1 ring-white/10">
           <h2 className="text-lg font-semibold">Create New Server</h2>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <input
@@ -297,12 +326,12 @@ function ServersTab({
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Server name"
-              className="flex-1 rounded-md bg-[#1e1f22] px-3 py-2 text-sm outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-[#5865f2]"
+              className="flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
             />
             <select
               value={newOwnerId}
               onChange={(e) => setNewOwnerId(e.target.value)}
-              className="rounded-md bg-[#1e1f22] px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#5865f2]"
+              className="rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
             >
               <option value="">Select owner…</option>
               {users.map((u) => (
@@ -315,7 +344,7 @@ function ServersTab({
               type="button"
               onClick={() => void handleCreate()}
               disabled={creating || !newName.trim() || !newOwnerId}
-              className="rounded-md bg-[#23a559] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1a7d43] disabled:opacity-50"
+              className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white transition hover:bg-success-hover disabled:opacity-50"
             >
               {creating ? "Creating…" : "Create"}
             </button>
@@ -333,9 +362,9 @@ function ServersTab({
           servers.map((server) => (
             <div
               key={server.id}
-              className="flex items-center gap-4 rounded-lg bg-[#2b2d31] p-4 ring-1 ring-white/10"
+              className="flex items-center gap-4 rounded-lg bg-surface-dark p-4 ring-1 ring-white/10"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#313338] text-lg font-semibold">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface text-lg font-semibold">
                 {server.iconUrl ? (
                   <img
                     src={server.iconUrl}
@@ -461,10 +490,10 @@ function UsersTab({
         users.map((user) => (
           <div
             key={user.id}
-            className="rounded-lg bg-[#2b2d31] ring-1 ring-white/10"
+            className="rounded-lg bg-surface-dark ring-1 ring-white/10"
           >
             <div className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#5865f2] text-sm font-bold uppercase text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold uppercase text-white">
                 {user.avatarUrl ? (
                   <img
                     src={user.avatarUrl}
@@ -540,7 +569,7 @@ function UsersTab({
                           username: e.target.value,
                         }))
                       }
-                      className="mt-1 w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#5865f2]"
+                      className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
                     />
                   </label>
                   <label className="block">
@@ -553,7 +582,7 @@ function UsersTab({
                       onChange={(e) =>
                         setEditForm((f) => ({ ...f, email: e.target.value }))
                       }
-                      className="mt-1 w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#5865f2]"
+                      className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
                     />
                   </label>
                 </div>
@@ -567,7 +596,7 @@ function UsersTab({
                       setEditForm((f) => ({ ...f, bio: e.target.value }))
                     }
                     rows={2}
-                    className="mt-1 w-full resize-none rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#5865f2]"
+                    className="mt-1 w-full resize-none rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
                   />
                 </label>
                 {editError && (
@@ -578,7 +607,7 @@ function UsersTab({
                     type="button"
                     onClick={() => void handleSave()}
                     disabled={saving || !editForm.username.trim() || !editForm.email.trim()}
-                    className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
                   >
                     {saving ? "Saving…" : "Save Changes"}
                   </button>
@@ -589,6 +618,197 @@ function UsersTab({
         ))
       )}
     </div>
+  );
+}
+
+// ─── Invites Tab ──────────────────────────────────────────
+
+function InvitesTab({
+  invites,
+  setInvites,
+  servers,
+  regMode,
+}: {
+  invites: AdminInvite[];
+  setInvites: React.Dispatch<React.SetStateAction<AdminInvite[]>>;
+  servers: AdminServer[];
+  regMode: string;
+}) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newServerId, setNewServerId] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  const handleCreate = async () => {
+    if (!newEmail.trim()) return;
+    setCreating(true);
+    setCreateError("");
+    try {
+      const invite = await adminFetch<AdminInvite>("/api/admin/invites", {
+        method: "POST",
+        body: {
+          email: newEmail.trim(),
+          ...(newServerId ? { serverId: newServerId } : {}),
+        },
+      });
+      setInvites((prev) => [invite, ...prev]);
+      setNewEmail("");
+      setNewServerId("");
+      setShowCreate(false);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    setDeleteError("");
+    try {
+      await adminFetch(`/api/admin/invites/${id}`, { method: "DELETE" });
+      setInvites((prev) => prev.filter((i) => i.id !== id));
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className={`mb-4 rounded-md px-4 py-3 text-sm ring-1 ${
+        regMode === "invite"
+          ? "bg-emerald-900/20 text-emerald-300 ring-emerald-500/30"
+          : "bg-amber-900/20 text-amber-300 ring-amber-500/30"
+      }`}>
+        Registration mode: <strong className="font-semibold">{regMode}</strong>
+        {regMode === "open" && (
+          <span className="ml-1 text-amber-400/80">
+            — Anyone can register without an invite code. Set <code className="rounded bg-black/30 px-1 py-0.5 text-xs">REGISTRATION_MODE=invite</code> in your <code className="rounded bg-black/30 px-1 py-0.5 text-xs">.env</code> to require invites.
+          </span>
+        )}
+        {regMode === "invite" && (
+          <span className="ml-1 text-emerald-400/80">
+            — Only users with a valid invite code can register.
+          </span>
+        )}
+      </div>
+
+      {deleteError && (
+        <div className="mb-3 rounded-md bg-red-900/30 px-4 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {deleteError}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowCreate(!showCreate)}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover"
+        >
+          {showCreate ? "Cancel" : "Create Invite"}
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="mt-4 rounded-lg bg-surface-dark p-5 ring-1 ring-white/10">
+          <h2 className="text-lg font-semibold">Create Registration Invite</h2>
+          <p className="mt-1 text-sm text-gray-400">
+            The invite code will be tied to the email address. The user must register with this exact email.
+          </p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
+            />
+            <select
+              value={newServerId}
+              onChange={(e) => setNewServerId(e.target.value)}
+              className="rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+            >
+              <option value="">No auto-join server</option>
+              {servers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void handleCreate()}
+              disabled={creating || !newEmail.trim()}
+              className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white transition hover:bg-success-hover disabled:opacity-50"
+            >
+              {creating ? "Creating…" : "Create"}
+            </button>
+          </div>
+          {createError && (
+            <p className="mt-2 text-sm text-red-400">{createError}</p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4 space-y-2">
+        {invites.length === 0 ? (
+          <Empty>No invites created yet.</Empty>
+        ) : (
+          invites.map((invite) => (
+            <div
+              key={invite.id}
+              className="flex items-center gap-4 rounded-lg bg-surface-dark p-4 ring-1 ring-white/10"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <code className="rounded bg-surface-darkest px-2.5 py-1 font-mono text-sm font-semibold tracking-widest text-white">
+                    {invite.code}
+                  </code>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    invite.used
+                      ? "bg-gray-600/30 text-gray-400"
+                      : "bg-emerald-600/20 text-emerald-400"
+                  }`}>
+                    {invite.used ? "Used" : "Available"}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm text-gray-400">
+                  Email: <span className="text-gray-300">{invite.email}</span>
+                  {invite.server && (
+                    <> &middot; Auto-join: <span className="text-gray-300">{invite.server.name}</span></>
+                  )}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Created {fmtDate(invite.createdAt)}
+                  {invite.used && invite.usedBy && (
+                    <> &middot; Used by <span className="text-gray-400">{invite.usedBy.username}</span> on {fmtDate(invite.usedAt!)}</>
+                  )}
+                </p>
+              </div>
+              {!invite.used && (
+                <ConfirmDeleteBtn
+                  id={invite.id}
+                  confirmId={confirmDeleteId}
+                  deletingId={deletingId}
+                  onConfirm={() => setConfirmDeleteId(invite.id)}
+                  onCancel={() => setConfirmDeleteId(null)}
+                  onDelete={() => void handleDelete(invite.id)}
+                  label="Revoke"
+                />
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </>
   );
 }
 
@@ -646,7 +866,7 @@ function ConfirmDeleteBtn({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-[#2b2d31] p-8 text-center text-gray-400 ring-1 ring-white/10">
+    <div className="rounded-lg bg-surface-dark p-8 text-center text-gray-400 ring-1 ring-white/10">
       {children}
     </div>
   );

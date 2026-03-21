@@ -94,7 +94,7 @@ export function SearchBar() {
 
   return (
     <div ref={wrapRef} className="relative">
-      <div className="flex items-center rounded bg-[#1e1f22] px-2">
+      <div className="flex items-center rounded bg-surface-darkest px-2">
         <SearchIcon />
         <input
           type="text"
@@ -110,7 +110,7 @@ export function SearchBar() {
       </div>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-96 rounded-lg bg-[#2b2d31] shadow-xl ring-1 ring-white/10">
+        <div className="absolute right-0 top-full z-50 mt-1 w-96 rounded-lg bg-surface-dark shadow-xl ring-1 ring-white/10">
           <div className="flex items-center gap-1 border-b border-white/10 px-3 py-2">
             <span className="text-[11px] text-gray-500">Search in:</span>
             {currentChannelId && (
@@ -202,7 +202,7 @@ function ScopeBtn({
       onClick={onClick}
       className={`rounded px-2 py-0.5 text-xs font-medium transition ${
         active
-          ? "bg-[#5865f2] text-white"
+          ? "bg-primary text-white"
           : "text-gray-400 hover:bg-white/10 hover:text-white"
       }`}
     >

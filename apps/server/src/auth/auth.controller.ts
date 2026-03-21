@@ -42,7 +42,12 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto.username, dto.email, dto.password);
+    return this.auth.register(dto.username, dto.email, dto.password, dto.inviteCode);
+  }
+
+  @Get('registration-mode')
+  getRegistrationMode() {
+    return this.auth.getRegistrationMode();
   }
 
   @Post('login')

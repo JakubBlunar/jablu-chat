@@ -124,7 +124,7 @@ export function MainLayout() {
 
   if (viewMode === "dm") {
     return (
-      <div className="flex h-screen overflow-hidden bg-[#313338] text-white">
+      <div className="flex h-screen overflow-hidden bg-surface text-white">
         <ServerSidebar />
         <DmSidebar />
         <DmMessageArea />
@@ -133,12 +133,12 @@ export function MainLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#313338] text-white">
+    <div className="flex h-screen overflow-hidden bg-surface text-white">
       <ServerSidebar />
       <ChannelSidebar />
       {serversLoading && servers.length === 0 ? (
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-[#5865f2]" />
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
           <p className="text-sm text-gray-400">Loading servers…</p>
         </div>
       ) : servers.length === 0 ? (

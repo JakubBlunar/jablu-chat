@@ -207,7 +207,7 @@ export function ChannelSidebar() {
 
   return (
     <>
-      <aside className="flex h-full w-60 shrink-0 flex-col bg-[#2b2d31]">
+      <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
           <span className="truncate text-[15px] font-semibold text-white">
             {currentServer?.name ?? "Select a server"}
@@ -286,7 +286,7 @@ export function ChannelSidebar() {
                       }}
                       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
                         active
-                          ? "bg-[#404249] text-white"
+                          ? "bg-surface-selected text-white"
                           : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
                       }`}
                     >
@@ -393,7 +393,7 @@ export function ChannelSidebar() {
 
         <VoicePanel />
 
-        <div className="flex h-[52px] shrink-0 items-center gap-2 bg-[#232428] px-2">
+        <div className="flex h-[52px] shrink-0 items-center gap-2 bg-surface-overlay px-2">
           <UserAvatar
             username={user?.username ?? "User"}
             avatarUrl={user?.avatarUrl}

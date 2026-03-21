@@ -78,15 +78,15 @@ export function ProfileCard({
     <div
       ref={cardRef}
       style={style}
-      className="z-[90] w-[300px] overflow-hidden rounded-lg bg-[#232428] shadow-2xl ring-1 ring-black/30"
+      className="z-[90] w-[300px] overflow-hidden rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
     >
       {/* Banner */}
-      <div className="h-16 bg-[#5865f2]" />
+      <div className="h-16 bg-primary" />
 
       {/* Avatar */}
       <div className="px-4 pb-3">
         <div className="-mt-8">
-          <div className="inline-block rounded-full border-[5px] border-[#232428]">
+          <div className="inline-block rounded-full border-[5px] border-surface-overlay">
             <UserAvatar
               username={user.username}
               avatarUrl={user.avatarUrl}
@@ -101,7 +101,7 @@ export function ProfileCard({
         <div className="mt-1 flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{user.username}</h3>
           {badge && (
-            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#5865f2] ring-1 ring-[#5865f2]/40">
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
               {badge}
             </span>
           )}
@@ -180,7 +180,7 @@ function SendDmButton({
         type="button"
         disabled={loading}
         onClick={handleClick}
-        className="w-full rounded-md bg-[#5865f2] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+        className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
       >
         {loading ? "Opening…" : "Message"}
       </button>

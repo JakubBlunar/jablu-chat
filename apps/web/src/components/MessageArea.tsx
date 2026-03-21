@@ -146,7 +146,7 @@ export function MessageArea() {
   }, [channelId]);
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col bg-[#313338]">
+    <section className="flex min-w-0 flex-1 flex-col bg-surface">
       <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
         {channel ? (
           <>
@@ -188,7 +188,7 @@ export function MessageArea() {
       >
         {!channel ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-            <div className="rounded-full bg-[#2b2d31] p-6 text-gray-400">
+            <div className="rounded-full bg-surface-dark p-6 text-gray-400">
               <HashChannelIcon />
             </div>
             <p className="max-w-sm text-lg font-semibold text-white">
@@ -210,7 +210,7 @@ export function MessageArea() {
 
             {isLoading && messages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-[#5865f2]" />
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
                 <p className="text-sm text-gray-400">Loading messages...</p>
               </div>
             ) : messages.length === 0 ? (
@@ -218,7 +218,7 @@ export function MessageArea() {
                 <div className="border-t border-white/10 pt-4">
                   <h2 className="text-2xl font-bold text-white">
                     This is the beginning of{" "}
-                    <span className="text-[#5865f2]">#{channel.name}</span>
+                    <span className="text-primary">#{channel.name}</span>
                   </h2>
                   <p className="mt-2 text-[15px] text-gray-400">
                     Send a message to spark the conversation.
@@ -315,7 +315,7 @@ function MessageRow({
               {name}
             </span>
             {message.webhookId && (
-              <span className="rounded bg-[#5865f2]/20 px-1.5 py-0.5 text-[10px] font-semibold text-[#5865f2]">
+              <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                 BOT
               </span>
             )}
@@ -358,7 +358,7 @@ function MessageRow({
                 href={lp.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex max-w-md overflow-hidden rounded-lg border-l-4 border-[#5865f2] bg-[#2b2d31] transition hover:bg-[#35373c]"
+                className="flex max-w-md overflow-hidden rounded-lg border-l-4 border-primary bg-surface-dark transition hover:bg-surface-hover"
               >
                 {lp.imageUrl && (
                   <img
@@ -406,8 +406,8 @@ function MessageRow({
                   }}
                   className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${
                     isMine
-                      ? "bg-[#5865f2]/20 text-[#5865f2] ring-1 ring-[#5865f2]/40"
-                      : "bg-[#2b2d31] text-gray-300 ring-1 ring-white/10 hover:bg-[#35373c]"
+                      ? "bg-primary/20 text-primary ring-1 ring-primary/40"
+                      : "bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover"
                   }`}
                 >
                   <span>{r.emoji}</span>
@@ -449,7 +449,7 @@ function PinnedPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute right-4 top-14 z-30 flex max-h-96 w-80 flex-col rounded-lg bg-[#2b2d31] shadow-2xl ring-1 ring-white/10">
+    <div className="absolute right-4 top-14 z-30 flex max-h-96 w-80 flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10">
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
         <h3 className="text-sm font-semibold text-white">Pinned Messages</h3>
         <button

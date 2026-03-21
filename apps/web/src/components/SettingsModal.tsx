@@ -54,9 +54,9 @@ export function SettingsModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex bg-[#313338]">
+    <div className="fixed inset-0 z-[100] flex bg-surface">
       {/* Left sidebar */}
-      <div className="flex w-56 shrink-0 flex-col items-end bg-[#2b2d31]">
+      <div className="flex w-56 shrink-0 flex-col items-end bg-surface-dark">
         <nav className="w-44 space-y-0.5 px-2 py-16">
           <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-400">
             USER SETTINGS
@@ -184,11 +184,11 @@ function AccountSection() {
   return (
     <div className="space-y-6">
       {/* Account card */}
-      <div className="overflow-hidden rounded-lg bg-[#1e1f22]">
-        <div className="h-24 bg-[#5865f2]" />
+      <div className="overflow-hidden rounded-lg bg-surface-darkest">
+        <div className="h-24 bg-primary" />
         <div className="px-4 pb-4">
           <div className="-mt-10 flex items-end gap-3">
-            <div className="rounded-full border-[6px] border-[#1e1f22]">
+            <div className="rounded-full border-[6px] border-surface-darkest">
               <UserAvatar
                 username={user?.username ?? ""}
                 avatarUrl={user?.avatarUrl}
@@ -199,7 +199,7 @@ function AccountSection() {
               {user?.username}
             </p>
           </div>
-          <div className="mt-4 space-y-3 rounded-lg bg-[#2b2d31] p-4">
+          <div className="mt-4 space-y-3 rounded-lg bg-surface-dark p-4">
             <InfoRow label="USERNAME" value={user?.username ?? ""} />
             <InfoRow label="EMAIL" value={user?.email ?? ""} />
           </div>
@@ -289,7 +289,7 @@ function PasswordChangeForm() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
       >
         {loading ? "Saving..." : "Change Password"}
       </button>
@@ -347,7 +347,7 @@ function EmailChangeForm() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
       >
         {loading ? "Saving..." : "Change Email"}
       </button>
@@ -443,7 +443,7 @@ function ProfileSection() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="text-sm font-medium text-[#5865f2] transition hover:underline"
+            className="text-sm font-medium text-primary transition hover:underline"
           >
             Change Avatar
           </button>
@@ -475,7 +475,7 @@ function ProfileSection() {
             onChange={(e) => setBio(e.target.value)}
             maxLength={190}
             rows={3}
-            className="w-full resize-none rounded-md border border-[#1e1f22] bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none transition focus:border-[#5865f2]"
+            className="w-full resize-none rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition focus:border-primary"
           />
           <p className="mt-0.5 text-right text-xs text-gray-500">
             {bio.length}/190
@@ -486,7 +486,7 @@ function ProfileSection() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
           {loading ? "Saving..." : "Save Changes"}
         </button>
@@ -605,7 +605,7 @@ function ServerConnectionSection() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="http://192.168.1.100:3001"
-          className="w-full rounded-md border border-[#1e1f22] bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-[#5865f2]"
+          className="w-full rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
         />
       </div>
 
@@ -620,7 +620,7 @@ function ServerConnectionSection() {
           type="button"
           onClick={() => void handleSave()}
           disabled={testing}
-          className="rounded-md bg-[#5865f2] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+          className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
           {testing ? "Testing..." : "Save & Test"}
         </button>
@@ -661,7 +661,7 @@ function SettingsInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-[#1e1f22] bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-[#5865f2]"
+        className="w-full rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
       />
     </div>
   );

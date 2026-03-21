@@ -15,10 +15,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChannelType, ServerRole } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AdminAuthGuard } from './admin-auth.guard';
 import {
+  AdminCreateInviteDto,
   AdminCreateServerDto,
   AdminLoginDto,
   AdminUpdateUserDto,
@@ -191,6 +193,63 @@ export class AdminController {
     }
 
     await this.prisma.user.delete({ where: { id } });
+  }
+
+  // ─── Registration Invites ─────────────────────────────────
+
+  @Get('invites')
+  @UseGuards(AdminAuthGuard)
+  async listInvites() {
+    return this.prisma.registrationInvite.findMany({
+      include: {
+        server: { select: { id: true, name: true } },
+        usedBy: { select: { id: true, username: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('invites')
+  @UseGuards(AdminAuthGuard)
+  async createInvite(@Body() dto: AdminCreateInviteDto) {
+    if (dto.serverId) {
+      const server = await this.prisma.server.findUnique({
+        where: { id: dto.serverId },
+      });
+      if (!server) throw new BadRequestException('Server not found');
+    }
+
+    const code = randomBytes(4).toString('hex').toUpperCase();
+
+    return this.prisma.registrationInvite.create({
+      data: {
+        code,
+        email: dto.email.toLowerCase().trim(),
+        serverId: dto.serverId ?? null,
+      },
+      include: {
+        server: { select: { id: true, name: true } },
+        usedBy: { select: { id: true, username: true } },
+      },
+    });
+  }
+
+  @Delete('invites/:id')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteInvite(@Param('id', ParseUUIDPipe) id: string) {
+    const invite = await this.prisma.registrationInvite.findUnique({
+      where: { id },
+    });
+    if (!invite) throw new NotFoundException('Invite not found');
+    await this.prisma.registrationInvite.delete({ where: { id } });
+  }
+
+  @Get('settings/registration')
+  @UseGuards(AdminAuthGuard)
+  getRegistrationMode() {
+    const mode = this.config.get<string>('REGISTRATION_MODE', 'open');
+    return { mode };
   }
 
   // ─── Helpers ───────────────────────────────────────────────

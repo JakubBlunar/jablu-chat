@@ -44,7 +44,7 @@ export function DmSidebar() {
   const [groupDmOpen, setGroupDmOpen] = useState(false);
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col bg-[#2b2d31]">
+    <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
         <span className="text-[15px] font-semibold text-white">
           Direct Messages
@@ -84,12 +84,12 @@ export function DmSidebar() {
                 onClick={() => setCurrentConv(conv.id)}
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
                   active
-                    ? "bg-[#404249] text-white"
+                    ? "bg-surface-selected text-white"
                     : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 {info.isGroup ? (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#5865f2] text-xs font-bold text-white">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                     {conv.members.length}
                   </div>
                 ) : (
@@ -115,7 +115,7 @@ export function DmSidebar() {
         )}
       </div>
 
-      <div className="flex h-[52px] shrink-0 items-center gap-2 bg-[#232428] px-2">
+      <div className="flex h-[52px] shrink-0 items-center gap-2 bg-surface-overlay px-2">
         <UserAvatar
           username={user?.username ?? "User"}
           avatarUrl={user?.avatarUrl}
@@ -194,7 +194,7 @@ function GroupDmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md rounded-lg bg-[#313338] p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">New Group DM</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
@@ -204,7 +204,7 @@ function GroupDmModal({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search users..."
-          className="mb-3 w-full rounded bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none placeholder:text-gray-500"
+          className="mb-3 w-full rounded bg-surface-darkest px-3 py-2 text-sm text-white outline-none placeholder:text-gray-500"
         />
 
         {selected.length > 0 && (
@@ -212,7 +212,7 @@ function GroupDmModal({
             {selected.map((id) => {
               const u = results.find((r) => r.id === id);
               return (
-                <span key={id} className="flex items-center gap-1 rounded-full bg-[#5865f2]/20 px-2 py-0.5 text-xs text-[#5865f2]">
+                <span key={id} className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary">
                   {u?.username ?? id.slice(0, 8)}
                   <button type="button" onClick={() => toggle(id)} className="hover:text-white">✕</button>
                 </span>
@@ -242,7 +242,7 @@ function GroupDmModal({
           type="button"
           disabled={selected.length < 2 || creating}
           onClick={() => void handleCreate()}
-          className="mt-4 w-full rounded bg-[#5865f2] py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+          className="mt-4 w-full rounded bg-primary py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
           {creating ? "Creating…" : `Create Group DM (${selected.length} members)`}
         </button>

@@ -44,7 +44,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
       }}
     >
       <div
-        className="w-full max-w-md rounded-lg bg-[#2b2d31] p-6 shadow-2xl ring-1 ring-white/10 transition-transform"
+        className="w-full max-w-md rounded-lg bg-surface-dark p-6 shadow-2xl ring-1 ring-white/10 transition-transform"
         role="dialog"
         aria-labelledby="create-server-title"
         onMouseDown={(e) => e.stopPropagation()}
@@ -65,7 +65,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="My cool server"
-            className="mt-1.5 w-full rounded-md border-0 bg-[#1e1f22] px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-[#5865f2]"
+            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
             maxLength={100}
             autoFocus
             onKeyDown={(e) => {
@@ -95,7 +95,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             type="button"
             onClick={() => void handleCreate()}
             disabled={busy}
-            className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create"}
           </button>

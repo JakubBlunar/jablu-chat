@@ -175,8 +175,8 @@ export function MessageInput() {
 
   return (
     <div
-      className={`shrink-0 border-t border-black/20 bg-[#313338] px-4 pb-4 pt-2 ${
-        dragOver ? "ring-2 ring-inset ring-[#5865f2]" : ""
+      className={`shrink-0 border-t border-black/20 bg-surface px-4 pb-4 pt-2 ${
+        dragOver ? "ring-2 ring-inset ring-primary" : ""
       }`}
       onDragOver={(e) => {
         e.preventDefault();
@@ -186,7 +186,7 @@ export function MessageInput() {
       onDrop={handleDrop}
     >
       {replyTarget && (
-        <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-[#2b2d31] px-3 py-1.5 text-xs text-gray-300">
+        <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-surface-dark px-3 py-1.5 text-xs text-gray-300">
           <span className="text-gray-500">Replying to</span>
           <span className="font-semibold text-white">
             {replyTarget.authorName}
@@ -209,7 +209,7 @@ export function MessageInput() {
           {files.map((f, i) => (
             <div
               key={`${f.file.name}-${i}`}
-              className="relative rounded-lg bg-[#2b2d31] p-1 ring-1 ring-white/10"
+              className="relative rounded-lg bg-surface-dark p-1 ring-1 ring-white/10"
             >
               {f.preview ? (
                 <img
@@ -244,7 +244,7 @@ export function MessageInput() {
         </div>
       )}
 
-      <div className="relative rounded-lg bg-[#383a40] ring-1 ring-black/20 transition focus-within:ring-[#5865f2]/60">
+      <div className="relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-primary/60">
         <div className="flex items-end">
           <button
             type="button"

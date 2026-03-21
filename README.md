@@ -1,4 +1,4 @@
-# Chat
+# Nook
 
 A self-hosted Discord alternative for small communities. Text chat, voice/video calls, screen sharing — all running on your own server.
 

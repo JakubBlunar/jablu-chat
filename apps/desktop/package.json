@@ -16,8 +16,8 @@
     "typescript": "~5.8.0"
   },
   "build": {
-    "appId": "com.chat.desktop",
-    "productName": "Chat",
+    "appId": "com.nook.desktop",
+    "productName": "Nook",
     "directories": {
       "output": "release"
     },
@@ -33,13 +33,16 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "resources/icon-512.png"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "resources/icon-512.png"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "resources/icon-512.png"
     }
   }
 }

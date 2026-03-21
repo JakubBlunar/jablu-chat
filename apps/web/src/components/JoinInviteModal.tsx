@@ -30,7 +30,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-sm rounded-lg bg-[#313338] p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-lg bg-surface p-6 shadow-xl">
         <h2 className="mb-1 text-lg font-bold text-white">Join a Server</h2>
         <p className="mb-4 text-sm text-gray-400">
           Enter an invite code to join an existing server.
@@ -41,7 +41,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="Enter invite code"
-          className="mb-3 w-full rounded bg-[#1e1f22] px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-[#5865f2]"
+          className="mb-3 w-full rounded bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
           onKeyDown={(e) => {
             if (e.key === "Enter") void handleJoin();
           }}
@@ -64,7 +64,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
             type="button"
             disabled={loading || !code.trim()}
             onClick={() => void handleJoin()}
-            className="rounded bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
           >
             {loading ? "Joining..." : "Join Server"}
           </button>

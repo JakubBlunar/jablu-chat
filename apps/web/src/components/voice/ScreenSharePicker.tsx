@@ -57,7 +57,7 @@ export function ScreenSharePicker() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-      <div className="flex w-full max-w-4xl flex-col rounded-lg bg-[#2b2d31] shadow-2xl">
+      <div className="flex w-full max-w-4xl flex-col rounded-lg bg-surface-dark shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <h2 className="text-lg font-semibold text-white">Share Your Screen</h2>
@@ -126,8 +126,8 @@ export function ScreenSharePicker() {
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
                     resolution === r
-                      ? "bg-[#5865f2] text-white"
-                      : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+                      ? "bg-primary text-white"
+                      : "bg-surface-darkest text-gray-300 hover:bg-white/10"
                   }`}
                 >
                   {r === "native" ? "Native" : r}
@@ -149,8 +149,8 @@ export function ScreenSharePicker() {
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
                     fps === f
-                      ? "bg-[#5865f2] text-white"
-                      : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+                      ? "bg-primary text-white"
+                      : "bg-surface-darkest text-gray-300 hover:bg-white/10"
                   }`}
                 >
                   {f}
@@ -164,7 +164,7 @@ export function ScreenSharePicker() {
               type="button"
               disabled={!selectedSource}
               onClick={handleStart}
-              className="rounded-md bg-[#5865f2] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               Start Sharing
             </button>
@@ -188,8 +188,8 @@ function SourceCard({
     <button
       type="button"
       onClick={() => onSelect(source.id)}
-      className={`group overflow-hidden rounded-lg border-2 bg-[#1e1f22] transition ${
-        selected ? "border-[#5865f2]" : "border-transparent hover:border-[#5865f2]/50"
+      className={`group overflow-hidden rounded-lg border-2 bg-surface-darkest transition ${
+        selected ? "border-primary" : "border-transparent hover:border-primary/50"
       }`}
     >
       <div className="aspect-video w-full overflow-hidden bg-black">
