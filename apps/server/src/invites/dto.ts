@@ -9,5 +9,5 @@ export class CreateInviteDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  expiresInHours?: number;
+  expiresInMinutes?: number;
 }

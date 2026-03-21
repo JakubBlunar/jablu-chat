@@ -30,7 +30,7 @@ export class InvitesController {
       serverId,
       user.id,
       dto.maxUses,
-      dto.expiresInHours,
+      dto.expiresInMinutes,
     );
   }
 

@@ -13,7 +13,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [maxUses, setMaxUses] = useState<string>("");
-  const [expiresIn, setExpiresIn] = useState<string>("24");
+  const [expiresIn, setExpiresIn] = useState<string>("1440");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchInvites = useCallback(async () => {
@@ -36,7 +36,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
     try {
       const invite = await api.createInvite(serverId, {
         maxUses: maxUses ? parseInt(maxUses, 10) : undefined,
-        expiresInHours: expiresIn ? parseInt(expiresIn, 10) : undefined,
+        expiresInMinutes: expiresIn ? parseInt(expiresIn, 10) : undefined,
       });
       setInvites((prev) => [invite, ...prev]);
     } catch {
@@ -84,12 +84,12 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
             className="rounded bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none"
           >
             <option value="">Never expires</option>
-            <option value="0.5">30 minutes</option>
-            <option value="1">1 hour</option>
-            <option value="6">6 hours</option>
-            <option value="12">12 hours</option>
-            <option value="24">24 hours</option>
-            <option value="168">7 days</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="360">6 hours</option>
+            <option value="720">12 hours</option>
+            <option value="1440">24 hours</option>
+            <option value="10080">7 days</option>
           </select>
           <select
             value={maxUses}
@@ -133,6 +133,9 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
                 <span className="text-xs text-gray-400">
                   {inv.useCount}
                   {inv.maxUses != null ? `/${inv.maxUses}` : ""} uses
+                  {inv.expiresAt ? (
+                    <> &middot; expires {new Date(inv.expiresAt).toLocaleDateString()}</>
+                  ) : null}
                 </span>
                 <button
                   type="button"

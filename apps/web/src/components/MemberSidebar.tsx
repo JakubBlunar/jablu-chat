@@ -37,7 +37,7 @@ export function MemberSidebar() {
         id: member.userId,
         username: member.user.username,
         avatarUrl: member.user.avatarUrl,
-        bio: (member.user as any).bio ?? null,
+        bio: member.user.bio ?? null,
         status: presence,
         joinedAt: member.joinedAt,
         role: member.role,

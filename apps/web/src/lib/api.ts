@@ -317,7 +317,7 @@ export class ApiClient {
 
   createInvite(
     serverId: string,
-    opts?: { maxUses?: number; expiresInHours?: number },
+    opts?: { maxUses?: number; expiresInMinutes?: number },
   ): Promise<Invite> {
     return this.post(`/api/servers/${serverId}/invites`, opts);
   }
@@ -336,11 +336,17 @@ export class ApiClient {
 
   searchMessages(
     query: string,
-    opts?: { serverId?: string; channelId?: string; limit?: number },
+    opts?: {
+      serverId?: string;
+      channelId?: string;
+      dmOnly?: boolean;
+      limit?: number;
+    },
   ): Promise<{ results: SearchResult[] }> {
     const params = new URLSearchParams({ q: query });
     if (opts?.serverId) params.set("serverId", opts.serverId);
     if (opts?.channelId) params.set("channelId", opts.channelId);
+    if (opts?.dmOnly) params.set("dmOnly", "true");
     if (opts?.limit) params.set("limit", String(opts.limit));
     return this.get(`/api/search/messages?${params}`);
   }
@@ -356,6 +362,10 @@ export class ApiClient {
     return this.request("PUT", `/api/channels/${channelId}/notifications`, {
       level,
     });
+  }
+
+  resetNotifPref(channelId: string): Promise<{ level: string }> {
+    return this.request("DELETE", `/api/channels/${channelId}/notifications`);
   }
 
   getAuditLog(
@@ -403,6 +413,10 @@ export class ApiClient {
 
   deleteServer(serverId: string): Promise<void> {
     return this.request<void>("DELETE", `/api/servers/${serverId}`);
+  }
+
+  leaveServer(serverId: string): Promise<void> {
+    return this.post(`/api/servers/${serverId}/leave`);
   }
 
   updateMemberRole(
@@ -475,10 +489,11 @@ export class ApiClient {
 export type SearchResult = {
   id: string;
   content: string | null;
-  authorId: string;
-  author: { id: string; username: string; avatarUrl: string | null };
+  authorId: string | null;
+  author: { id: string; username: string; avatarUrl: string | null } | null;
   channelId: string | null;
   channel: { id: string; name: string; serverId: string } | null;
+  dmConversationId: string | null;
   createdAt: string;
 };
 

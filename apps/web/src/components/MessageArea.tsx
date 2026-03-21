@@ -5,6 +5,7 @@ import { MessageActions } from "@/components/MessageActions";
 import { MessageInput } from "@/components/MessageInput";
 import { SearchBar } from "@/components/SearchBar";
 import { UserAvatar } from "@/components/UserAvatar";
+import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
 import { useAuthStore } from "@/stores/auth.store";
@@ -88,20 +89,60 @@ export function MessageArea() {
     prevLen.current = messages.length;
   }, [messages.length, stickBottom]);
 
-  async function loadMore() {
-    if (!channelId || !messages.length || isLoading) return;
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
+
+  const loadMore = useCallback(async () => {
+    if (!channelId || !messages.length || loadingRef.current) return;
     const oldestId = messages[0]?.id;
     if (!oldestId) return;
+    loadingRef.current = true;
     const el = scrollRef.current;
     const prevHeight = el?.scrollHeight ?? 0;
     await fetchMessages(channelId, oldestId);
     requestAnimationFrame(() => {
       const node = scrollRef.current;
       if (!node) return;
-      const h = node.scrollHeight;
-      node.scrollTop = h - prevHeight;
+      node.scrollTop = node.scrollHeight - prevHeight;
     });
-  }
+    loadingRef.current = false;
+  }, [channelId, messages, fetchMessages]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const container = scrollRef.current;
+    if (!sentinel || !container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !isLoading) {
+          void loadMore();
+        }
+      },
+      { root: container, rootMargin: "200px 0px 0px 0px", threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, loadMore]);
+
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [pinnedLoading, setPinnedLoading] = useState(false);
+
+  const handleOpenPinned = useCallback(async () => {
+    if (!channelId) return;
+    setPinnedOpen(true);
+    setPinnedLoading(true);
+    try {
+      const msgs = await api.getPinnedMessages(channelId);
+      setPinnedMessages(msgs);
+    } catch {
+      setPinnedMessages([]);
+    } finally {
+      setPinnedLoading(false);
+    }
+  }, [channelId]);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-[#313338]">
@@ -114,6 +155,14 @@ export function MessageArea() {
                 {channel.name}
               </h1>
             </div>
+            <button
+              type="button"
+              title="Pinned messages"
+              onClick={() => void handleOpenPinned()}
+              className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <PinHeaderIcon />
+            </button>
             <SearchBar />
           </>
         ) : (
@@ -122,6 +171,14 @@ export function MessageArea() {
           </h1>
         )}
       </header>
+
+      {pinnedOpen && (
+        <PinnedPanel
+          messages={pinnedMessages}
+          loading={pinnedLoading}
+          onClose={() => setPinnedOpen(false)}
+        />
+      )}
 
       <div
         ref={scrollRef}
@@ -137,24 +194,18 @@ export function MessageArea() {
               Welcome to your server
             </p>
             <p className="max-w-sm text-sm text-gray-400">
-              Pick a text channel on the left to start chatting, or create a
-              server from the sidebar.
+              Pick a text channel on the left to start chatting, or join a
+              server using an invite link.
             </p>
           </div>
         ) : (
           <>
-            {hasMore ? (
-              <div className="mb-4 flex justify-center">
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => void loadMore()}
-                  className="rounded-md bg-[#2b2d31] px-3 py-1.5 text-xs font-medium text-gray-300 ring-1 ring-white/10 transition hover:bg-[#404249] hover:text-white disabled:opacity-50"
-                >
-                  {isLoading ? "Loading..." : "Load more"}
-                </button>
+            <div ref={sentinelRef} className="h-1 shrink-0" />
+            {isLoading && messages.length > 0 && hasMore && (
+              <div className="mb-2 flex justify-center">
+                <span className="text-xs text-gray-500">Loading…</span>
               </div>
-            ) : null}
+            )}
 
             {isLoading && messages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
@@ -184,7 +235,7 @@ export function MessageArea() {
                       <MessageRow
                         message={msg}
                         showHead={showHead}
-                        channelId={channelId}
+                        channelId={channelId!}
                       />
                     </li>
                   );
@@ -262,6 +313,11 @@ function MessageRow({
             >
               {name}
             </span>
+            {message.webhookId && (
+              <span className="rounded bg-[#5865f2]/20 px-1.5 py-0.5 text-[10px] font-semibold text-[#5865f2]">
+                BOT
+              </span>
+            )}
             <time
               className="text-xs text-gray-500"
               dateTime={message.createdAt}
@@ -371,5 +427,67 @@ function ReplyArrowIcon() {
       <polyline points="9 17 4 12 9 7" />
       <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
     </svg>
+  );
+}
+
+function PinHeaderIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M12 2v8m0 0-3-3m3 3 3-3M9 17h6m-6 0v4m6-4v4M5 12h14" />
+    </svg>
+  );
+}
+
+function PinnedPanel({
+  messages,
+  loading,
+  onClose,
+}: {
+  messages: Message[];
+  loading: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute right-4 top-14 z-30 flex max-h-96 w-80 flex-col rounded-lg bg-[#2b2d31] shadow-2xl ring-1 ring-white/10">
+      <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
+        <h3 className="text-sm font-semibold text-white">Pinned Messages</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
+        ) : messages.length === 0 ? (
+          <p className="p-6 text-center text-sm text-gray-400">
+            No pinned messages in this channel.
+          </p>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {messages.map((m) => (
+              <div key={m.id} className="px-4 py-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-semibold text-white">
+                    {m.author?.username ?? "Deleted User"}
+                  </span>
+                  <time className="text-[11px] text-gray-500">
+                    {formatMessageTime(m.createdAt)}
+                  </time>
+                </div>
+                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-gray-300">
+                  {m.content || "[attachment]"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

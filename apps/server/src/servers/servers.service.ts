@@ -6,12 +6,15 @@ import {
 import { ChannelType, ServerRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
+import { AuditLogService } from './audit-log.service';
 
 const memberUserSelect = {
   id: true,
   username: true,
   email: true,
   avatarUrl: true,
+  bio: true,
+  status: true,
 } as const;
 
 @Injectable()
@@ -19,6 +22,7 @@ export class ServersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   private async getServerOrThrow(serverId: string) {
@@ -137,7 +141,7 @@ export class ServersService {
     if (data.name === undefined) {
       return this.getServer(serverId, userId);
     }
-    return this.prisma.server.update({
+    const result = await this.prisma.server.update({
       where: { id: serverId },
       data: { name: data.name },
       include: {
@@ -149,6 +153,8 @@ export class ServersService {
         },
       },
     });
+    await this.auditLog.log(serverId, userId, 'server.update', 'server', serverId, `Renamed to "${data.name}"`);
+    return result;
   }
 
   async uploadIcon(
@@ -161,10 +167,12 @@ export class ServersService {
       this.uploads.deleteFile(server.iconUrl);
     }
     const iconUrl = await this.uploads.saveAvatar(file);
-    return this.prisma.server.update({
+    const result = await this.prisma.server.update({
       where: { id: serverId },
       data: { iconUrl },
     });
+    await this.auditLog.log(serverId, userId, 'server.icon.update', 'server', serverId);
+    return result;
   }
 
   async deleteIcon(serverId: string, userId: string) {
@@ -200,11 +208,13 @@ export class ServersService {
     if (!target) {
       throw new NotFoundException('Member not found');
     }
-    return this.prisma.serverMember.update({
+    const result = await this.prisma.serverMember.update({
       where: { userId_serverId: { userId: targetUserId, serverId } },
       data: { role: newRole },
       include: { user: { select: memberUserSelect } },
     });
+    await this.auditLog.log(serverId, actorId, 'member.role.update', 'user', targetUserId, `Role changed to ${newRole}`);
+    return result;
   }
 
   async kickMember(serverId: string, actorId: string, targetUserId: string) {
@@ -225,6 +235,7 @@ export class ServersService {
     await this.prisma.serverMember.delete({
       where: { userId_serverId: { userId: targetUserId, serverId } },
     });
+    await this.auditLog.log(serverId, actorId, 'member.kick', 'user', targetUserId);
   }
 
   async deleteServer(serverId: string, userId: string) {

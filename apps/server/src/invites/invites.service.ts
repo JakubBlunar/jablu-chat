@@ -59,13 +59,13 @@ export class InvitesService {
     serverId: string,
     userId: string,
     maxUses?: number,
-    expiresInHours?: number,
+    expiresInMinutes?: number,
   ) {
     await this.requireAdminOrOwner(serverId, userId);
 
     const expiresAt =
-      expiresInHours !== undefined
-        ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
+      expiresInMinutes !== undefined
+        ? new Date(Date.now() + expiresInMinutes * 60 * 1000)
         : undefined;
 
     for (let attempt = 0; attempt < 20; attempt++) {
