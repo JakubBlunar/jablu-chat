@@ -1,0 +1,132 @@
+services:
+  # ─── Reverse Proxy ───────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+      - web-dist:/usr/share/nginx/html:ro
+      - uploads:/data/uploads:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── API Server ──────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - UPLOAD_DIR=/data/uploads
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@chat.local}
+      - SERVER_HOST=${SERVER_HOST:-localhost}
+      - TLS_MODE=${TLS_MODE:-off}
+      - PORT=3001
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Web App Build ──────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    volumes:
+      - web-dist:/output
+    restart: "no"
+
+  # ─── Database Migration ─────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: migrate
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-chat}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=${POSTGRES_DB:-chat}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Redis ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── LiveKit ────────────────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7882:7882/udp"
+      - "50000-50100:50000-50100/udp"
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}:${LIVEKIT_API_SECRET:-devsecret}
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./docker/livekit/livekit.yaml:/etc/livekit.yaml:ro
+    restart: unless-stopped
+
+  # ─── Mailpit (dev only) ────────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+    restart: unless-stopped
+    profiles:
+      - dev
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  web-dist:

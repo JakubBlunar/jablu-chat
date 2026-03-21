@@ -1,0 +1,62 @@
+export interface Message {
+  id: string;
+  channelId: string | null;
+  directConversationId: string | null;
+  authorId: string;
+  replyToId: string | null;
+  threadParentId: string | null;
+  content: string | null;
+  pinned: boolean;
+  createdAt: string;
+  editedAt: string | null;
+  author?: {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+  };
+  attachments?: Attachment[];
+  reactions?: ReactionGroup[];
+  replyTo?: MessagePreview | null;
+  linkPreviews?: LinkPreview[];
+  threadCount?: number;
+}
+
+export interface MessagePreview {
+  id: string;
+  content: string;
+  author: {
+    id: string;
+    username: string;
+  };
+}
+
+export interface Attachment {
+  id: string;
+  messageId: string | null;
+  filename: string;
+  url: string;
+  type: AttachmentType;
+  mimeType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  thumbnailUrl?: string | null;
+}
+
+export type AttachmentType = "image" | "video" | "gif" | "file";
+
+export interface ReactionGroup {
+  emoji: string;
+  count: number;
+  userIds: string[];
+  isCustom: boolean;
+}
+
+export interface LinkPreview {
+  id: string;
+  url: string;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
+}

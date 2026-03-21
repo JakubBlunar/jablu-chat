@@ -1,0 +1,181 @@
+import type { LinkPreview, Message } from "@chat/shared";
+import { useEffect, useState } from "react";
+import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket";
+import { useAuthStore } from "@/stores/auth.store";
+import { useChannelStore } from "@/stores/channel.store";
+import { useMemberStore } from "@/stores/member.store";
+import { useMessageStore } from "@/stores/message.store";
+
+type MessageDeletePayload = {
+  messageId: string;
+  channelId: string;
+};
+
+type TypingPayload = {
+  userId: string;
+  channelId: string;
+  username: string;
+};
+
+type OnlinePayload = {
+  userId: string;
+};
+
+type StatusPayload = {
+  userId: string;
+  status: string;
+};
+
+type ReactionPayload = {
+  messageId: string;
+  emoji: string;
+  userId: string;
+  isCustom: boolean;
+};
+
+type LinkPreviewPayload = {
+  messageId: string;
+  linkPreviews: LinkPreview[];
+};
+
+export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected: boolean } {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken) {
+      disconnectSocket();
+      setIsConnected(false);
+      return;
+    }
+
+    const socket = connectSocket(accessToken);
+
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+
+    const onMessageNew = (msg: Message) => {
+      const channelId = useChannelStore.getState().currentChannelId;
+      if (msg.channelId != null && msg.channelId === channelId) {
+        useMessageStore.getState().addMessage(msg);
+      }
+    };
+
+    const onMessageEdit = (msg: Message) => {
+      const channelId = useChannelStore.getState().currentChannelId;
+      if (msg.channelId != null && msg.channelId === channelId) {
+        useMessageStore.getState().updateMessage(msg);
+      }
+    };
+
+    const onMessageDelete = (payload: MessageDeletePayload) => {
+      const channelId = useChannelStore.getState().currentChannelId;
+      if (payload.channelId === channelId) {
+        useMessageStore.getState().removeMessage(payload.messageId);
+      }
+    };
+
+    const onUserOnline = (payload: OnlinePayload) => {
+      useMemberStore.getState().setUserOnline(payload.userId);
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && currentUser.id === payload.userId) {
+        useAuthStore.getState().setUser({ ...currentUser, status: "online" });
+      }
+    };
+
+    const onUserOffline = (payload: OnlinePayload) => {
+      useMemberStore.getState().setUserOffline(payload.userId);
+    };
+
+    const onUserStatus = (payload: StatusPayload) => {
+      useMemberStore.getState().setUserStatus(payload.userId, payload.status);
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && currentUser.id === payload.userId) {
+        useAuthStore.getState().setUser({ ...currentUser, status: payload.status as "online" | "idle" | "dnd" | "offline" });
+      }
+    };
+
+    const onUserTyping = (payload: TypingPayload) => {
+      const channelId = useChannelStore.getState().currentChannelId;
+      if (payload.channelId === channelId) {
+        useMessageStore
+          .getState()
+          .setTypingUser(payload.channelId, payload.userId, payload.username);
+      }
+    };
+
+    const onReactionAdd = (payload: ReactionPayload) => {
+      useMessageStore
+        .getState()
+        .addReaction(payload.messageId, payload.emoji, payload.userId);
+    };
+
+    const onReactionRemove = (payload: ReactionPayload) => {
+      useMessageStore
+        .getState()
+        .removeReaction(payload.messageId, payload.emoji, payload.userId);
+    };
+
+    const onMessagePin = (msg: Message) => {
+      useMessageStore.getState().updateMessage(msg);
+    };
+
+    const onMessageUnpin = (msg: Message) => {
+      useMessageStore.getState().updateMessage(msg);
+    };
+
+    const onLinkPreviews = (payload: LinkPreviewPayload) => {
+      useMessageStore
+        .getState()
+        .setLinkPreviews(payload.messageId, payload.linkPreviews);
+    };
+
+    const onPresenceInit = (payload: { onlineUserIds: string[] }) => {
+      useMemberStore.getState().initOnlineUsers(payload.onlineUserIds);
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && payload.onlineUserIds.includes(currentUser.id)) {
+        useAuthStore.getState().setUser({ ...currentUser, status: "online" });
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("message:new", onMessageNew);
+    socket.on("message:edit", onMessageEdit);
+    socket.on("message:delete", onMessageDelete);
+    socket.on("user:online", onUserOnline);
+    socket.on("user:offline", onUserOffline);
+    socket.on("user:status", onUserStatus);
+    socket.on("user:typing", onUserTyping);
+    socket.on("reaction:add", onReactionAdd);
+    socket.on("reaction:remove", onReactionRemove);
+    socket.on("message:pin", onMessagePin);
+    socket.on("message:unpin", onMessageUnpin);
+    socket.on("message:link-previews", onLinkPreviews);
+    socket.on("presence:init", onPresenceInit);
+
+    setIsConnected(socket.connected);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("message:new", onMessageNew);
+      socket.off("message:edit", onMessageEdit);
+      socket.off("message:delete", onMessageDelete);
+      socket.off("user:online", onUserOnline);
+      socket.off("user:offline", onUserOffline);
+      socket.off("user:status", onUserStatus);
+      socket.off("user:typing", onUserTyping);
+      socket.off("reaction:add", onReactionAdd);
+      socket.off("reaction:remove", onReactionRemove);
+      socket.off("message:pin", onMessagePin);
+      socket.off("message:unpin", onMessageUnpin);
+      socket.off("message:link-previews", onLinkPreviews);
+      socket.off("presence:init", onPresenceInit);
+      disconnectSocket();
+      setIsConnected(false);
+    };
+  }, [accessToken]);
+
+  return { socket: getSocket(), isConnected };
+}

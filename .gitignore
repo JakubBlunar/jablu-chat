@@ -1,0 +1,36 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+data/
+
+# Uploads
+uploads/
+
+# Generated
+apps/server/prisma/generated/
+
+# TLS certs
+docker/nginx/certs/
