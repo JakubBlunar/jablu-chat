@@ -37,6 +37,18 @@ services:
       - "1025:1025"
       - "8025:8025"
 
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7882:7882/udp"
+      - "50000-50100:50000-50100/udp"
+    environment:
+      - LIVEKIT_KEYS=devkey:devsecret
+    volumes:
+      - ./docker/livekit/livekit.yaml:/etc/livekit.yaml:ro
+    command: --config /etc/livekit.yaml
+
 volumes:
   pgdata-dev:
   redisdata-dev:

@@ -6,6 +6,7 @@ import { useChannelStore } from "@/stores/channel.store";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
+import { useVoiceStore, type VoiceParticipant } from "@/stores/voice.store";
 
 type MessageDeletePayload = {
   messageId: string;
@@ -186,6 +187,34 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       // Could add DM typing indicators in the future
     };
 
+    const onVoiceParticipants = (
+      state: Record<string, VoiceParticipant[]>,
+    ) => {
+      useVoiceStore.getState().setAll(state);
+    };
+
+    const onVoiceParticipantJoined = (payload: {
+      channelId: string;
+      userId: string;
+      username: string;
+    }) => {
+      useVoiceStore
+        .getState()
+        .addParticipant(payload.channelId, {
+          userId: payload.userId,
+          username: payload.username,
+        });
+    };
+
+    const onVoiceParticipantLeft = (payload: {
+      channelId: string;
+      userId: string;
+    }) => {
+      useVoiceStore
+        .getState()
+        .removeParticipant(payload.channelId, payload.userId);
+    };
+
     const onDmLinkPreviews = (payload: DmLinkPreviewPayload) => {
       const currentConvId = useDmStore.getState().currentConversationId;
       if (payload.conversationId === currentConvId) {
@@ -220,6 +249,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on("dm:delete", onDmDelete);
     socket.on("dm:typing", onDmTyping);
     socket.on("dm:link-previews", onDmLinkPreviews);
+    socket.on("voice:participants", onVoiceParticipants);
+    socket.on("voice:participant-joined", onVoiceParticipantJoined);
+    socket.on("voice:participant-left", onVoiceParticipantLeft);
 
     setIsConnected(socket.connected);
 
@@ -244,6 +276,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off("dm:delete", onDmDelete);
       socket.off("dm:typing", onDmTyping);
       socket.off("dm:link-previews", onDmLinkPreviews);
+      socket.off("voice:participants", onVoiceParticipants);
+      socket.off("voice:participant-joined", onVoiceParticipantJoined);
+      socket.off("voice:participant-left", onVoiceParticipantLeft);
       disconnectSocket();
       setIsConnected(false);
     };

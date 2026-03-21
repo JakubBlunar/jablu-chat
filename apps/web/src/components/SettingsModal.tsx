@@ -1,9 +1,10 @@
 import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/UserAvatar";
+import { VoiceSettings } from "@/components/voice/VoiceSettings";
 import { useAuthStore } from "@/stores/auth.store";
 
-type Tab = "account" | "profile" | "status";
+type Tab = "account" | "profile" | "status" | "voice";
 
 const STATUS_OPTIONS: { value: UserStatus; label: string; color: string }[] = [
   { value: "online", label: "Online", color: "bg-emerald-500" },
@@ -75,6 +76,12 @@ export function SettingsModal({
           >
             Status
           </SidebarButton>
+          <SidebarButton
+            active={tab === "voice"}
+            onClick={() => setTab("voice")}
+          >
+            Voice & Video
+          </SidebarButton>
           <div className="my-2 border-t border-white/10" />
           <LogOutButton onClose={onClose} />
         </nav>
@@ -89,7 +96,9 @@ export function SettingsModal({
                 ? "My Account"
                 : tab === "profile"
                   ? "Profile"
-                  : "Status"}
+                  : tab === "voice"
+                    ? "Voice & Video"
+                    : "Status"}
             </h1>
             <button
               type="button"
@@ -105,6 +114,7 @@ export function SettingsModal({
             {tab === "account" && <AccountSection />}
             {tab === "profile" && <ProfileSection />}
             {tab === "status" && <StatusSection />}
+            {tab === "voice" && <VoiceSettings />}
           </div>
         </div>
       </div>

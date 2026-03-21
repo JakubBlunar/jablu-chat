@@ -31,6 +31,15 @@ export class ChatGateway
   /** userId -> manually chosen status (dnd) that should not be overridden by idle detection */
   private readonly manualStatus = new Map<string, string>();
 
+  /** channelId -> Set of participants in voice channel */
+  private readonly voiceParticipants = new Map<
+    string,
+    Map<string, { userId: string; username: string }>
+  >();
+
+  /** socketId -> channelId the socket is in (for cleanup on disconnect) */
+  private readonly socketVoiceChannel = new Map<string, string>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
@@ -159,12 +168,22 @@ export class ChatGateway
     for (const dc of dmConversations) {
       client.join(`dm:${dc.conversationId}`);
     }
+
+    const voiceState: Record<string, { userId: string; username: string }[]> =
+      {};
+    for (const [chId, participants] of this.voiceParticipants) {
+      voiceState[chId] = [...participants.values()];
+    }
+    client.emit('voice:participants', voiceState);
   }
 
   async handleDisconnect(client: Socket) {
     const data = client.data as { user?: WsUser; serverIds?: string[] };
     const user = data.user;
     const serverIds = data.serverIds;
+
+    this.removeVoiceParticipant(client.id, serverIds);
+
     if (!user || !serverIds?.length) {
       return;
     }
@@ -181,6 +200,33 @@ export class ChatGateway
         this.server
           .to(`server:${sid}`)
           .emit('user:offline', { userId: user.id });
+      }
+    }
+  }
+
+  private removeVoiceParticipant(
+    socketId: string,
+    serverIds?: string[],
+  ) {
+    const channelId = this.socketVoiceChannel.get(socketId);
+    if (!channelId) return;
+
+    this.socketVoiceChannel.delete(socketId);
+    const participants = this.voiceParticipants.get(channelId);
+    if (!participants) return;
+
+    const leaving = participants.get(socketId);
+    participants.delete(socketId);
+    if (participants.size === 0) {
+      this.voiceParticipants.delete(channelId);
+    }
+
+    if (leaving && serverIds) {
+      for (const sid of serverIds) {
+        this.server.to(`server:${sid}`).emit('voice:participant-left', {
+          channelId,
+          userId: leaving.userId,
+        });
       }
     }
   }
@@ -514,6 +560,50 @@ export class ChatGateway
     const user = (client.data as { user: WsUser }).user;
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id);
     client.leave(`channel:${body.channelId}`);
+    return { ok: true };
+  }
+
+  @SubscribeMessage('voice:join')
+  async onVoiceJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { channelId: string },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
+
+    const prev = this.socketVoiceChannel.get(client.id);
+    if (prev) {
+      this.removeVoiceParticipant(client.id, serverIds);
+    }
+
+    let participants = this.voiceParticipants.get(body.channelId);
+    if (!participants) {
+      participants = new Map();
+      this.voiceParticipants.set(body.channelId, participants);
+    }
+    participants.set(client.id, {
+      userId: user.id,
+      username: user.username,
+    });
+    this.socketVoiceChannel.set(client.id, body.channelId);
+
+    for (const sid of serverIds) {
+      this.server.to(`server:${sid}`).emit('voice:participant-joined', {
+        channelId: body.channelId,
+        userId: user.id,
+        username: user.username,
+      });
+    }
+
+    return { ok: true };
+  }
+
+  @SubscribeMessage('voice:leave')
+  async onVoiceLeave(
+    @ConnectedSocket() client: Socket,
+  ) {
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
+    this.removeVoiceParticipant(client.id, serverIds);
     return { ok: true };
   }
 }
