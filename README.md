@@ -1,4 +1,4 @@
-# Nook
+# Jablu
 
 A self-hosted Discord alternative for small communities. Text chat, voice/video calls, screen sharing — all running on your own server.
 
@@ -58,4 +58,16 @@ chat/
 - **Frontend:** React 19, Vite, TailwindCSS, Zustand, React Router
 - **Voice/Video:** LiveKit (self-hosted WebRTC SFU)
 - **Desktop:** Electron (Phase 5)
-- **Mobile:** React Native + Expo (Phase 6)
+- **Mobile:** React Native + Expo (Phase 6 -- deferred)
+
+## Phase 6: Mobile App (Deferred)
+
+Phase 6 (React Native mobile app with Expo) is deferred for now. The planned scope includes:
+
+- Shared API client and types from the web app
+- Push notifications via FCM/APNs
+- Voice/video calls via LiveKit React Native SDK
+- Offline message caching
+- Mobile-optimized UI with tab-based navigation
+
+The web app is fully responsive and works well on mobile browsers in the meantime.

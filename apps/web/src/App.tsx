@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -6,6 +6,7 @@ import {
   Routes,
 } from "react-router-dom";
 import "./index.css";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MainLayout } from "./components/MainLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ServerUrlScreen, getStoredServerUrl } from "./components/ServerUrlScreen";
@@ -13,13 +14,14 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";
 import { migrateSettings } from "./lib/deviceSettings";
-import { AdminPage } from "./pages/AdminPage";
-import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MainPage } from "./pages/MainPage";
-import { RegisterPage } from "./pages/RegisterPage";
-import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { useAuthStore } from "./stores/auth.store";
+
+const AdminPage = lazy(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+const RegisterPage = lazy(() => import("./pages/RegisterPage").then((m) => ({ default: m.RegisterPage })));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage })));
 
 migrateSettings();
 
@@ -87,31 +89,43 @@ function ElectronUrlGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LazyFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-surface">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+    </div>
+  );
+}
+
 export default function App() {
   return (
-    <ElectronUrlGate>
-      <UpdateBanner />
-      <BrowserRouter>
-        <AuthBootstrap />
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <MainLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<MainPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </ElectronUrlGate>
+    <ErrorBoundary>
+      <ElectronUrlGate>
+        <UpdateBanner />
+        <BrowserRouter>
+          <AuthBootstrap />
+          <Suspense fallback={<LazyFallback />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<MainPage />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </ElectronUrlGate>
+    </ErrorBoundary>
   );
 }

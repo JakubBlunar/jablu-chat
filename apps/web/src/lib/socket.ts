@@ -19,6 +19,10 @@ export function connectSocket(token: string): Socket {
     auth: { token },
     transports: ["websocket"],
     forceNew: true,
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: Infinity,
   });
 
   return socket;

@@ -11,15 +11,15 @@ set -euo pipefail
 # 4. Uploads auto-update manifest (latest.yml)
 
 SERVER="${1:?Usage: $0 user@server-ip}"
-REMOTE_DOWNLOADS="/opt/nook/downloads"
-REMOTE_UPDATES="/opt/nook/updates"
+REMOTE_DOWNLOADS="/opt/jablu/downloads"
+REMOTE_UPDATES="/opt/jablu/updates"
 
 RELEASE_DIR="apps/desktop/release"
 VERSION=$(node -p "require('./apps/desktop/package.json').version")
 
 echo ""
 echo "══════════════════════════════════════════"
-echo "  Publishing Nook Desktop v${VERSION}"
+echo "  Publishing Jablu Desktop v${VERSION}"
 echo "══════════════════════════════════════════"
 echo ""
 
@@ -47,7 +47,7 @@ ls -lh "$RELEASE_DIR"/*.{exe,dmg,AppImage,yml} 2>/dev/null || true
 # Step 3: Clean old files on server and upload new ones
 echo ""
 echo "→ Cleaning old downloads on server..."
-ssh "$SERVER" "rm -f ${REMOTE_DOWNLOADS}/Nook*.exe ${REMOTE_DOWNLOADS}/Nook*.dmg ${REMOTE_DOWNLOADS}/Nook*.AppImage"
+ssh "$SERVER" "rm -f ${REMOTE_DOWNLOADS}/Jablu*.exe ${REMOTE_DOWNLOADS}/Jablu*.dmg ${REMOTE_DOWNLOADS}/Jablu*.AppImage"
 ssh "$SERVER" "mkdir -p ${REMOTE_DOWNLOADS} ${REMOTE_UPDATES}"
 
 echo "→ Uploading installers to ${SERVER}:${REMOTE_DOWNLOADS}/"
@@ -67,7 +67,7 @@ done
 
 echo ""
 echo "══════════════════════════════════════════"
-echo "  ✓ Nook Desktop v${VERSION} published!"
+echo "  ✓ Jablu Desktop v${VERSION} published!"
 echo "══════════════════════════════════════════"
 echo ""
 echo "Users will see the download in Settings > Desktop App"

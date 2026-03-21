@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module';
 import { InvitesModule } from './invites/invites.module';
 import { MessagesModule } from './messages/messages.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReadStateModule } from './read-state/read-state.module';
 import { EventsModule } from './events/events.module';
 import { ServersModule } from './servers/servers.module';
 import { UpdatesModule } from './updates/updates.module';
@@ -43,6 +44,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     WebhooksModule,
     UpdatesModule,
     DownloadsModule,
+    ReadStateModule,
     GatewayModule,
   ],
 })

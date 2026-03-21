@@ -15,6 +15,7 @@ import { EventBusService } from '../events/event-bus.service';
 import { LinkPreviewService } from '../messages/link-preview.service';
 import { MessagesService } from '../messages/messages.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReadStateService } from '../read-state/read-state.service';
 import { WsJwtGuard, WsUser } from './ws-jwt.guard';
 
 @WebSocketGateway({ cors: { origin: '*' }, namespace: '/' })
@@ -47,6 +48,7 @@ export class ChatGateway
     private readonly linkPreviews: LinkPreviewService,
     private readonly wsJwtGuard: WsJwtGuard,
     private readonly events: EventBusService,
+    private readonly readState: ReadStateService,
   ) {}
 
   private addOnlineUser(userId: string): boolean {
@@ -250,7 +252,31 @@ export class ChatGateway
       body.replyToId,
       body.attachmentIds,
     );
-    this.emitToChannel(body.channelId, 'message:new', msg);
+
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: body.channelId },
+      select: { serverId: true },
+    });
+
+    let mentionedUserIds: string[] = [];
+    if (body.content && channel) {
+      mentionedUserIds = await this.readState.resolveMentions(
+        body.content,
+        channel.serverId,
+        user.id,
+      );
+      if (mentionedUserIds.length > 0) {
+        await this.readState.incrementMention(
+          body.channelId,
+          mentionedUserIds,
+        );
+      }
+    }
+
+    this.emitToChannel(body.channelId, 'message:new', {
+      ...msg,
+      mentionedUserIds,
+    });
 
     if (body.content) {
       this.linkPreviews
@@ -453,6 +479,12 @@ export class ChatGateway
         s.join(roomName);
       }
     }
+
+    const otherMemberIds = memberIds.filter((id) => id !== user.id);
+    await this.readState.incrementDmMention(
+      body.conversationId,
+      otherMemberIds,
+    );
 
     this.emitToDm(body.conversationId, 'dm:new', {
       ...msg,

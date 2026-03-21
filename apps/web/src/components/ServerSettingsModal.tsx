@@ -1,5 +1,6 @@
 import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api, type AuditLogEntry } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
@@ -77,7 +78,7 @@ export function ServerSettingsModal({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <SimpleBar className="flex-1 p-6">
             {tab === "overview" && <OverviewTab server={server} />}
             {tab === "members" && <MembersTab server={server} />}
             {tab === "webhooks" && <WebhooksTab server={server} />}
@@ -85,7 +86,7 @@ export function ServerSettingsModal({
             {tab === "danger" && (
               <DangerTab server={server} onClose={onClose} />
             )}
-          </div>
+          </SimpleBar>
         </div>
       </div>
     </div>

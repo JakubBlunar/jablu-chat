@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api, type DmConversation } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
+import { useReadStateStore } from "@/stores/readState.store";
 
 export function DmSidebar() {
   const user = useAuthStore((s) => s.user);
@@ -13,10 +15,16 @@ export function DmSidebar() {
   const fetchConversations = useDmStore((s) => s.fetchConversations);
   const isLoading = useDmStore((s) => s.isConversationsLoading);
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
+  const dmReadStates = useReadStateStore((s) => s.dms);
+  const ackDm = useReadStateStore((s) => s.ackDm);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  useEffect(() => {
+    if (currentConvId) ackDm(currentConvId);
+  }, [currentConvId, ackDm]);
 
   const getDisplayInfo = useCallback(
     (conv: (typeof conversations)[0]) => {
@@ -59,7 +67,7 @@ export function DmSidebar() {
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3">
+      <SimpleBar className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 py-3">
         {isLoading && conversations.length === 0 ? (
           <div className="space-y-2 px-1">
             {[1, 2, 3].map((i) => (
@@ -77,6 +85,8 @@ export function DmSidebar() {
           conversations.map((conv) => {
             const info = getDisplayInfo(conv);
             const active = conv.id === currentConvId;
+            const rs = dmReadStates.get(conv.id);
+            const hasUnread = !active && rs && rs.unreadCount > 0;
             return (
               <button
                 key={conv.id}
@@ -85,7 +95,9 @@ export function DmSidebar() {
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
                   active
                     ? "bg-surface-selected text-white"
-                    : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
+                    : hasUnread
+                      ? "font-semibold text-white hover:bg-white/[0.06]"
+                      : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 {info.isGroup ? (
@@ -109,11 +121,16 @@ export function DmSidebar() {
                     </p>
                   )}
                 </div>
+                {hasUnread && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {rs!.mentionCount > 0 ? rs!.mentionCount : ""}
+                  </span>
+                )}
               </button>
             );
           })
         )}
-      </div>
+      </SimpleBar>
 
       <div className="flex h-[52px] shrink-0 items-center gap-2 bg-surface-overlay px-2">
         <UserAvatar
@@ -221,7 +238,7 @@ function GroupDmModal({
           </div>
         )}
 
-        <div className="max-h-40 space-y-1 overflow-y-auto">
+        <SimpleBar className="max-h-40 space-y-1">
           {loading && <p className="text-xs text-gray-400">Searching…</p>}
           {results
             .filter((r) => !selected.includes(r.id))
@@ -236,7 +253,7 @@ function GroupDmModal({
                 {r.username}
               </button>
             ))}
-        </div>
+        </SimpleBar>
 
         <button
           type="button"

@@ -1,5 +1,6 @@
 import type { Message } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MarkdownContent } from "@/components/MarkdownContent";
@@ -124,10 +125,9 @@ export function DmMessageArea() {
         <h2 className="text-[15px] font-semibold text-white">{otherName}</h2>
       </header>
 
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-2"
+      <SimpleBar
+        className="flex min-h-0 flex-1 flex-col px-4 py-2"
+        scrollableNodeProps={{ ref: containerRef, onScroll: handleScroll }}
       >
         {isLoading && messages.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
@@ -157,7 +157,7 @@ export function DmMessageArea() {
             <div ref={bottomRef} />
           </>
         )}
-      </div>
+      </SimpleBar>
 
       {typingUsers.length > 0 && (
         <div className="px-4 py-1 text-xs text-gray-400">

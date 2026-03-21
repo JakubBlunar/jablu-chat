@@ -1,15 +1,19 @@
 services:
   # ─── Reverse Proxy ───────────────────────────────────────────────────
   nginx:
-    image: nginx:alpine
+    build: ./docker/nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/nginx/certs:/etc/nginx/certs:ro
+      - ./docker/nginx/certs:/etc/nginx/certs
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
       - web-dist:/usr/share/nginx/html:ro
       - uploads:/data/uploads:ro
+    environment:
+      - TLS_MODE=${TLS_MODE:-off}
+      - SERVER_HOST=${SERVER_HOST:-localhost}
     depends_on:
       api:
         condition: service_healthy
@@ -130,3 +134,5 @@ volumes:
   redisdata:
   uploads:
   web-dist:
+  letsencrypt:
+  certbot-webroot:

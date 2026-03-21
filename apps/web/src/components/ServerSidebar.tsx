@@ -1,5 +1,8 @@
 import { useState } from "react";
+import SimpleBar from "simplebar-react";
 import { JoinInviteModal } from "@/components/JoinInviteModal";
+import { useChannelStore } from "@/stores/channel.store";
+import { useReadStateStore } from "@/stores/readState.store";
 import { useServerStore } from "@/stores/server.store";
 
 function DmIcon() {
@@ -33,6 +36,14 @@ export function ServerSidebar() {
   const setViewMode = useServerStore((s) => s.setViewMode);
   const isLoading = useServerStore((s) => s.isLoading);
 
+  const allChannels = useChannelStore((s) => s.channels);
+  const readStates = useReadStateStore((s) => s.channels);
+  const dmReadStates = useReadStateStore((s) => s.dms);
+
+  const hasDmUnread = Array.from(dmReadStates.values()).some(
+    (rs) => rs.unreadCount > 0,
+  );
+
   const [joinOpen, setJoinOpen] = useState(false);
 
   const handleDmClick = () => {
@@ -42,25 +53,30 @@ export function ServerSidebar() {
   return (
     <>
       <aside className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 bg-surface-darkest py-3">
-        <button
-          type="button"
-          title="Direct Messages"
-          onClick={handleDmClick}
-          className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
-            viewMode === "dm"
-              ? "rounded-2xl bg-primary text-white"
-              : "rounded-[24px] bg-surface text-success hover:rounded-2xl hover:bg-primary hover:text-white"
-          }`}
-        >
-          <DmIcon />
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            title="Direct Messages"
+            onClick={handleDmClick}
+            className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
+              viewMode === "dm"
+                ? "rounded-2xl bg-primary text-white"
+                : "rounded-[24px] bg-surface text-success hover:rounded-2xl hover:bg-primary hover:text-white"
+            }`}
+          >
+            <DmIcon />
+          </button>
+          {hasDmUnread && viewMode !== "dm" && (
+            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface-darkest bg-red-500" />
+          )}
+        </div>
 
         <div
           className="my-1 h-0.5 w-8 rounded-full bg-white/15"
           aria-hidden
         />
 
-        <nav className="flex flex-1 flex-col items-center gap-2 overflow-y-auto overflow-x-hidden px-0 py-0">
+        <SimpleBar className="flex flex-1 flex-col items-center gap-2 px-0 py-0" style={{ overflowX: "hidden" }}>
           {isLoading && servers.length === 0 ? (
             <div className="flex flex-col gap-2">
               {[1, 2, 3].map((i) => (
@@ -106,7 +122,7 @@ export function ServerSidebar() {
               );
             })
           )}
-        </nav>
+        </SimpleBar>
 
         <button
           type="button"

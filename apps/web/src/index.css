@@ -1,4 +1,18 @@
 @import "tailwindcss";
+@import "simplebar-react/dist/simplebar.min.css";
+
+.simplebar-scrollbar::before {
+  background: var(--color-surface-selected);
+  border-radius: 9999px;
+}
+.simplebar-scrollbar.simplebar-hover::before,
+.simplebar-scrollbar.simplebar-visible::before {
+  background: var(--color-surface-raised);
+  opacity: 0.7;
+}
+.simplebar-track.simplebar-vertical {
+  width: 8px;
+}
 
 @theme {
   /* ──── Primary accent ──── */

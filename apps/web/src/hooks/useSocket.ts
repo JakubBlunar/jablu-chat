@@ -1,12 +1,14 @@
 import type { LinkPreview, Message } from "@chat/shared";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { showNotification } from "@/lib/notifications";
 import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
+import { useReadStateStore } from "@/stores/readState.store";
 import { useVoiceStore, type VoiceParticipant } from "@/stores/voice.store";
 
 type MessageDeletePayload = {
@@ -86,10 +88,19 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     };
 
-    const onMessageNew = (msg: Message) => {
+    const onMessageNew = (msg: Message & { mentionedUserIds?: string[] }) => {
       const channelId = useChannelStore.getState().currentChannelId;
+      const myId = useAuthStore.getState().user?.id;
       if (msg.channelId != null && msg.channelId === channelId) {
         useMessageStore.getState().addMessage(msg);
+      } else if (msg.channelId && msg.authorId !== myId) {
+        const isMentioned = myId
+          ? (msg.mentionedUserIds ?? []).includes(myId)
+          : false;
+        useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned);
+        const author = msg.author?.username ?? "Someone";
+        const body = msg.content?.slice(0, 100) ?? "[attachment]";
+        showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`);
       }
     };
 
@@ -172,12 +183,19 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (currentUser && payload.onlineUserIds.includes(currentUser.id)) {
         useAuthStore.getState().setUser({ ...currentUser, status: "online" });
       }
+      useReadStateStore.getState().fetchAll();
     };
 
     const onDmNew = (payload: DmMessagePayload) => {
       const currentConvId = useDmStore.getState().currentConversationId;
+      const myId = useAuthStore.getState().user?.id;
       if (payload.conversationId === currentConvId) {
         useDmStore.getState().addMessage(payload);
+      } else if (payload.authorId !== myId) {
+        useReadStateStore.getState().incrementDm(payload.conversationId);
+        const author = payload.author?.username ?? "Someone";
+        const body = payload.content?.slice(0, 100) ?? "[attachment]";
+        showNotification("Direct Message", `${author}: ${body}`);
       }
       useDmStore.getState().updateConversationLastMessage(
         payload.conversationId,

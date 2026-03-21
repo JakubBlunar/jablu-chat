@@ -1,5 +1,6 @@
 import type { UserStatus } from "@chat/shared";
 import { useCallback, useMemo, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { UserAvatar } from "@/components/UserAvatar";
 import type { Member } from "@/stores/member.store";
@@ -67,7 +68,7 @@ export function MemberSidebar() {
         </h2>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+      <SimpleBar className="min-h-0 flex-1 px-2 py-3">
         {isLoading && members.length === 0 ? (
           <div className="space-y-3 px-2">
             <div className="h-3 w-20 animate-pulse rounded bg-white/10" />
@@ -113,7 +114,7 @@ export function MemberSidebar() {
             ))}
           </ul>
         </section>
-      </div>
+      </SimpleBar>
 
       {cardUser && (
         <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { api, type SearchResult } from "@/lib/api";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useChannelStore } from "@/stores/channel.store";
@@ -144,7 +145,7 @@ export function SearchBar() {
               No results found
             </p>
           ) : results.length > 0 ? (
-            <div className="max-h-80 overflow-y-auto py-1">
+            <SimpleBar className="max-h-80 py-1">
               {results.map((r) => (
                 <button
                   key={r.id}
@@ -179,7 +180,7 @@ export function SearchBar() {
                   </div>
                 </button>
               ))}
-            </div>
+            </SimpleBar>
           ) : null}
         </div>
       )}

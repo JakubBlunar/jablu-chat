@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Tray, Menu, nativeImage, session } from "electron";
+import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, Tray, Menu, nativeImage, session } from "electron";
 import { autoUpdater, UpdateInfo } from "electron-updater";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -35,7 +35,7 @@ function createWindow() {
     height: 800,
     minWidth: 940,
     minHeight: 560,
-    title: "Nook",
+    title: "Jablu",
     icon: nativeImage.createFromPath(getIconPath()),
     backgroundColor: "#1e1f22",
     webPreferences: {
@@ -77,7 +77,7 @@ function createWindow() {
 function createTray() {
   const icon = nativeImage.createFromPath(getIconPath());
   tray = new Tray(icon.resize({ width: 16, height: 16 }));
-  tray.setToolTip("Nook");
+  tray.setToolTip("Jablu");
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -122,6 +122,27 @@ function registerIpcHandlers() {
     const userDataPath = app.getPath("userData");
     mkdirSync(userDataPath, { recursive: true });
     writeFileSync(join(userDataPath, "server-url.txt"), url, "utf-8");
+  });
+
+  ipcMain.handle("show-notification", (_event, payload: { title: string; body: string }) => {
+    if (Notification.isSupported()) {
+      const notif = new Notification({
+        title: payload.title,
+        body: payload.body,
+        icon: getIconPath(),
+      });
+      notif.on("click", () => mainWindow?.show());
+      notif.show();
+    }
+    if (mainWindow && !mainWindow.isFocused()) {
+      mainWindow.flashFrame(true);
+    }
+  });
+
+  ipcMain.handle("set-tray-unread", (_event, count: number) => {
+    if (tray) {
+      tray.setToolTip(count > 0 ? `Jablu (${count} unread)` : "Jablu");
+    }
   });
 
   ipcMain.handle("check-for-updates", () => {

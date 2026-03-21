@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { type ScreenShareOptions, publishScreenShare } from "./screenShareUtils";
 
 type ScreenSource = {
@@ -73,7 +74,7 @@ export function ScreenSharePicker() {
         </div>
 
         {/* Source selection */}
-        <div className="max-h-[400px] overflow-y-auto px-6 py-4">
+        <SimpleBar className="max-h-[400px] px-6 py-4">
           {screens.length > 0 && (
             <>
               <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
@@ -109,7 +110,7 @@ export function ScreenSharePicker() {
               </div>
             </>
           )}
-        </div>
+        </SimpleBar>
 
         {/* Quality options + Start button */}
         <div className="flex items-center gap-6 border-t border-white/5 px-6 py-4">

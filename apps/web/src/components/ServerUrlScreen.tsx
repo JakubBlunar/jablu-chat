@@ -55,7 +55,7 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
           Connect to Server
         </h1>
         <p className="mb-6 text-center text-sm text-gray-400">
-          Enter the address of your Nook server
+          Enter the address of your Jablu server
         </p>
 
         <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">

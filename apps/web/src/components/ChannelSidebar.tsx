@@ -1,5 +1,6 @@
 import type { Channel } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { CreateChannelModal } from "@/components/CreateChannelModal";
 import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
@@ -15,6 +16,7 @@ import { useMemberStore } from "@/stores/member.store";
 import { useServerStore } from "@/stores/server.store";
 import { type VoiceParticipant, useVoiceStore } from "@/stores/voice.store";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import { useReadStateStore } from "@/stores/readState.store";
 import { DownloadAppBanner } from "@/components/DownloadApp";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 
@@ -175,6 +177,9 @@ export function ChannelSidebar() {
     (s) => s.viewingVoiceRoom,
   );
 
+  const channelReadStates = useReadStateStore((s) => s.channels);
+  const ackChannel = useReadStateStore((s) => s.ackChannel);
+
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -186,6 +191,12 @@ export function ChannelSidebar() {
     window.addEventListener("open-settings", handler);
     return () => window.removeEventListener("open-settings", handler);
   }, []);
+
+  useEffect(() => {
+    if (currentChannelId && !viewingVoiceRoom) {
+      ackChannel(currentChannelId);
+    }
+  }, [currentChannelId, viewingVoiceRoom, ackChannel]);
 
   const handleVoiceChannelClick = useCallback(
     (ch: Channel) => {
@@ -253,7 +264,7 @@ export function ChannelSidebar() {
           )}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 py-3">
+        <SimpleBar className="flex min-h-0 flex-1 flex-col gap-1 px-2 py-3">
           {channelsLoading && !textChannels.length && currentServer ? (
             <div className="space-y-2 px-1">
               <div className="h-3 w-24 animate-pulse rounded bg-white/10" />
@@ -282,6 +293,9 @@ export function ChannelSidebar() {
           <ul className="space-y-0.5">
             {textChannels.map((ch) => {
               const active = ch.id === currentChannelId && !viewingVoiceRoom;
+              const rs = channelReadStates.get(ch.id);
+              const hasUnread = !active && rs && rs.unreadCount > 0;
+              const mentionCount = rs?.mentionCount ?? 0;
               return (
                 <li key={ch.id}>
                   <div className="group/ch relative">
@@ -294,11 +308,21 @@ export function ChannelSidebar() {
                       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
                         active
                           ? "bg-surface-selected text-white"
-                          : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
+                          : hasUnread
+                            ? "font-semibold text-white hover:bg-white/[0.06]"
+                            : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
                       }`}
                     >
                       <HashIcon />
                       <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                      {mentionCount > 0 && !active && (
+                        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                          {mentionCount}
+                        </span>
+                      )}
+                      {hasUnread && mentionCount === 0 && (
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
+                      )}
                     </button>
                     <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
                       <NotifBellMenu channelId={ch.id} />
@@ -396,7 +420,7 @@ export function ChannelSidebar() {
               );
             })}
           </ul>
-        </div>
+        </SimpleBar>
 
         <VoicePanel />
         <DownloadAppBanner />
