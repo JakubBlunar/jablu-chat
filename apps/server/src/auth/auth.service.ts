@@ -40,6 +40,8 @@ export class AuthService {
       id: string;
       email: string;
       serverId: string | null;
+      used: boolean;
+      expiresAt: Date | null;
     } | null = null;
 
     if (mode === 'invite') {
@@ -49,17 +51,16 @@ export class AuthService {
       invite = await this.prisma.registrationInvite.findUnique({
         where: { code: inviteCode.toUpperCase().trim() },
         select: { id: true, email: true, serverId: true, used: true, expiresAt: true },
-      }) as typeof invite & { used: boolean; expiresAt: Date | null } | null;
+      });
 
       if (!invite) {
         throw new BadRequestException('Invalid invite code');
       }
 
-      const full = invite as typeof invite & { used: boolean; expiresAt: Date | null };
-      if (full.used) {
+      if (invite.used) {
         throw new BadRequestException('This invite code has already been used');
       }
-      if (full.expiresAt && full.expiresAt < new Date()) {
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
         throw new BadRequestException('This invite code has expired');
       }
       if (invite.email.toLowerCase() !== email.toLowerCase()) {

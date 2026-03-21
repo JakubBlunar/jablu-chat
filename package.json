@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "clean": "turbo clean",
     "db:migrate:dev": "pnpm --filter @chat/server db:migrate:dev",
