@@ -3,35 +3,45 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 import { ParticipantTile } from "./ParticipantTile";
+import { ScreenShareTile } from "./ScreenShareTile";
+
+type TileEntry =
+  | { kind: "participant"; id: string; participant: Participant }
+  | { kind: "screen"; id: string; participant: Participant; publication: TrackPublication };
 
 export function VoiceRoom() {
   const room = useVoiceConnectionStore((s) => s.room);
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [screenShareTrack, setScreenShareTrack] = useState<TrackPublication | null>(null);
+  const [tiles, setTiles] = useState<TileEntry[]>([]);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [pendingFullscreen, setPendingFullscreen] = useState(false);
 
   useEffect(() => {
     if (!room) return;
 
     const update = () => {
-      setParticipants([
+      const allParticipants: Participant[] = [
         room.localParticipant,
         ...Array.from(room.remoteParticipants.values()),
-      ]);
+      ];
 
-      let ssTrack: TrackPublication | null = null;
-      for (const p of room.remoteParticipants.values()) {
-        const pub = p.getTrackPublication(Track.Source.ScreenShare);
-        if (pub?.track) {
-          ssTrack = pub;
-          break;
+      const newTiles: TileEntry[] = [];
+
+      for (const p of allParticipants) {
+        newTiles.push({ kind: "participant", id: p.identity, participant: p });
+
+        const ssPub = p.getTrackPublication(Track.Source.ScreenShare);
+        if (ssPub?.track) {
+          newTiles.push({
+            kind: "screen",
+            id: `${p.identity}:screen`,
+            participant: p,
+            publication: ssPub,
+          });
         }
       }
-      if (!ssTrack) {
-        const localSS = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-        if (localSS?.track) ssTrack = localSS;
-      }
-      setScreenShareTrack(ssTrack);
+
+      setTiles(newTiles);
     };
 
     update();
@@ -42,6 +52,8 @@ export function VoiceRoom() {
     room.on(RoomEvent.TrackUnsubscribed, update);
     room.on(RoomEvent.TrackPublished, update);
     room.on(RoomEvent.TrackUnpublished, update);
+    room.on(RoomEvent.LocalTrackPublished, update);
+    room.on(RoomEvent.LocalTrackUnpublished, update);
 
     return () => {
       room.off(RoomEvent.ParticipantConnected, update);
@@ -50,8 +62,27 @@ export function VoiceRoom() {
       room.off(RoomEvent.TrackUnsubscribed, update);
       room.off(RoomEvent.TrackPublished, update);
       room.off(RoomEvent.TrackUnpublished, update);
+      room.off(RoomEvent.LocalTrackPublished, update);
+      room.off(RoomEvent.LocalTrackUnpublished, update);
     };
   }, [room]);
+
+  // Clear focus if the focused tile is gone
+  useEffect(() => {
+    if (focusedId && !tiles.some((t) => t.id === focusedId)) {
+      setFocusedId(null);
+    }
+  }, [tiles, focusedId]);
+
+  const handleTileClick = useCallback((id: string) => {
+    setFocusedId((prev) => (prev === id ? null : id));
+    setPendingFullscreen(false);
+  }, []);
+
+  const handleTileFullscreen = useCallback((id: string) => {
+    setFocusedId(id);
+    setPendingFullscreen(true);
+  }, []);
 
   if (!room) {
     return (
@@ -61,33 +92,203 @@ export function VoiceRoom() {
     );
   }
 
+  const focusedTile = focusedId ? tiles.find((t) => t.id === focusedId) ?? null : null;
+  const otherTiles = focusedTile ? tiles.filter((t) => t.id !== focusedId) : tiles;
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <VoiceRoomHeader
         channelName={channelName}
-        participantCount={participants.length}
+        participantCount={tiles.filter((t) => t.kind === "participant").length}
       />
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {screenShareTrack ? (
-          <div className="flex h-full gap-3">
-            <div className="flex-1">
-              <ScreenShareView track={screenShareTrack} />
-            </div>
-            <div className="flex w-48 flex-col gap-2 overflow-y-auto">
-              {participants.map((p) => (
-                <ParticipantTile key={p.identity} participant={p} />
-              ))}
-            </div>
-          </div>
+      <div className="flex flex-1 flex-col overflow-hidden p-4">
+        {focusedTile ? (
+          <FocusedLayout
+            focused={focusedTile}
+            others={otherTiles}
+            onTileClick={handleTileClick}
+            onUnfocus={() => setFocusedId(null)}
+            autoFullscreen={pendingFullscreen}
+            onFullscreenConsumed={() => setPendingFullscreen(false)}
+          />
         ) : (
-          <div className={`grid gap-3 ${gridClass(participants.length)}`}>
-            {participants.map((p) => (
-              <ParticipantTile key={p.identity} participant={p} />
+          <div className="flex h-full flex-wrap content-center items-center justify-center gap-3">
+            {tiles.map((tile) => (
+              <div key={tile.id} className={tileSize(tiles.length)}>
+                <ClickableTile
+                  tile={tile}
+                  onClick={handleTileClick}
+                  onFullscreen={handleTileFullscreen}
+                />
+              </div>
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TileContent({ tile }: { tile: TileEntry }) {
+  if (tile.kind === "screen") {
+    return <ScreenShareTile participant={tile.participant} publication={tile.publication} />;
+  }
+  return <ParticipantTile participant={tile.participant} />;
+}
+
+function ClickableTile({
+  tile,
+  onClick,
+  onFullscreen,
+}: {
+  tile: TileEntry;
+  onClick: (id: string) => void;
+  onFullscreen?: (id: string) => void;
+}) {
+  return (
+    <div className="group/tile relative w-full">
+      <button
+        type="button"
+        className="w-full text-left transition"
+        onClick={() => onClick(tile.id)}
+      >
+        <TileContent tile={tile} />
+      </button>
+      <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/tile:opacity-100">
+        <button
+          type="button"
+          title="Focus"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick(tile.id);
+          }}
+          className="rounded-md bg-black/60 p-1.5 text-white backdrop-blur transition hover:bg-black/80"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+          </svg>
+        </button>
+        {onFullscreen && (
+          <button
+            type="button"
+            title="Fullscreen"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFullscreen(tile.id);
+            }}
+            className="rounded-md bg-black/60 p-1.5 text-white backdrop-blur transition hover:bg-black/80"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FocusedLayout({
+  focused,
+  others,
+  onTileClick,
+  onUnfocus,
+  autoFullscreen,
+  onFullscreenConsumed,
+}: {
+  focused: TileEntry;
+  others: TileEntry[];
+  onTileClick: (id: string) => void;
+  onUnfocus: () => void;
+  autoFullscreen?: boolean;
+  onFullscreenConsumed?: () => void;
+}) {
+  const fsRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (autoFullscreen && fsRef.current && !document.fullscreenElement) {
+      fsRef.current.requestFullscreen().catch(() => {});
+      onFullscreenConsumed?.();
+    }
+  }, [autoFullscreen, onFullscreenConsumed]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!fsRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      fsRef.current.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  return (
+    <div className="flex h-full flex-col gap-3 overflow-hidden">
+      <div ref={fsRef} className="relative min-h-0 flex-1 bg-[#1e1f22]">
+        <button
+          type="button"
+          className="h-full w-full text-left"
+          onClick={onUnfocus}
+        >
+          <div className="h-full [&>div]:aspect-auto [&>div]:h-full [&>div]:w-full">
+            <TileContent tile={focused} />
+          </div>
+        </button>
+
+        <div className="absolute right-3 top-3 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-black/80"
+          >
+            {isFullscreen ? (
+              <>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                </svg>
+                Exit Fullscreen
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+                Fullscreen
+              </>
+            )}
+          </button>
+
+          {!isFullscreen && (
+            <button
+              type="button"
+              onClick={onUnfocus}
+              className="flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-black/80"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+              </svg>
+              Unfocus
+            </button>
+          )}
+        </div>
+      </div>
+
+      {others.length > 0 && !isFullscreen && (
+        <div className="flex h-28 shrink-0 gap-2 overflow-x-auto pb-1">
+          {others.map((t) => (
+            <div key={t.id} className="h-full w-44 shrink-0">
+              <ClickableTile tile={t} onClick={onTileClick} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -172,38 +373,10 @@ function VoiceRoomHeader({
   );
 }
 
-function ScreenShareView({ track }: { track: TrackPublication }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (track.track && videoRef.current) {
-      track.track.attach(videoRef.current);
-    }
-    return () => {
-      if (track.track && videoRef.current) {
-        track.track.detach(videoRef.current);
-      }
-    };
-  }, [track]);
-
-  return (
-    <div className="relative h-full w-full overflow-hidden rounded-xl bg-black">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="h-full w-full object-contain"
-      />
-      <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs text-white">
-        Screen Share
-      </div>
-    </div>
-  );
-}
-
-function gridClass(count: number): string {
-  if (count <= 1) return "grid-cols-1 max-w-lg mx-auto";
-  if (count <= 4) return "grid-cols-2";
-  if (count <= 9) return "grid-cols-3";
-  return "grid-cols-4";
+function tileSize(count: number): string {
+  if (count <= 1) return "w-full max-w-2xl";
+  if (count <= 2) return "w-[calc(50%-0.375rem)] max-w-xl";
+  if (count <= 4) return "w-[calc(50%-0.375rem)] max-w-lg";
+  if (count <= 6) return "w-[calc(33.333%-0.5rem)] max-w-md";
+  return "w-[calc(25%-0.5rem)] max-w-sm";
 }

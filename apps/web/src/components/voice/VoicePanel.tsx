@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import { isElectron } from "@/lib/electron";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import type { MicMode } from "@/lib/micMode";
 
 function MicIcon({ muted }: { muted: boolean }) {
   if (muted) {
@@ -74,6 +75,7 @@ export function VoicePanel() {
   const isScreenSharing = useVoiceConnectionStore((s) => s.isScreenSharing);
   const isConnecting = useVoiceConnectionStore((s) => s.isConnecting);
 
+  const micMode = useVoiceConnectionStore((s) => s.micMode);
   const toggleMute = useVoiceConnectionStore((s) => s.toggleMute);
   const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen);
   const toggleCamera = useVoiceConnectionStore((s) => s.toggleCamera);
@@ -124,6 +126,11 @@ export function VoicePanel() {
       </div>
       <p className="mt-0.5 truncate text-xs text-gray-400">
         {channelName} &middot; {timeStr}
+        {micMode !== "always" && (
+          <span className="ml-1 text-[10px] text-gray-500">
+            ({micModeLabel(micMode)})
+          </span>
+        )}
       </p>
 
       <div className="mt-2 flex items-center justify-center gap-1">
@@ -194,4 +201,15 @@ export function VoicePanel() {
       </div>
     </div>
   );
+}
+
+function micModeLabel(mode: MicMode): string {
+  switch (mode) {
+    case "activity":
+      return "VAD";
+    case "push-to-talk":
+      return "PTT";
+    default:
+      return "";
+  }
 }

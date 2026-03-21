@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { publishScreenShare } from "./screenShareUtils";
+import { type ScreenShareOptions, publishScreenShare } from "./screenShareUtils";
 
 type ScreenSource = {
   id: string;
@@ -8,24 +8,47 @@ type ScreenSource = {
   appIcon: string | null;
 };
 
+const RESOLUTION_OPTIONS = ["720p", "1080p", "native"] as const;
+const FPS_OPTIONS = [5, 15, 20, 30] as const;
+
+const SS_RES_KEY = "chat:voice:ss-resolution";
+const SS_FPS_KEY = "chat:voice:ss-fps";
+
+function getSavedRes(): ScreenShareOptions["resolution"] {
+  return (localStorage.getItem(SS_RES_KEY) as ScreenShareOptions["resolution"]) || "1080p";
+}
+function getSavedFps(): ScreenShareOptions["fps"] {
+  const v = localStorage.getItem(SS_FPS_KEY);
+  return v ? (Number(v) as ScreenShareOptions["fps"]) : 15;
+}
+
 export function ScreenSharePicker() {
   const [sources, setSources] = useState<ScreenSource[]>([]);
   const [open, setOpen] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [resolution, setResolution] = useState<ScreenShareOptions["resolution"]>(getSavedRes);
+  const [fps, setFps] = useState<ScreenShareOptions["fps"]>(getSavedFps);
 
   useEffect(() => {
     function handleEvent(e: Event) {
       const detail = (e as CustomEvent<{ sources: ScreenSource[] }>).detail;
       setSources(detail.sources);
+      setSelectedSource(null);
+      setResolution(getSavedRes());
+      setFps(getSavedFps());
       setOpen(true);
     }
     window.addEventListener("voice:pick-screen", handleEvent);
     return () => window.removeEventListener("voice:pick-screen", handleEvent);
   }, []);
 
-  const handleSelect = useCallback((sourceId: string) => {
+  const handleStart = useCallback(() => {
+    if (!selectedSource) return;
+    localStorage.setItem(SS_RES_KEY, resolution);
+    localStorage.setItem(SS_FPS_KEY, String(fps));
     setOpen(false);
-    void publishScreenShare(sourceId);
-  }, []);
+    void publishScreenShare(selectedSource, { resolution, fps });
+  }, [selectedSource, resolution, fps]);
 
   if (!open || sources.length === 0) return null;
 
@@ -34,11 +57,10 @@ export function ScreenSharePicker() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-3xl rounded-lg bg-[#2b2d31] p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">
-            Share Your Screen
-          </h2>
+      <div className="flex w-full max-w-4xl flex-col rounded-lg bg-[#2b2d31] shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+          <h2 className="text-lg font-semibold text-white">Share Your Screen</h2>
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -50,31 +72,104 @@ export function ScreenSharePicker() {
           </button>
         </div>
 
-        {screens.length > 0 && (
-          <>
-            <h3 className="mb-2 text-sm font-semibold uppercase text-gray-400">
-              Screens
-            </h3>
-            <div className="mb-4 grid grid-cols-3 gap-3">
-              {screens.map((s) => (
-                <SourceCard key={s.id} source={s} onSelect={handleSelect} />
-              ))}
-            </div>
-          </>
-        )}
+        {/* Source selection */}
+        <div className="max-h-[400px] overflow-y-auto px-6 py-4">
+          {screens.length > 0 && (
+            <>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+                Screens
+              </h3>
+              <div className="mb-4 grid grid-cols-3 gap-3">
+                {screens.map((s) => (
+                  <SourceCard
+                    key={s.id}
+                    source={s}
+                    selected={selectedSource === s.id}
+                    onSelect={setSelectedSource}
+                  />
+                ))}
+              </div>
+            </>
+          )}
 
-        {windows.length > 0 && (
-          <>
-            <h3 className="mb-2 text-sm font-semibold uppercase text-gray-400">
-              Application Windows
-            </h3>
-            <div className="grid max-h-[300px] grid-cols-3 gap-3 overflow-y-auto">
-              {windows.map((s) => (
-                <SourceCard key={s.id} source={s} onSelect={handleSelect} />
+          {windows.length > 0 && (
+            <>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+                Application Windows
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {windows.map((s) => (
+                  <SourceCard
+                    key={s.id}
+                    source={s}
+                    selected={selectedSource === s.id}
+                    onSelect={setSelectedSource}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Quality options + Start button */}
+        <div className="flex items-center gap-6 border-t border-white/5 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-400">Resolution</span>
+            <div className="flex gap-1">
+              {RESOLUTION_OPTIONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => {
+                    setResolution(r);
+                    localStorage.setItem(SS_RES_KEY, r);
+                  }}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    resolution === r
+                      ? "bg-[#5865f2] text-white"
+                      : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  {r === "native" ? "Native" : r}
+                </button>
               ))}
             </div>
-          </>
-        )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-400">FPS</span>
+            <div className="flex gap-1">
+              {FPS_OPTIONS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => {
+                    setFps(f);
+                    localStorage.setItem(SS_FPS_KEY, String(f));
+                  }}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    fps === f
+                      ? "bg-[#5865f2] text-white"
+                      : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="ml-auto">
+            <button
+              type="button"
+              disabled={!selectedSource}
+              onClick={handleStart}
+              className="rounded-md bg-[#5865f2] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Start Sharing
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -82,16 +177,20 @@ export function ScreenSharePicker() {
 
 function SourceCard({
   source,
+  selected,
   onSelect,
 }: {
   source: ScreenSource;
+  selected: boolean;
   onSelect: (id: string) => void;
 }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(source.id)}
-      className="group overflow-hidden rounded-lg border-2 border-transparent bg-[#1e1f22] transition hover:border-[#5865f2]"
+      className={`group overflow-hidden rounded-lg border-2 bg-[#1e1f22] transition ${
+        selected ? "border-[#5865f2]" : "border-transparent hover:border-[#5865f2]/50"
+      }`}
     >
       <div className="aspect-video w-full overflow-hidden bg-black">
         <img
@@ -104,7 +203,7 @@ function SourceCard({
         {source.appIcon && (
           <img src={source.appIcon} alt="" className="h-4 w-4" />
         )}
-        <span className="truncate text-xs text-gray-300 group-hover:text-white">
+        <span className={`truncate text-xs ${selected ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
           {source.name}
         </span>
       </div>

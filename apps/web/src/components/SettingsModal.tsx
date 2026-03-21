@@ -2,9 +2,12 @@ import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
+import { api } from "@/lib/api";
+import { isElectron } from "@/lib/electron";
+import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
 import { useAuthStore } from "@/stores/auth.store";
 
-type Tab = "account" | "profile" | "status" | "voice";
+type Tab = "account" | "profile" | "status" | "voice" | "server";
 
 const STATUS_OPTIONS: { value: UserStatus; label: string; color: string }[] = [
   { value: "online", label: "Online", color: "bg-emerald-500" },
@@ -82,13 +85,21 @@ export function SettingsModal({
           >
             Voice & Video
           </SidebarButton>
+          {isElectron && (
+            <SidebarButton
+              active={tab === "server"}
+              onClick={() => setTab("server")}
+            >
+              Server Connection
+            </SidebarButton>
+          )}
           <div className="my-2 border-t border-white/10" />
           <LogOutButton onClose={onClose} />
         </nav>
       </div>
 
       {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[660px] px-10 py-16">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-white">
@@ -98,7 +109,9 @@ export function SettingsModal({
                   ? "Profile"
                   : tab === "voice"
                     ? "Voice & Video"
-                    : "Status"}
+                    : tab === "server"
+                      ? "Server Connection"
+                      : "Status"}
             </h1>
             <button
               type="button"
@@ -115,6 +128,7 @@ export function SettingsModal({
             {tab === "profile" && <ProfileSection />}
             {tab === "status" && <StatusSection />}
             {tab === "voice" && <VoiceSettings />}
+            {tab === "server" && <ServerConnectionSection />}
           </div>
         </div>
       </div>
@@ -534,6 +548,89 @@ function StatusSection() {
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────── Server Connection ─────────────────────────── */
+
+function ServerConnectionSection() {
+  const currentUrl = getStoredServerUrl() ?? "";
+  const [url, setUrl] = useState(currentUrl);
+  const [testing, setTesting] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  async function handleSave() {
+    setMessage(null);
+    const trimmed = url.trim().replace(/\/+$/, "");
+    if (!trimmed) {
+      setMessage({ type: "error", text: "Please enter a server URL." });
+      return;
+    }
+    if (trimmed === currentUrl) {
+      setMessage({ type: "success", text: "This is already the active server." });
+      return;
+    }
+
+    setTesting(true);
+    try {
+      const resp = await fetch(`${trimmed}/api/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) throw new Error("Server error");
+
+      setStoredServerUrl(trimmed);
+      api.baseUrl = trimmed;
+      setMessage({ type: "success", text: "Server updated. Please log in again to apply the change." });
+    } catch {
+      setMessage({ type: "error", text: "Could not connect. Check the URL and try again." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-gray-400">
+        Change the server your desktop app connects to. You will need to log in again after changing this.
+      </p>
+
+      <div>
+        <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">
+          SERVER URL
+        </label>
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="http://192.168.1.100:3001"
+          className="w-full rounded-md border border-[#1e1f22] bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-[#5865f2]"
+        />
+      </div>
+
+      {message && (
+        <p className={`text-sm ${message.type === "error" ? "text-red-400" : "text-emerald-400"}`}>
+          {message.text}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={testing}
+          className="rounded-md bg-[#5865f2] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+        >
+          {testing ? "Testing..." : "Save & Test"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setUrl(currentUrl)}
+          className="rounded-md bg-white/5 px-5 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10"
+        >
+          Reset
+        </button>
       </div>
     </div>
   );
