@@ -130,6 +130,7 @@ export class WebhooksService {
         id: true,
         channelId: true,
         name: true,
+        token: true,
         avatarUrl: true,
         createdById: true,
         createdAt: true,

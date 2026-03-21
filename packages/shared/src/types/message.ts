@@ -5,6 +5,7 @@ export interface Message {
   authorId: string | null;
   replyToId: string | null;
   threadParentId: string | null;
+  webhookId: string | null;
   content: string | null;
   pinned: boolean;
   createdAt: string;

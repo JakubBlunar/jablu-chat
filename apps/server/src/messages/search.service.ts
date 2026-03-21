@@ -1,19 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MessagesService } from './messages.service';
 
 @Injectable()
 export class SearchService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly messages: MessagesService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async searchMessages(
     userId: string,
     query: string,
     serverId?: string,
     channelId?: string,
+    dmOnly?: boolean,
     limit = 25,
   ) {
     const take = Math.min(Math.max(1, limit), 50);
@@ -27,66 +24,73 @@ export class SearchService {
 
     if (!tsQuery) return { results: [] };
 
-    const memberServerIds = await this.prisma.serverMember
-      .findMany({
-        where: { userId },
-        select: { serverId: true },
-      })
-      .then((rows) => rows.map((r) => r.serverId));
+    const allIds: string[] = [];
 
-    if (memberServerIds.length === 0) return { results: [] };
+    if (!dmOnly) {
+      const memberServerIds = await this.prisma.serverMember
+        .findMany({ where: { userId }, select: { serverId: true } })
+        .then((rows) => rows.map((r) => r.serverId));
 
-    const whereChannelIds: string[] = [];
-
-    if (channelId) {
-      const ch = await this.prisma.channel.findUnique({
-        where: { id: channelId },
-        select: { serverId: true },
-      });
-      if (ch && memberServerIds.includes(ch.serverId)) {
-        whereChannelIds.push(channelId);
-      }
-    } else if (serverId) {
-      if (memberServerIds.includes(serverId)) {
+      if (channelId) {
+        const ch = await this.prisma.channel.findUnique({
+          where: { id: channelId },
+          select: { serverId: true },
+        });
+        if (ch && memberServerIds.includes(ch.serverId)) {
+          const channelResults = await this.searchInChannels([channelId], tsQuery, take);
+          allIds.push(...channelResults);
+        }
+      } else if (serverId) {
+        if (memberServerIds.includes(serverId)) {
+          const channels = await this.prisma.channel.findMany({
+            where: { serverId },
+            select: { id: true },
+          });
+          const channelResults = await this.searchInChannels(
+            channels.map((c) => c.id),
+            tsQuery,
+            take,
+          );
+          allIds.push(...channelResults);
+        }
+      } else {
         const channels = await this.prisma.channel.findMany({
-          where: { serverId },
+          where: { serverId: { in: memberServerIds } },
           select: { id: true },
         });
-        whereChannelIds.push(...channels.map((c) => c.id));
+        if (channels.length > 0) {
+          const channelResults = await this.searchInChannels(
+            channels.map((c) => c.id),
+            tsQuery,
+            take,
+          );
+          allIds.push(...channelResults);
+        }
       }
-    } else {
-      const channels = await this.prisma.channel.findMany({
-        where: { serverId: { in: memberServerIds } },
-        select: { id: true },
-      });
-      whereChannelIds.push(...channels.map((c) => c.id));
     }
 
-    if (whereChannelIds.length === 0) return { results: [] };
+    if (!channelId && !serverId) {
+      const dmConvIds = await this.prisma.directConversationMember
+        .findMany({ where: { userId }, select: { conversationId: true } })
+        .then((rows) => rows.map((r) => r.conversationId));
 
-    const rows = await this.prisma.$queryRaw<
-      { id: string; channel_id: string; content: string; author_id: string; created_at: Date }[]
-    >`
-      SELECT id, channel_id, content, author_id, created_at
-      FROM messages
-      WHERE channel_id = ANY(${whereChannelIds})
-        AND deleted = false
-        AND content IS NOT NULL
-        AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
-      ORDER BY created_at DESC
-      LIMIT ${take}
-    `;
+      if (dmConvIds.length > 0) {
+        const dmResults = await this.searchInDms(dmConvIds, tsQuery, take);
+        allIds.push(...dmResults);
+      }
+    }
 
-    const messageIds = rows.map((r) => r.id);
-    if (messageIds.length === 0) return { results: [] };
+    if (allIds.length === 0) return { results: [] };
 
     const fullMessages = await this.prisma.message.findMany({
-      where: { id: { in: messageIds } },
+      where: { id: { in: allIds } },
       include: {
         author: { select: { id: true, username: true, avatarUrl: true } },
         channel: { select: { id: true, name: true, serverId: true } },
+        directConversation: { select: { id: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take,
     });
 
     return {
@@ -97,8 +101,45 @@ export class SearchService {
         author: m.author,
         channelId: m.channelId,
         channel: m.channel,
+        dmConversationId: m.directConversationId,
         createdAt: m.createdAt,
       })),
     };
+  }
+
+  private async searchInChannels(
+    channelIds: string[],
+    tsQuery: string,
+    limit: number,
+  ): Promise<string[]> {
+    if (channelIds.length === 0) return [];
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM messages
+      WHERE channel_id = ANY(${channelIds})
+        AND deleted = false
+        AND content IS NOT NULL
+        AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
+    return rows.map((r) => r.id);
+  }
+
+  private async searchInDms(
+    conversationIds: string[],
+    tsQuery: string,
+    limit: number,
+  ): Promise<string[]> {
+    if (conversationIds.length === 0) return [];
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM messages
+      WHERE direct_conversation_id = ANY(${conversationIds})
+        AND deleted = false
+        AND content IS NOT NULL
+        AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
+    return rows.map((r) => r.id);
   }
 }

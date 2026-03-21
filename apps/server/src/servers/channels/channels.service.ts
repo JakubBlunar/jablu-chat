@@ -7,12 +7,14 @@ import {
 import { ChannelType, Prisma, ServerRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../../uploads/uploads.service';
+import { AuditLogService } from '../audit-log.service';
 
 @Injectable()
 export class ChannelsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   private async getServerOrThrow(serverId: string) {
@@ -72,7 +74,7 @@ export class ChannelsService {
     });
     const position = (maxPos._max.position ?? -1) + 1;
     try {
-      return await this.prisma.channel.create({
+      const channel = await this.prisma.channel.create({
         data: {
           serverId,
           name,
@@ -80,6 +82,8 @@ export class ChannelsService {
           position,
         },
       });
+      await this.auditLog.log(serverId, userId, 'channel.create', 'channel', channel.id, `#${name} (${type})`);
+      return channel;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -118,10 +122,12 @@ export class ChannelsService {
       return channel;
     }
     try {
-      return await this.prisma.channel.update({
+      const updated = await this.prisma.channel.update({
         where: { id: channelId },
         data,
       });
+      await this.auditLog.log(serverId, userId, 'channel.update', 'channel', channelId, data.name ? `Renamed to #${data.name}` : 'Position changed');
+      return updated;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -154,5 +160,6 @@ export class ChannelsService {
     }
 
     await this.prisma.channel.delete({ where: { id: channelId } });
+    await this.auditLog.log(serverId, userId, 'channel.delete', 'channel', channelId, `#${channel.name}`);
   }
 }

@@ -10,7 +10,9 @@ export type Member = {
   user: {
     id: string;
     username: string;
+    email: string;
     avatarUrl: string | null;
+    bio: string | null;
     status?: string;
   };
 };

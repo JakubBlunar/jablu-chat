@@ -1,14 +1,15 @@
 import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/UserAvatar";
-import { api } from "@/lib/api";
+import { api, type AuditLogEntry } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
+import { useChannelStore } from "@/stores/channel.store";
 import type { Member } from "@/stores/member.store";
 import { useMemberStore } from "@/stores/member.store";
 import type { Server } from "@/stores/server.store";
 import { useServerStore } from "@/stores/server.store";
 
-type Tab = "overview" | "members" | "danger";
+type Tab = "overview" | "members" | "webhooks" | "audit" | "danger";
 
 export function ServerSettingsModal({
   server,
@@ -38,6 +39,8 @@ export function ServerSettingsModal({
             [
               ["overview", "Overview"],
               ["members", "Members"],
+              ["webhooks", "Webhooks"],
+              ["audit", "Audit Log"],
               ["danger", "Danger Zone"],
             ] as const
           ).map(([id, label]) => (
@@ -61,6 +64,8 @@ export function ServerSettingsModal({
             <h1 className="text-lg font-semibold text-white">
               {tab === "overview" && "Server Overview"}
               {tab === "members" && "Members"}
+              {tab === "webhooks" && "Webhooks"}
+              {tab === "audit" && "Audit Log"}
               {tab === "danger" && "Danger Zone"}
             </h1>
             <button
@@ -75,6 +80,8 @@ export function ServerSettingsModal({
           <div className="flex-1 overflow-y-auto p-6">
             {tab === "overview" && <OverviewTab server={server} />}
             {tab === "members" && <MembersTab server={server} />}
+            {tab === "webhooks" && <WebhooksTab server={server} />}
+            {tab === "audit" && <AuditLogTab server={server} />}
             {tab === "danger" && (
               <DangerTab server={server} onClose={onClose} />
             )}
@@ -358,6 +365,255 @@ function DangerTab({
         </div>
       </div>
     </div>
+  );
+}
+
+type WebhookItem = {
+  id: string;
+  channelId: string;
+  name: string;
+  token: string;
+  createdAt: string;
+};
+
+function WebhooksTab({ server: _server }: { server: Server }) {
+  const channels = useChannelStore((s) => s.channels);
+  const textChannels = channels.filter((c) => c.type === "text");
+  const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [channelId, setChannelId] = useState(textChannels[0]?.id ?? "");
+  const [creating, setCreating] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const fetchWebhooks = useCallback(async () => {
+    const all: WebhookItem[] = [];
+    for (const ch of textChannels) {
+      try {
+        const list = await api.getWebhooks(ch.id);
+        all.push(...(list as WebhookItem[]));
+      } catch {
+        /* no access */
+      }
+    }
+    setWebhooks(all);
+    setLoading(false);
+  }, [textChannels]);
+
+  useEffect(() => {
+    void fetchWebhooks();
+  }, [fetchWebhooks]);
+
+  const handleCreate = useCallback(async () => {
+    if (!name.trim() || !channelId) return;
+    setCreating(true);
+    try {
+      await api.createWebhook(channelId, name.trim());
+      setName("");
+      await fetchWebhooks();
+    } finally {
+      setCreating(false);
+    }
+  }, [name, channelId, fetchWebhooks]);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await api.deleteWebhook(id);
+      setWebhooks((prev) => prev.filter((w) => w.id !== id));
+    },
+    [],
+  );
+
+  const copyUrl = useCallback(
+    (wh: WebhookItem) => {
+      const base = window.location.origin;
+      const url = `${base}/api/webhooks/${wh.token}/execute`;
+      void navigator.clipboard.writeText(url);
+      setCopiedId(wh.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    },
+    [],
+  );
+
+  if (loading) {
+    return <p className="text-sm text-gray-400">Loading…</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-md bg-[#2b2d31] p-4">
+        <h3 className="mb-3 text-sm font-semibold text-white">
+          Create Webhook
+        </h3>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 space-y-1">
+            <label className="text-xs text-gray-400">Name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+              placeholder="My Webhook"
+              className="w-full rounded border border-white/10 bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none focus:border-[#5865f2]"
+            />
+          </div>
+          <div className="w-40 space-y-1">
+            <label className="text-xs text-gray-400">Channel</label>
+            <select
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+              className="w-full rounded border border-white/10 bg-[#1e1f22] px-2 py-2 text-sm text-white outline-none"
+            >
+              {textChannels.map((ch) => (
+                <option key={ch.id} value={ch.id}>
+                  #{ch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            disabled={creating || !name.trim()}
+            onClick={() => void handleCreate()}
+            className="rounded bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+
+      {webhooks.length === 0 ? (
+        <p className="text-center text-sm text-gray-500">
+          No webhooks yet.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {webhooks.map((wh) => {
+            const ch = channels.find((c) => c.id === wh.channelId);
+            return (
+              <div
+                key={wh.id}
+                className="flex items-center gap-3 rounded-md bg-[#2b2d31] px-4 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-white">{wh.name}</p>
+                  <p className="text-xs text-gray-500">
+                    #{ch?.name ?? "unknown"} &middot;{" "}
+                    {new Date(wh.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyUrl(wh)}
+                  className="rounded px-3 py-1 text-xs font-medium text-[#5865f2] transition hover:bg-[#5865f2]/10"
+                >
+                  {copiedId === wh.id ? "Copied!" : "Copy URL"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(wh.id)}
+                  className="rounded p-1 text-red-400 transition hover:bg-red-500/20"
+                  title="Delete webhook"
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuditLogTab({ server }: { server: Server }) {
+  const [entries, setEntries] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+
+  const fetchLog = useCallback(
+    async (cursor?: string) => {
+      setLoading(true);
+      try {
+        const data = await api.getAuditLog(server.id, 50, cursor);
+        if (cursor) {
+          setEntries((prev) => [...prev, ...data.entries]);
+        } else {
+          setEntries(data.entries);
+        }
+        setHasMore(data.hasMore);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [server.id],
+  );
+
+  useEffect(() => {
+    void fetchLog();
+  }, [fetchLog]);
+
+  const loadMore = useCallback(() => {
+    const last = entries[entries.length - 1];
+    if (last) void fetchLog(last.createdAt);
+  }, [entries, fetchLog]);
+
+  return (
+    <div className="space-y-3">
+      {entries.length === 0 && !loading ? (
+        <p className="text-center text-sm text-gray-500">
+          No audit log entries yet.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {entries.map((e) => (
+            <div
+              key={e.id}
+              className="flex items-start gap-3 rounded-md px-3 py-2 hover:bg-white/[0.04]"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-white">
+                  <span className="font-medium">{e.action}</span>
+                  {e.targetType && (
+                    <span className="text-gray-400">
+                      {" "}
+                      &middot; {e.targetType}
+                    </span>
+                  )}
+                </p>
+                {e.details && (
+                  <p className="mt-0.5 text-xs text-gray-500">{e.details}</p>
+                )}
+              </div>
+              <time className="shrink-0 text-xs text-gray-500">
+                {new Date(e.createdAt).toLocaleString()}
+              </time>
+            </div>
+          ))}
+        </div>
+      )}
+      {loading && (
+        <p className="text-center text-sm text-gray-400">Loading…</p>
+      )}
+      {hasMore && !loading && (
+        <button
+          type="button"
+          onClick={loadMore}
+          className="mx-auto block rounded bg-[#2b2d31] px-4 py-2 text-xs text-gray-300 ring-1 ring-white/10 hover:bg-[#404249]"
+        >
+          Load more
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
   );
 }
 

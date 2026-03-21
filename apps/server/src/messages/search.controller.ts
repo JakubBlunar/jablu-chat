@@ -1,6 +1,14 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsBooleanString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SearchService } from './search.service';
@@ -16,6 +24,10 @@ class SearchQueryDto {
   @IsOptional()
   @IsUUID()
   channelId?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  dmOnly?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -40,6 +52,7 @@ export class SearchController {
       query.q,
       query.serverId,
       query.channelId,
+      query.dmOnly === 'true',
       query.limit,
     );
   }
