@@ -9,9 +9,9 @@ export function MarkdownContent({
   className?: string;
 }) {
   return (
+    <div className={`markdown-body ${className}`}>
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      className={`markdown-body ${className}`}
       components={{
         p: ({ children }) => (
           <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-gray-200">
@@ -24,8 +24,9 @@ export function MarkdownContent({
         em: ({ children }) => (
           <em className="italic">{children}</em>
         ),
-        code: ({ children, className: codeClassName }) => {
-          const isBlock = codeClassName?.startsWith("language-");
+        code: (props) => {
+          const { children, className: codeClassName } = props;
+          const isBlock = typeof codeClassName === "string" && codeClassName.startsWith("language-");
           if (isBlock) {
             return (
               <code className="block overflow-x-auto rounded-md bg-[#1e1f22] p-3 text-sm text-gray-200">
@@ -99,5 +100,6 @@ export function MarkdownContent({
     >
       {content}
     </ReactMarkdown>
+    </div>
   );
 }
