@@ -1,5 +1,4 @@
 import type {
-  AuthResponse,
   ChangeEmailInput,
   ChangePasswordInput,
   UpdateProfileInput,
@@ -51,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: data.user,
+          user: { ...data.user, status: data.user.status as UserStatus },
           isAuthenticated: true,
         });
       },
@@ -61,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: data.user,
+          user: { ...data.user, status: data.user.status as UserStatus },
           isAuthenticated: true,
         });
       },
@@ -89,7 +88,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: data.user,
+          user: { ...data.user, status: data.user.status as UserStatus },
           isAuthenticated: true,
         });
       },
@@ -151,7 +150,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               accessToken: data.accessToken,
               refreshToken: data.refreshToken,
-              user: data.user,
+              user: { ...data.user, status: data.user.status as UserStatus },
               isAuthenticated: true,
               isLoading: false,
             });

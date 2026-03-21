@@ -1,5 +1,7 @@
 export type MicMode = "always" | "activity" | "push-to-talk";
 
+import { Track } from "livekit-client";
+
 type RoomGetter = () => import("livekit-client").Room | null;
 let _getRoom: RoomGetter = () => null;
 
@@ -84,7 +86,7 @@ function startVAD(): () => void {
   const room = _getRoom();
   if (!room) return () => {};
 
-  const micPub = room.localParticipant.getTrackPublication("microphone");
+  const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
   const mediaTrack = micPub?.track?.mediaStreamTrack;
   if (!mediaTrack) return () => {};
 
@@ -209,7 +211,7 @@ function setTrackMuted(muted: boolean) {
   const room = _getRoom();
   if (!room) return;
 
-  const micPub = room.localParticipant.getTrackPublication("microphone");
+  const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
   if (micPub?.track) {
     if (muted) {
       micPub.track.mute();

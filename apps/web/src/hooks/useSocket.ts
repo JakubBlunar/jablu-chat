@@ -201,7 +201,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         payload.conversationId,
         {
           content: payload.content ?? null,
-          authorId: payload.authorId,
+          authorId: payload.authorId ?? "",
           createdAt: payload.createdAt,
         },
       );

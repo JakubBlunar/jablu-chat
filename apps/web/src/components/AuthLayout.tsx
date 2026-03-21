@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { isElectron } from "@/lib/electron";
-import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
+import { getStoredServerUrl } from "@/components/ServerUrlScreen";
 import { api } from "@/lib/api";
 
 type AuthLayoutProps = {
