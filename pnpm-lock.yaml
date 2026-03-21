@@ -117,6 +117,9 @@ importers:
       '@types/cookie-parser':
         specifier: ^1.4.0
         version: 1.4.10(@types/express@5.0.6)
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
       '@types/multer':
         specifier: ^1.4.0
         version: 1.4.13
