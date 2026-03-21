@@ -29,7 +29,7 @@ function toChronological(messagesDesc: Message[]): Message[] {
   return messagesDesc.slice().reverse();
 }
 
-export const useDmStore = create<DmState>((set, get) => ({
+export const useDmStore = create<DmState>((set, _get) => ({
   conversations: [],
   currentConversationId: null,
   messages: [],

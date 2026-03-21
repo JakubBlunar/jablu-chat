@@ -1,7 +1,6 @@
 import { useState } from "react";
 import SimpleBar from "simplebar-react";
 import { JoinInviteModal } from "@/components/JoinInviteModal";
-import { useChannelStore } from "@/stores/channel.store";
 import { useReadStateStore } from "@/stores/readState.store";
 import { useServerStore } from "@/stores/server.store";
 
@@ -36,8 +35,6 @@ export function ServerSidebar() {
   const setViewMode = useServerStore((s) => s.setViewMode);
   const isLoading = useServerStore((s) => s.isLoading);
 
-  const allChannels = useChannelStore((s) => s.channels);
-  const readStates = useReadStateStore((s) => s.channels);
   const dmReadStates = useReadStateStore((s) => s.dms);
 
   const hasDmUnread = Array.from(dmReadStates.values()).some(
