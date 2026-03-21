@@ -44,7 +44,7 @@ services:
       - "7882:7882/udp"
       - "50000-50100:50000-50100/udp"
     environment:
-      - LIVEKIT_KEYS=devkey:devsecret
+      - "LIVEKIT_KEYS=devkey: devsecret"
     volumes:
       - ./docker/livekit/livekit.yaml:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
