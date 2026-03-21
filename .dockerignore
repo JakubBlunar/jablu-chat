@@ -1,0 +1,11 @@
+node_modules
+dist
+.turbo
+*.tsbuildinfo
+.git
+.env
+.env.local
+docker/nginx/certs
+data
+apps/desktop
+apps/mobile

@@ -1,0 +1,57 @@
+import type { Channel } from "@chat/shared";
+import { create } from "zustand";
+import { api } from "@/lib/api";
+
+type ChannelState = {
+  channels: Channel[];
+  currentChannelId: string | null;
+  isLoading: boolean;
+  fetchChannels: (serverId: string) => Promise<void>;
+  setCurrentChannel: (id: string | null) => void;
+  getCurrentChannel: () => Channel | null;
+  textChannels: () => Channel[];
+  voiceChannels: () => Channel[];
+};
+
+function byPosition(a: Channel, b: Channel): number {
+  return a.position - b.position;
+}
+
+export const useChannelStore = create<ChannelState>((set, get) => ({
+  channels: [],
+  currentChannelId: null,
+  isLoading: false,
+
+  fetchChannels: async (serverId) => {
+    set({ isLoading: true });
+    try {
+      const list = await api.get<Channel[]>(
+        `/api/servers/${serverId}/channels`,
+      );
+      set({ channels: list, isLoading: false });
+    } catch (e) {
+      set({ isLoading: false });
+      throw e;
+    }
+  },
+
+  setCurrentChannel: (id) => set({ currentChannelId: id }),
+
+  getCurrentChannel: () => {
+    const { channels, currentChannelId } = get();
+    if (!currentChannelId) return null;
+    return channels.find((c) => c.id === currentChannelId) ?? null;
+  },
+
+  textChannels: () =>
+    get()
+      .channels.filter((c) => c.type === "text")
+      .slice()
+      .sort(byPosition),
+
+  voiceChannels: () =>
+    get()
+      .channels.filter((c) => c.type === "voice")
+      .slice()
+      .sort(byPosition),
+}));

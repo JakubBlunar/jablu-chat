@@ -1,0 +1,144 @@
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ChannelType, Prisma, ServerRole } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+
+@Injectable()
+export class ChannelsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async getServerOrThrow(serverId: string) {
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+    });
+    if (!server) {
+      throw new NotFoundException('Server not found');
+    }
+    return server;
+  }
+
+  private async requireMembership(serverId: string, userId: string) {
+    await this.getServerOrThrow(serverId);
+    const membership = await this.prisma.serverMember.findUnique({
+      where: {
+        userId_serverId: { userId, serverId },
+      },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this server');
+    }
+    return membership;
+  }
+
+  private async requireAdminOrOwner(serverId: string, userId: string) {
+    const server = await this.getServerOrThrow(serverId);
+    if (server.ownerId === userId) {
+      return;
+    }
+    const membership = await this.prisma.serverMember.findUnique({
+      where: {
+        userId_serverId: { userId, serverId },
+      },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this server');
+    }
+    if (
+      membership.role !== ServerRole.admin &&
+      membership.role !== ServerRole.owner
+    ) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+  }
+
+  async createChannel(
+    serverId: string,
+    userId: string,
+    name: string,
+    type: ChannelType,
+  ) {
+    await this.requireAdminOrOwner(serverId, userId);
+    const maxPos = await this.prisma.channel.aggregate({
+      where: { serverId },
+      _max: { position: true },
+    });
+    const position = (maxPos._max.position ?? -1) + 1;
+    try {
+      return await this.prisma.channel.create({
+        data: {
+          serverId,
+          name,
+          type,
+          position,
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'A channel with this name already exists on this server',
+        );
+      }
+      throw e;
+    }
+  }
+
+  async getChannels(serverId: string, userId: string) {
+    await this.requireMembership(serverId, userId);
+    return this.prisma.channel.findMany({
+      where: { serverId },
+      orderBy: { position: 'asc' },
+    });
+  }
+
+  async updateChannel(
+    serverId: string,
+    channelId: string,
+    userId: string,
+    data: { name?: string; position?: number },
+  ) {
+    await this.requireAdminOrOwner(serverId, userId);
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, serverId },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    if (data.name === undefined && data.position === undefined) {
+      return channel;
+    }
+    try {
+      return await this.prisma.channel.update({
+        where: { id: channelId },
+        data,
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'A channel with this name already exists on this server',
+        );
+      }
+      throw e;
+    }
+  }
+
+  async deleteChannel(serverId: string, channelId: string, userId: string) {
+    await this.requireAdminOrOwner(serverId, userId);
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, serverId },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    await this.prisma.channel.delete({ where: { id: channelId } });
+  }
+}
