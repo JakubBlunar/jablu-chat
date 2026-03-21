@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "tsc -p tsconfig.json && electron dist/main/index.js",
+    "start": "tsc -p tsconfig.json && electron dist/main/index.js",
     "build": "tsc -p tsconfig.json",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
