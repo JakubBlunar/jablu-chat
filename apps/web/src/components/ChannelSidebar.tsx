@@ -1,5 +1,5 @@
 import type { Channel } from "@chat/shared";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CreateChannelModal } from "@/components/CreateChannelModal";
 import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
@@ -15,6 +15,7 @@ import { useMemberStore } from "@/stores/member.store";
 import { useServerStore } from "@/stores/server.store";
 import { type VoiceParticipant, useVoiceStore } from "@/stores/voice.store";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import { DownloadAppBanner } from "@/components/DownloadApp";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 
 function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
@@ -179,6 +180,12 @@ export function ChannelSidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setSettingsOpen(true);
+    window.addEventListener("open-settings", handler);
+    return () => window.removeEventListener("open-settings", handler);
+  }, []);
 
   const handleVoiceChannelClick = useCallback(
     (ch: Channel) => {
@@ -392,6 +399,7 @@ export function ChannelSidebar() {
         </div>
 
         <VoicePanel />
+        <DownloadAppBanner />
 
         <div className="flex h-[52px] shrink-0 items-center gap-2 bg-surface-overlay px-2">
           <UserAvatar

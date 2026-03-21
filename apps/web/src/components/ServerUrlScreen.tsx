@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { electronAPI } from "@/lib/electron";
 
 const STORAGE_KEY = "chat:server-url";
 
@@ -9,6 +10,7 @@ export function getStoredServerUrl(): string | null {
 
 export function setStoredServerUrl(url: string) {
   localStorage.setItem(STORAGE_KEY, url);
+  electronAPI?.setServerUrl(url).catch(() => {});
 }
 
 export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => void }) {

@@ -9,6 +9,7 @@ import "./index.css";
 import { MainLayout } from "./components/MainLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ServerUrlScreen, getStoredServerUrl } from "./components/ServerUrlScreen";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";
 import { migrateSettings } from "./lib/deviceSettings";
@@ -89,6 +90,7 @@ function ElectronUrlGate({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <ElectronUrlGate>
+      <UpdateBanner />
       <BrowserRouter>
         <AuthBootstrap />
         <Routes>

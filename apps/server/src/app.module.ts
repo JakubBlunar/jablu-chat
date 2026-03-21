@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { resolve } from 'path';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { CleanupModule } from './cleanup/cleanup.module';
+import { DownloadsModule } from './downloads/downloads.module';
 import { DmModule } from './dm/dm.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { HealthModule } from './health/health.module';
@@ -11,6 +13,7 @@ import { MessagesModule } from './messages/messages.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { EventsModule } from './events/events.module';
 import { ServersModule } from './servers/servers.module';
+import { UpdatesModule } from './updates/updates.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { VoiceModule } from './voice/voice.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -28,6 +31,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     PrismaModule,
     EventsModule,
     UploadsModule,
+    CleanupModule,
     AdminModule,
     AuthModule,
     HealthModule,
@@ -37,6 +41,8 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     MessagesModule,
     VoiceModule,
     WebhooksModule,
+    UpdatesModule,
+    DownloadsModule,
     GatewayModule,
   ],
 })

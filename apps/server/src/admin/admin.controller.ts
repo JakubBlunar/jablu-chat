@@ -16,6 +16,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ChannelType, ServerRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { CleanupService, StorageStats } from '../cleanup/cleanup.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AdminAuthGuard } from './admin-auth.guard';
@@ -26,12 +27,21 @@ import {
   AdminUpdateUserDto,
 } from './dto';
 
+function serializeAudit(audit: Record<string, unknown>) {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(audit)) {
+    result[key] = typeof value === 'bigint' ? value.toString() : value;
+  }
+  return result;
+}
+
 @Controller('admin')
 export class AdminController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly uploads: UploadsService,
+    private readonly cleanup: CleanupService,
   ) {}
 
   @Post('login')
@@ -250,6 +260,52 @@ export class AdminController {
   getRegistrationMode() {
     const mode = this.config.get<string>('REGISTRATION_MODE', 'open');
     return { mode };
+  }
+
+  // ─── Storage ─────────────────────────────────────────────
+
+  @Get('storage')
+  @UseGuards(AdminAuthGuard)
+  async getStorageStats(): Promise<StorageStats> {
+    return this.cleanup.getStorageStats();
+  }
+
+  @Get('storage/audits')
+  @UseGuards(AdminAuthGuard)
+  async listAudits() {
+    const audits = await this.cleanup.getAudits();
+    return audits.map(serializeAudit);
+  }
+
+  @Post('storage/audit')
+  @UseGuards(AdminAuthGuard)
+  async runAudit() {
+    const audit = await this.cleanup.runAudit();
+    return serializeAudit(audit as unknown as Record<string, unknown>);
+  }
+
+  @Post('storage/cleanup/:id')
+  @UseGuards(AdminAuthGuard)
+  async executeCleanup(@Param('id', ParseUUIDPipe) id: string) {
+    try {
+      const audit = await this.cleanup.executeCleanup(id);
+      return serializeAudit(audit as unknown as Record<string, unknown>);
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'Cleanup failed',
+      );
+    }
+  }
+
+  @Delete('storage/audits/:id')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteAudit(@Param('id', ParseUUIDPipe) id: string) {
+    try {
+      await this.cleanup.deleteAudit(id);
+    } catch {
+      throw new NotFoundException('Audit not found');
+    }
   }
 
   // ─── Helpers ───────────────────────────────────────────────

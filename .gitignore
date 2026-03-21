@@ -29,6 +29,10 @@ data/
 # Uploads
 uploads/
 
+# Desktop app builds & downloads
+downloads/
+apps/desktop/release/
+
 # Generated
 apps/server/prisma/generated/
 
