@@ -213,6 +213,8 @@ function MembersTab({ server }: { server: Server }) {
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
   const fetchMembers = useMemberStore((s) => s.fetchMembers);
   const isOwner = currentUser?.id === server.ownerId;
+  const myMembership = members.find((m) => m.userId === currentUser?.id);
+  const isAdminOrOwner = isOwner || myMembership?.role === "admin";
 
   useEffect(() => {
     fetchMembers(server.id);
@@ -272,24 +274,28 @@ function MembersTab({ server }: { server: Server }) {
               )}
             </div>
 
-            {isOwner && !isSelf && !isMemberOwner && (
+            {!isSelf && !isMemberOwner && (
               <div className="flex items-center gap-2">
-                <select
-                  value={m.role}
-                  onChange={(e) => handleRoleChange(m, e.target.value)}
-                  className="rounded border border-white/10 bg-[#1e1f22] px-2 py-1 text-xs text-white outline-none"
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => handleKick(m)}
-                  title="Kick member"
-                  className="rounded p-1 text-red-400 transition hover:bg-red-500/20"
-                >
-                  <KickIcon />
-                </button>
+                {isOwner && (
+                  <select
+                    value={m.role}
+                    onChange={(e) => handleRoleChange(m, e.target.value)}
+                    className="rounded border border-white/10 bg-[#1e1f22] px-2 py-1 text-xs text-white outline-none"
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                )}
+                {isAdminOrOwner && m.role !== "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => handleKick(m)}
+                    title="Kick member"
+                    className="rounded p-1 text-red-400 transition hover:bg-red-500/20"
+                  >
+                    <KickIcon />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -572,6 +578,10 @@ function AuditLogTab({ server }: { server: Server }) {
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-white">
+                  <span className="font-semibold text-[#5865f2]">
+                    {e.actor?.username ?? "Unknown"}
+                  </span>
+                  {" "}
                   <span className="font-medium">{e.action}</span>
                   {e.targetType && (
                     <span className="text-gray-400">

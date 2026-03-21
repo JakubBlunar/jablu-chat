@@ -29,6 +29,7 @@ model User {
   ownedServers      Server[]               @relation("ServerOwner")
   dmMemberships     DirectConversationMember[]
   refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]             @relation("auditLogActor")
 
   @@map("users")
 }
@@ -310,6 +311,7 @@ model AuditLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  actor  User   @relation("auditLogActor", fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([serverId, createdAt])
   @@map("audit_logs")

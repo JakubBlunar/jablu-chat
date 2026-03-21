@@ -26,6 +26,9 @@ export class AuditLogService {
         serverId,
         ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
       },
+      include: {
+        actor: { select: { id: true, username: true, avatarUrl: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
     });

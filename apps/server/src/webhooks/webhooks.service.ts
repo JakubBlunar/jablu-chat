@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { EventBusService } from '../events/event-bus.service';
 import { MessagesService } from '../messages/messages.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../servers/audit-log.service';
 
 const authorSelect = {
   id: true,
@@ -45,6 +46,7 @@ export class WebhooksService {
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
     private readonly events: EventBusService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   private async requireTextChannel(channelId: string) {
@@ -112,7 +114,7 @@ export class WebhooksService {
     if (!trimmed) {
       throw new BadRequestException('Name is required');
     }
-    return this.prisma.webhook.create({
+    const webhook = await this.prisma.webhook.create({
       data: {
         channelId,
         name: trimmed,
@@ -120,6 +122,8 @@ export class WebhooksService {
         createdById: userId,
       },
     });
+    await this.auditLog.log(channel.serverId, userId, 'webhook.create', 'webhook', webhook.id, trimmed);
+    return webhook;
   }
 
   async getWebhooks(channelId: string, userId: string) {
@@ -149,6 +153,7 @@ export class WebhooksService {
     const channel = await this.requireTextChannel(webhook.channelId);
     await this.requireAdminOrOwnerForServer(channel.serverId, userId);
     await this.prisma.webhook.delete({ where: { id: webhookId } });
+    await this.auditLog.log(channel.serverId, userId, 'webhook.delete', 'webhook', webhookId, webhook.name);
   }
 
   async executeWebhook(

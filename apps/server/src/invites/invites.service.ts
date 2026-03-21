@@ -7,6 +7,7 @@ import {
 import { Prisma, ServerRole } from '@prisma/client';
 import crypto from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from '../servers/audit-log.service';
 
 const createdByUserSelect = {
   id: true,
@@ -21,7 +22,10 @@ function generateInviteCode(): string {
 
 @Injectable()
 export class InvitesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   private async getServerOrThrow(serverId: string) {
     const server = await this.prisma.server.findUnique({
@@ -71,7 +75,7 @@ export class InvitesService {
     for (let attempt = 0; attempt < 20; attempt++) {
       const code = generateInviteCode();
       try {
-        return await this.prisma.invite.create({
+        const invite = await this.prisma.invite.create({
           data: {
             serverId,
             createdById: userId,
@@ -83,6 +87,8 @@ export class InvitesService {
             server: { select: { name: true } },
           },
         });
+        await this.auditLog.log(serverId, userId, 'invite.create', 'invite', invite.id, `Code: ${code}`);
+        return invite;
       } catch (e) {
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -116,6 +122,7 @@ export class InvitesService {
     }
     await this.requireAdminOrOwner(invite.serverId, userId);
     await this.prisma.invite.delete({ where: { id: inviteId } });
+    await this.auditLog.log(invite.serverId, userId, 'invite.delete', 'invite', inviteId, `Code: ${invite.code}`);
   }
 
   async useInvite(code: string, userId: string) {

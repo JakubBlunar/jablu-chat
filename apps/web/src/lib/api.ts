@@ -506,6 +506,7 @@ export type AuditLogEntry = {
   targetId: string | null;
   details: string | null;
   createdAt: string;
+  actor: { id: string; username: string; avatarUrl: string | null } | null;
 };
 
 export type DmConversation = {
