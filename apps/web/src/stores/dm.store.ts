@@ -16,6 +16,8 @@ type DmState = {
   updateMessage: (message: Message) => void;
   removeMessage: (messageId: string) => void;
   clearMessages: () => void;
+  addReaction: (messageId: string, emoji: string, userId: string) => void;
+  removeReaction: (messageId: string, emoji: string, userId: string) => void;
   updateConversationLastMessage: (
     conversationId: string,
     msg: { content: string | null; authorId: string; createdAt: string },
@@ -91,6 +93,41 @@ export const useDmStore = create<DmState>((set, get) => ({
   },
 
   clearMessages: () => set({ messages: [], hasMore: false }),
+
+  addReaction: (messageId, emoji, userId) => {
+    set((s) => ({
+      messages: s.messages.map((m) => {
+        if (m.id !== messageId) return m;
+        const reactions = [...(m.reactions ?? [])];
+        const existing = reactions.find((r) => r.emoji === emoji);
+        if (existing) {
+          if (!existing.userIds.includes(userId)) {
+            existing.userIds = [...existing.userIds, userId];
+            existing.count += 1;
+          }
+        } else {
+          reactions.push({ emoji, count: 1, userIds: [userId], isCustom: false });
+        }
+        return { ...m, reactions };
+      }),
+    }));
+  },
+
+  removeReaction: (messageId, emoji, userId) => {
+    set((s) => ({
+      messages: s.messages.map((m) => {
+        if (m.id !== messageId) return m;
+        const reactions = (m.reactions ?? [])
+          .map((r) => {
+            if (r.emoji !== emoji) return r;
+            const userIds = r.userIds.filter((id) => id !== userId);
+            return { ...r, userIds, count: userIds.length };
+          })
+          .filter((r) => r.count > 0);
+        return { ...m, reactions };
+      }),
+    }));
+  },
 
   updateConversationLastMessage: (conversationId, msg) => {
     set((s) => ({

@@ -2,6 +2,7 @@ import type { Message } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
@@ -79,6 +80,8 @@ export function DmMessageArea() {
     if (el.scrollTop < 100) loadMore();
   }, [loadMore]);
 
+  const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+
   if (!currentConvId || !currentConv) {
     return (
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 bg-[#313338] text-center">
@@ -125,7 +128,8 @@ export function DmMessageArea() {
                 key={msg.id}
                 message={msg}
                 prevMessage={messages[idx - 1]}
-                isOwn={msg.authorId === user?.id}
+                conversationId={currentConvId}
+                onReply={setReplyTarget}
               />
             ))}
             <div ref={bottomRef} />
@@ -133,7 +137,12 @@ export function DmMessageArea() {
         )}
       </div>
 
-      <DmInput conversationId={currentConvId} otherName={otherName} />
+      <DmInput
+        conversationId={currentConvId}
+        otherName={otherName}
+        replyTarget={replyTarget}
+        onCancelReply={() => setReplyTarget(null)}
+      />
     </div>
   );
 }
@@ -141,12 +150,20 @@ export function DmMessageArea() {
 function DmMessageRow({
   message,
   prevMessage,
-  isOwn,
+  conversationId,
+  onReply,
 }: {
   message: Message;
   prevMessage?: Message;
-  isOwn: boolean;
+  conversationId: string;
+  onReply: (msg: Message) => void;
 }) {
+  const userId = useAuthStore((s) => s.user?.id);
+  const isAuthor = message.authorId === userId;
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content ?? "");
+  const [emojiOpen, setEmojiOpen] = useState(false);
+
   const showHeader =
     !prevMessage ||
     prevMessage.authorId !== message.authorId ||
@@ -159,10 +176,69 @@ function DmMessageRow({
     minute: "2-digit",
   });
 
+  const handleEdit = useCallback(() => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === message.content) {
+      setEditing(false);
+      return;
+    }
+    getSocket()?.emit("dm:edit", {
+      messageId: message.id,
+      conversationId,
+      content: trimmed,
+    });
+    setEditing(false);
+  }, [editText, message, conversationId]);
+
+  const handleDelete = useCallback(() => {
+    getSocket()?.emit("dm:delete", {
+      messageId: message.id,
+      conversationId,
+    });
+  }, [message.id, conversationId]);
+
+  const reactions = message.reactions ?? [];
+
   return (
     <div
-      className={`group relative flex gap-4 px-2 py-0.5 hover:bg-white/[0.02] ${showHeader ? "mt-3" : ""}`}
+      className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition hover:bg-white/[0.03] ${showHeader ? "mt-3 first:mt-1" : "-mt-0.5"}`}
     >
+      {/* Actions toolbar */}
+      <div className="absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-[#2b2d31] opacity-0 shadow ring-1 ring-white/10 transition group-hover:opacity-100">
+        <div className="relative">
+          <ActionBtn title="React" onClick={() => setEmojiOpen((p) => !p)}>
+            😀
+          </ActionBtn>
+          {emojiOpen && (
+            <div className="absolute bottom-full right-0 z-50 mb-1">
+              <EmojiPicker
+                onSelect={(emoji) => {
+                  getSocket()?.emit("reaction:toggle", {
+                    messageId: message.id,
+                    emoji,
+                  });
+                  setEmojiOpen(false);
+                }}
+                onClose={() => setEmojiOpen(false)}
+              />
+            </div>
+          )}
+        </div>
+        <ActionBtn title="Reply" onClick={() => onReply(message)}>
+          ↩
+        </ActionBtn>
+        {isAuthor && (
+          <>
+            <ActionBtn title="Edit" onClick={() => { setEditing(true); setEditText(message.content ?? ""); }}>
+              ✏️
+            </ActionBtn>
+            <ActionBtn title="Delete" onClick={handleDelete}>
+              🗑️
+            </ActionBtn>
+          </>
+        )}
+      </div>
+
       {showHeader ? (
         <UserAvatar
           username={message.author?.username ?? "Deleted User"}
@@ -174,6 +250,18 @@ function DmMessageRow({
       )}
 
       <div className="min-w-0 flex-1">
+        {message.replyTo && (
+          <div className="mb-0.5 flex items-center gap-1 text-xs text-gray-400">
+            <ReplyArrowIcon />
+            <span className="font-medium text-gray-300">
+              {message.replyTo.author?.username ?? "Deleted User"}
+            </span>
+            <span className="truncate">
+              {message.replyTo.content || "[attachment]"}
+            </span>
+          </div>
+        )}
+
         {showHeader && (
           <div className="flex items-baseline gap-2">
             <span
@@ -189,11 +277,26 @@ function DmMessageRow({
           </div>
         )}
 
-        {message.content && (
-          <p className="break-words text-[15px] leading-relaxed text-gray-100">
-            {message.content}
-          </p>
-        )}
+        {editing ? (
+          <div className="mt-1">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEdit(); }
+                if (e.key === "Escape") setEditing(false);
+              }}
+              className="w-full rounded bg-[#383a40] px-3 py-2 text-sm text-white outline-none"
+              rows={2}
+              autoFocus
+            />
+            <p className="mt-1 text-[11px] text-gray-500">
+              Escape to cancel &middot; Enter to save
+            </p>
+          </div>
+        ) : message.content ? (
+          <MarkdownContent content={message.content} />
+        ) : null}
 
         {message.attachments?.map((att) => (
           <AttachmentPreview key={att.id} attachment={att} />
@@ -220,17 +323,70 @@ function DmMessageRow({
             )}
           </a>
         ))}
+
+        {reactions.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {reactions.map((r) => {
+              const isMine = userId ? r.userIds.includes(userId) : false;
+              return (
+                <button
+                  key={r.emoji}
+                  type="button"
+                  onClick={() => {
+                    getSocket()?.emit("reaction:toggle", {
+                      messageId: message.id,
+                      emoji: r.emoji,
+                    });
+                  }}
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${
+                    isMine
+                      ? "bg-[#5865f2]/20 text-[#5865f2] ring-1 ring-[#5865f2]/40"
+                      : "bg-[#2b2d31] text-gray-300 ring-1 ring-white/10 hover:bg-[#35373c]"
+                  }`}
+                >
+                  <span>{r.emoji}</span>
+                  <span className="font-medium">{r.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function ActionBtn({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="rounded px-1.5 py-0.5 text-sm transition hover:bg-white/10"
+    >
+      {children}
+    </button>
   );
 }
 
 function DmInput({
   conversationId,
   otherName,
+  replyTarget,
+  onCancelReply,
 }: {
   conversationId: string;
   otherName: string;
+  replyTarget: Message | null;
+  onCancelReply: () => void;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<
@@ -261,11 +417,13 @@ function DmInput({
       socket.emit("dm:send", {
         conversationId,
         content: trimmed || undefined,
+        replyToId: replyTarget?.id,
         attachmentIds,
       });
     }
     setText("");
-  }, [text, files, conversationId]);
+    onCancelReply();
+  }, [text, files, conversationId, replyTarget, onCancelReply]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -298,6 +456,25 @@ function DmInput({
 
   return (
     <div className="shrink-0 px-4 pb-6 pt-1">
+      {replyTarget && (
+        <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-[#2b2d31] px-3 py-2 text-xs text-gray-400">
+          <ReplyArrowIcon />
+          <span>
+            Replying to{" "}
+            <strong className="text-white">
+              {replyTarget.author?.username ?? "Deleted User"}
+            </strong>
+          </span>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="ml-auto text-gray-500 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {files.length > 0 && (
         <div className="mb-2 flex gap-2 overflow-x-auto rounded-lg bg-[#2b2d31] p-2">
           {files.map((f, i) => (
@@ -382,6 +559,15 @@ function AtIcon() {
   return (
     <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 2a10 10 0 1 0 4.4 19 1 1 0 0 0-.8-1.8A8 8 0 1 1 20 12v1.5a2.5 2.5 0 0 1-5 0V8h-2v.3A5 5 0 1 0 15 17a4.5 4.5 0 0 0 7-3.5V12A10 10 0 0 0 12 2zm0 13a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
+    </svg>
+  );
+}
+
+function ReplyArrowIcon() {
+  return (
+    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
     </svg>
   );
 }

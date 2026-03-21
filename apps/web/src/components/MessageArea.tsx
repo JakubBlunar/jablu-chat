@@ -1,6 +1,7 @@
 import type { Message } from "@chat/shared";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { MessageActions } from "@/components/MessageActions";
 import { MessageInput } from "@/components/MessageInput";
 import { SearchBar } from "@/components/SearchBar";
@@ -333,12 +334,12 @@ function MessageRow({
         ) : null}
 
         {message.content && (
-          <p className="whitespace-pre-wrap break-words text-[15px] text-gray-200">
-            {message.content}
+          <div>
+            <MarkdownContent content={message.content} />
             {message.editedAt ? (
               <span className="ml-1.5 text-xs text-gray-500">(edited)</span>
             ) : null}
-          </p>
+          </div>
         )}
 
         {attachments.length > 0 && (

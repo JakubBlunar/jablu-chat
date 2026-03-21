@@ -270,15 +270,21 @@ export class ChatGateway
       body.emoji,
       body.isCustom ?? false,
     );
-    const channelId = await this.messages.getMessageChannelId(body.messageId);
-    if (channelId) {
-      const event =
-        result.action === 'added' ? 'reaction:add' : 'reaction:remove';
-      this.emitToChannel(channelId, event, {
-        messageId: body.messageId,
-        emoji: body.emoji,
-        userId: user.id,
-        isCustom: result.isCustom,
+    const ctx = await this.messages.getMessageContext(body.messageId);
+    const event =
+      result.action === 'added' ? 'reaction:add' : 'reaction:remove';
+    const payload = {
+      messageId: body.messageId,
+      emoji: body.emoji,
+      userId: user.id,
+      isCustom: result.isCustom,
+    };
+    if (ctx.channelId) {
+      this.emitToChannel(ctx.channelId, event, payload);
+    } else if (ctx.directConversationId) {
+      this.emitToDm(ctx.directConversationId, event, {
+        ...payload,
+        conversationId: ctx.directConversationId,
       });
     }
     return { ok: true, action: result.action };
