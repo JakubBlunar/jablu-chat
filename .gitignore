@@ -26,11 +26,11 @@ Thumbs.db
 # Docker
 data/
 
-# Uploads
-uploads/
-
-# Desktop app builds & downloads
-downloads/
+# Runtime data directories (uploads / downloads)
+/uploads/
+/downloads/
+apps/server/uploads/
+apps/server/downloads/
 apps/desktop/release/
 
 # Generated
