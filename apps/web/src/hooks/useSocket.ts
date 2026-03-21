@@ -32,6 +32,7 @@ type ReactionPayload = {
   emoji: string;
   userId: string;
   isCustom: boolean;
+  conversationId?: string;
 };
 
 type LinkPreviewPayload = {
@@ -115,15 +116,19 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     };
 
     const onReactionAdd = (payload: ReactionPayload) => {
-      useMessageStore
-        .getState()
-        .addReaction(payload.messageId, payload.emoji, payload.userId);
+      if (payload.conversationId) {
+        useDmStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId);
+      } else {
+        useMessageStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId);
+      }
     };
 
     const onReactionRemove = (payload: ReactionPayload) => {
-      useMessageStore
-        .getState()
-        .removeReaction(payload.messageId, payload.emoji, payload.userId);
+      if (payload.conversationId) {
+        useDmStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId);
+      } else {
+        useMessageStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId);
+      }
     };
 
     const onMessagePin = (msg: Message) => {

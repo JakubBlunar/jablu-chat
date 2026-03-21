@@ -374,6 +374,17 @@ export class MessagesService {
     return row?.channelId ?? null;
   }
 
+  async getMessageContext(messageId: string): Promise<{ channelId: string | null; directConversationId: string | null }> {
+    const row = await this.prisma.message.findFirst({
+      where: { id: messageId },
+      select: { channelId: true, directConversationId: true },
+    });
+    return {
+      channelId: row?.channelId ?? null,
+      directConversationId: row?.directConversationId ?? null,
+    };
+  }
+
   async toggleReaction(
     messageId: string,
     userId: string,
