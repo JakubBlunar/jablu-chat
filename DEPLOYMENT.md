@@ -495,6 +495,307 @@ du -sh /var/lib/docker/volumes/*
 | `SMTP_PASS` | (empty) | SMTP password |
 | `SMTP_FROM` | `noreply@chat.local` | From address for emails |
 
+---
+
+## Multi-Site Deployment with Traefik
+
+If you want to run Jablu alongside other websites on the same VPS (each on its own
+domain/subdomain), use **Traefik** as the edge proxy instead of letting Jablu handle
+TLS directly. Traefik sits in front of everything, terminates TLS for all domains, and
+routes traffic based on the hostname.
+
+```
+Internet
+   │
+   ▼
+┌─────────────────────────────────────┐
+│  Traefik (ports 80 + 443)          │
+│  Let's Encrypt for all domains     │
+│  Routes by Host header             │
+└──┬──────────────┬──────────────┬───┘
+   │              │              │
+   ▼              ▼              ▼
+ Jablu        Website A      Website B
+ chat.example.com  example.com     other.com
+```
+
+### Step 1: Initial VPS Setup
+
+SSH into your fresh VPS:
+
+```bash
+ssh root@YOUR_VPS_IP
+```
+
+Install Docker:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+Create a non-root user:
+
+```bash
+adduser jablu
+usermod -aG docker jablu
+su - jablu
+```
+
+### Step 2: Set Up DNS
+
+In your domain registrar's DNS settings, add **A records** pointing to the VPS IP:
+
+| Type | Name | Value |
+|---|---|---|
+| A | `chat.example.com` | `YOUR_VPS_IP` |
+| A | `example.com` | `YOUR_VPS_IP` (optional, for landing page) |
+
+DNS propagation typically takes 5–30 minutes. Verify with:
+
+```bash
+dig chat.example.com +short
+# Should return YOUR_VPS_IP
+```
+
+### Step 3: Set Up Traefik
+
+Create the Traefik directory:
+
+```bash
+mkdir -p /opt/traefik
+cd /opt/traefik
+```
+
+Create the shared Docker network that all services will join:
+
+```bash
+docker network create web
+```
+
+Create `docker-compose.yml`:
+
+```yaml
+services:
+  traefik:
+    image: traefik:v3.3
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./acme.json:/acme.json
+    networks:
+      - web
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
+```
+
+Create `traefik.yml`:
+
+```yaml
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false
+    network: web
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@example.com
+      storage: /acme.json
+      httpChallenge:
+        entryPoint: web
+```
+
+Create the cert storage file with correct permissions:
+
+```bash
+touch acme.json
+chmod 600 acme.json
+```
+
+Start Traefik:
+
+```bash
+docker compose up -d
+```
+
+Verify it's running:
+
+```bash
+docker compose logs -f
+# Should show "Configuration loaded from file: /etc/traefik/traefik.yml"
+```
+
+### Step 4: Open Firewall Ports
+
+```bash
+ufw allow 22/tcp           # SSH
+ufw allow 80/tcp           # HTTP (Traefik redirects to HTTPS)
+ufw allow 443/tcp          # HTTPS (Traefik)
+ufw allow 7882/udp         # LiveKit WebRTC
+ufw allow 50000:50100/udp  # LiveKit media ports
+ufw enable
+```
+
+### Step 5: Deploy Jablu
+
+Clone the repo:
+
+```bash
+git clone https://github.com/YOUR_REPO/chat.git /opt/jablu
+cd /opt/jablu
+```
+
+Generate secrets:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+Edit `.env`:
+
+```bash
+nano .env
+```
+
+Set these values:
+
+```ini
+# Domain — must match the DNS record from Step 2
+SERVER_HOST=chat.example.com
+
+# TLS is handled by Traefik, keep this off
+TLS_MODE=off
+
+# LiveKit needs the full WSS URL through Traefik
+LIVEKIT_URL=wss://chat.example.com/livekit
+
+# Production email
+SMTP_HOST=smtp.mailgun.org
+SMTP_PORT=587
+SMTP_USER=postmaster@mg.example.com
+SMTP_PASS=your-mailgun-password
+SMTP_FROM=jablu@example.com
+
+# Security
+REGISTRATION_MODE=invite
+SUPERADMIN_PASSWORD=your-strong-admin-password
+
+# Storage
+STORAGE_LIMIT_GB=150
+CLEANUP_ENABLED=true
+CLEANUP_MIN_AGE_DAYS=90
+```
+
+Start Jablu with the Traefik override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+```
+
+This uses the `docker-compose.traefik.yml` override which:
+- Removes ports 80/443 from Jablu's nginx (Traefik owns those)
+- Adds Traefik routing labels for `chat.example.com`
+- Connects to the shared `web` network
+
+### Step 6: Verify
+
+Check all containers are running:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml ps
+```
+
+Test HTTPS (Traefik auto-obtains the Let's Encrypt cert on first request):
+
+```bash
+# Should redirect to HTTPS
+curl -I http://chat.example.com
+
+# Should return 200 with valid TLS
+curl -I https://chat.example.com/api/health
+```
+
+Open `https://chat.example.com` in your browser, go to `/admin`, log in, and create
+your first server + invite codes.
+
+### Adding Another Website
+
+To add another site (e.g. a landing page at `example.com`), create its own directory:
+
+```bash
+mkdir -p /opt/jablu-website
+cd /opt/jablu-website
+```
+
+Create a `docker-compose.yml` with Traefik labels:
+
+```yaml
+services:
+  website:
+    image: nginx:alpine
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.website.rule=Host(`example.com`)"
+      - "traefik.http.routers.website.entrypoints=websecure"
+      - "traefik.http.routers.website.tls.certresolver=letsencrypt"
+      - "traefik.http.services.website.loadbalancer.server.port=80"
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
+```
+
+```bash
+mkdir html
+echo "<h1>Welcome to Jablu</h1>" > html/index.html
+docker compose up -d
+```
+
+Traefik auto-discovers the new service and obtains a cert for `example.com`. Each site
+is fully independent — you can start/stop/update them without affecting others.
+
+### Updating Jablu (behind Traefik)
+
+```bash
+cd /opt/jablu
+git pull origin main
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml build
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+```
+
+### Quick Reference: File Locations on VPS
+
+| Path | Purpose |
+|---|---|
+| `/opt/traefik/` | Traefik edge proxy (shared across all sites) |
+| `/opt/jablu/` | Jablu chat application |
+| `/opt/jablu-website/` | Landing page or other sites |
+
+---
+
 ## Monthly Cost Summary
 
 | Item | Cost |
