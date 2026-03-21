@@ -220,6 +220,10 @@ export class ApiClient {
     return this.get<User>("/api/auth/me");
   }
 
+  searchUsers(q: string): Promise<{ id: string; username: string; avatarUrl: string | null }[]> {
+    return this.get(`/api/auth/users/search?q=${encodeURIComponent(q)}`);
+  }
+
   logout(refreshTokenValue: string): Promise<{ message: string }> {
     const payload: RefreshTokenRequest = { refreshToken: refreshTokenValue };
     return this.post<{ message: string }>("/api/auth/logout", payload);

@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -157,5 +158,11 @@ export class AuthController {
       status: dto.status,
     });
     return updated;
+  }
+
+  @Get('users/search')
+  @UseGuards(AuthGuard('jwt'))
+  async searchUsers(@Query('q') q: string) {
+    return this.auth.searchUsers(q ?? '');
   }
 }

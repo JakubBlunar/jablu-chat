@@ -270,6 +270,18 @@ export class AuthService {
     });
   }
 
+  async searchUsers(query: string) {
+    const q = query.trim();
+    if (!q || q.length < 2) return [];
+    return this.prisma.user.findMany({
+      where: {
+        username: { contains: q, mode: 'insensitive' },
+      },
+      select: { id: true, username: true, avatarUrl: true },
+      take: 20,
+    });
+  }
+
   private async generateTokens(userId: string) {
     const accessToken = this.jwt.sign({ sub: userId });
 
