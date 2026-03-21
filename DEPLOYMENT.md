@@ -578,6 +578,8 @@ Create `docker-compose.yml`:
 services:
   traefik:
     image: traefik:v3.3
+    environment:
+      - DOCKER_API_VERSION=1.45
     ports:
       - "80:80"
       - "443:443"
