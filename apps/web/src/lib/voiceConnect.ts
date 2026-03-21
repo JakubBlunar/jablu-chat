@@ -37,10 +37,12 @@ export async function joinVoiceChannel(channelId: string, channelName: string) {
 
     await room.connect(url, token);
 
-    await room.localParticipant.setMicrophoneEnabled(true);
-
     getSocket()?.emit("voice:join", { channelId });
     store.setConnected(room);
+
+    room.localParticipant.setMicrophoneEnabled(true).catch((err) => {
+      console.warn("Could not enable microphone:", err.message);
+    });
   } catch (err) {
     console.error("Failed to join voice channel:", err);
     store.disconnect();
