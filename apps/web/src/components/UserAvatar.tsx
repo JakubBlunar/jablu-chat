@@ -61,7 +61,7 @@ export function UserAvatar({
       )}
       {showStatus ? (
         <span
-          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-[#2b2d31] ${resolveStatusClass(status, "offline")}`}
+          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface-dark ${resolveStatusClass(status, "offline")}`}
           aria-hidden
         />
       ) : null}

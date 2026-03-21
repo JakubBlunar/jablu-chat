@@ -30,3 +30,12 @@ export class AdminUpdateUserDto {
   bio?: string;
 }
 
+export class AdminCreateInviteDto {
+  @IsEmail()
+  email: string;
+
+  @IsOptional()
+  @IsUUID()
+  serverId?: string;
+}
+

@@ -63,7 +63,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg rounded-lg bg-[#313338] p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-lg bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">
             Invite to {serverName}
@@ -81,7 +81,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
           <select
             value={expiresIn}
             onChange={(e) => setExpiresIn(e.target.value)}
-            className="rounded bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none"
+            className="rounded bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none"
           >
             <option value="">Never expires</option>
             <option value="30">30 minutes</option>
@@ -94,7 +94,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
           <select
             value={maxUses}
             onChange={(e) => setMaxUses(e.target.value)}
-            className="rounded bg-[#1e1f22] px-3 py-2 text-sm text-gray-200 outline-none"
+            className="rounded bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none"
           >
             <option value="">No limit</option>
             <option value="1">1 use</option>
@@ -108,7 +108,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
             type="button"
             disabled={creating}
             onClick={() => void handleCreate()}
-            className="rounded bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
           >
             {creating ? "Creating..." : "Generate"}
           </button>
@@ -125,7 +125,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
             invites.map((inv) => (
               <div
                 key={inv.id}
-                className="flex items-center gap-3 rounded bg-[#2b2d31] px-3 py-2"
+                className="flex items-center gap-3 rounded bg-surface-dark px-3 py-2"
               >
                 <code className="flex-1 truncate text-sm font-medium text-white">
                   {inv.code}
@@ -140,7 +140,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
                 <button
                   type="button"
                   onClick={() => copyCode(inv.code, inv.id)}
-                  className="rounded bg-[#5865f2]/20 px-2 py-1 text-xs font-medium text-[#5865f2] transition hover:bg-[#5865f2]/30"
+                  className="rounded bg-primary/20 px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary/30"
                 >
                   {copiedId === inv.id ? "Copied!" : "Copy"}
                 </button>

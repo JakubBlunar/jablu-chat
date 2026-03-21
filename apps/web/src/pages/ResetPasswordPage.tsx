@@ -80,7 +80,7 @@ export function ResetPasswordPage() {
           </div>
           <Link
             to="/login"
-            className="block w-full rounded-md bg-[#5865f2] py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[#4752c4] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865f2] focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2d31]"
+            className="block w-full rounded-md bg-primary py-2.5 text-center text-sm font-semibold text-white transition hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
           >
             Go to Login
           </Link>
@@ -111,7 +111,7 @@ export function ResetPasswordPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={tokenInvalid}
-              className="w-full rounded-md border border-white/10 bg-[#1e1f22] px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-[#5865f2] focus:outline-none focus:ring-1 focus:ring-[#5865f2] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="At least 8 characters"
               required
             />
@@ -132,7 +132,7 @@ export function ResetPasswordPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={tokenInvalid}
-              className="w-full rounded-md border border-white/10 bg-[#1e1f22] px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-[#5865f2] focus:outline-none focus:ring-1 focus:ring-[#5865f2] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="Repeat password"
               required
             />
@@ -141,7 +141,7 @@ export function ResetPasswordPage() {
           <button
             type="submit"
             disabled={isSubmitting || tokenInvalid}
-            className="mt-2 w-full rounded-md bg-[#5865f2] py-2.5 text-sm font-semibold text-white transition hover:bg-[#4752c4] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5865f2] focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2d31]"
+            className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
           >
             {isSubmitting ? "Resetting…" : "Reset Password"}
           </button>
@@ -151,7 +151,7 @@ export function ResetPasswordPage() {
       <p className="mt-6 text-center text-sm">
         <Link
           to="/login"
-          className="font-medium text-[#5865f2] hover:underline focus:outline-none focus-visible:underline"
+          className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
         >
           Back to Login
         </Link>

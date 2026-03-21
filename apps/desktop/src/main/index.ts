@@ -20,13 +20,21 @@ function loadDevUrl(win: BrowserWindow, attempt = 1) {
   });
 }
 
+function getIconPath() {
+  if (isDev) {
+    return join(__dirname, "..", "..", "resources", "icon-256.png");
+  }
+  return join(process.resourcesPath, "icon-256.png");
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 940,
     minHeight: 560,
-    title: "Chat",
+    title: "Nook",
+    icon: nativeImage.createFromPath(getIconPath()),
     backgroundColor: "#1e1f22",
     webPreferences: {
       preload: join(__dirname, "preload.js"),
@@ -65,9 +73,9 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createEmpty();
-  tray = new Tray(icon);
-  tray.setToolTip("Chat");
+  const icon = nativeImage.createFromPath(getIconPath());
+  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  tray.setToolTip("Nook");
 
   const contextMenu = Menu.buildFromTemplate([
     {

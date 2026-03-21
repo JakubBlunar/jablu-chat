@@ -62,7 +62,7 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
       href={attachment.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-1 flex items-center gap-3 rounded-lg bg-[#2b2d31] px-3 py-2 ring-1 ring-white/10 transition hover:bg-[#35373c]"
+      className="mt-1 flex items-center gap-3 rounded-lg bg-surface-dark px-3 py-2 ring-1 ring-white/10 transition hover:bg-surface-hover"
     >
       <FileIcon />
       <div className="min-w-0 flex-1">

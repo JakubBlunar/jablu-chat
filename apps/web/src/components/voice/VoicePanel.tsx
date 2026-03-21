@@ -117,7 +117,7 @@ export function VoicePanel() {
   const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
   return (
-    <div className="border-t border-black/20 bg-[#232428] px-3 py-2">
+    <div className="border-t border-black/20 bg-surface-overlay px-3 py-2">
       <div className="flex items-center gap-1.5">
         <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-green-400">
@@ -181,7 +181,7 @@ export function VoicePanel() {
               onClick={handleScreenShare}
               className={`rounded-md p-1.5 transition ${
                 isScreenSharing
-                  ? "bg-[#5865f2]/20 text-[#5865f2]"
+                  ? "bg-primary/20 text-primary"
                   : "text-gray-400 hover:bg-white/10 hover:text-white"
               }`}
             >

@@ -60,7 +60,7 @@ export function MemberSidebar() {
   const total = members.length;
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col bg-[#2b2d31]">
+    <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
       <div className="flex h-12 shrink-0 items-center border-b border-black/20 px-4">
         <h2 className="text-[11px] font-semibold tracking-wide text-gray-400">
           MEMBERS — {total}
@@ -163,7 +163,7 @@ function MemberRow({
               {name}
             </span>
             {badge ? (
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#5865f2] ring-1 ring-[#5865f2]/40">
+              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
                 {badge}
               </span>
             ) : null}

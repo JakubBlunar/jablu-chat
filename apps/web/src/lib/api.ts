@@ -198,9 +198,19 @@ export class ApiClient {
     username: string,
     email: string,
     password: string,
+    inviteCode?: string,
   ): Promise<AuthResponse> {
-    const payload: RegisterRequest = { username, email, password };
+    const payload: RegisterRequest & { inviteCode?: string } = {
+      username,
+      email,
+      password,
+      ...(inviteCode ? { inviteCode } : {}),
+    };
     return this.post<AuthResponse>("/api/auth/register", payload);
+  }
+
+  getRegistrationMode(): Promise<{ mode: string }> {
+    return this.get<{ mode: string }>("/api/auth/registration-mode");
   }
 
   refreshToken(token: string): Promise<AuthResponse> {

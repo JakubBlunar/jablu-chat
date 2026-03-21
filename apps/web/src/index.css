@@ -1,1 +1,32 @@
 @import "tailwindcss";
+
+@theme {
+  /* ──── Primary accent ──── */
+  /* Preset A: Amber (default) */
+  --color-primary: #F59E0B;
+  --color-primary-hover: #D97706;
+  /* Preset B: Teal
+  --color-primary: #14B8A6;
+  --color-primary-hover: #0D9488;
+  */
+  /* Preset C: Coral
+  --color-primary: #F97316;
+  --color-primary-hover: #EA580C;
+  */
+
+  /* ──── Surfaces (dark theme) ──── */
+  --color-surface-darkest: #1e1f22;
+  --color-surface-dark: #2b2d31;
+  --color-surface: #313338;
+  --color-surface-raised: #383a40;
+  --color-surface-selected: #404249;
+  --color-surface-hover: #35373c;
+  --color-surface-overlay: #232428;
+  --color-auth-bg: #1a1a2e;
+
+  /* ──── Semantic ──── */
+  --color-success: #23a559;
+  --color-success-hover: #1a7d43;
+  --color-link: #00aff4;
+  --color-code: #e8912d;
+}

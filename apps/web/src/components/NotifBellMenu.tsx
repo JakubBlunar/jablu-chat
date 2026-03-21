@@ -92,7 +92,7 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
           <div
             ref={menuRef}
             style={{ top: menuPos.top, left: menuPos.left }}
-            className="fixed z-[300] w-52 rounded-lg bg-[#1e1f22] py-1 shadow-xl ring-1 ring-white/10"
+            className="fixed z-[300] w-52 rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
           >
             {LEVELS.map((opt) => (
               <button
@@ -138,7 +138,7 @@ function BellMutedIcon() {
 
 function CheckIcon() {
   return (
-    <svg className="h-3 w-3 text-[#5865f2]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+    <svg className="h-3 w-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );

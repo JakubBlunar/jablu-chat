@@ -78,7 +78,7 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
       }}
     >
       <div
-        className="w-full max-w-md rounded-lg bg-[#2b2d31] p-6 shadow-2xl ring-1 ring-white/10"
+        className="w-full max-w-md rounded-lg bg-surface-dark p-6 shadow-2xl ring-1 ring-white/10"
         role="dialog"
         aria-labelledby="create-channel-title"
         onMouseDown={(e) => e.stopPropagation()}
@@ -99,7 +99,7 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
             value={rawName}
             onChange={(e) => setRawName(e.target.value)}
             placeholder="new-channel"
-            className="mt-1.5 w-full rounded-md border-0 bg-[#1e1f22] px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-[#5865f2]"
+            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
             maxLength={100}
             autoFocus
           />
@@ -128,8 +128,8 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
               key={opt.value}
               className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition ${
                 type === opt.value
-                  ? "border-[#5865f2] bg-[#5865f2]/15"
-                  : "border-transparent bg-[#1e1f22] hover:bg-[#1e1f22]/80"
+                  ? "border-primary bg-primary/15"
+                  : "border-transparent bg-surface-darkest hover:bg-surface-darkest/80"
               }`}
             >
               <input
@@ -138,7 +138,7 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
                 value={opt.value}
                 checked={type === opt.value}
                 onChange={() => setType(opt.value)}
-                className="h-4 w-4 accent-[#5865f2]"
+                className="h-4 w-4 accent-primary"
               />
               <span>
                 <span className="block text-sm font-medium text-white">
@@ -174,7 +174,7 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
             type="button"
             onClick={() => void handleCreate()}
             disabled={busy}
-            className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create"}
           </button>

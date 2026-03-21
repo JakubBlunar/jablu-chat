@@ -107,7 +107,7 @@ export function ParticipantTile({
   const displayName = participant.name || participant.identity;
 
   return (
-    <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-[#1e1f22]">
+    <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-surface-darkest">
       {/* Speaking ring */}
       <div
         className={`pointer-events-none absolute inset-0 rounded-xl border-2 transition-colors duration-200 ${
@@ -126,7 +126,7 @@ export function ParticipantTile({
 
       {!hasVideo && (
         <div className="flex flex-col items-center gap-3">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#5865f2] text-3xl font-bold text-white sm:h-24 sm:w-24 sm:text-4xl">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-3xl font-bold text-white sm:h-24 sm:w-24 sm:text-4xl">
             {displayName.charAt(0).toUpperCase()}
           </div>
           <span className="text-sm font-medium text-gray-300">{displayName}</span>

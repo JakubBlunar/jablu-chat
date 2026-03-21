@@ -30,6 +30,7 @@ model User {
   dmMemberships     DirectConversationMember[]
   refreshTokens     RefreshToken[]
   auditLogs         AuditLog[]             @relation("auditLogActor")
+  usedInvites       RegistrationInvite[]   @relation("UsedInvites")
 
   @@map("users")
 }
@@ -74,12 +75,13 @@ model Server {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  owner        User           @relation("ServerOwner", fields: [ownerId], references: [id])
-  channels     Channel[]
-  members      ServerMember[]
-  invites      Invite[]
-  customEmojis CustomEmoji[]
-  auditLogs    AuditLog[]
+  owner               User                 @relation("ServerOwner", fields: [ownerId], references: [id])
+  channels            Channel[]
+  members             ServerMember[]
+  invites             Invite[]
+  customEmojis        CustomEmoji[]
+  auditLogs           AuditLog[]
+  registrationInvites RegistrationInvite[]
 
   @@map("servers")
 }
@@ -298,6 +300,23 @@ enum NotifLevel {
   all
   mentions
   none
+}
+
+model RegistrationInvite {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  email     String
+  serverId  String?   @map("server_id")
+  used      Boolean   @default(false)
+  usedAt    DateTime? @map("used_at")
+  usedById  String?   @map("used_by_id")
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  server Server? @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  usedBy User?   @relation("UsedInvites", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@map("registration_invites")
 }
 
 model AuditLog {

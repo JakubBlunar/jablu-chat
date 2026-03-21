@@ -143,8 +143,8 @@ export function VoiceSettings() {
               onClick={() => handleMicModeChange(opt.value)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
                 micMode === opt.value
-                  ? "bg-[#5865f2] text-white"
-                  : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+                  ? "bg-primary text-white"
+                  : "bg-surface-darkest text-gray-300 hover:bg-white/10"
               }`}
             >
               {opt.label}
@@ -172,7 +172,7 @@ export function VoiceSettings() {
                 setVadThreshold(v);
                 saveVadThreshold(v);
               }}
-              className="w-full accent-[#5865f2]"
+              className="w-full accent-primary"
             />
             <div className="mt-0.5 flex justify-between text-[10px] text-gray-500">
               <span>Sensitive</span>
@@ -189,8 +189,8 @@ export function VoiceSettings() {
               onClick={handlePttRecord}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ring-1 transition ${
                 recordingPtt
-                  ? "bg-[#5865f2]/20 text-[#5865f2] ring-[#5865f2]/40"
-                  : "bg-[#1e1f22] text-white ring-white/10 hover:bg-white/10"
+                  ? "bg-primary/20 text-primary ring-primary/40"
+                  : "bg-surface-darkest text-white ring-white/10 hover:bg-white/10"
               }`}
             >
               {recordingPtt
@@ -240,8 +240,8 @@ export function VoiceSettings() {
               }}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
                 cameraQuality === q
-                  ? "bg-[#5865f2] text-white"
-                  : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+                  ? "bg-primary text-white"
+                  : "bg-surface-darkest text-gray-300 hover:bg-white/10"
               }`}
             >
               {q}
@@ -281,7 +281,7 @@ function DeviceSelect({
           const v = e.target.value === "__missing__" ? "" : e.target.value;
           onChange(v);
         }}
-        className={`w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ${
+        className={`w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ${
           isMissing ? "ring-amber-500/50" : "ring-white/10"
         }`}
       >

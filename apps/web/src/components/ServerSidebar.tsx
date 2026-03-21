@@ -41,15 +41,15 @@ export function ServerSidebar() {
 
   return (
     <>
-      <aside className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 bg-[#1e1f22] py-3">
+      <aside className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 bg-surface-darkest py-3">
         <button
           type="button"
           title="Direct Messages"
           onClick={handleDmClick}
           className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
             viewMode === "dm"
-              ? "rounded-2xl bg-[#5865f2] text-white"
-              : "rounded-[24px] bg-[#313338] text-[#23a559] hover:rounded-2xl hover:bg-[#5865f2] hover:text-white"
+              ? "rounded-2xl bg-primary text-white"
+              : "rounded-[24px] bg-surface text-success hover:rounded-2xl hover:bg-primary hover:text-white"
           }`}
         >
           <DmIcon />
@@ -66,7 +66,7 @@ export function ServerSidebar() {
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-[#313338]"
+                  className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-surface"
                 />
               ))}
             </div>
@@ -88,8 +88,8 @@ export function ServerSidebar() {
                     title={server.name}
                     className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
                       active
-                        ? "rounded-2xl bg-[#5865f2]"
-                        : "rounded-[24px] bg-[#313338] hover:rounded-2xl hover:bg-[#5865f2]"
+                        ? "rounded-2xl bg-primary"
+                        : "rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary"
                     }`}
                   >
                     {server.iconUrl ? (
@@ -112,7 +112,7 @@ export function ServerSidebar() {
           type="button"
           title="Join a server"
           onClick={() => setJoinOpen(true)}
-          className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-[#313338] text-[#23a559] transition-all duration-200 ease-out hover:rounded-2xl hover:bg-[#23a559] hover:text-white"
+          className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-surface text-success transition-all duration-200 ease-out hover:rounded-2xl hover:bg-success hover:text-white"
         >
           <JoinIcon />
         </button>

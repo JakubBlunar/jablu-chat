@@ -30,8 +30,8 @@ export function ServerSettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="flex h-[80vh] w-[720px] max-w-[95vw] overflow-hidden rounded-lg bg-[#313338] shadow-xl">
-        <nav className="flex w-44 shrink-0 flex-col gap-0.5 bg-[#2b2d31] p-3">
+      <div className="flex h-[80vh] w-[720px] max-w-[95vw] overflow-hidden rounded-lg bg-surface shadow-xl">
+        <nav className="flex w-44 shrink-0 flex-col gap-0.5 bg-surface-dark p-3">
           <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Server Settings
           </h2>
@@ -50,7 +50,7 @@ export function ServerSettingsModal({
               onClick={() => setTab(id)}
               className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
                 tab === id
-                  ? "bg-[#404249] text-white"
+                  ? "bg-surface-selected text-white"
                   : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
               }`}
             >
@@ -148,7 +148,7 @@ function OverviewTab({ server }: { server: Server }) {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#5865f2] text-3xl font-bold text-white transition hover:opacity-80"
+            className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary text-3xl font-bold text-white transition hover:opacity-80"
           >
             {iconPreview ? (
               <img
@@ -190,13 +190,13 @@ function OverviewTab({ server }: { server: Server }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={100}
-              className="flex-1 rounded-md border border-white/10 bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none focus:border-[#5865f2]"
+              className="flex-1 rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-primary"
             />
             <button
               type="button"
               disabled={saving || !name.trim() || name === server.name}
               onClick={saveName}
-              className="rounded-md bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -268,7 +268,7 @@ function MembersTab({ server }: { server: Server }) {
                 {m.user.username}
               </span>
               {m.role !== "member" && (
-                <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#5865f2] ring-1 ring-[#5865f2]/40">
+                <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
                   {m.role}
                 </span>
               )}
@@ -280,7 +280,7 @@ function MembersTab({ server }: { server: Server }) {
                   <select
                     value={m.role}
                     onChange={(e) => handleRoleChange(m, e.target.value)}
-                    className="rounded border border-white/10 bg-[#1e1f22] px-2 py-1 text-xs text-white outline-none"
+                    className="rounded border border-white/10 bg-surface-darkest px-2 py-1 text-xs text-white outline-none"
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
@@ -358,7 +358,7 @@ function DangerTab({
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={server.name}
-            className="w-full rounded-md border border-white/10 bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none focus:border-red-500"
+            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-red-500"
           />
           <button
             type="button"
@@ -447,7 +447,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-md bg-[#2b2d31] p-4">
+      <div className="rounded-md bg-surface-dark p-4">
         <h3 className="mb-3 text-sm font-semibold text-white">
           Create Webhook
         </h3>
@@ -459,7 +459,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
               placeholder="My Webhook"
-              className="w-full rounded border border-white/10 bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none focus:border-[#5865f2]"
+              className="w-full rounded border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-primary"
             />
           </div>
           <div className="w-40 space-y-1">
@@ -467,7 +467,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
             <select
               value={channelId}
               onChange={(e) => setChannelId(e.target.value)}
-              className="w-full rounded border border-white/10 bg-[#1e1f22] px-2 py-2 text-sm text-white outline-none"
+              className="w-full rounded border border-white/10 bg-surface-darkest px-2 py-2 text-sm text-white outline-none"
             >
               {textChannels.map((ch) => (
                 <option key={ch.id} value={ch.id}>
@@ -480,7 +480,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
             type="button"
             disabled={creating || !name.trim()}
             onClick={() => void handleCreate()}
-            className="rounded bg-[#5865f2] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
           >
             Create
           </button>
@@ -498,7 +498,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
             return (
               <div
                 key={wh.id}
-                className="flex items-center gap-3 rounded-md bg-[#2b2d31] px-4 py-3"
+                className="flex items-center gap-3 rounded-md bg-surface-dark px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white">{wh.name}</p>
@@ -510,7 +510,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
                 <button
                   type="button"
                   onClick={() => copyUrl(wh)}
-                  className="rounded px-3 py-1 text-xs font-medium text-[#5865f2] transition hover:bg-[#5865f2]/10"
+                  className="rounded px-3 py-1 text-xs font-medium text-primary transition hover:bg-primary/10"
                 >
                   {copiedId === wh.id ? "Copied!" : "Copy URL"}
                 </button>
@@ -578,7 +578,7 @@ function AuditLogTab({ server }: { server: Server }) {
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-white">
-                  <span className="font-semibold text-[#5865f2]">
+                  <span className="font-semibold text-primary">
                     {e.actor?.username ?? "Unknown"}
                   </span>
                   {" "}
@@ -608,7 +608,7 @@ function AuditLogTab({ server }: { server: Server }) {
         <button
           type="button"
           onClick={loadMore}
-          className="mx-auto block rounded bg-[#2b2d31] px-4 py-2 text-xs text-gray-300 ring-1 ring-white/10 hover:bg-[#404249]"
+          className="mx-auto block rounded bg-surface-dark px-4 py-2 text-xs text-gray-300 ring-1 ring-white/10 hover:bg-surface-selected"
         >
           Load more
         </button>

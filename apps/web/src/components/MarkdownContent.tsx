@@ -29,19 +29,19 @@ export function MarkdownContent({
           const isBlock = typeof codeClassName === "string" && codeClassName.startsWith("language-");
           if (isBlock) {
             return (
-              <code className="block overflow-x-auto rounded-md bg-[#1e1f22] p-3 text-sm text-gray-200">
+              <code className="block overflow-x-auto rounded-md bg-surface-darkest p-3 text-sm text-gray-200">
                 {children}
               </code>
             );
           }
           return (
-            <code className="rounded bg-[#1e1f22] px-1.5 py-0.5 text-sm text-[#e8912d]">
+            <code className="rounded bg-surface-darkest px-1.5 py-0.5 text-sm text-code">
               {children}
             </code>
           );
         },
         pre: ({ children }) => (
-          <pre className="my-1 overflow-x-auto rounded-md bg-[#1e1f22] text-sm">
+          <pre className="my-1 overflow-x-auto rounded-md bg-surface-darkest text-sm">
             {children}
           </pre>
         ),
@@ -50,7 +50,7 @@ export function MarkdownContent({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#00aff4] hover:underline"
+            className="text-link hover:underline"
           >
             {children}
           </a>
@@ -89,7 +89,7 @@ export function MarkdownContent({
           </table>
         ),
         th: ({ children }) => (
-          <th className="border border-white/10 bg-[#1e1f22] px-3 py-1.5 text-left font-semibold text-white">
+          <th className="border border-white/10 bg-surface-darkest px-3 py-1.5 text-left font-semibold text-white">
             {children}
           </th>
         ),

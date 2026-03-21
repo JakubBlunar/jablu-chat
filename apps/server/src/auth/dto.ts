@@ -16,6 +16,10 @@ export class RegisterDto {
   @MinLength(8)
   @MaxLength(128)
   password: string;
+
+  @IsOptional()
+  @IsString()
+  inviteCode?: string;
 }
 
 export class LoginDto {

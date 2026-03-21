@@ -12,9 +12,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#313338]">
+      <div className="flex min-h-screen items-center justify-center bg-surface">
         <div
-          className="h-10 w-10 animate-spin rounded-full border-2 border-[#5865f2] border-t-transparent"
+          className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent"
           aria-hidden
         />
         <span className="sr-only">Loading session</span>
