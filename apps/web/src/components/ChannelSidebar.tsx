@@ -8,10 +8,14 @@ import { ServerSettingsModal } from "@/components/ServerSettingsModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
+import { isElectron } from "@/lib/electron";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useServerStore } from "@/stores/server.store";
+import { useVoiceStore } from "@/stores/voice.store";
+import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import { VoicePanel } from "@/components/voice/VoicePanel";
 
 function ChevronDownIcon() {
   return (
@@ -122,12 +126,27 @@ export function ChannelSidebar() {
 
   const isOwner = currentServer?.ownerId === user?.id;
   const removeServer = useServerStore((s) => s.removeServer);
+  const voiceParticipants = useVoiceStore((s) => s.participants);
+  const currentVoiceChannelId = useVoiceConnectionStore(
+    (s) => s.currentChannelId,
+  );
 
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+
+  const handleVoiceChannelClick = useCallback(
+    (ch: Channel) => {
+      const store = useVoiceConnectionStore.getState();
+      if (store.currentChannelId === ch.id) return;
+      import("@/lib/voiceConnect").then(({ joinVoiceChannel }) =>
+        joinVoiceChannel(ch.id, ch.name),
+      );
+    },
+    [],
+  );
 
   const handleLeave = useCallback(async () => {
     if (!currentServer) return;
@@ -265,31 +284,64 @@ export function ChannelSidebar() {
           </div>
 
           <ul className="space-y-1">
-            {voiceChannels.map((ch) => (
-              <li key={ch.id}>
-                <div className="group/ch relative rounded-md px-2 py-1.5 text-[15px] text-gray-300">
-                  <div className="flex items-center gap-2">
-                    <SpeakerIcon />
-                    <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                  </div>
-                  <p className="mt-1 pl-7 text-xs text-gray-500">
-                    No one connected
-                  </p>
-                  {isAdminOrOwner && (
+            {voiceChannels.map((ch) => {
+              const participants = voiceParticipants[ch.id] ?? [];
+              const inThisChannel = currentVoiceChannelId === ch.id;
+              return (
+                <li key={ch.id}>
+                  <div className="group/ch relative rounded-md px-2 py-1.5 text-[15px] text-gray-300">
                     <button
                       type="button"
-                      title="Edit channel"
-                      onClick={() => setEditingChannel(ch)}
-                      className="absolute right-1 top-2 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
+                      onClick={() => {
+                        if (isElectron) handleVoiceChannelClick(ch);
+                      }}
+                      className={`flex w-full items-center gap-2 text-left ${
+                        isElectron ? "cursor-pointer" : "cursor-default"
+                      } ${inThisChannel ? "text-white" : ""}`}
                     >
-                      <GearSmallIcon />
+                      <SpeakerIcon />
+                      <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                      {participants.length > 0 && (
+                        <span className="shrink-0 text-xs text-gray-400">
+                          {participants.length}
+                        </span>
+                      )}
                     </button>
-                  )}
-                </div>
-              </li>
-            ))}
+                    {participants.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5 pl-7">
+                        {participants.map((p) => (
+                          <li
+                            key={p.userId}
+                            className="flex items-center gap-1.5 text-xs text-gray-400"
+                          >
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+                            <span className="truncate">{p.username}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 pl-7 text-xs text-gray-500">
+                        No one connected
+                      </p>
+                    )}
+                    {isAdminOrOwner && (
+                      <button
+                        type="button"
+                        title="Edit channel"
+                        onClick={() => setEditingChannel(ch)}
+                        className="absolute right-1 top-2 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
+                      >
+                        <GearSmallIcon />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
+
+        <VoicePanel />
 
         <div className="flex h-[52px] shrink-0 items-center gap-2 bg-[#232428] px-2">
           <UserAvatar

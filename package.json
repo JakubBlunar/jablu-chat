@@ -11,6 +11,7 @@
     "db:migrate:deploy": "pnpm --filter @chat/server db:migrate:deploy",
     "db:generate": "pnpm --filter @chat/server db:generate",
     "db:studio": "pnpm --filter @chat/server db:studio",
+    "desktop:dev": "pnpm --filter @chat/desktop dev",
     "setup": "bash setup.sh"
   },
   "devDependencies": {
@@ -25,7 +26,9 @@
       "prisma",
       "sharp",
       "esbuild",
-      "@swc/core"
+      "@swc/core",
+      "electron",
+      "electron-winstaller"
     ]
   }
 }

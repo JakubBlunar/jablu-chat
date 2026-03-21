@@ -1,0 +1,45 @@
+{
+  "name": "@chat/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "tsc -p tsconfig.json && electron dist/main/index.js",
+    "build": "tsc -p tsconfig.json",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "~5.8.0"
+  },
+  "build": {
+    "appId": "com.chat.desktop",
+    "productName": "Chat",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}

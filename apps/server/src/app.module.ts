@@ -12,6 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { EventsModule } from './events/events.module';
 import { ServersModule } from './servers/servers.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { VoiceModule } from './voice/voice.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
@@ -34,6 +35,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     DmModule,
     InvitesModule,
     MessagesModule,
+    VoiceModule,
     WebhooksModule,
     GatewayModule,
   ],

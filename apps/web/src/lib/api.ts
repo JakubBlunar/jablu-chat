@@ -68,7 +68,7 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
-  protected readonly baseUrl = "";
+  baseUrl = "";
   private refreshPromise: Promise<AuthResponse> | null = null;
 
   private async tryRefreshToken(): Promise<AuthResponse | null> {
@@ -222,6 +222,10 @@ export class ApiClient {
 
   searchUsers(q: string): Promise<{ id: string; username: string; avatarUrl: string | null }[]> {
     return this.get(`/api/auth/users/search?q=${encodeURIComponent(q)}`);
+  }
+
+  getVoiceToken(channelId: string): Promise<{ token: string; url: string; isAdmin: boolean }> {
+    return this.post(`/api/voice/token/${channelId}`);
   }
 
   logout(refreshTokenValue: string): Promise<{ message: string }> {

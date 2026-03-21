@@ -6,6 +6,8 @@ import { DmSidebar } from "@/components/DmSidebar";
 import { MemberSidebar } from "@/components/MemberSidebar";
 import { MessageArea } from "@/components/MessageArea";
 import { ServerSidebar } from "@/components/ServerSidebar";
+import { ScreenSharePicker } from "@/components/voice/ScreenSharePicker";
+import { VoiceRoom } from "@/components/voice/VoiceRoom";
 import { useIdleDetector } from "@/hooks/useIdleDetector";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuthStore } from "@/stores/auth.store";
@@ -13,6 +15,7 @@ import { useChannelStore } from "@/stores/channel.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 import { useServerStore } from "@/stores/server.store";
+import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
 export function MainLayout() {
   const { socket } = useSocket();
@@ -127,6 +130,9 @@ export function MainLayout() {
     );
   }
 
+  const voiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId);
+  const isInVoice = !!voiceChannelId;
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#313338] text-white">
       <ServerSidebar />
@@ -143,6 +149,11 @@ export function MainLayout() {
             Use the + button in the server list to create your first server.
           </p>
         </div>
+      ) : isInVoice ? (
+        <>
+          <VoiceRoom />
+          <Outlet />
+        </>
       ) : (
         <>
           <MessageArea />
@@ -150,6 +161,7 @@ export function MainLayout() {
         </>
       )}
       <MemberSidebar />
+      <ScreenSharePicker />
     </div>
   );
 }
