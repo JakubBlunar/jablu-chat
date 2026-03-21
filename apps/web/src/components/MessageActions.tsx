@@ -154,9 +154,11 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
             <EditIcon />
           </ActionBtn>
         )}
-        <ActionBtn title={message.pinned ? "Unpin" : "Pin"} onClick={handlePin}>
-          <PinIcon />
-        </ActionBtn>
+        {isAdminOrOwner && (
+          <ActionBtn title={message.pinned ? "Unpin" : "Pin"} onClick={handlePin}>
+            <PinIcon />
+          </ActionBtn>
+        )}
         {canDelete && (
           <ActionBtn title="Delete" onClick={handleDelete} danger>
             <TrashIcon />

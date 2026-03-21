@@ -81,6 +81,28 @@ export function DmMessageArea() {
   }, [loadMore]);
 
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const onTyping = (payload: { conversationId: string; username: string }) => {
+      if (payload.conversationId !== currentConvId) return;
+      setTypingUsers((prev) =>
+        prev.includes(payload.username) ? prev : [...prev, payload.username],
+      );
+      const tid = setTimeout(() => {
+        setTypingUsers((prev) => prev.filter((u) => u !== payload.username));
+      }, 3000);
+      return () => clearTimeout(tid);
+    };
+    socket.on("dm:typing", onTyping);
+    return () => { socket.off("dm:typing", onTyping); };
+  }, [currentConvId]);
+
+  useEffect(() => {
+    setTypingUsers([]);
+  }, [currentConvId]);
 
   if (!currentConvId || !currentConv) {
     return (
@@ -136,6 +158,12 @@ export function DmMessageArea() {
           </>
         )}
       </div>
+
+      {typingUsers.length > 0 && (
+        <div className="px-4 py-1 text-xs text-gray-400">
+          {typingUsers.join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing…
+        </div>
+      )}
 
       <DmInput
         conversationId={currentConvId}
@@ -394,6 +422,14 @@ function DmInput({
   >([]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const lastTypingRef = useRef<number>(0);
+
+  const emitTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTypingRef.current < 2000) return;
+    lastTypingRef.current = now;
+    getSocket()?.emit("dm:typing", { conversationId });
+  }, [conversationId]);
 
   const send = useCallback(async () => {
     const trimmed = text.trim();
@@ -523,7 +559,7 @@ function DmInput({
 
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); emitTyping(); }}
           onKeyDown={handleKeyDown}
           placeholder={`Message ${otherName}`}
           rows={1}
