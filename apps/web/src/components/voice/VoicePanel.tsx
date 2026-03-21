@@ -115,20 +115,18 @@ export function VoicePanel() {
   const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
   return (
-    <div className="flex items-center gap-3 border-t border-black/20 bg-[#232428] px-3 py-2">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-xs font-medium text-green-400">
-            {isConnecting ? "Connecting..." : "Voice Connected"}
-          </span>
-        </div>
-        <p className="mt-0.5 truncate text-xs text-gray-400">
-          {channelName} &middot; {timeStr}
-        </p>
+    <div className="border-t border-black/20 bg-[#232428] px-3 py-2">
+      <div className="flex items-center gap-1.5">
+        <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-green-400">
+          {isConnecting ? "Connecting..." : "Voice Connected"}
+        </span>
       </div>
+      <p className="mt-0.5 truncate text-xs text-gray-400">
+        {channelName} &middot; {timeStr}
+      </p>
 
-      <div className="flex items-center gap-1">
+      <div className="mt-2 flex items-center justify-center gap-1">
         <button
           type="button"
           title={isMuted ? "Unmute" : "Mute"}
