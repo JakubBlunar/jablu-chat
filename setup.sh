@@ -5,7 +5,7 @@ ENV_FILE=".env"
 ENV_EXAMPLE=".env.example"
 
 echo "╔══════════════════════════════════════════╗"
-echo "║        Chat App - Setup Script           ║"
+echo "║        Jablu - Setup Script              ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
@@ -64,22 +64,6 @@ if grep -q "^DATABASE_URL=postgresql://chat:changeme" "$ENV_FILE"; then
     sed -i "s|^DATABASE_URL=postgresql://chat:changeme|DATABASE_URL=postgresql://chat:${POSTGRES_PASSWORD}|" "$ENV_FILE"
   fi
   echo "  ✓ Updated DATABASE_URL"
-fi
-
-# Handle TLS if requested
-TLS_MODE=$(grep "^TLS_MODE=" "$ENV_FILE" | cut -d= -f2)
-if [ "$TLS_MODE" = "self-signed" ]; then
-  echo ""
-  echo "→ Generating self-signed TLS certificate..."
-  mkdir -p docker/nginx/certs
-  SERVER_HOST=$(grep "^SERVER_HOST=" "$ENV_FILE" | cut -d= -f2)
-  openssl req -x509 -nodes -days 365 \
-    -newkey rsa:2048 \
-    -keyout docker/nginx/certs/server.key \
-    -out docker/nginx/certs/server.crt \
-    -subj "/CN=${SERVER_HOST}" \
-    -addext "subjectAltName=IP:${SERVER_HOST}" 2>/dev/null
-  echo "  ✓ Certificate generated at docker/nginx/certs/"
 fi
 
 echo ""

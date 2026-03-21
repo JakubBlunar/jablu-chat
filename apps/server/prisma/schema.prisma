@@ -118,6 +118,7 @@ model Channel {
   messages         Message[]
   webhooks         Webhook[]
   notifPreferences ChannelNotifPref[]
+  readStates       ChannelReadState[]
 
   @@unique([serverId, name])
   @@map("channels")
@@ -134,8 +135,9 @@ model DirectConversation {
   groupName String?  @map("group_name")
   createdAt DateTime @default(now()) @map("created_at")
 
-  members  DirectConversationMember[]
-  messages Message[]
+  members    DirectConversationMember[]
+  messages   Message[]
+  readStates DmReadState[]
 
   @@map("direct_conversations")
 }
@@ -317,6 +319,30 @@ model RegistrationInvite {
   usedBy User?   @relation("UsedInvites", fields: [usedById], references: [id], onDelete: SetNull)
 
   @@map("registration_invites")
+}
+
+model ChannelReadState {
+  userId       String   @map("user_id")
+  channelId    String   @map("channel_id")
+  lastReadAt   DateTime @map("last_read_at")
+  mentionCount Int      @default(0) @map("mention_count")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([userId, channelId])
+  @@map("channel_read_states")
+}
+
+model DmReadState {
+  userId         String   @map("user_id")
+  conversationId String   @map("conversation_id")
+  lastReadAt     DateTime @map("last_read_at")
+  mentionCount   Int      @default(0) @map("mention_count")
+
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, conversationId])
+  @@map("dm_read_states")
 }
 
 model StorageAudit {

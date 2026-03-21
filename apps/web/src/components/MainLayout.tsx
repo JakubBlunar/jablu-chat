@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { DmMessageArea } from "@/components/DmMessageArea";
@@ -17,8 +17,43 @@ import { useMessageStore } from "@/stores/message.store";
 import { useServerStore } from "@/stores/server.store";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
+function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
+  const [showReconnected, setShowReconnected] = useState(false);
+  const wasDisconnected = useRef(false);
+
+  useEffect(() => {
+    if (!isConnected) {
+      wasDisconnected.current = true;
+      setShowReconnected(false);
+    } else if (wasDisconnected.current) {
+      wasDisconnected.current = false;
+      setShowReconnected(true);
+      const t = setTimeout(() => setShowReconnected(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [isConnected]);
+
+  if (!isConnected) {
+    return (
+      <div className="shrink-0 bg-amber-600 px-4 py-1.5 text-center text-xs font-medium text-white">
+        Connection lost. Reconnecting...
+      </div>
+    );
+  }
+
+  if (showReconnected) {
+    return (
+      <div className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white">
+        Reconnected
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function MainLayout() {
-  const { socket } = useSocket();
+  const { socket, isConnected } = useSocket();
 
   const onIdle = useCallback(() => {
     const s = socket;
@@ -124,16 +159,21 @@ export function MainLayout() {
 
   if (viewMode === "dm") {
     return (
-      <div className="flex h-screen overflow-hidden bg-surface text-white">
-        <ServerSidebar />
-        <DmSidebar />
-        <DmMessageArea />
+      <div className="flex h-screen flex-col overflow-hidden bg-surface text-white">
+        <ConnectionBanner isConnected={isConnected} />
+        <div className="flex min-h-0 flex-1">
+          <ServerSidebar />
+          <DmSidebar />
+          <DmMessageArea />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface text-white">
+    <div className="flex h-screen flex-col overflow-hidden bg-surface text-white">
+      <ConnectionBanner isConnected={isConnected} />
+      <div className="flex min-h-0 flex-1">
       <ServerSidebar />
       <ChannelSidebar />
       {serversLoading && servers.length === 0 ? (
@@ -161,6 +201,7 @@ export function MainLayout() {
       )}
       <MemberSidebar />
       <ScreenSharePicker />
+      </div>
     </div>
   );
 }

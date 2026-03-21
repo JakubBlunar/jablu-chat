@@ -1,5 +1,6 @@
 import type { Invite } from "@chat/shared";
 import { useCallback, useEffect, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { api } from "@/lib/api";
 
 interface InviteModalProps {
@@ -114,7 +115,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
           </button>
         </div>
 
-        <div className="max-h-64 space-y-2 overflow-y-auto">
+        <SimpleBar className="max-h-64 space-y-2">
           {loading ? (
             <p className="py-4 text-center text-sm text-gray-400">Loading...</p>
           ) : invites.length === 0 ? (
@@ -154,7 +155,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
               </div>
             ))
           )}
-        </div>
+        </SimpleBar>
       </div>
     </div>
   );

@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
   appVersion: ipcRenderer.sendSync("get-version-sync") as string,
 
+  showNotification: (title: string, body: string) =>
+    ipcRenderer.invoke("show-notification", { title, body }),
+  setTrayUnread: (count: number) =>
+    ipcRenderer.invoke("set-tray-unread", count),
   setServerUrl: (url: string) => ipcRenderer.invoke("set-server-url", url),
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   installUpdate: () => ipcRenderer.invoke("install-update"),

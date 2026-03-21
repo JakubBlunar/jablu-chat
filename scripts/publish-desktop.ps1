@@ -16,12 +16,12 @@ $ErrorActionPreference = "Stop"
 
 $ReleaseDir = "apps\desktop\release"
 $Version = (Get-Content "apps\desktop\package.json" | ConvertFrom-Json).version
-$RemoteDownloads = "/opt/nook/downloads"
-$RemoteUpdates = "/opt/nook/updates"
+$RemoteDownloads = "/opt/jablu/downloads"
+$RemoteUpdates = "/opt/jablu/updates"
 
 Write-Host ""
 Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Publishing Nook Desktop v$Version"       -ForegroundColor Cyan
+Write-Host "  Publishing Jablu Desktop v$Version"       -ForegroundColor Cyan
 Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
@@ -48,7 +48,7 @@ Get-ChildItem "$ReleaseDir\*" -Include "*.exe","*.yml","*.blockmap" | ForEach-Ob
 # Step 3: Clean old files on server and upload new ones
 Write-Host ""
 Write-Host "-> Cleaning old downloads on server..." -ForegroundColor Yellow
-ssh $Server "rm -f ${RemoteDownloads}/Nook*.exe ${RemoteDownloads}/Nook*.dmg ${RemoteDownloads}/Nook*.AppImage"
+ssh $Server "rm -f ${RemoteDownloads}/Jablu*.exe ${RemoteDownloads}/Jablu*.dmg ${RemoteDownloads}/Jablu*.AppImage"
 ssh $Server "mkdir -p ${RemoteDownloads} ${RemoteUpdates}"
 
 Write-Host "-> Uploading installer..." -ForegroundColor Yellow
@@ -75,7 +75,7 @@ foreach ($f in $blockmapFiles) {
 
 Write-Host ""
 Write-Host "══════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  Nook Desktop v$Version published!"       -ForegroundColor Green
+Write-Host "  Jablu Desktop v$Version published!"       -ForegroundColor Green
 Write-Host "══════════════════════════════════════════" -ForegroundColor Green
 Write-Host ""
 Write-Host "Users will see the download in Settings > Desktop App"

@@ -1,14 +1,20 @@
 import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
 import { api } from "@/lib/api";
 import { DownloadAppSection } from "@/components/DownloadApp";
 import { electronAPI, isElectron } from "@/lib/electron";
+import {
+  getNotifSettings,
+  saveNotifSettings,
+  requestPermission,
+} from "@/lib/notifications";
 import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
 import { useAuthStore } from "@/stores/auth.store";
 
-type Tab = "account" | "profile" | "status" | "voice" | "server" | "downloads";
+type Tab = "account" | "profile" | "status" | "voice" | "notifications" | "server" | "downloads";
 
 const STATUS_OPTIONS: { value: UserStatus; label: string; color: string }[] = [
   { value: "online", label: "Online", color: "bg-emerald-500" },
@@ -97,6 +103,12 @@ export function SettingsModal({
           >
             Voice & Video
           </SidebarButton>
+          <SidebarButton
+            active={tab === "notifications"}
+            onClick={() => setTab("notifications")}
+          >
+            Notifications
+          </SidebarButton>
           {isElectron && (
             <SidebarButton
               active={tab === "server"}
@@ -124,7 +136,7 @@ export function SettingsModal({
       </div>
 
       {/* Main content */}
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <SimpleBar className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-[660px] px-10 py-16">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-white">
@@ -134,11 +146,13 @@ export function SettingsModal({
                   ? "Profile"
                   : tab === "voice"
                     ? "Voice & Video"
-                    : tab === "server"
-                      ? "Server Connection"
-                      : tab === "downloads"
-                        ? "Desktop App"
-                        : "Status"}
+                    : tab === "notifications"
+                      ? "Notifications"
+                      : tab === "server"
+                        ? "Server Connection"
+                        : tab === "downloads"
+                          ? "Desktop App"
+                          : "Status"}
             </h1>
             <button
               type="button"
@@ -155,11 +169,12 @@ export function SettingsModal({
             {tab === "profile" && <ProfileSection />}
             {tab === "status" && <StatusSection />}
             {tab === "voice" && <VoiceSettings />}
+            {tab === "notifications" && <NotificationsSection />}
             {tab === "server" && <ServerConnectionSection />}
             {tab === "downloads" && <DownloadAppSection />}
           </div>
         </div>
-      </div>
+      </SimpleBar>
     </div>
   );
 }
@@ -581,6 +596,105 @@ function StatusSection() {
   );
 }
 
+/* ────────────────────────── Notifications ──────────────────────────── */
+
+function NotificationsSection() {
+  const [settings, setSettings] = useState(getNotifSettings);
+  const [permStatus, setPermStatus] = useState<string>(
+    "Notification" in window ? Notification.permission : "unsupported",
+  );
+
+  const toggle = (key: "enabled" | "soundEnabled") => {
+    const next = { ...settings, [key]: !settings[key] };
+    setSettings(next);
+    saveNotifSettings(next);
+  };
+
+  const handleRequestPermission = async () => {
+    const granted = await requestPermission();
+    setPermStatus(granted ? "granted" : "denied");
+  };
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        Control how Jablu notifies you about new messages.
+      </p>
+
+      {permStatus !== "granted" && permStatus !== "unsupported" && (
+        <div className="rounded-lg bg-surface-dark p-4">
+          <p className="text-sm text-gray-300">
+            Browser notifications are {permStatus === "denied" ? "blocked" : "not enabled"}.
+          </p>
+          {permStatus !== "denied" && (
+            <button
+              type="button"
+              onClick={() => void handleRequestPermission()}
+              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
+            >
+              Enable Notifications
+            </button>
+          )}
+          {permStatus === "denied" && (
+            <p className="mt-1 text-xs text-gray-500">
+              You have blocked notifications for this site. Update your browser settings to allow them.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <ToggleRow
+          label="Desktop Notifications"
+          description="Show browser notifications when you receive new messages"
+          checked={settings.enabled}
+          onChange={() => toggle("enabled")}
+        />
+        <ToggleRow
+          label="Notification Sound"
+          description="Play a sound when you receive a notification"
+          checked={settings.soundEnabled}
+          onChange={() => toggle("soundEnabled")}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-surface-dark px-4 py-3">
+      <div>
+        <p className="text-sm font-medium text-white">{label}</p>
+        <p className="text-xs text-gray-400">{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onChange}
+        className={`relative h-6 w-11 rounded-full transition ${
+          checked ? "bg-primary" : "bg-gray-600"
+        }`}
+      >
+        <span
+          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 /* ────────────────────────── Server Connection ─────────────────────────── */
 
 function ServerConnectionSection() {
@@ -703,7 +817,7 @@ function AppVersionInfo() {
   return (
     <div className="space-y-1.5">
       <p className="text-[11px] text-gray-500">
-        Nook v{electronAPI?.appVersion ?? "?"}
+        Jablu v{electronAPI?.appVersion ?? "?"}
       </p>
       <button
         type="button"

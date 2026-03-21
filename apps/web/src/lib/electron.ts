@@ -10,6 +10,8 @@ type ElectronAPI = {
       appIcon: string | null;
     }>
   >;
+  showNotification: (title: string, body: string) => Promise<void>;
+  setTrayUnread: (count: number) => Promise<void>;
   setServerUrl: (url: string) => Promise<void>;
   checkForUpdates: () => Promise<void>;
   installUpdate: () => Promise<void>;

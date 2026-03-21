@@ -506,6 +506,21 @@ export class ApiClient {
     const qs = params.toString();
     return this.get(`/api/dm/${conversationId}/messages${qs ? `?${qs}` : ""}`);
   }
+
+  getReadStates(): Promise<{
+    channels: { channelId: string; mentionCount: number; lastReadAt: string }[];
+    dms: { conversationId: string; mentionCount: number; lastReadAt: string }[];
+  }> {
+    return this.get("/api/read-states");
+  }
+
+  ackChannel(channelId: string): Promise<{ ok: boolean }> {
+    return this.request("PUT", `/api/channels/${channelId}/ack`);
+  }
+
+  ackDm(conversationId: string): Promise<{ ok: boolean }> {
+    return this.request("PUT", `/api/dm/${conversationId}/ack`);
+  }
 }
 
 export type SearchResult = {

@@ -1,4 +1,4 @@
-# Nook Deployment Guide — VPS
+# Jablu Deployment Guide — VPS
 
 ## Recommended Plan
 
@@ -90,16 +90,16 @@ docker compose version
 Create a non-root user (optional but recommended):
 
 ```bash
-adduser nook
-usermod -aG docker nook
-su - nook
+adduser jablu
+usermod -aG docker jablu
+su - jablu
 ```
 
 ## Step 3: Clone and Configure
 
 ```bash
-git clone https://github.com/YOUR_REPO/chat.git /opt/nook
-cd /opt/nook
+git clone https://github.com/YOUR_REPO/chat.git /opt/jablu
+cd /opt/jablu
 ```
 
 Run the setup script to generate secrets:
@@ -126,7 +126,7 @@ SMTP_HOST=smtp.mailgun.org
 SMTP_PORT=587
 SMTP_USER=postmaster@mg.yourdomain.com
 SMTP_PASS=your-mailgun-password
-SMTP_FROM=nook@yourdomain.com
+SMTP_FROM=jablu@yourdomain.com
 
 # Registration mode (start with invite-only for a private community)
 REGISTRATION_MODE=invite
@@ -163,7 +163,7 @@ under **Firewall Configuration** that inbound UDP is not blocked.
 ## Step 5: Deploy
 
 ```bash
-cd /opt/nook
+cd /opt/jablu
 docker compose up -d
 ```
 
@@ -203,39 +203,83 @@ http://YOUR_VPS_IP
 
 ## Optional: Domain & TLS
 
-### Free domain with Let's Encrypt
+Jablu supports three TLS modes controlled by the `TLS_MODE` environment variable:
 
-1. Point a domain (e.g. `nook.example.com`) A record to the VPS IP
-2. Update `.env`:
+| Mode | Value | Use case |
+|---|---|---|
+| HTTP only | `off` (default) | Local dev, IP-only access |
+| Self-signed | `self-signed` | IP-only with HTTPS (shows browser warning) |
+| Let's Encrypt | `letsencrypt` | Production with a real domain |
+
+### Let's Encrypt (recommended for production)
+
+1. Point your domain's **A record** to the VPS IP (e.g. `chat.example.com → 123.45.67.89`)
+2. Make sure port 80 is open (needed for certificate verification)
+3. Update `.env`:
 
 ```ini
-SERVER_HOST=nook.example.com
+SERVER_HOST=chat.example.com
 TLS_MODE=letsencrypt
-LIVEKIT_URL=wss://nook.example.com/livekit
+LIVEKIT_URL=wss://chat.example.com/livekit
 ```
 
-3. Restart:
+4. Rebuild and start:
 
 ```bash
 docker compose down
+docker compose build nginx
 docker compose up -d
 ```
 
-Nginx will automatically obtain and renew a Let's Encrypt certificate.
+On first start, the Nginx container will:
+1. Start a temporary HTTP server for the ACME challenge
+2. Obtain a Let's Encrypt certificate via certbot
+3. Switch to HTTPS with automatic HTTP → HTTPS redirect
+4. Run a background renewal check every 12 hours
+
+All HTTP requests to `http://chat.example.com` will be automatically redirected to
+`https://chat.example.com`. No manual certbot commands needed.
+
+### Using a subdomain
+
+You can run Jablu on any subdomain (e.g. `chat.example.com`) while keeping the root
+domain (`example.com`) free for a landing page or other services. Just set the subdomain
+as `SERVER_HOST` — the TLS setup works the same way.
 
 ### Self-signed certificate (IP only, no domain)
 
-```bash
-./setup.sh   # will detect TLS_MODE=self-signed and generate certs
+If you don't have a domain but want HTTPS anyway:
+
+```ini
+TLS_MODE=self-signed
 ```
 
-Note: Desktop/mobile clients will show a certificate warning with self-signed certs.
+```bash
+docker compose down
+docker compose build nginx
+docker compose up -d
+```
+
+The Nginx container will generate a self-signed certificate on first start.
+Browsers and desktop clients will show a certificate warning — this is expected.
+
+### Verifying HTTPS
+
+After deployment, verify the redirect works:
+
+```bash
+# Should return a 301 redirect to https://
+curl -I http://chat.example.com
+
+# Should return 200
+curl -I https://chat.example.com/api/health
+```
 
 ---
 
 ## Desktop App Updates
 
-Nook's Electron desktop app supports automatic updates via `electron-updater`.
+Jablu's Electron desktop app supports automatic updates via `electron-updater`.
 
 ### How it works
 
@@ -259,15 +303,15 @@ pnpm --filter @chat/desktop dist
 ```
 
 3. The build artifacts appear in `apps/desktop/release/`:
-   - **Windows:** `Nook-Setup-1.1.0.exe` + `latest.yml`
-   - **Linux:** `Nook-1.1.0.AppImage` + `latest-linux.yml`
-   - **macOS:** `Nook-1.1.0.dmg` + `latest-mac.yml`
+   - **Windows:** `Jablu-Setup-1.1.0.exe` + `latest.yml`
+   - **Linux:** `Jablu-1.1.0.AppImage` + `latest-linux.yml`
+   - **macOS:** `Jablu-1.1.0.dmg` + `latest-mac.yml`
 
 4. Copy the artifacts to the server:
 
 ```bash
-scp apps/desktop/release/latest.yml root@YOUR_VPS_IP:/opt/nook/updates/
-scp apps/desktop/release/Nook-Setup-1.1.0.exe root@YOUR_VPS_IP:/opt/nook/updates/
+scp apps/desktop/release/latest.yml root@YOUR_VPS_IP:/opt/jablu/updates/
+scp apps/desktop/release/Jablu-Setup-1.1.0.exe root@YOUR_VPS_IP:/opt/jablu/updates/
 ```
 
 5. Make sure the `UPDATES_DIR` in `.env` points to the right location and the
@@ -278,12 +322,12 @@ user clicks "Check for updates" in Settings).
 
 ---
 
-## Updating Nook (Server)
+## Updating Jablu (Server)
 
 To deploy a new version of the web app and API:
 
 ```bash
-cd /opt/nook
+cd /opt/jablu
 git pull origin main
 
 # Rebuild and restart
@@ -318,7 +362,7 @@ cat backup_20260321.sql | docker compose exec -T postgres psql -U chat chat
 ### Uploads
 
 ```bash
-# The uploads volume is at /var/lib/docker/volumes/nook_uploads/_data
+# The uploads volume is at /var/lib/docker/volumes/jablu_uploads/_data
 # Or use docker cp:
 docker cp $(docker compose ps -q api):/data/uploads ./backup-uploads/
 ```
@@ -332,7 +376,7 @@ crontab -e
 Add:
 
 ```
-0 4 * * * cd /opt/nook && docker compose exec -T postgres pg_dump -U chat chat | gzip > /backups/nook_$(date +\%Y\%m\%d).sql.gz
+0 4 * * * cd /opt/jablu && docker compose exec -T postgres pg_dump -U chat chat | gzip > /backups/jablu_$(date +\%Y\%m\%d).sql.gz
 ```
 
 ---

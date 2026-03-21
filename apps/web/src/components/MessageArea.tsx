@@ -1,5 +1,6 @@
 import type { Message } from "@chat/shared";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { MessageActions } from "@/components/MessageActions";
@@ -181,10 +182,9 @@ export function MessageArea() {
         />
       )}
 
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-2"
+      <SimpleBar
+        className="flex min-h-0 flex-1 flex-col px-4 py-2"
+        scrollableNodeProps={{ ref: scrollRef, onScroll }}
       >
         {!channel ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
@@ -245,7 +245,7 @@ export function MessageArea() {
             )}
           </>
         )}
-      </div>
+      </SimpleBar>
 
       <MessageInput key={channel?.id ?? "no-channel"} />
     </section>
@@ -462,7 +462,7 @@ function PinnedPanel({
           </svg>
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <SimpleBar className="flex-1">
         {loading ? (
           <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
         ) : messages.length === 0 ? (
@@ -488,7 +488,7 @@ function PinnedPanel({
             ))}
           </div>
         )}
-      </div>
+      </SimpleBar>
     </div>
   );
 }
