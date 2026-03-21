@@ -1,4 +1,6 @@
 import { app, BrowserWindow, desktopCapturer, ipcMain, Tray, Menu, nativeImage, session } from "electron";
+import { autoUpdater, UpdateInfo } from "electron-updater";
+import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 
 let mainWindow: BrowserWindow | null = null;
@@ -111,12 +113,112 @@ function registerIpcHandlers() {
 
   ipcMain.handle("get-platform", () => process.platform);
   ipcMain.handle("get-version", () => app.getVersion());
+  ipcMain.on("get-version-sync", (event) => {
+    event.returnValue = app.getVersion();
+  });
+
+  ipcMain.handle("set-server-url", (_event, url: string) => {
+    const { writeFileSync, mkdirSync } = require("fs") as typeof import("fs");
+    const userDataPath = app.getPath("userData");
+    mkdirSync(userDataPath, { recursive: true });
+    writeFileSync(join(userDataPath, "server-url.txt"), url, "utf-8");
+  });
+
+  ipcMain.handle("check-for-updates", () => {
+    void checkForUpdates();
+  });
+
+  ipcMain.handle("install-update", () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+}
+
+// ─── Auto Updater ────────────────────────────────────────────
+
+function getStoredServerUrl(): string | null {
+  try {
+    const userDataPath = app.getPath("userData");
+    const configPath = join(userDataPath, "server-url.txt");
+    if (existsSync(configPath)) {
+      return readFileSync(configPath, "utf-8").trim() || null;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function setupAutoUpdater() {
+  if (isDev) return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = null;
+
+  const serverUrl = getStoredServerUrl();
+  if (serverUrl) {
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      url: `${serverUrl}/api/updates`,
+    });
+  }
+
+  autoUpdater.on("update-available", (info: UpdateInfo) => {
+    mainWindow?.webContents.send("update-available", {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+    });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    mainWindow?.webContents.send("update-not-available");
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    mainWindow?.webContents.send("update-download-progress", {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total,
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+    mainWindow?.webContents.send("update-downloaded", {
+      version: info.version,
+    });
+  });
+
+  autoUpdater.on("error", (err) => {
+    mainWindow?.webContents.send("update-error", {
+      message: err?.message ?? "Update check failed",
+    });
+  });
+
+  setTimeout(() => void checkForUpdates(), 5000);
+  setInterval(() => void checkForUpdates(), 4 * 60 * 60 * 1000);
+}
+
+async function checkForUpdates() {
+  const serverUrl = getStoredServerUrl();
+  if (!serverUrl) return;
+
+  autoUpdater.setFeedURL({
+    provider: "generic",
+    url: `${serverUrl}/api/updates`,
+  });
+
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch {
+    // silently ignore
+  }
 }
 
 app.whenReady().then(() => {
   registerIpcHandlers();
   createWindow();
   createTray();
+  setupAutoUpdater();
 });
 
 app.on("window-all-closed", () => {

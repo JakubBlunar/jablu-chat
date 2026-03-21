@@ -9,7 +9,9 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
   "devDependencies": {
     "electron": "^35.0.0",
     "electron-builder": "^26.0.12",
@@ -29,12 +31,22 @@
       {
         "from": "../web/dist",
         "to": "web",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
+    "publish": {
+      "provider": "generic",
+      "url": "https://your-server.example.com/api/updates"
+    },
     "win": {
       "target": "nsis",
       "icon": "resources/icon-512.png"
+    },
+    "nsis": {
+      "allowToChangeInstallationDirectory": false,
+      "oneClick": true
     },
     "linux": {
       "target": "AppImage",

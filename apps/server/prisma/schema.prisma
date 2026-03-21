@@ -319,6 +319,27 @@ model RegistrationInvite {
   @@map("registration_invites")
 }
 
+model StorageAudit {
+  id              String    @id @default(uuid())
+  status          String    @default("pending")
+  totalSizeBytes  BigInt    @map("total_size_bytes")
+  limitBytes      BigInt    @map("limit_bytes")
+  orphanedCount   Int       @map("orphaned_count")
+  orphanedBytes   BigInt    @map("orphaned_bytes")
+  attachmentCount Int       @map("attachment_count")
+  attachmentBytes BigInt    @map("attachment_bytes")
+  messageCount    Int       @map("message_count")
+  messageBytes    BigInt    @map("message_bytes")
+  diskOrphanCount Int       @map("disk_orphan_count")
+  diskOrphanBytes BigInt    @map("disk_orphan_bytes")
+  totalFreeable   BigInt    @map("total_freeable")
+  executedAt      DateTime? @map("executed_at")
+  freedBytes      BigInt?   @map("freed_bytes")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("storage_audits")
+}
+
 model AuditLog {
   id        String   @id @default(uuid())
   serverId  String   @map("server_id")

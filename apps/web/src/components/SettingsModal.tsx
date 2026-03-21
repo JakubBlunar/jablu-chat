@@ -3,11 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
 import { api } from "@/lib/api";
-import { isElectron } from "@/lib/electron";
+import { DownloadAppSection } from "@/components/DownloadApp";
+import { electronAPI, isElectron } from "@/lib/electron";
 import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
 import { useAuthStore } from "@/stores/auth.store";
 
-type Tab = "account" | "profile" | "status" | "voice" | "server";
+type Tab = "account" | "profile" | "status" | "voice" | "server" | "downloads";
 
 const STATUS_OPTIONS: { value: UserStatus; label: string; color: string }[] = [
   { value: "online", label: "Online", color: "bg-emerald-500" },
@@ -51,6 +52,17 @@ export function SettingsModal({
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === "downloads") {
+        setTab("downloads");
+      }
+    };
+    window.addEventListener("open-settings", handler);
+    return () => window.removeEventListener("open-settings", handler);
+  }, []);
+
   if (!open) return null;
 
   return (
@@ -93,8 +105,21 @@ export function SettingsModal({
               Server Connection
             </SidebarButton>
           )}
+          {!isElectron && (
+            <SidebarButton
+              active={tab === "downloads"}
+              onClick={() => setTab("downloads")}
+            >
+              Desktop App
+            </SidebarButton>
+          )}
           <div className="my-2 border-t border-white/10" />
           <LogOutButton onClose={onClose} />
+          {isElectron && electronAPI && (
+            <div className="mt-4 border-t border-white/10 pt-4 px-2">
+              <AppVersionInfo />
+            </div>
+          )}
         </nav>
       </div>
 
@@ -111,7 +136,9 @@ export function SettingsModal({
                     ? "Voice & Video"
                     : tab === "server"
                       ? "Server Connection"
-                      : "Status"}
+                      : tab === "downloads"
+                        ? "Desktop App"
+                        : "Status"}
             </h1>
             <button
               type="button"
@@ -129,6 +156,7 @@ export function SettingsModal({
             {tab === "status" && <StatusSection />}
             {tab === "voice" && <VoiceSettings />}
             {tab === "server" && <ServerConnectionSection />}
+            {tab === "downloads" && <DownloadAppSection />}
           </div>
         </div>
       </div>
@@ -632,6 +660,62 @@ function ServerConnectionSection() {
           Reset
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────── App Version ────────────────────────────── */
+
+function AppVersionInfo() {
+  const [checking, setChecking] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!electronAPI) return;
+    const unsubs = [
+      electronAPI.onUpdateAvailable((info) => {
+        setChecking(false);
+        setStatus(`Update ${info.version} available, downloading...`);
+      }),
+      electronAPI.onUpdateNotAvailable(() => {
+        setChecking(false);
+        setStatus("You're up to date!");
+        setTimeout(() => setStatus(null), 3000);
+      }),
+      electronAPI.onUpdateDownloaded((info) => {
+        setStatus(`Update ${info.version} ready — restart to install`);
+      }),
+      electronAPI.onUpdateError(() => {
+        setChecking(false);
+        setStatus("Update check failed");
+        setTimeout(() => setStatus(null), 3000);
+      }),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, []);
+
+  const handleCheck = () => {
+    setChecking(true);
+    setStatus(null);
+    electronAPI?.checkForUpdates().catch(() => setChecking(false));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] text-gray-500">
+        Nook v{electronAPI?.appVersion ?? "?"}
+      </p>
+      <button
+        type="button"
+        onClick={handleCheck}
+        disabled={checking}
+        className="text-xs text-gray-400 transition hover:text-white disabled:opacity-50"
+      >
+        {checking ? "Checking..." : "Check for updates"}
+      </button>
+      {status && (
+        <p className="text-[11px] text-gray-400">{status}</p>
+      )}
     </div>
   );
 }
