@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
+import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 
@@ -37,6 +38,15 @@ type LinkPreviewPayload = {
   messageId: string;
   linkPreviews: LinkPreview[];
 };
+
+type DmMessagePayload = Message & { conversationId: string };
+type DmDeletePayload = { messageId: string; conversationId: string };
+type DmTypingPayload = {
+  userId: string;
+  conversationId: string;
+  username: string;
+};
+type DmLinkPreviewPayload = LinkPreviewPayload & { conversationId: string };
 
 export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected: boolean } {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -138,6 +148,53 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     };
 
+    const onDmNew = (payload: DmMessagePayload) => {
+      const currentConvId = useDmStore.getState().currentConversationId;
+      if (payload.conversationId === currentConvId) {
+        useDmStore.getState().addMessage(payload);
+      }
+      useDmStore.getState().updateConversationLastMessage(
+        payload.conversationId,
+        {
+          content: payload.content ?? null,
+          authorId: payload.authorId,
+          createdAt: payload.createdAt,
+        },
+      );
+    };
+
+    const onDmEdit = (payload: DmMessagePayload) => {
+      const currentConvId = useDmStore.getState().currentConversationId;
+      if (payload.conversationId === currentConvId) {
+        useDmStore.getState().updateMessage(payload);
+      }
+    };
+
+    const onDmDelete = (payload: DmDeletePayload) => {
+      const currentConvId = useDmStore.getState().currentConversationId;
+      if (payload.conversationId === currentConvId) {
+        useDmStore.getState().removeMessage(payload.messageId);
+      }
+    };
+
+    const onDmTyping = (_payload: DmTypingPayload) => {
+      // Could add DM typing indicators in the future
+    };
+
+    const onDmLinkPreviews = (payload: DmLinkPreviewPayload) => {
+      const currentConvId = useDmStore.getState().currentConversationId;
+      if (payload.conversationId === currentConvId) {
+        const msgs = useDmStore.getState().messages;
+        const msg = msgs.find((m) => m.id === payload.messageId);
+        if (msg) {
+          useDmStore.getState().updateMessage({
+            ...msg,
+            linkPreviews: payload.linkPreviews,
+          });
+        }
+      }
+    };
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("message:new", onMessageNew);
@@ -153,6 +210,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on("message:unpin", onMessageUnpin);
     socket.on("message:link-previews", onLinkPreviews);
     socket.on("presence:init", onPresenceInit);
+    socket.on("dm:new", onDmNew);
+    socket.on("dm:edit", onDmEdit);
+    socket.on("dm:delete", onDmDelete);
+    socket.on("dm:typing", onDmTyping);
+    socket.on("dm:link-previews", onDmLinkPreviews);
 
     setIsConnected(socket.connected);
 
@@ -172,6 +234,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off("message:unpin", onMessageUnpin);
       socket.off("message:link-previews", onLinkPreviews);
       socket.off("presence:init", onPresenceInit);
+      socket.off("dm:new", onDmNew);
+      socket.off("dm:edit", onDmEdit);
+      socket.off("dm:delete", onDmDelete);
+      socket.off("dm:typing", onDmTyping);
+      socket.off("dm:link-previews", onDmLinkPreviews);
       disconnectSocket();
       setIsConnected(false);
     };

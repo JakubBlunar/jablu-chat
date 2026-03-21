@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -52,6 +54,7 @@ export class ChannelsController {
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @Param('id', ParseUUIDPipe) channelId: string,

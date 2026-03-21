@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { CreateServerModal } from "@/components/CreateServerModal";
 import { JoinInviteModal } from "@/components/JoinInviteModal";
 import { useServerStore } from "@/stores/server.store";
 
@@ -12,14 +11,6 @@ function DmIcon() {
       aria-hidden
     >
       <path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm0 2v10h16V6H4zm2 2h8v2H6V8zm0 4h5v2H6v-2z" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6v-2z" />
     </svg>
   );
 }
@@ -38,18 +29,28 @@ export function ServerSidebar() {
   const servers = useServerStore((s) => s.servers);
   const currentServerId = useServerStore((s) => s.currentServerId);
   const setCurrentServer = useServerStore((s) => s.setCurrentServer);
+  const viewMode = useServerStore((s) => s.viewMode);
+  const setViewMode = useServerStore((s) => s.setViewMode);
   const isLoading = useServerStore((s) => s.isLoading);
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+
+  const handleDmClick = () => {
+    setViewMode("dm");
+  };
 
   return (
     <>
       <aside className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 bg-[#1e1f22] py-3">
         <button
           type="button"
-          title="Direct messages (coming soon)"
-          className="group relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-[#313338] text-[#23a559] transition-all duration-200 ease-out hover:rounded-2xl hover:bg-[#23a559] hover:text-white"
+          title="Direct Messages"
+          onClick={handleDmClick}
+          className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
+            viewMode === "dm"
+              ? "rounded-2xl bg-[#5865f2] text-white"
+              : "rounded-[24px] bg-[#313338] text-[#23a559] hover:rounded-2xl hover:bg-[#5865f2] hover:text-white"
+          }`}
         >
           <DmIcon />
         </button>
@@ -71,7 +72,7 @@ export function ServerSidebar() {
             </div>
           ) : (
             servers.map((server) => {
-              const active = server.id === currentServerId;
+              const active = viewMode === "server" && server.id === currentServerId;
               const initial = server.name.trim().charAt(0).toUpperCase() || "?";
               return (
                 <div key={server.id} className="group/pill relative flex justify-center">
@@ -109,15 +110,6 @@ export function ServerSidebar() {
 
         <button
           type="button"
-          title="Add a server"
-          onClick={() => setCreateOpen(true)}
-          className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-[#313338] text-[#23a559] transition-all duration-200 ease-out hover:rounded-2xl hover:bg-[#23a559] hover:text-white"
-        >
-          <PlusIcon />
-        </button>
-
-        <button
-          type="button"
           title="Join a server"
           onClick={() => setJoinOpen(true)}
           className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-[#313338] text-[#23a559] transition-all duration-200 ease-out hover:rounded-2xl hover:bg-[#23a559] hover:text-white"
@@ -126,7 +118,6 @@ export function ServerSidebar() {
         </button>
       </aside>
 
-      <CreateServerModal open={createOpen} onClose={() => setCreateOpen(false)} />
       {joinOpen && <JoinInviteModal onClose={() => setJoinOpen(false)} />}
     </>
   );

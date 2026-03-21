@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { ChannelType, Prisma, ServerRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UploadsService } from '../../uploads/uploads.service';
 
 @Injectable()
 export class ChannelsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly uploads: UploadsService,
+  ) {}
 
   private async getServerOrThrow(serverId: string) {
     const server = await this.prisma.server.findUnique({
@@ -139,6 +143,16 @@ export class ChannelsService {
     if (!channel) {
       throw new NotFoundException('Channel not found');
     }
+
+    const attachments = await this.prisma.attachment.findMany({
+      where: { message: { channelId } },
+      select: { url: true, thumbnailUrl: true },
+    });
+    for (const a of attachments) {
+      this.uploads.deleteFile(a.url);
+      if (a.thumbnailUrl) this.uploads.deleteFile(a.thumbnailUrl);
+    }
+
     await this.prisma.channel.delete({ where: { id: channelId } });
   }
 }

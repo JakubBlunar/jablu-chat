@@ -1,0 +1,32 @@
+import { IsEmail, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+
+export class AdminCreateServerDto {
+  @IsString()
+  @Length(1, 100)
+  name: string;
+
+  @IsUUID()
+  ownerUserId: string;
+}
+
+export class AdminLoginDto {
+  @IsString()
+  password: string;
+}
+
+export class AdminUpdateUserDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 32)
+  username?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 500)
+  bio?: string;
+}
+

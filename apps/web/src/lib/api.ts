@@ -18,16 +18,40 @@ import type {
 
 const AUTH_STORAGE_KEY = "chat-auth";
 
-function readPersistedAccessToken(): string | null {
+function readPersistedAuth(): {
+  accessToken: string | null;
+  refreshToken: string | null;
+} {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) return { accessToken: null, refreshToken: null };
     const parsed = JSON.parse(raw) as {
-      state?: { accessToken?: string | null };
+      state?: {
+        accessToken?: string | null;
+        refreshToken?: string | null;
+      };
     };
-    return parsed.state?.accessToken ?? null;
+    return {
+      accessToken: parsed.state?.accessToken ?? null,
+      refreshToken: parsed.state?.refreshToken ?? null,
+    };
   } catch {
-    return null;
+    return { accessToken: null, refreshToken: null };
+  }
+}
+
+function writePersistedAuth(accessToken: string, refreshToken: string) {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    existing.state = {
+      ...existing.state,
+      accessToken,
+      refreshToken,
+    };
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(existing));
+  } catch {
+    /* ignore */
   }
 }
 
@@ -45,19 +69,48 @@ export class ApiError extends Error {
 
 export class ApiClient {
   protected readonly baseUrl = "";
+  private refreshPromise: Promise<AuthResponse> | null = null;
+
+  private async tryRefreshToken(): Promise<AuthResponse | null> {
+    const { refreshToken } = readPersistedAuth();
+    if (!refreshToken) return null;
+
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return null as unknown as AuthResponse;
+        const data = (await res.json()) as AuthResponse;
+        writePersistedAuth(data.accessToken, data.refreshToken);
+        return data;
+      } catch {
+        return null as unknown as AuthResponse;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
 
   protected async request<T>(
     method: string,
     path: string,
     body?: unknown,
+    skipRefresh = false,
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    const token = readPersistedAccessToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    const { accessToken } = readPersistedAuth();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
     }
 
     const res = await fetch(`${this.baseUrl}${path}`, {
@@ -65,6 +118,19 @@ export class ApiClient {
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+
+    if (
+      res.status === 401 &&
+      !skipRefresh &&
+      !path.includes("/auth/login") &&
+      !path.includes("/auth/register") &&
+      !path.includes("/auth/refresh")
+    ) {
+      const refreshed = await this.tryRefreshToken();
+      if (refreshed) {
+        return this.request<T>(method, path, body, true);
+      }
+    }
 
     const contentType = res.headers.get("content-type") ?? "";
     const isJson = contentType.includes("application/json");
@@ -164,29 +230,7 @@ export class ApiClient {
   }
 
   async uploadAvatar(file: File): Promise<User> {
-    const formData = new FormData();
-    formData.append("avatar", file);
-
-    const headers: Record<string, string> = {};
-    const token = readPersistedAccessToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const res = await fetch(`${this.baseUrl}/api/auth/avatar`, {
-      method: "POST",
-      headers,
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      const msg =
-        typeof body?.message === "string" ? body.message : "Upload failed";
-      throw new ApiError(msg, res.status, body);
-    }
-
-    return (await res.json()) as User;
+    return this.fetchWithFormData<User>("/api/auth/avatar", "avatar", file);
   }
 
   deleteAvatar(): Promise<User> {
@@ -206,20 +250,44 @@ export class ApiClient {
   }
 
   async uploadAttachment(file: File): Promise<Attachment> {
+    return this.fetchWithFormData<Attachment>(
+      "/api/uploads/attachments",
+      "file",
+      file,
+    );
+  }
+
+  private async fetchWithFormData<T>(
+    path: string,
+    fieldName: string,
+    file: File,
+  ): Promise<T> {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append(fieldName, file);
 
     const headers: Record<string, string> = {};
-    const token = readPersistedAccessToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    const { accessToken } = readPersistedAuth();
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    const res = await fetch(`${this.baseUrl}/api/uploads/attachments`, {
+    let res = await fetch(`${this.baseUrl}${path}`, {
       method: "POST",
       headers,
       body: formData,
     });
+
+    if (res.status === 401) {
+      const refreshed = await this.tryRefreshToken();
+      if (refreshed) {
+        headers.Authorization = `Bearer ${refreshed.accessToken}`;
+        res = await fetch(`${this.baseUrl}${path}`, {
+          method: "POST",
+          headers,
+          body: formData,
+        });
+      }
+    }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -228,7 +296,7 @@ export class ApiClient {
       throw new ApiError(msg, res.status, body);
     }
 
-    return (await res.json()) as Attachment;
+    return (await res.json()) as T;
   }
 
   toggleReaction(
@@ -322,26 +390,11 @@ export class ApiClient {
   }
 
   async uploadServerIcon(serverId: string, file: File): Promise<unknown> {
-    const formData = new FormData();
-    formData.append("icon", file);
-
-    const headers: Record<string, string> = {};
-    const token = readPersistedAccessToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch(`${this.baseUrl}/api/servers/${serverId}/icon`, {
-      method: "POST",
-      headers,
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      const msg =
-        typeof body?.message === "string" ? body.message : "Upload failed";
-      throw new ApiError(msg, res.status, body);
-    }
-    return (await res.json()) as unknown;
+    return this.fetchWithFormData<unknown>(
+      `/api/servers/${serverId}/icon`,
+      "icon",
+      file,
+    );
   }
 
   deleteServerIcon(serverId: string): Promise<unknown> {
@@ -368,6 +421,55 @@ export class ApiClient {
       `/api/servers/${serverId}/members/${userId}`,
     );
   }
+
+  updateChannel(
+    serverId: string,
+    channelId: string,
+    data: { name?: string; position?: number },
+  ): Promise<unknown> {
+    return this.patch(
+      `/api/servers/${serverId}/channels/${channelId}`,
+      data,
+    );
+  }
+
+  deleteChannel(serverId: string, channelId: string): Promise<void> {
+    return this.request<void>(
+      "DELETE",
+      `/api/servers/${serverId}/channels/${channelId}`,
+    );
+  }
+
+  getDmConversations(): Promise<DmConversation[]> {
+    return this.get("/api/dm");
+  }
+
+  createDm(recipientId: string): Promise<DmConversation> {
+    return this.post("/api/dm", { recipientId });
+  }
+
+  createGroupDm(
+    memberIds: string[],
+    groupName?: string,
+  ): Promise<DmConversation> {
+    return this.post("/api/dm/group", { memberIds, groupName });
+  }
+
+  getDmConversation(id: string): Promise<DmConversation> {
+    return this.get(`/api/dm/${id}`);
+  }
+
+  getDmMessages(
+    conversationId: string,
+    cursor?: string,
+    limit = 50,
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const params = new URLSearchParams();
+    if (cursor) params.set("cursor", cursor);
+    params.set("limit", String(limit));
+    const qs = params.toString();
+    return this.get(`/api/dm/${conversationId}/messages${qs ? `?${qs}` : ""}`);
+  }
 }
 
 export type SearchResult = {
@@ -389,6 +491,24 @@ export type AuditLogEntry = {
   targetId: string | null;
   details: string | null;
   createdAt: string;
+};
+
+export type DmConversation = {
+  id: string;
+  isGroup: boolean;
+  groupName: string | null;
+  createdAt: string;
+  members: {
+    userId: string;
+    username: string;
+    avatarUrl: string | null;
+    status: string;
+  }[];
+  lastMessage?: {
+    content: string | null;
+    authorId: string;
+    createdAt: string;
+  } | null;
 };
 
 export const api = new ApiClient();

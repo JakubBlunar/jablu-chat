@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Outlet } from "react-router-dom";
 import { ChannelSidebar } from "@/components/ChannelSidebar";
+import { DmMessageArea } from "@/components/DmMessageArea";
+import { DmSidebar } from "@/components/DmSidebar";
 import { MemberSidebar } from "@/components/MemberSidebar";
 import { MessageArea } from "@/components/MessageArea";
 import { ServerSidebar } from "@/components/ServerSidebar";
@@ -39,6 +41,7 @@ export function MainLayout() {
 
   useIdleDetector(onIdle, onActive);
 
+  const viewMode = useServerStore((s) => s.viewMode);
   const fetchServers = useServerStore((s) => s.fetchServers);
   const servers = useServerStore((s) => s.servers);
   const serversLoading = useServerStore((s) => s.isLoading);
@@ -64,13 +67,15 @@ export function MainLayout() {
   }, [fetchServers]);
 
   useEffect(() => {
+    if (viewMode !== "server") return;
     if (servers.length === 0) return;
     if (!currentServerId) {
       setCurrentServer(servers[0].id);
     }
-  }, [servers, currentServerId, setCurrentServer]);
+  }, [viewMode, servers, currentServerId, setCurrentServer]);
 
   useEffect(() => {
+    if (viewMode !== "server") return;
     if (!currentServerId) {
       prevServerRef.current = null;
       setCurrentChannel(null);
@@ -86,6 +91,7 @@ export function MainLayout() {
       void fetchMembers(currentServerId);
     }
   }, [
+    viewMode,
     currentServerId,
     clearMessages,
     fetchChannels,
@@ -94,6 +100,7 @@ export function MainLayout() {
   ]);
 
   useEffect(() => {
+    if (viewMode !== "server") return;
     if (!currentServerId || channels.length === 0) return;
     const valid =
       currentChannelId != null &&
@@ -102,12 +109,23 @@ export function MainLayout() {
     const firstText = textChannels[0];
     setCurrentChannel(firstText?.id ?? null);
   }, [
+    viewMode,
     currentServerId,
     channels,
     currentChannelId,
     textChannels,
     setCurrentChannel,
   ]);
+
+  if (viewMode === "dm") {
+    return (
+      <div className="flex h-screen overflow-hidden bg-[#313338] text-white">
+        <ServerSidebar />
+        <DmSidebar />
+        <DmMessageArea />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#313338] text-white">

@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { resolve } from 'path';
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { DmModule } from './dm/dm.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { HealthModule } from './health/health.module';
 import { InvitesModule } from './invites/invites.module';
@@ -25,9 +27,11 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     PrismaModule,
     EventsModule,
     UploadsModule,
+    AdminModule,
     AuthModule,
     HealthModule,
     ServersModule,
+    DmModule,
     InvitesModule,
     MessagesModule,
     WebhooksModule,

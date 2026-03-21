@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
+import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 
 interface MessageActionsProps {
@@ -12,7 +13,12 @@ interface MessageActionsProps {
 
 export function MessageActions({ message, channelId }: MessageActionsProps) {
   const userId = useAuthStore((s) => s.user?.id);
+  const myRole = useMemberStore((s) =>
+    s.members.find((m) => m.userId === userId),
+  )?.role;
   const isAuthor = message.authorId === userId;
+  const isAdminOrOwner = myRole === "admin" || myRole === "owner";
+  const canDelete = isAuthor || isAdminOrOwner;
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(message.content ?? "");
@@ -23,7 +29,7 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
     useMessageStore.getState().setReplyTarget({
       id: message.id,
       content: message.content,
-      authorName: message.author?.username ?? "Unknown",
+      authorName: message.author?.username ?? "Deleted User",
     });
   }, [message]);
 
@@ -151,7 +157,7 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
         <ActionBtn title={message.pinned ? "Unpin" : "Pin"} onClick={handlePin}>
           <PinIcon />
         </ActionBtn>
-        {isAuthor && (
+        {canDelete && (
           <ActionBtn title="Delete" onClick={handleDelete} danger>
             <TrashIcon />
           </ActionBtn>

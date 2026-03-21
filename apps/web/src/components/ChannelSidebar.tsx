@@ -1,5 +1,7 @@
+import type { Channel } from "@chat/shared";
 import { useMemo, useState } from "react";
 import { CreateChannelModal } from "@/components/CreateChannelModal";
+import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
 import { ServerSettingsModal } from "@/components/ServerSettingsModal";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -70,6 +72,14 @@ function GearIcon() {
   );
 }
 
+function GearSmallIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 00-.49-.42h-3.84a.5.5 0 00-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.74 8.87c-.17.29-.11.67.19.86l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.17.29.49.38.78.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54a.5.5 0 00.49.42h3.84c.24 0 .45-.17.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.29.15.62.06.78-.22l1.92-3.32c.17-.29.11-.67-.19-.86l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
+    </svg>
+  );
+}
+
 export function ChannelSidebar() {
   const user = useAuthStore((s) => s.user);
 
@@ -99,6 +109,7 @@ export function ChannelSidebar() {
     myMembership?.role === "owner" || myMembership?.role === "admin";
 
   const [channelModalOpen, setChannelModalOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
@@ -147,15 +158,17 @@ export function ChannelSidebar() {
             <span className="text-[11px] font-semibold tracking-wide text-gray-400">
               TEXT CHANNELS
             </span>
-            <button
-              type="button"
-              title="Create channel"
-              disabled={!currentServer}
-              onClick={() => setChannelModalOpen(true)}
-              className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
-            >
-              <PlusSmallIcon />
-            </button>
+            {isAdminOrOwner && (
+              <button
+                type="button"
+                title="Create channel"
+                disabled={!currentServer}
+                onClick={() => setChannelModalOpen(true)}
+                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
+              >
+                <PlusSmallIcon />
+              </button>
+            )}
           </div>
 
           <ul className="space-y-0.5">
@@ -163,42 +176,76 @@ export function ChannelSidebar() {
               const active = ch.id === currentChannelId;
               return (
                 <li key={ch.id}>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentChannel(ch.id)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
-                      active
-                        ? "bg-[#404249] text-white"
-                        : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
-                    }`}
-                  >
-                    <HashIcon />
-                    <span className="truncate">{ch.name}</span>
-                  </button>
+                  <div className="group/ch relative">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentChannel(ch.id)}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
+                        active
+                          ? "bg-[#404249] text-white"
+                          : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                    >
+                      <HashIcon />
+                      <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                    </button>
+                    {isAdminOrOwner && (
+                      <button
+                        type="button"
+                        title="Edit channel"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingChannel(ch);
+                        }}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
+                      >
+                        <GearSmallIcon />
+                      </button>
+                    )}
+                  </div>
                 </li>
               );
             })}
           </ul>
 
-          <div className="mt-3 flex items-center justify-between px-2 pt-1">
+          <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
             <span className="text-[11px] font-semibold tracking-wide text-gray-400">
               VOICE CHANNELS
             </span>
+            {isAdminOrOwner && (
+              <button
+                type="button"
+                title="Create channel"
+                disabled={!currentServer}
+                onClick={() => setChannelModalOpen(true)}
+                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
+              >
+                <PlusSmallIcon />
+              </button>
+            )}
           </div>
 
           <ul className="space-y-1">
             {voiceChannels.map((ch) => (
               <li key={ch.id}>
-                <div
-                  className={`rounded-md px-2 py-1.5 text-[15px] text-gray-300`}
-                >
+                <div className="group/ch relative rounded-md px-2 py-1.5 text-[15px] text-gray-300">
                   <div className="flex items-center gap-2">
                     <SpeakerIcon />
-                    <span className="truncate">{ch.name}</span>
+                    <span className="min-w-0 flex-1 truncate">{ch.name}</span>
                   </div>
                   <p className="mt-1 pl-7 text-xs text-gray-500">
                     No one connected
                   </p>
+                  {isAdminOrOwner && (
+                    <button
+                      type="button"
+                      title="Edit channel"
+                      onClick={() => setEditingChannel(ch)}
+                      className="absolute right-1 top-2 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
+                    >
+                      <GearSmallIcon />
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -251,6 +298,12 @@ export function ChannelSidebar() {
         <ServerSettingsModal
           server={currentServer}
           onClose={() => setServerSettingsOpen(false)}
+        />
+      )}
+      {editingChannel && (
+        <EditChannelModal
+          channel={editingChannel}
+          onClose={() => setEditingChannel(null)}
         />
       )}
     </>

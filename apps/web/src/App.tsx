@@ -8,6 +8,7 @@ import {
 import "./index.css";
 import { MainLayout } from "./components/MainLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AdminPage } from "./pages/AdminPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MainPage } from "./pages/MainPage";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route
           path="/"
           element={

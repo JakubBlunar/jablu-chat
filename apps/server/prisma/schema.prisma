@@ -153,7 +153,7 @@ model Message {
   id                     String   @id @default(uuid())
   channelId              String?  @map("channel_id")
   directConversationId   String?  @map("direct_conversation_id")
-  authorId               String   @map("author_id")
+  authorId               String?  @map("author_id")
   replyToId              String?  @map("reply_to_id")
   threadParentId         String?  @map("thread_parent_id")
   content                String?
@@ -163,7 +163,7 @@ model Message {
   createdAt              DateTime @default(now()) @map("created_at")
   editedAt               DateTime? @map("edited_at")
 
-  author             User                @relation(fields: [authorId], references: [id])
+  author             User?               @relation(fields: [authorId], references: [id], onDelete: SetNull)
   channel            Channel?            @relation(fields: [channelId], references: [id], onDelete: Cascade)
   directConversation DirectConversation? @relation(fields: [directConversationId], references: [id], onDelete: Cascade)
   replyTo            Message?            @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
@@ -226,11 +226,11 @@ model CustomEmoji {
   serverId     String   @map("server_id")
   name         String
   imageUrl     String   @map("image_url")
-  uploadedById String   @map("uploaded_by_id")
+  uploadedById String?  @map("uploaded_by_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
   server     Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  uploadedBy User   @relation("UploadedEmojis", fields: [uploadedById], references: [id])
+  uploadedBy User?  @relation("UploadedEmojis", fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@unique([serverId, name])
   @@map("custom_emojis")
@@ -239,7 +239,7 @@ model CustomEmoji {
 model Invite {
   id          String    @id @default(uuid())
   serverId    String    @map("server_id")
-  createdById String    @map("created_by_id")
+  createdById String?   @map("created_by_id")
   code        String    @unique
   maxUses     Int?      @map("max_uses")
   useCount    Int       @default(0) @map("use_count")
@@ -247,7 +247,7 @@ model Invite {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   server    Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  createdBy User   @relation(fields: [createdById], references: [id])
+  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("invites")
 }
@@ -258,11 +258,11 @@ model Webhook {
   name        String
   avatarUrl   String?  @map("avatar_url")
   token       String   @unique
-  createdById String   @map("created_by_id")
+  createdById String?  @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
   channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  createdBy User    @relation(fields: [createdById], references: [id])
+  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@map("webhooks")
 }
