@@ -1,0 +1,22 @@
+# Traefik override — use alongside docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+#
+# This removes public ports from nginx and adds Traefik routing labels.
+# Traefik must already be running on the "web" network (see DEPLOYMENT.md).
+
+services:
+  nginx:
+    ports: !override []
+    networks:
+      - default
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jablu.rule=Host(`${SERVER_HOST}`)"
+      - "traefik.http.routers.jablu.entrypoints=websecure"
+      - "traefik.http.routers.jablu.tls.certresolver=letsencrypt"
+      - "traefik.http.services.jablu.loadbalancer.server.port=80"
+
+networks:
+  web:
+    external: true
