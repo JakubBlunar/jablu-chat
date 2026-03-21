@@ -16,7 +16,7 @@ function createWindow() {
     title: "Chat",
     backgroundColor: "#1e1f22",
     webPreferences: {
-      preload: join(__dirname, "../preload/preload.js"),
+      preload: join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
