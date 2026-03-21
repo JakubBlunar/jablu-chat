@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { UserAvatar } from "@/components/UserAvatar";
-import { api } from "@/lib/api";
+import { api, type DmConversation } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
@@ -41,12 +41,22 @@ export function DmSidebar() {
     [user?.id, onlineIds],
   );
 
+  const [groupDmOpen, setGroupDmOpen] = useState(false);
+
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col bg-[#2b2d31]">
-      <div className="flex h-12 shrink-0 items-center border-b border-black/20 px-4 shadow-sm">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
         <span className="text-[15px] font-semibold text-white">
           Direct Messages
         </span>
+        <button
+          type="button"
+          title="New Group DM"
+          onClick={() => setGroupDmOpen(true)}
+          className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <PlusIcon />
+        </button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3">
@@ -122,6 +132,130 @@ export function DmSidebar() {
           </p>
         </div>
       </div>
+
+      {groupDmOpen && (
+        <GroupDmModal
+          onClose={() => setGroupDmOpen(false)}
+          onCreated={(conv) => {
+            useDmStore.getState().addOrUpdateConversation(conv);
+            useDmStore.getState().setCurrentConversation(conv.id);
+            setGroupDmOpen(false);
+          }}
+        />
+      )}
     </aside>
+  );
+}
+
+function GroupDmModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (conv: DmConversation) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [results, setResults] = useState<{ id: string; username: string; avatarUrl: string | null }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const data = await api.searchUsers(q);
+        setResults(data);
+      } catch { setResults([]); }
+      setLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleCreate = async () => {
+    if (selected.length < 2) return;
+    setCreating(true);
+    try {
+      const conv = await api.createGroupDm(selected);
+      onCreated(conv);
+    } catch {
+      /* ignore */
+    }
+    setCreating(false);
+  };
+
+  const toggle = (id: string) => {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-md rounded-lg bg-[#313338] p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-white">New Group DM</h2>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+        </div>
+
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search users..."
+          className="mb-3 w-full rounded bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none placeholder:text-gray-500"
+        />
+
+        {selected.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-1">
+            {selected.map((id) => {
+              const u = results.find((r) => r.id === id);
+              return (
+                <span key={id} className="flex items-center gap-1 rounded-full bg-[#5865f2]/20 px-2 py-0.5 text-xs text-[#5865f2]">
+                  {u?.username ?? id.slice(0, 8)}
+                  <button type="button" onClick={() => toggle(id)} className="hover:text-white">✕</button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="max-h-40 space-y-1 overflow-y-auto">
+          {loading && <p className="text-xs text-gray-400">Searching…</p>}
+          {results
+            .filter((r) => !selected.includes(r.id))
+            .map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => toggle(r.id)}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-gray-200 hover:bg-white/5"
+              >
+                <UserAvatar username={r.username} avatarUrl={r.avatarUrl} size="sm" />
+                {r.username}
+              </button>
+            ))}
+        </div>
+
+        <button
+          type="button"
+          disabled={selected.length < 2 || creating}
+          onClick={() => void handleCreate()}
+          className="mt-4 w-full rounded bg-[#5865f2] py-2 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+        >
+          {creating ? "Creating…" : `Create Group DM (${selected.length} members)`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
   );
 }

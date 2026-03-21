@@ -123,8 +123,10 @@ function AdminDashboard() {
   const [servers, setServers] = useState<AdminServer[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const fetchAll = useCallback(async () => {
+    setError("");
     try {
       const [s, u] = await Promise.all([
         adminFetch<AdminServer[]>("/api/admin/servers"),
@@ -132,8 +134,14 @@ function AdminDashboard() {
       ]);
       setServers(s);
       setUsers(u);
-    } catch {
-      /* guard handles auth failures */
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load";
+      if (msg.includes("Unauthorized") || msg.includes("admin password")) {
+        sessionStorage.removeItem(ADMIN_STORAGE_KEY);
+        window.location.reload();
+        return;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -154,6 +162,12 @@ function AdminDashboard() {
   return (
     <div className="min-h-screen bg-[#1e1f22] p-6 text-white">
       <div className="mx-auto max-w-5xl">
+        {error && (
+          <div className="mb-4 rounded-md bg-red-900/30 px-4 py-3 text-sm text-red-300 ring-1 ring-red-500/30">
+            {error}
+            <button type="button" onClick={() => void fetchAll()} className="ml-2 underline hover:text-white">Retry</button>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Admin Panel</h1>
           <button
@@ -241,13 +255,16 @@ function ServersTab({
     }
   };
 
+  const [deleteError, setDeleteError] = useState("");
+
   const handleDelete = async (id: string) => {
     setDeletingId(id);
+    setDeleteError("");
     try {
       await adminFetch(`/api/admin/servers/${id}`, { method: "DELETE" });
       setServers((prev) => prev.filter((s) => s.id !== id));
-    } catch {
-      /* ignore */
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -256,6 +273,11 @@ function ServersTab({
 
   return (
     <>
+      {deleteError && (
+        <div className="mb-3 rounded-md bg-red-900/30 px-4 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {deleteError}
+        </div>
+      )}
       <div className="flex justify-end">
         <button
           type="button"
@@ -410,13 +432,16 @@ function UsersTab({
     }
   };
 
+  const [deleteError, setDeleteError] = useState("");
+
   const handleDelete = async (id: string) => {
     setDeletingId(id);
+    setDeleteError("");
     try {
       await adminFetch(`/api/admin/users/${id}`, { method: "DELETE" });
       setUsers((prev) => prev.filter((u) => u.id !== id));
-    } catch {
-      /* ignore */
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -425,6 +450,11 @@ function UsersTab({
 
   return (
     <div className="space-y-2">
+      {deleteError && (
+        <div className="mb-3 rounded-md bg-red-900/30 px-4 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {deleteError}
+        </div>
+      )}
       {users.length === 0 ? (
         <Empty>No users registered.</Empty>
       ) : (
