@@ -6,6 +6,19 @@ let tray: Tray | null = null;
 
 const DEV_URL = "http://localhost:5173";
 const isDev = !app.isPackaged;
+const MAX_RETRIES = 30;
+const RETRY_DELAY_MS = 2000;
+
+function loadDevUrl(win: BrowserWindow, attempt = 1) {
+  win.loadURL(DEV_URL).catch(() => {
+    if (attempt >= MAX_RETRIES) {
+      console.error(`Vite dev server not reachable after ${MAX_RETRIES} attempts`);
+      return;
+    }
+    console.log(`Waiting for Vite dev server... (attempt ${attempt}/${MAX_RETRIES})`);
+    setTimeout(() => loadDevUrl(win, attempt + 1), RETRY_DELAY_MS);
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -37,7 +50,7 @@ function createWindow() {
   });
 
   if (isDev) {
-    mainWindow.loadURL(DEV_URL);
+    loadDevUrl(mainWindow);
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     const webDistPath = join(process.resourcesPath, "web", "index.html");
