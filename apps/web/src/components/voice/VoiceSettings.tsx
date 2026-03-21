@@ -1,41 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import {
+  type CameraQuality,
+  CAMERA_PRESETS,
+  getSavedAudioInput,
+  setSavedAudioInput,
+  getSavedAudioOutput,
+  setSavedAudioOutput,
+  getSavedCamera,
+  setSavedCamera,
+  getSavedCameraQuality,
+  setSavedCameraQuality,
+} from "@/lib/deviceSettings";
+import {
+  type MicMode,
+  type PttBinding,
+  getMicMode,
+  setMicMode as saveMicMode,
+  getPttBinding,
+  setPttBinding as savePttBinding,
+  pttBindingLabel,
+  getVadThreshold,
+  setVadThreshold as saveVadThreshold,
+} from "@/lib/micMode";
+import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
 type DeviceInfo = {
   deviceId: string;
   label: string;
-};
-
-const CAMERA_QUALITY_KEY = "chat:voice:camera-quality";
-const SCREEN_QUALITY_KEY = "chat:voice:screen-quality";
-
-export type CameraQuality = "360p" | "480p" | "720p" | "1080p";
-export type ScreenQuality = "static" | "balanced" | "motion";
-
-export function getCameraQuality(): CameraQuality {
-  return (localStorage.getItem(CAMERA_QUALITY_KEY) as CameraQuality) || "720p";
-}
-
-export function getScreenQuality(): ScreenQuality {
-  return (localStorage.getItem(SCREEN_QUALITY_KEY) as ScreenQuality) || "balanced";
-}
-
-export const CAMERA_PRESETS: Record<
-  CameraQuality,
-  { width: number; height: number; fps: number }
-> = {
-  "360p": { width: 640, height: 360, fps: 15 },
-  "480p": { width: 854, height: 480, fps: 30 },
-  "720p": { width: 1280, height: 720, fps: 30 },
-  "1080p": { width: 1920, height: 1080, fps: 30 },
-};
-
-export const SCREEN_PRESETS: Record<
-  ScreenQuality,
-  { width: number; height: number; fps: number; bitrate: number }
-> = {
-  static: { width: 1920, height: 1080, fps: 5, bitrate: 1_500_000 },
-  balanced: { width: 1920, height: 1080, fps: 15, bitrate: 2_500_000 },
-  motion: { width: 1280, height: 720, fps: 30, bitrate: 3_000_000 },
 };
 
 export function VoiceSettings() {
@@ -43,11 +34,10 @@ export function VoiceSettings() {
   const [audioOutputs, setAudioOutputs] = useState<DeviceInfo[]>([]);
   const [videoInputs, setVideoInputs] = useState<DeviceInfo[]>([]);
 
-  const [selectedInput, setSelectedInput] = useState("");
-  const [selectedOutput, setSelectedOutput] = useState("");
-  const [selectedCamera, setSelectedCamera] = useState("");
-  const [cameraQuality, setCameraQuality] = useState<CameraQuality>(getCameraQuality);
-  const [screenQuality, setScreenQuality] = useState<ScreenQuality>(getScreenQuality);
+  const [selectedInput, setSelectedInput] = useState(getSavedAudioInput);
+  const [selectedOutput, setSelectedOutput] = useState(getSavedAudioOutput);
+  const [selectedCamera, setSelectedCamera] = useState(getSavedCamera);
+  const [cameraQuality, setCameraQuality] = useState<CameraQuality>(getSavedCameraQuality);
 
   useEffect(() => {
     async function enumerate() {
@@ -57,98 +47,183 @@ export function VoiceSettings() {
         // Permission denied
       }
       const devices = await navigator.mediaDevices.enumerateDevices();
-      setAudioInputs(
-        devices
-          .filter((d) => d.kind === "audioinput")
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` })),
-      );
-      setAudioOutputs(
-        devices
-          .filter((d) => d.kind === "audiooutput")
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` })),
-      );
-      setVideoInputs(
-        devices
-          .filter((d) => d.kind === "videoinput")
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` })),
-      );
+
+      const inputs = devices
+        .filter((d) => d.kind === "audioinput")
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }));
+      const outputs = devices
+        .filter((d) => d.kind === "audiooutput")
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }));
+      const cameras = devices
+        .filter((d) => d.kind === "videoinput")
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` }));
+
+      setAudioInputs(inputs);
+      setAudioOutputs(outputs);
+      setVideoInputs(cameras);
     }
     void enumerate();
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("chat:voice:input");
-    if (saved) setSelectedInput(saved);
-    const savedOut = localStorage.getItem("chat:voice:output");
-    if (savedOut) setSelectedOutput(savedOut);
-    const savedCam = localStorage.getItem("chat:voice:camera");
-    if (savedCam) setSelectedCamera(savedCam);
+  const [micMode, setMicMode] = useState<MicMode>(getMicMode);
+  const [pttBinding, setPttBinding] = useState<PttBinding>(getPttBinding);
+  const [vadThreshold, setVadThreshold] = useState(getVadThreshold);
+  const [recordingPtt, setRecordingPtt] = useState(false);
+  const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode);
+
+  const handleMicModeChange = useCallback(
+    (mode: MicMode) => {
+      setMicMode(mode);
+      saveMicMode(mode);
+      storeSetMicMode(mode);
+    },
+    [storeSetMicMode],
+  );
+
+  const handlePttRecord = useCallback(() => {
+    setRecordingPtt(true);
+
+    const finish = (binding: PttBinding) => {
+      setPttBinding(binding);
+      savePttBinding(binding);
+      setRecordingPtt(false);
+      cleanup();
+      if (getMicMode() === "push-to-talk") {
+        useVoiceConnectionStore.getState().setMicMode("push-to-talk");
+      }
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRecordingPtt(false);
+        cleanup();
+        return;
+      }
+      finish({ type: "key", key: e.key });
+    };
+
+    const onMouse = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      finish({ type: "mouse", button: e.button });
+    };
+
+    const onContext = (e: Event) => e.preventDefault();
+
+    const cleanup = () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("mousedown", onMouse, true);
+      window.removeEventListener("contextmenu", onContext, true);
+    };
+
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("mousedown", onMouse, true);
+    window.addEventListener("contextmenu", onContext, true);
   }, []);
 
   return (
     <div className="space-y-6">
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-          Audio Input
+          Microphone Mode
         </h3>
-        <select
-          value={selectedInput}
-          onChange={(e) => {
-            setSelectedInput(e.target.value);
-            localStorage.setItem("chat:voice:input", e.target.value);
-          }}
-          className="w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10"
-        >
-          <option value="">Default</option>
-          {audioInputs.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label}
-            </option>
+        <div className="flex gap-2">
+          {(
+            [
+              { value: "always", label: "Always On" },
+              { value: "activity", label: "Voice Activity" },
+              { value: "push-to-talk", label: "Push to Talk" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleMicModeChange(opt.value)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                micMode === opt.value
+                  ? "bg-[#5865f2] text-white"
+                  : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
+              }`}
+            >
+              {opt.label}
+            </button>
           ))}
-        </select>
+        </div>
+        <p className="mt-1.5 text-xs text-gray-500">
+          {micMode === "always" && "Your mic stays on while unmuted."}
+          {micMode === "activity" && "Mic activates automatically when you speak."}
+          {micMode === "push-to-talk" && "Hold a key to transmit your voice."}
+        </p>
+
+        {micMode === "activity" && (
+          <div className="mt-3">
+            <label className="mb-1 block text-xs text-gray-400">
+              Sensitivity threshold: {vadThreshold}
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={60}
+              value={vadThreshold}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setVadThreshold(v);
+                saveVadThreshold(v);
+              }}
+              className="w-full accent-[#5865f2]"
+            />
+            <div className="mt-0.5 flex justify-between text-[10px] text-gray-500">
+              <span>Sensitive</span>
+              <span>Less sensitive</span>
+            </div>
+          </div>
+        )}
+
+        {micMode === "push-to-talk" && (
+          <div className="mt-3 flex items-center gap-3">
+            <span className="text-xs text-gray-400">Bind:</span>
+            <button
+              type="button"
+              onClick={handlePttRecord}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ring-1 transition ${
+                recordingPtt
+                  ? "bg-[#5865f2]/20 text-[#5865f2] ring-[#5865f2]/40"
+                  : "bg-[#1e1f22] text-white ring-white/10 hover:bg-white/10"
+              }`}
+            >
+              {recordingPtt
+                ? "Press any key or mouse button..."
+                : pttBindingLabel(pttBinding)}
+            </button>
+            {recordingPtt && (
+              <span className="text-[10px] text-gray-500">Esc to cancel</span>
+            )}
+          </div>
+        )}
       </div>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-          Audio Output
-        </h3>
-        <select
-          value={selectedOutput}
-          onChange={(e) => {
-            setSelectedOutput(e.target.value);
-            localStorage.setItem("chat:voice:output", e.target.value);
-          }}
-          className="w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10"
-        >
-          <option value="">Default</option>
-          {audioOutputs.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <DeviceSelect
+        label="Audio Input"
+        value={selectedInput}
+        devices={audioInputs}
+        onChange={(v) => { setSelectedInput(v); setSavedAudioInput(v); }}
+      />
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-          Camera
-        </h3>
-        <select
-          value={selectedCamera}
-          onChange={(e) => {
-            setSelectedCamera(e.target.value);
-            localStorage.setItem("chat:voice:camera", e.target.value);
-          }}
-          className="w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10"
-        >
-          <option value="">Default</option>
-          {videoInputs.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <DeviceSelect
+        label="Audio Output"
+        value={selectedOutput}
+        devices={audioOutputs}
+        onChange={(v) => { setSelectedOutput(v); setSavedAudioOutput(v); }}
+      />
+
+      <DeviceSelect
+        label="Camera"
+        value={selectedCamera}
+        devices={videoInputs}
+        onChange={(v) => { setSelectedCamera(v); setSavedCamera(v); }}
+      />
 
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
@@ -161,7 +236,7 @@ export function VoiceSettings() {
               type="button"
               onClick={() => {
                 setCameraQuality(q);
-                localStorage.setItem(CAMERA_QUALITY_KEY, q);
+                setSavedCameraQuality(q);
               }}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
                 cameraQuality === q
@@ -175,33 +250,58 @@ export function VoiceSettings() {
         </div>
       </div>
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-          Screen Share Quality
-        </h3>
-        <div className="flex gap-2">
-          {(Object.keys(SCREEN_PRESETS) as ScreenQuality[]).map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => {
-                setScreenQuality(q);
-                localStorage.setItem(SCREEN_QUALITY_KEY, q);
-              }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition ${
-                screenQuality === q
-                  ? "bg-[#5865f2] text-white"
-                  : "bg-[#1e1f22] text-gray-300 hover:bg-white/10"
-              }`}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-xs text-gray-500">
-          Static: 1080p/5fps &middot; Balanced: 1080p/15fps &middot; Motion: 720p/30fps
+      <p className="text-xs text-gray-500">
+        Screen share quality settings are available in the screen share picker dialog.
+      </p>
+    </div>
+  );
+}
+
+function DeviceSelect({
+  label,
+  value,
+  devices,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  devices: DeviceInfo[];
+  onChange: (v: string) => void;
+}) {
+  const isMissing = value !== "" && devices.length > 0 && !devices.some((d) => d.deviceId === value);
+
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
+        {label}
+      </h3>
+      <select
+        value={isMissing ? "__missing__" : value}
+        onChange={(e) => {
+          const v = e.target.value === "__missing__" ? "" : e.target.value;
+          onChange(v);
+        }}
+        className={`w-full rounded-md bg-[#1e1f22] px-3 py-2 text-sm text-white outline-none ring-1 ${
+          isMissing ? "ring-amber-500/50" : "ring-white/10"
+        }`}
+      >
+        <option value="">Default</option>
+        {isMissing && (
+          <option value="__missing__" disabled className="text-amber-400">
+            Saved device (unavailable) — using default
+          </option>
+        )}
+        {devices.map((d) => (
+          <option key={d.deviceId} value={d.deviceId}>
+            {d.label}
+          </option>
+        ))}
+      </select>
+      {isMissing && (
+        <p className="mt-1 text-xs text-amber-400/80">
+          Your saved device is disconnected. Reconnect it or select a different one.
         </p>
-      </div>
+      )}
     </div>
   );
 }

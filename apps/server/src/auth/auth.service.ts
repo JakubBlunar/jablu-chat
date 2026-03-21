@@ -287,7 +287,7 @@ export class AuthService {
 
     const refreshTokenValue = uuidv4();
     const refreshExpiresAt = new Date(
-      Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+      Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
     );
 
     await this.prisma.refreshToken.create({

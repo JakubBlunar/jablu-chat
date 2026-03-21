@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 
 type NotifLevel = "all" | "mentions" | "none";
@@ -13,7 +14,9 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
   const [open, setOpen] = useState(false);
   const [level, setLevel] = useState<NotifLevel>("all");
   const [loaded, setLoaded] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     if (!open || loaded) return;
@@ -30,8 +33,18 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
 
   useEffect(() => {
     if (!open) return;
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const menuWidth = 208;
+      let left = rect.right - menuWidth;
+      if (left < 4) left = rect.left;
+      setMenuPos({ top: rect.bottom + 4, left });
+    }
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -56,8 +69,9 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
   const isMentions = level === "mentions";
 
   return (
-    <div ref={menuRef} className="relative">
+    <>
       <button
+        ref={btnRef}
         type="button"
         title="Notification settings"
         onClick={(e) => {
@@ -73,27 +87,33 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
         {isMuted ? <BellMutedIcon /> : <BellIcon />}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg bg-[#1e1f22] py-1 shadow-xl ring-1 ring-white/10">
-          {LEVELS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => void handleChange(opt.value)}
-              className={`flex w-full flex-col px-3 py-2 text-left transition hover:bg-white/5 ${
-                level === opt.value ? "text-white" : "text-gray-300"
-              }`}
-            >
-              <span className="flex items-center gap-2 text-sm font-medium">
-                {level === opt.value && <CheckIcon />}
-                {opt.label}
-              </span>
-              <span className="text-[11px] text-gray-500">{opt.desc}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ top: menuPos.top, left: menuPos.left }}
+            className="fixed z-[300] w-52 rounded-lg bg-[#1e1f22] py-1 shadow-xl ring-1 ring-white/10"
+          >
+            {LEVELS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => void handleChange(opt.value)}
+                className={`flex w-full flex-col px-3 py-2 text-left transition hover:bg-white/5 ${
+                  level === opt.value ? "text-white" : "text-gray-300"
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  {level === opt.value && <CheckIcon />}
+                  {opt.label}
+                </span>
+                <span className="text-[11px] text-gray-500">{opt.desc}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

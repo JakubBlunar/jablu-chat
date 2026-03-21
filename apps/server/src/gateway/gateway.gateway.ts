@@ -606,4 +606,30 @@ export class ChatGateway
     this.removeVoiceParticipant(client.id, serverIds);
     return { ok: true };
   }
+
+  @SubscribeMessage('voice:state')
+  async onVoiceState(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    body: {
+      muted?: boolean;
+      deafened?: boolean;
+      camera?: boolean;
+      screenShare?: boolean;
+    },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
+    const channelId = this.socketVoiceChannel.get(client.id);
+    if (!channelId) return { ok: false };
+
+    for (const sid of serverIds) {
+      this.server.to(`server:${sid}`).emit('voice:participant-state', {
+        channelId,
+        userId: user.id,
+        ...body,
+      });
+    }
+    return { ok: true };
+  }
 }

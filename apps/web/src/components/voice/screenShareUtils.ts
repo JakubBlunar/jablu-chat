@@ -1,6 +1,22 @@
 import { electronAPI } from "@/lib/electron";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
-import { getScreenQuality, SCREEN_PRESETS } from "./VoiceSettings";
+
+export type ScreenShareOptions = {
+  resolution: "720p" | "1080p" | "native";
+  fps: 5 | 15 | 20 | 30;
+};
+
+const RESOLUTION_MAP = {
+  "720p": { width: 1280, height: 720 },
+  "1080p": { width: 1920, height: 1080 },
+  native: { width: 0, height: 0 },
+};
+
+const BITRATE_MAP: Record<string, Record<number, number>> = {
+  "720p": { 5: 800_000, 15: 1_500_000, 20: 2_000_000, 30: 3_000_000 },
+  "1080p": { 5: 1_500_000, 15: 2_500_000, 20: 3_500_000, 30: 5_000_000 },
+  native: { 5: 2_000_000, 15: 3_000_000, 20: 4_000_000, 30: 6_000_000 },
+};
 
 export async function startScreenShare() {
   const store = useVoiceConnectionStore.getState();
@@ -19,43 +35,55 @@ export async function startScreenShare() {
   }
 }
 
-export async function publishScreenShare(sourceId: string) {
+export async function publishScreenShare(
+  sourceId: string,
+  options: ScreenShareOptions,
+) {
   const store = useVoiceConnectionStore.getState();
   const room = store.room;
   if (!room) return;
 
-  const quality = getScreenQuality();
-  const preset = SCREEN_PRESETS[quality];
+  const res = RESOLUTION_MAP[options.resolution];
+  const bitrate = BITRATE_MAP[options.resolution]?.[options.fps] ?? 3_000_000;
+
+  const mandatory: Record<string, unknown> = {
+    chromeMediaSource: "desktop",
+    chromeMediaSourceId: sourceId,
+    maxFrameRate: options.fps,
+  };
+
+  if (options.resolution !== "native") {
+    mandatory.maxWidth = res.width;
+    mandatory.maxHeight = res.height;
+  }
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
       video: {
         // @ts-expect-error Electron's desktopCapturer requires these mandatory constraints
-        mandatory: {
-          chromeMediaSource: "desktop",
-          chromeMediaSourceId: sourceId,
-          maxWidth: preset.width,
-          maxHeight: preset.height,
-          maxFrameRate: preset.fps,
-        },
+        mandatory,
       },
     });
 
-    const track = stream.getVideoTracks()[0];
-    if (!track) return;
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) return;
 
-    await room.localParticipant.publishTrack(track, {
+    const pub = await room.localParticipant.publishTrack(videoTrack, {
       name: "screen",
+      source: "screen_share" as unknown as undefined,
       simulcast: false,
-      screenShareEncoding: {
-        maxBitrate: preset.bitrate,
-        maxFramerate: preset.fps,
+      videoEncoding: {
+        maxBitrate: bitrate,
+        maxFramerate: options.fps,
       },
+      degradationPreference: "maintain-resolution",
     });
 
-    track.onended = () => {
-      room.localParticipant.unpublishTrack(track);
+    videoTrack.onended = () => {
+      if (pub.track) {
+        room.localParticipant.unpublishTrack(pub.track);
+      }
       useVoiceConnectionStore.getState().setScreenSharing(false);
     };
 

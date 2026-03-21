@@ -63,6 +63,8 @@ export function MainLayout() {
   const fetchMembers = useMemberStore((s) => s.fetchMembers);
   const clearMessages = useMessageStore((s) => s.clearMessages);
 
+  const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom);
+
   const prevServerRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -130,9 +132,6 @@ export function MainLayout() {
     );
   }
 
-  const voiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId);
-  const isInVoice = !!voiceChannelId;
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#313338] text-white">
       <ServerSidebar />
@@ -149,7 +148,7 @@ export function MainLayout() {
             Use the + button in the server list to create your first server.
           </p>
         </div>
-      ) : isInVoice ? (
+      ) : viewingVoiceRoom ? (
         <>
           <VoiceRoom />
           <Outlet />

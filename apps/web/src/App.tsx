@@ -11,6 +11,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ServerUrlScreen, getStoredServerUrl } from "./components/ServerUrlScreen";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";
+import { migrateSettings } from "./lib/deviceSettings";
 import { AdminPage } from "./pages/AdminPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -19,16 +20,41 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { useAuthStore } from "./stores/auth.store";
 
+migrateSettings();
+
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 function AuthBootstrap() {
   useEffect(() => {
+    const boot = () => void useAuthStore.getState().checkAuth();
     if (useAuthStore.persist.hasHydrated()) {
-      void useAuthStore.getState().checkAuth();
-      return;
+      boot();
+    } else {
+      const unsub = useAuthStore.persist.onFinishHydration(() => boot());
+      return unsub;
     }
-    const unsub = useAuthStore.persist.onFinishHydration(() => {
-      void useAuthStore.getState().checkAuth();
-    });
-    return unsub;
+  }, []);
+
+  useEffect(() => {
+    api.onAuthFailure = () => {
+      const store = useAuthStore.getState();
+      if (store.isAuthenticated) {
+        store.logout().catch(() => {});
+      }
+    };
+    return () => {
+      api.onAuthFailure = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const { isAuthenticated, refreshSession } = useAuthStore.getState();
+      if (isAuthenticated) {
+        void refreshSession().catch(() => {});
+      }
+    }, REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
   }, []);
 
   return null;

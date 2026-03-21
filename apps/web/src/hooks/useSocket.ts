@@ -1,5 +1,6 @@
 import type { LinkPreview, Message } from "@chat/shared";
 import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
@@ -63,8 +64,27 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const socket = connectSocket(accessToken);
 
+    let handlingAuthError = false;
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => setIsConnected(false);
+    const onConnectError = async () => {
+      if (handlingAuthError) return;
+      const store = useAuthStore.getState();
+      if (!store.isAuthenticated || !store.refreshToken) return;
+      handlingAuthError = true;
+      try {
+        await store.refreshSession();
+        const newToken = useAuthStore.getState().accessToken;
+        if (newToken) {
+          socket.auth = { token: newToken };
+        }
+      } catch {
+        socket.disconnect();
+        api.onAuthFailure?.();
+      } finally {
+        handlingAuthError = false;
+      }
+    };
 
     const onMessageNew = (msg: Message) => {
       const channelId = useChannelStore.getState().currentChannelId;
@@ -215,6 +235,26 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         .removeParticipant(payload.channelId, payload.userId);
     };
 
+    const onVoiceParticipantState = (payload: {
+      channelId: string;
+      userId: string;
+      muted?: boolean;
+      deafened?: boolean;
+      camera?: boolean;
+      screenShare?: boolean;
+    }) => {
+      useVoiceStore.getState().updateParticipantState(
+        payload.channelId,
+        payload.userId,
+        {
+          muted: payload.muted,
+          deafened: payload.deafened,
+          camera: payload.camera,
+          screenShare: payload.screenShare,
+        },
+      );
+    };
+
     const onDmLinkPreviews = (payload: DmLinkPreviewPayload) => {
       const currentConvId = useDmStore.getState().currentConversationId;
       if (payload.conversationId === currentConvId) {
@@ -231,6 +271,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
     socket.on("message:new", onMessageNew);
     socket.on("message:edit", onMessageEdit);
     socket.on("message:delete", onMessageDelete);
@@ -252,12 +293,14 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on("voice:participants", onVoiceParticipants);
     socket.on("voice:participant-joined", onVoiceParticipantJoined);
     socket.on("voice:participant-left", onVoiceParticipantLeft);
+    socket.on("voice:participant-state", onVoiceParticipantState);
 
     setIsConnected(socket.connected);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.off("message:new", onMessageNew);
       socket.off("message:edit", onMessageEdit);
       socket.off("message:delete", onMessageDelete);
@@ -279,6 +322,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off("voice:participants", onVoiceParticipants);
       socket.off("voice:participant-joined", onVoiceParticipantJoined);
       socket.off("voice:participant-left", onVoiceParticipantLeft);
+      socket.off("voice:participant-state", onVoiceParticipantState);
       disconnectSocket();
       setIsConnected(false);
     };

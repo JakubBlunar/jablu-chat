@@ -69,6 +69,7 @@ export class ApiError extends Error {
 
 export class ApiClient {
   baseUrl = "";
+  onAuthFailure: (() => void) | null = null;
   private refreshPromise: Promise<AuthResponse> | null = null;
 
   private async tryRefreshToken(): Promise<AuthResponse | null> {
@@ -130,6 +131,7 @@ export class ApiClient {
       if (refreshed) {
         return this.request<T>(method, path, body, true);
       }
+      this.onAuthFailure?.();
     }
 
     const contentType = res.headers.get("content-type") ?? "";
@@ -294,6 +296,8 @@ export class ApiClient {
           headers,
           body: formData,
         });
+      } else {
+        this.onAuthFailure?.();
       }
     }
 
