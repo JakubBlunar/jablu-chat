@@ -8,13 +8,17 @@ type CreateServerResponse = SharedServer & {
   members?: unknown[];
 };
 
+export type ViewMode = "server" | "dm";
+
 type ServerState = {
   servers: Server[];
   currentServerId: string | null;
+  viewMode: ViewMode;
   isLoading: boolean;
   fetchServers: () => Promise<void>;
   createServer: (name: string) => Promise<Server>;
   setCurrentServer: (id: string | null) => void;
+  setViewMode: (mode: ViewMode) => void;
   getCurrentServer: () => Server | null;
   updateServerInList: (id: string, patch: Partial<Server>) => void;
   removeServer: (id: string) => void;
@@ -23,6 +27,7 @@ type ServerState = {
 export const useServerStore = create<ServerState>((set, get) => ({
   servers: [],
   currentServerId: null,
+  viewMode: "server" as ViewMode,
   isLoading: false,
 
   fetchServers: async () => {
@@ -50,7 +55,9 @@ export const useServerStore = create<ServerState>((set, get) => ({
     return server;
   },
 
-  setCurrentServer: (id) => set({ currentServerId: id }),
+  setCurrentServer: (id) => set({ currentServerId: id, viewMode: "server" }),
+
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   getCurrentServer: () => {
     const { servers, currentServerId } = get();

@@ -10,6 +10,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { DmService } from '../dm/dm.service';
 import { EventBusService } from '../events/event-bus.service';
 import { LinkPreviewService } from '../messages/link-preview.service';
 import { MessagesService } from '../messages/messages.service';
@@ -33,6 +34,7 @@ export class ChatGateway
   constructor(
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
+    private readonly dm: DmService,
     private readonly linkPreviews: LinkPreviewService,
     private readonly wsJwtGuard: WsJwtGuard,
     private readonly events: EventBusService,
@@ -93,6 +95,10 @@ export class ChatGateway
     this.server.to(`channel:${channelId}`).emit(event, data);
   }
 
+  emitToDm(conversationId: string, event: string, data: unknown) {
+    this.server.to(`dm:${conversationId}`).emit(event, data);
+  }
+
   async handleConnection(client: Socket) {
     let user: WsUser;
     try {
@@ -144,6 +150,15 @@ export class ChatGateway
       allMemberUserIds.has(id),
     );
     client.emit('presence:init', { onlineUserIds: onlineNow });
+
+    const dmConversations =
+      await this.prisma.directConversationMember.findMany({
+        where: { userId: user.id },
+        select: { conversationId: true },
+      });
+    for (const dc of dmConversations) {
+      client.join(`dm:${dc.conversationId}`);
+    }
   }
 
   async handleDisconnect(client: Socket) {
@@ -351,6 +366,126 @@ export class ChatGateway
       channelId: body.channelId,
       username: user.username,
     });
+    return { ok: true };
+  }
+
+  @SubscribeMessage('dm:send')
+  async onDmSend(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    body: {
+      conversationId: string;
+      content?: string;
+      replyToId?: string;
+      attachmentIds?: string[];
+    },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    const msg = await this.dm.createMessage(
+      body.conversationId,
+      user.id,
+      body.content,
+      body.replyToId,
+      body.attachmentIds,
+    );
+
+    // Ensure all conversation members are in the socket room
+    const memberIds = await this.dm.getConversationMemberIds(
+      body.conversationId,
+    );
+    const roomName = `dm:${body.conversationId}`;
+    const sockets = await this.server.fetchSockets();
+    for (const s of sockets) {
+      const sUser = (s.data as { user?: WsUser }).user;
+      if (sUser && memberIds.includes(sUser.id)) {
+        s.join(roomName);
+      }
+    }
+
+    this.emitToDm(body.conversationId, 'dm:new', {
+      ...msg,
+      conversationId: body.conversationId,
+    });
+
+    if (body.content) {
+      this.linkPreviews
+        .generatePreviews(msg.id, body.content)
+        .then((previews) => {
+          if (previews.length > 0) {
+            this.emitToDm(body.conversationId, 'dm:link-previews', {
+              messageId: msg.id,
+              conversationId: body.conversationId,
+              linkPreviews: previews,
+            });
+          }
+        })
+        .catch(() => {});
+    }
+
+    return { ok: true, message: msg };
+  }
+
+  @SubscribeMessage('dm:edit')
+  async onDmEdit(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    body: { conversationId: string; messageId: string; content: string },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    const updated = await this.dm.editMessage(
+      body.conversationId,
+      body.messageId,
+      user.id,
+      body.content,
+    );
+    this.emitToDm(body.conversationId, 'dm:edit', {
+      ...updated,
+      conversationId: body.conversationId,
+    });
+    return { ok: true, message: updated };
+  }
+
+  @SubscribeMessage('dm:delete')
+  async onDmDelete(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { conversationId: string; messageId: string },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    await this.dm.deleteMessage(
+      body.conversationId,
+      body.messageId,
+      user.id,
+    );
+    this.emitToDm(body.conversationId, 'dm:delete', {
+      messageId: body.messageId,
+      conversationId: body.conversationId,
+    });
+    return { ok: true };
+  }
+
+  @SubscribeMessage('dm:typing')
+  async onDmTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { conversationId: string },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    await this.dm.requireMembership(body.conversationId, user.id);
+    client.to(`dm:${body.conversationId}`).emit('dm:typing', {
+      userId: user.id,
+      conversationId: body.conversationId,
+      username: user.username,
+    });
+    return { ok: true };
+  }
+
+  @SubscribeMessage('dm:join')
+  async onDmJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { conversationId: string },
+  ) {
+    const user = (client.data as { user: WsUser }).user;
+    await this.dm.requireMembership(body.conversationId, user.id);
+    client.join(`dm:${body.conversationId}`);
     return { ok: true };
   }
 

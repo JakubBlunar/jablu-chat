@@ -17,21 +17,13 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateServerDto, UpdateMemberRoleDto, UpdateServerDto } from './dto';
+import { UpdateMemberRoleDto, UpdateServerDto } from './dto';
 import { ServersService } from './servers.service';
 
 @Controller('servers')
 @UseGuards(AuthGuard('jwt'))
 export class ServersController {
   constructor(private readonly servers: ServersService) {}
-
-  @Post()
-  create(
-    @CurrentUser() user: { id: string; username: string; email: string },
-    @Body() dto: CreateServerDto,
-  ) {
-    return this.servers.createServer(user.id, dto.name);
-  }
 
   @Get()
   list(@CurrentUser() user: { id: string; username: string; email: string }) {

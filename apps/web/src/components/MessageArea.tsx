@@ -217,8 +217,8 @@ function MessageRow({
   channelId: string;
 }) {
   const userId = useAuthStore((s) => s.user?.id);
-  const name = message.author?.username ?? "Unknown";
-  const avatarUrl = message.author?.avatarUrl;
+  const name = message.author?.username ?? "Deleted User";
+  const avatarUrl = message.author?.avatarUrl ?? null;
   const hasReplyPreview = !!message.replyTo;
   const attachments = message.attachments ?? [];
   const reactions = message.reactions ?? [];
@@ -246,7 +246,7 @@ function MessageRow({
           <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
             <ReplyArrowIcon />
             <span className="font-medium text-gray-300">
-              {message.replyTo!.author.username}
+              {message.replyTo!.author?.username ?? "Deleted User"}
             </span>
             <span className="truncate">
               {message.replyTo!.content || "[attachment]"}

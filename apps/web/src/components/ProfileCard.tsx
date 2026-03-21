@@ -1,6 +1,11 @@
 import type { UserStatus } from "@chat/shared";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserAvatar } from "@/components/UserAvatar";
+import { api } from "@/lib/api";
+import { getSocket } from "@/lib/socket";
+import { useAuthStore } from "@/stores/auth.store";
+import { useDmStore } from "@/stores/dm.store";
+import { useServerStore } from "@/stores/server.store";
 
 export type ProfileCardUser = {
   id: string;
@@ -128,7 +133,57 @@ export function ProfileCard({
             <p className="text-sm text-gray-200">{formatDate(user.joinedAt)}</p>
           </div>
         )}
+
+        {/* Message button */}
+        <SendDmButton userId={user.id} onClose={onClose} />
       </div>
+    </div>
+  );
+}
+
+function SendDmButton({
+  userId,
+  onClose,
+}: {
+  userId: string;
+  onClose: () => void;
+}) {
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const setViewMode = useServerStore((s) => s.setViewMode);
+  const setCurrentConv = useDmStore((s) => s.setCurrentConversation);
+  const addOrUpdateConv = useDmStore((s) => s.addOrUpdateConversation);
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = useCallback(async () => {
+    if (!userId || userId === currentUserId) return;
+    setLoading(true);
+    try {
+      const conv = await api.createDm(userId);
+      addOrUpdateConv(conv);
+      const socket = getSocket();
+      if (socket?.connected) {
+        socket.emit("dm:join", { conversationId: conv.id });
+      }
+      setCurrentConv(conv.id);
+      setViewMode("dm");
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, currentUserId, addOrUpdateConv, setCurrentConv, setViewMode, onClose]);
+
+  if (userId === currentUserId) return null;
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        disabled={loading}
+        onClick={handleClick}
+        className="w-full rounded-md bg-[#5865f2] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#4752c4] disabled:opacity-50"
+      >
+        {loading ? "Opening…" : "Message"}
+      </button>
     </div>
   );
 }

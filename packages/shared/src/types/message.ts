@@ -2,7 +2,7 @@ export interface Message {
   id: string;
   channelId: string | null;
   directConversationId: string | null;
-  authorId: string;
+  authorId: string | null;
   replyToId: string | null;
   threadParentId: string | null;
   content: string | null;
@@ -13,7 +13,7 @@ export interface Message {
     id: string;
     username: string;
     avatarUrl: string | null;
-  };
+  } | null;
   attachments?: Attachment[];
   reactions?: ReactionGroup[];
   replyTo?: MessagePreview | null;
@@ -27,7 +27,7 @@ export interface MessagePreview {
   author: {
     id: string;
     username: string;
-  };
+  } | null;
 }
 
 export interface Attachment {
