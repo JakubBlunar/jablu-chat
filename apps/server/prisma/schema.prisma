@@ -29,6 +29,7 @@ model User {
   ownedServers      Server[]               @relation("ServerOwner")
   dmMemberships     DirectConversationMember[]
   refreshTokens     RefreshToken[]
+  pushSubscriptions PushSubscription[]
   auditLogs         AuditLog[]             @relation("auditLogActor")
   usedInvites       RegistrationInvite[]   @relation("UsedInvites")
 
@@ -47,11 +48,27 @@ model RefreshToken {
   token     String   @unique
   userId    String   @map("user_id")
   expiresAt DateTime @map("expires_at")
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+  lastUsedAt DateTime? @map("last_used_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }
 
 model PasswordReset {

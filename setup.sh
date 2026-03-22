@@ -61,6 +61,37 @@ update_env "LIVEKIT_API_SECRET" "$LIVEKIT_API_SECRET"
 update_env "SUPERADMIN_USERNAME" "$SUPERADMIN_USERNAME"
 update_env "SUPERADMIN_PASSWORD" "$SUPERADMIN_PASSWORD"
 
+# Generate VAPID keys for web push
+if command -v npx &>/dev/null; then
+  if grep -q "^VAPID_PUBLIC_KEY=$" "$ENV_FILE" || ! grep -q "^VAPID_PUBLIC_KEY=" "$ENV_FILE"; then
+    VAPID_KEYS=$(npx web-push generate-vapid-keys --json 2>/dev/null || echo "")
+    if [ -n "$VAPID_KEYS" ]; then
+      VAPID_PUB=$(echo "$VAPID_KEYS" | grep -o '"publicKey":"[^"]*"' | cut -d'"' -f4)
+      VAPID_PRIV=$(echo "$VAPID_KEYS" | grep -o '"privateKey":"[^"]*"' | cut -d'"' -f4)
+      if [ -n "$VAPID_PUB" ] && [ -n "$VAPID_PRIV" ]; then
+        if grep -q "^VAPID_PUBLIC_KEY=" "$ENV_FILE"; then
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^VAPID_PUBLIC_KEY=.*|VAPID_PUBLIC_KEY=${VAPID_PUB}|" "$ENV_FILE"
+            sed -i '' "s|^VAPID_PRIVATE_KEY=.*|VAPID_PRIVATE_KEY=${VAPID_PRIV}|" "$ENV_FILE"
+          else
+            sed -i "s|^VAPID_PUBLIC_KEY=.*|VAPID_PUBLIC_KEY=${VAPID_PUB}|" "$ENV_FILE"
+            sed -i "s|^VAPID_PRIVATE_KEY=.*|VAPID_PRIVATE_KEY=${VAPID_PRIV}|" "$ENV_FILE"
+          fi
+        else
+          echo "VAPID_PUBLIC_KEY=${VAPID_PUB}" >> "$ENV_FILE"
+          echo "VAPID_PRIVATE_KEY=${VAPID_PRIV}" >> "$ENV_FILE"
+        fi
+        echo "  ✓ Generated VAPID keys"
+      fi
+    fi
+  else
+    echo "  ○ VAPID keys already set, skipping"
+  fi
+else
+  echo "  ⚠ npx not found, skipping VAPID key generation"
+  echo "    Run 'npx web-push generate-vapid-keys' manually"
+fi
+
 # Update DATABASE_URL with the new password
 if grep -q "^DATABASE_URL=postgresql://chat:changeme" "$ENV_FILE"; then
   if [[ "$OSTYPE" == "darwin"* ]]; then

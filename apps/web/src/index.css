@@ -6,6 +6,18 @@ button,
   cursor: pointer;
 }
 
+html {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+@supports (height: 100dvh) {
+  .h-screen-safe {
+    height: 100dvh;
+  }
+}
+
 .simplebar-scrollbar::before {
   background: color-mix(in srgb, var(--color-primary) 40%, transparent);
   border-radius: 9999px;

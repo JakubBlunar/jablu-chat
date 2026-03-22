@@ -521,6 +521,18 @@ export class ApiClient {
   ackDm(conversationId: string): Promise<{ ok: boolean }> {
     return this.request("PUT", `/api/dm/${conversationId}/ack`);
   }
+
+  getSessions(): Promise<ActiveSession[]> {
+    return this.get("/api/auth/sessions");
+  }
+
+  revokeSession(id: string): Promise<{ message: string }> {
+    return this.request("DELETE", `/api/auth/sessions/${id}`);
+  }
+
+  revokeAllSessions(refreshToken: string): Promise<{ message: string }> {
+    return this.request("DELETE", "/api/auth/sessions", { refreshToken });
+  }
 }
 
 export type SearchResult = {
@@ -564,6 +576,14 @@ export type DmConversation = {
     authorId: string;
     createdAt: string;
   } | null;
+};
+
+export type ActiveSession = {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
 };
 
 export const api = new ApiClient();

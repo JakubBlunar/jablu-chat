@@ -1,9 +1,16 @@
 import { create } from "zustand";
 import { Track, type Room } from "livekit-client";
+import { isElectron } from "@/lib/electron";
 import { getSocket } from "@/lib/socket";
 import { type MicMode, getMicMode, startMicMode, stopMicMode, setRoomGetter } from "@/lib/micMode";
 import { type CameraQuality, CAMERA_PRESETS, getSavedCamera } from "@/lib/deviceSettings";
 import type { BlurHandle } from "@/lib/backgroundBlur";
+
+function normalizedMicMode(): MicMode {
+  const saved = getMicMode();
+  if (saved === "push-to-talk" && !isElectron) return "activity";
+  return saved;
+}
 
 function emitVoiceState(state: {
   muted?: boolean;
@@ -128,7 +135,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     isConnecting: false,
     connectedAt: null,
     viewingVoiceRoom: false,
-    micMode: getMicMode(),
+    micMode: normalizedMicMode(),
     isBlurEnabled: false,
     _blurHandle: null,
     _originalCameraTrack: null,

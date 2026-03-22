@@ -2,11 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
+  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { CronJob } from 'cron';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -24,7 +27,9 @@ const PROFILE_SELECT = {
 } as const;
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -33,7 +38,18 @@ export class AuthService {
     private readonly uploads: UploadsService,
   ) {}
 
-  async register(username: string, email: string, password: string, inviteCode?: string) {
+  onModuleInit() {
+    const job = new CronJob('0 4 * * *', async () => {
+      const count = await this.cleanupExpiredTokens();
+      if (count > 0) {
+        this.logger.log(`Cleaned up ${count} expired refresh tokens`);
+      }
+    });
+    job.start();
+    this.logger.log('Expired token cleanup cron registered (daily at 4am)');
+  }
+
+  async register(username: string, email: string, password: string, inviteCode?: string, userAgent?: string, ipAddress?: string) {
     const mode = this.config.get<string>('REGISTRATION_MODE', 'open');
 
     let invite: {
@@ -97,7 +113,7 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.generateTokens(user.id);
+    const tokens = await this.generateTokens(user.id, userAgent, ipAddress);
     return { ...tokens, user };
   }
 
@@ -106,7 +122,7 @@ export class AuthService {
     return { mode };
   }
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, userAgent?: string, ipAddress?: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -117,7 +133,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const tokens = await this.generateTokens(user.id);
+    const tokens = await this.generateTokens(user.id, userAgent, ipAddress);
     const profile = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: PROFILE_SELECT,
@@ -125,7 +141,7 @@ export class AuthService {
     return { ...tokens, user: profile! };
   }
 
-  async refreshToken(refreshToken: string) {
+  async refreshToken(refreshToken: string, userAgent?: string, ipAddress?: string) {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
       include: { user: true },
@@ -140,7 +156,7 @@ export class AuthService {
 
     await this.prisma.refreshToken.delete({ where: { id: stored.id } });
 
-    const tokens = await this.generateTokens(stored.userId);
+    const tokens = await this.generateTokens(stored.userId, userAgent, ipAddress);
     const profile = await this.prisma.user.findUnique({
       where: { id: stored.userId },
       select: PROFILE_SELECT,
@@ -334,12 +350,56 @@ export class AuthService {
     });
   }
 
-  private async generateTokens(userId: string) {
+  async getSessions(userId: string) {
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: { userId, expiresAt: { gt: new Date() } },
+      select: {
+        id: true,
+        userAgent: true,
+        ipAddress: true,
+        lastUsedAt: true,
+        createdAt: true,
+      },
+      orderBy: { lastUsedAt: 'desc' },
+    });
+    return tokens;
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    await this.prisma.refreshToken.deleteMany({
+      where: { id: sessionId, userId },
+    });
+  }
+
+  async findTokenByValue(token: string, userId: string) {
+    return this.prisma.refreshToken.findFirst({
+      where: { token, userId },
+      select: { id: true },
+    });
+  }
+
+  async revokeAllSessions(userId: string, exceptTokenId?: string) {
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        userId,
+        ...(exceptTokenId ? { NOT: { id: exceptTokenId } } : {}),
+      },
+    });
+  }
+
+  async cleanupExpiredTokens() {
+    const result = await this.prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    return result.count;
+  }
+
+  private async generateTokens(userId: string, userAgent?: string, ipAddress?: string) {
     const accessToken = this.jwt.sign({ sub: userId });
 
     const refreshTokenValue = uuidv4();
     const refreshExpiresAt = new Date(
-      Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      Date.now() + 90 * 24 * 60 * 60 * 1000, // 90 days
     );
 
     await this.prisma.refreshToken.create({
@@ -347,6 +407,9 @@ export class AuthService {
         token: refreshTokenValue,
         userId,
         expiresAt: refreshExpiresAt,
+        userAgent: userAgent?.slice(0, 512),
+        ipAddress: ipAddress?.slice(0, 64),
+        lastUsedAt: new Date(),
       },
     });
 

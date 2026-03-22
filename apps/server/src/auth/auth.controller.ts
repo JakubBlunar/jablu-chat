@@ -6,15 +6,18 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { EventBusService } from '../events/event-bus.service';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
@@ -30,6 +33,12 @@ import {
   UpdateStatusDto,
 } from './dto';
 
+function extractIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+  return req.ip ?? '';
+}
+
 const AVATAR_MAX_SIZE = 8 * 1024 * 1024; // 8 MB
 const AVATAR_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
@@ -41,8 +50,8 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
-    return this.auth.register(dto.username, dto.email, dto.password, dto.inviteCode);
+  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+    return this.auth.register(dto.username, dto.email, dto.password, dto.inviteCode, req.headers['user-agent'], extractIp(req));
   }
 
   @Get('registration-mode')
@@ -52,14 +61,14 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.email, dto.password);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.auth.login(dto.email, dto.password, req.headers['user-agent'], extractIp(req));
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.auth.refreshToken(dto.refreshToken);
+  async refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
+    return this.auth.refreshToken(dto.refreshToken, req.headers['user-agent'], extractIp(req));
   }
 
   @Post('logout')
@@ -169,5 +178,38 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async searchUsers(@Query('q') q: string) {
     return this.auth.searchUsers(q ?? '');
+  }
+
+  @Get('sessions')
+  @UseGuards(AuthGuard('jwt'))
+  async getSessions(@CurrentUser() user: { id: string }) {
+    return this.auth.getSessions(user.id);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  async revokeSession(
+    @CurrentUser() user: { id: string },
+    @Param('id') sessionId: string,
+  ) {
+    await this.auth.revokeSession(user.id, sessionId);
+    return { message: 'Session revoked' };
+  }
+
+  @Delete('sessions')
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(HttpStatus.OK)
+  async revokeAllSessions(
+    @CurrentUser() user: { id: string },
+    @Body() body: { refreshToken?: string },
+  ) {
+    let exceptId: string | undefined;
+    if (body?.refreshToken) {
+      const current = await this.auth.findTokenByValue(body.refreshToken, user.id);
+      exceptId = current?.id;
+    }
+    await this.auth.revokeAllSessions(user.id, exceptId);
+    return { message: 'All other sessions revoked' };
   }
 }

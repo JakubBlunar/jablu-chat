@@ -20,6 +20,7 @@ import { ChannelType, ServerRole } from '@prisma/client';
 import * as crypto from 'crypto';
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AdminAuthGuard } from './admin-auth.guard';
 import { AdminRateLimiter } from './admin-rate-limiter';
@@ -51,6 +52,7 @@ export class AdminController {
     private readonly config: ConfigService,
     private readonly uploads: UploadsService,
     private readonly cleanup: CleanupService,
+    private readonly push: PushService,
     private readonly rateLimiter: AdminRateLimiter,
     private readonly tokenStore: AdminTokenStore,
   ) {
@@ -533,5 +535,27 @@ export class AdminController {
     }
 
     await this.prisma.server.delete({ where: { id: serverId } });
+  }
+
+  @Post('push')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async sendPush(
+    @Body() body: { title: string; body: string; userIds?: string[] },
+  ) {
+    if (!body.title || !body.body) {
+      throw new BadRequestException('Title and body are required');
+    }
+
+    const payload = { title: body.title, body: body.body };
+
+    if (body.userIds && body.userIds.length > 0) {
+      await this.push.sendToUsers(body.userIds, payload);
+      return { sent: body.userIds.length };
+    }
+
+    await this.push.sendToAll(payload);
+    const count = await this.prisma.pushSubscription.count();
+    return { sent: count };
   }
 }

@@ -1,6 +1,8 @@
 import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { UserAvatar } from "@/components/UserAvatar";
+import { useIsMobile } from "@/hooks/useMobile";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
@@ -51,6 +53,7 @@ export function ProfileCard({
   anchorRect: DOMRect | null;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -61,6 +64,23 @@ export function ProfileCard({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
+
+  const badge = roleLabel(user.role);
+
+  if (isMobile) {
+    return createPortal(
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60" onClick={onClose}>
+        <div
+          ref={cardRef}
+          className="w-[90vw] max-w-[320px] overflow-hidden rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ProfileCardContent user={user} badge={badge} onClose={onClose} />
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   const style: React.CSSProperties = {};
   if (anchorRect) {
@@ -85,14 +105,28 @@ export function ProfileCard({
     }
   }
 
-  const badge = roleLabel(user.role);
-
   return (
     <div
       ref={cardRef}
       style={style}
       className="z-[90] w-[300px] overflow-hidden rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
     >
+      <ProfileCardContent user={user} badge={badge} onClose={onClose} />
+    </div>
+  );
+}
+
+function ProfileCardContent({
+  user,
+  badge,
+  onClose,
+}: {
+  user: ProfileCardUser;
+  badge: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <>
       {/* Banner */}
       <div className="h-16 bg-primary" />
 
@@ -150,7 +184,7 @@ export function ProfileCard({
         {/* Message button */}
         <SendDmButton userId={user.id} onClose={onClose} />
       </div>
-    </div>
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import type { Channel } from "@chat/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { CreateChannelModal } from "@/components/CreateChannelModal";
 import { EditChannelModal } from "@/components/EditChannelModal";
@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
+import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useServerStore } from "@/stores/server.store";
 import { type VoiceParticipant, useVoiceStore } from "@/stores/voice.store";
@@ -215,42 +216,130 @@ export function ChannelSidebar() {
     }
   }, [currentServer, removeServer]);
 
+  const sidebarWidth = useLayoutStore((s) => s.channelSidebarWidth);
+  const setSidebarWidth = useLayoutStore((s) => s.setChannelSidebarWidth);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", keyHandler);
+    };
+  }, [menuOpen]);
+
+  const handleDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = useLayoutStore.getState().channelSidebarWidth;
+
+      const onMove = (ev: MouseEvent) => {
+        const delta = ev.clientX - startX;
+        setSidebarWidth(startW + delta);
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [setSidebarWidth],
+  );
+
   return (
     <>
-      <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
-          <span className="truncate text-[15px] font-semibold text-white">
-            {currentServer?.name ?? "Select a server"}
-          </span>
-          {currentServer && (
-            <div className="flex items-center gap-1">
+      <aside
+        className="relative flex h-full shrink-0 flex-col bg-surface-dark"
+        style={{ width: sidebarWidth }}
+      >
+        {/* Drag handle */}
+        <div
+          className="absolute right-0 top-0 z-30 h-full w-1 cursor-col-resize bg-transparent transition-colors hover:bg-primary/40"
+          onMouseDown={handleDragStart}
+        />
+
+        {/* Server name header with dropdown */}
+        <div ref={menuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => currentServer && setMenuOpen((v) => !v)}
+            className="flex h-12 w-full shrink-0 items-center justify-between border-b border-black/20 px-3 shadow-sm transition hover:bg-white/[0.04]"
+          >
+            <span className="min-w-0 flex-1 truncate text-left text-[15px] font-semibold text-white">
+              {currentServer?.name ?? "Select a server"}
+            </span>
+            {currentServer && (
+              <svg
+                className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${menuOpen ? "rotate-180" : ""}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </button>
+
+          {menuOpen && currentServer && (
+            <div className="absolute left-2 right-2 top-12 z-40 overflow-hidden rounded-md bg-surface-darkest py-1.5 shadow-xl ring-1 ring-white/10">
               {isAdminOrOwner && (
                 <button
                   type="button"
-                  title="Server settings"
-                  onClick={() => setServerSettingsOpen(true)}
-                  className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setServerSettingsOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
                 >
                   <GearIcon />
+                  Server Settings
                 </button>
               )}
               <button
                 type="button"
-                title="Invite people"
-                onClick={() => setInviteOpen(true)}
-                className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setInviteOpen(true);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
               >
                 <InviteIcon />
+                Invite People
               </button>
               {!isOwner && (
-                <button
-                  type="button"
-                  title="Leave server"
-                  onClick={() => void handleLeave()}
-                  className="rounded p-1 text-gray-400 transition hover:bg-red-500/20 hover:text-red-400"
-                >
-                  <LeaveIcon />
-                </button>
+                <>
+                  <div className="my-1 border-t border-white/10" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void handleLeave();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 transition hover:bg-red-500/20"
+                  >
+                    <LeaveIcon />
+                    Leave Server
+                  </button>
+                </>
               )}
             </div>
           )}

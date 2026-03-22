@@ -696,7 +696,7 @@ SMTP_HOST=smtp.mailgun.org
 SMTP_PORT=587
 SMTP_USER=postmaster@mg.example.com
 SMTP_PASS=your-mailgun-password
-SMTP_FROM=jablu@example.com
+SMTP_FROM=aaa@example.com
 
 # Security
 REGISTRATION_MODE=invite

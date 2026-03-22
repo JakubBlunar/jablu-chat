@@ -2,6 +2,8 @@ import type { Message } from "@chat/shared";
 import { create } from "zustand";
 import { api, type DmConversation } from "@/lib/api";
 
+const DM_KEY = "jablu:dm";
+
 type DmState = {
   conversations: DmConversation[];
   currentConversationId: string | null;
@@ -31,7 +33,7 @@ function toChronological(messagesDesc: Message[]): Message[] {
 
 export const useDmStore = create<DmState>((set, _get) => ({
   conversations: [],
-  currentConversationId: null,
+  currentConversationId: (() => { try { return localStorage.getItem(DM_KEY) || null; } catch { return null; } })(),
   messages: [],
   hasMore: false,
   isLoading: false,
@@ -47,7 +49,13 @@ export const useDmStore = create<DmState>((set, _get) => ({
     }
   },
 
-  setCurrentConversation: (id) => set({ currentConversationId: id }),
+  setCurrentConversation: (id) => {
+    set({ currentConversationId: id });
+    try {
+      if (id) localStorage.setItem(DM_KEY, id);
+      else localStorage.removeItem(DM_KEY);
+    } catch { /* ignore */ }
+  },
 
   fetchMessages: async (conversationId, cursor) => {
     set({ isLoading: true });

@@ -14,6 +14,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";
 import { migrateSettings } from "./lib/deviceSettings";
+import { setupPushNavigation, subscribeToPush } from "./lib/notifications";
 import { LoginPage } from "./pages/LoginPage";
 import { MainPage } from "./pages/MainPage";
 import { useAuthStore } from "./stores/auth.store";
@@ -58,6 +59,18 @@ function AuthBootstrap() {
       }
     }, REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    setupPushNavigation();
+  }, []);
+
+  useEffect(() => {
+    return useAuthStore.subscribe((state) => {
+      if (state.isAuthenticated && state.accessToken) {
+        subscribeToPush(state.accessToken).catch(() => {});
+      }
+    });
   }, []);
 
   return null;

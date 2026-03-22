@@ -61,7 +61,7 @@ export function MemberSidebar() {
   const total = members.length;
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
+    <aside className="flex h-full w-full shrink-0 flex-col bg-surface-dark md:w-60">
       <div className="flex h-12 shrink-0 items-center border-b border-black/20 px-4">
         <h2 className="text-[11px] font-semibold tracking-wide text-gray-400">
           MEMBERS — {total}

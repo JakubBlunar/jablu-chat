@@ -29,6 +29,10 @@ type DeviceInfo = {
   label: string;
 };
 
+const supportsSinkId =
+  typeof HTMLMediaElement !== "undefined" &&
+  "setSinkId" in HTMLMediaElement.prototype;
+
 export function VoiceSettings() {
   const [audioInputs, setAudioInputs] = useState<DeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<DeviceInfo[]>([]);
@@ -40,46 +44,94 @@ export function VoiceSettings() {
   const [selectedOutput, setSelectedOutput] = useState(getSavedAudioOutput);
   const [selectedCamera, setSelectedCamera] = useState(getSavedCamera);
 
+  const [micGranted, setMicGranted] = useState(false);
+  const [cameraGranted, setCameraGranted] = useState(false);
+
+  const enumerateDevices = useCallback(async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices
+      .filter((d) => d.kind === "audioinput")
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }));
+    const outputs = devices
+      .filter((d) => d.kind === "audiooutput")
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }));
+    const cameras = devices
+      .filter((d) => d.kind === "videoinput")
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` }));
+    setAudioInputs(inputs);
+    setAudioOutputs(outputs);
+    setVideoInputs(cameras);
+    return { inputs, cameras };
+  }, []);
+
   useEffect(() => {
-    async function enumerate() {
-      const streams: MediaStream[] = [];
+    let cancelled = false;
 
-      try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streams.push(audioStream);
-      } catch {
-        setMicDenied(true);
+    async function checkAndEnumerate() {
+      let micAllowed = false;
+      let camAllowed = false;
+
+      if (navigator.permissions?.query) {
+        const [micPerm, camPerm] = await Promise.all([
+          navigator.permissions.query({ name: "microphone" as PermissionName }).catch(() => null),
+          navigator.permissions.query({ name: "camera" as PermissionName }).catch(() => null),
+        ]);
+        micAllowed = micPerm?.state === "granted";
+        camAllowed = camPerm?.state === "granted";
+        if (micPerm?.state === "denied") setMicDenied(true);
+        if (camPerm?.state === "denied") setCameraDenied(true);
       }
 
-      try {
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        streams.push(videoStream);
-      } catch {
-        setCameraDenied(true);
-      }
+      if (cancelled) return;
+      setMicGranted(micAllowed);
+      setCameraGranted(camAllowed);
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-
-      const inputs = devices
-        .filter((d) => d.kind === "audioinput")
-        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }));
-      const outputs = devices
-        .filter((d) => d.kind === "audiooutput")
-        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }));
-      const cameras = devices
-        .filter((d) => d.kind === "videoinput")
-        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` }));
-
-      setAudioInputs(inputs);
-      setAudioOutputs(outputs);
-      setVideoInputs(cameras);
-
-      for (const s of streams) {
-        s.getTracks().forEach((t) => t.stop());
+      if (micAllowed || camAllowed) {
+        const streams: MediaStream[] = [];
+        try {
+          if (micAllowed) {
+            const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streams.push(s);
+          }
+          if (camAllowed) {
+            const s = await navigator.mediaDevices.getUserMedia({ video: true });
+            streams.push(s);
+          }
+        } catch { /* ignored */ }
+        if (!cancelled) await enumerateDevices();
+        for (const s of streams) s.getTracks().forEach((t) => t.stop());
+      } else {
+        await enumerateDevices();
       }
     }
-    void enumerate();
-  }, []);
+
+    void checkAndEnumerate();
+    return () => { cancelled = true; };
+  }, [enumerateDevices]);
+
+  const requestMicAccess = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setMicGranted(true);
+      setMicDenied(false);
+      await enumerateDevices();
+    } catch {
+      setMicDenied(true);
+    }
+  }, [enumerateDevices]);
+
+  const requestCameraAccess = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setCameraGranted(true);
+      setCameraDenied(false);
+      await enumerateDevices();
+    } catch {
+      setCameraDenied(true);
+    }
+  }, [enumerateDevices]);
 
   const micModeOptions = useMemo(() => {
     const all: { value: MicMode; label: string }[] = [
@@ -261,38 +313,64 @@ export function VoiceSettings() {
         )}
       </div>
 
-      {micDenied && (
+      {micDenied ? (
         <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
           Microphone access was denied. Grant permission in your browser&apos;s site settings to select audio devices.
         </div>
+      ) : !micGranted ? (
+        <div className="rounded-md bg-surface-dark px-4 py-3">
+          <p className="text-sm text-gray-300">Microphone access needed to list audio devices.</p>
+          <button
+            type="button"
+            onClick={() => void requestMicAccess()}
+            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover"
+          >
+            Allow Microphone Access
+          </button>
+        </div>
+      ) : (
+        <>
+          <DeviceSelect
+            label="Audio Input"
+            value={selectedInput}
+            devices={audioInputs}
+            onChange={(v) => { setSelectedInput(v); setSavedAudioInput(v); }}
+          />
+
+          {supportsSinkId && (
+            <DeviceSelect
+              label="Audio Output"
+              value={selectedOutput}
+              devices={audioOutputs}
+              onChange={(v) => { setSelectedOutput(v); setSavedAudioOutput(v); }}
+            />
+          )}
+        </>
       )}
 
-      {cameraDenied && (
+      {cameraDenied ? (
         <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
           Camera access was denied. Grant permission in your browser&apos;s site settings to select a camera.
         </div>
+      ) : !cameraGranted ? (
+        <div className="rounded-md bg-surface-dark px-4 py-3">
+          <p className="text-sm text-gray-300">Camera access needed to list video devices.</p>
+          <button
+            type="button"
+            onClick={() => void requestCameraAccess()}
+            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover"
+          >
+            Allow Camera Access
+          </button>
+        </div>
+      ) : (
+        <DeviceSelect
+          label="Camera"
+          value={selectedCamera}
+          devices={videoInputs}
+          onChange={(v) => { setSelectedCamera(v); setSavedCamera(v); }}
+        />
       )}
-
-      <DeviceSelect
-        label="Audio Input"
-        value={selectedInput}
-        devices={audioInputs}
-        onChange={(v) => { setSelectedInput(v); setSavedAudioInput(v); }}
-      />
-
-      <DeviceSelect
-        label="Audio Output"
-        value={selectedOutput}
-        devices={audioOutputs}
-        onChange={(v) => { setSelectedOutput(v); setSavedAudioOutput(v); }}
-      />
-
-      <DeviceSelect
-        label="Camera"
-        value={selectedCamera}
-        devices={videoInputs}
-        onChange={(v) => { setSelectedCamera(v); setSavedCamera(v); }}
-      />
 
       <p className="text-xs text-gray-500">
         Camera resolution, background blur, and screen share quality can be configured when starting a call.

@@ -16,6 +16,7 @@ import { EventsModule } from './events/events.module';
 import { ServersModule } from './servers/servers.module';
 import { UpdatesModule } from './updates/updates.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { PushModule } from './push/push.module';
 import { VoiceModule } from './voice/voice.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 
@@ -45,6 +46,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     UpdatesModule,
     DownloadsModule,
     ReadStateModule,
+    PushModule,
     GatewayModule,
   ],
 })

@@ -8,6 +8,7 @@ import type {
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "../lib/api";
+import { unsubscribeFromPush } from "../lib/notifications";
 
 export type AuthUser = User;
 
@@ -67,10 +68,10 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         const rt = get().refreshToken;
+        const at = get().accessToken;
         try {
-          if (rt) {
-            await api.logout(rt).catch(() => {});
-          }
+          if (at) await unsubscribeFromPush(at).catch(() => {});
+          if (rt) await api.logout(rt).catch(() => {});
         } finally {
           set({
             user: null,
