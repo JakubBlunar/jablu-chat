@@ -39,6 +39,7 @@ export function MessageInput() {
       for (const [uid, entry] of s.typingUsers) {
         if (uid !== userId) out.push(entry.username);
       }
+      if (out.length > 4) return out.slice(0, 4);
       return out;
     }),
   );
@@ -175,7 +176,7 @@ export function MessageInput() {
 
   return (
     <div
-      className={`shrink-0 border-t border-black/20 bg-surface px-4 pb-4 pt-2 ${
+      className={`relative shrink-0 border-t border-black/20 bg-surface px-4 pb-2 pt-2 ${
         dragOver ? "ring-2 ring-inset ring-primary" : ""
       }`}
       onDragOver={(e) => {
@@ -305,12 +306,10 @@ export function MessageInput() {
           </div>
         )}
       </div>
-      {typingNames.length > 0 ? (
-        <p className="mt-1.5 h-5 truncate text-xs text-gray-400 transition-opacity">
+      {typingNames.length > 0 && (
+        <p className="absolute left-5 -top-5 truncate text-xs text-gray-400">
           {formatTyping(typingNames)}
         </p>
-      ) : (
-        <div className="mt-1.5 h-5" aria-hidden />
       )}
     </div>
   );

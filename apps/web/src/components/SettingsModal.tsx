@@ -238,7 +238,7 @@ function AccountSection() {
                 size="lg"
               />
             </div>
-            <p className="mb-1 text-lg font-bold text-white">
+            <p className="mb-3 text-lg font-bold text-white">
               {user?.username}
             </p>
           </div>

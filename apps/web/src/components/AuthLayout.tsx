@@ -19,9 +19,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-auth-bg px-4 py-10">
       <div className="mb-8 flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-white shadow-lg shadow-primary/25">
-          J
-        </div>
+        <img src="/favicon.svg" alt="Jablu" className="h-14 w-14 mb-4 rounded-2xl shadow-lg shadow-primary/25" />
         <h1 className="text-2xl font-semibold tracking-tight text-white">
           Jablu
         </h1>
