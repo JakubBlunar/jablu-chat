@@ -93,8 +93,8 @@ export function VoicePanel() {
   const applyCameraSettings = useVoiceConnectionStore((s) => s.applyCameraSettings);
   const disconnect = useVoiceConnectionStore((s) => s.disconnect);
 
+  const connectedAt = useVoiceConnectionStore((s) => s.connectedAt);
   const [elapsed, setElapsed] = useState(0);
-  const [connectedAt] = useState(() => Date.now());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [cameraModalMode, setCameraModalMode] = useState<"start" | "edit" | null>(null);
 
@@ -109,7 +109,10 @@ export function VoicePanel() {
   }, []);
 
   useEffect(() => {
-    if (!channelId) return;
+    if (!channelId || !connectedAt) {
+      setElapsed(0);
+      return;
+    }
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - connectedAt) / 1000));
     }, 1000);

@@ -23,6 +23,7 @@ export type VoiceConnectionState = {
   isCameraOn: boolean;
   isScreenSharing: boolean;
   isConnecting: boolean;
+  connectedAt: number | null;
   viewingVoiceRoom: boolean;
   micMode: MicMode;
   isBlurEnabled: boolean;
@@ -92,6 +93,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     isCameraOn: false,
     isScreenSharing: false,
     isConnecting: false,
+    connectedAt: null,
     viewingVoiceRoom: false,
     micMode: getMicMode(),
     isBlurEnabled: false,
@@ -102,7 +104,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
       set({ currentChannelId: channelId, currentChannelName: channelName, isConnecting: true, viewingVoiceRoom: true }),
 
     setConnected: (room) => {
-      set({ room, isConnecting: false });
+      set({ room, isConnecting: false, connectedAt: Date.now() });
       const mode = get().micMode;
       if (mode !== "always") {
         setTimeout(() => startMicMode(mode), 500);
@@ -129,6 +131,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
         isCameraOn: false,
         isScreenSharing: false,
         isConnecting: false,
+        connectedAt: null,
         viewingVoiceRoom: false,
         isBlurEnabled: false,
         _blurHandle: null,
