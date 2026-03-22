@@ -106,7 +106,7 @@ function startVAD(): () => void {
   const source = audioCtx.createMediaStreamSource(new MediaStream([analysisTrack]));
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = 0.4;
+  analyser.smoothingTimeConstant = 0.2;
   source.connect(analyser);
 
   const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -141,7 +141,7 @@ function startVAD(): () => void {
         const ambient =
           calibrationSamples.reduce((a, b) => a + b, 0) /
           calibrationSamples.length;
-        const autoThreshold = Math.max(Math.round(ambient * 1.5 + 5), 8);
+        const autoThreshold = Math.max(Math.round(ambient * 1.2 + 3), 5);
         setVadThreshold(autoThreshold);
         calibrated = true;
       }
