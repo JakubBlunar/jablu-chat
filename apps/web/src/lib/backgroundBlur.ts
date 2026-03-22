@@ -98,7 +98,7 @@ export async function createBlurredStream(
     const result = segmenter.segmentForVideo(video, now);
     const masks = result.confidenceMasks;
 
-    blurCtx.filter = "blur(14px)";
+    blurCtx.filter = "blur(30px)";
     blurCtx.drawImage(video, 0, 0, w, h);
     blurCtx.filter = "none";
 
