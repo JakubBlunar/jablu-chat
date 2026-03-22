@@ -103,16 +103,40 @@ function startVAD(): () => void {
   const SILENCE_DELAY = 15;
 
   let running = true;
+  let calibrated = false;
+  let autoThreshold = getVadThreshold();
+  const calibrationSamples: number[] = [];
+  const calibrationStart = performance.now();
+  const CALIBRATION_MS = 1500;
 
-  function tick() {
-    if (!running) return;
-
+  function getAvg(): number {
     analyser.getByteFrequencyData(dataArray);
     let sum = 0;
     for (let i = 0; i < dataArray.length; i++) {
       sum += dataArray[i];
     }
-    const avg = sum / dataArray.length;
+    return sum / dataArray.length;
+  }
+
+  function tick() {
+    if (!running) return;
+
+    const avg = getAvg();
+
+    if (!calibrated) {
+      calibrationSamples.push(avg);
+      if (performance.now() - calibrationStart >= CALIBRATION_MS) {
+        const ambient =
+          calibrationSamples.reduce((a, b) => a + b, 0) /
+          calibrationSamples.length;
+        autoThreshold = Math.max(Math.round(ambient * 1.5 + 5), 8);
+        setVadThreshold(autoThreshold);
+        calibrated = true;
+      }
+      requestAnimationFrame(tick);
+      return;
+    }
+
     const threshold = getVadThreshold();
 
     if (avg > threshold) {

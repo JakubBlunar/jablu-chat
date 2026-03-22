@@ -3,6 +3,7 @@ const KEYS = {
   audioOutput: "chat:voice:output",
   camera: "chat:voice:camera",
   cameraQuality: "chat:voice:camera-quality",
+  backgroundBlur: "chat:voice:bg-blur",
 } as const;
 
 const SETTINGS_VERSION_KEY = "chat:settings-version";
@@ -58,6 +59,14 @@ export function getSavedCameraQuality(): CameraQuality {
 
 export function setSavedCameraQuality(q: CameraQuality) {
   localStorage.setItem(KEYS.cameraQuality, q);
+}
+
+export function getSavedBlurEnabled(): boolean {
+  return localStorage.getItem(KEYS.backgroundBlur) === "true";
+}
+
+export function setSavedBlurEnabled(enabled: boolean) {
+  localStorage.setItem(KEYS.backgroundBlur, String(enabled));
 }
 
 /**

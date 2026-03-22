@@ -1,15 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { isElectron } from "@/lib/electron";
 import {
-  type CameraQuality,
-  CAMERA_PRESETS,
   getSavedAudioInput,
   setSavedAudioInput,
   getSavedAudioOutput,
   setSavedAudioOutput,
   getSavedCamera,
   setSavedCamera,
-  getSavedCameraQuality,
-  setSavedCameraQuality,
 } from "@/lib/deviceSettings";
 import {
   type MicMode,
@@ -39,7 +36,6 @@ export function VoiceSettings() {
   const [selectedInput, setSelectedInput] = useState(getSavedAudioInput);
   const [selectedOutput, setSelectedOutput] = useState(getSavedAudioOutput);
   const [selectedCamera, setSelectedCamera] = useState(getSavedCamera);
-  const [cameraQuality, setCameraQuality] = useState<CameraQuality>(getSavedCameraQuality);
 
   useEffect(() => {
     async function enumerate() {
@@ -82,7 +78,22 @@ export function VoiceSettings() {
     void enumerate();
   }, []);
 
-  const [micMode, setMicMode] = useState<MicMode>(getMicMode);
+  const micModeOptions = useMemo(() => {
+    const all: { value: MicMode; label: string }[] = [
+      { value: "always", label: "Always On" },
+      { value: "activity", label: "Voice Activity" },
+    ];
+    if (isElectron) {
+      all.push({ value: "push-to-talk", label: "Push to Talk" });
+    }
+    return all;
+  }, []);
+
+  const [micMode, setMicMode] = useState<MicMode>(() => {
+    const saved = getMicMode();
+    if (saved === "push-to-talk" && !isElectron) return "activity";
+    return saved;
+  });
   const [pttBinding, setPttBinding] = useState<PttBinding>(getPttBinding);
   const [vadThreshold, setVadThreshold] = useState(getVadThreshold);
   const [recordingPtt, setRecordingPtt] = useState(false);
@@ -147,13 +158,7 @@ export function VoiceSettings() {
           Microphone Mode
         </h3>
         <div className="flex gap-2">
-          {(
-            [
-              { value: "always", label: "Always On" },
-              { value: "activity", label: "Voice Activity" },
-              { value: "push-to-talk", label: "Push to Talk" },
-            ] as const
-          ).map((opt) => (
+          {micModeOptions.map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -170,7 +175,7 @@ export function VoiceSettings() {
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
           {micMode === "always" && "Your mic stays on while unmuted."}
-          {micMode === "activity" && "Mic activates automatically when you speak."}
+          {micMode === "activity" && "Mic activates when you speak. Threshold is auto-calibrated."}
           {micMode === "push-to-talk" && "Hold a key to transmit your voice."}
         </p>
 
@@ -254,33 +259,8 @@ export function VoiceSettings() {
         onChange={(v) => { setSelectedCamera(v); setSavedCamera(v); }}
       />
 
-      <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-          Camera Quality
-        </h3>
-        <div className="flex gap-2">
-          {(Object.keys(CAMERA_PRESETS) as CameraQuality[]).map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => {
-                setCameraQuality(q);
-                setSavedCameraQuality(q);
-              }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                cameraQuality === q
-                  ? "bg-primary text-white"
-                  : "bg-surface-darkest text-gray-300 hover:bg-white/10"
-              }`}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <p className="text-xs text-gray-500">
-        Screen share quality settings are available in the screen share picker dialog.
+        Camera resolution, background blur, and screen share quality can be configured when starting a call.
       </p>
     </div>
   );
