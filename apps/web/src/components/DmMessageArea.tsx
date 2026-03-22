@@ -7,6 +7,7 @@ import { EmojiPicker } from "@/components/EmojiPicker";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
+import { formatSmartTimestamp, formatDateSeparator, isDifferentDay } from "@/lib/format-time";
 import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
 import { useAuthStore } from "@/stores/auth.store";
@@ -162,15 +163,22 @@ export function DmMessageArea() {
                 {isLoading ? "Loading…" : "Load older messages"}
               </button>
             )}
-            {messages.map((msg, idx) => (
-              <DmMessageRow
-                key={msg.id}
-                message={msg}
-                prevMessage={messages[idx - 1]}
-                conversationId={currentConvId}
-                onReply={setReplyTarget}
-              />
-            ))}
+            {messages.map((msg, idx) => {
+              const prev = messages[idx - 1];
+              const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt);
+              return (
+                <div key={msg.id}>
+                  {newDay && <DmDateSeparator date={msg.createdAt} />}
+                  <DmMessageRow
+                    message={msg}
+                    prevMessage={prev}
+                    forceHeader={newDay}
+                    conversationId={currentConvId}
+                    onReply={setReplyTarget}
+                  />
+                </div>
+              );
+            })}
             <div ref={bottomRef} />
           </>
         )}
@@ -197,14 +205,28 @@ export function DmMessageArea() {
   );
 }
 
+function DmDateSeparator({ date }: { date: string }) {
+  return (
+    <div className="my-2 flex items-center gap-3">
+      <div className="h-px flex-1 bg-white/10" />
+      <span className="text-[11px] font-semibold text-gray-400">
+        {formatDateSeparator(date)}
+      </span>
+      <div className="h-px flex-1 bg-white/10" />
+    </div>
+  );
+}
+
 function DmMessageRow({
   message,
   prevMessage,
+  forceHeader,
   conversationId,
   onReply,
 }: {
   message: Message;
   prevMessage?: Message;
+  forceHeader?: boolean;
   conversationId: string;
   onReply: (msg: Message) => void;
 }) {
@@ -217,16 +239,14 @@ function DmMessageRow({
   const actionsRef = useRef<HTMLDivElement>(null);
 
   const showHeader =
+    forceHeader ||
     !prevMessage ||
     prevMessage.authorId !== message.authorId ||
     new Date(message.createdAt).getTime() -
       new Date(prevMessage.createdAt).getTime() >
       5 * 60 * 1000;
 
-  const time = new Date(message.createdAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const time = formatSmartTimestamp(message.createdAt);
 
   const handleEdit = useCallback(() => {
     const trimmed = editText.trim();

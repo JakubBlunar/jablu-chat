@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-const ADMIN_STORAGE_KEY = "chat-admin-password";
+const ADMIN_TOKEN_KEY = "chat-admin-token";
 
 type AdminServer = {
   id: string;
@@ -70,24 +70,28 @@ type StorageStats = {
 
 type Tab = "servers" | "users" | "invites" | "storage";
 
-function getStoredPassword(): string {
-  return sessionStorage.getItem(ADMIN_STORAGE_KEY) ?? "";
+function getStoredToken(): string {
+  return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
 }
 
-function setStoredPassword(pw: string) {
-  sessionStorage.setItem(ADMIN_STORAGE_KEY, pw);
+function setStoredToken(token: string) {
+  sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+function clearStoredToken() {
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
 async function adminFetch<T>(
   path: string,
   opts?: { method?: string; body?: unknown },
 ): Promise<T> {
-  const password = getStoredPassword();
+  const token = getStoredToken();
   const res = await fetch(path, {
     method: opts?.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
-      "x-admin-password": password,
+      "x-admin-token": token,
     },
     body: opts?.body ? JSON.stringify(opts.body) : undefined,
   });
@@ -101,13 +105,35 @@ async function adminFetch<T>(
 
 // ─── Login ────────────────────────────────────────────────
 
+function formatRetryTime(seconds: number): string {
+  if (seconds >= 3600) {
+    const h = Math.ceil(seconds / 3600);
+    return `${h} hour${h !== 1 ? "s" : ""}`;
+  }
+  const m = Math.ceil(seconds / 60);
+  return `${m} minute${m !== 1 ? "s" : ""}`;
+}
+
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const id = setInterval(() => {
+      setLockoutSeconds((s) => {
+        if (s <= 1) return 0;
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lockoutSeconds > 0]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutSeconds > 0) return;
     setBusy(true);
     setError("");
     try {
@@ -116,12 +142,23 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const data = (await res.json()) as { ok: boolean };
-      if (data.ok) {
-        setStoredPassword(password);
+      const data = (await res.json()) as {
+        ok: boolean;
+        token?: string;
+        retryAfter?: number;
+      };
+      if (data.ok && data.token) {
+        setStoredToken(data.token);
         onLogin();
       } else {
-        setError("Invalid password");
+        if (data.retryAfter) {
+          setLockoutSeconds(data.retryAfter);
+          setError(
+            `Too many failed attempts. Try again in ${formatRetryTime(data.retryAfter)}.`,
+          );
+        } else {
+          setError("Invalid password");
+        }
       }
     } catch {
       setError("Connection failed");
@@ -129,6 +166,8 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
       setBusy(false);
     }
   };
+
+  const isLocked = lockoutSeconds > 0;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-darkest p-4">
@@ -146,15 +185,21 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
           autoFocus
-          className="mt-5 w-full rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
+          disabled={isLocked}
+          className="mt-5 w-full rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary disabled:opacity-50"
         />
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        {isLocked && (
+          <p className="mt-1 text-xs text-gray-500">
+            Locked for {formatRetryTime(lockoutSeconds)}
+          </p>
+        )}
         <button
           type="submit"
-          disabled={busy || !password}
+          disabled={busy || !password || isLocked}
           className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {busy ? "Checking…" : "Login"}
+          {busy ? "Checking…" : isLocked ? "Locked" : "Login"}
         </button>
       </form>
     </div>
@@ -187,8 +232,8 @@ function AdminDashboard() {
       setRegMode(settings.mode);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load";
-      if (msg.includes("Unauthorized") || msg.includes("admin password")) {
-        sessionStorage.removeItem(ADMIN_STORAGE_KEY);
+      if (msg.includes("Unauthorized") || msg.includes("admin token") || msg.includes("expired")) {
+        clearStoredToken();
         window.location.reload();
         return;
       }
@@ -224,7 +269,14 @@ function AdminDashboard() {
           <button
             type="button"
             onClick={() => {
-              sessionStorage.removeItem(ADMIN_STORAGE_KEY);
+              const token = getStoredToken();
+              if (token) {
+                void fetch("/api/admin/logout", {
+                  method: "POST",
+                  headers: { "x-admin-token": token },
+                });
+              }
+              clearStoredToken();
               window.location.reload();
             }}
             className="rounded-md px-4 py-2 text-sm font-medium text-gray-400 transition hover:bg-white/5 hover:text-white"
@@ -285,6 +337,14 @@ function AdminDashboard() {
 
 // ─── Servers Tab ──────────────────────────────────────────
 
+type ServerMemberRow = {
+  userId: string;
+  serverId: string;
+  role: string;
+  joinedAt: string;
+  user: { id: string; username: string; email: string; avatarUrl: string | null };
+};
+
 function ServersTab({
   servers,
   setServers,
@@ -302,6 +362,8 @@ function ServersTab({
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleCreate = async () => {
     if (!newName.trim() || !newOwnerId) return;
@@ -401,46 +463,265 @@ function ServersTab({
           servers.map((server) => (
             <div
               key={server.id}
-              className="flex items-center gap-4 rounded-lg bg-surface-dark p-4 ring-1 ring-white/10"
+              className="rounded-lg bg-surface-dark ring-1 ring-white/10"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface text-lg font-semibold">
-                {server.iconUrl ? (
-                  <img
-                    src={server.iconUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  server.name.charAt(0).toUpperCase()
-                )}
+              <div className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface text-lg font-semibold">
+                  {server.iconUrl ? (
+                    <img
+                      src={server.iconUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    server.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{server.name}</p>
+                  <p className="text-sm text-gray-400">
+                    Owner: {server.owner.username} &middot;{" "}
+                    {server._count.members} member
+                    {server._count.members !== 1 && "s"} &middot;{" "}
+                    {server._count.channels} channel
+                    {server._count.channels !== 1 && "s"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Created{" "}
+                    {fmtDate(server.createdAt)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(expandedId === server.id ? null : server.id)}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 transition hover:bg-white/5 hover:text-white"
+                >
+                  Members
+                </button>
+                <ConfirmDeleteBtn
+                  id={server.id}
+                  confirmId={confirmDeleteId}
+                  deletingId={deletingId}
+                  onConfirm={() => setConfirmDeleteId(server.id)}
+                  onCancel={() => setConfirmDeleteId(null)}
+                  onDelete={() => void handleDelete(server.id)}
+                />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{server.name}</p>
-                <p className="text-sm text-gray-400">
-                  Owner: {server.owner.username} &middot;{" "}
-                  {server._count.members} member
-                  {server._count.members !== 1 && "s"} &middot;{" "}
-                  {server._count.channels} channel
-                  {server._count.channels !== 1 && "s"}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Created{" "}
-                  {fmtDate(server.createdAt)}
-                </p>
-              </div>
-              <ConfirmDeleteBtn
-                id={server.id}
-                confirmId={confirmDeleteId}
-                deletingId={deletingId}
-                onConfirm={() => setConfirmDeleteId(server.id)}
-                onCancel={() => setConfirmDeleteId(null)}
-                onDelete={() => void handleDelete(server.id)}
-              />
+              {expandedId === server.id && (
+                <ServerMembersPanel
+                  server={server}
+                  users={users}
+                  onMemberCountChange={(delta) =>
+                    setServers((prev) =>
+                      prev.map((s) =>
+                        s.id === server.id
+                          ? { ...s, _count: { ...s._count, members: s._count.members + delta } }
+                          : s,
+                      ),
+                    )
+                  }
+                  onServerUpdate={(patch) =>
+                    setServers((prev) =>
+                      prev.map((s) =>
+                        s.id === server.id ? { ...s, ...patch } : s,
+                      ),
+                    )
+                  }
+                />
+              )}
             </div>
           ))
         )}
       </div>
     </>
+  );
+}
+
+function ServerMembersPanel({
+  server,
+  users,
+  onMemberCountChange,
+  onServerUpdate,
+}: {
+  server: AdminServer;
+  users: AdminUser[];
+  onMemberCountChange: (delta: number) => void;
+  onServerUpdate: (patch: Partial<AdminServer>) => void;
+}) {
+  const [members, setMembers] = useState<ServerMemberRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [addUserId, setAddUserId] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+
+  const fetchMembers = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await adminFetch<ServerMemberRow[]>(
+        `/api/admin/servers/${server.id}/members`,
+      );
+      setMembers(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load members");
+    } finally {
+      setLoading(false);
+    }
+  }, [server.id]);
+
+  useEffect(() => {
+    void fetchMembers();
+  }, [fetchMembers]);
+
+  const memberIds = new Set(members.map((m) => m.userId));
+  const nonMembers = users.filter((u) => !memberIds.has(u.id));
+
+  const handleAdd = async () => {
+    if (!addUserId) return;
+    setAdding(true);
+    setError("");
+    try {
+      const member = await adminFetch<ServerMemberRow>(
+        `/api/admin/servers/${server.id}/members`,
+        { method: "POST", body: { userId: addUserId } },
+      );
+      setMembers((prev) => [...prev, member]);
+      setAddUserId("");
+      onMemberCountChange(1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add member");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRemove = async (userId: string) => {
+    setRemovingId(userId);
+    setError("");
+    try {
+      await adminFetch(`/api/admin/servers/${server.id}/members/${userId}`, {
+        method: "DELETE",
+      });
+      setMembers((prev) => prev.filter((m) => m.userId !== userId));
+      onMemberCountChange(-1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to remove member");
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    if (newRole === "owner" && !window.confirm(
+      "Transfer server ownership to this user? The current owner will be demoted to admin.",
+    )) return;
+
+    setUpdatingRoleId(userId);
+    setError("");
+    try {
+      const result = await adminFetch<{
+        members: ServerMemberRow[];
+        owner: { id: string; username: string };
+        ownerId: string;
+      }>(
+        `/api/admin/servers/${server.id}/members/${userId}/role`,
+        { method: "PATCH", body: { role: newRole } },
+      );
+      setMembers(result.members);
+      onServerUpdate({ ownerId: result.ownerId, owner: result.owner });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update role");
+    } finally {
+      setUpdatingRoleId(null);
+    }
+  };
+
+  return (
+    <div className="border-t border-white/5 px-4 pb-4 pt-3">
+      {error && (
+        <div className="mb-3 rounded-md bg-red-900/30 px-3 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {error}
+        </div>
+      )}
+
+      <div className="mb-3 flex items-center gap-2">
+        <select
+          value={addUserId}
+          onChange={(e) => setAddUserId(e.target.value)}
+          className="min-w-0 flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+        >
+          <option value="">Add a user…</option>
+          {nonMembers.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.username} ({u.email})
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void handleAdd()}
+          disabled={adding || !addUserId}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover disabled:opacity-50"
+        >
+          {adding ? "Adding…" : "Add"}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="py-4 text-center text-sm text-gray-500">Loading members…</p>
+      ) : members.length === 0 ? (
+        <p className="py-4 text-center text-sm text-gray-500">No members.</p>
+      ) : (
+        <div className="space-y-1">
+          {members.map((m) => (
+            <div
+              key={m.userId}
+              className="flex items-center gap-3 rounded-md px-3 py-2 transition hover:bg-white/[0.03]"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-semibold uppercase">
+                {m.user.avatarUrl ? (
+                  <img src={m.user.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+                ) : (
+                  m.user.username.charAt(0)
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium text-white">{m.user.username}</span>
+                <span className="ml-2 text-xs text-gray-500">{m.user.email}</span>
+              </div>
+              <select
+                value={m.role}
+                onChange={(e) => void handleRoleChange(m.userId, e.target.value)}
+                disabled={updatingRoleId === m.userId}
+                className={`rounded-md px-2 py-1 text-xs font-semibold uppercase outline-none disabled:opacity-50 ${
+                  m.role === "owner"
+                    ? "bg-yellow-500/20 text-yellow-400"
+                    : m.role === "admin"
+                      ? "bg-blue-500/20 text-blue-400"
+                      : "bg-white/5 text-gray-400"
+                }`}
+              >
+                <option value="owner">Owner</option>
+                <option value="admin">Admin</option>
+                <option value="member">Member</option>
+              </select>
+              {m.role !== "owner" && (
+                <button
+                  type="button"
+                  onClick={() => void handleRemove(m.userId)}
+                  disabled={removingId === m.userId}
+                  className="rounded-md px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {removingId === m.userId ? "Removing…" : "Remove"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1259,7 +1540,7 @@ function fmtDate(iso: string) {
 // ─── Root ─────────────────────────────────────────────────
 
 export function AdminPage() {
-  const [authed, setAuthed] = useState(!!getStoredPassword());
+  const [authed, setAuthed] = useState(!!getStoredToken());
 
   if (!authed) {
     return <AdminLogin onLogin={() => setAuthed(true)} />;

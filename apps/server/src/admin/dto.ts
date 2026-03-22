@@ -39,3 +39,13 @@ export class AdminCreateInviteDto {
   serverId?: string;
 }
 
+export class AdminAddServerMemberDto {
+  @IsUUID()
+  userId: string;
+}
+
+export class AdminUpdateMemberRoleDto {
+  @IsString()
+  role: string;
+}
+
