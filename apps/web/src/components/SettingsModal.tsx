@@ -645,8 +645,8 @@ function NotificationsSection() {
 
       <div className="space-y-3">
         <ToggleRow
-          label="Desktop Notifications"
-          description="Show browser notifications when you receive new messages"
+          label="Notifications"
+          description="Show notifications when you receive new messages"
           checked={settings.enabled}
           onChange={() => toggle("enabled")}
         />

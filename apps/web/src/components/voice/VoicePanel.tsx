@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
-import { isElectron } from "@/lib/electron";
+
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 import type { MicMode } from "@/lib/micMode";
 
@@ -83,6 +83,17 @@ export function VoicePanel() {
 
   const [elapsed, setElapsed] = useState(0);
   const [connectedAt] = useState(() => Date.now());
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent<{ message: string }>).detail.message;
+      setErrorMsg(msg);
+      setTimeout(() => setErrorMsg(null), 5000);
+    };
+    window.addEventListener("voice:error", handler);
+    return () => window.removeEventListener("voice:error", handler);
+  }, []);
 
   useEffect(() => {
     if (!channelId) return;
@@ -98,7 +109,6 @@ export function VoicePanel() {
   }, [disconnect]);
 
   const handleScreenShare = useCallback(() => {
-    if (!isElectron) return;
     if (isScreenSharing) {
       const room = useVoiceConnectionStore.getState().room;
       room?.localParticipant.setScreenShareEnabled(false).catch(() => {});
@@ -118,6 +128,11 @@ export function VoicePanel() {
 
   return (
     <div className="border-t border-black/20 bg-surface-overlay px-3 py-2">
+      {errorMsg && (
+        <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">
+          {errorMsg}
+        </div>
+      )}
       <div className="flex items-center gap-1.5">
         <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-green-400">
@@ -160,35 +175,31 @@ export function VoicePanel() {
           <HeadphoneIcon deafened={isDeafened} />
         </button>
 
-        {isElectron && (
-          <>
-            <button
-              type="button"
-              title={isCameraOn ? "Turn off camera" : "Turn on camera"}
-              onClick={toggleCamera}
-              className={`rounded-md p-1.5 transition ${
-                isCameraOn
-                  ? "bg-white/10 text-white"
-                  : "text-gray-400 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <CameraIcon on={isCameraOn} />
-            </button>
+        <button
+          type="button"
+          title={isCameraOn ? "Turn off camera" : "Turn on camera"}
+          onClick={toggleCamera}
+          className={`rounded-md p-1.5 transition ${
+            isCameraOn
+              ? "bg-white/10 text-white"
+              : "text-gray-400 hover:bg-white/10 hover:text-white"
+          }`}
+        >
+          <CameraIcon on={isCameraOn} />
+        </button>
 
-            <button
-              type="button"
-              title={isScreenSharing ? "Stop sharing" : "Share screen"}
-              onClick={handleScreenShare}
-              className={`rounded-md p-1.5 transition ${
-                isScreenSharing
-                  ? "bg-primary/20 text-primary"
-                  : "text-gray-400 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <ScreenShareIcon />
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          title={isScreenSharing ? "Stop sharing" : "Share screen"}
+          onClick={handleScreenShare}
+          className={`rounded-md p-1.5 transition ${
+            isScreenSharing
+              ? "bg-primary/20 text-primary"
+              : "text-gray-400 hover:bg-white/10 hover:text-white"
+          }`}
+        >
+          <ScreenShareIcon />
+        </button>
 
         <button
           type="button"

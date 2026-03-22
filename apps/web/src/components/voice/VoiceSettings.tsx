@@ -33,6 +33,8 @@ export function VoiceSettings() {
   const [audioInputs, setAudioInputs] = useState<DeviceInfo[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<DeviceInfo[]>([]);
   const [videoInputs, setVideoInputs] = useState<DeviceInfo[]>([]);
+  const [micDenied, setMicDenied] = useState(false);
+  const [cameraDenied, setCameraDenied] = useState(false);
 
   const [selectedInput, setSelectedInput] = useState(getSavedAudioInput);
   const [selectedOutput, setSelectedOutput] = useState(getSavedAudioOutput);
@@ -41,11 +43,22 @@ export function VoiceSettings() {
 
   useEffect(() => {
     async function enumerate() {
+      const streams: MediaStream[] = [];
+
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streams.push(audioStream);
       } catch {
-        // Permission denied
+        setMicDenied(true);
       }
+
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        streams.push(videoStream);
+      } catch {
+        setCameraDenied(true);
+      }
+
       const devices = await navigator.mediaDevices.enumerateDevices();
 
       const inputs = devices
@@ -61,6 +74,10 @@ export function VoiceSettings() {
       setAudioInputs(inputs);
       setAudioOutputs(outputs);
       setVideoInputs(cameras);
+
+      for (const s of streams) {
+        s.getTracks().forEach((t) => t.stop());
+      }
     }
     void enumerate();
   }, []);
@@ -203,6 +220,18 @@ export function VoiceSettings() {
           </div>
         )}
       </div>
+
+      {micDenied && (
+        <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+          Microphone access was denied. Grant permission in your browser&apos;s site settings to select audio devices.
+        </div>
+      )}
+
+      {cameraDenied && (
+        <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+          Camera access was denied. Grant permission in your browser&apos;s site settings to select a camera.
+        </div>
+      )}
 
       <DeviceSelect
         label="Audio Input"

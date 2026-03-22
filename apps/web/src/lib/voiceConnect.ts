@@ -4,6 +4,15 @@ import { getValidatedDevices, getSavedCameraQuality, CAMERA_PRESETS } from "@/li
 import { getSocket } from "@/lib/socket";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
+function showVoiceError(message: string) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("Jablu", { body: message });
+  }
+  window.dispatchEvent(
+    new CustomEvent("voice:error", { detail: { message } }),
+  );
+}
+
 export async function joinVoiceChannel(channelId: string, channelName: string) {
   const store = useVoiceConnectionStore.getState();
 
@@ -52,10 +61,19 @@ export async function joinVoiceChannel(channelId: string, channelName: string) {
     store.setConnected(room);
 
     room.localParticipant.setMicrophoneEnabled(true).catch((err) => {
-      console.warn("Could not enable microphone:", err.message);
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        showVoiceError("Microphone access denied. Check your browser permissions.");
+      } else {
+        console.warn("Could not enable microphone:", err.message);
+      }
     });
   } catch (err) {
     console.error("Failed to join voice channel:", err);
+    if (err instanceof DOMException && err.name === "NotAllowedError") {
+      showVoiceError("Permission denied. Allow microphone access to join voice channels.");
+    } else {
+      showVoiceError("Failed to join voice channel. Please try again.");
+    }
     store.disconnect();
   }
 }
