@@ -31,6 +31,10 @@ done
 echo "  ✓ API is healthy"
 
 echo ""
+echo "→ Cleaning up unused Docker images..."
+docker image prune -a -f | tail -1
+
+echo ""
 echo "→ Restarting Nginx (pick up new DNS)..."
 $COMPOSE restart nginx
 sleep 2
