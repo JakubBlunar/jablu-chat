@@ -9,7 +9,7 @@ import { ServerSettingsModal } from "@/components/ServerSettingsModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
-import { isElectron } from "@/lib/electron";
+
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useMemberStore } from "@/stores/member.store";
@@ -364,12 +364,8 @@ export function ChannelSidebar() {
                   <div className="group/ch relative rounded-md px-2 py-1.5 text-[15px] text-gray-300">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isElectron) handleVoiceChannelClick(ch);
-                      }}
-                      className={`flex w-full items-center gap-2 text-left ${
-                        isElectron ? "cursor-pointer" : "cursor-default"
-                      } ${inThisChannel ? "text-white" : ""}`}
+                      onClick={() => handleVoiceChannelClick(ch)}
+                      className={`flex w-full cursor-pointer items-center gap-2 text-left ${inThisChannel ? "text-white" : ""}`}
                     >
                       <SpeakerIcon />
                       <span className="min-w-0 flex-1 truncate">{ch.name}</span>

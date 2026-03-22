@@ -1,4 +1,4 @@
-import { electronAPI } from "@/lib/electron";
+import { electronAPI, isElectron } from "@/lib/electron";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
 export type ScreenShareOptions = {
@@ -19,6 +19,14 @@ const BITRATE_MAP: Record<string, Record<number, number>> = {
 };
 
 export async function startScreenShare() {
+  if (isElectron) {
+    startScreenShareElectron();
+  } else {
+    startScreenShareWeb();
+  }
+}
+
+async function startScreenShareElectron() {
   const store = useVoiceConnectionStore.getState();
   const room = store.room;
   if (!room || !electronAPI) return;
@@ -32,6 +40,52 @@ export async function startScreenShare() {
     );
   } catch (err) {
     console.error("Failed to get screen sources:", err);
+  }
+}
+
+async function startScreenShareWeb() {
+  const store = useVoiceConnectionStore.getState();
+  const room = store.room;
+  if (!room) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 30 } },
+      audio: false,
+    });
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    const settings = videoTrack.getSettings();
+    const height = settings.height ?? 1080;
+    const fps = settings.frameRate ?? 30;
+    let maxBitrate = 3_000_000;
+    if (height <= 720) maxBitrate = fps <= 15 ? 1_500_000 : 3_000_000;
+    else maxBitrate = fps <= 15 ? 2_500_000 : 5_000_000;
+
+    const pub = await room.localParticipant.publishTrack(videoTrack, {
+      name: "screen",
+      source: "screen_share" as unknown as undefined,
+      simulcast: false,
+      videoEncoding: {
+        maxBitrate,
+        maxFramerate: fps,
+      },
+      degradationPreference: "maintain-resolution",
+    });
+
+    videoTrack.onended = () => {
+      if (pub.track) {
+        room.localParticipant.unpublishTrack(pub.track);
+      }
+      useVoiceConnectionStore.getState().setScreenSharing(false);
+    };
+
+    store.setScreenSharing(true);
+  } catch (err) {
+    if ((err as DOMException).name === "NotAllowedError") return;
+    console.error("Failed to start screen share:", err);
   }
 }
 
