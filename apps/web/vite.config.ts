@@ -60,6 +60,7 @@ export default defineConfig({
     }),
   ],
   build: {
+    sourcemap: false,
     rolldownOptions: {
       output: {
         minify: {
