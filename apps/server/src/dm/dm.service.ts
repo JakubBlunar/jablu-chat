@@ -14,7 +14,9 @@ const memberSelect = {
       id: true,
       username: true,
       avatarUrl: true,
+      bio: true,
       status: true,
+      createdAt: true,
     },
   },
 } satisfies Prisma.DirectConversationMemberSelect;
@@ -407,7 +409,9 @@ export class DmService {
         userId: m.user.id,
         username: m.user.username,
         avatarUrl: m.user.avatarUrl,
+        bio: m.user.bio,
         status: m.user.status,
+        createdAt: m.user.createdAt.toISOString(),
       })),
     };
   }

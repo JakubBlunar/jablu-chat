@@ -96,16 +96,22 @@ export const useAuthStore = create<AuthState>()(
       updateProfile: async (data) => {
         const user = await api.updateProfile(data);
         set({ user });
+        const { useMemberStore } = await import("@/stores/member.store");
+        useMemberStore.getState().updateUserProfile(user.id, user);
       },
 
       uploadAvatar: async (file) => {
         const user = await api.uploadAvatar(file);
         set({ user });
+        const { useMemberStore } = await import("@/stores/member.store");
+        useMemberStore.getState().updateUserProfile(user.id, user);
       },
 
       deleteAvatar: async () => {
         const user = await api.deleteAvatar();
         set({ user });
+        const { useMemberStore } = await import("@/stores/member.store");
+        useMemberStore.getState().updateUserProfile(user.id, user);
       },
 
       changePassword: async (data) => {

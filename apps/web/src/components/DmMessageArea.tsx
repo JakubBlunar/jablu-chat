@@ -1,7 +1,8 @@
-import type { Message } from "@chat/shared";
+import type { Message, UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
+import { ChatInputBar } from "@/components/ChatInputBar";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -10,6 +11,7 @@ import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
 import { useAuthStore } from "@/stores/auth.store";
 import { useDmStore } from "@/stores/dm.store";
+import { useMemberStore } from "@/stores/member.store";
 
 function joinDmRoom(conversationId: string) {
   const socket = getSocket();
@@ -33,6 +35,11 @@ export function DmMessageArea() {
     [conversations, currentConvId],
   );
 
+  const otherMember = useMemo(() => {
+    if (!currentConv || currentConv.isGroup) return null;
+    return currentConv.members.find((m) => m.userId !== user?.id) ?? null;
+  }, [currentConv, user?.id]);
+
   const otherName = useMemo(() => {
     if (!currentConv) return "";
     if (currentConv.isGroup) {
@@ -41,11 +48,10 @@ export function DmMessageArea() {
         currentConv.members.map((m) => m.username).join(", ")
       );
     }
-    return (
-      currentConv.members.find((m) => m.userId !== user?.id)?.username ??
-      "Unknown"
-    );
-  }, [currentConv, user?.id]);
+    return otherMember?.username ?? "Unknown";
+  }, [currentConv, otherMember]);
+
+  const [showProfile, setShowProfile] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,10 +125,21 @@ export function DmMessageArea() {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-surface">
+    <div className="flex min-w-0 flex-1 bg-surface">
+      <div className="flex min-w-0 flex-1 flex-col">
       <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
         <AtIcon />
-        <h2 className="text-[15px] font-semibold text-white">{otherName}</h2>
+        <h2 className="flex-1 text-[15px] font-semibold text-white">{otherName}</h2>
+        {otherMember && !currentConv?.isGroup && (
+          <button
+            type="button"
+            onClick={() => setShowProfile((p) => !p)}
+            title="User profile"
+            className={`rounded p-1.5 transition ${showProfile ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+          >
+            <UserProfileIcon />
+          </button>
+        )}
       </header>
 
       <SimpleBar
@@ -171,6 +188,11 @@ export function DmMessageArea() {
         replyTarget={replyTarget}
         onCancelReply={() => setReplyTarget(null)}
       />
+      </div>
+
+      {showProfile && otherMember && (
+        <DmProfilePanel member={otherMember} />
+      )}
     </div>
   );
 }
@@ -191,6 +213,8 @@ function DmMessageRow({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(message.content ?? "");
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [pickerAbove, setPickerAbove] = useState(true);
+  const actionsRef = useRef<HTMLDivElement>(null);
 
   const showHeader =
     !prevMessage ||
@@ -232,38 +256,44 @@ function DmMessageRow({
       className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition hover:bg-white/[0.03] ${showHeader ? "mt-3 first:mt-1" : "-mt-0.5"}`}
     >
       {/* Actions toolbar */}
-      <div className="absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md bg-surface-dark opacity-0 shadow ring-1 ring-white/10 transition group-hover:opacity-100">
-        <div className="relative">
-          <ActionBtn title="React" onClick={() => setEmojiOpen((p) => !p)}>
-            😀
-          </ActionBtn>
-          {emojiOpen && (
-            <div className="absolute bottom-full right-0 z-50 mb-1">
-              <EmojiPicker
-                onSelect={(emoji) => {
-                  getSocket()?.emit("reaction:toggle", {
-                    messageId: message.id,
-                    emoji,
-                  });
-                  setEmojiOpen(false);
-                }}
-                onClose={() => setEmojiOpen(false)}
-              />
-            </div>
+      <div ref={actionsRef} className="absolute -top-3 right-2 z-10 flex items-start">
+        <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100">
+          <DmActionBtn title="React" onClick={() => {
+            if (actionsRef.current) {
+              const rect = actionsRef.current.getBoundingClientRect();
+              setPickerAbove(rect.top > 460);
+            }
+            setEmojiOpen((p) => !p);
+          }}>
+            <DmSmileIcon />
+          </DmActionBtn>
+          <DmActionBtn title="Reply" onClick={() => onReply(message)}>
+            <DmReplyIcon />
+          </DmActionBtn>
+          {isAuthor && (
+            <>
+              <DmActionBtn title="Edit" onClick={() => { setEditText(message.content ?? ""); setEditing(true); }}>
+                <DmEditIcon />
+              </DmActionBtn>
+              <DmActionBtn title="Delete" onClick={handleDelete} danger>
+                <DmTrashIcon />
+              </DmActionBtn>
+            </>
           )}
         </div>
-        <ActionBtn title="Reply" onClick={() => onReply(message)}>
-          ↩
-        </ActionBtn>
-        {isAuthor && (
-          <>
-            <ActionBtn title="Edit" onClick={() => { setEditing(true); setEditText(message.content ?? ""); }}>
-              ✏️
-            </ActionBtn>
-            <ActionBtn title="Delete" onClick={handleDelete}>
-              🗑️
-            </ActionBtn>
-          </>
+        {emojiOpen && (
+          <div className={`absolute right-0 z-50 ${pickerAbove ? "bottom-full mb-2" : "top-full mt-2"}`}>
+            <EmojiPicker
+              onSelect={(emoji) => {
+                getSocket()?.emit("reaction:toggle", {
+                  messageId: message.id,
+                  emoji,
+                });
+                setEmojiOpen(false);
+              }}
+              onClose={() => setEmojiOpen(false)}
+            />
+          </div>
         )}
       </div>
 
@@ -384,13 +414,15 @@ function DmMessageRow({
   );
 }
 
-function ActionBtn({
+function DmActionBtn({
   title,
   onClick,
+  danger,
   children,
 }: {
   title: string;
   onClick: () => void;
+  danger?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -398,10 +430,48 @@ function ActionBtn({
       type="button"
       title={title}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="rounded px-1.5 py-0.5 text-sm transition hover:bg-white/10"
+      className={`p-1.5 transition ${danger ? "text-gray-400 hover:text-red-400" : "text-gray-400 hover:text-white"}`}
     >
       {children}
     </button>
+  );
+}
+
+function DmSmileIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <line x1="9" y1="9" x2="9.01" y2="9" />
+      <line x1="15" y1="9" x2="15.01" y2="9" />
+    </svg>
+  );
+}
+
+function DmReplyIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+    </svg>
+  );
+}
+
+function DmEditIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
+function DmTrashIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
   );
 }
 
@@ -420,8 +490,6 @@ function DmInput({
   const [files, setFiles] = useState<
     { file: File; preview: string; uploading: boolean }[]
   >([]);
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const lastTypingRef = useRef<number>(0);
 
   const emitTyping = useCallback(() => {
@@ -461,30 +529,16 @@ function DmInput({
     onCancelReply();
   }, [text, files, conversationId, replyTarget, onCancelReply]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send();
-      }
-    },
-    [send],
-  );
-
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newFiles = Array.from(e.target.files ?? []).map((file) => ({
-        file,
-        preview: file.type.startsWith("image/")
-          ? URL.createObjectURL(file)
-          : "",
-        uploading: false,
-      }));
-      setFiles((prev) => [...prev, ...newFiles]);
-      e.target.value = "";
-    },
-    [],
-  );
+  const addFiles = useCallback((fileList: FileList) => {
+    const newFiles = Array.from(fileList).map((file) => ({
+      file,
+      preview: file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : "",
+      uploading: false,
+    }));
+    setFiles((prev) => [...prev, ...newFiles]);
+  }, []);
 
   const removeFile = useCallback((idx: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
@@ -541,52 +595,14 @@ function DmInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2 rounded-lg bg-surface-raised px-4 py-2.5">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="shrink-0 pb-0.5 text-gray-400 transition hover:text-white"
-        >
-          <PlusCircleIcon />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-        />
-
-        <textarea
-          value={text}
-          onChange={(e) => { setText(e.target.value); emitTyping(); }}
-          onKeyDown={handleKeyDown}
-          placeholder={`Message ${otherName}`}
-          rows={1}
-          className="max-h-40 min-h-[24px] flex-1 resize-none bg-transparent text-[15px] text-white placeholder-gray-400 outline-none"
-        />
-
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setEmojiOpen(!emojiOpen)}
-            className="shrink-0 pb-0.5 text-gray-400 transition hover:text-white"
-          >
-            <SmileIcon />
-          </button>
-          {emojiOpen && (
-            <div className="absolute bottom-full right-0 z-50 mb-2">
-              <EmojiPicker
-                onSelect={(emoji) => {
-                  setText((prev) => prev + emoji);
-                  setEmojiOpen(false);
-                }}
-                onClose={() => setEmojiOpen(false)}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      <ChatInputBar
+        value={text}
+        onChange={setText}
+        onSend={() => void send()}
+        onTyping={emitTyping}
+        onFilesPicked={addFiles}
+        placeholder={`Message ${otherName}`}
+      />
     </div>
   );
 }
@@ -608,26 +624,102 @@ function ReplyArrowIcon() {
   );
 }
 
-function PlusCircleIcon() {
-  return (
-    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
-    </svg>
-  );
-}
-
-function SmileIcon() {
-  return (
-    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
-    </svg>
-  );
-}
 
 function XSmallIcon() {
   return (
     <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
       <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
     </svg>
+  );
+}
+
+function UserProfileIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+const statusLabel: Record<string, string> = {
+  online: "Online",
+  idle: "Idle",
+  dnd: "Do Not Disturb",
+  offline: "Offline",
+};
+
+function formatDate(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function DmProfilePanel({
+  member,
+}: {
+  member: {
+    userId: string;
+    username: string;
+    avatarUrl: string | null;
+    bio: string | null;
+    status: string;
+    createdAt: string;
+  };
+}) {
+  const onlineIds = useMemberStore((s) => s.onlineUserIds);
+  const resolvedStatus: UserStatus = onlineIds.has(member.userId)
+    ? ((member.status === "idle" || member.status === "dnd") ? member.status : "online")
+    : "offline";
+
+  return (
+    <div className="flex w-[280px] shrink-0 flex-col border-l border-white/5 bg-surface-dark">
+      <SimpleBar className="flex-1">
+        <div className="h-24 bg-primary" />
+        <div className="px-4 pb-4">
+          <div className="-mt-10">
+            <div className="inline-block rounded-full border-[5px] border-surface-dark">
+              <UserAvatar
+                username={member.username}
+                avatarUrl={member.avatarUrl}
+                size="lg"
+                showStatus
+                status={resolvedStatus}
+              />
+            </div>
+          </div>
+
+          <h3 className="mt-1 text-lg font-bold text-white">{member.username}</h3>
+          <p className="text-xs text-gray-400">{statusLabel[resolvedStatus] ?? "Offline"}</p>
+
+          <div className="my-3 border-t border-white/10" />
+
+          {member.bio && (
+            <div className="mb-3">
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                About Me
+              </p>
+              <p className="whitespace-pre-wrap text-sm text-gray-200">
+                {member.bio}
+              </p>
+            </div>
+          )}
+
+          {member.createdAt && (
+            <div>
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Member Since
+              </p>
+              <p className="text-sm text-gray-200">{formatDate(member.createdAt)}</p>
+            </div>
+          )}
+        </div>
+      </SimpleBar>
+    </div>
   );
 }

@@ -46,7 +46,7 @@ services:
     environment:
       - "LIVEKIT_KEYS=devkey: devsecret"
     volumes:
-      - ./docker/livekit/livekit.yaml:/etc/livekit.yaml:ro
+      - ./docker/livekit/livekit.dev.yaml:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
 
 volumes:
