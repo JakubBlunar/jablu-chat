@@ -33,6 +33,8 @@ echo "  ✓ API is healthy"
 echo ""
 echo "→ Cleaning up unused Docker images..."
 docker image prune -a -f | tail -1
+echo "→ Cleaning up build cache (keeping 2GB)..."
+docker builder prune -f --keep-storage=2GB | tail -1
 
 echo ""
 echo "→ Restarting Nginx (pick up new DNS)..."
