@@ -2,6 +2,16 @@ import type { Channel } from "@chat/shared";
 import { create } from "zustand";
 import { api } from "@/lib/api";
 
+const CH_KEY = "jablu:channel";
+
+function loadChannelId(): string | null {
+  try {
+    return localStorage.getItem(CH_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
 type ChannelState = {
   channels: Channel[];
   currentChannelId: string | null;
@@ -19,7 +29,7 @@ function byPosition(a: Channel, b: Channel): number {
 
 export const useChannelStore = create<ChannelState>((set, get) => ({
   channels: [],
-  currentChannelId: null,
+  currentChannelId: loadChannelId(),
   isLoading: false,
 
   fetchChannels: async (serverId) => {
@@ -35,7 +45,13 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     }
   },
 
-  setCurrentChannel: (id) => set({ currentChannelId: id }),
+  setCurrentChannel: (id) => {
+    set({ currentChannelId: id });
+    try {
+      if (id) localStorage.setItem(CH_KEY, id);
+      else localStorage.removeItem(CH_KEY);
+    } catch { /* ignore */ }
+  },
 
   getCurrentChannel: () => {
     const { channels, currentChannelId } = get();

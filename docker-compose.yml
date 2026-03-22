@@ -53,6 +53,8 @@ services:
       - CLEANUP_MIN_AGE_DAYS=${CLEANUP_MIN_AGE_DAYS:-90}
       - CLEANUP_DELETE_MESSAGES=${CLEANUP_DELETE_MESSAGES:-false}
       - CLEANUP_ORPHAN_HOURS=${CLEANUP_ORPHAN_HOURS:-24}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
     volumes:
       - uploads:/data/uploads
       - updates:/data/updates

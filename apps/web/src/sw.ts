@@ -1,0 +1,96 @@
+/// <reference lib="webworker" />
+import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+import { registerRoute } from "workbox-routing";
+import { CacheFirst, NetworkFirst } from "workbox-strategies";
+import { ExpirationPlugin } from "workbox-expiration";
+
+declare let self: ServiceWorkerGlobalScope;
+
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
+
+// Cache MediaPipe WASM, models, and JS on first use (CacheFirst — they're versioned by path)
+registerRoute(
+  ({ url }) => url.pathname.startsWith("/mediapipe-"),
+  new CacheFirst({
+    cacheName: "mediapipe-assets",
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 90 }),
+    ],
+  }),
+);
+
+// API calls: network first with short timeout
+registerRoute(
+  ({ url }) => url.pathname.startsWith("/api/"),
+  new NetworkFirst({
+    cacheName: "api-cache",
+    networkTimeoutSeconds: 5,
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 60 * 5 }),
+    ],
+  }),
+);
+
+// Uploaded files: cache first (content-addressed)
+registerRoute(
+  ({ url }) => url.pathname.startsWith("/uploads/"),
+  new CacheFirst({
+    cacheName: "uploads-cache",
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 }),
+    ],
+  }),
+);
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json() as {
+      title?: string;
+      body?: string;
+      url?: string;
+    };
+
+    const title = payload.title ?? "Jablu";
+    const options: NotificationOptions = {
+      body: payload.body ?? "",
+      icon: "/pwa-192x192.png",
+      badge: "/favicon-32x32.png",
+      data: { url: payload.url ?? "/" },
+      tag: `jablu-${Date.now()}`,
+    };
+
+    // Skip if a client window is focused
+    event.waitUntil(
+      self.clients.matchAll({ type: "window", includeUncontrolled: false }).then((clients) => {
+        const hasFocused = clients.some((c) => c.visibilityState === "visible");
+        if (!hasFocused) {
+          return self.registration.showNotification(title, options);
+        }
+      }),
+    );
+  } catch {
+    // Ignore malformed payloads
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const url = (event.notification.data as { url?: string })?.url ?? "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (new URL(client.url).origin === self.location.origin) {
+          client.focus();
+          client.postMessage({ type: "navigate", url });
+          return;
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

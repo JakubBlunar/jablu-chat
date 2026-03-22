@@ -15,6 +15,7 @@ import { EventBusService } from '../events/event-bus.service';
 import { LinkPreviewService } from '../messages/link-preview.service';
 import { MessagesService } from '../messages/messages.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { ReadStateService } from '../read-state/read-state.service';
 import { WsJwtGuard, WsUser } from './ws-jwt.guard';
 
@@ -49,6 +50,7 @@ export class ChatGateway
     private readonly wsJwtGuard: WsJwtGuard,
     private readonly events: EventBusService,
     private readonly readState: ReadStateService,
+    private readonly push: PushService,
   ) {}
 
   private addOnlineUser(userId: string): boolean {
@@ -292,6 +294,16 @@ export class ChatGateway
         .catch(() => {});
     }
 
+    if (channel) {
+      this.sendPushToOfflineMembers(
+        channel.serverId,
+        user.id,
+        msg.author?.username ?? 'Someone',
+        body.content,
+        `/channels/${body.channelId}`,
+      ).catch(() => {});
+    }
+
     return { ok: true, message: msg };
   }
 
@@ -506,6 +518,21 @@ export class ChatGateway
         .catch(() => {});
     }
 
+    const offlineDmMembers = otherMemberIds.filter(
+      (id) => !this.onlineUsers.has(id),
+    );
+    if (offlineDmMembers.length > 0) {
+      const authorName = msg.author?.username ?? 'Someone';
+      const preview = body.content?.slice(0, 100) || '[attachment]';
+      this.push
+        .sendToUsers(offlineDmMembers, {
+          title: `DM from ${authorName}`,
+          body: preview,
+          url: `/dm/${body.conversationId}`,
+        })
+        .catch(() => {});
+    }
+
     return { ok: true, message: msg };
   }
 
@@ -663,5 +690,31 @@ export class ChatGateway
       });
     }
     return { ok: true };
+  }
+
+  private async sendPushToOfflineMembers(
+    serverId: string,
+    senderId: string,
+    senderName: string,
+    content: string | undefined,
+    url: string,
+  ) {
+    const members = await this.prisma.serverMember.findMany({
+      where: { serverId, NOT: { userId: senderId } },
+      select: { userId: true },
+    });
+
+    const offlineIds = members
+      .map((m) => m.userId)
+      .filter((id) => !this.onlineUsers.has(id));
+
+    if (offlineIds.length === 0) return;
+
+    const preview = content?.slice(0, 100) || '[attachment]';
+    await this.push.sendToUsers(offlineIds, {
+      title: senderName,
+      body: preview,
+      url,
+    });
   }
 }

@@ -15,6 +15,7 @@ import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
+import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 
@@ -22,6 +23,16 @@ function HashChannelIcon() {
   return (
     <svg className="h-6 w-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M11 4h2l1 4h4v2h-3.382l.894 4H19v2h-3.618l1 4h-2.054l-1-4H9.382l-1 4H6.328l1-4H4v-2h3.618L6.724 10H3V8h3.382L5.5 4h2.054l1 4h5.946l-1-4zM10.618 10l.894 4h5.946l-.894-4h-5.946z" />
+    </svg>
+  );
+}
+
+function MembersToggleIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="8.5" cy="7" r="4" />
+      <path d="M20 8v6M23 11h-6" />
     </svg>
   );
 }
@@ -38,7 +49,7 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-export function MessageArea() {
+export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode }) {
   const channel = useChannelStore((s) =>
     s.currentChannelId ? s.channels.find((c) => c.id === s.currentChannelId) ?? null : null,
   );
@@ -52,10 +63,11 @@ export function MessageArea() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [stickBottom, setStickBottom] = useState(true);
   const stickRef = useRef(true);
+  const forceScrollRef = useRef(false);
   const prevLen = useRef(0);
   const prevCh = useRef<string | null>(null);
+  const scrolledChRef = useRef<string | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const isNearBottom = useCallback(() => {
@@ -70,9 +82,9 @@ export function MessageArea() {
   }, []);
 
   const onScroll = useCallback(() => {
+    if (forceScrollRef.current) return;
     const near = isNearBottom();
     stickRef.current = near;
-    setStickBottom(near);
     setShowScrollBtn(!near);
   }, [isNearBottom]);
 
@@ -82,7 +94,7 @@ export function MessageArea() {
     if (!content || !container) return;
 
     const observer = new ResizeObserver(() => {
-      if (stickRef.current) {
+      if (stickRef.current || forceScrollRef.current) {
         container.scrollTop = container.scrollHeight;
       }
     });
@@ -101,9 +113,11 @@ export function MessageArea() {
     if (channelId) {
       socket?.emit("channel:join", { channelId });
       prevCh.current = channelId;
+      scrolledChRef.current = null;
       clearMessages();
+      prevLen.current = 0;
+      forceScrollRef.current = true;
       stickRef.current = true;
-      setStickBottom(true);
       setShowScrollBtn(false);
       void fetchMessages(channelId);
     } else {
@@ -118,14 +132,37 @@ export function MessageArea() {
     };
   }, [channelId, clearMessages, fetchMessages]);
 
+  useEffect(() => {
+    if (!channelId || messages.length === 0) return;
+    if (scrolledChRef.current === channelId) return;
+    scrolledChRef.current = channelId;
+
+    const el = scrollRef.current;
+    if (!el) return;
+    const snap = () => { el.scrollTop = el.scrollHeight; };
+    snap();
+    const raf = requestAnimationFrame(snap);
+    const t1 = setTimeout(snap, 50);
+    const t2 = setTimeout(() => {
+      snap();
+      forceScrollRef.current = false;
+      stickRef.current = true;
+    }, 120);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [channelId, messages.length]);
+
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (messages.length > prevLen.current && stickBottom) {
+    if (messages.length > prevLen.current && stickRef.current) {
       el.scrollTop = el.scrollHeight;
     }
     prevLen.current = messages.length;
-  }, [messages.length, stickBottom]);
+  }, [messages.length]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -208,34 +245,8 @@ export function MessageArea() {
     }
   }, [channelId]);
 
-  return (
-    <section className="flex min-w-0 flex-1 flex-col bg-surface">
-      <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
-        {channel ? (
-          <>
-            <HashChannelIcon />
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-base font-semibold text-white">
-                {channel.name}
-              </h1>
-            </div>
-            <button
-              type="button"
-              title="Pinned messages"
-              onClick={() => void handleOpenPinned()}
-              className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            >
-              <PinHeaderIcon />
-            </button>
-            <SearchBar />
-          </>
-        ) : (
-          <h1 className="text-base font-semibold text-gray-400">
-            Select a channel
-          </h1>
-        )}
-      </header>
-
+  const messageContent = (
+    <>
       {pinnedOpen && (
         <PinnedPanel
           messages={pinnedMessages}
@@ -334,6 +345,51 @@ export function MessageArea() {
       {cardUser && (
         <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />
       )}
+    </>
+  );
+
+  return (
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+      <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+        {channel ? (
+          <>
+            <HashChannelIcon />
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-base font-semibold text-white">
+                {channel.name}
+              </h1>
+            </div>
+            <button
+              type="button"
+              title="Pinned messages"
+              onClick={() => void handleOpenPinned()}
+              className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <PinHeaderIcon />
+            </button>
+            <button
+              type="button"
+              title="Toggle member list"
+              onClick={useLayoutStore.getState().toggleMemberSidebar}
+              className="hidden rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white md:block"
+            >
+              <MembersToggleIcon />
+            </button>
+            <SearchBar />
+          </>
+        ) : (
+          <h1 className="text-base font-semibold text-gray-400">
+            Select a channel
+          </h1>
+        )}
+      </header>
+
+      <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {messageContent}
+        </div>
+        {memberSidebar}
+      </div>
     </section>
   );
 }

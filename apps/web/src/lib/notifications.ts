@@ -87,3 +87,101 @@ export function playSound() {
   audioEl.currentTime = 0;
   audioEl.play().catch(() => {});
 }
+
+// ─── Web Push Subscription ─────────────────────────────────────
+
+let pushSubscribed = false;
+
+async function getVapidKey(): Promise<string | null> {
+  try {
+    const resp = await fetch("/api/push/vapid-key");
+    const data = await resp.json();
+    return data.key ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+export async function subscribeToPush(token: string): Promise<void> {
+  if (pushSubscribed) return;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    const vapidKey = await getVapidKey();
+    if (!vapidKey) return;
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    }
+
+    const subJson = sub.toJSON();
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        endpoint: sub.endpoint,
+        p256dh: subJson.keys?.p256dh ?? "",
+        auth: subJson.keys?.auth ?? "",
+      }),
+    });
+
+    pushSubscribed = true;
+  } catch {
+    // Push subscription failed -- non-critical
+  }
+}
+
+export async function unsubscribeFromPush(token: string): Promise<void> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+
+    await fetch("/api/push/unsubscribe", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+
+    await sub.unsubscribe();
+    pushSubscribed = false;
+  } catch {
+    // Unsubscribe failed -- non-critical
+  }
+}
+
+export function setupPushNavigation() {
+  if (!("serviceWorker" in navigator)) return;
+
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "navigate" && event.data.url) {
+      window.location.href = event.data.url;
+    }
+  });
+}

@@ -73,52 +73,54 @@ export function ServerSidebar() {
           aria-hidden
         />
 
-        <SimpleBar className="flex flex-1 flex-col items-center gap-2 px-0 py-0" style={{ overflowX: "hidden" }}>
-          {isLoading && servers.length === 0 ? (
-            <div className="flex flex-col gap-2">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-surface"
-                />
-              ))}
-            </div>
-          ) : (
-            servers.map((server) => {
-              const active = viewMode === "server" && server.id === currentServerId;
-              const initial = server.name.trim().charAt(0).toUpperCase() || "?";
-              return (
-                <div key={server.id} className="group/pill relative flex justify-center">
-                  <span
-                    className={`absolute left-0 top-1/2 z-10 w-1 -translate-y-1/2 rounded-r-full bg-white transition-all duration-200 ${
-                      active ? "h-10 opacity-100" : "h-0 opacity-0 group-hover/pill:h-5 group-hover/pill:opacity-80"
-                    }`}
-                    aria-hidden
+        <SimpleBar className="min-h-0 w-full flex-1" style={{ overflowX: "hidden" }}>
+          <div className="flex flex-col items-center gap-2 py-0.5">
+            {isLoading && servers.length === 0 ? (
+              <>
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-surface"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setCurrentServer(server.id)}
-                    title={server.name}
-                    className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
-                      active
-                        ? "rounded-2xl bg-primary"
-                        : "rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary"
-                    }`}
-                  >
-                    {server.iconUrl ? (
-                      <img
-                        src={server.iconUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      initial
-                    )}
-                  </button>
-                </div>
-              );
-            })
-          )}
+                ))}
+              </>
+            ) : (
+              servers.map((server) => {
+                const active = viewMode === "server" && server.id === currentServerId;
+                const initial = server.name.trim().charAt(0).toUpperCase() || "?";
+                return (
+                  <div key={server.id} className="group/pill relative flex w-full justify-center">
+                    <span
+                      className={`absolute left-0 top-1/2 z-10 w-1 -translate-y-1/2 rounded-r-full bg-white transition-all duration-200 ${
+                        active ? "h-10 opacity-100" : "h-0 opacity-0 group-hover/pill:h-5 group-hover/pill:opacity-80"
+                      }`}
+                      aria-hidden
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCurrentServer(server.id)}
+                      title={server.name}
+                      className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
+                        active
+                          ? "rounded-2xl bg-primary"
+                          : "rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary"
+                      }`}
+                    >
+                      {server.iconUrl ? (
+                        <img
+                          src={server.iconUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        initial
+                      )}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </SimpleBar>
 
         <button

@@ -10,6 +10,24 @@ type CreateServerResponse = SharedServer & {
 
 export type ViewMode = "server" | "dm";
 
+const NAV_KEY = "jablu:nav";
+
+function loadNav(): { serverId?: string; viewMode?: ViewMode } {
+  try {
+    const raw = localStorage.getItem(NAV_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveNav(patch: Record<string, unknown>) {
+  try {
+    const cur = loadNav();
+    localStorage.setItem(NAV_KEY, JSON.stringify({ ...cur, ...patch }));
+  } catch { /* ignore */ }
+}
+
 type ServerState = {
   servers: Server[];
   currentServerId: string | null;
@@ -24,10 +42,12 @@ type ServerState = {
   removeServer: (id: string) => void;
 };
 
+const saved = loadNav();
+
 export const useServerStore = create<ServerState>((set, get) => ({
   servers: [],
-  currentServerId: null,
-  viewMode: "server" as ViewMode,
+  currentServerId: saved.serverId ?? null,
+  viewMode: saved.viewMode ?? "server",
   isLoading: false,
 
   fetchServers: async () => {
@@ -55,9 +75,15 @@ export const useServerStore = create<ServerState>((set, get) => ({
     return server;
   },
 
-  setCurrentServer: (id) => set({ currentServerId: id, viewMode: "server" }),
+  setCurrentServer: (id) => {
+    set({ currentServerId: id, viewMode: "server" });
+    saveNav({ serverId: id, viewMode: "server" });
+  },
 
-  setViewMode: (mode) => set({ viewMode: mode }),
+  setViewMode: (mode) => {
+    set({ viewMode: mode });
+    saveNav({ viewMode: mode });
+  },
 
   getCurrentServer: () => {
     const { servers, currentServerId } = get();
