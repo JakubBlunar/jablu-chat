@@ -6,6 +6,14 @@ import { ExpirationPlugin } from "workbox-expiration";
 
 declare let self: ServiceWorkerGlobalScope;
 
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
@@ -63,8 +71,13 @@ self.addEventListener("push", (event) => {
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
-  } catch {
-    // Ignore malformed payloads
+  } catch (err) {
+    event.waitUntil(
+      self.registration.showNotification("Jablu", {
+        body: "You have a new notification",
+        icon: "/pwa-192x192.png",
+      }),
+    );
   }
 });
 
