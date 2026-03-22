@@ -261,15 +261,16 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       camera?: boolean;
       screenShare?: boolean;
     }) => {
+      const update: Partial<Pick<VoiceParticipant, "muted" | "deafened" | "camera" | "screenShare">> = {};
+      if (payload.muted !== undefined) update.muted = payload.muted;
+      if (payload.deafened !== undefined) update.deafened = payload.deafened;
+      if (payload.camera !== undefined) update.camera = payload.camera;
+      if (payload.screenShare !== undefined) update.screenShare = payload.screenShare;
+
       useVoiceStore.getState().updateParticipantState(
         payload.channelId,
         payload.userId,
-        {
-          muted: payload.muted,
-          deafened: payload.deafened,
-          camera: payload.camera,
-          screenShare: payload.screenShare,
-        },
+        update,
       );
     };
 
