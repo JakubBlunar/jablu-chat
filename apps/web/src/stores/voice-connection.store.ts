@@ -1,7 +1,9 @@
 import { create } from "zustand";
-import type { Room } from "livekit-client";
+import { Track, type Room } from "livekit-client";
 import { getSocket } from "@/lib/socket";
 import { type MicMode, getMicMode, startMicMode, stopMicMode, setRoomGetter } from "@/lib/micMode";
+import { type CameraQuality, CAMERA_PRESETS } from "@/lib/deviceSettings";
+import type { BlurHandle } from "@/lib/backgroundBlur";
 
 function emitVoiceState(state: {
   muted?: boolean;
@@ -23,17 +25,48 @@ export type VoiceConnectionState = {
   isConnecting: boolean;
   viewingVoiceRoom: boolean;
   micMode: MicMode;
+  isBlurEnabled: boolean;
+  _blurHandle: BlurHandle | null;
+  _originalCameraTrack: MediaStreamTrack | null;
 
   setConnecting: (channelId: string, channelName: string) => void;
   setConnected: (room: Room) => void;
   disconnect: () => void;
   toggleMute: () => void;
   toggleDeafen: () => void;
-  toggleCamera: () => void;
+  startCamera: (quality: CameraQuality, blur: boolean) => void;
+  stopCamera: () => void;
+  applyCameraSettings: (quality: CameraQuality, blur: boolean) => void;
   setScreenSharing: (v: boolean) => void;
   setViewingVoiceRoom: (v: boolean) => void;
   setMicMode: (mode: MicMode) => void;
 };
+
+type StoreGet = () => VoiceConnectionState;
+type StoreSet = (
+  partial:
+    | Partial<VoiceConnectionState>
+    | ((s: VoiceConnectionState) => Partial<VoiceConnectionState>),
+) => void;
+
+async function applyBlur(get: StoreGet, set: StoreSet) {
+  const { room } = get();
+  if (!room) return;
+
+  const camPub = room.localParticipant.getTrackPublication(
+    Track.Source.Camera,
+  );
+  const mediaTrack = camPub?.track?.mediaStreamTrack;
+  if (!mediaTrack) return;
+
+  const { createBlurredStream } = await import("@/lib/backgroundBlur");
+  const handle = await createBlurredStream(mediaTrack);
+  const blurredTrack = handle.stream.getVideoTracks()[0];
+  if (blurredTrack && camPub.track) {
+    await camPub.track.replaceTrack(blurredTrack);
+  }
+  set({ _blurHandle: handle, _originalCameraTrack: mediaTrack });
+}
 
 export const useVoiceConnectionStore = create<VoiceConnectionState>(
   (set, get) => ({
@@ -47,6 +80,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     isConnecting: false,
     viewingVoiceRoom: false,
     micMode: getMicMode(),
+    isBlurEnabled: false,
+    _blurHandle: null,
+    _originalCameraTrack: null,
 
     setConnecting: (channelId, channelName) =>
       set({ currentChannelId: channelId, currentChannelName: channelName, isConnecting: true, viewingVoiceRoom: true }),
@@ -60,8 +96,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     },
 
     disconnect: () => {
-      const { room } = get();
+      const { room, _blurHandle } = get();
       stopMicMode();
+      _blurHandle?.stop();
       if (room) {
         room.disconnect().catch(() => {});
       }
@@ -75,6 +112,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
         isScreenSharing: false,
         isConnecting: false,
         viewingVoiceRoom: false,
+        isBlurEnabled: false,
+        _blurHandle: null,
+        _originalCameraTrack: null,
       });
     },
 
@@ -102,16 +142,103 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
       emitVoiceState({ deafened: next });
     },
 
-    toggleCamera: () => {
-      const { room, isCameraOn } = get();
-      const next = !isCameraOn;
-      if (room) {
-        room.localParticipant
-          .setCameraEnabled(next)
-          .catch(() => {});
+    startCamera: async (quality: CameraQuality, blur: boolean) => {
+      const { room } = get();
+      if (!room) return;
+
+      const preset = CAMERA_PRESETS[quality];
+      room.options.videoCaptureDefaults = {
+        ...room.options.videoCaptureDefaults,
+        resolution: {
+          width: preset.width,
+          height: preset.height,
+          frameRate: preset.fps,
+        },
+      };
+
+      await room.localParticipant.setCameraEnabled(true).catch(() => {});
+      set({ isCameraOn: true, isBlurEnabled: blur });
+      emitVoiceState({ camera: true });
+
+      if (blur) {
+        setTimeout(() => applyBlur(get, set), 300);
       }
-      set({ isCameraOn: next });
-      emitVoiceState({ camera: next });
+    },
+
+    stopCamera: async () => {
+      const { room, _blurHandle } = get();
+      _blurHandle?.stop();
+      if (room) {
+        await room.localParticipant.setCameraEnabled(false).catch(() => {});
+      }
+      set({
+        isCameraOn: false,
+        isBlurEnabled: false,
+        _blurHandle: null,
+        _originalCameraTrack: null,
+      });
+      emitVoiceState({ camera: false });
+    },
+
+    applyCameraSettings: async (quality: CameraQuality, blur: boolean) => {
+      const { room, isCameraOn, isBlurEnabled, _blurHandle } = get();
+      if (!room || !isCameraOn) return;
+
+      const qualityChanged =
+        (() => {
+          const preset = CAMERA_PRESETS[quality];
+          const cur = room.options.videoCaptureDefaults?.resolution;
+          return (
+            !cur ||
+            cur.width !== preset.width ||
+            cur.height !== preset.height
+          );
+        })();
+
+      if (qualityChanged) {
+        _blurHandle?.stop();
+        set({ _blurHandle: null, _originalCameraTrack: null });
+
+        await room.localParticipant.setCameraEnabled(false).catch(() => {});
+
+        const preset = CAMERA_PRESETS[quality];
+        room.options.videoCaptureDefaults = {
+          ...room.options.videoCaptureDefaults,
+          resolution: {
+            width: preset.width,
+            height: preset.height,
+            frameRate: preset.fps,
+          },
+        };
+
+        await room.localParticipant.setCameraEnabled(true).catch(() => {});
+        set({ isBlurEnabled: blur });
+
+        if (blur) {
+          setTimeout(() => applyBlur(get, set), 300);
+        }
+      } else if (blur !== isBlurEnabled) {
+        if (blur) {
+          set({ isBlurEnabled: true });
+          await applyBlur(get, set);
+        } else {
+          _blurHandle?.stop();
+          const { _originalCameraTrack } = get();
+          if (_originalCameraTrack) {
+            const camPub = room.localParticipant.getTrackPublication(
+              Track.Source.Camera,
+            );
+            if (camPub?.track) {
+              await camPub.track.replaceTrack(_originalCameraTrack);
+            }
+          }
+          set({
+            isBlurEnabled: false,
+            _blurHandle: null,
+            _originalCameraTrack: null,
+          });
+        }
+      }
     },
 
     setScreenSharing: (v) => {

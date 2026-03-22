@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
+import type { CameraQuality } from "@/lib/deviceSettings";
 
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import { CameraSettingsModal } from "./CameraSettingsModal";
 import type { MicMode } from "@/lib/micMode";
 
 function MicIcon({ muted }: { muted: boolean }) {
@@ -58,6 +60,14 @@ function ScreenShareIcon() {
   );
 }
 
+function GearIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.61 3.61 0 0112 15.6z" />
+    </svg>
+  );
+}
+
 function DisconnectIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -78,12 +88,15 @@ export function VoicePanel() {
   const micMode = useVoiceConnectionStore((s) => s.micMode);
   const toggleMute = useVoiceConnectionStore((s) => s.toggleMute);
   const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen);
-  const toggleCamera = useVoiceConnectionStore((s) => s.toggleCamera);
+  const startCamera = useVoiceConnectionStore((s) => s.startCamera);
+  const stopCamera = useVoiceConnectionStore((s) => s.stopCamera);
+  const applyCameraSettings = useVoiceConnectionStore((s) => s.applyCameraSettings);
   const disconnect = useVoiceConnectionStore((s) => s.disconnect);
 
   const [elapsed, setElapsed] = useState(0);
   const [connectedAt] = useState(() => Date.now());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [cameraModalMode, setCameraModalMode] = useState<"start" | "edit" | null>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -102,6 +115,26 @@ export function VoicePanel() {
     }, 1000);
     return () => clearInterval(interval);
   }, [channelId, connectedAt]);
+
+  const handleCameraClick = useCallback(() => {
+    if (isCameraOn) {
+      stopCamera();
+    } else {
+      setCameraModalMode("start");
+    }
+  }, [isCameraOn, stopCamera]);
+
+  const handleCameraConfirm = useCallback(
+    (quality: CameraQuality, blur: boolean) => {
+      if (cameraModalMode === "start") {
+        startCamera(quality, blur);
+      } else {
+        applyCameraSettings(quality, blur);
+      }
+      setCameraModalMode(null);
+    },
+    [cameraModalMode, startCamera, applyCameraSettings],
+  );
 
   const handleDisconnect = useCallback(() => {
     getSocket()?.emit("voice:leave");
@@ -178,7 +211,7 @@ export function VoicePanel() {
         <button
           type="button"
           title={isCameraOn ? "Turn off camera" : "Turn on camera"}
-          onClick={toggleCamera}
+          onClick={handleCameraClick}
           className={`rounded-md p-1.5 transition ${
             isCameraOn
               ? "bg-white/10 text-white"
@@ -187,6 +220,17 @@ export function VoicePanel() {
         >
           <CameraIcon on={isCameraOn} />
         </button>
+
+        {isCameraOn && (
+          <button
+            type="button"
+            title="Camera settings"
+            onClick={() => setCameraModalMode("edit")}
+            className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <GearIcon />
+          </button>
+        )}
 
         <button
           type="button"
@@ -210,6 +254,14 @@ export function VoicePanel() {
           <DisconnectIcon />
         </button>
       </div>
+
+      {cameraModalMode && (
+        <CameraSettingsModal
+          mode={cameraModalMode}
+          onConfirm={handleCameraConfirm}
+          onClose={() => setCameraModalMode(null)}
+        />
+      )}
     </div>
   );
 }
