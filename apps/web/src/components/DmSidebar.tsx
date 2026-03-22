@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api, type DmConversation } from "@/lib/api";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useAuthStore } from "@/stores/auth.store";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
@@ -11,7 +12,7 @@ export function DmSidebar() {
   const user = useAuthStore((s) => s.user);
   const conversations = useDmStore((s) => s.conversations);
   const currentConvId = useDmStore((s) => s.currentConversationId);
-  const setCurrentConv = useDmStore((s) => s.setCurrentConversation);
+  const { goToDm, goToDms } = useAppNavigate();
   const fetchConversations = useDmStore((s) => s.fetchConversations);
   const isLoading = useDmStore((s) => s.isConversationsLoading);
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
@@ -21,6 +22,14 @@ export function DmSidebar() {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  useEffect(() => {
+    if (!currentConvId || isLoading || conversations.length === 0) return;
+    const exists = conversations.some((c) => c.id === currentConvId);
+    if (!exists) {
+      goToDms();
+    }
+  }, [currentConvId, conversations, isLoading, goToDms]);
 
   useEffect(() => {
     if (currentConvId) ackDm(currentConvId);
@@ -91,7 +100,7 @@ export function DmSidebar() {
               <button
                 key={conv.id}
                 type="button"
-                onClick={() => setCurrentConv(conv.id)}
+                onClick={() => goToDm(conv.id)}
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
                   active
                     ? "bg-surface-selected text-white"
@@ -155,7 +164,7 @@ export function DmSidebar() {
           onClose={() => setGroupDmOpen(false)}
           onCreated={(conv) => {
             useDmStore.getState().addOrUpdateConversation(conv);
-            useDmStore.getState().setCurrentConversation(conv.id);
+            goToDm(conv.id);
             setGroupDmOpen(false);
           }}
         />

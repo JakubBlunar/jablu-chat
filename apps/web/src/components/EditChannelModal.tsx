@@ -1,6 +1,7 @@
 import type { Channel } from "@chat/shared";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useChannelStore } from "@/stores/channel.store";
 import { useServerStore } from "@/stores/server.store";
 
@@ -24,7 +25,7 @@ export function EditChannelModal({
   const currentServerId = useServerStore((s) => s.currentServerId);
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
-  const setCurrentChannel = useChannelStore((s) => s.setCurrentChannel);
+  const { goToServer } = useAppNavigate();
 
   const [rawName, setRawName] = useState(channel.name);
   const [saving, setSaving] = useState(false);
@@ -68,10 +69,10 @@ export function EditChannelModal({
     setError(null);
     try {
       await api.deleteChannel(currentServerId, channel.id);
-      if (currentChannelId === channel.id) {
-        setCurrentChannel(null);
-      }
       await fetchChannels(currentServerId);
+      if (currentChannelId === channel.id) {
+        goToServer(currentServerId);
+      }
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not delete channel.");
@@ -81,7 +82,7 @@ export function EditChannelModal({
     currentServerId,
     channel.id,
     currentChannelId,
-    setCurrentChannel,
+    goToServer,
     fetchChannels,
     onClose,
   ]);

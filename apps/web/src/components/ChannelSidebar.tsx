@@ -9,6 +9,7 @@ import { ServerSettingsModal } from "@/components/ServerSettingsModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
@@ -140,10 +141,10 @@ export function ChannelSidebar() {
     if (!id) return null;
     return s.servers.find((x) => x.id === id) ?? null;
   });
+  const { goToChannel } = useAppNavigate();
   const channelsLoading = useChannelStore((s) => s.isLoading);
   const channels = useChannelStore((s) => s.channels);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
-  const setCurrentChannel = useChannelStore((s) => s.setCurrentChannel);
 
   const textChannels = useMemo(
     () => channels.filter((c) => c.type === "text").sort((a, b) => a.position - b.position),
@@ -198,11 +199,12 @@ export function ChannelSidebar() {
         store.setViewingVoiceRoom(true);
         return;
       }
+      if (!currentServer) return;
       import("@/lib/voiceConnect").then(({ joinVoiceChannel }) =>
-        joinVoiceChannel(ch.id, ch.name),
+        joinVoiceChannel(currentServer.id, ch.id, ch.name),
       );
     },
-    [],
+    [currentServer],
   );
 
   const handleLeave = useCallback(async () => {
@@ -383,7 +385,7 @@ export function ChannelSidebar() {
                     <button
                       type="button"
                       onClick={() => {
-                        setCurrentChannel(ch.id);
+                        if (currentServer) goToChannel(currentServer.id, ch.id);
                         useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
                       }}
                       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${

@@ -1,6 +1,7 @@
 import type { ChannelType } from "@chat/shared";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useChannelStore } from "@/stores/channel.store";
 import { useServerStore } from "@/stores/server.store";
 
@@ -22,7 +23,7 @@ type CreateChannelModalProps = {
 export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
   const currentServerId = useServerStore((s) => s.currentServerId);
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
-  const setCurrentChannel = useChannelStore((s) => s.setCurrentChannel);
+  const { goToChannel } = useAppNavigate();
 
   const [rawName, setRawName] = useState("");
   const [type, setType] = useState<ChannelType>("text");
@@ -56,8 +57,8 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
         createdAt: string;
       }>(`/api/servers/${currentServerId}/channels`, { name, type });
       await fetchChannels(currentServerId);
-      if (type === "text") {
-        setCurrentChannel(created.id);
+      if (type === "text" && currentServerId) {
+        goToChannel(currentServerId, created.id);
       }
       setRawName("");
       setType("text");

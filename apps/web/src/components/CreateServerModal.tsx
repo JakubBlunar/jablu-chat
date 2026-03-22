@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useServerStore } from "@/stores/server.store";
 
 type CreateServerModalProps = {
@@ -8,7 +9,7 @@ type CreateServerModalProps = {
 
 export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
   const createServer = useServerStore((s) => s.createServer);
-  const setCurrentServer = useServerStore((s) => s.setCurrentServer);
+  const { goToServer } = useAppNavigate();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
     setError(null);
     try {
       const server = await createServer(trimmed);
-      setCurrentServer(server.id);
+      goToServer(server.id);
       setName("");
       onClose();
     } catch (e) {

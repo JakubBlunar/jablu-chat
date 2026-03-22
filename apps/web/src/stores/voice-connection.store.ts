@@ -22,6 +22,7 @@ function emitVoiceState(state: {
 }
 
 export type VoiceConnectionState = {
+  currentServerId: string | null;
   currentChannelId: string | null;
   currentChannelName: string | null;
   room: Room | null;
@@ -37,7 +38,7 @@ export type VoiceConnectionState = {
   _blurHandle: BlurHandle | null;
   _originalCameraTrack: MediaStreamTrack | null;
 
-  setConnecting: (channelId: string, channelName: string) => void;
+  setConnecting: (serverId: string, channelId: string, channelName: string) => void;
   setConnected: (room: Room) => void;
   disconnect: () => void;
   toggleMute: () => void;
@@ -125,6 +126,7 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
 
 export const useVoiceConnectionStore = create<VoiceConnectionState>(
   (set, get) => ({
+    currentServerId: null,
     currentChannelId: null,
     currentChannelName: null,
     room: null,
@@ -140,8 +142,8 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     _blurHandle: null,
     _originalCameraTrack: null,
 
-    setConnecting: (channelId, channelName) =>
-      set({ currentChannelId: channelId, currentChannelName: channelName, isConnecting: true, viewingVoiceRoom: true }),
+    setConnecting: (serverId, channelId, channelName) =>
+      set({ currentServerId: serverId, currentChannelId: channelId, currentChannelName: channelName, isConnecting: true, viewingVoiceRoom: true }),
 
     setConnected: (room) => {
       set({ room, isConnecting: false, connectedAt: Date.now() });
@@ -163,6 +165,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
         room.disconnect().catch(() => {});
       }
       set({
+        currentServerId: null,
         currentChannelId: null,
         currentChannelName: null,
         room: null,
