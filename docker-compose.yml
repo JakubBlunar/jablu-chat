@@ -33,6 +33,8 @@ services:
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - LIVEKIT_URL=${LIVEKIT_URL}
       - UPLOAD_DIR=/data/uploads
+      - UPDATES_DIR=/data/updates
+      - DOWNLOADS_DIR=/data/downloads
       - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
@@ -42,8 +44,18 @@ services:
       - SERVER_HOST=${SERVER_HOST:-localhost}
       - TLS_MODE=${TLS_MODE:-off}
       - PORT=3001
+      - SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD:-}
+      - REGISTRATION_MODE=${REGISTRATION_MODE:-open}
+      - STORAGE_LIMIT_GB=${STORAGE_LIMIT_GB:-100}
+      - CLEANUP_ENABLED=${CLEANUP_ENABLED:-false}
+      - CLEANUP_CRON=${CLEANUP_CRON:-0 3 * * *}
+      - CLEANUP_MIN_AGE_DAYS=${CLEANUP_MIN_AGE_DAYS:-90}
+      - CLEANUP_DELETE_MESSAGES=${CLEANUP_DELETE_MESSAGES:-false}
+      - CLEANUP_ORPHAN_HOURS=${CLEANUP_ORPHAN_HOURS:-24}
     volumes:
       - uploads:/data/uploads
+      - updates:/data/updates
+      - downloads:/data/downloads
     depends_on:
       postgres:
         condition: service_healthy
@@ -133,6 +145,8 @@ volumes:
   pgdata:
   redisdata:
   uploads:
+  updates:
+  downloads:
   web-dist:
   letsencrypt:
   certbot-webroot:
