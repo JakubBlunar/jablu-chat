@@ -110,10 +110,14 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     },
 
     disconnect: () => {
-      const { room, _blurHandle } = get();
+      const { room, _blurHandle, _originalCameraTrack } = get();
       stopMicMode();
       _blurHandle?.stop();
+      _originalCameraTrack?.stop();
       if (room) {
+        room.localParticipant.getTrackPublications().forEach((pub) => {
+          pub.track?.mediaStreamTrack?.stop();
+        });
         room.disconnect().catch(() => {});
       }
       set({
@@ -180,10 +184,14 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
     },
 
     stopCamera: async () => {
-      const { room, _blurHandle } = get();
+      const { room, _blurHandle, _originalCameraTrack } = get();
       _blurHandle?.stop();
+      _originalCameraTrack?.stop();
       if (room) {
+        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+        const mediaTrack = camPub?.track?.mediaStreamTrack;
         await room.localParticipant.setCameraEnabled(false).catch(() => {});
+        mediaTrack?.stop();
       }
       set({
         isCameraOn: false,
