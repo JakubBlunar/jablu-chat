@@ -237,9 +237,10 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
       _originalCameraTrack?.stop();
       if (room) {
         const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-        const mediaTrack = camPub?.track?.mediaStreamTrack;
-        await room.localParticipant.setCameraEnabled(false).catch(() => {});
-        mediaTrack?.stop();
+        if (camPub?.track) {
+          camPub.track.mediaStreamTrack?.stop();
+          await room.localParticipant.unpublishTrack(camPub.track).catch(() => {});
+        }
       }
       set({
         isCameraOn: false,
