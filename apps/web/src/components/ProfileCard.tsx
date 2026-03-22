@@ -34,7 +34,7 @@ function formatDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -65,10 +65,23 @@ export function ProfileCard({
   const style: React.CSSProperties = {};
   if (anchorRect) {
     style.position = "fixed";
-    style.top = anchorRect.top;
-    style.left = anchorRect.left - 320 - 8;
-    if (style.left < 8) {
+    const cardWidth = 320;
+    const rightSpace = window.innerWidth - anchorRect.right - 8;
+    const leftSpace = anchorRect.left - 8;
+
+    if (rightSpace >= cardWidth) {
       style.left = anchorRect.right + 8;
+    } else if (leftSpace >= cardWidth) {
+      style.left = anchorRect.left - cardWidth - 8;
+    } else {
+      style.left = Math.max(8, (window.innerWidth - cardWidth) / 2);
+    }
+
+    const cardHeight = 320;
+    if (anchorRect.top + cardHeight > window.innerHeight) {
+      style.bottom = Math.max(8, window.innerHeight - anchorRect.bottom);
+    } else {
+      style.top = anchorRect.top;
     }
   }
 
