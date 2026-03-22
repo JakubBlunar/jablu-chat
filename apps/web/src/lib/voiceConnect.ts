@@ -1,6 +1,6 @@
 import { Room, RoomEvent } from "livekit-client";
 import { api } from "@/lib/api";
-import { getValidatedDevices, getSavedCameraQuality, CAMERA_PRESETS } from "@/lib/deviceSettings";
+import { getValidatedDevices } from "@/lib/deviceSettings";
 import { getSocket } from "@/lib/socket";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
@@ -29,21 +29,12 @@ export async function joinVoiceChannel(channelId: string, channelName: string) {
       getValidatedDevices(),
     ]);
 
-    const camPreset = CAMERA_PRESETS[getSavedCameraQuality()];
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
       audioCaptureDefaults: devices.audioInput
         ? { deviceId: { exact: devices.audioInput } }
         : undefined,
-      videoCaptureDefaults: {
-        ...(devices.camera ? { deviceId: { exact: devices.camera } } : {}),
-        resolution: {
-          width: camPreset.width,
-          height: camPreset.height,
-          frameRate: camPreset.fps,
-        },
-      },
     });
 
     room.on(RoomEvent.Disconnected, () => {

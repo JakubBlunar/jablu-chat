@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "simplebar-react/dist/simplebar.min.css";
 
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
 .simplebar-scrollbar::before {
   background: color-mix(in srgb, var(--color-primary) 40%, transparent);
   border-radius: 9999px;

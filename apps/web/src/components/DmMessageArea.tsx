@@ -3,8 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { ChatInputBar } from "@/components/ChatInputBar";
+import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MarkdownContent } from "@/components/MarkdownContent";
+import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
 import { formatSmartTimestamp, formatDateSeparator, isDifferentDay } from "@/lib/format-time";
@@ -54,9 +56,22 @@ export function DmMessageArea() {
 
   const [showProfile, setShowProfile] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const prevConvRef = useRef<string | null>(null);
+  const stickRef = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  const isNearBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
 
   useEffect(() => {
     if (!currentConvId) {
@@ -67,14 +82,26 @@ export function DmMessageArea() {
     if (prevConvRef.current !== currentConvId) {
       prevConvRef.current = currentConvId;
       clearMessages();
+      stickRef.current = true;
+      setShowScrollBtn(false);
       joinDmRoom(currentConvId);
       fetchMessages(currentConvId);
     }
   }, [currentConvId, clearMessages, fetchMessages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages.length]);
+    const content = contentRef.current;
+    const container = containerRef.current;
+    if (!content || !container) return;
+
+    const observer = new ResizeObserver(() => {
+      if (stickRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   const loadMore = useCallback(() => {
     if (!currentConvId || !hasMore || isLoading || messages.length === 0) return;
@@ -86,10 +113,34 @@ export function DmMessageArea() {
     const el = containerRef.current;
     if (!el) return;
     if (el.scrollTop < 100) loadMore();
-  }, [loadMore]);
+    const near = isNearBottom();
+    stickRef.current = near;
+    setShowScrollBtn(!near);
+  }, [loadMore, isNearBottom]);
 
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+
+  const [cardUser, setCardUser] = useState<ProfileCardUser | null>(null);
+  const [cardRect, setCardRect] = useState<DOMRect | null>(null);
+  const closeCard = useCallback(() => setCardUser(null), []);
+
+  const handleUserClick = useCallback(
+    (authorId: string, rect: DOMRect) => {
+      const convMember = currentConv?.members.find((m) => m.userId === authorId);
+      if (!convMember) return;
+      setCardUser({
+        id: convMember.userId,
+        username: convMember.username,
+        avatarUrl: convMember.avatarUrl,
+        bio: convMember.bio,
+        status: (convMember.status as import("@chat/shared").UserStatus) ?? "offline",
+        joinedAt: convMember.createdAt,
+      });
+      setCardRect(rect);
+    },
+    [currentConv],
+  );
 
   useEffect(() => {
     const socket = getSocket();
@@ -143,46 +194,63 @@ export function DmMessageArea() {
         )}
       </header>
 
-      <SimpleBar
-        className="flex min-h-0 flex-1 flex-col px-4 py-2"
-        scrollableNodeProps={{ ref: containerRef, onScroll: handleScroll }}
-      >
-        {isLoading && messages.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
-          </div>
-        ) : (
-          <>
-            {hasMore && (
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={isLoading}
-                className="mb-2 self-center text-xs text-primary hover:underline disabled:opacity-50"
-              >
-                {isLoading ? "Loading…" : "Load older messages"}
-              </button>
+      <div className="relative min-h-0 flex-1">
+        <SimpleBar
+          className="flex h-full flex-col px-4 py-2"
+          scrollableNodeProps={{ ref: containerRef, onScroll: handleScroll }}
+        >
+          <div ref={contentRef}>
+            {isLoading && messages.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+              </div>
+            ) : (
+              <>
+                {hasMore && (
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={isLoading}
+                    className="mb-2 self-center text-xs text-primary hover:underline disabled:opacity-50"
+                  >
+                    {isLoading ? "Loading…" : "Load older messages"}
+                  </button>
+                )}
+                {messages.map((msg, idx) => {
+                  const prev = messages[idx - 1];
+                  const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt);
+                  return (
+                    <div key={msg.id}>
+                      {newDay && <DmDateSeparator date={msg.createdAt} />}
+                      <DmMessageRow
+                        message={msg}
+                        prevMessage={prev}
+                        forceHeader={newDay}
+                        conversationId={currentConvId}
+                        onReply={setReplyTarget}
+                        onUserClick={handleUserClick}
+                      />
+                    </div>
+                  );
+                })}
+              </>
             )}
-            {messages.map((msg, idx) => {
-              const prev = messages[idx - 1];
-              const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt);
-              return (
-                <div key={msg.id}>
-                  {newDay && <DmDateSeparator date={msg.createdAt} />}
-                  <DmMessageRow
-                    message={msg}
-                    prevMessage={prev}
-                    forceHeader={newDay}
-                    conversationId={currentConvId}
-                    onReply={setReplyTarget}
-                  />
-                </div>
-              );
-            })}
-            <div ref={bottomRef} />
-          </>
+          </div>
+        </SimpleBar>
+
+        {showScrollBtn && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-lg transition hover:bg-primary/80"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            New messages
+          </button>
         )}
-      </SimpleBar>
+      </div>
 
       {typingUsers.length > 0 && (
         <div className="px-4 py-1 text-xs text-gray-400">
@@ -200,6 +268,10 @@ export function DmMessageArea() {
 
       {showProfile && otherMember && (
         <DmProfilePanel member={otherMember} />
+      )}
+
+      {cardUser && (
+        <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />
       )}
     </div>
   );
@@ -223,12 +295,14 @@ function DmMessageRow({
   forceHeader,
   conversationId,
   onReply,
+  onUserClick,
 }: {
   message: Message;
   prevMessage?: Message;
   forceHeader?: boolean;
   conversationId: string;
   onReply: (msg: Message) => void;
+  onUserClick?: (authorId: string, rect: DOMRect) => void;
 }) {
   const userId = useAuthStore((s) => s.user?.id);
   const isAuthor = message.authorId === userId;
@@ -247,6 +321,15 @@ function DmMessageRow({
       5 * 60 * 1000;
 
   const time = formatSmartTimestamp(message.createdAt);
+
+  const handleAuthorClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!message.authorId || !onUserClick) return;
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      onUserClick(message.authorId, rect);
+    },
+    [message.authorId, onUserClick],
+  );
 
   const handleEdit = useCallback(() => {
     const trimmed = editText.trim();
@@ -318,11 +401,13 @@ function DmMessageRow({
       </div>
 
       {showHeader ? (
-        <UserAvatar
-          username={message.author?.username ?? "Deleted User"}
-          avatarUrl={message.author?.avatarUrl ?? null}
-          size="md"
-        />
+        <button type="button" onClick={handleAuthorClick} className="shrink-0 self-start">
+          <UserAvatar
+            username={message.author?.username ?? "Deleted User"}
+            avatarUrl={message.author?.avatarUrl ?? null}
+            size="md"
+          />
+        </button>
       ) : (
         <div className="w-8 shrink-0" />
       )}
@@ -342,12 +427,14 @@ function DmMessageRow({
 
         {showHeader && (
           <div className="flex items-baseline gap-2">
-            <span
-              className="text-sm font-semibold"
+            <button
+              type="button"
+              onClick={handleAuthorClick}
+              className="text-sm font-semibold hover:underline"
               style={usernameAccentStyle(message.author?.username ?? "Deleted User")}
             >
               {message.author?.username ?? "Deleted User"}
-            </span>
+            </button>
             <time className="text-[11px] text-gray-400">{time}</time>
             {message.editedAt && (
               <span className="text-[10px] text-gray-500">(edited)</span>
@@ -381,25 +468,7 @@ function DmMessageRow({
         ))}
 
         {message.linkPreviews?.map((lp) => (
-          <a
-            key={lp.id}
-            href={lp.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 block max-w-md rounded border-l-4 border-primary bg-surface-dark p-3"
-          >
-            {lp.siteName && (
-              <p className="text-xs text-gray-400">{lp.siteName}</p>
-            )}
-            {lp.title && (
-              <p className="text-sm font-semibold text-link">{lp.title}</p>
-            )}
-            {lp.description && (
-              <p className="mt-1 text-xs text-gray-300 line-clamp-2">
-                {lp.description}
-              </p>
-            )}
-          </a>
+          <LinkPreviewCard key={lp.id} lp={lp} />
         ))}
 
         {reactions.length > 0 && (
@@ -673,7 +742,7 @@ function formatDate(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

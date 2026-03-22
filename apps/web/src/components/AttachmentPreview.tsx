@@ -1,8 +1,44 @@
 import type { Attachment } from "@chat/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface AttachmentPreviewProps {
   attachment: Attachment;
+}
+
+function LightboxOverlay({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
+      >
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    </div>,
+    document.body,
+  );
 }
 
 export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
@@ -24,19 +60,13 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
           />
         </button>
         {lightbox && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-            onClick={() => setLightbox(false)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Escape" && setLightbox(false)}
-          >
+          <LightboxOverlay onClose={() => setLightbox(false)}>
             <img
               src={attachment.url}
               alt={attachment.filename}
               className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
             />
-          </div>
+          </LightboxOverlay>
         )}
       </>
     );
@@ -48,11 +78,15 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
         <video
           src={attachment.url}
           controls
-          className="max-h-[300px] rounded-lg"
           preload="metadata"
+          className="max-h-[300px] rounded-lg"
         >
           <track kind="captions" />
         </video>
+        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="truncate">{attachment.filename}</span>
+          <span className="shrink-0">({formatBytes(attachment.sizeBytes)})</span>
+        </p>
       </div>
     );
   }

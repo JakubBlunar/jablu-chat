@@ -7,7 +7,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function timeOnly(d: Date): string {
-  return d.toLocaleTimeString(undefined, {
+  return d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -26,7 +26,7 @@ export function formatSmartTimestamp(iso: string): string {
   if (isSameDay(d, yesterday)) return `Yesterday ${timeOnly(d)}`;
 
   const sameYear = d.getFullYear() === now.getFullYear();
-  const datePart = d.toLocaleDateString(undefined, {
+  const datePart = d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     ...(sameYear ? {} : { year: "numeric" }),
@@ -45,7 +45,7 @@ export function formatDateSeparator(iso: string): string {
   if (isSameDay(d, now)) return "Today";
   if (isSameDay(d, yesterday)) return "Yesterday";
 
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
