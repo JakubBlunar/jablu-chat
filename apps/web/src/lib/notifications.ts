@@ -116,7 +116,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 export async function subscribeToPush(token: string): Promise<void> {
   if (pushSubscribed) return;
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-  if (Notification.permission !== "granted") return;
+
+  if (Notification.permission === "denied") return;
+  if (Notification.permission === "default") {
+    const result = await Notification.requestPermission();
+    if (result !== "granted") return;
+  }
 
   try {
     const vapidKey = await getVapidKey();

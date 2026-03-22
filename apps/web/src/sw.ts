@@ -62,15 +62,7 @@ self.addEventListener("push", (event) => {
       tag: `jablu-${Date.now()}`,
     };
 
-    // Skip if a client window is focused
-    event.waitUntil(
-      self.clients.matchAll({ type: "window", includeUncontrolled: false }).then((clients) => {
-        const hasFocused = clients.some((c) => c.visibilityState === "visible");
-        if (!hasFocused) {
-          return self.registration.showNotification(title, options);
-        }
-      }),
-    );
+    event.waitUntil(self.registration.showNotification(title, options));
   } catch {
     // Ignore malformed payloads
   }
