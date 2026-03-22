@@ -43,6 +43,7 @@ function serializeAudit(audit: Record<string, unknown>) {
 
 @Controller('admin')
 export class AdminController {
+  private readonly superadminUsername: string;
   private readonly superadminPassword: string;
 
   constructor(
@@ -53,6 +54,7 @@ export class AdminController {
     private readonly rateLimiter: AdminRateLimiter,
     private readonly tokenStore: AdminTokenStore,
   ) {
+    this.superadminUsername = config.get<string>('SUPERADMIN_USERNAME', '');
     this.superadminPassword = config.get<string>('SUPERADMIN_PASSWORD', '');
   }
 
@@ -70,15 +72,23 @@ export class AdminController {
       return { ok: false, retryAfter: check.retryAfter };
     }
 
-    if (!this.superadminPassword) {
+    if (!this.superadminPassword || !this.superadminUsername) {
       return { ok: false };
     }
 
-    const input = Buffer.from(dto.password);
-    const expected = Buffer.from(this.superadminPassword);
-    const valid =
-      input.length === expected.length &&
-      crypto.timingSafeEqual(input, expected);
+    const inputUser = Buffer.from(dto.username);
+    const expectedUser = Buffer.from(this.superadminUsername);
+    const userValid =
+      inputUser.length === expectedUser.length &&
+      crypto.timingSafeEqual(inputUser, expectedUser);
+
+    const inputPass = Buffer.from(dto.password);
+    const expectedPass = Buffer.from(this.superadminPassword);
+    const passValid =
+      inputPass.length === expectedPass.length &&
+      crypto.timingSafeEqual(inputPass, expectedPass);
+
+    const valid = userValid && passValid;
 
     if (!valid) {
       const result = this.rateLimiter.recordFailure(ip);
