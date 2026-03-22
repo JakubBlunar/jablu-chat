@@ -1,15 +1,36 @@
-import { ImageSegmenter, FilesetResolver } from "@mediapipe/tasks-vision";
+import type {
+  ImageSegmenter,
+  FilesetResolver as FilesetResolverType,
+} from "@mediapipe/tasks-vision";
 
-const WASM_CDN =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
+const CDN_BASE =
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18";
+const WASM_CDN = `${CDN_BASE}/wasm`;
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+
+type VisionModule = {
+  FilesetResolver: typeof FilesetResolverType;
+  ImageSegmenter: typeof ImageSegmenter;
+};
+
+let visionModulePromise: Promise<VisionModule> | null = null;
+
+async function loadVisionModule(): Promise<VisionModule> {
+  if (!visionModulePromise) {
+    visionModulePromise = import(
+      /* @vite-ignore */ `${CDN_BASE}/vision_bundle.mjs`
+    ) as Promise<VisionModule>;
+  }
+  return visionModulePromise;
+}
 
 let segmenterPromise: Promise<ImageSegmenter> | null = null;
 
 async function getSegmenter(): Promise<ImageSegmenter> {
   if (!segmenterPromise) {
     segmenterPromise = (async () => {
+      const { FilesetResolver, ImageSegmenter } = await loadVisionModule();
       const vision = await FilesetResolver.forVisionTasks(WASM_CDN);
       return ImageSegmenter.createFromOptions(vision, {
         baseOptions: { modelAssetPath: MODEL_URL },
