@@ -144,6 +144,10 @@ export function VoicePanel() {
     disconnect();
   }, [disconnect]);
 
+  const handleShowVoiceRoom = useCallback(() => {
+    useVoiceConnectionStore.getState().setViewingVoiceRoom(true);
+  }, []);
+
   const handleScreenShare = useCallback(() => {
     if (isScreenSharing) {
       const room = useVoiceConnectionStore.getState().room;
@@ -169,20 +173,27 @@ export function VoicePanel() {
           {errorMsg}
         </div>
       )}
-      <div className="flex items-center gap-1.5">
-        <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-green-400">
-          {isConnecting ? "Connecting..." : "Voice Connected"}
-        </span>
-      </div>
-      <p className="mt-0.5 truncate text-xs text-gray-400">
-        {channelName} &middot; {timeStr}
-        {micMode !== "always" && (
-          <span className="ml-1 text-[10px] text-gray-500">
-            ({micModeLabel(micMode)})
+      <button
+        type="button"
+        onClick={handleShowVoiceRoom}
+        className="w-full text-left transition hover:opacity-80"
+        title="Go to voice room"
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-green-400">
+            {isConnecting ? "Connecting..." : "Voice Connected"}
           </span>
-        )}
-      </p>
+        </div>
+        <p className="mt-0.5 truncate text-xs text-gray-400">
+          {channelName} &middot; {timeStr}
+          {micMode !== "always" && (
+            <span className="ml-1 text-[10px] text-gray-500">
+              ({micModeLabel(micMode)})
+            </span>
+          )}
+        </p>
+      </button>
 
       <div className="mt-2 flex items-center justify-center gap-1">
         <button

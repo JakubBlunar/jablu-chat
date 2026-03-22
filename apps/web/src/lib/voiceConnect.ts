@@ -13,21 +13,32 @@ function showVoiceError(message: string) {
   );
 }
 
-export async function joinVoiceChannel(channelId: string, channelName: string) {
+export async function joinVoiceChannel(serverId: string, channelId: string, channelName: string) {
   const store = useVoiceConnectionStore.getState();
 
   if (store.currentChannelId) {
     getSocket()?.emit("voice:leave");
-    store.disconnect();
+    const oldRoom = store.room;
+    if (oldRoom) {
+      oldRoom.removeAllListeners();
+      oldRoom.localParticipant.getTrackPublications().forEach((pub) => {
+        pub.track?.mediaStreamTrack?.stop();
+      });
+      oldRoom.disconnect().catch(() => {});
+    }
   }
 
-  store.setConnecting(channelId, channelName);
+  store.setConnecting(serverId, channelId, channelName);
 
   try {
     const [{ token, url }, devices] = await Promise.all([
       api.getVoiceToken(channelId),
       getValidatedDevices(),
     ]);
+
+    if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
+      return;
+    }
 
     const room = new Room({
       adaptiveStream: true,
@@ -38,11 +49,18 @@ export async function joinVoiceChannel(channelId: string, channelName: string) {
     });
 
     room.on(RoomEvent.Disconnected, () => {
+      const current = useVoiceConnectionStore.getState();
+      if (current.room !== room) return;
       getSocket()?.emit("voice:leave");
-      useVoiceConnectionStore.getState().disconnect();
+      current.disconnect();
     });
 
     await room.connect(url, token);
+
+    if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
+      room.disconnect().catch(() => {});
+      return;
+    }
 
     if (devices.audioOutput) {
       room.switchActiveDevice("audiooutput", devices.audioOutput).catch(() => {});
@@ -59,6 +77,7 @@ export async function joinVoiceChannel(channelId: string, channelName: string) {
       }
     });
   } catch (err) {
+    if (useVoiceConnectionStore.getState().currentChannelId !== channelId) return;
     console.error("Failed to join voice channel:", err);
     if (err instanceof DOMException && err.name === "NotAllowedError") {
       showVoiceError("Permission denied. Allow microphone access to join voice channels.");

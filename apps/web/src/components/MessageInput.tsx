@@ -25,7 +25,7 @@ type PendingFile = {
   error?: string;
 };
 
-export function MessageInput() {
+export function MessageInput({ onSent }: { onSent?: () => void }) {
   const userId = useAuthStore((s) => s.user?.id);
   const channel = useChannelStore((s) =>
     s.currentChannelId ? s.channels.find((c) => c.id === s.currentChannelId) ?? null : null,
@@ -106,6 +106,7 @@ export function MessageInput() {
     setValue("");
     setFiles([]);
     setReplyTarget(null);
+    onSent?.();
   }
 
   function addFiles(newFiles: FileList | File[]) {

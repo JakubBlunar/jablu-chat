@@ -1,6 +1,8 @@
 import type { Channel } from "@chat/shared";
 import { useCallback, useMemo, useState } from "react";
 import SimpleBar from "simplebar-react";
+import { CreateChannelModal } from "@/components/CreateChannelModal";
+import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
 import { MobileDrawer } from "@/components/MobileDrawer";
 import { ServerSettingsModal } from "@/components/ServerSettingsModal";
@@ -8,6 +10,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 import { api } from "@/lib/api";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useDmStore } from "@/stores/dm.store";
@@ -75,19 +78,17 @@ export function MobileNavDrawer() {
   const open = useLayoutStore((s) => s.navDrawerOpen);
   const close = useLayoutStore((s) => s.closeNavDrawer);
 
+  const { goToServer, goToChannel, goToDms, goToDm } = useAppNavigate();
+
   const viewMode = useServerStore((s) => s.viewMode);
   const servers = useServerStore((s) => s.servers);
   const currentServerId = useServerStore((s) => s.currentServerId);
-  const setCurrentServer = useServerStore((s) => s.setCurrentServer);
-  const setViewMode = useServerStore((s) => s.setViewMode);
 
   const channels = useChannelStore((s) => s.channels);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
-  const setCurrentChannel = useChannelStore((s) => s.setCurrentChannel);
 
   const conversations = useDmStore((s) => s.conversations);
   const currentConvId = useDmStore((s) => s.currentConversationId);
-  const setCurrentConv = useDmStore((s) => s.setCurrentConversation);
 
   const user = useAuthStore((s) => s.user);
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
@@ -100,6 +101,8 @@ export function MobileNavDrawer() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [channelModalOpen, setChannelModalOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
   const currentServer = useMemo(
     () => servers.find((s) => s.id === currentServerId) ?? null,
@@ -140,22 +143,22 @@ export function MobileNavDrawer() {
 
   const handleServerClick = useCallback(
     (server: Server) => {
-      setCurrentServer(server.id);
+      goToServer(server.id);
     },
-    [setCurrentServer],
+    [goToServer],
   );
 
   const handleDmClick = useCallback(() => {
-    setViewMode("dm");
-  }, [setViewMode]);
+    goToDms();
+  }, [goToDms]);
 
   const handleChannelClick = useCallback(
     (ch: Channel) => {
-      setCurrentChannel(ch.id);
+      if (currentServerId) goToChannel(currentServerId, ch.id);
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
       close();
     },
-    [setCurrentChannel, close],
+    [currentServerId, goToChannel, close],
   );
 
   const handleVoiceChannelClick = useCallback(
@@ -163,22 +166,22 @@ export function MobileNavDrawer() {
       const store = useVoiceConnectionStore.getState();
       if (store.currentChannelId === ch.id) {
         store.setViewingVoiceRoom(true);
-      } else {
+      } else if (currentServerId) {
         import("@/lib/voiceConnect").then(({ joinVoiceChannel }) =>
-          joinVoiceChannel(ch.id, ch.name),
+          joinVoiceChannel(currentServerId, ch.id, ch.name),
         );
       }
       close();
     },
-    [close],
+    [currentServerId, close],
   );
 
   const handleConvClick = useCallback(
     (convId: string) => {
-      setCurrentConv(convId);
+      goToDm(convId);
       close();
     },
-    [setCurrentConv, close],
+    [goToDm, close],
   );
 
   const getConvDisplayInfo = useCallback(
@@ -292,9 +295,21 @@ export function MobileNavDrawer() {
           <SimpleBar className="min-h-0 flex-1 px-2 py-2">
             {viewMode === "server" ? (
               <>
-                <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-400">
-                  TEXT CHANNELS
-                </p>
+                <div className="mb-1 flex items-center justify-between px-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-gray-400">
+                    TEXT CHANNELS
+                  </span>
+                  {isAdminOrOwner && (
+                    <button
+                      type="button"
+                      title="Create channel"
+                      onClick={() => { close(); setChannelModalOpen(true); }}
+                      className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <PlusSmallIcon />
+                    </button>
+                  )}
+                </div>
                 <ul className="space-y-0.5">
                   {textChannels.map((ch) => {
                     const active = ch.id === currentChannelId && !viewingVoiceRoom;
@@ -302,52 +317,88 @@ export function MobileNavDrawer() {
                     const hasUnread = !active && rs && rs.unreadCount > 0;
                     return (
                       <li key={ch.id}>
-                        <button
-                          type="button"
-                          onClick={() => handleChannelClick(ch)}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                            active
-                              ? "bg-surface-selected text-white"
-                              : hasUnread
-                                ? "font-semibold text-white hover:bg-white/[0.06]"
-                                : "text-gray-300 hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          <HashIcon />
-                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                          {hasUnread && rs!.mentionCount > 0 && (
-                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                              {rs!.mentionCount}
-                            </span>
+                        <div className="relative flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => handleChannelClick(ch)}
+                            className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                              active
+                                ? "bg-surface-selected text-white"
+                                : hasUnread
+                                  ? "font-semibold text-white hover:bg-white/[0.06]"
+                                  : "text-gray-300 hover:bg-white/[0.06]"
+                            }`}
+                          >
+                            <HashIcon />
+                            <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                            {hasUnread && rs!.mentionCount > 0 && (
+                              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                                {rs!.mentionCount}
+                              </span>
+                            )}
+                          </button>
+                          {isAdminOrOwner && (
+                            <button
+                              type="button"
+                              title="Edit channel"
+                              onClick={() => { close(); setEditingChannel(ch); }}
+                              className="shrink-0 rounded p-1.5 text-gray-400 transition hover:text-white"
+                            >
+                              <GearSmallIcon />
+                            </button>
                           )}
-                        </button>
+                        </div>
                       </li>
                     );
                   })}
                 </ul>
 
-                <p className="mb-1 mt-3 px-2 text-[11px] font-semibold tracking-wide text-gray-400">
-                  VOICE CHANNELS
-                </p>
+                <div className="mb-1 mt-3 flex items-center justify-between px-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-gray-400">
+                    VOICE CHANNELS
+                  </span>
+                  {isAdminOrOwner && (
+                    <button
+                      type="button"
+                      title="Create channel"
+                      onClick={() => { close(); setChannelModalOpen(true); }}
+                      className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <PlusSmallIcon />
+                    </button>
+                  )}
+                </div>
                 <ul className="space-y-0.5">
                   {voiceChannels.map((ch) => {
                     const participants = voiceParticipants[ch.id] ?? [];
                     const inThis = currentVoiceChannelId === ch.id;
                     return (
                       <li key={ch.id}>
-                        <button
-                          type="button"
-                          onClick={() => handleVoiceChannelClick(ch)}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                            inThis ? "text-white" : "text-gray-300 hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          <SpeakerIcon />
-                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                          {participants.length > 0 && (
-                            <span className="text-xs text-gray-400">{participants.length}</span>
+                        <div className="flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => handleVoiceChannelClick(ch)}
+                            className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                              inThis ? "text-white" : "text-gray-300 hover:bg-white/[0.06]"
+                            }`}
+                          >
+                            <SpeakerIcon />
+                            <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                            {participants.length > 0 && (
+                              <span className="text-xs text-gray-400">{participants.length}</span>
+                            )}
+                          </button>
+                          {isAdminOrOwner && (
+                            <button
+                              type="button"
+                              title="Edit channel"
+                              onClick={() => { close(); setEditingChannel(ch); }}
+                              className="shrink-0 rounded p-1.5 text-gray-400 transition hover:text-white"
+                            >
+                              <GearSmallIcon />
+                            </button>
                           )}
-                        </button>
+                        </div>
                         {participants.length > 0 && (
                           <ul className="ml-6 space-y-0.5">
                             {participants.map((p) => (
@@ -454,6 +505,32 @@ export function MobileNavDrawer() {
           onClose={() => setServerSettingsOpen(false)}
         />
       )}
+      <CreateChannelModal
+        open={channelModalOpen}
+        onClose={() => setChannelModalOpen(false)}
+      />
+      {editingChannel && (
+        <EditChannelModal
+          channel={editingChannel}
+          onClose={() => setEditingChannel(null)}
+        />
+      )}
     </>
+  );
+}
+
+function PlusSmallIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
+    </svg>
+  );
+}
+
+function GearSmallIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.61 3.61 0 0112 15.6z" />
+    </svg>
   );
 }

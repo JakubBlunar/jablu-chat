@@ -1,5 +1,5 @@
 import type { Message, UserStatus } from "@chat/shared";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { formatSmartTimestamp, formatDateSeparator, isDifferentDay } from "@/lib/format-time";
 import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
+import { useStickyScroll } from "@/hooks/useStickyScroll";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useLayoutStore } from "@/stores/layout.store";
@@ -61,46 +62,17 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
   const fetchMessages = useMessageStore((s) => s.fetchMessages);
   const clearMessages = useMessageStore((s) => s.clearMessages);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
-  const forceScrollRef = useRef(false);
-  const prevLen = useRef(0);
+  const {
+    scrollRef,
+    contentRef,
+    showScrollBtn,
+    scrollToBottom,
+    stickToBottom,
+    onScroll,
+    resetForItem,
+  } = useStickyScroll(channelId, messages.length);
+
   const prevCh = useRef<string | null>(null);
-  const scrolledChRef = useRef<string | null>(null);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-
-  const isNearBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
-
-  const onScroll = useCallback(() => {
-    if (forceScrollRef.current) return;
-    const near = isNearBottom();
-    stickRef.current = near;
-    setShowScrollBtn(!near);
-  }, [isNearBottom]);
-
-  useEffect(() => {
-    const content = contentRef.current;
-    const container = scrollRef.current;
-    if (!content || !container) return;
-
-    const observer = new ResizeObserver(() => {
-      if (stickRef.current || forceScrollRef.current) {
-        container.scrollTop = container.scrollHeight;
-      }
-    });
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     const socket = getSocket();
@@ -113,12 +85,8 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
     if (channelId) {
       socket?.emit("channel:join", { channelId });
       prevCh.current = channelId;
-      scrolledChRef.current = null;
       clearMessages();
-      prevLen.current = 0;
-      forceScrollRef.current = true;
-      stickRef.current = true;
-      setShowScrollBtn(false);
+      resetForItem();
       void fetchMessages(channelId);
     } else {
       prevCh.current = null;
@@ -130,39 +98,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
         getSocket()?.emit("channel:leave", { channelId });
       }
     };
-  }, [channelId, clearMessages, fetchMessages]);
-
-  useEffect(() => {
-    if (!channelId || messages.length === 0) return;
-    if (scrolledChRef.current === channelId) return;
-    scrolledChRef.current = channelId;
-
-    const el = scrollRef.current;
-    if (!el) return;
-    const snap = () => { el.scrollTop = el.scrollHeight; };
-    snap();
-    const raf = requestAnimationFrame(snap);
-    const t1 = setTimeout(snap, 50);
-    const t2 = setTimeout(() => {
-      snap();
-      forceScrollRef.current = false;
-      stickRef.current = true;
-    }, 120);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [channelId, messages.length]);
-
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (messages.length > prevLen.current && stickRef.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-    prevLen.current = messages.length;
-  }, [messages.length]);
+  }, [channelId, clearMessages, fetchMessages, resetForItem]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -340,7 +276,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
         )}
       </div>
 
-      <MessageInput key={channel?.id ?? "no-channel"} />
+      <MessageInput key={channel?.id ?? "no-channel"} onSent={stickToBottom} />
 
       {cardUser && (
         <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />

@@ -2,12 +2,12 @@ import type { UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { UserAvatar } from "@/components/UserAvatar";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useIsMobile } from "@/hooks/useMobile";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useDmStore } from "@/stores/dm.store";
-import { useServerStore } from "@/stores/server.store";
 
 export type ProfileCardUser = {
   id: string;
@@ -196,8 +196,7 @@ function SendDmButton({
   onClose: () => void;
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id);
-  const setViewMode = useServerStore((s) => s.setViewMode);
-  const setCurrentConv = useDmStore((s) => s.setCurrentConversation);
+  const { goToDm } = useAppNavigate();
   const addOrUpdateConv = useDmStore((s) => s.addOrUpdateConversation);
   const [loading, setLoading] = useState(false);
 
@@ -211,13 +210,12 @@ function SendDmButton({
       if (socket?.connected) {
         socket.emit("dm:join", { conversationId: conv.id });
       }
-      setCurrentConv(conv.id);
-      setViewMode("dm");
+      goToDm(conv.id);
       onClose();
     } finally {
       setLoading(false);
     }
-  }, [userId, currentUserId, addOrUpdateConv, setCurrentConv, setViewMode, onClose]);
+  }, [userId, currentUserId, addOrUpdateConv, goToDm, onClose]);
 
   if (userId === currentUserId) return null;
 

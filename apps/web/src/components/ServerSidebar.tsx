@@ -1,6 +1,7 @@
 import { useState } from "react";
 import SimpleBar from "simplebar-react";
 import { JoinInviteModal } from "@/components/JoinInviteModal";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useReadStateStore } from "@/stores/readState.store";
 import { useServerStore } from "@/stores/server.store";
 
@@ -30,10 +31,9 @@ function JoinIcon() {
 export function ServerSidebar() {
   const servers = useServerStore((s) => s.servers);
   const currentServerId = useServerStore((s) => s.currentServerId);
-  const setCurrentServer = useServerStore((s) => s.setCurrentServer);
   const viewMode = useServerStore((s) => s.viewMode);
-  const setViewMode = useServerStore((s) => s.setViewMode);
   const isLoading = useServerStore((s) => s.isLoading);
+  const { goToServer, goToDms } = useAppNavigate();
 
   const dmReadStates = useReadStateStore((s) => s.dms);
 
@@ -44,7 +44,7 @@ export function ServerSidebar() {
   const [joinOpen, setJoinOpen] = useState(false);
 
   const handleDmClick = () => {
-    setViewMode("dm");
+    goToDms();
   };
 
   return (
@@ -98,7 +98,7 @@ export function ServerSidebar() {
                     />
                     <button
                       type="button"
-                      onClick={() => setCurrentServer(server.id)}
+                      onClick={() => goToServer(server.id)}
                       title={server.name}
                       className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
                         active

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { api, type SearchResult } from "@/lib/api";
 import { UserAvatar } from "@/components/UserAvatar";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useChannelStore } from "@/stores/channel.store";
-import { useDmStore } from "@/stores/dm.store";
 import { useServerStore } from "@/stores/server.store";
 
 type Scope = "server" | "channel" | "all";
@@ -19,9 +19,7 @@ export function SearchBar() {
   const currentServerId = useServerStore((s) => s.currentServerId);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
   const channels = useChannelStore((s) => s.channels);
-  const setCurrentChannel = useChannelStore((s) => s.setCurrentChannel);
-  const setViewMode = useServerStore((s) => s.setViewMode);
-  const setCurrentConversation = useDmStore((s) => s.setCurrentConversation);
+  const { goToChannel, goToDm } = useAppNavigate();
 
   const currentChannel = channels.find((c) => c.id === currentChannelId);
 
@@ -75,11 +73,10 @@ export function SearchBar() {
   }, []);
 
   function handleResultClick(result: SearchResult) {
-    if (result.channelId) {
-      setCurrentChannel(result.channelId);
+    if (result.channelId && currentServerId) {
+      goToChannel(currentServerId, result.channelId);
     } else if (result.dmConversationId) {
-      setViewMode("dm");
-      setCurrentConversation(result.dmConversationId);
+      goToDm(result.dmConversationId);
     }
     setOpen(false);
     setQuery("");

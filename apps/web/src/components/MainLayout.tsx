@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { DmMessageArea } from "@/components/DmMessageArea";
 import { DmSidebar } from "@/components/DmSidebar";
@@ -12,6 +12,7 @@ import { ScreenSharePicker } from "@/components/voice/ScreenSharePicker";
 import { VoiceRoom } from "@/components/voice/VoiceRoom";
 import { useIdleDetector } from "@/hooks/useIdleDetector";
 import { useIsMobile, useIsTablet } from "@/hooks/useMobile";
+import { useRouteSync } from "@/hooks/useRouteSync";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
@@ -117,6 +118,9 @@ function MobileTopBar({
 }
 
 export function MainLayout() {
+  useRouteSync();
+  const navigate = useNavigate();
+
   const { socket, isConnected } = useSocket();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -154,7 +158,6 @@ export function MainLayout() {
   const servers = useServerStore((s) => s.servers);
   const serversLoading = useServerStore((s) => s.isLoading);
   const currentServerId = useServerStore((s) => s.currentServerId);
-  const setCurrentServer = useServerStore((s) => s.setCurrentServer);
   const currentServer = useServerStore((s) => {
     if (!s.currentServerId) return null;
     return s.servers.find((x) => x.id === s.currentServerId) ?? null;
@@ -162,7 +165,6 @@ export function MainLayout() {
 
   const channels = useChannelStore((s) => s.channels);
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
-  const setCurrentChannel = useChannelStore((s) => s.setCurrentChannel);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
 
   const textChannels = useMemo(
@@ -182,42 +184,41 @@ export function MainLayout() {
     void fetchServers();
   }, [fetchServers]);
 
+  // Auto-redirect: server view with no server → navigate to first server
+  // Also redirect if the server ID in the URL doesn't match any known server
   useEffect(() => {
     if (viewMode !== "server") return;
-    if (servers.length === 0) return;
+    if (serversLoading || servers.length === 0) return;
     if (!currentServerId) {
-      setCurrentServer(servers[0].id);
+      navigate(`/channels/${servers[0].id}`, { replace: true });
+      return;
     }
-  }, [viewMode, servers, currentServerId, setCurrentServer]);
+    const exists = servers.some((s) => s.id === currentServerId);
+    if (!exists) {
+      navigate("/channels/@me", { replace: true });
+    }
+  }, [viewMode, servers, serversLoading, currentServerId, navigate]);
 
+  // Fetch channels & members when server changes
   useEffect(() => {
     if (viewMode !== "server") return;
     if (!currentServerId) {
       prevServerRef.current = null;
-      setCurrentChannel(null);
       clearMessages();
       return;
     }
 
     if (prevServerRef.current !== currentServerId) {
-      const isInitialLoad = prevServerRef.current === null;
       prevServerRef.current = currentServerId;
-      if (!isInitialLoad) {
-        setCurrentChannel(null);
-        clearMessages();
-      }
-      void fetchChannels(currentServerId);
+      clearMessages();
+      fetchChannels(currentServerId).catch(() => {
+        navigate("/channels/@me", { replace: true });
+      });
       void fetchMembers(currentServerId);
     }
-  }, [
-    viewMode,
-    currentServerId,
-    clearMessages,
-    fetchChannels,
-    fetchMembers,
-    setCurrentChannel,
-  ]);
+  }, [viewMode, currentServerId, clearMessages, fetchChannels, fetchMembers, navigate]);
 
+  // Auto-redirect: invalid/missing channel → navigate to first text channel
   useEffect(() => {
     if (viewMode !== "server") return;
     if (!currentServerId || channels.length === 0) return;
@@ -226,15 +227,10 @@ export function MainLayout() {
       channels.some((c) => c.id === currentChannelId);
     if (valid) return;
     const firstText = textChannels[0];
-    setCurrentChannel(firstText?.id ?? null);
-  }, [
-    viewMode,
-    currentServerId,
-    channels,
-    currentChannelId,
-    textChannels,
-    setCurrentChannel,
-  ]);
+    if (firstText) {
+      navigate(`/channels/${currentServerId}/${firstText.id}`, { replace: true });
+    }
+  }, [viewMode, currentServerId, channels, currentChannelId, textChannels, navigate]);
 
   const mobileTitle = useMemo(() => {
     if (viewMode === "dm") return "Direct Messages";
@@ -323,7 +319,6 @@ export function MainLayout() {
           ) : (
             <MessageArea memberSidebar={showMemberSidebar ? <MemberSidebar /> : null} />
           )}
-          <Outlet />
         </div>
         <ScreenSharePicker />
       </div>

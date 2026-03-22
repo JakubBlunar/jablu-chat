@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import {
   BrowserRouter,
+  HashRouter,
   Navigate,
   Route,
   Routes,
@@ -16,8 +17,9 @@ import { api } from "./lib/api";
 import { migrateSettings } from "./lib/deviceSettings";
 import { setupPushNavigation, subscribeToPush } from "./lib/notifications";
 import { LoginPage } from "./pages/LoginPage";
-import { MainPage } from "./pages/MainPage";
 import { useAuthStore } from "./stores/auth.store";
+
+const Router = isElectron ? HashRouter : BrowserRouter;
 
 const AdminPage = lazy(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
 const RegisterPage = lazy(() => import("./pages/RegisterPage").then((m) => ({ default: m.RegisterPage })));
@@ -115,7 +117,7 @@ export default function App() {
     <ErrorBoundary>
       <ElectronUrlGate>
         <UpdateBanner />
-        <BrowserRouter>
+        <Router>
           <AuthBootstrap />
           <Suspense fallback={<LazyFallback />}>
             <Routes>
@@ -132,12 +134,16 @@ export default function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<MainPage />} />
+                <Route index element={<Navigate to="/channels/@me" replace />} />
+                <Route path="channels/@me" element={null} />
+                <Route path="channels/@me/:conversationId" element={null} />
+                <Route path="channels/:serverId" element={null} />
+                <Route path="channels/:serverId/:channelId" element={null} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
-        </BrowserRouter>
+        </Router>
       </ElectronUrlGate>
     </ErrorBoundary>
   );

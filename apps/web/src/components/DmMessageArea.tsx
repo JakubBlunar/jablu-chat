@@ -13,6 +13,7 @@ import { formatSmartTimestamp, formatDateSeparator, isDifferentDay } from "@/lib
 import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
 import { useAuthStore } from "@/stores/auth.store";
+import { useStickyScroll } from "@/hooks/useStickyScroll";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
 
@@ -56,22 +57,17 @@ export function DmMessageArea() {
 
   const [showProfile, setShowProfile] = useState(false);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const {
+    scrollRef: containerRef,
+    contentRef,
+    showScrollBtn,
+    scrollToBottom,
+    stickToBottom,
+    onScroll: handleScrollBase,
+    resetForItem,
+  } = useStickyScroll(currentConvId, messages.length);
+
   const prevConvRef = useRef<string | null>(null);
-  const stickRef = useRef(true);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-
-  const isNearBottom = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    const el = containerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
 
   useEffect(() => {
     if (!currentConvId) {
@@ -82,26 +78,11 @@ export function DmMessageArea() {
     if (prevConvRef.current !== currentConvId) {
       prevConvRef.current = currentConvId;
       clearMessages();
-      stickRef.current = true;
-      setShowScrollBtn(false);
+      resetForItem();
       joinDmRoom(currentConvId);
-      fetchMessages(currentConvId);
+      void fetchMessages(currentConvId);
     }
-  }, [currentConvId, clearMessages, fetchMessages]);
-
-  useEffect(() => {
-    const content = contentRef.current;
-    const container = containerRef.current;
-    if (!content || !container) return;
-
-    const observer = new ResizeObserver(() => {
-      if (stickRef.current) {
-        container.scrollTop = container.scrollHeight;
-      }
-    });
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, []);
+  }, [currentConvId, clearMessages, fetchMessages, resetForItem]);
 
   const loadMore = useCallback(() => {
     if (!currentConvId || !hasMore || isLoading || messages.length === 0) return;
@@ -111,12 +92,9 @@ export function DmMessageArea() {
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
-    if (!el) return;
-    if (el.scrollTop < 100) loadMore();
-    const near = isNearBottom();
-    stickRef.current = near;
-    setShowScrollBtn(!near);
-  }, [loadMore, isNearBottom]);
+    if (el && el.scrollTop < 100) loadMore();
+    handleScrollBase();
+  }, [containerRef, loadMore, handleScrollBase]);
 
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -263,6 +241,7 @@ export function DmMessageArea() {
         otherName={otherName}
         replyTarget={replyTarget}
         onCancelReply={() => setReplyTarget(null)}
+        onSent={stickToBottom}
       />
       </div>
 
@@ -569,11 +548,13 @@ function DmInput({
   otherName,
   replyTarget,
   onCancelReply,
+  onSent,
 }: {
   conversationId: string;
   otherName: string;
   replyTarget: Message | null;
   onCancelReply: () => void;
+  onSent?: () => void;
 }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<
@@ -616,7 +597,8 @@ function DmInput({
     }
     setText("");
     onCancelReply();
-  }, [text, files, conversationId, replyTarget, onCancelReply]);
+    onSent?.();
+  }, [text, files, conversationId, replyTarget, onCancelReply, onSent]);
 
   const addFiles = useCallback((fileList: FileList) => {
     const newFiles = Array.from(fileList).map((file) => ({
