@@ -90,8 +90,9 @@ function startVAD(): () => void {
   const mediaTrack = micPub?.track?.mediaStreamTrack;
   if (!mediaTrack) return () => {};
 
+  const analysisTrack = mediaTrack.clone();
   const audioCtx = new AudioContext();
-  const source = audioCtx.createMediaStreamSource(new MediaStream([mediaTrack]));
+  const source = audioCtx.createMediaStreamSource(new MediaStream([analysisTrack]));
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
   analyser.smoothingTimeConstant = 0.4;
@@ -162,6 +163,7 @@ function startVAD(): () => void {
   return () => {
     running = false;
     source.disconnect();
+    analysisTrack.stop();
     audioCtx.close().catch(() => {});
     setTrackMuted(false);
   };
