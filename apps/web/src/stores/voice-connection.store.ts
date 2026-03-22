@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { Track, type Room } from "livekit-client";
 import { getSocket } from "@/lib/socket";
 import { type MicMode, getMicMode, startMicMode, stopMicMode, setRoomGetter } from "@/lib/micMode";
-import { type CameraQuality, CAMERA_PRESETS } from "@/lib/deviceSettings";
+import { type CameraQuality, CAMERA_PRESETS, getSavedCamera } from "@/lib/deviceSettings";
 import type { BlurHandle } from "@/lib/backgroundBlur";
 
 function emitVoiceState(state: {
@@ -54,6 +54,26 @@ function showVoiceError(message: string) {
   window.dispatchEvent(
     new CustomEvent("voice:error", { detail: { message } }),
   );
+}
+
+async function captureCamera(preset: {
+  width: number;
+  height: number;
+  fps: number;
+}): Promise<MediaStreamTrack> {
+  const savedDevice = getSavedCamera();
+  const constraints: MediaTrackConstraints = {
+    width: { ideal: preset.width },
+    height: { ideal: preset.height },
+    frameRate: { ideal: preset.fps },
+  };
+  if (savedDevice) {
+    constraints.deviceId = { exact: savedDevice };
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: constraints,
+  });
+  return stream.getVideoTracks()[0];
 }
 
 async function applyBlur(get: StoreGet, set: StoreSet) {
@@ -177,12 +197,37 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
         },
       };
 
-      await room.localParticipant.setCameraEnabled(true).catch(() => {});
-      set({ isCameraOn: true, isBlurEnabled: blur });
-      emitVoiceState({ camera: true });
-
       if (blur) {
-        setTimeout(() => applyBlur(get, set), 300);
+        try {
+          const rawTrack = await captureCamera(preset);
+          const { createBlurredStream } = await import("@/lib/backgroundBlur");
+          const handle = await createBlurredStream(rawTrack);
+          const blurredTrack = handle.stream.getVideoTracks()[0];
+          if (blurredTrack) {
+            await room.localParticipant.publishTrack(blurredTrack, {
+              source: Track.Source.Camera,
+              name: "camera",
+            });
+          }
+          set({
+            isCameraOn: true,
+            isBlurEnabled: true,
+            _blurHandle: handle,
+            _originalCameraTrack: rawTrack,
+          });
+          emitVoiceState({ camera: true });
+        } catch {
+          await room.localParticipant.setCameraEnabled(true).catch(() => {});
+          set({ isCameraOn: true, isBlurEnabled: false });
+          emitVoiceState({ camera: true });
+          showVoiceError(
+            "Background blur is unavailable. Camera started without blur.",
+          );
+        }
+      } else {
+        await room.localParticipant.setCameraEnabled(true).catch(() => {});
+        set({ isCameraOn: true, isBlurEnabled: false });
+        emitVoiceState({ camera: true });
       }
     },
 
@@ -222,9 +267,15 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
 
       if (qualityChanged) {
         _blurHandle?.stop();
+        const { _originalCameraTrack: oldRaw } = get();
+        oldRaw?.stop();
         set({ _blurHandle: null, _originalCameraTrack: null });
 
-        await room.localParticipant.setCameraEnabled(false).catch(() => {});
+        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+        if (camPub?.track) {
+          camPub.track.mediaStreamTrack?.stop();
+          await room.localParticipant.unpublishTrack(camPub.track).catch(() => {});
+        }
 
         const preset = CAMERA_PRESETS[quality];
         room.options.videoCaptureDefaults = {
@@ -236,11 +287,31 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
           },
         };
 
-        await room.localParticipant.setCameraEnabled(true).catch(() => {});
-        set({ isBlurEnabled: blur });
-
         if (blur) {
-          setTimeout(() => applyBlur(get, set), 300);
+          try {
+            const rawTrack = await captureCamera(preset);
+            const { createBlurredStream } = await import("@/lib/backgroundBlur");
+            const handle = await createBlurredStream(rawTrack);
+            const blurredTrack = handle.stream.getVideoTracks()[0];
+            if (blurredTrack) {
+              await room.localParticipant.publishTrack(blurredTrack, {
+                source: Track.Source.Camera,
+                name: "camera",
+              });
+            }
+            set({
+              isBlurEnabled: true,
+              _blurHandle: handle,
+              _originalCameraTrack: rawTrack,
+            });
+          } catch {
+            await room.localParticipant.setCameraEnabled(true).catch(() => {});
+            set({ isBlurEnabled: false });
+            showVoiceError("Background blur is unavailable. Camera restarted without blur.");
+          }
+        } else {
+          await room.localParticipant.setCameraEnabled(true).catch(() => {});
+          set({ isBlurEnabled: false });
         }
       } else if (blur !== isBlurEnabled) {
         if (blur) {
