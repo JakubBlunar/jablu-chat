@@ -555,7 +555,9 @@ export type DmConversation = {
     userId: string;
     username: string;
     avatarUrl: string | null;
+    bio: string | null;
     status: string;
+    createdAt: string;
   }[];
   lastMessage?: {
     content: string | null;

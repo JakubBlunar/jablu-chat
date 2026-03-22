@@ -111,14 +111,14 @@ export function DownloadAppBanner() {
       >
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
       </svg>
-      <span className="min-w-0 flex-1 truncate text-xs text-gray-400">
+      <span className="min-w-0 flex-1 text-xs text-gray-400 leading-snug">
         <a href="#" onClick={(e) => {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent("open-settings", { detail: "downloads" }));
         }} className="text-primary hover:underline">
           Get the desktop app
         </a>
-        {" "}for voice & video
+        {" "}for better voice & video
       </span>
       <button
         type="button"

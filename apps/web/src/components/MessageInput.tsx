@@ -1,7 +1,7 @@
 import type { Attachment } from "@chat/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { EmojiPicker } from "@/components/EmojiPicker";
+import { ChatInputBar } from "@/components/ChatInputBar";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
@@ -9,7 +9,6 @@ import { useChannelStore } from "@/stores/channel.store";
 import { useMessageStore } from "@/stores/message.store";
 
 const TYPING_INTERVAL_MS = 2000;
-const MAX_TEXTAREA_PX = 240;
 
 function formatTyping(names: string[]): string {
   if (names.length === 0) return "";
@@ -48,23 +47,8 @@ export function MessageInput() {
 
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTypingEmit = useRef(0);
-
-  const resize = useCallback(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, MAX_TEXTAREA_PX);
-    el.style.height = `${Math.max(next, 44)}px`;
-  }, []);
-
-  useEffect(() => {
-    resize();
-  }, [value, resize]);
 
   function emitTypingThrottled() {
     if (!channelId) return;
@@ -122,7 +106,6 @@ export function MessageInput() {
     setValue("");
     setFiles([]);
     setReplyTarget(null);
-    requestAnimationFrame(resize);
   }
 
   function addFiles(newFiles: FileList | File[]) {
@@ -245,67 +228,16 @@ export function MessageInput() {
         </div>
       )}
 
-      <div className="relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-primary/60">
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="shrink-0 p-3 text-gray-400 transition hover:text-white"
-            title="Attach file"
-          >
-            <PlusCircleIcon />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files?.length) addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <textarea
-            ref={taRef}
-            rows={1}
-            value={value}
-            placeholder={placeholder}
-            disabled={!channelId}
-            className="max-h-[240px] min-h-[44px] flex-1 resize-none bg-transparent py-3 text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
-            onChange={(e) => {
-              setValue(e.target.value);
-              emitTypingThrottled();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-            onPaste={handlePaste}
-          />
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker((p) => !p)}
-            className="shrink-0 p-3 text-gray-400 transition hover:text-white"
-            title="Emoji"
-          >
-            <SmileIcon />
-          </button>
-        </div>
-        {showEmojiPicker && (
-          <div className="absolute bottom-full right-0 mb-2 z-50">
-            <EmojiPicker
-              onSelect={(emoji) => {
-                setValue((v) => v + emoji);
-                setShowEmojiPicker(false);
-                taRef.current?.focus();
-              }}
-              onClose={() => setShowEmojiPicker(false)}
-            />
-          </div>
-        )}
-      </div>
+      <ChatInputBar
+        value={value}
+        onChange={setValue}
+        onSend={() => void send()}
+        onTyping={emitTypingThrottled}
+        onFilesPicked={(fl) => addFiles(fl)}
+        onPaste={handlePaste}
+        placeholder={placeholder}
+        disabled={!channelId}
+      />
       {typingNames.length > 0 && (
         <p className="absolute left-5 -top-5 truncate text-xs text-gray-400">
           {formatTyping(typingNames)}
@@ -324,23 +256,3 @@ function XIcon() {
   );
 }
 
-function PlusCircleIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="16" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-    </svg>
-  );
-}
-
-function SmileIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-      <line x1="9" y1="9" x2="9.01" y2="9" />
-      <line x1="15" y1="9" x2="15.01" y2="9" />
-    </svg>
-  );
-}
