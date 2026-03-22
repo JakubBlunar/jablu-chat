@@ -1,5 +1,32 @@
+import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+const TEXT_EMOTICONS: [RegExp, string][] = [
+  [/(?<!\w):\)(?!\w)/g, "🙂"],
+  [/(?<!\w):\((?!\w)/g, "😞"],
+  [/(?<!\w):D(?!\w)/g, "😄"],
+  [/(?<!\w):P(?!\w)/gi, "😛"],
+  [/(?<!\w);[\)]/g, "😉"],
+  [/(?<!\w):O(?!\w)/gi, "😮"],
+  [/(?<!\w)<3(?!\w)/g, "❤️"],
+  [/(?<!\w):'\((?!\w)/g, "😢"],
+  [/(?<!\w)XD(?!\w)/gi, "😆"],
+  [/(?<!\w):\|(?!\w)/g, "😐"],
+  [/(?<!\w):\/(?!\w)/g, "😕"],
+  [/(?<!\w)\^\^(?!\w)/g, "😊"],
+  [/(?<!\w)>:\((?!\w)/g, "😠"],
+  [/(?<!\w)B\)(?!\w)/g, "😎"],
+  [/(?<!\w)O:\)(?!\w)/g, "😇"],
+];
+
+function convertEmoticons(text: string): string {
+  let result = text;
+  for (const [pattern, emoji] of TEXT_EMOTICONS) {
+    result = result.replace(pattern, emoji);
+  }
+  return result;
+}
 
 export function MarkdownContent({
   content,
@@ -8,6 +35,8 @@ export function MarkdownContent({
   content: string;
   className?: string;
 }) {
+  const processed = useMemo(() => convertEmoticons(content), [content]);
+
   return (
     <div className={`markdown-body ${className}`}>
     <ReactMarkdown
@@ -98,7 +127,7 @@ export function MarkdownContent({
         ),
       }}
     >
-      {content}
+      {processed}
     </ReactMarkdown>
     </div>
   );
