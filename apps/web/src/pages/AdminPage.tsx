@@ -1616,7 +1616,7 @@ function PushTab({ users }: { users: AdminUser[] }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Notification title"
-            className="w-full rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
+            className="w-full rounded-md border border-white/10 bg-surface-dark px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
           />
         </div>
         <div>
@@ -1628,7 +1628,7 @@ function PushTab({ users }: { users: AdminUser[] }) {
             onChange={(e) => setBody(e.target.value)}
             placeholder="Notification message"
             rows={3}
-            className="w-full resize-none rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
+            className="w-full resize-none rounded-md border border-white/10 bg-surface-dark px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
           />
         </div>
       </div>
