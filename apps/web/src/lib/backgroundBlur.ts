@@ -39,6 +39,11 @@ async function getSegmenter(): Promise<ImageSegmenter> {
         runningMode: "VIDEO",
       });
     })();
+
+    segmenterPromise.catch(() => {
+      segmenterPromise = null;
+      visionModulePromise = null;
+    });
   }
   return segmenterPromise;
 }

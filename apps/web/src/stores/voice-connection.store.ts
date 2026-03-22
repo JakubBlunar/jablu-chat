@@ -49,6 +49,12 @@ type StoreSet = (
     | ((s: VoiceConnectionState) => Partial<VoiceConnectionState>),
 ) => void;
 
+function showVoiceError(message: string) {
+  window.dispatchEvent(
+    new CustomEvent("voice:error", { detail: { message } }),
+  );
+}
+
 async function applyBlur(get: StoreGet, set: StoreSet) {
   const { room } = get();
   if (!room) return;
@@ -59,13 +65,21 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
   const mediaTrack = camPub?.track?.mediaStreamTrack;
   if (!mediaTrack) return;
 
-  const { createBlurredStream } = await import("@/lib/backgroundBlur");
-  const handle = await createBlurredStream(mediaTrack);
-  const blurredTrack = handle.stream.getVideoTracks()[0];
-  if (blurredTrack && camPub.track) {
-    await camPub.track.replaceTrack(blurredTrack);
+  try {
+    const { createBlurredStream } = await import("@/lib/backgroundBlur");
+    const handle = await createBlurredStream(mediaTrack);
+    const blurredTrack = handle.stream.getVideoTracks()[0];
+    if (blurredTrack && camPub.track) {
+      await camPub.track.replaceTrack(blurredTrack);
+    }
+    set({ _blurHandle: handle, _originalCameraTrack: mediaTrack });
+  } catch (err) {
+    console.warn("Background blur unavailable:", err);
+    set({ isBlurEnabled: false });
+    showVoiceError(
+      "Background blur is unavailable. Camera started without blur.",
+    );
   }
-  set({ _blurHandle: handle, _originalCameraTrack: mediaTrack });
 }
 
 export const useVoiceConnectionStore = create<VoiceConnectionState>(
