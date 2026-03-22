@@ -3,11 +3,9 @@ import type {
   FilesetResolver as FilesetResolverType,
 } from "@mediapipe/tasks-vision";
 
-const CDN_BASE =
-  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18";
-const WASM_CDN = `${CDN_BASE}/wasm`;
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+const MEDIAPIPE_BASE = "/mediapipe-0.10.18";
+const WASM_PATH = `${MEDIAPIPE_BASE}/wasm`;
+const MODEL_PATH = `${MEDIAPIPE_BASE}/selfie_segmenter.tflite`;
 
 type VisionModule = {
   FilesetResolver: typeof FilesetResolverType;
@@ -19,7 +17,7 @@ let visionModulePromise: Promise<VisionModule> | null = null;
 async function loadVisionModule(): Promise<VisionModule> {
   if (!visionModulePromise) {
     visionModulePromise = import(
-      /* @vite-ignore */ `${CDN_BASE}/vision_bundle.mjs`
+      /* @vite-ignore */ `${MEDIAPIPE_BASE}/vision_bundle.mjs`
     ) as Promise<VisionModule>;
   }
   return visionModulePromise;
@@ -31,9 +29,9 @@ async function getSegmenter(): Promise<ImageSegmenter> {
   if (!segmenterPromise) {
     segmenterPromise = (async () => {
       const { FilesetResolver, ImageSegmenter } = await loadVisionModule();
-      const vision = await FilesetResolver.forVisionTasks(WASM_CDN);
+      const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
       return ImageSegmenter.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: MODEL_URL },
+        baseOptions: { modelAssetPath: MODEL_PATH },
         outputCategoryMask: false,
         outputConfidenceMasks: true,
         runningMode: "VIDEO",

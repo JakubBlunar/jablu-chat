@@ -96,9 +96,22 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
     set({ _blurHandle: handle, _originalCameraTrack: mediaTrack });
   } catch (err) {
     console.warn("Background blur unavailable:", err);
-    set({ isBlurEnabled: false });
+    const { _blurHandle: bh, _originalCameraTrack: ot } = get();
+    bh?.stop();
+    ot?.stop();
+    if (camPub.track) {
+      camPub.track.mediaStreamTrack?.stop();
+      await room.localParticipant.unpublishTrack(camPub.track).catch(() => {});
+    }
+    set({
+      isCameraOn: false,
+      isBlurEnabled: false,
+      _blurHandle: null,
+      _originalCameraTrack: null,
+    });
+    emitVoiceState({ camera: false });
     showVoiceError(
-      "Background blur is unavailable. Camera started without blur.",
+      "Background blur failed to load. Camera was stopped to protect your privacy.",
     );
   }
 }
@@ -198,8 +211,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
       };
 
       if (blur) {
+        let rawTrack: MediaStreamTrack | null = null;
         try {
-          const rawTrack = await captureCamera(preset);
+          rawTrack = await captureCamera(preset);
           const { createBlurredStream } = await import("@/lib/backgroundBlur");
           const handle = await createBlurredStream(rawTrack);
           const blurredTrack = handle.stream.getVideoTracks()[0];
@@ -217,11 +231,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
           });
           emitVoiceState({ camera: true });
         } catch {
-          await room.localParticipant.setCameraEnabled(true).catch(() => {});
-          set({ isCameraOn: true, isBlurEnabled: false });
-          emitVoiceState({ camera: true });
+          rawTrack?.stop();
           showVoiceError(
-            "Background blur is unavailable. Camera started without blur.",
+            "Background blur failed to load. Camera was not started to protect your privacy.",
           );
         }
       } else {
@@ -289,8 +301,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
         };
 
         if (blur) {
+          let rawTrack: MediaStreamTrack | null = null;
           try {
-            const rawTrack = await captureCamera(preset);
+            rawTrack = await captureCamera(preset);
             const { createBlurredStream } = await import("@/lib/backgroundBlur");
             const handle = await createBlurredStream(rawTrack);
             const blurredTrack = handle.stream.getVideoTracks()[0];
@@ -306,9 +319,10 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>(
               _originalCameraTrack: rawTrack,
             });
           } catch {
-            await room.localParticipant.setCameraEnabled(true).catch(() => {});
-            set({ isBlurEnabled: false });
-            showVoiceError("Background blur is unavailable. Camera restarted without blur.");
+            rawTrack?.stop();
+            set({ isCameraOn: false, isBlurEnabled: false });
+            emitVoiceState({ camera: false });
+            showVoiceError("Background blur failed to load. Camera was stopped to protect your privacy.");
           }
         } else {
           await room.localParticipant.setCameraEnabled(true).catch(() => {});
