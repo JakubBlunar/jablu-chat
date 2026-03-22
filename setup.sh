@@ -48,6 +48,9 @@ update_env() {
   fi
 }
 
+SUPERADMIN_USERNAME="admin_$(random_string 4)"
+SUPERADMIN_PASSWORD=$(random_string 16)
+
 echo ""
 echo "→ Generating secrets..."
 update_env "POSTGRES_PASSWORD" "$POSTGRES_PASSWORD"
@@ -55,6 +58,8 @@ update_env "JWT_SECRET" "$JWT_SECRET"
 update_env "JWT_REFRESH_SECRET" "$JWT_REFRESH_SECRET"
 update_env "LIVEKIT_API_KEY" "$LIVEKIT_API_KEY"
 update_env "LIVEKIT_API_SECRET" "$LIVEKIT_API_SECRET"
+update_env "SUPERADMIN_USERNAME" "$SUPERADMIN_USERNAME"
+update_env "SUPERADMIN_PASSWORD" "$SUPERADMIN_PASSWORD"
 
 # Update DATABASE_URL with the new password
 if grep -q "^DATABASE_URL=postgresql://chat:changeme" "$ENV_FILE"; then
@@ -73,9 +78,11 @@ echo "╚═══════════════════════�
 echo ""
 echo "Next steps:"
 echo "  1. Edit .env and set SERVER_HOST to your server's IP"
-echo "  2. Run: docker compose --profile dev up -d"
+echo "  2. Review SUPERADMIN_USERNAME and SUPERADMIN_PASSWORD in .env"
+echo "  3. Run: docker compose --profile dev up -d"
 echo "     (use --profile dev to include Mailpit for email testing)"
 echo ""
 echo "  Web app:     http://\${SERVER_HOST}"
+echo "  Admin panel: http://\${SERVER_HOST}/admin"
 echo "  Mailpit UI:  http://\${SERVER_HOST}:8025  (dev only)"
 echo ""

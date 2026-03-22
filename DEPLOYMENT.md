@@ -131,7 +131,8 @@ SMTP_FROM=jablu@yourdomain.com
 # Registration mode (start with invite-only for a private community)
 REGISTRATION_MODE=invite
 
-# Set a strong superadmin password
+# Set strong superadmin credentials
+SUPERADMIN_USERNAME=your-admin-username
 SUPERADMIN_PASSWORD=your-strong-admin-password
 
 # Storage cleanup (enable periodic audits)
@@ -194,7 +195,7 @@ Open a browser and navigate to:
 http://YOUR_VPS_IP
 ```
 
-1. Go to `/admin` and log in with your `SUPERADMIN_PASSWORD`
+1. Go to `/admin` and log in with your `SUPERADMIN_USERNAME` and `SUPERADMIN_PASSWORD`
 2. Create your first server in the Servers tab
 3. If using invite mode, create invite codes in the Invites tab
 4. Register your own account and join the server
@@ -479,6 +480,7 @@ du -sh /var/lib/docker/volumes/*
 | `LIVEKIT_API_SECRET` | (generated) | LiveKit auth secret |
 | `LIVEKIT_URL` | `ws://localhost/livekit` | LiveKit WebSocket URL |
 | `REGISTRATION_MODE` | `open` | `open` or `invite` |
+| `SUPERADMIN_USERNAME` | (set manually) | Admin panel username |
 | `SUPERADMIN_PASSWORD` | (set manually) | Admin panel password |
 | `UPLOAD_DIR` | `/data/uploads` | File storage path |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Max file upload size |
@@ -698,6 +700,7 @@ SMTP_FROM=jablu@example.com
 
 # Security
 REGISTRATION_MODE=invite
+SUPERADMIN_USERNAME=your-admin-username
 SUPERADMIN_PASSWORD=your-strong-admin-password
 
 # Storage

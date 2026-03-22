@@ -11,6 +11,9 @@ export class AdminCreateServerDto {
 
 export class AdminLoginDto {
   @IsString()
+  username: string;
+
+  @IsString()
   password: string;
 }
 
