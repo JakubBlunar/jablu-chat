@@ -18,6 +18,9 @@ import {
   pttBindingLabel,
   getVadThreshold,
   setVadThreshold as saveVadThreshold,
+  type VadMode,
+  getVadMode,
+  setVadMode as saveVadMode,
 } from "@/lib/micMode";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
@@ -96,6 +99,7 @@ export function VoiceSettings() {
   });
   const [pttBinding, setPttBinding] = useState<PttBinding>(getPttBinding);
   const [vadThreshold, setVadThreshold] = useState(getVadThreshold);
+  const [vadMode, setVadModeState] = useState<VadMode>(getVadMode);
   const [recordingPtt, setRecordingPtt] = useState(false);
   const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode);
 
@@ -175,31 +179,59 @@ export function VoiceSettings() {
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
           {micMode === "always" && "Your mic stays on while unmuted."}
-          {micMode === "activity" && "Mic activates when you speak. Threshold is auto-calibrated."}
+          {micMode === "activity" && "Mic activates when you speak."}
           {micMode === "push-to-talk" && "Hold a key to transmit your voice."}
         </p>
 
         {micMode === "activity" && (
-          <div className="mt-3">
-            <label className="mb-1 block text-xs text-gray-400">
-              Sensitivity threshold: {vadThreshold}
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={60}
-              value={vadThreshold}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setVadThreshold(v);
-                saveVadThreshold(v);
-              }}
-              className="w-full accent-primary"
-            />
-            <div className="mt-0.5 flex justify-between text-[10px] text-gray-500">
-              <span>Sensitive</span>
-              <span>Less sensitive</span>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Threshold:</span>
+              {(["auto", "manual"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setVadModeState(m);
+                    saveVadMode(m);
+                  }}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    vadMode === m
+                      ? "bg-primary text-white"
+                      : "bg-surface-darkest text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  {m === "auto" ? "Auto" : "Manual"}
+                </button>
+              ))}
             </div>
+            {vadMode === "auto" ? (
+              <p className="text-[11px] text-gray-500">
+                Automatically calibrates from ambient noise when you join or unmute.
+              </p>
+            ) : (
+              <>
+                <label className="block text-xs text-gray-400">
+                  Sensitivity: {vadThreshold}
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={60}
+                  value={vadThreshold}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setVadThreshold(v);
+                    saveVadThreshold(v);
+                  }}
+                  className="w-full accent-primary"
+                />
+                <div className="mt-0.5 flex justify-between text-[10px] text-gray-500">
+                  <span>Sensitive</span>
+                  <span>Less sensitive</span>
+                </div>
+              </>
+            )}
           </div>
         )}
 

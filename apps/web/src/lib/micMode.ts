@@ -14,6 +14,9 @@ export type PttBinding = { type: "key"; key: string } | { type: "mouse"; button:
 const MIC_MODE_KEY = "chat:voice:mic-mode";
 const PTT_KEY_KEY = "chat:voice:ptt-key";
 const VAD_THRESHOLD_KEY = "chat:voice:vad-threshold";
+const VAD_AUTO_KEY = "chat:voice:vad-auto";
+
+export type VadMode = "auto" | "manual";
 
 export function getMicMode(): MicMode {
   return (localStorage.getItem(MIC_MODE_KEY) as MicMode) || "always";
@@ -62,6 +65,14 @@ export function setVadThreshold(threshold: number) {
   localStorage.setItem(VAD_THRESHOLD_KEY, String(threshold));
 }
 
+export function getVadMode(): VadMode {
+  return (localStorage.getItem(VAD_AUTO_KEY) as VadMode) || "auto";
+}
+
+export function setVadMode(mode: VadMode) {
+  localStorage.setItem(VAD_AUTO_KEY, mode);
+}
+
 let vadCleanup: (() => void) | null = null;
 let pttCleanup: (() => void) | null = null;
 
@@ -104,8 +115,8 @@ function startVAD(): () => void {
   const SILENCE_DELAY = 15;
 
   let running = true;
-  let calibrated = false;
-  let autoThreshold = getVadThreshold();
+  const isAuto = getVadMode() === "auto";
+  let calibrated = !isAuto;
   const calibrationSamples: number[] = [];
   const calibrationStart = performance.now();
   const CALIBRATION_MS = 1500;
@@ -130,7 +141,7 @@ function startVAD(): () => void {
         const ambient =
           calibrationSamples.reduce((a, b) => a + b, 0) /
           calibrationSamples.length;
-        autoThreshold = Math.max(Math.round(ambient * 1.5 + 5), 8);
+        const autoThreshold = Math.max(Math.round(ambient * 1.5 + 5), 8);
         setVadThreshold(autoThreshold);
         calibrated = true;
       }
