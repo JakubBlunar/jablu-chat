@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -11,19 +12,24 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ChannelType, ServerRole } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import * as crypto from 'crypto';
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AdminAuthGuard } from './admin-auth.guard';
+import { AdminRateLimiter } from './admin-rate-limiter';
+import { AdminTokenStore } from './admin-token-store';
 import {
+  AdminAddServerMemberDto,
   AdminCreateInviteDto,
   AdminCreateServerDto,
   AdminLoginDto,
+  AdminUpdateMemberRoleDto,
   AdminUpdateUserDto,
 } from './dto';
 
@@ -37,21 +43,59 @@ function serializeAudit(audit: Record<string, unknown>) {
 
 @Controller('admin')
 export class AdminController {
+  private readonly superadminPassword: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly uploads: UploadsService,
     private readonly cleanup: CleanupService,
-  ) {}
+    private readonly rateLimiter: AdminRateLimiter,
+    private readonly tokenStore: AdminTokenStore,
+  ) {
+    this.superadminPassword = config.get<string>('SUPERADMIN_PASSWORD', '');
+  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() dto: AdminLoginDto) {
-    const password = this.config.get<string>('SUPERADMIN_PASSWORD', '');
-    if (!password || dto.password !== password) {
+  login(
+    @Body() dto: AdminLoginDto,
+    @Req() req: { ip?: string; headers: Record<string, string | undefined> },
+  ) {
+    const ip =
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ?? req.ip ?? 'unknown';
+
+    const check = this.rateLimiter.check(ip);
+    if (!check.allowed) {
+      return { ok: false, retryAfter: check.retryAfter };
+    }
+
+    if (!this.superadminPassword) {
       return { ok: false };
     }
-    return { ok: true };
+
+    const input = Buffer.from(dto.password);
+    const expected = Buffer.from(this.superadminPassword);
+    const valid =
+      input.length === expected.length &&
+      crypto.timingSafeEqual(input, expected);
+
+    if (!valid) {
+      const result = this.rateLimiter.recordFailure(ip);
+      return { ok: false, retryAfter: result.retryAfter };
+    }
+
+    this.rateLimiter.resetOnSuccess(ip);
+    const token = this.tokenStore.create(ip);
+    return { ok: true, token };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  logout(
+    @Headers('x-admin-token') token?: string,
+  ) {
+    if (token) this.tokenStore.revoke(token);
   }
 
   // ─── Servers ───────────────────────────────────────────────
@@ -104,6 +148,143 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteServer(@Param('id', ParseUUIDPipe) id: string) {
     await this.cleanupAndDeleteServer(id);
+  }
+
+  @Get('servers/:id/members')
+  @UseGuards(AdminAuthGuard)
+  async listServerMembers(@Param('id', ParseUUIDPipe) id: string) {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException('Server not found');
+
+    return this.prisma.serverMember.findMany({
+      where: { serverId: id },
+      include: {
+        user: {
+          select: { id: true, username: true, email: true, avatarUrl: true },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+  }
+
+  @Post('servers/:id/members')
+  @UseGuards(AdminAuthGuard)
+  async addServerMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminAddServerMemberDto,
+  ) {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException('Server not found');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+    });
+    if (!user) throw new BadRequestException('User not found');
+
+    const existing = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: dto.userId, serverId: id } },
+    });
+    if (existing) throw new BadRequestException('User is already a member');
+
+    return this.prisma.serverMember.create({
+      data: { userId: dto.userId, serverId: id, role: ServerRole.member },
+      include: {
+        user: {
+          select: { id: true, username: true, email: true, avatarUrl: true },
+        },
+      },
+    });
+  }
+
+  @Delete('servers/:id/members/:userId')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeServerMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException('Server not found');
+
+    if (server.ownerId === userId) {
+      throw new BadRequestException('Cannot remove the server owner');
+    }
+
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId: id } },
+    });
+    if (!member) throw new NotFoundException('Member not found');
+
+    await this.prisma.serverMember.delete({
+      where: { userId_serverId: { userId, serverId: id } },
+    });
+  }
+
+  @Patch('servers/:id/members/:userId/role')
+  @UseGuards(AdminAuthGuard)
+  async updateMemberRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: AdminUpdateMemberRoleDto,
+  ) {
+    const validRoles = [ServerRole.owner, ServerRole.admin, ServerRole.member];
+    if (!validRoles.includes(dto.role as ServerRole)) {
+      throw new BadRequestException('Invalid role');
+    }
+
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException('Server not found');
+
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId: id } },
+    });
+    if (!member) throw new NotFoundException('Member not found');
+
+    const newRole = dto.role as ServerRole;
+
+    if (newRole === ServerRole.owner) {
+      await this.prisma.$transaction([
+        this.prisma.serverMember.update({
+          where: { userId_serverId: { userId: server.ownerId, serverId: id } },
+          data: { role: ServerRole.admin },
+        }),
+        this.prisma.serverMember.update({
+          where: { userId_serverId: { userId, serverId: id } },
+          data: { role: ServerRole.owner },
+        }),
+        this.prisma.server.update({
+          where: { id },
+          data: { ownerId: userId },
+        }),
+      ]);
+    } else {
+      if (server.ownerId === userId) {
+        throw new BadRequestException(
+          'Cannot demote the owner. Transfer ownership first by promoting another member to owner.',
+        );
+      }
+      await this.prisma.serverMember.update({
+        where: { userId_serverId: { userId, serverId: id } },
+        data: { role: newRole },
+      });
+    }
+
+    const members = await this.prisma.serverMember.findMany({
+      where: { serverId: id },
+      include: {
+        user: {
+          select: { id: true, username: true, email: true, avatarUrl: true },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    const updatedServer = await this.prisma.server.findUnique({
+      where: { id },
+      select: { ownerId: true, owner: { select: { id: true, username: true } } },
+    });
+
+    return { members, owner: updatedServer?.owner, ownerId: updatedServer?.ownerId };
   }
 
   // ─── Users ─────────────────────────────────────────────────
@@ -229,7 +410,7 @@ export class AdminController {
       if (!server) throw new BadRequestException('Server not found');
     }
 
-    const code = randomBytes(4).toString('hex').toUpperCase();
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     return this.prisma.registrationInvite.create({
       data: {

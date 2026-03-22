@@ -716,6 +716,7 @@ This uses the `docker-compose.traefik.yml` override which:
 - Removes ports 80/443 from Jablu's nginx (Traefik owns those)
 - Adds Traefik routing labels for `chat.example.com`
 - Connects to the shared `web` network
+- Applies a Traefik `rateLimit` middleware to `/api/admin` routes (10 req/s average, burst 20) to protect the admin panel from brute-force attacks at the edge — before traffic reaches Nginx or Node.js
 
 ### Step 6: Verify
 

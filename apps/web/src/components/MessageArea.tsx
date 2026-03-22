@@ -8,6 +8,7 @@ import { MessageInput } from "@/components/MessageInput";
 import { SearchBar } from "@/components/SearchBar";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
+import { formatSmartTimestamp, formatDateSeparator, isDifferentDay } from "@/lib/format-time";
 import { getSocket } from "@/lib/socket";
 import { usernameAccentStyle } from "@/lib/username-color";
 import { useAuthStore } from "@/stores/auth.store";
@@ -22,13 +23,16 @@ function HashChannelIcon() {
   );
 }
 
-function formatMessageTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function DateSeparator({ date }: { date: string }) {
+  return (
+    <div className="my-2 flex items-center gap-3">
+      <div className="h-px flex-1 bg-white/10" />
+      <span className="text-[11px] font-semibold text-gray-400">
+        {formatDateSeparator(date)}
+      </span>
+      <div className="h-px flex-1 bg-white/10" />
+    </div>
+  );
 }
 
 export function MessageArea() {
@@ -229,10 +233,12 @@ export function MessageArea() {
               <ul className="flex flex-col gap-0.5 pb-2">
                 {messages.map((msg, i) => {
                   const prev = i > 0 ? messages[i - 1] : undefined;
+                  const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt);
                   const showHead =
-                    !prev || prev.authorId !== msg.authorId || isGap(prev, msg);
+                    newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg);
                   return (
                     <li key={msg.id}>
+                      {newDay && <DateSeparator date={msg.createdAt} />}
                       <MessageRow
                         message={msg}
                         showHead={showHead}
@@ -289,7 +295,7 @@ function MessageRow({
       ) : (
         <div className="flex w-10 shrink-0 justify-center pt-1">
           <span className="text-[10px] text-gray-500 opacity-0 transition group-hover:opacity-100">
-            {formatMessageTime(message.createdAt)}
+            {formatSmartTimestamp(message.createdAt)}
           </span>
         </div>
       )}
@@ -323,7 +329,7 @@ function MessageRow({
               className="text-xs text-gray-500"
               dateTime={message.createdAt}
             >
-              {formatMessageTime(message.createdAt)}
+              {formatSmartTimestamp(message.createdAt)}
             </time>
             {message.pinned && (
               <span className="rounded bg-yellow-600/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-400">
@@ -478,7 +484,7 @@ function PinnedPanel({
                     {m.author?.username ?? "Deleted User"}
                   </span>
                   <time className="text-[11px] text-gray-500">
-                    {formatMessageTime(m.createdAt)}
+                    {formatSmartTimestamp(m.createdAt)}
                   </time>
                 </div>
                 <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-gray-300">

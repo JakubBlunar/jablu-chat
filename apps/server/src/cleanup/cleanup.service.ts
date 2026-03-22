@@ -41,7 +41,7 @@ export class CleanupService implements OnModuleInit {
   ) {
     this.uploadDir = this.uploads.getUploadDir();
     const limitGb = this.config.get<number>('STORAGE_LIMIT_GB', 100);
-    this.limitBytes = limitGb * 1024 * 1024 * 1024;
+    this.limitBytes = Math.floor(limitGb * 1024 * 1024 * 1024);
     this.watermarkBytes = Math.floor(this.limitBytes * 0.9);
     this.minAgeDays = this.config.get<number>('CLEANUP_MIN_AGE_DAYS', 30);
     this.orphanHours = this.config.get<number>('CLEANUP_ORPHAN_HOURS', 24);
@@ -185,17 +185,17 @@ export class CleanupService implements OnModuleInit {
     return this.prisma.storageAudit.create({
       data: {
         status: 'completed',
-        totalSizeBytes: BigInt(totalSize),
+        totalSizeBytes: BigInt(Math.floor(totalSize)),
         limitBytes: BigInt(this.limitBytes),
         orphanedCount,
-        orphanedBytes: BigInt(orphanedBytes),
+        orphanedBytes: BigInt(Math.floor(orphanedBytes)),
         attachmentCount,
-        attachmentBytes: BigInt(attachmentBytes),
+        attachmentBytes: BigInt(Math.floor(attachmentBytes)),
         messageCount,
-        messageBytes: BigInt(messageBytes),
+        messageBytes: BigInt(Math.floor(messageBytes)),
         diskOrphanCount,
-        diskOrphanBytes: BigInt(diskOrphanBytes),
-        totalFreeable: BigInt(totalFreeable),
+        diskOrphanBytes: BigInt(Math.floor(diskOrphanBytes)),
+        totalFreeable: BigInt(Math.floor(totalFreeable)),
       },
     });
   }
@@ -247,7 +247,7 @@ export class CleanupService implements OnModuleInit {
     } catch (err) {
       await this.prisma.storageAudit.update({
         where: { id: auditId },
-        data: { status: 'failed', freedBytes: BigInt(freedBytes) },
+        data: { status: 'failed', freedBytes: BigInt(Math.floor(freedBytes)) },
       });
       throw err;
     }
@@ -263,7 +263,7 @@ export class CleanupService implements OnModuleInit {
       data: {
         status: 'executed',
         executedAt: new Date(),
-        freedBytes: BigInt(freedBytes),
+        freedBytes: BigInt(Math.floor(freedBytes)),
       },
     });
   }

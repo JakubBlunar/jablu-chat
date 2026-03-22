@@ -12,7 +12,11 @@
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@chat/shared": "workspace:*",
@@ -43,6 +47,7 @@
     "uuid": "^11.0.0"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
     "@nestjs/cli": "^11.0.0",
     "@swc/cli": "^0.8.0",
     "@swc/core": "^1.15.18",
