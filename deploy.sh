@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Usage:
+#   bash deploy.sh                        # uses stored credentials
+#   bash deploy.sh <github-token>         # uses token for this pull
+#
+# One-time setup to avoid passing token every time:
+#   git config credential.helper store
+#   git pull   (enter username + token once, it's saved for future pulls)
+
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.traefik.yml"
+GITHUB_TOKEN="${1:-}"
 
 echo "╔══════════════════════════════════════════╗"
 echo "║         Jablu - Deploy Script            ║"
@@ -9,7 +18,12 @@ echo "╚═══════════════════════�
 echo ""
 
 echo "→ Pulling latest changes..."
-git pull
+if [ -n "$GITHUB_TOKEN" ]; then
+  REPO_URL=$(git remote get-url origin | sed 's|https://.*@|https://|' | sed 's|https://|https://'"$GITHUB_TOKEN"'@|')
+  git pull "$REPO_URL" "$(git branch --show-current)"
+else
+  git pull
+fi
 
 echo ""
 echo "→ Building and starting containers..."
