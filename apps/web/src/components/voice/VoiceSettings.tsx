@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { isElectron } from "@/lib/electron";
 import {
   getSavedAudioInput,
@@ -230,6 +230,9 @@ export function VoiceSettings() {
                   <span>Sensitive</span>
                   <span>Less sensitive</span>
                 </div>
+                <div className="mt-2">
+                  <MicLevelMeter deviceId={selectedInput} threshold={vadThreshold} />
+                </div>
               </>
             )}
           </div>
@@ -293,6 +296,93 @@ export function VoiceSettings() {
 
       <p className="text-xs text-gray-500">
         Camera resolution, background blur, and screen share quality can be configured when starting a call.
+      </p>
+    </div>
+  );
+}
+
+function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: number }) {
+  const [level, setLevel] = useState(0);
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    let running = true;
+
+    async function start() {
+      try {
+        const constraints: MediaStreamConstraints = {
+          audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (!running) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.2;
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        function tick() {
+          if (!running) return;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+          setLevel(sum / dataArray.length);
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+
+        cleanupRef.current = () => {
+          running = false;
+          source.disconnect();
+          audioCtx.close().catch(() => {});
+          stream.getTracks().forEach((t) => t.stop());
+        };
+      } catch {
+        // mic denied or unavailable
+      }
+    }
+
+    void start();
+
+    return () => {
+      running = false;
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+    };
+  }, [deviceId]);
+
+  const maxBar = 60;
+  const pct = Math.min((level / maxBar) * 100, 100);
+  const threshPct = Math.min((threshold / maxBar) * 100, 100);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 text-[11px] text-gray-500">
+        <span>Mic level:</span>
+        <span className="font-mono">{Math.round(level)}</span>
+      </div>
+      <div className="relative h-3 w-full overflow-hidden rounded-full bg-surface-darkest">
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-75 ${
+            level > threshold ? "bg-green-500" : "bg-gray-500"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className="absolute inset-y-0 w-0.5 bg-primary"
+          style={{ left: `${threshPct}%` }}
+          title={`Threshold: ${threshold}`}
+        />
+      </div>
+      <p className="text-[10px] text-gray-500">
+        The orange line is your threshold. Speak and adjust so green exceeds it.
       </p>
     </div>
   );
