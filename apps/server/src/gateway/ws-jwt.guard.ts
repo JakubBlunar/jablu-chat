@@ -11,7 +11,7 @@ import {
 import { Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type WsUser = { id: string; username: string; email: string };
+export type WsUser = { id: string; username: string; displayName: string | null; email: string };
 
 function extractToken(client: Socket): string | null {
   const auth = client.handshake.auth as Record<string, unknown> | undefined;
@@ -55,7 +55,7 @@ export class WsJwtGuard implements CanActivate {
     }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, username: true, email: true },
+      select: { id: true, username: true, displayName: true, email: true },
     });
     if (!user) {
       throw new WsException('Unauthorized');

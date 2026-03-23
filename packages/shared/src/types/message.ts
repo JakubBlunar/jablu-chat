@@ -13,6 +13,7 @@ export interface Message {
   author?: {
     id: string;
     username: string;
+    displayName?: string | null;
     avatarUrl: string | null;
   } | null;
   attachments?: Attachment[];
@@ -28,6 +29,7 @@ export interface MessagePreview {
   author: {
     id: string;
     username: string;
+    displayName?: string | null;
   } | null;
 }
 

@@ -250,11 +250,12 @@ function AccountSection() {
               />
             </div>
             <p className="mb-3 text-lg font-bold text-white">
-              {user?.username}
+              {user?.displayName ?? user?.username}
             </p>
           </div>
           <div className="mt-4 space-y-3 rounded-lg bg-surface-dark p-4">
             <InfoRow label="USERNAME" value={user?.username ?? ""} />
+            <InfoRow label="DISPLAY NAME" value={user?.displayName ?? user?.username ?? ""} />
             <InfoRow label="EMAIL" value={user?.email ?? ""} />
           </div>
         </div>
@@ -417,7 +418,7 @@ function ProfileSection() {
   const uploadAvatar = useAuthStore((s) => s.uploadAvatar);
   const deleteAvatar = useAuthStore((s) => s.deleteAvatar);
 
-  const [username, setUsername] = useState(user?.username ?? "");
+  const [displayName, setDisplayName] = useState(user?.displayName ?? user?.username ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -454,7 +455,7 @@ function ProfileSection() {
     setLoading(true);
     try {
       const data: Record<string, string> = {};
-      if (username !== user?.username) data.username = username;
+      if (displayName !== (user?.displayName ?? user?.username ?? "")) data.displayName = displayName;
       if (bio !== (user?.bio ?? "")) data.bio = bio;
       if (Object.keys(data).length > 0) {
         await updateProfile(data);
@@ -515,10 +516,18 @@ function ProfileSection() {
 
       {/* Profile form */}
       <form onSubmit={handleSave} className="space-y-3">
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">
+            USERNAME
+          </label>
+          <div className="w-full rounded-md border border-surface-darkest bg-surface-darkest/50 px-3 py-2 text-sm text-gray-500">
+            {user?.username}
+          </div>
+        </div>
         <SettingsInput
-          label="Username"
-          value={username}
-          onChange={setUsername}
+          label="Display Name"
+          value={displayName}
+          onChange={setDisplayName}
         />
         <div>
           <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">

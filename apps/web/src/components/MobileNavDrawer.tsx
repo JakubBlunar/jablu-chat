@@ -188,7 +188,7 @@ export function MobileNavDrawer() {
     (conv: (typeof conversations)[0]) => {
       if (conv.isGroup) {
         return {
-          name: conv.groupName || conv.members.map((m) => m.username).join(", "),
+          name: conv.groupName || conv.members.map((m) => m.displayName ?? m.username).join(", "),
           avatarUrl: null as string | null,
           status: "online" as const,
           isGroup: true,
@@ -196,7 +196,7 @@ export function MobileNavDrawer() {
       }
       const other = conv.members.find((m) => m.userId !== user?.id);
       return {
-        name: other?.username ?? "Unknown",
+        name: other?.displayName ?? other?.username ?? "Unknown",
         avatarUrl: other?.avatarUrl ?? null,
         status: (onlineIds.has(other?.userId ?? "") ? "online" : "offline") as "online" | "offline",
         isGroup: false,
@@ -473,7 +473,7 @@ export function MobileNavDrawer() {
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">
-                {user?.username ?? "..."}
+                {user?.displayName ?? user?.username ?? "..."}
               </p>
               <p className="truncate text-xs capitalize text-gray-400">
                 {user?.status ?? "online"}

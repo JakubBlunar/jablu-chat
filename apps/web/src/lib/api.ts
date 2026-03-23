@@ -67,6 +67,20 @@ export class ApiError extends Error {
   }
 }
 
+export type GifResult = {
+  id: string;
+  title: string;
+  url: string;
+  preview: string;
+  width: number;
+  height: number;
+};
+
+export type GifSearchResult = {
+  results: GifResult[];
+  next: string;
+};
+
 export class ApiClient {
   baseUrl = "";
   onAuthFailure: (() => void) | null = null;
@@ -232,8 +246,37 @@ export class ApiClient {
     return this.get<User>("/api/auth/me");
   }
 
-  searchUsers(q: string): Promise<{ id: string; username: string; avatarUrl: string | null }[]> {
+  searchUsers(q: string): Promise<
+    { id: string; username: string; displayName: string | null; avatarUrl: string | null }[]
+  > {
     return this.get(`/api/auth/users/search?q=${encodeURIComponent(q)}`);
+  }
+
+  getMutualServers(userId: string): Promise<{
+    servers: {
+      id: string;
+      name: string;
+      iconUrl: string | null;
+      channels: { id: string; name: string }[];
+    }[];
+  }> {
+    return this.get(`/api/users/${userId}/mutual-servers`);
+  }
+
+  getGifEnabled(): Promise<{ enabled: boolean }> {
+    return this.get("/api/gif/enabled");
+  }
+
+  searchGifs(q: string, limit = 20, offset?: string): Promise<GifSearchResult> {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    if (offset) params.set("offset", offset);
+    return this.get(`/api/gif/search?${params}`);
+  }
+
+  getTrendingGifs(limit = 20, offset?: string): Promise<GifSearchResult> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (offset) params.set("offset", offset);
+    return this.get(`/api/gif/trending?${params}`);
   }
 
   getVoiceToken(channelId: string): Promise<{ token: string; url: string; isAdmin: boolean }> {
@@ -543,7 +586,12 @@ export type SearchResult = {
   id: string;
   content: string | null;
   authorId: string | null;
-  author: { id: string; username: string; avatarUrl: string | null } | null;
+  author: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null;
   channelId: string | null;
   channel: { id: string; name: string; serverId: string } | null;
   dmConversationId: string | null;
@@ -559,7 +607,7 @@ export type AuditLogEntry = {
   targetId: string | null;
   details: string | null;
   createdAt: string;
-  actor: { id: string; username: string; avatarUrl: string | null } | null;
+  actor: { id: string; username: string; displayName: string | null; avatarUrl: string | null } | null;
 };
 
 export type DmConversation = {
@@ -570,6 +618,7 @@ export type DmConversation = {
   members: {
     userId: string;
     username: string;
+    displayName: string | null;
     avatarUrl: string | null;
     bio: string | null;
     status: string;

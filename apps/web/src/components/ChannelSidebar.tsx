@@ -514,7 +514,7 @@ export function ChannelSidebar() {
           />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">
-              {user?.username ?? "…"}
+              {user?.displayName ?? user?.username ?? "…"}
             </p>
             <p className="truncate text-xs text-gray-400 capitalize">
               {user?.status ?? "online"}

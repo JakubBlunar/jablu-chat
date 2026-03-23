@@ -37,6 +37,7 @@ export function MemberSidebar() {
       setCardUser({
         id: member.userId,
         username: member.user.username,
+        displayName: member.user.displayName,
         avatarUrl: member.user.avatarUrl,
         bio: member.user.bio ?? null,
         status: presence,
@@ -134,7 +135,7 @@ function MemberRow({
   dimmed: boolean;
   onClick: (member: Member, presence: UserStatus, rect: DOMRect) => void;
 }) {
-  const name = member.user.username;
+  const name = member.user.displayName ?? member.user.username;
   const badge = roleLabel(member.role);
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {

@@ -233,7 +233,7 @@ function MembersTab({ server }: { server: Server }) {
     async (member: Member) => {
       if (
         !confirm(
-          `Kick ${member.user.username} from the server?`,
+          `Kick ${member.user.displayName ?? member.user.username} from the server?`,
         )
       )
         return;
@@ -266,7 +266,7 @@ function MembersTab({ server }: { server: Server }) {
             />
             <div className="min-w-0 flex-1">
               <span className="text-sm font-medium text-white">
-                {m.user.username}
+                {m.user.displayName ?? m.user.username}
               </span>
               {m.role !== "member" && (
                 <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
@@ -580,7 +580,7 @@ function AuditLogTab({ server }: { server: Server }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-white">
                   <span className="font-semibold text-primary">
-                    {e.actor?.username ?? "Unknown"}
+                    {e.actor?.displayName ?? e.actor?.username ?? "Unknown"}
                   </span>
                   {" "}
                   <span className="font-medium">{e.action}</span>

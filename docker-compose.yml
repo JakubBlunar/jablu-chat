@@ -55,6 +55,7 @@ services:
       - CLEANUP_ORPHAN_HOURS=${CLEANUP_ORPHAN_HOURS:-24}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - GIPHY_API_KEY=${GIPHY_API_KEY:-}
     volumes:
       - uploads:/data/uploads
       - updates:/data/updates

@@ -15,6 +15,7 @@ type AdminServer = {
 type AdminUser = {
   id: string;
   username: string;
+  displayName: string | null;
   email: string;
   bio: string | null;
   avatarUrl: string | null;
@@ -750,6 +751,7 @@ function UsersTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     username: "",
+    displayName: "",
     email: "",
     bio: "",
   });
@@ -763,6 +765,7 @@ function UsersTab({
     setEditingId(user.id);
     setEditForm({
       username: user.username,
+      displayName: user.displayName ?? user.username,
       email: user.email,
       bio: user.bio ?? "",
     });
@@ -780,6 +783,7 @@ function UsersTab({
           method: "PATCH",
           body: {
             username: editForm.username.trim(),
+            displayName: editForm.displayName.trim(),
             email: editForm.email.trim(),
             bio: editForm.bio.trim(),
           },
@@ -900,6 +904,22 @@ function UsersTab({
                         setEditForm((f) => ({
                           ...f,
                           username: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Display Name
+                    </span>
+                    <input
+                      type="text"
+                      value={editForm.displayName}
+                      onChange={(e) =>
+                        setEditForm((f) => ({
+                          ...f,
+                          displayName: e.target.value,
                         }))
                       }
                       className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"

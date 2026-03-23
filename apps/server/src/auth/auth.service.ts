@@ -18,6 +18,7 @@ import { MailService } from './mail.service';
 const PROFILE_SELECT = {
   id: true,
   username: true,
+  displayName: true,
   email: true,
   avatarUrl: true,
   bio: true,
@@ -96,7 +97,7 @@ export class AuthService implements OnModuleInit {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.prisma.user.create({
-      data: { username, email, passwordHash },
+      data: { username, email, passwordHash, displayName: username },
       select: PROFILE_SELECT,
     });
 
@@ -235,17 +236,8 @@ export class AuthService implements OnModuleInit {
 
   async updateProfile(
     userId: string,
-    data: { username?: string; bio?: string },
+    data: { displayName?: string; bio?: string },
   ) {
-    if (data.username) {
-      const existing = await this.prisma.user.findFirst({
-        where: { username: data.username, NOT: { id: userId } },
-      });
-      if (existing) {
-        throw new ConflictException('Username already taken');
-      }
-    }
-
     return this.prisma.user.update({
       where: { id: userId },
       data,
@@ -345,7 +337,7 @@ export class AuthService implements OnModuleInit {
       where: {
         username: { contains: q, mode: 'insensitive' },
       },
-      select: { id: true, username: true, avatarUrl: true },
+      select: { id: true, username: true, displayName: true, avatarUrl: true },
       take: 20,
     });
   }

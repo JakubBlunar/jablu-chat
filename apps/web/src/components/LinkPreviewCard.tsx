@@ -1,5 +1,6 @@
 import type { LinkPreview } from "@chat/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 const YOUTUBE_PATTERNS = [
   /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
@@ -11,6 +12,97 @@ function extractYouTubeId(url: string): string | null {
     if (m?.[1]) return m[1];
   }
   return null;
+}
+
+function isGifUrl(lp: LinkPreview): boolean {
+  if (lp.siteName === "GIF") return true;
+  try {
+    const u = new URL(lp.url);
+    const path = u.pathname.toLowerCase();
+    if (path.endsWith(".gif")) return true;
+    if (u.hostname === "media.tenor.com") return true;
+    if (/^media\d*\.giphy\.com$/i.test(u.hostname)) return true;
+    if (u.hostname === "i.giphy.com") return true;
+  } catch {}
+  return false;
+}
+
+const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif", ".svg"]);
+
+function isImageUrl(lp: LinkPreview): boolean {
+  if (lp.siteName === "Image") return true;
+  try {
+    const path = new URL(lp.url).pathname.toLowerCase();
+    const ext = path.slice(path.lastIndexOf("."));
+    return IMAGE_EXTS.has(ext);
+  } catch {}
+  return false;
+}
+
+function LightboxOverlay({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
+      >
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    </div>,
+    document.body,
+  );
+}
+
+function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
+  const [lightbox, setLightbox] = useState(false);
+  const imgUrl = lp.imageUrl ?? lp.url;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="mt-1 block max-w-md overflow-hidden rounded-lg"
+        onClick={() => setLightbox(true)}
+      >
+        <img
+          src={imgUrl}
+          alt={lp.title ?? label}
+          className="max-h-[300px] rounded-lg object-contain"
+          loading="lazy"
+        />
+      </button>
+      {lightbox && (
+        <LightboxOverlay onClose={() => setLightbox(false)}>
+          <img
+            src={imgUrl}
+            alt={lp.title ?? label}
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+          />
+        </LightboxOverlay>
+      )}
+    </>
+  );
 }
 
 function YouTubeEmbed({ lp, videoId }: { lp: LinkPreview; videoId: string }) {
@@ -122,10 +214,8 @@ function DefaultPreview({ lp }: { lp: LinkPreview }) {
 
 export function LinkPreviewCard({ lp }: { lp: LinkPreview }) {
   const youtubeId = extractYouTubeId(lp.url);
-
-  if (youtubeId) {
-    return <YouTubeEmbed lp={lp} videoId={youtubeId} />;
-  }
-
+  if (youtubeId) return <YouTubeEmbed lp={lp} videoId={youtubeId} />;
+  if (isGifUrl(lp)) return <MediaEmbed lp={lp} label="GIF" />;
+  if (isImageUrl(lp)) return <MediaEmbed lp={lp} label="Image" />;
   return <DefaultPreview lp={lp} />;
 }

@@ -56,12 +56,9 @@ export class ResetPasswordDto {
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(32)
-  @Matches(/^[a-zA-Z0-9_-]+$/, {
-    message: 'Username can only contain letters, numbers, hyphens, and underscores',
-  })
-  username?: string;
+  displayName?: string;
 
   @IsOptional()
   @IsString()

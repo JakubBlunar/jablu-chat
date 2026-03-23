@@ -2,10 +2,11 @@ import type { Message, UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
-import { ChatInputBar } from "@/components/ChatInputBar";
+import { ChatInputBar, type MentionChannel } from "@/components/ChatInputBar";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
-import { MarkdownContent } from "@/components/MarkdownContent";
+import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
@@ -49,11 +50,60 @@ export function DmMessageArea() {
     if (currentConv.isGroup) {
       return (
         currentConv.groupName ||
-        currentConv.members.map((m) => m.username).join(", ")
+        currentConv.members.map((m) => m.displayName ?? m.username).join(", ")
       );
     }
-    return otherMember?.username ?? "Unknown";
+    return otherMember?.displayName ?? otherMember?.username ?? "Unknown";
   }, [currentConv, otherMember]);
+
+  type MutualServer = {
+    id: string;
+    name: string;
+    iconUrl: string | null;
+    channels: { id: string; name: string }[];
+  };
+  const [mutualServers, setMutualServers] = useState<MutualServer[]>([]);
+  useEffect(() => {
+    if (!otherMember) {
+      setMutualServers([]);
+      return;
+    }
+    let cancelled = false;
+    api.getMutualServers(otherMember.userId).then((res) => {
+      if (!cancelled) setMutualServers(res.servers);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [otherMember?.userId]);
+
+  const dmMentionChannels: MentionChannel[] = useMemo(
+    () =>
+      mutualServers.flatMap((s) =>
+        s.channels.map((c) => ({
+          id: c.id,
+          serverId: s.id,
+          name: c.name,
+          serverName: s.name,
+        })),
+      ),
+    [mutualServers],
+  );
+  const dmChannelRefs: ChannelRef[] = useMemo(
+    () =>
+      mutualServers.flatMap((s) =>
+        s.channels.map((c) => ({ id: c.id, serverId: s.id, name: c.name })),
+      ),
+    [mutualServers],
+  );
+  const { goToChannel } = useAppNavigate();
+  const handleChannelClick = useCallback(
+    (serverId: string, channelId: string) => goToChannel(serverId, channelId),
+    [goToChannel],
+  );
+
+  const [gifEnabled, setGifEnabled] = useState(false);
+  useEffect(() => {
+    api.getGifEnabled().then((r) => setGifEnabled(r.enabled)).catch(() => {});
+  }, []);
 
   const [showProfile, setShowProfile] = useState(false);
 
@@ -207,6 +257,8 @@ export function DmMessageArea() {
                         conversationId={currentConvId}
                         onReply={setReplyTarget}
                         onUserClick={handleUserClick}
+                        channels={dmChannelRefs}
+                        onChannelClick={handleChannelClick}
                       />
                     </div>
                   );
@@ -242,11 +294,13 @@ export function DmMessageArea() {
         replyTarget={replyTarget}
         onCancelReply={() => setReplyTarget(null)}
         onSent={stickToBottom}
+        channels={dmMentionChannels}
+        gifEnabled={gifEnabled}
       />
       </div>
 
       {showProfile && otherMember && (
-        <DmProfilePanel member={otherMember} />
+        <DmProfilePanel member={otherMember} mutualServers={mutualServers} />
       )}
 
       {cardUser && (
@@ -275,6 +329,8 @@ function DmMessageRow({
   conversationId,
   onReply,
   onUserClick,
+  channels,
+  onChannelClick,
 }: {
   message: Message;
   prevMessage?: Message;
@@ -282,6 +338,8 @@ function DmMessageRow({
   conversationId: string;
   onReply: (msg: Message) => void;
   onUserClick?: (authorId: string, rect: DOMRect) => void;
+  channels?: ChannelRef[];
+  onChannelClick?: (serverId: string, channelId: string) => void;
 }) {
   const userId = useAuthStore((s) => s.user?.id);
   const isAuthor = message.authorId === userId;
@@ -332,6 +390,8 @@ function DmMessageRow({
   }, [message.id, conversationId]);
 
   const reactions = message.reactions ?? [];
+  const authorLabel =
+    message.author?.displayName ?? message.author?.username ?? "Deleted User";
 
   return (
     <div
@@ -396,7 +456,9 @@ function DmMessageRow({
           <div className="mb-0.5 flex items-center gap-1 text-xs text-gray-400">
             <ReplyArrowIcon />
             <span className="font-medium text-gray-300">
-              {message.replyTo.author?.username ?? "Deleted User"}
+              {message.replyTo.author?.displayName ??
+                message.replyTo.author?.username ??
+                "Deleted User"}
             </span>
             <span className="truncate">
               {message.replyTo.content || "[attachment]"}
@@ -410,9 +472,9 @@ function DmMessageRow({
               type="button"
               onClick={handleAuthorClick}
               className="text-sm font-semibold hover:underline"
-              style={usernameAccentStyle(message.author?.username ?? "Deleted User")}
+              style={usernameAccentStyle(authorLabel)}
             >
-              {message.author?.username ?? "Deleted User"}
+              {authorLabel}
             </button>
             <time className="text-[11px] text-gray-400">{time}</time>
             {message.editedAt && (
@@ -439,7 +501,7 @@ function DmMessageRow({
             </p>
           </div>
         ) : message.content ? (
-          <MarkdownContent content={message.content} />
+          <MarkdownContent content={message.content} channels={channels} onChannelClick={onChannelClick} />
         ) : null}
 
         {message.attachments?.map((att) => (
@@ -549,13 +611,27 @@ function DmInput({
   replyTarget,
   onCancelReply,
   onSent,
+  channels,
+  gifEnabled,
 }: {
   conversationId: string;
   otherName: string;
   replyTarget: Message | null;
   onCancelReply: () => void;
   onSent?: () => void;
+  channels?: MentionChannel[];
+  gifEnabled?: boolean;
 }) {
+  const handleGifSelect = useCallback(
+    (url: string) => {
+      const socket = getSocket();
+      if (socket?.connected) {
+        socket.emit("dm:send", { conversationId, content: url });
+      }
+    },
+    [conversationId],
+  );
+
   const [text, setText] = useState("");
   const [files, setFiles] = useState<
     { file: File; preview: string; uploading: boolean }[]
@@ -623,7 +699,9 @@ function DmInput({
           <span>
             Replying to{" "}
             <strong className="text-white">
-              {replyTarget.author?.username ?? "Deleted User"}
+              {replyTarget.author?.displayName ??
+                replyTarget.author?.username ??
+                "Deleted User"}
             </strong>
           </span>
           <button
@@ -673,6 +751,9 @@ function DmInput({
         onTyping={emitTyping}
         onFilesPicked={addFiles}
         placeholder={`Message ${otherName}`}
+        channels={channels}
+        gifEnabled={gifEnabled}
+        onGifSelect={handleGifSelect}
       />
     </div>
   );
@@ -733,20 +814,24 @@ function formatDate(iso?: string): string {
 
 function DmProfilePanel({
   member,
+  mutualServers,
 }: {
   member: {
     userId: string;
     username: string;
+    displayName?: string | null;
     avatarUrl: string | null;
     bio: string | null;
     status: string;
     createdAt: string;
   };
+  mutualServers?: { id: string; name: string; iconUrl: string | null; channels: { id: string; name: string }[] }[];
 }) {
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
   const resolvedStatus: UserStatus = onlineIds.has(member.userId)
     ? ((member.status === "idle" || member.status === "dnd") ? member.status : "online")
     : "offline";
+  const { goToServer } = useAppNavigate();
 
   return (
     <div className="flex w-[280px] shrink-0 flex-col border-l border-white/5 bg-surface-dark">
@@ -765,7 +850,14 @@ function DmProfilePanel({
             </div>
           </div>
 
-          <h3 className="mt-1 text-lg font-bold text-white">{member.username}</h3>
+          <h3 className="mt-1 text-lg font-bold text-white">
+            {member.displayName ?? member.username}
+          </h3>
+          {member.displayName != null &&
+            member.displayName !== "" &&
+            member.displayName !== member.username && (
+              <p className="text-sm text-gray-400">@{member.username}</p>
+            )}
           <p className="text-xs text-gray-400">{statusLabel[resolvedStatus] ?? "Offline"}</p>
 
           <div className="my-3 border-t border-white/10" />
@@ -782,15 +874,51 @@ function DmProfilePanel({
           )}
 
           {member.createdAt && (
-            <div>
+            <div className="mb-3">
               <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
                 Member Since
               </p>
               <p className="text-sm text-gray-200">{formatDate(member.createdAt)}</p>
             </div>
           )}
+
+          {mutualServers && mutualServers.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Mutual Servers — {mutualServers.length}
+              </p>
+              <div className="space-y-1">
+                {mutualServers.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => goToServer(s.id)}
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition hover:bg-white/5"
+                  >
+                    <ServerIcon name={s.name} iconUrl={s.iconUrl} />
+                    <span className="min-w-0 truncate text-sm text-gray-200">
+                      {s.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </SimpleBar>
+    </div>
+  );
+}
+
+function ServerIcon({ name, iconUrl }: { name: string; iconUrl: string | null }) {
+  if (iconUrl) {
+    return (
+      <img src={iconUrl} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover" />
+    );
+  }
+  return (
+    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/30 text-[11px] font-bold text-white">
+      {name.charAt(0).toUpperCase()}
     </div>
   );
 }

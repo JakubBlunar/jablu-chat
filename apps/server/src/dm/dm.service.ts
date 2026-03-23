@@ -13,6 +13,7 @@ const memberSelect = {
     select: {
       id: true,
       username: true,
+      displayName: true,
       avatarUrl: true,
       bio: true,
       status: true,
@@ -24,6 +25,7 @@ const memberSelect = {
 const authorSelect = {
   id: true,
   username: true,
+  displayName: true,
   avatarUrl: true,
 } as const;
 
