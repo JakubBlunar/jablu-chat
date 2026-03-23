@@ -7,4 +7,5 @@ export interface Channel {
   type: ChannelType;
   position: number;
   createdAt: string;
+  pinnedCount?: number;
 }

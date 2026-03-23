@@ -11,6 +11,7 @@ type ChannelState = {
   getCurrentChannel: () => Channel | null;
   textChannels: () => Channel[];
   voiceChannels: () => Channel[];
+  adjustPinnedCount: (channelId: string, delta: number) => void;
 };
 
 function byPosition(a: Channel, b: Channel): number {
@@ -54,4 +55,13 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       .channels.filter((c) => c.type === "voice")
       .slice()
       .sort(byPosition),
+
+  adjustPinnedCount: (channelId, delta) =>
+    set((state) => ({
+      channels: state.channels.map((c) =>
+        c.id === channelId
+          ? { ...c, pinnedCount: Math.max(0, (c.pinnedCount ?? 0) + delta) }
+          : c,
+      ),
+    })),
 }));
