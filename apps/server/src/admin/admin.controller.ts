@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -514,6 +515,78 @@ export class AdminController {
     } catch {
       throw new NotFoundException('Audit not found');
     }
+  }
+
+  // ─── Audit Logs ───────────────────────────────────────────
+
+  @Get('audit-logs')
+  @UseGuards(AdminAuthGuard)
+  async listAuditLogs(
+    @Query('serverId') serverId?: string,
+    @Query('limit') limitStr?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    const limit = Math.min(Math.max(parseInt(limitStr ?? '50', 10) || 50, 1), 100);
+
+    const where: Record<string, unknown> = {};
+    if (serverId) where.serverId = serverId;
+    if (cursor) where.createdAt = { lt: new Date(cursor) };
+
+    const logs = await this.prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        actor: { select: { id: true, username: true, displayName: true } },
+        server: { select: { id: true, name: true } },
+      },
+    });
+
+    return {
+      logs,
+      nextCursor: logs.length === limit ? logs[logs.length - 1].createdAt.toISOString() : null,
+    };
+  }
+
+  // ─── User Sessions ──────────────────────────────────────
+
+  @Get('users/:id/sessions')
+  @UseGuards(AdminAuthGuard)
+  async listUserSessions(@Param('id', ParseUUIDPipe) userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    return this.prisma.refreshToken.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        userAgent: true,
+        ipAddress: true,
+        lastUsedAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Delete('users/:id/sessions/:sessionId')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revokeSession(
+    @Param('id', ParseUUIDPipe) userId: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+  ) {
+    const token = await this.prisma.refreshToken.findFirst({
+      where: { id: sessionId, userId },
+    });
+    if (!token) throw new NotFoundException('Session not found');
+    await this.prisma.refreshToken.delete({ where: { id: sessionId } });
+  }
+
+  @Delete('users/:id/sessions')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revokeAllSessions(@Param('id', ParseUUIDPipe) userId: string) {
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
   }
 
   // ─── Helpers ───────────────────────────────────────────────
