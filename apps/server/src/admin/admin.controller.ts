@@ -669,6 +669,91 @@ export class AdminController {
     await this.prisma.refreshToken.deleteMany({ where: { userId } });
   }
 
+  // ─── Message Moderation ──────────────────────────────────
+
+  @Get('messages')
+  @UseGuards(AdminAuthGuard)
+  async searchMessages(
+    @Query('q') query?: string,
+    @Query('channelId') channelId?: string,
+    @Query('authorId') authorId?: string,
+    @Query('limit') limitStr?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    const limit = Math.min(Math.max(parseInt(limitStr ?? '50', 10) || 50, 1), 100);
+
+    const where: Record<string, unknown> = { deleted: false };
+    if (channelId) where.channelId = channelId;
+    if (authorId) where.authorId = authorId;
+    if (query) where.content = { contains: query, mode: 'insensitive' };
+    if (cursor) where.createdAt = { lt: new Date(cursor) };
+
+    const messages = await this.prisma.message.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        author: { select: { id: true, username: true, displayName: true } },
+        channel: {
+          select: {
+            id: true,
+            name: true,
+            server: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    return {
+      messages,
+      nextCursor:
+        messages.length === limit
+          ? messages[messages.length - 1].createdAt
+          : null,
+    };
+  }
+
+  @Delete('messages/:id')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteMessage(@Param('id', ParseUUIDPipe) id: string) {
+    const msg = await this.prisma.message.findUnique({ where: { id } });
+    if (!msg) throw new NotFoundException('Message not found');
+    await this.prisma.message.update({
+      where: { id },
+      data: { deleted: true, content: null },
+    });
+  }
+
+  // ─── Webhooks Management ─────────────────────────────────
+
+  @Get('webhooks')
+  @UseGuards(AdminAuthGuard)
+  async listWebhooks() {
+    return this.prisma.webhook.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        channel: {
+          select: {
+            id: true,
+            name: true,
+            server: { select: { id: true, name: true } },
+          },
+        },
+        createdBy: { select: { id: true, username: true } },
+      },
+    });
+  }
+
+  @Delete('webhooks/:id')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteWebhook(@Param('id', ParseUUIDPipe) id: string) {
+    const wh = await this.prisma.webhook.findUnique({ where: { id } });
+    if (!wh) throw new NotFoundException('Webhook not found');
+    await this.prisma.webhook.delete({ where: { id } });
+  }
+
   // ─── Helpers ───────────────────────────────────────────────
 
   private async cleanupAndDeleteServer(serverId: string) {
