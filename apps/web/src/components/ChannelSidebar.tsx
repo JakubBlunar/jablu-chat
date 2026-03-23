@@ -6,7 +6,6 @@ import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
 import { NotifBellMenu } from "@/components/NotifBellMenu";
 import { ServerSettingsModal } from "@/components/ServerSettingsModal";
-import { SettingsModal } from "@/components/SettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
@@ -133,7 +132,7 @@ function GearSmallIcon() {
   );
 }
 
-export function ChannelSidebar() {
+export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const user = useAuthStore((s) => s.user);
 
   const currentServer = useServerStore((s) => {
@@ -176,15 +175,8 @@ export function ChannelSidebar() {
 
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    const handler = () => setSettingsOpen(true);
-    window.addEventListener("open-settings", handler);
-    return () => window.removeEventListener("open-settings", handler);
-  }, []);
 
   useEffect(() => {
     if (currentChannelId && !viewingVoiceRoom) {
@@ -523,7 +515,7 @@ export function ChannelSidebar() {
           <button
             type="button"
             title="User settings"
-            onClick={() => setSettingsOpen(true)}
+            onClick={onOpenSettings}
             className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <GearIcon />
@@ -534,10 +526,6 @@ export function ChannelSidebar() {
       <CreateChannelModal
         open={channelModalOpen}
         onClose={() => setChannelModalOpen(false)}
-      />
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
       />
       {inviteOpen && currentServer && (
         <InviteModal
