@@ -100,11 +100,14 @@ function GifPickerContent({
     [],
   );
 
-  useEffect(() => {
-    fetchGifs("");
-  }, [fetchGifs]);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      fetchGifs("");
+      return;
+    }
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setResults([]);
