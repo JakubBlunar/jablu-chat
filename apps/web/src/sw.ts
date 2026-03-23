@@ -88,11 +88,19 @@ self.addEventListener("notificationclick", (event) => {
   const absoluteUrl = new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-      for (const client of clients) {
-        if (new URL(client.url).origin === self.location.origin) {
-          await client.navigate(absoluteUrl);
-          return client.focus();
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windowClients) => {
+      for (const client of windowClients) {
+        if (new URL(client.url).origin !== self.location.origin) continue;
+        const wc = client as WindowClient;
+        try {
+          const focused = await wc.focus();
+          await focused.navigate(absoluteUrl);
+          return;
+        } catch {
+          try {
+            wc.postMessage({ type: "navigate", url: rawUrl });
+            return;
+          } catch { /* fall through to openWindow */ }
         }
       }
       return self.clients.openWindow(absoluteUrl);

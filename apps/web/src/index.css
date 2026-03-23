@@ -11,6 +11,13 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Prevent iOS Safari auto-zoom on input focus (triggers at <16px) */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  font-size: 1rem !important;
+}
+
 @supports (height: 100dvh) {
   .h-screen-safe {
     height: 100dvh;
