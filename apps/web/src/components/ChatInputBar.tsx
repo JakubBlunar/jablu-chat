@@ -278,6 +278,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
           onClick={detectTrigger}
+          onBlur={() => {
+            window.scrollTo(0, 0);
+          }}
         />
 
         {gifEnabled && onGifSelect && (
