@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { JoinInviteModal } from "@/components/JoinInviteModal";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useReadStateStore } from "@/stores/readState.store";
+import { useNotifPrefStore } from "@/stores/notifPref.store";
 import { useServerStore } from "@/stores/server.store";
 
 function DmIcon() {
@@ -36,9 +37,20 @@ export function ServerSidebar() {
   const { goToServer, goToDms } = useAppNavigate();
 
   const dmReadStates = useReadStateStore((s) => s.dms);
+  const channelReadStates = useReadStateStore((s) => s.channels);
+  const channelToServer = useReadStateStore((s) => s.channelToServer);
+  const getServerUnread = useReadStateStore((s) => s.getServerUnread);
+  const notifPrefs = useNotifPrefStore((s) => s.prefs);
+  const getNotifLevel = useNotifPrefStore((s) => s.get);
 
   const hasDmUnread = Array.from(dmReadStates.values()).some(
     (rs) => rs.unreadCount > 0,
+  );
+
+  const computeServerBadge = useCallback(
+    (serverId: string) => getServerUnread(serverId, getNotifLevel),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getServerUnread, getNotifLevel, channelReadStates, channelToServer, notifPrefs],
   );
 
   const [joinOpen, setJoinOpen] = useState(false);
@@ -88,6 +100,7 @@ export function ServerSidebar() {
               servers.map((server) => {
                 const active = viewMode === "server" && server.id === currentServerId;
                 const initial = server.name.trim().charAt(0).toUpperCase() || "?";
+                const badge = active ? null : computeServerBadge(server.id);
                 return (
                   <div key={server.id} className="group/pill relative flex w-full justify-center">
                     <span
@@ -96,26 +109,36 @@ export function ServerSidebar() {
                       }`}
                       aria-hidden
                     />
-                    <button
-                      type="button"
-                      onClick={() => goToServer(server.id)}
-                      title={server.name}
-                      className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
-                        active
-                          ? "rounded-2xl bg-primary"
-                          : "rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary"
-                      }`}
-                    >
-                      {server.iconUrl ? (
-                        <img
-                          src={server.iconUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        initial
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => goToServer(server.id)}
+                        title={server.name}
+                        className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
+                          active
+                            ? "rounded-2xl bg-primary"
+                            : "rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary"
+                        }`}
+                      >
+                        {server.iconUrl ? (
+                          <img
+                            src={server.iconUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          initial
+                        )}
+                      </button>
+                      {badge && badge.mentions > 0 && (
+                        <span className="absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white">
+                          {badge.mentions}
+                        </span>
                       )}
-                    </button>
+                      {badge && badge.unread && badge.mentions === 0 && (
+                        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface-darkest bg-red-500" />
+                      )}
+                    </div>
                   </div>
                 );
               })

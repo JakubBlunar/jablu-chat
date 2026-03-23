@@ -115,7 +115,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         const isMentioned = myId
           ? (msg.mentionedUserIds ?? []).includes(myId)
           : false;
-        useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned);
+        useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned, msg.serverId);
 
         const level = useNotifPrefStore.getState().get(msg.channelId);
         if (level !== "none" && (level !== "mentions" || isMentioned)) {

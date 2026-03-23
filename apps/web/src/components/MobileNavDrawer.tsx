@@ -16,6 +16,7 @@ import { useDmStore } from "@/stores/dm.store";
 import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useReadStateStore } from "@/stores/readState.store";
+import { useNotifPrefStore } from "@/stores/notifPref.store";
 import { type Server, useServerStore } from "@/stores/server.store";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 import { type VoiceParticipant, useVoiceStore } from "@/stores/voice.store";
@@ -93,6 +94,11 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
   const dmReadStates = useReadStateStore((s) => s.dms);
   const channelReadStates = useReadStateStore((s) => s.channels);
+  const notifPrefs = useNotifPrefStore((s) => s.prefs);
+  const getNotifLevel = useCallback(
+    (channelId: string) => (notifPrefs[channelId] ?? "all") as "all" | "mentions" | "none",
+    [notifPrefs],
+  );
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom);
   const voiceParticipants = useVoiceStore((s) => s.participants);
   const currentVoiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId);
@@ -312,7 +318,11 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
                   {textChannels.map((ch) => {
                     const active = ch.id === currentChannelId && !viewingVoiceRoom;
                     const rs = channelReadStates.get(ch.id);
-                    const hasUnread = !active && rs && rs.unreadCount > 0;
+                    const level = getNotifLevel(ch.id);
+                    const showUnreadDot = level === "all" && !active && rs != null && rs.unreadCount > 0;
+                    const showMentions = level !== "none" && !active && (rs?.mentionCount ?? 0) > 0;
+                    const mentionCount = showMentions ? rs!.mentionCount : 0;
+                    const hasIndicator = showUnreadDot || showMentions;
                     return (
                       <li key={ch.id}>
                         <div className="relative flex items-center">
@@ -322,17 +332,20 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
                             className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
                               active
                                 ? "bg-surface-selected text-white"
-                                : hasUnread
+                                : hasIndicator
                                   ? "font-semibold text-white hover:bg-white/[0.06]"
                                   : "text-gray-300 hover:bg-white/[0.06]"
                             }`}
                           >
                             <HashIcon />
                             <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                            {hasUnread && rs!.mentionCount > 0 && (
+                            {mentionCount > 0 && (
                               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                                {rs!.mentionCount}
+                                {mentionCount}
                               </span>
+                            )}
+                            {showUnreadDot && mentionCount === 0 && (
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
                             )}
                           </button>
                           {isAdminOrOwner && (

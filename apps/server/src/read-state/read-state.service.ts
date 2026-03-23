@@ -6,10 +6,17 @@ export class ReadStateService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAllForUser(userId: string) {
-    const [channels, dms] = await Promise.all([
-      this.prisma.channelReadState.findMany({ where: { userId } }),
+    const [channelRows, dms] = await Promise.all([
+      this.prisma.channelReadState.findMany({
+        where: { userId },
+        include: { channel: { select: { serverId: true } } },
+      }),
       this.prisma.dmReadState.findMany({ where: { userId } }),
     ]);
+    const channels = channelRows.map(({ channel, ...rs }) => ({
+      ...rs,
+      serverId: channel.serverId,
+    }));
     return { channels, dms };
   }
 

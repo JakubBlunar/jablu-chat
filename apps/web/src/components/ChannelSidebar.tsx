@@ -18,6 +18,7 @@ import { useServerStore } from "@/stores/server.store";
 import { type VoiceParticipant, useVoiceStore } from "@/stores/voice.store";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 import { useReadStateStore } from "@/stores/readState.store";
+import { useNotifPrefStore } from "@/stores/notifPref.store";
 import { DownloadAppBanner } from "@/components/DownloadApp";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 
@@ -172,6 +173,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
 
   const channelReadStates = useReadStateStore((s) => s.channels);
   const ackChannel = useReadStateStore((s) => s.ackChannel);
+  const notifPrefs = useNotifPrefStore((s) => s.prefs);
+  const getNotifLevel = useCallback(
+    (channelId: string) => notifPrefs[channelId] ?? "all",
+    [notifPrefs],
+  );
 
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -369,8 +375,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
             {textChannels.map((ch) => {
               const active = ch.id === currentChannelId && !viewingVoiceRoom;
               const rs = channelReadStates.get(ch.id);
-              const hasUnread = !active && rs && rs.unreadCount > 0;
-              const mentionCount = rs?.mentionCount ?? 0;
+              const level = getNotifLevel(ch.id);
+              const showUnreadDot = level === "all" && !active && rs != null && rs.unreadCount > 0;
+              const showMentions = level !== "none" && !active && (rs?.mentionCount ?? 0) > 0;
+              const mentionCount = showMentions ? rs!.mentionCount : 0;
+              const hasIndicator = showUnreadDot || showMentions;
               return (
                 <li key={ch.id}>
                   <div className="group/ch relative">
@@ -383,19 +392,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
                         active
                           ? "bg-surface-selected text-white"
-                          : hasUnread
+                          : hasIndicator
                             ? "font-semibold text-white hover:bg-white/[0.06]"
                             : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
                       }`}
                     >
                       <HashIcon />
                       <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                      {mentionCount > 0 && !active && (
+                      {mentionCount > 0 && (
                         <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                           {mentionCount}
                         </span>
                       )}
-                      {hasUnread && mentionCount === 0 && (
+                      {showUnreadDot && mentionCount === 0 && (
                         <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
                       )}
                     </button>
