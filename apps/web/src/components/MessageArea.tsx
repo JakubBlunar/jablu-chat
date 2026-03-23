@@ -3,11 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { DelayedRender } from "@/components/DelayedRender";
+import { EditChannelModal } from "@/components/EditChannelModal";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { MessageActions } from "@/components/MessageActions";
 import { MessageInput } from "@/components/MessageInput";
+import { NotifBellMenu } from "@/components/NotifBellMenu";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchDrawer } from "@/components/SearchDrawer";
@@ -37,6 +39,14 @@ function MembersToggleIcon() {
       <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
       <circle cx="8.5" cy="7" r="4" />
       <path d="M20 8v6M23 11h-6" />
+    </svg>
+  );
+}
+
+function ChannelSettingsIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 00-.49-.42h-3.84a.5.5 0 00-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.74 8.87c-.17.29-.11.67.19.86l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.17.29.49.38.78.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54a.5.5 0 00.49.42h3.84c.24 0 .45-.17.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.29.15.62.06.78-.22l1.92-3.32c.17-.29.11-.67-.19-.86l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
     </svg>
   );
 }
@@ -237,6 +247,8 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
     setPinnedOpen(false);
     setPinnedMessages([]);
   }, [channelId]);
+
+  const [editingChannel, setEditingChannel] = useState(false);
 
   const userId = useAuthStore((s) => s.user?.id);
   const myRole = useMemberStore((s) =>
@@ -511,6 +523,17 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
                 </span>
               )}
             </button>
+            <NotifBellMenu channelId={channel.id} />
+            {isAdminOrOwner && (
+              <button
+                type="button"
+                title="Channel settings"
+                onClick={() => setEditingChannel(true)}
+                className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+              >
+                <ChannelSettingsIcon />
+              </button>
+            )}
             <button
               type="button"
               title="Toggle member list"
@@ -557,6 +580,13 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
           memberSidebar
         )}
       </div>
+
+      {editingChannel && channel && (
+        <EditChannelModal
+          channel={channel}
+          onClose={() => setEditingChannel(false)}
+        />
+      )}
     </section>
   );
 }

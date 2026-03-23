@@ -81,11 +81,9 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
           e.stopPropagation();
           setOpen((p) => !p);
         }}
-        className={`rounded p-0.5 transition ${
-          isMuted || isMentions
-            ? "text-gray-500 opacity-100"
-            : "text-gray-400 opacity-0 group-hover/ch:opacity-100"
-        } hover:text-white`}
+        className={`rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white ${
+          isMuted ? "text-gray-500" : isMentions ? "text-yellow-500" : ""
+        }`}
       >
         {isMuted ? <BellMutedIcon /> : <BellIcon />}
       </button>

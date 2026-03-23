@@ -4,7 +4,6 @@ import SimpleBar from "simplebar-react";
 import { CreateChannelModal } from "@/components/CreateChannelModal";
 import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
-import { NotifBellMenu } from "@/components/NotifBellMenu";
 import { ServerSettingsModal } from "@/components/ServerSettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
@@ -408,49 +407,31 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               const hasIndicator = showUnreadDot || showMentions;
               return (
                 <li key={ch.id}>
-                  <div className="group/ch relative">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (currentServer) goToChannel(currentServer.id, ch.id);
-                        useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
-                      }}
-                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
-                        active
-                          ? "bg-surface-selected text-white"
-                          : hasIndicator
-                            ? "font-semibold text-white hover:bg-white/[0.06]"
-                            : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
-                      }`}
-                    >
-                      <HashIcon />
-                      <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                      {mentionCount > 0 && (
-                        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                          {mentionCount}
-                        </span>
-                      )}
-                      {showUnreadDot && mentionCount === 0 && (
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
-                      )}
-                    </button>
-                    <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
-                      <NotifBellMenu channelId={ch.id} />
-                      {isAdminOrOwner && (
-                        <button
-                          type="button"
-                          title="Edit channel"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingChannel(ch);
-                          }}
-                          className="rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
-                        >
-                          <GearSmallIcon />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentServer) goToChannel(currentServer.id, ch.id);
+                      useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
+                      active
+                        ? "bg-surface-selected text-white"
+                        : hasIndicator
+                          ? "font-semibold text-white hover:bg-white/[0.06]"
+                          : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
+                    }`}
+                  >
+                    <HashIcon />
+                    <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                    {mentionCount > 0 && (
+                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                        {mentionCount}
+                      </span>
+                    )}
+                    {showUnreadDot && mentionCount === 0 && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    )}
+                  </button>
                 </li>
               );
             })}
