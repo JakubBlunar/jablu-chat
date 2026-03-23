@@ -11,6 +11,7 @@ import {
   saveNotifSettings,
   requestPermission,
   subscribeToPush,
+  unsubscribeFromPush,
 } from "@/lib/notifications";
 import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
 import { useAuthStore } from "@/stores/auth.store";
@@ -628,10 +629,26 @@ function NotificationsSection() {
       .catch(() => setPushStatus("error"));
   }, []);
 
-  const toggle = (key: "enabled" | "soundEnabled") => {
+  const toggle = async (key: "enabled" | "soundEnabled") => {
     const next = { ...settings, [key]: !settings[key] };
     setSettings(next);
     saveNotifSettings(next);
+
+    if (key === "enabled" && accessToken) {
+      if (!next.enabled) {
+        try {
+          await unsubscribeFromPush(accessToken);
+          setPushStatus("inactive");
+        } catch { /* non-critical */ }
+      } else if (permStatus === "granted") {
+        try {
+          await subscribeToPush(accessToken);
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          setPushStatus(sub ? "active" : "inactive");
+        } catch { /* non-critical */ }
+      }
+    }
   };
 
   const handleRequestPermission = async () => {
