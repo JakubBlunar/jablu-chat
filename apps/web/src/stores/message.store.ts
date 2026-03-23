@@ -10,6 +10,7 @@ type TypingEntry = {
 type MessagesPage = {
   messages: Message[];
   hasMore: boolean;
+  hasNewer?: boolean;
 };
 
 type ReplyTarget = {
@@ -22,9 +23,13 @@ type MessageState = {
   messages: Message[];
   isLoading: boolean;
   hasMore: boolean;
+  hasNewer: boolean;
   typingUsers: Map<string, TypingEntry>;
   replyTarget: ReplyTarget;
+  scrollToMessageId: string | null;
   fetchMessages: (channelId: string, cursor?: string) => Promise<void>;
+  fetchMessagesAround: (channelId: string, messageId: string) => Promise<void>;
+  fetchNewerMessages: (channelId: string) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
   removeMessage: (messageId: string) => void;
@@ -33,6 +38,7 @@ type MessageState = {
   removeReaction: (messageId: string, emoji: string, userId: string) => void;
   setReplyTarget: (target: ReplyTarget) => void;
   setLinkPreviews: (messageId: string, linkPreviews: LinkPreview[]) => void;
+  setScrollToMessageId: (id: string | null) => void;
   setTypingUser: (
     channelId: string,
     userId: string,
@@ -49,8 +55,10 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   messages: [],
   isLoading: false,
   hasMore: false,
+  hasNewer: false,
   typingUsers: new Map(),
   replyTarget: null,
+  scrollToMessageId: null,
 
   fetchMessages: async (channelId, cursor) => {
     set({ isLoading: true });
@@ -82,11 +90,48 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     }
   },
 
+  fetchMessagesAround: async (channelId, messageId) => {
+    set({ isLoading: true });
+    try {
+      const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=50`;
+      const page = await api.get<MessagesPage>(path);
+      const chronological = toChronological(page.messages);
+      set({
+        messages: chronological,
+        hasMore: page.hasMore,
+        hasNewer: page.hasNewer ?? false,
+        isLoading: false,
+      });
+    } catch (e) {
+      set({ isLoading: false });
+      throw e;
+    }
+  },
+
+  fetchNewerMessages: async (channelId) => {
+    const { messages } = get();
+    if (!messages.length) return;
+    const newestId = messages[messages.length - 1].id;
+    set({ isLoading: true });
+    try {
+      const path = `/api/channels/${channelId}/messages?after=${newestId}&limit=50`;
+      const page = await api.get<MessagesPage>(path);
+      const chronological = toChronological(page.messages);
+      set((s) => ({
+        messages: [...s.messages, ...chronological],
+        hasNewer: page.hasNewer ?? false,
+        isLoading: false,
+      }));
+    } catch (e) {
+      set({ isLoading: false });
+      throw e;
+    }
+  },
+
   addMessage: (message) => {
     set((s) => {
-      if (s.messages.some((m) => m.id === message.id)) {
-        return s;
-      }
+      if (s.hasNewer) return s;
+      if (s.messages.some((m) => m.id === message.id)) return s;
       return { messages: [...s.messages, message] };
     });
   },
@@ -111,6 +156,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set({
       messages: [],
       hasMore: false,
+      hasNewer: false,
       typingUsers: new Map(),
       replyTarget: null,
     });
@@ -163,6 +209,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   setReplyTarget: (target) => set({ replyTarget: target }),
+  setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
 
   setLinkPreviews: (messageId, linkPreviews) => {
     set((s) => ({

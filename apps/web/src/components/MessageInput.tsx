@@ -32,6 +32,7 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
     s.currentChannelId ? s.channels.find((c) => c.id === s.currentChannelId) ?? null : null,
   );
   const channelId = channel?.id ?? null;
+  const [sizeError, setSizeError] = useState<string | null>(null);
 
   const typingNames = useMessageStore(
     useShallow((s) => {
@@ -152,8 +153,25 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
     onSent?.();
   }
 
-  function addFiles(newFiles: FileList | File[]) {
+  async function addFiles(newFiles: FileList | File[]) {
+    const maxMb = await api.getMaxUploadSizeMb();
+    const maxBytes = maxMb * 1024 * 1024;
     const arr = Array.from(newFiles);
+    const tooLarge = arr.filter((f) => f.size > maxBytes);
+    if (tooLarge.length > 0) {
+      setSizeError(`File too large. Max ${maxMb} MB allowed.`);
+      setTimeout(() => setSizeError(null), 5000);
+      const valid = arr.filter((f) => f.size <= maxBytes);
+      if (valid.length === 0) return;
+      const pending: PendingFile[] = valid.map((file) => ({
+        file,
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+        uploading: false,
+      }));
+      setFiles((prev) => [...prev, ...pending]);
+      return;
+    }
+    setSizeError(null);
     const pending: PendingFile[] = arr.map((file) => ({
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
@@ -229,6 +247,12 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
           >
             <XIcon />
           </button>
+        </div>
+      )}
+
+      {sizeError && (
+        <div className="mb-2 rounded bg-red-500/15 px-3 py-1.5 text-xs text-red-400">
+          {sizeError}
         </div>
       )}
 

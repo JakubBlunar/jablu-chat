@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { ChatInputBar, type ChatInputBarHandle, type MentionChannel } from "@/components/ChatInputBar";
+import { DelayedRender } from "@/components/DelayedRender";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
@@ -229,9 +230,11 @@ export function DmMessageArea() {
         >
           <div ref={contentRef}>
             {isLoading && messages.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
-              </div>
+              <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
+                <div className="flex flex-1 items-center justify-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+                </div>
+              </DelayedRender>
             ) : (
               <>
                 {hasMore && (
@@ -682,12 +685,22 @@ function DmInput({
     onSent?.();
   }, [text, files, conversationId, replyTarget, onCancelReply, onSent]);
 
-  const addFiles = useCallback((fileList: FileList) => {
-    const newFiles = Array.from(fileList).map((file) => ({
+  const [sizeError, setSizeError] = useState<string | null>(null);
+
+  const addFiles = useCallback(async (fileList: FileList) => {
+    const maxMb = await api.getMaxUploadSizeMb();
+    const maxBytes = maxMb * 1024 * 1024;
+    const arr = Array.from(fileList);
+    const tooLarge = arr.filter((f) => f.size > maxBytes);
+    if (tooLarge.length > 0) {
+      setSizeError(`File too large. Max ${maxMb} MB allowed.`);
+      setTimeout(() => setSizeError(null), 5000);
+    }
+    const valid = tooLarge.length > 0 ? arr.filter((f) => f.size <= maxBytes) : arr;
+    if (valid.length === 0) return;
+    const newFiles = valid.map((file) => ({
       file,
-      preview: file.type.startsWith("image/")
-        ? URL.createObjectURL(file)
-        : "",
+      preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
       uploading: false,
     }));
     setFiles((prev) => [...prev, ...newFiles]);
@@ -717,6 +730,12 @@ function DmInput({
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {sizeError && (
+        <div className="mb-2 rounded bg-red-500/15 px-3 py-1.5 text-xs text-red-400">
+          {sizeError}
         </div>
       )}
 

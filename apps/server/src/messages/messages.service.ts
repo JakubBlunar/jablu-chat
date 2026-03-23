@@ -182,6 +182,114 @@ export class MessagesService {
     };
   }
 
+  async getMessagesAround(
+    channelId: string,
+    userId: string,
+    messageId: string,
+    limit = 50,
+  ) {
+    await this.requireTextChannelMember(channelId, userId);
+    const half = Math.floor(Math.min(Math.max(1, limit), 100) / 2);
+
+    const anchor = await this.prisma.message.findFirst({
+      where: { id: messageId, channelId, deleted: false },
+    });
+    if (!anchor) {
+      return this.getMessages(channelId, userId, undefined, limit);
+    }
+
+    const [before, after] = await Promise.all([
+      this.prisma.message.findMany({
+        where: {
+          channelId,
+          deleted: false,
+          OR: [
+            { createdAt: { lt: anchor.createdAt } },
+            { AND: [{ createdAt: anchor.createdAt }, { id: { lt: anchor.id } }] },
+          ],
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: half,
+        include: messageInclude,
+      }),
+      this.prisma.message.findMany({
+        where: {
+          channelId,
+          deleted: false,
+          OR: [
+            { createdAt: { gt: anchor.createdAt } },
+            { AND: [{ createdAt: anchor.createdAt }, { id: { gt: anchor.id } }] },
+          ],
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: half,
+        include: messageInclude,
+      }),
+    ]);
+
+    const anchorRow = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: messageInclude,
+    });
+
+    const allDesc = [
+      ...after.reverse(),
+      ...(anchorRow ? [anchorRow] : []),
+      ...before,
+    ];
+
+    return {
+      messages: allDesc.map((m) => this.mapToWire(m)),
+      hasMore: before.length >= half,
+      hasNewer: after.length >= half,
+    };
+  }
+
+  async getMessagesAfter(
+    channelId: string,
+    userId: string,
+    afterId: string,
+    limit = 50,
+  ) {
+    await this.requireTextChannelMember(channelId, userId);
+    const take = Math.min(Math.max(1, limit), 100);
+
+    const afterMsg = await this.prisma.message.findFirst({
+      where: { id: afterId, channelId, deleted: false },
+    });
+    if (!afterMsg) {
+      throw new BadRequestException('Invalid after cursor');
+    }
+
+    const rows = await this.prisma.message.findMany({
+      where: {
+        channelId,
+        deleted: false,
+        OR: [
+          { createdAt: { gt: afterMsg.createdAt } },
+          {
+            AND: [
+              { createdAt: afterMsg.createdAt },
+              { id: { gt: afterMsg.id } },
+            ],
+          },
+        ],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: take + 1,
+      include: messageInclude,
+    });
+
+    const hasNewer = rows.length > take;
+    const page = hasNewer ? rows.slice(0, take) : rows;
+    // Return in desc order for consistency with other endpoints
+    return {
+      messages: page.reverse().map((m) => this.mapToWire(m)),
+      hasMore: false,
+      hasNewer,
+    };
+  }
+
   async createMessage(
     channelId: string,
     userId: string,

@@ -32,6 +32,22 @@ export class MessagesController {
     @Query() query: MessageQueryDto,
   ) {
     const limit = query.limit ?? 50;
+    if (query.around) {
+      return this.messages.getMessagesAround(
+        channelId,
+        user.id,
+        query.around,
+        limit,
+      );
+    }
+    if (query.after) {
+      return this.messages.getMessagesAfter(
+        channelId,
+        user.id,
+        query.after,
+        limit,
+      );
+    }
     return this.messages.getMessages(
       channelId,
       user.id,

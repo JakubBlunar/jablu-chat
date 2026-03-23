@@ -35,6 +35,12 @@ class SearchQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
 }
 
 @Controller('search')
@@ -54,6 +60,7 @@ export class SearchController {
       query.channelId,
       query.dmOnly === 'true',
       query.limit,
+      query.offset,
     );
   }
 }

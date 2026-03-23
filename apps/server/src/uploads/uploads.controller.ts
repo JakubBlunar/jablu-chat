@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
@@ -20,16 +21,27 @@ import { UploadsService } from './uploads.service';
 
 @Controller('uploads')
 export class UploadsController {
+  private readonly maxSizeBytes: number;
+
   constructor(
     private readonly uploads: UploadsService,
     private readonly prisma: PrismaService,
-  ) {}
+    config: ConfigService,
+  ) {
+    const mb = config.get<number>('MAX_UPLOAD_SIZE_MB', 50);
+    this.maxSizeBytes = mb * 1024 * 1024;
+  }
+
+  @Get('config')
+  getConfig() {
+    return { maxSizeMb: this.uploads.getMaxSizeMb() };
+  }
 
   @Post('attachments')
   @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 50 * 1024 * 1024 },
+      limits: { fileSize: 200 * 1024 * 1024 },
     }),
   )
   async uploadAttachment(
