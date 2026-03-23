@@ -18,6 +18,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ChannelType, ServerRole } from '@prisma/client';
 import * as crypto from 'crypto';
+import { MailService } from '../auth/mail.service';
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
@@ -53,6 +54,7 @@ export class AdminController {
     private readonly uploads: UploadsService,
     private readonly cleanup: CleanupService,
     private readonly push: PushService,
+    private readonly mail: MailService,
     private readonly rateLimiter: AdminRateLimiter,
     private readonly tokenStore: AdminTokenStore,
   ) {
@@ -426,11 +428,12 @@ export class AdminController {
     }
 
     const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const email = dto.email.toLowerCase().trim();
 
-    return this.prisma.registrationInvite.create({
+    const invite = await this.prisma.registrationInvite.create({
       data: {
         code,
-        email: dto.email.toLowerCase().trim(),
+        email,
         serverId: dto.serverId ?? null,
       },
       include: {
@@ -438,6 +441,15 @@ export class AdminController {
         usedBy: { select: { id: true, username: true } },
       },
     });
+
+    const serverHost = this.config.get<string>('SERVER_HOST', 'localhost');
+    const tlsMode = this.config.get<string>('TLS_MODE', 'off');
+    const protocol = tlsMode === 'off' ? 'http' : 'https';
+    const registerUrl = `${protocol}://${serverHost}/register?email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`;
+
+    void this.mail.sendInvite(email, code, registerUrl);
+
+    return invite;
   }
 
   @Delete('invites/:id')

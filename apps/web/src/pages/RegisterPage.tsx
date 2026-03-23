@@ -1,21 +1,22 @@
 import { registerSchema } from "@chat/shared";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "../components/AuthLayout";
 import { api, ApiError } from "../lib/api";
 import { useAuthStore } from "../stores/auth.store";
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isAuthLoading = useAuthStore((s) => s.isLoading);
   const register = useAuthStore((s) => s.register);
 
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState(() => searchParams.get("code") ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [regMode, setRegMode] = useState<"open" | "invite">("open");

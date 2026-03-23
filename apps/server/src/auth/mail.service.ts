@@ -98,4 +98,50 @@ export class MailService {
       this.logger.error(`Failed to send password reset email to ${to}`, error);
     }
   }
+
+  async sendInvite(
+    to: string,
+    code: string,
+    registerUrl: string,
+  ): Promise<void> {
+    const name = this.appName;
+    try {
+      await this.transporter.sendMail({
+        from: this.from,
+        to,
+        subject: `You've been invited to ${name}!`,
+        html: this.wrap(`
+          <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#ffffff">You&rsquo;re Invited!</h2>
+          <p style="margin:0 0 24px;font-size:15px;color:#d1d5db;line-height:1.6">
+            An administrator has invited you to join <strong style="color:#ffffff">${name}</strong>.
+            Click the button below to create your account.
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px">
+            <tr><td align="center" style="background-color:#F59E0B;border-radius:8px">
+              <a href="${registerUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#1a1a2e;text-decoration:none">
+                Create Account
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 16px;font-size:13px;color:#9ca3af;line-height:1.5">
+            Your invite code is:
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px">
+            <tr><td style="background-color:#1a1a2e;border-radius:8px;padding:12px 24px;text-align:center">
+              <span style="font-size:22px;font-weight:700;color:#F59E0B;letter-spacing:4px;font-family:monospace">${code}</span>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.5">
+            You can also enter this code manually on the registration page.
+          </p>
+          <p style="margin:16px 0 0;font-size:12px;color:#6b7280;word-break:break-all">
+            <a href="${registerUrl}" style="color:#F59E0B">${registerUrl}</a>
+          </p>
+        `),
+      });
+      this.logger.log(`Invite email sent to ${to}`);
+    } catch (error) {
+      this.logger.error(`Failed to send invite email to ${to}`, error);
+    }
+  }
 }
