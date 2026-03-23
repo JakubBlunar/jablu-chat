@@ -299,7 +299,7 @@ export class ChatGateway
       this.sendPushToOfflineMembers(
         channel.serverId,
         user.id,
-        msg.author?.username ?? 'Someone',
+        msg.author?.displayName ?? msg.author?.username ?? 'Someone',
         body.content,
         `/channels/${body.channelId}`,
         body.channelId,
@@ -457,7 +457,7 @@ export class ChatGateway
     this.emitToChannel(body.channelId, 'user:typing', {
       userId: user.id,
       channelId: body.channelId,
-      username: user.username,
+      username: user.displayName ?? user.username,
     });
     return { ok: true };
   }
@@ -525,7 +525,7 @@ export class ChatGateway
       (id) => !this.onlineUsers.has(id),
     );
     if (offlineDmMembers.length > 0) {
-      const authorName = msg.author?.username ?? 'Someone';
+      const authorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone';
       const preview = body.content?.slice(0, 100) || '[attachment]';
       this.push
         .sendToUsers(offlineDmMembers, {
@@ -587,7 +587,7 @@ export class ChatGateway
     client.to(`dm:${body.conversationId}`).emit('dm:typing', {
       userId: user.id,
       conversationId: body.conversationId,
-      username: user.username,
+      username: user.displayName ?? user.username,
     });
     return { ok: true };
   }
@@ -645,7 +645,7 @@ export class ChatGateway
     }
     participants.set(client.id, {
       userId: user.id,
-      username: user.username,
+      username: user.displayName ?? user.username,
     });
     this.socketVoiceChannel.set(client.id, body.channelId);
 
@@ -653,7 +653,7 @@ export class ChatGateway
       this.server.to(`server:${sid}`).emit('voice:participant-joined', {
         channelId: body.channelId,
         userId: user.id,
-        username: user.username,
+        username: user.displayName ?? user.username,
       });
     }
 

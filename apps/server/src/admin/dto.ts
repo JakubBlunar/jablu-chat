@@ -24,6 +24,11 @@ export class AdminUpdateUserDto {
   username?: string;
 
   @IsOptional()
+  @IsString()
+  @Length(1, 32)
+  displayName?: string;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 

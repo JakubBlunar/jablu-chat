@@ -39,7 +39,7 @@ export function DmSidebar() {
     (conv: (typeof conversations)[0]) => {
       if (conv.isGroup) {
         return {
-          name: conv.groupName || conv.members.map((m) => m.username).join(", "),
+          name: conv.groupName || conv.members.map((m) => m.displayName ?? m.username).join(", "),
           avatarUrl: null,
           status: "online" as const,
           isGroup: true,
@@ -47,7 +47,7 @@ export function DmSidebar() {
       }
       const other = conv.members.find((m) => m.userId !== user?.id);
       return {
-        name: other?.username ?? "Unknown",
+        name: other?.displayName ?? other?.username ?? "Unknown",
         avatarUrl: other?.avatarUrl ?? null,
         status: (onlineIds.has(other?.userId ?? "")
           ? "online"
@@ -151,7 +151,7 @@ export function DmSidebar() {
         />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">
-            {user?.username ?? "…"}
+            {user?.displayName ?? user?.username ?? "…"}
           </p>
           <p className="truncate text-xs capitalize text-gray-400">
             {user?.status ?? "online"}
@@ -182,7 +182,9 @@ function GroupDmModal({
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const [results, setResults] = useState<{ id: string; username: string; avatarUrl: string | null }[]>([]);
+  const [results, setResults] = useState<
+    { id: string; username: string; displayName: string | null; avatarUrl: string | null }[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -239,7 +241,7 @@ function GroupDmModal({
               const u = results.find((r) => r.id === id);
               return (
                 <span key={id} className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary">
-                  {u?.username ?? id.slice(0, 8)}
+                  {u?.displayName ?? u?.username ?? id.slice(0, 8)}
                   <button type="button" onClick={() => toggle(id)} className="hover:text-white">✕</button>
                 </span>
               );
@@ -259,7 +261,7 @@ function GroupDmModal({
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-gray-200 hover:bg-white/5"
               >
                 <UserAvatar username={r.username} avatarUrl={r.avatarUrl} size="sm" />
-                {r.username}
+                {r.displayName ?? r.username}
               </button>
             ))}
         </SimpleBar>

@@ -29,7 +29,7 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
     useMessageStore.getState().setReplyTarget({
       id: message.id,
       content: message.content,
-      authorName: message.author?.username ?? "Deleted User",
+      authorName: message.author?.displayName ?? message.author?.username ?? "Deleted User",
     });
   }, [message]);
 

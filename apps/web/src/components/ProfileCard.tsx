@@ -12,6 +12,7 @@ import { useDmStore } from "@/stores/dm.store";
 export type ProfileCardUser = {
   id: string;
   username: string;
+  displayName?: string | null;
   avatarUrl?: string | null;
   bio?: string | null;
   status: UserStatus;
@@ -116,6 +117,12 @@ export function ProfileCard({
   );
 }
 
+type MutualServer = {
+  id: string;
+  name: string;
+  iconUrl: string | null;
+};
+
 function ProfileCardContent({
   user,
   badge,
@@ -125,12 +132,23 @@ function ProfileCardContent({
   badge: string | null;
   onClose: () => void;
 }) {
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [mutualServers, setMutualServers] = useState<MutualServer[]>([]);
+  const { goToServer } = useAppNavigate();
+
+  useEffect(() => {
+    if (!user.id || user.id === currentUserId) return;
+    let cancelled = false;
+    api.getMutualServers(user.id).then((res) => {
+      if (!cancelled) setMutualServers(res.servers);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [user.id, currentUserId]);
+
   return (
     <>
-      {/* Banner */}
       <div className="h-16 bg-primary" />
 
-      {/* Avatar */}
       <div className="px-4 pb-3">
         <div className="-mt-8">
           <div className="inline-block rounded-full border-[5px] border-surface-overlay">
@@ -144,9 +162,8 @@ function ProfileCardContent({
           </div>
         </div>
 
-        {/* Name & role */}
         <div className="mt-1 flex items-center gap-2">
-          <h3 className="text-lg font-bold text-white">{user.username}</h3>
+          <h3 className="text-lg font-bold text-white">{user.displayName ?? user.username}</h3>
           {badge && (
             <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
               {badge}
@@ -154,12 +171,13 @@ function ProfileCardContent({
           )}
         </div>
 
+        {user.displayName && user.displayName !== user.username && (
+          <p className="text-xs text-gray-400">@{user.username}</p>
+        )}
         <p className="text-xs text-gray-400">{statusLabel[user.status]}</p>
 
-        {/* Divider */}
         <div className="my-3 border-t border-white/10" />
 
-        {/* Bio */}
         {user.bio && (
           <div className="mb-3">
             <p className="mb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">
@@ -171,9 +189,8 @@ function ProfileCardContent({
           </div>
         )}
 
-        {/* Member since */}
         {user.joinedAt && (
-          <div>
+          <div className="mb-3">
             <p className="mb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">
               MEMBER SINCE
             </p>
@@ -181,10 +198,45 @@ function ProfileCardContent({
           </div>
         )}
 
-        {/* Message button */}
+        {mutualServers.length > 0 && (
+          <div className="mb-3">
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">
+              MUTUAL SERVERS — {mutualServers.length}
+            </p>
+            <div className="space-y-0.5">
+              {mutualServers.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => { goToServer(s.id); onClose(); }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1 text-left transition hover:bg-white/5"
+                >
+                  <ServerIcon name={s.name} iconUrl={s.iconUrl} />
+                  <span className="min-w-0 truncate text-sm text-gray-200">
+                    {s.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <SendDmButton userId={user.id} onClose={onClose} />
       </div>
     </>
+  );
+}
+
+function ServerIcon({ name, iconUrl }: { name: string; iconUrl: string | null }) {
+  if (iconUrl) {
+    return (
+      <img src={iconUrl} alt={name} className="h-5 w-5 shrink-0 rounded-full object-cover" />
+    );
+  }
+  return (
+    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/30 text-[10px] font-bold text-white">
+      {name.charAt(0).toUpperCase()}
+    </div>
   );
 }
 

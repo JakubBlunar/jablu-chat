@@ -105,7 +105,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
         const level = useNotifPrefStore.getState().get(msg.channelId);
         if (level !== "none" && (level !== "mentions" || isMentioned)) {
-          const author = msg.author?.username ?? "Someone";
+          const author = msg.author?.displayName ?? msg.author?.username ?? "Someone";
           const body = msg.content?.slice(0, 100) ?? "[attachment]";
           const url = msg.serverId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined;
           showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`, url);
@@ -203,7 +203,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         useDmStore.getState().addMessage(payload);
       } else if (payload.authorId !== myId) {
         useReadStateStore.getState().incrementDm(payload.conversationId);
-        const author = payload.author?.username ?? "Someone";
+        const author = payload.author?.displayName ?? payload.author?.username ?? "Someone";
         const body = payload.content?.slice(0, 100) ?? "[attachment]";
         const url = `/channels/@me/${payload.conversationId}`;
         showNotification("Direct Message", `${author}: ${body}`, url);

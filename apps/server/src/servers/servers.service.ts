@@ -11,6 +11,7 @@ import { AuditLogService } from './audit-log.service';
 const memberUserSelect = {
   id: true,
   username: true,
+  displayName: true,
   email: true,
   avatarUrl: true,
   bio: true,

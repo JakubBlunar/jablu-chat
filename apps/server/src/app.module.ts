@@ -7,6 +7,7 @@ import { CleanupModule } from './cleanup/cleanup.module';
 import { DownloadsModule } from './downloads/downloads.module';
 import { DmModule } from './dm/dm.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { GifModule } from './gif/gif.module';
 import { HealthModule } from './health/health.module';
 import { InvitesModule } from './invites/invites.module';
 import { MessagesModule } from './messages/messages.module';
@@ -47,6 +48,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     DownloadsModule,
     ReadStateModule,
     PushModule,
+    GifModule,
     GatewayModule,
   ],
 })

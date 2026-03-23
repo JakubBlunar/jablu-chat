@@ -308,6 +308,7 @@ export class AdminController {
       select: {
         id: true,
         username: true,
+        displayName: true,
         email: true,
         bio: true,
         avatarUrl: true,
@@ -349,6 +350,7 @@ export class AdminController {
 
     const data: Record<string, unknown> = {};
     if (dto.username !== undefined) data.username = dto.username;
+    if (dto.displayName !== undefined) data.displayName = dto.displayName || null;
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.bio !== undefined) data.bio = dto.bio || null;
 
@@ -358,6 +360,7 @@ export class AdminController {
       select: {
         id: true,
         username: true,
+        displayName: true,
         email: true,
         bio: true,
         avatarUrl: true,

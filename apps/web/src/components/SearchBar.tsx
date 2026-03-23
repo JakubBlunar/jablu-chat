@@ -158,7 +158,7 @@ export function SearchBar() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-medium text-white">
-                        {r.author?.username ?? "Deleted User"}
+                        {r.author?.displayName ?? r.author?.username ?? "Deleted User"}
                       </span>
                       {r.channel ? (
                         <span className="text-xs text-gray-500">

@@ -67,32 +67,43 @@ export class ReadStateService {
   }
 
   /**
-   * Parse @username mentions from message content and return matching user IDs
+   * Parse @mentions from message content and return matching user IDs
    * that are members of the given server.
+   *
+   * Supports: @username, @DisplayName (single word), @"Display Name" (quoted, multi-word).
+   * Matches against both username and displayName (case-insensitive).
    */
   async resolveMentions(
     content: string,
     serverId: string,
     excludeUserId: string,
   ): Promise<string[]> {
-    const mentionPattern = /@(\w+)/g;
-    const usernames = new Set<string>();
+    const mentions = new Set<string>();
+
+    const quotedPattern = /@"([^"]+)"/g;
     let match: RegExpExecArray | null;
-    while ((match = mentionPattern.exec(content)) !== null) {
-      usernames.add(match[1].toLowerCase());
+    while ((match = quotedPattern.exec(content)) !== null) {
+      mentions.add(match[1].toLowerCase());
     }
-    if (usernames.size === 0) return [];
+
+    const wordPattern = /@(\w+)/g;
+    while ((match = wordPattern.exec(content)) !== null) {
+      mentions.add(match[1].toLowerCase());
+    }
+
+    if (mentions.size === 0) return [];
 
     const members = await this.prisma.serverMember.findMany({
       where: { serverId },
-      include: { user: { select: { id: true, username: true } } },
+      include: { user: { select: { id: true, username: true, displayName: true } } },
     });
 
     return members
       .filter(
         (m) =>
           m.userId !== excludeUserId &&
-          usernames.has(m.user.username.toLowerCase()),
+          (mentions.has(m.user.username.toLowerCase()) ||
+            (m.user.displayName && mentions.has(m.user.displayName.toLowerCase()))),
       )
       .map((m) => m.userId);
   }

@@ -45,6 +45,36 @@ export class LinkPreviewService {
 
     for (const url of urls) {
       try {
+        if (this.isGifUrl(url)) {
+          const preview = await this.prisma.linkPreview.create({
+            data: {
+              messageId,
+              url,
+              title: 'GIF',
+              description: null,
+              imageUrl: url,
+              siteName: 'GIF',
+            },
+          });
+          previews.push(preview);
+          continue;
+        }
+
+        if (this.isImageUrl(url)) {
+          const preview = await this.prisma.linkPreview.create({
+            data: {
+              messageId,
+              url,
+              title: 'Image',
+              description: null,
+              imageUrl: url,
+              siteName: 'Image',
+            },
+          });
+          previews.push(preview);
+          continue;
+        }
+
         const meta = await this.fetchOgMeta(url);
         if (!meta.title && !meta.description) continue;
 
@@ -65,6 +95,30 @@ export class LinkPreviewService {
     }
 
     return previews;
+  }
+
+  private isGifUrl(url: string): boolean {
+    try {
+      const u = new URL(url);
+      const path = u.pathname.toLowerCase();
+      if (path.endsWith('.gif')) return true;
+      if (u.hostname === 'media.tenor.com' && /\.(gif|mp4)$/i.test(path)) return true;
+      if (/^media\d*\.giphy\.com$/i.test(u.hostname)) return true;
+      if (u.hostname === 'i.giphy.com') return true;
+    } catch {}
+    return false;
+  }
+
+  private static readonly IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.svg']);
+
+  private isImageUrl(url: string): boolean {
+    try {
+      const u = new URL(url);
+      const path = u.pathname.toLowerCase();
+      const ext = path.slice(path.lastIndexOf('.'));
+      return LinkPreviewService.IMAGE_EXTS.has(ext);
+    } catch {}
+    return false;
   }
 
   private async fetchOgMeta(url: string): Promise<{

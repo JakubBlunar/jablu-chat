@@ -1,9 +1,10 @@
 import type { Message, UserStatus } from "@chat/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
-import { MarkdownContent } from "@/components/MarkdownContent";
+import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
+import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { MessageActions } from "@/components/MessageActions";
 import { MessageInput } from "@/components/MessageInput";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
@@ -156,6 +157,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
       setCardUser({
         id: member.userId,
         username: member.user.username,
+        displayName: member.user.displayName,
         avatarUrl: member.user.avatarUrl,
         bio: member.user.bio,
         status,
@@ -165,6 +167,43 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
       setCardRect(rect);
     },
     [members, onlineIds],
+  );
+
+  const handleMentionClick = useCallback(
+    (username: string, rect: DOMRect) => {
+      const member = members.find(
+        (m) => m.user.username.toLowerCase() === username.toLowerCase(),
+      );
+      if (!member) return;
+      const status: UserStatus = (member.user.status as UserStatus) ??
+        (onlineIds.has(member.userId) ? "online" : "offline");
+      setCardUser({
+        id: member.userId,
+        username: member.user.username,
+        displayName: member.user.displayName,
+        avatarUrl: member.user.avatarUrl,
+        bio: member.user.bio,
+        status,
+        joinedAt: member.joinedAt,
+        role: member.role,
+      });
+      setCardRect(rect);
+    },
+    [members, onlineIds],
+  );
+
+  const allChannels = useChannelStore((s) => s.channels);
+  const channelRefs: ChannelRef[] = useMemo(
+    () =>
+      allChannels
+        .filter((c) => c.type === "text")
+        .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name })),
+    [allChannels],
+  );
+  const { goToChannel } = useAppNavigate();
+  const handleChannelClick = useCallback(
+    (serverId: string, chId: string) => goToChannel(serverId, chId),
+    [goToChannel],
   );
 
   const handleOpenPinned = useCallback(async () => {
@@ -251,6 +290,9 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
                             showHead={showHead}
                             channelId={channelId!}
                             onUserClick={handleUserClick}
+                            onMentionClick={handleMentionClick}
+                            channels={channelRefs}
+                            onChannelClick={handleChannelClick}
                           />
                         </li>
                       );
@@ -342,14 +384,20 @@ function MessageRow({
   showHead,
   channelId,
   onUserClick,
+  onMentionClick,
+  channels,
+  onChannelClick,
 }: {
   message: Message;
   showHead: boolean;
   channelId: string;
   onUserClick?: (authorId: string, rect: DOMRect) => void;
+  onMentionClick?: (username: string, rect: DOMRect) => void;
+  channels?: ChannelRef[];
+  onChannelClick?: (serverId: string, channelId: string) => void;
 }) {
   const userId = useAuthStore((s) => s.user?.id);
-  const name = message.author?.username ?? "Deleted User";
+  const name = message.author?.displayName ?? message.author?.username ?? "Deleted User";
   const avatarUrl = message.author?.avatarUrl ?? null;
   const hasReplyPreview = !!message.replyTo;
   const attachments = message.attachments ?? [];
@@ -428,7 +476,7 @@ function MessageRow({
 
         {message.content && (
           <div>
-            <MarkdownContent content={message.content} />
+            <MarkdownContent content={message.content} onMentionClick={onMentionClick} channels={channels} onChannelClick={onChannelClick} />
             {message.editedAt ? (
               <span className="ml-1.5 text-xs text-gray-500">(edited)</span>
             ) : null}
@@ -536,7 +584,7 @@ function PinnedPanel({
               <div key={m.id} className="px-4 py-3">
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-semibold text-white">
-                    {m.author?.username ?? "Deleted User"}
+                    {m.author?.displayName ?? m.author?.username ?? "Deleted User"}
                   </span>
                   <time className="text-[11px] text-gray-500">
                     {formatSmartTimestamp(m.createdAt)}

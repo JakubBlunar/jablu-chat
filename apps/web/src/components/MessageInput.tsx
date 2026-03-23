@@ -1,11 +1,12 @@
 import type { Attachment } from "@chat/shared";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { ChatInputBar } from "@/components/ChatInputBar";
+import { ChatInputBar, type MentionChannel, type MentionMember } from "@/components/ChatInputBar";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
+import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 
 const TYPING_INTERVAL_MS = 2000;
@@ -44,6 +45,42 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
   );
   const replyTarget = useMessageStore((s) => s.replyTarget);
   const setReplyTarget = useMessageStore((s) => s.setReplyTarget);
+  const rawMembers = useMemberStore((s) => s.members);
+
+  const mentionMembers: MentionMember[] = useMemo(
+    () =>
+      rawMembers
+        .filter((m) => m.userId !== userId)
+        .map((m) => ({
+          userId: m.userId,
+          username: m.user.username,
+          displayName: m.user.displayName,
+          avatarUrl: m.user.avatarUrl,
+        })),
+    [rawMembers, userId],
+  );
+
+  const allChannels = useChannelStore((s) => s.channels);
+  const mentionChannels: MentionChannel[] = useMemo(
+    () =>
+      allChannels
+        .filter((c) => c.type === "text")
+        .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name })),
+    [allChannels],
+  );
+
+  const [gifEnabled, setGifEnabled] = useState(false);
+  useEffect(() => {
+    api.getGifEnabled().then((r) => setGifEnabled(r.enabled)).catch(() => {});
+  }, []);
+
+  const handleGifSelect = useCallback(
+    (url: string) => {
+      if (!channelId) return;
+      getSocket()?.emit("message:send", { channelId, content: url });
+    },
+    [channelId],
+  );
 
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
@@ -238,6 +275,10 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
         onPaste={handlePaste}
         placeholder={placeholder}
         disabled={!channelId}
+        members={mentionMembers}
+        channels={mentionChannels}
+        gifEnabled={gifEnabled}
+        onGifSelect={handleGifSelect}
       />
       {typingNames.length > 0 && (
         <p className="absolute left-5 -top-5 truncate text-xs text-gray-400">

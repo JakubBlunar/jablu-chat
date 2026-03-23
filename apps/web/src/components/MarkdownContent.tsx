@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useMemberStore, type Member } from "@/stores/member.store";
 
 const TEXT_EMOTICONS: [RegExp, string][] = [
   [/(?<!\w):\)(?!\w)/g, "🙂"],
@@ -28,19 +29,85 @@ function convertEmoticons(text: string): string {
   return result;
 }
 
+function buildMemberLookup(members: Member[]) {
+  const byUsername = new Map<string, Member>();
+  for (const m of members) {
+    byUsername.set(m.user.username.toLowerCase(), m);
+  }
+  return byUsername;
+}
+
+export type ChannelRef = { id: string; serverId: string; name: string };
+
+function buildChannelLookup(channels: ChannelRef[]) {
+  const byName = new Map<string, ChannelRef>();
+  for (const c of channels) {
+    byName.set(c.name.toLowerCase(), c);
+  }
+  return byName;
+}
+
+function processMentions(
+  text: string,
+  byUsername: Map<string, Member>,
+): string {
+  return text.replace(/@(\w+)/g, (full, name: string) => {
+    const member = byUsername.get(name.toLowerCase());
+    if (!member) return full;
+    const display = member.user.displayName ?? member.user.username;
+    return `[@${display}](mention:${member.user.username})`;
+  });
+}
+
+function processChannelMentions(
+  text: string,
+  byName: Map<string, ChannelRef>,
+): string {
+  return text.replace(/#([\w][\w-]*)/g, (full, name: string) => {
+    const channel = byName.get(name.toLowerCase());
+    if (!channel) return full;
+    return `[#${channel.name}](channel:${channel.serverId}/${channel.id})`;
+  });
+}
+
 export function MarkdownContent({
   content,
   className = "",
+  onMentionClick,
+  channels,
+  onChannelClick,
 }: {
   content: string;
   className?: string;
+  onMentionClick?: (username: string, rect: DOMRect) => void;
+  channels?: ChannelRef[];
+  onChannelClick?: (serverId: string, channelId: string) => void;
 }) {
-  const processed = useMemo(() => convertEmoticons(content), [content]);
+  const members = useMemberStore((s) => s.members);
+  const byUsername = useMemo(() => buildMemberLookup(members), [members]);
+  const byChannelName = useMemo(
+    () => buildChannelLookup(channels ?? []),
+    [channels],
+  );
+
+  const processed = useMemo(() => {
+    let text = convertEmoticons(content);
+    text = processMentions(text, byUsername);
+    if (byChannelName.size > 0) {
+      text = processChannelMentions(text, byChannelName);
+    }
+    return text;
+  }, [content, byUsername, byChannelName]);
 
   return (
     <div className={`markdown-body ${className}`}>
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      urlTransform={(url) =>
+        url.startsWith("mention:") || url.startsWith("channel:")
+          ? url
+          : defaultUrlTransform(url)
+      }
       components={{
         p: ({ children }) => (
           <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed text-gray-200">
@@ -74,16 +141,66 @@ export function MarkdownContent({
             {children}
           </pre>
         ),
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-link hover:underline"
-          >
-            {children}
-          </a>
-        ),
+        a: ({ href, children }) => {
+          if (href?.startsWith("mention:")) {
+            const username = href.slice("mention:".length);
+            return (
+              <span
+                role="button"
+                tabIndex={0}
+                className="cursor-pointer rounded bg-primary/20 px-1 text-primary hover:underline"
+                onClick={(e) => {
+                  if (onMentionClick) {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    onMentionClick(username, rect);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && onMentionClick) {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    onMentionClick(username, rect);
+                  }
+                }}
+              >
+                {children}
+              </span>
+            );
+          }
+          if (href?.startsWith("channel:")) {
+            const parts = href.slice("channel:".length).split("/");
+            const serverId = parts[0];
+            const channelId = parts[1];
+            return (
+              <span
+                role="button"
+                tabIndex={0}
+                className="cursor-pointer rounded bg-primary/20 px-1 text-primary hover:underline"
+                onClick={() => {
+                  if (onChannelClick && serverId && channelId) {
+                    onChannelClick(serverId, channelId);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && onChannelClick && serverId && channelId) {
+                    onChannelClick(serverId, channelId);
+                  }
+                }}
+              >
+                {children}
+              </span>
+            );
+          }
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-link hover:underline"
+            >
+              {children}
+            </a>
+          );
+        },
         ul: ({ children }) => (
           <ul className="ml-4 list-disc space-y-0.5 text-[15px] text-gray-200">
             {children}
