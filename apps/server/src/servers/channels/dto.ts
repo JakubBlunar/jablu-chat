@@ -1,5 +1,5 @@
 import { ChannelType } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateChannelDto {
   @IsString()
@@ -28,4 +28,11 @@ export class UpdateChannelDto {
   @IsInt()
   @Min(0)
   position?: number;
+}
+
+export class ReorderChannelsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  channelIds!: string[];
 }

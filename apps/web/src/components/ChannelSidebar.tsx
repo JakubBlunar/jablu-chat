@@ -1,5 +1,5 @@
 import type { Channel } from "@chat/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import SimpleBar from "simplebar-react";
 import { CreateChannelModal } from "@/components/CreateChannelModal";
 import { EditChannelModal } from "@/components/EditChannelModal";
@@ -9,6 +9,10 @@ import { ServerSettingsModal } from "@/components/ServerSettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
+
+const ReorderChannelsModal = React.lazy(
+  () => import("@/components/ReorderChannelsModal").then((m) => ({ default: m.ReorderChannelsModal })),
+);
 
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
@@ -125,6 +129,14 @@ function GearIcon() {
   );
 }
 
+function ReorderIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z" />
+    </svg>
+  );
+}
+
 function GearSmallIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -183,6 +195,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   useEffect(() => {
     if (currentChannelId && !viewingVoiceRoom) {
@@ -312,6 +325,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                 >
                   <GearIcon />
                   Server Settings
+                </button>
+              )}
+              {isAdminOrOwner && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setReorderOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
+                >
+                  <ReorderIcon />
+                  Reorder Channels
                 </button>
               )}
               <button
@@ -554,6 +580,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
           channel={editingChannel}
           onClose={() => setEditingChannel(null)}
         />
+      )}
+      {reorderOpen && (
+        <Suspense fallback={null}>
+          <ReorderChannelsModal onClose={() => setReorderOpen(false)} />
+        </Suspense>
       )}
     </>
   );

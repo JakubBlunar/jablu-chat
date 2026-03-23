@@ -12,6 +12,7 @@ type ChannelState = {
   textChannels: () => Channel[];
   voiceChannels: () => Channel[];
   adjustPinnedCount: (channelId: string, delta: number) => void;
+  applyReorder: (channelIds: string[]) => void;
 };
 
 function byPosition(a: Channel, b: Channel): number {
@@ -63,5 +64,13 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
           ? { ...c, pinnedCount: Math.max(0, (c.pinnedCount ?? 0) + delta) }
           : c,
       ),
+    })),
+
+  applyReorder: (channelIds) =>
+    set((state) => ({
+      channels: state.channels.map((c) => {
+        const idx = channelIds.indexOf(c.id);
+        return idx >= 0 ? { ...c, position: idx } : c;
+      }),
     })),
 }));

@@ -541,6 +541,12 @@ export class ApiClient {
     );
   }
 
+  reorderChannels(serverId: string, channelIds: string[]): Promise<void> {
+    return this.patch(`/api/servers/${serverId}/channels/reorder`, {
+      channelIds,
+    });
+  }
+
   getDmConversations(): Promise<DmConversation[]> {
     return this.get("/api/dm");
   }
