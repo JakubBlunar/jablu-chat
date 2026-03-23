@@ -2,6 +2,7 @@ import { io, type Socket } from "socket.io-client";
 import { api } from "./api";
 
 let socket: Socket | null = null;
+let cleanupVisibility: (() => void) | null = null;
 
 function getSocketUrl(): string {
   if (api.baseUrl) return api.baseUrl;
@@ -14,6 +15,8 @@ export function connectSocket(token: string): Socket {
     socket.disconnect();
     socket = null;
   }
+  cleanupVisibility?.();
+  cleanupVisibility = null;
 
   socket = io(getSocketUrl(), {
     auth: { token },
@@ -25,10 +28,21 @@ export function connectSocket(token: string): Socket {
     reconnectionAttempts: Infinity,
   });
 
+  const s = socket;
+  const onVisible = () => {
+    if (document.visibilityState === "visible" && !s.connected) {
+      s.connect();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  cleanupVisibility = () => document.removeEventListener("visibilitychange", onVisible);
+
   return socket;
 }
 
 export function disconnectSocket(): void {
+  cleanupVisibility?.();
+  cleanupVisibility = null;
   if (socket) {
     socket.disconnect();
     socket = null;
