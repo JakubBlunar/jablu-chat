@@ -276,7 +276,7 @@ export function ChatInputBar({
           <button
             type="button"
             onClick={() => { setGifOpen((p) => !p); setEmojiOpen(false); }}
-            className="shrink-0 p-3 text-gray-400 transition hover:text-white"
+            className="shrink-0 px-1.5 py-3 text-gray-400 transition hover:text-white"
             title="GIF"
           >
             <GifIcon />
@@ -286,7 +286,7 @@ export function ChatInputBar({
         <button
           type="button"
           onClick={() => { setEmojiOpen((p) => !p); setGifOpen(false); }}
-          className="shrink-0 p-3 text-gray-400 transition hover:text-white"
+          className="shrink-0 pl-1.5 pr-3 py-3 text-gray-400 transition hover:text-white"
           title="Emoji"
         >
           <SmileIcon />
