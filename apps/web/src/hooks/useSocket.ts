@@ -174,10 +174,16 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onMessagePin = (msg: Message) => {
       useMessageStore.getState().updateMessage(msg);
+      if (msg.channelId) {
+        useChannelStore.getState().adjustPinnedCount(msg.channelId, 1);
+      }
     };
 
     const onMessageUnpin = (msg: Message) => {
       useMessageStore.getState().updateMessage(msg);
+      if (msg.channelId) {
+        useChannelStore.getState().adjustPinnedCount(msg.channelId, -1);
+      }
     };
 
     const onLinkPreviews = (payload: LinkPreviewPayload) => {

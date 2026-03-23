@@ -99,10 +99,19 @@ export class ChannelsService {
 
   async getChannels(serverId: string, userId: string) {
     await this.requireMembership(serverId, userId);
-    return this.prisma.channel.findMany({
+    const channels = await this.prisma.channel.findMany({
       where: { serverId },
       orderBy: { position: 'asc' },
+      include: {
+        _count: {
+          select: { messages: { where: { pinned: true, deleted: false } } },
+        },
+      },
     });
+    return channels.map(({ _count, ...ch }) => ({
+      ...ch,
+      pinnedCount: _count.messages,
+    }));
   }
 
   async updateChannel(
