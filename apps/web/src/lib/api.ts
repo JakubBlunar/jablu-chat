@@ -373,6 +373,10 @@ export class ApiClient {
     return this.get(`/api/search/messages?${params}`);
   }
 
+  getAllNotifPrefs(): Promise<{ prefs: Record<string, string> }> {
+    return this.get("/api/notif-prefs/mine");
+  }
+
   getNotifPref(channelId: string): Promise<{ level: string }> {
     return this.get(`/api/channels/${channelId}/notifications`);
   }

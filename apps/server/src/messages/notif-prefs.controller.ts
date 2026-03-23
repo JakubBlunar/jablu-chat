@@ -19,6 +19,22 @@ class SetNotifPrefDto {
   level!: NotifLevel;
 }
 
+@Controller('notif-prefs')
+@UseGuards(AuthGuard('jwt'))
+export class BulkNotifPrefsController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Get('mine')
+  async getAll(@CurrentUser() user: { id: string }) {
+    const prefs = await this.prisma.channelNotifPref.findMany({
+      where: { userId: user.id },
+    });
+    const map: Record<string, string> = {};
+    for (const p of prefs) map[p.channelId] = p.level;
+    return { prefs: map };
+  }
+}
+
 @Controller('channels/:channelId/notifications')
 @UseGuards(AuthGuard('jwt'))
 export class NotifPrefsController {

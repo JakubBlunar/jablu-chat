@@ -301,6 +301,8 @@ export class ChatGateway
         msg.author?.username ?? 'Someone',
         body.content,
         `/channels/${body.channelId}`,
+        body.channelId,
+        mentionedUserIds,
       ).catch(() => {});
     }
 
@@ -692,12 +694,47 @@ export class ChatGateway
     return { ok: true };
   }
 
+  /**
+   * Sends web-push notifications to server members who have no active
+   * Socket.IO connection ("offline"). Called fire-and-forget from message
+   * handlers so it never blocks the message response.
+   *
+   * Respects per-channel ChannelNotifPref:
+   *   - "all" (default) → always push
+   *   - "mentions"       → push only if user was @mentioned
+   *   - "none"           → skip
+   *
+   * Current cost per message: 2 indexed DB queries (serverMember + channelNotifPref)
+   * plus one web-push HTTP call per eligible subscription.
+   *
+   * --- Possible future improvements ---
+   *
+   * 1. Redis pref cache: store prefs in Redis (hash per channel or per user),
+   *    invalidate on PUT/DELETE in NotifPrefsController. Eliminates the
+   *    channelNotifPref DB query and reduces latency to a single Redis HMGET.
+   *
+   * 2. Bull/BullMQ job queue: instead of doing web-push calls inline,
+   *    enqueue a "send-push" job. A dedicated worker processes the queue,
+   *    retries on transient failures, and keeps the gateway event loop free.
+   *    Pairs well with Redis since Bull already requires it.
+   *
+   * 3. Batch DB query: combine the serverMember + channelNotifPref lookups
+   *    into a single raw SQL join to halve the DB round-trips.
+   *
+   * 4. User-level DND / quiet hours: check a global user preference before
+   *    sending, so users can silence all push during certain time windows.
+   *
+   * At current scale (<20 concurrent users) the indexed queries are
+   * sub-millisecond and the simple approach is appropriate.
+   */
   private async sendPushToOfflineMembers(
     serverId: string,
     senderId: string,
     senderName: string,
     content: string | undefined,
     url: string,
+    channelId: string,
+    mentionedUserIds: string[],
   ) {
     const members = await this.prisma.serverMember.findMany({
       where: { serverId, NOT: { userId: senderId } },
@@ -710,8 +747,23 @@ export class ChatGateway
 
     if (offlineIds.length === 0) return;
 
+    const prefs = await this.prisma.channelNotifPref.findMany({
+      where: { channelId, userId: { in: offlineIds } },
+    });
+    const prefMap = new Map(prefs.map((p) => [p.userId, p.level]));
+    const mentionSet = new Set(mentionedUserIds);
+
+    const eligibleIds = offlineIds.filter((id) => {
+      const level = prefMap.get(id) ?? 'all';
+      if (level === 'none') return false;
+      if (level === 'mentions') return mentionSet.has(id);
+      return true;
+    });
+
+    if (eligibleIds.length === 0) return;
+
     const preview = content?.slice(0, 100) || '[attachment]';
-    await this.push.sendToUsers(offlineIds, {
+    await this.push.sendToUsers(eligibleIds, {
       title: senderName,
       body: preview,
       url,
