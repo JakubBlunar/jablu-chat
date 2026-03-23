@@ -351,6 +351,7 @@ function DmMessageRow({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pickerAbove, setPickerAbove] = useState(true);
   const actionsRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
 
   const showHeader =
     forceHeader ||
@@ -370,6 +371,14 @@ function DmMessageRow({
     },
     [message.authorId, onUserClick],
   );
+
+  useEffect(() => {
+    if (editing && editRef.current) {
+      const ta = editRef.current;
+      ta.style.height = "auto";
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  }, [editing, editText]);
 
   const handleEdit = useCallback(() => {
     const trimmed = editText.trim();
@@ -398,9 +407,9 @@ function DmMessageRow({
 
   return (
     <div
-      className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition hover:bg-white/[0.03] ${showHeader ? "mt-3 first:mt-1" : "-mt-0.5"}`}
+      className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition ${editing ? "bg-white/[0.02]" : "hover:bg-white/[0.03]"} ${showHeader ? "mt-3 first:mt-1" : "-mt-0.5"}`}
     >
-      {/* Actions toolbar */}
+      {!editing && (
       <div ref={actionsRef} className="absolute -top-3 right-2 z-10 flex items-start">
         <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100">
           <DmActionBtn title="React" onClick={() => {
@@ -441,6 +450,7 @@ function DmMessageRow({
           </div>
         )}
       </div>
+      )}
 
       {showHeader ? (
         <button type="button" onClick={handleAuthorClick} className="shrink-0 self-start">
@@ -487,21 +497,33 @@ function DmMessageRow({
         )}
 
         {editing ? (
-          <div className="mt-1">
+          <div className="my-0.5">
             <textarea
+              ref={editRef}
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEdit(); }
                 if (e.key === "Escape") setEditing(false);
               }}
-              className="w-full rounded bg-surface-raised px-3 py-2 text-sm text-white outline-none"
-              rows={2}
+              className="w-full resize-none overflow-hidden rounded-md bg-surface-raised px-3 py-2 text-[15px] leading-relaxed text-gray-100 outline-none ring-1 ring-primary/50 focus:ring-primary"
               autoFocus
             />
-            <p className="mt-1 text-[11px] text-gray-500">
-              Escape to cancel &middot; Enter to save
-            </p>
+            <div className="mt-1 flex gap-2 text-xs text-gray-400">
+              <span>
+                escape to{" "}
+                <button type="button" className="text-link hover:underline" onClick={() => setEditing(false)}>
+                  cancel
+                </button>
+              </span>
+              <span>•</span>
+              <span>
+                enter to{" "}
+                <button type="button" className="text-link hover:underline" onClick={handleEdit}>
+                  save
+                </button>
+              </span>
+            </div>
           </div>
         ) : message.content ? (
           <MarkdownContent content={message.content} channels={channels} onChannelClick={onChannelClick} />
