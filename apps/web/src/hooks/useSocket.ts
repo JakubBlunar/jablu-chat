@@ -11,6 +11,8 @@ import { useMessageStore } from "@/stores/message.store";
 import { useNotifPrefStore } from "@/stores/notifPref.store";
 import { useReadStateStore } from "@/stores/readState.store";
 import { useVoiceStore, type VoiceParticipant } from "@/stores/voice.store";
+import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import { playJoinSound, playLeaveSound } from "@/lib/sounds";
 
 type MessageDeletePayload = {
   messageId: string;
@@ -273,6 +275,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           userId: payload.userId,
           username: payload.username,
         });
+      const myVoiceChannel = useVoiceConnectionStore.getState().currentChannelId;
+      const myId = useAuthStore.getState().user?.id;
+      if (myVoiceChannel === payload.channelId && payload.userId !== myId) {
+        playJoinSound();
+      }
     };
 
     const onVoiceParticipantLeft = (payload: {
@@ -282,6 +289,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       useVoiceStore
         .getState()
         .removeParticipant(payload.channelId, payload.userId);
+      const myVoiceChannel = useVoiceConnectionStore.getState().currentChannelId;
+      const myId = useAuthStore.getState().user?.id;
+      if (myVoiceChannel === payload.channelId && payload.userId !== myId) {
+        playLeaveSound();
+      }
     };
 
     const onVoiceParticipantState = (payload: {

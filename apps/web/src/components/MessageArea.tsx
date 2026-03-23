@@ -142,6 +142,11 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [pinnedLoading, setPinnedLoading] = useState(false);
 
+  useEffect(() => {
+    setPinnedOpen(false);
+    setPinnedMessages([]);
+  }, [channelId]);
+
   const userId = useAuthStore((s) => s.user?.id);
   const myRole = useMemberStore((s) =>
     s.members.find((m) => m.userId === userId),
@@ -229,6 +234,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
 
   const handleOpenPinned = useCallback(async () => {
     if (!channelId) return;
+    if (pinnedOpen) { setPinnedOpen(false); return; }
     setPinnedOpen(true);
     setPinnedLoading(true);
     try {
@@ -239,7 +245,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
     } finally {
       setPinnedLoading(false);
     }
-  }, [channelId]);
+  }, [channelId, pinnedOpen]);
 
   useEffect(() => {
     if (!pinnedOpen) return;

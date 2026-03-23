@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
+import { playLeaveSound } from "@/lib/sounds";
 import type { CameraQuality } from "@/lib/deviceSettings";
 
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
@@ -140,6 +141,7 @@ export function VoicePanel() {
   );
 
   const handleDisconnect = useCallback(() => {
+    playLeaveSound();
     getSocket()?.emit("voice:leave");
     disconnect();
   }, [disconnect]);

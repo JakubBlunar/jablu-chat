@@ -1,6 +1,7 @@
 import { RoomEvent, Track, type Participant, type TrackPublication } from "livekit-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
+import { playLeaveSound } from "@/lib/sounds";
 import type { CameraQuality } from "@/lib/deviceSettings";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 import { CameraSettingsModal } from "./CameraSettingsModal";
@@ -343,6 +344,7 @@ function VoiceRoomHeader({
   }, [connectedAt]);
 
   const handleDisconnect = useCallback(() => {
+    playLeaveSound();
     getSocket()?.emit("voice:leave");
     disconnect();
   }, [disconnect]);
