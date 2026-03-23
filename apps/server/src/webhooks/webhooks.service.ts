@@ -14,6 +14,7 @@ import { AuditLogService } from '../servers/audit-log.service';
 const authorSelect = {
   id: true,
   username: true,
+  displayName: true,
   avatarUrl: true,
 } as const;
 
