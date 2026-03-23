@@ -1,5 +1,7 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
 import { useMemberStore, type Member } from "@/stores/member.store";
 
@@ -70,6 +72,50 @@ function processChannelMentions(
   });
 }
 
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [code]);
+
+  return (
+    <div className="group/code relative my-1 overflow-hidden rounded-md bg-[#282c34] text-sm">
+      <div className="flex items-center justify-between border-b border-white/10 px-3 py-1">
+        <span className="text-xs text-gray-400">
+          {language || "code"}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="text-xs text-gray-400 transition hover:text-white"
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language || "text"}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          padding: "0.75rem 1rem",
+          background: "transparent",
+          fontSize: "0.875rem",
+        }}
+        codeTagProps={{
+          style: { fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace" },
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
 export function MarkdownContent({
   content,
   className = "",
@@ -122,12 +168,17 @@ export function MarkdownContent({
         ),
         code: (props) => {
           const { children, className: codeClassName } = props;
-          const isBlock = typeof codeClassName === "string" && codeClassName.startsWith("language-");
+          const match = /language-(\w+)/.exec(codeClassName || "");
+          if (match) {
+            const code = String(children).replace(/\n$/, "");
+            return (
+              <CodeBlock language={match[1]} code={code} />
+            );
+          }
+          const isBlock = typeof children === "string" && children.includes("\n");
           if (isBlock) {
             return (
-              <code className="block overflow-x-auto rounded-md bg-surface-darkest p-3 text-sm text-gray-200">
-                {children}
-              </code>
+              <CodeBlock language="" code={String(children).replace(/\n$/, "")} />
             );
           }
           return (
@@ -136,11 +187,7 @@ export function MarkdownContent({
             </code>
           );
         },
-        pre: ({ children }) => (
-          <pre className="my-1 overflow-x-auto rounded-md bg-surface-darkest text-sm">
-            {children}
-          </pre>
-        ),
+        pre: ({ children }) => <>{children}</>,
         a: ({ href, children }) => {
           if (href?.startsWith("mention:")) {
             const username = href.slice("mention:".length);
