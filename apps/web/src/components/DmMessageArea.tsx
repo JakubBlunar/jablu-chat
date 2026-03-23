@@ -2,7 +2,7 @@ import type { Message, UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
-import { ChatInputBar, type MentionChannel } from "@/components/ChatInputBar";
+import { ChatInputBar, type ChatInputBarHandle, type MentionChannel } from "@/components/ChatInputBar";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
@@ -632,6 +632,12 @@ function DmInput({
     [conversationId],
   );
 
+  const inputRef = useRef<ChatInputBarHandle>(null);
+
+  useEffect(() => {
+    if (replyTarget) inputRef.current?.focus();
+  }, [replyTarget]);
+
   const [text, setText] = useState("");
   const [files, setFiles] = useState<
     { file: File; preview: string; uploading: boolean }[]
@@ -745,6 +751,7 @@ function DmInput({
       )}
 
       <ChatInputBar
+        ref={inputRef}
         value={text}
         onChange={setText}
         onSend={() => void send()}

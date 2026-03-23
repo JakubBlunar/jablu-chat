@@ -1,7 +1,7 @@
 import type { Attachment } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { ChatInputBar, type MentionChannel, type MentionMember } from "@/components/ChatInputBar";
+import { ChatInputBar, type ChatInputBarHandle, type MentionChannel, type MentionMember } from "@/components/ChatInputBar";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
@@ -45,6 +45,12 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
   );
   const replyTarget = useMessageStore((s) => s.replyTarget);
   const setReplyTarget = useMessageStore((s) => s.setReplyTarget);
+  const inputRef = useRef<ChatInputBarHandle>(null);
+
+  useEffect(() => {
+    if (replyTarget) inputRef.current?.focus();
+  }, [replyTarget]);
+
   const rawMembers = useMemberStore((s) => s.members);
 
   const mentionMembers: MentionMember[] = useMemo(
@@ -267,6 +273,7 @@ export function MessageInput({ onSent }: { onSent?: () => void }) {
       )}
 
       <ChatInputBar
+        ref={inputRef}
         value={value}
         onChange={setValue}
         onSend={() => void send()}

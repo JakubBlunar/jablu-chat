@@ -255,7 +255,7 @@ export function MainLayout() {
   // ─── Mobile layout ───
   if (isMobile) {
     return (
-      <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface text-white">
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
         <MobileTopBar
@@ -296,7 +296,7 @@ export function MainLayout() {
   // ─── DM layout (desktop/tablet) ───
   if (viewMode === "dm") {
     return (
-      <div className="flex h-screen flex-col overflow-hidden bg-surface text-white">
+      <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
         <div className="flex min-h-0 flex-1">
@@ -311,7 +311,7 @@ export function MainLayout() {
 
   // ─── Server layout (desktop/tablet) ───
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface text-white">
+    <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <ConnectionBanner isConnected={isConnected} />
       <PwaInstallBanner />
       <div className="flex min-h-0 flex-1">

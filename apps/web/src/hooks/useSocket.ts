@@ -68,7 +68,21 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const socket = connectSocket(accessToken);
 
     let handlingAuthError = false;
-    const onConnect = () => setIsConnected(true);
+    let hasConnectedBefore = false;
+    const onConnect = () => {
+      setIsConnected(true);
+      if (hasConnectedBefore) {
+        const channelId = useChannelStore.getState().currentChannelId;
+        if (channelId) {
+          socket.emit("channel:join", { channelId });
+        }
+        const convId = useDmStore.getState().currentConversationId;
+        if (convId) {
+          socket.emit("dm:join", { conversationId: convId });
+        }
+      }
+      hasConnectedBefore = true;
+    };
     const onDisconnect = () => setIsConnected(false);
     const onConnectError = async () => {
       if (handlingAuthError) return;

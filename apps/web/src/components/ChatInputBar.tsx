@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { GifPicker } from "@/components/GifPicker";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -37,7 +37,11 @@ export type ChatInputBarProps = {
 
 type PopupMode = "none" | "mention" | "channel";
 
-export function ChatInputBar({
+export type ChatInputBarHandle = {
+  focus: () => void;
+};
+
+export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(function ChatInputBar({
   value,
   onChange,
   onSend,
@@ -50,8 +54,12 @@ export function ChatInputBar({
   channels,
   gifEnabled,
   onGifSelect,
-}: ChatInputBarProps) {
+}, ref) {
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => taRef.current?.focus(),
+  }));
   const fileRef = useRef<HTMLInputElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [gifOpen, setGifOpen] = useState(false);
@@ -319,7 +327,7 @@ export function ChatInputBar({
       )}
     </div>
   );
-}
+});
 
 function MentionPopup({
   members,
