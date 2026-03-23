@@ -36,6 +36,7 @@ export async function requestPermission(): Promise<boolean> {
 export function showNotification(
   title: string,
   body: string,
+  url?: string,
   onClick?: () => void,
 ) {
   if (document.hasFocus()) return;
@@ -44,10 +45,10 @@ export function showNotification(
   if (!settings.enabled) return;
 
   const { electronAPI } = window as unknown as {
-    electronAPI?: { showNotification: (t: string, b: string) => void };
+    electronAPI?: { showNotification: (t: string, b: string, u?: string) => void };
   };
   if (electronAPI?.showNotification) {
-    electronAPI.showNotification(title, body);
+    electronAPI.showNotification(title, body, url);
     if (settings.soundEnabled) playSound();
     return;
   }
@@ -188,5 +189,16 @@ export function setupPushNavigation() {
     if (event.data?.type === "navigate" && event.data.url) {
       window.location.href = event.data.url;
     }
+  });
+}
+
+export function setupElectronNavigation() {
+  const { electronAPI } = window as unknown as {
+    electronAPI?: { onNavigate?: (cb: (url: string) => void) => () => void };
+  };
+  if (!electronAPI?.onNavigate) return;
+
+  return electronAPI.onNavigate((url: string) => {
+    window.location.hash = `#${url}`;
   });
 }

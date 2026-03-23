@@ -89,7 +89,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     };
 
-    const onMessageNew = (msg: Message & { mentionedUserIds?: string[] }) => {
+    const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string }) => {
       const channelId = useChannelStore.getState().currentChannelId;
       const myId = useAuthStore.getState().user?.id;
       if (msg.channelId != null && msg.channelId === channelId) {
@@ -104,7 +104,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         if (level !== "none" && (level !== "mentions" || isMentioned)) {
           const author = msg.author?.username ?? "Someone";
           const body = msg.content?.slice(0, 100) ?? "[attachment]";
-          showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`);
+          const url = msg.serverId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined;
+          showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`, url);
         }
       }
     };
@@ -201,7 +202,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         useReadStateStore.getState().incrementDm(payload.conversationId);
         const author = payload.author?.username ?? "Someone";
         const body = payload.content?.slice(0, 100) ?? "[attachment]";
-        showNotification("Direct Message", `${author}: ${body}`);
+        const url = `/channels/@me/${payload.conversationId}`;
+        showNotification("Direct Message", `${author}: ${body}`, url);
       }
       useDmStore.getState().updateConversationLastMessage(
         payload.conversationId,

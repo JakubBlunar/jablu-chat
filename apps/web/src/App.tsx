@@ -15,7 +15,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";
 import { migrateSettings } from "./lib/deviceSettings";
-import { getNotifSettings, setupPushNavigation, subscribeToPush } from "./lib/notifications";
+import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from "./lib/notifications";
 import { LoginPage } from "./pages/LoginPage";
 import { useAuthStore } from "./stores/auth.store";
 
@@ -65,6 +65,7 @@ function AuthBootstrap() {
 
   useEffect(() => {
     setupPushNavigation();
+    return setupElectronNavigation();
   }, []);
 
   useEffect(() => {

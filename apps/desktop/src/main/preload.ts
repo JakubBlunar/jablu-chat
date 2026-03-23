@@ -15,8 +15,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
   appVersion: ipcRenderer.sendSync("get-version-sync") as string,
 
-  showNotification: (title: string, body: string) =>
-    ipcRenderer.invoke("show-notification", { title, body }),
+  showNotification: (title: string, body: string, url?: string) =>
+    ipcRenderer.invoke("show-notification", { title, body, url }),
+
+  onNavigate: (cb: (url: string) => void) => {
+    const listener = (_: unknown, url: string) => cb(url);
+    ipcRenderer.on("navigate", listener);
+    return () => { ipcRenderer.removeListener("navigate", listener); };
+  },
   setTrayUnread: (count: number) =>
     ipcRenderer.invoke("set-tray-unread", count),
   setServerUrl: (url: string) => ipcRenderer.invoke("set-server-url", url),
