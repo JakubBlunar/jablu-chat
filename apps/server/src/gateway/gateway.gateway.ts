@@ -278,6 +278,7 @@ export class ChatGateway
     this.emitToChannel(body.channelId, 'message:new', {
       ...msg,
       mentionedUserIds,
+      serverId: channel?.serverId ?? null,
     });
 
     if (body.content) {

@@ -124,14 +124,19 @@ function registerIpcHandlers() {
     writeFileSync(join(userDataPath, "server-url.txt"), url, "utf-8");
   });
 
-  ipcMain.handle("show-notification", (_event, payload: { title: string; body: string }) => {
+  ipcMain.handle("show-notification", (_event, payload: { title: string; body: string; url?: string }) => {
     if (Notification.isSupported()) {
       const notif = new Notification({
         title: payload.title,
         body: payload.body,
         icon: getIconPath(),
       });
-      notif.on("click", () => mainWindow?.show());
+      notif.on("click", () => {
+        mainWindow?.show();
+        if (payload.url) {
+          mainWindow?.webContents.send("navigate", payload.url);
+        }
+      });
       notif.show();
     }
     if (mainWindow && !mainWindow.isFocused()) {
