@@ -69,7 +69,28 @@ type StorageStats = {
   orphanedAttachments: number;
 };
 
-type Tab = "servers" | "users" | "invites" | "storage" | "push";
+type Tab = "servers" | "users" | "invites" | "audit" | "storage" | "push";
+
+type AuditLogEntry = {
+  id: string;
+  serverId: string;
+  actorId: string;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  details: string | null;
+  createdAt: string;
+  actor: { id: string; username: string; displayName: string | null };
+  server: { id: string; name: string };
+};
+
+type UserSession = {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+};
 
 function getStoredToken(): string {
   return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
@@ -298,11 +319,12 @@ function AdminDashboard() {
         </div>
 
         <div className="mt-4 flex gap-1 border-b border-white/10">
-          {(["servers", "users", "invites", "storage", "push"] as const).map((t) => {
+          {(["servers", "users", "invites", "audit", "storage", "push"] as const).map((t) => {
             let label = t as string;
             if (t === "servers") label = `Servers (${servers.length})`;
             else if (t === "users") label = `Users (${users.length})`;
             else if (t === "invites") label = `Invites (${invites.length})`;
+            else if (t === "audit") label = "Audit Log";
             else if (t === "storage") label = "Storage";
             else if (t === "push") label = "Push";
             return (
@@ -341,6 +363,7 @@ function AdminDashboard() {
               regMode={regMode}
             />
           )}
+          {tab === "audit" && <AuditLogTab servers={servers} />}
           {tab === "storage" && <StorageTab />}
           {tab === "push" && <PushTab users={users} />}
         </div>
@@ -761,6 +784,53 @@ function UsersTab({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [sessionsUserId, setSessionsUserId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<UserSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+
+  const toggleSessions = async (userId: string) => {
+    if (sessionsUserId === userId) {
+      setSessionsUserId(null);
+      return;
+    }
+    setSessionsUserId(userId);
+    setSessionsLoading(true);
+    setSessionsError("");
+    try {
+      const s = await adminFetch<UserSession[]>(
+        `/api/admin/users/${userId}/sessions`,
+      );
+      setSessions(s);
+    } catch (e) {
+      setSessionsError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const revokeSession = async (userId: string, sessionId: string) => {
+    try {
+      await adminFetch(`/api/admin/users/${userId}/sessions/${sessionId}`, {
+        method: "DELETE",
+      });
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (e) {
+      setSessionsError(e instanceof Error ? e.message : "Failed to revoke");
+    }
+  };
+
+  const revokeAllSessions = async (userId: string) => {
+    try {
+      await adminFetch(`/api/admin/users/${userId}/sessions`, {
+        method: "DELETE",
+      });
+      setSessions([]);
+    } catch (e) {
+      setSessionsError(e instanceof Error ? e.message : "Failed to revoke");
+    }
+  };
+
   const startEdit = (user: AdminUser) => {
     setEditingId(user.id);
     setEditForm({
@@ -869,6 +939,13 @@ function UsersTab({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => void toggleSessions(user.id)}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  {sessionsUserId === user.id ? "Hide Sessions" : "Sessions"}
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     editingId === user.id
                       ? setEditingId(null)
@@ -889,6 +966,64 @@ function UsersTab({
                 />
               </div>
             </div>
+
+            {sessionsUserId === user.id && (
+              <div className="border-t border-white/5 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-gray-300">
+                    Active Sessions ({sessions.length})
+                  </h4>
+                  {sessions.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void revokeAllSessions(user.id)}
+                      className="rounded-md px-3 py-1 text-xs font-medium text-red-400 transition hover:bg-red-900/30 hover:text-red-300"
+                    >
+                      Revoke All
+                    </button>
+                  )}
+                </div>
+                {sessionsLoading ? (
+                  <p className="text-sm text-gray-400">Loading…</p>
+                ) : sessionsError ? (
+                  <p className="text-sm text-red-400">{sessionsError}</p>
+                ) : sessions.length === 0 ? (
+                  <p className="text-sm text-gray-500">No active sessions.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {sessions.map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-center gap-3 rounded-md bg-surface-darkest px-3 py-2 ring-1 ring-white/5"
+                      >
+                        <div className="min-w-0 flex-1 text-sm">
+                          <p className="truncate text-gray-300">
+                            {s.userAgent
+                              ? s.userAgent.length > 80
+                                ? s.userAgent.slice(0, 80) + "…"
+                                : s.userAgent
+                              : "Unknown device"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            IP: {s.ipAddress ?? "Unknown"} &middot; Created{" "}
+                            {fmtDate(s.createdAt)}
+                            {s.lastUsedAt &&
+                              ` · Last used ${new Date(s.lastUsedAt).toLocaleString()}`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void revokeSession(user.id, s.id)}
+                          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-red-400 transition hover:bg-red-900/30 hover:text-red-300"
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {editingId === user.id && (
               <div className="border-t border-white/5 p-4">
@@ -969,6 +1104,139 @@ function UsersTab({
             )}
           </div>
         ))
+      )}
+    </div>
+  );
+}
+
+// ─── Audit Log Tab ────────────────────────────────────────
+
+function AuditLogTab({ servers }: { servers: AdminServer[] }) {
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [filterServerId, setFilterServerId] = useState("");
+
+  const fetchLogs = useCallback(
+    async (cursor?: string) => {
+      const isFirstPage = !cursor;
+      if (isFirstPage) setLoading(true);
+      else setLoadingMore(true);
+      setError("");
+      try {
+        const params = new URLSearchParams();
+        if (filterServerId) params.set("serverId", filterServerId);
+        if (cursor) params.set("cursor", cursor);
+        params.set("limit", "50");
+        const data = await adminFetch<{
+          logs: AuditLogEntry[];
+          nextCursor: string | null;
+        }>(`/api/admin/audit-logs?${params}`);
+        if (isFirstPage) setLogs(data.logs);
+        else setLogs((prev) => [...prev, ...data.logs]);
+        setNextCursor(data.nextCursor);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [filterServerId],
+  );
+
+  useEffect(() => {
+    void fetchLogs();
+  }, [fetchLogs]);
+
+  const actionColor: Record<string, string> = {
+    "channel:create": "bg-green-900/40 text-green-300",
+    "channel:update": "bg-blue-900/40 text-blue-300",
+    "channel:delete": "bg-red-900/40 text-red-300",
+    "channel:reorder": "bg-purple-900/40 text-purple-300",
+    "member:kick": "bg-red-900/40 text-red-300",
+    "member:ban": "bg-red-900/40 text-red-300",
+    "member:role_change": "bg-yellow-900/40 text-yellow-300",
+    "server:update": "bg-blue-900/40 text-blue-300",
+    "emoji:create": "bg-green-900/40 text-green-300",
+    "emoji:delete": "bg-red-900/40 text-red-300",
+    "webhook:create": "bg-green-900/40 text-green-300",
+    "webhook:delete": "bg-red-900/40 text-red-300",
+  };
+  const defaultBadge = "bg-gray-800 text-gray-300";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <select
+          value={filterServerId}
+          onChange={(e) => setFilterServerId(e.target.value)}
+          className="rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+        >
+          <option value="">All servers</option>
+          {servers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {error && (
+        <div className="rounded-md bg-red-900/30 px-4 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center text-gray-400 py-8">Loading…</div>
+      ) : logs.length === 0 ? (
+        <Empty>No audit logs found.</Empty>
+      ) : (
+        <div className="space-y-1">
+          {logs.map((log) => (
+            <div
+              key={log.id}
+              className="flex items-start gap-3 rounded-lg bg-surface-dark px-4 py-3 ring-1 ring-white/5"
+            >
+              <span
+                className={`mt-0.5 shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${actionColor[log.action] ?? defaultBadge}`}
+              >
+                {log.action}
+              </span>
+              <div className="min-w-0 flex-1 text-sm">
+                <span className="font-medium text-white">
+                  {log.actor?.displayName ?? log.actor?.username ?? "Unknown"}
+                </span>
+                <span className="text-gray-400"> in </span>
+                <span className="font-medium text-gray-300">
+                  {log.server?.name ?? "Deleted Server"}
+                </span>
+                {log.details && (
+                  <p className="mt-0.5 text-gray-500 break-all">{log.details}</p>
+                )}
+              </div>
+              <time className="shrink-0 text-xs text-gray-500 whitespace-nowrap">
+                {new Date(log.createdAt).toLocaleString()}
+              </time>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {nextCursor && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => void fetchLogs(nextCursor)}
+            disabled={loadingMore}
+            className="rounded-md bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load More"}
+          </button>
+        </div>
       )}
     </div>
   );
