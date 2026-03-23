@@ -517,6 +517,86 @@ export class AdminController {
     }
   }
 
+  // ─── Stats ──────────────────────────────────────────────
+
+  @Get('stats')
+  @UseGuards(AdminAuthGuard)
+  async getStats(@Query('days') daysStr?: string) {
+    const days = Math.min(Math.max(parseInt(daysStr ?? '30', 10) || 30, 1), 365);
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const [totalMessages, recentMessages, totalUsers, totalServers] =
+      await Promise.all([
+        this.prisma.message.count(),
+        this.prisma.message.count({
+          where: { createdAt: { gte: since } },
+        }),
+        this.prisma.user.count(),
+        this.prisma.server.count(),
+      ]);
+
+    const topChannels = await this.prisma.message.groupBy({
+      by: ['channelId'],
+      where: { createdAt: { gte: since }, channelId: { not: null } },
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 5,
+    });
+
+    const channelIds = topChannels
+      .map((c) => c.channelId)
+      .filter((id): id is string => id !== null);
+    const channels = await this.prisma.channel.findMany({
+      where: { id: { in: channelIds } },
+      select: { id: true, name: true, server: { select: { name: true } } },
+    });
+    const channelMap = new Map(channels.map((c) => [c.id, c]));
+
+    const topUsers = await this.prisma.message.groupBy({
+      by: ['authorId'],
+      where: { createdAt: { gte: since }, authorId: { not: null } },
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 5,
+    });
+
+    const userIds = topUsers
+      .map((u) => u.authorId)
+      .filter((id): id is string => id !== null);
+    const usersList = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, username: true, displayName: true },
+    });
+    const userMap = new Map(usersList.map((u) => [u.id, u]));
+
+    return {
+      days,
+      totalMessages,
+      recentMessages,
+      totalUsers,
+      totalServers,
+      topChannels: topChannels.map((c) => {
+        const ch = channelMap.get(c.channelId!);
+        return {
+          channelId: c.channelId,
+          name: ch?.name ?? 'Deleted',
+          serverName: ch?.server?.name ?? 'Unknown',
+          count: c._count.id,
+        };
+      }),
+      topUsers: topUsers.map((u) => {
+        const usr = userMap.get(u.authorId!);
+        return {
+          userId: u.authorId,
+          username: usr?.username ?? 'Deleted',
+          displayName: usr?.displayName ?? null,
+          count: u._count.id,
+        };
+      }),
+    };
+  }
+
   // ─── Audit Logs ───────────────────────────────────────────
 
   @Get('audit-logs')
