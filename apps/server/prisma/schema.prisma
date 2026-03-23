@@ -56,6 +56,7 @@ model RefreshToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("refresh_tokens")
 }
 
@@ -69,6 +70,7 @@ model PushSubscription {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("push_subscriptions")
 }
 
@@ -114,6 +116,7 @@ model ServerMember {
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   @@id([userId, serverId])
+  @@index([serverId])
   @@map("server_members")
 }
 
@@ -169,6 +172,7 @@ model DirectConversationMember {
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([conversationId, userId])
+  @@index([userId])
   @@map("direct_conversation_members")
 }
 
@@ -219,6 +223,7 @@ model Attachment {
 
   message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
+  @@index([messageId])
   @@map("attachments")
 }
 
@@ -272,6 +277,7 @@ model Invite {
   server    Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
   createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@index([serverId])
   @@map("invites")
 }
 
@@ -287,6 +293,7 @@ model Webhook {
   channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@index([channelId])
   @@map("webhooks")
 }
 
@@ -302,6 +309,7 @@ model LinkPreview {
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
+  @@index([messageId])
   @@map("link_previews")
 }
 
@@ -313,6 +321,7 @@ model ChannelNotifPref {
   channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@id([userId, channelId])
+  @@index([channelId])
   @@map("channel_notif_prefs")
 }
 
