@@ -81,9 +81,12 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         if (newToken) {
           socket.auth = { token: newToken };
         }
-      } catch {
-        socket.disconnect();
-        api.onAuthFailure?.();
+      } catch (err: unknown) {
+        const status = (err as { status?: number }).status;
+        if (status === 401 || status === 403) {
+          socket.disconnect();
+          api.onAuthFailure?.();
+        }
       } finally {
         handlingAuthError = false;
       }
