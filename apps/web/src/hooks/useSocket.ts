@@ -317,6 +317,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       );
     };
 
+    const onChannelReorder = (payload: { channelIds: string[] }) => {
+      useChannelStore.getState().applyReorder(payload.channelIds);
+    };
+
     const onDmLinkPreviews = (payload: DmLinkPreviewPayload) => {
       const currentConvId = useDmStore.getState().currentConversationId;
       if (payload.conversationId === currentConvId) {
@@ -356,6 +360,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on("voice:participant-joined", onVoiceParticipantJoined);
     socket.on("voice:participant-left", onVoiceParticipantLeft);
     socket.on("voice:participant-state", onVoiceParticipantState);
+    socket.on("channel:reorder", onChannelReorder);
 
     setIsConnected(socket.connected);
 
@@ -385,6 +390,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off("voice:participant-joined", onVoiceParticipantJoined);
       socket.off("voice:participant-left", onVoiceParticipantLeft);
       socket.off("voice:participant-state", onVoiceParticipantState);
+      socket.off("channel:reorder", onChannelReorder);
       disconnectSocket();
       setIsConnected(false);
     };

@@ -14,7 +14,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import { ChannelsService } from './channels.service';
-import { CreateChannelDto, UpdateChannelDto } from './dto';
+import { CreateChannelDto, ReorderChannelsDto, UpdateChannelDto } from './dto';
 
 @Controller('servers/:serverId/channels')
 @UseGuards(AuthGuard('jwt'))
@@ -41,6 +41,15 @@ export class ChannelsController {
     @CurrentUser() user: { id: string; username: string; email: string },
   ) {
     return this.channels.getChannels(serverId, user.id);
+  }
+
+  @Patch('reorder')
+  reorder(
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @CurrentUser() user: { id: string; username: string; email: string },
+    @Body() dto: ReorderChannelsDto,
+  ) {
+    return this.channels.reorderChannels(serverId, user.id, dto.channelIds);
   }
 
   @Patch(':id')

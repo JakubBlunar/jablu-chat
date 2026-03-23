@@ -102,6 +102,15 @@ export class ChatGateway
         this.emitToChannel(payload.channelId, 'message:new', payload.message);
       },
     );
+
+    this.events.on(
+      'channel:reorder',
+      (payload: { serverId: string; channelIds: string[] }) => {
+        this.server
+          .to(`server:${payload.serverId}`)
+          .emit('channel:reorder', { channelIds: payload.channelIds });
+      },
+    );
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
