@@ -51,6 +51,10 @@ export class UploadsService {
     }
   }
 
+  getMaxSizeMb(): number {
+    return this.maxSizeMb;
+  }
+
   getUploadDir(): string {
     return this.uploadDir;
   }

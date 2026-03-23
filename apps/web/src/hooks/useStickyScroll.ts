@@ -10,12 +10,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
  * - ResizeObserver-based auto-scroll for dynamically sized content (images, embeds)
  * - Scroll-to-bottom button visibility
  */
-export function useStickyScroll(itemId: string | null, messageCount: number) {
+export function useStickyScroll(itemId: string | null, messageCount: number, hasNewer = false) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const forceScrollRef = useRef(false);
   const scrolledIdRef = useRef<string | null>(null);
+  const suppressAutoScrollRef = useRef(false);
+  const hasNewerRef = useRef(hasNewer);
+  hasNewerRef.current = hasNewer;
   const prevLen = useRef(0);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
@@ -40,15 +43,17 @@ export function useStickyScroll(itemId: string | null, messageCount: number) {
   const onScroll = useCallback(() => {
     if (forceScrollRef.current) return;
     const near = isNearBottom();
-    stickRef.current = near;
+    stickRef.current = hasNewerRef.current ? false : near;
     setShowScrollBtn(!near);
   }, [isNearBottom]);
 
   const resetForItem = useCallback(() => {
     scrolledIdRef.current = null;
     prevLen.current = 0;
-    forceScrollRef.current = true;
-    stickRef.current = true;
+    if (!suppressAutoScrollRef.current) {
+      forceScrollRef.current = true;
+      stickRef.current = true;
+    }
     setShowScrollBtn(false);
   }, []);
 
@@ -59,6 +64,7 @@ export function useStickyScroll(itemId: string | null, messageCount: number) {
     if (!content || !container) return;
 
     const observer = new ResizeObserver(() => {
+      if (suppressAutoScrollRef.current || hasNewerRef.current) return;
       if (stickRef.current || forceScrollRef.current) {
         container.scrollTop = container.scrollHeight;
       }
@@ -72,6 +78,13 @@ export function useStickyScroll(itemId: string | null, messageCount: number) {
     if (!itemId || messageCount === 0) return;
     if (scrolledIdRef.current === itemId) return;
     scrolledIdRef.current = itemId;
+
+    if (suppressAutoScrollRef.current) {
+      suppressAutoScrollRef.current = false;
+      forceScrollRef.current = false;
+      stickRef.current = false;
+      return;
+    }
 
     const el = scrollRef.current;
     if (!el) return;
@@ -95,7 +108,7 @@ export function useStickyScroll(itemId: string | null, messageCount: number) {
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (messageCount > prevLen.current && stickRef.current) {
+    if (messageCount > prevLen.current && stickRef.current && !suppressAutoScrollRef.current && !hasNewerRef.current) {
       el.scrollTop = el.scrollHeight;
     }
     prevLen.current = messageCount;
@@ -109,5 +122,6 @@ export function useStickyScroll(itemId: string | null, messageCount: number) {
     stickToBottom,
     onScroll,
     resetForItem,
+    suppressAutoScrollRef,
   };
 }

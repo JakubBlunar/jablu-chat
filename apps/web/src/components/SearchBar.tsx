@@ -1,211 +1,80 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import SimpleBar from "simplebar-react";
-import { api, type SearchResult } from "@/lib/api";
-import { UserAvatar } from "@/components/UserAvatar";
-import { useAppNavigate } from "@/hooks/useAppNavigate";
-import { useChannelStore } from "@/stores/channel.store";
-import { useServerStore } from "@/stores/server.store";
+import { useEffect, useRef, useState } from "react";
 
-type Scope = "server" | "channel" | "all";
+type Props = {
+  searchOpen: boolean;
+  query: string;
+  onQueryChange: (q: string) => void;
+  onSearch: (q: string) => void;
+  onClose: () => void;
+};
 
-export function SearchBar() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [scope, setScope] = useState<Scope>("server");
+export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose }: Props) {
+  const [local, setLocal] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const currentServerId = useServerStore((s) => s.currentServerId);
-  const currentChannelId = useChannelStore((s) => s.currentChannelId);
-  const channels = useChannelStore((s) => s.channels);
-  const { goToChannel, goToDm } = useAppNavigate();
-
-  const currentChannel = channels.find((c) => c.id === currentChannelId);
-
-  const doSearch = useCallback(
-    async (q: string) => {
-      if (!q.trim()) {
-        setResults([]);
-        return;
-      }
-      setLoading(true);
-      try {
-        const opts: Parameters<typeof api.searchMessages>[1] = {};
-        if (scope === "server" && currentServerId) {
-          opts.serverId = currentServerId;
-        } else if (scope === "channel" && currentChannelId) {
-          opts.channelId = currentChannelId;
-        }
-        const data = await api.searchMessages(q, opts);
-        setResults(data.results);
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [currentServerId, currentChannelId, scope],
-  );
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!searchOpen) setLocal("");
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (searchOpen) setLocal(query);
+  }, [searchOpen, query]);
+
+  function handleChange(value: string) {
+    setLocal(value);
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (!query.trim()) {
-      setResults([]);
-      return;
+    if (value.trim()) {
+      timerRef.current = setTimeout(() => {
+        onQueryChange(value);
+        onSearch(value);
+      }, 500);
     }
-    timerRef.current = setTimeout(() => {
-      void doSearch(query);
-    }, 400);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [query, doSearch]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  function handleResultClick(result: SearchResult) {
-    if (result.channelId && currentServerId) {
-      goToChannel(currentServerId, result.channelId);
-    } else if (result.dmConversationId) {
-      goToDm(result.dmConversationId);
-    }
-    setOpen(false);
-    setQuery("");
-    setResults([]);
   }
 
-  const scopeLabel =
-    scope === "channel" && currentChannel
-      ? `#${currentChannel.name}`
-      : scope === "server"
-        ? "This server"
-        : "Everywhere";
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && local.trim()) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      onQueryChange(local);
+      onSearch(local);
+    }
+    if (e.key === "Escape" && searchOpen) {
+      onClose();
+    }
+  }
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div className="relative">
       <div className="flex items-center rounded bg-surface-darkest px-2">
         <SearchIcon />
         <input
+          ref={inputRef}
           type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
+          value={searchOpen ? query : local}
+          readOnly={searchOpen}
+          onChange={(e) => !searchOpen && handleChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (searchOpen) inputRef.current?.blur();
           }}
-          onFocus={() => setOpen(true)}
           placeholder="Search messages..."
-          className="w-44 bg-transparent px-2 py-1.5 text-sm text-gray-200 outline-none placeholder:text-gray-500"
+          className={`w-44 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-500 ${
+            searchOpen ? "text-gray-500 cursor-default" : "text-gray-200"
+          }`}
         />
+        {searchOpen && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-1 rounded p-0.5 text-gray-400 hover:text-white"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
-
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-96 rounded-lg bg-surface-dark shadow-xl ring-1 ring-white/10">
-          <div className="flex items-center gap-1 border-b border-white/10 px-3 py-2">
-            <span className="text-[11px] text-gray-500">Search in:</span>
-            {currentChannelId && (
-              <ScopeBtn
-                active={scope === "channel"}
-                onClick={() => setScope("channel")}
-              >
-                #{currentChannel?.name}
-              </ScopeBtn>
-            )}
-            <ScopeBtn
-              active={scope === "server"}
-              onClick={() => setScope("server")}
-            >
-              Server
-            </ScopeBtn>
-            <ScopeBtn
-              active={scope === "all"}
-              onClick={() => setScope("all")}
-            >
-              Everywhere
-            </ScopeBtn>
-          </div>
-
-          {loading ? (
-            <p className="p-4 text-center text-sm text-gray-400">
-              Searching {scopeLabel}...
-            </p>
-          ) : results.length === 0 && query.trim() ? (
-            <p className="p-4 text-center text-sm text-gray-400">
-              No results found
-            </p>
-          ) : results.length > 0 ? (
-            <SimpleBar className="max-h-80 py-1">
-              {results.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => handleResultClick(r)}
-                  className="flex w-full items-start gap-3 px-3 py-2 text-left transition hover:bg-white/5"
-                >
-                  <UserAvatar
-                    username={r.author?.username ?? "Deleted User"}
-                    avatarUrl={r.author?.avatarUrl ?? null}
-                    size="sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-white">
-                        {r.author?.displayName ?? r.author?.username ?? "Deleted User"}
-                      </span>
-                      {r.channel ? (
-                        <span className="text-xs text-gray-500">
-                          #{r.channel.name}
-                        </span>
-                      ) : r.dmConversationId ? (
-                        <span className="text-xs text-gray-500">DM</span>
-                      ) : null}
-                      <time className="ml-auto text-[11px] text-gray-500">
-                        {new Date(r.createdAt).toLocaleDateString()}
-                      </time>
-                    </div>
-                    <p className="mt-0.5 line-clamp-2 text-xs text-gray-300">
-                      {r.content}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </SimpleBar>
-          ) : null}
-        </div>
-      )}
     </div>
-  );
-}
-
-function ScopeBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded px-2 py-0.5 text-xs font-medium transition ${
-        active
-          ? "bg-primary text-white"
-          : "text-gray-400 hover:bg-white/10 hover:text-white"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

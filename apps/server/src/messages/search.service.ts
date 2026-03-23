@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+type SearchPage = { ids: string[]; total: number };
+
 @Injectable()
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
@@ -12,8 +14,10 @@ export class SearchService {
     channelId?: string,
     dmOnly?: boolean,
     limit = 25,
+    offset = 0,
   ) {
     const take = Math.min(Math.max(1, limit), 50);
+    const skip = Math.max(0, offset);
     const tsQuery = query
       .trim()
       .split(/\s+/)
@@ -22,9 +26,10 @@ export class SearchService {
       .filter(Boolean)
       .join(' & ');
 
-    if (!tsQuery) return { results: [] };
+    if (!tsQuery) return { results: [], total: 0 };
 
-    const allIds: string[] = [];
+    let channelPage: SearchPage = { ids: [], total: 0 };
+    let dmPage: SearchPage = { ids: [], total: 0 };
 
     if (!dmOnly) {
       const memberServerIds = await this.prisma.serverMember
@@ -37,8 +42,12 @@ export class SearchService {
           select: { serverId: true },
         });
         if (ch && memberServerIds.includes(ch.serverId)) {
-          const channelResults = await this.searchInChannels([channelId], tsQuery, take);
-          allIds.push(...channelResults);
+          channelPage = await this.searchInChannels(
+            [channelId],
+            tsQuery,
+            take,
+            skip,
+          );
         }
       } else if (serverId) {
         if (memberServerIds.includes(serverId)) {
@@ -46,12 +55,12 @@ export class SearchService {
             where: { serverId },
             select: { id: true },
           });
-          const channelResults = await this.searchInChannels(
+          channelPage = await this.searchInChannels(
             channels.map((c) => c.id),
             tsQuery,
             take,
+            skip,
           );
-          allIds.push(...channelResults);
         }
       } else {
         const channels = await this.prisma.channel.findMany({
@@ -59,12 +68,12 @@ export class SearchService {
           select: { id: true },
         });
         if (channels.length > 0) {
-          const channelResults = await this.searchInChannels(
+          channelPage = await this.searchInChannels(
             channels.map((c) => c.id),
             tsQuery,
             take,
+            skip,
           );
-          allIds.push(...channelResults);
         }
       }
     }
@@ -75,22 +84,30 @@ export class SearchService {
         .then((rows) => rows.map((r) => r.conversationId));
 
       if (dmConvIds.length > 0) {
-        const dmResults = await this.searchInDms(dmConvIds, tsQuery, take);
-        allIds.push(...dmResults);
+        dmPage = await this.searchInDms(dmConvIds, tsQuery, take, skip);
       }
     }
 
-    if (allIds.length === 0) return { results: [] };
+    const allIds = [...channelPage.ids, ...dmPage.ids];
+    const total = channelPage.total + dmPage.total;
+
+    if (allIds.length === 0) return { results: [], total };
 
     const fullMessages = await this.prisma.message.findMany({
       where: { id: { in: allIds } },
       include: {
-        author: { select: { id: true, username: true, avatarUrl: true } },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
         channel: { select: { id: true, name: true, serverId: true } },
         directConversation: { select: { id: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take,
     });
 
     return {
@@ -104,6 +121,7 @@ export class SearchService {
         dmConversationId: m.directConversationId,
         createdAt: m.createdAt,
       })),
+      total,
     };
   }
 
@@ -111,35 +129,61 @@ export class SearchService {
     channelIds: string[],
     tsQuery: string,
     limit: number,
-  ): Promise<string[]> {
-    if (channelIds.length === 0) return [];
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM messages
-      WHERE channel_id = ANY(${channelIds})
-        AND deleted = false
-        AND content IS NOT NULL
-        AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-    `;
-    return rows.map((r) => r.id);
+    offset: number,
+  ): Promise<SearchPage> {
+    if (channelIds.length === 0) return { ids: [], total: 0 };
+    const [rows, countRows] = await Promise.all([
+      this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM messages
+        WHERE channel_id = ANY(${channelIds})
+          AND deleted = false
+          AND content IS NOT NULL
+          AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT count(*) FROM messages
+        WHERE channel_id = ANY(${channelIds})
+          AND deleted = false
+          AND content IS NOT NULL
+          AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
+      `,
+    ]);
+    return {
+      ids: rows.map((r) => r.id),
+      total: Number(countRows[0]?.count ?? 0),
+    };
   }
 
   private async searchInDms(
     conversationIds: string[],
     tsQuery: string,
     limit: number,
-  ): Promise<string[]> {
-    if (conversationIds.length === 0) return [];
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM messages
-      WHERE direct_conversation_id = ANY(${conversationIds})
-        AND deleted = false
-        AND content IS NOT NULL
-        AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
-      ORDER BY created_at DESC
-      LIMIT ${limit}
-    `;
-    return rows.map((r) => r.id);
+    offset: number,
+  ): Promise<SearchPage> {
+    if (conversationIds.length === 0) return { ids: [], total: 0 };
+    const [rows, countRows] = await Promise.all([
+      this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM messages
+        WHERE direct_conversation_id = ANY(${conversationIds})
+          AND deleted = false
+          AND content IS NOT NULL
+          AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT count(*) FROM messages
+        WHERE direct_conversation_id = ANY(${conversationIds})
+          AND deleted = false
+          AND content IS NOT NULL
+          AND to_tsvector('english', content) @@ to_tsquery('english', ${tsQuery})
+      `,
+    ]);
+    return {
+      ids: rows.map((r) => r.id),
+      total: Number(countRows[0]?.count ?? 0),
+    };
   }
 }

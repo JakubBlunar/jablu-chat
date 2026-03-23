@@ -42,6 +42,14 @@ export class MessageQueryDto {
   cursor?: string;
 
   @IsOptional()
+  @IsUUID()
+  around?: string;
+
+  @IsOptional()
+  @IsString()
+  after?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

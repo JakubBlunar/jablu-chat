@@ -312,6 +312,22 @@ export class ApiClient {
     return this.patch<User>("/api/auth/status", { status });
   }
 
+  getUploadConfig(): Promise<{ maxSizeMb: number }> {
+    return this.get("/api/uploads/config");
+  }
+
+  private _maxSizeMb: number | null = null;
+  async getMaxUploadSizeMb(): Promise<number> {
+    if (this._maxSizeMb !== null) return this._maxSizeMb;
+    try {
+      const cfg = await this.getUploadConfig();
+      this._maxSizeMb = cfg.maxSizeMb;
+    } catch {
+      this._maxSizeMb = 50;
+    }
+    return this._maxSizeMb;
+  }
+
   async uploadAttachment(file: File): Promise<Attachment> {
     return this.fetchWithFormData<Attachment>(
       "/api/uploads/attachments",
@@ -406,13 +422,15 @@ export class ApiClient {
       channelId?: string;
       dmOnly?: boolean;
       limit?: number;
+      offset?: number;
     },
-  ): Promise<{ results: SearchResult[] }> {
+  ): Promise<{ results: SearchResult[]; total: number }> {
     const params = new URLSearchParams({ q: query });
     if (opts?.serverId) params.set("serverId", opts.serverId);
     if (opts?.channelId) params.set("channelId", opts.channelId);
     if (opts?.dmOnly) params.set("dmOnly", "true");
     if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.offset != null) params.set("offset", String(opts.offset));
     return this.get(`/api/search/messages?${params}`);
   }
 

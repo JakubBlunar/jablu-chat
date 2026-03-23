@@ -2,6 +2,7 @@ import type { Message, UserStatus } from "@chat/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
+import { DelayedRender } from "@/components/DelayedRender";
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
@@ -9,6 +10,7 @@ import { MessageActions } from "@/components/MessageActions";
 import { MessageInput } from "@/components/MessageInput";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { SearchBar } from "@/components/SearchBar";
+import { SearchDrawer } from "@/components/SearchDrawer";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
 import { formatSmartTimestamp, formatDateSeparator, isDifferentDay } from "@/lib/format-time";
@@ -57,11 +59,18 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
   );
   const channelId = channel?.id ?? null;
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const messages = useMessageStore((s) => s.messages);
   const isLoading = useMessageStore((s) => s.isLoading);
   const hasMore = useMessageStore((s) => s.hasMore);
+  const hasNewer = useMessageStore((s) => s.hasNewer);
   const fetchMessages = useMessageStore((s) => s.fetchMessages);
+  const fetchMessagesAround = useMessageStore((s) => s.fetchMessagesAround);
+  const fetchNewerMessages = useMessageStore((s) => s.fetchNewerMessages);
   const clearMessages = useMessageStore((s) => s.clearMessages);
+  const scrollToMessageId = useMessageStore((s) => s.scrollToMessageId);
 
   const {
     scrollRef,
@@ -71,7 +80,50 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
     stickToBottom,
     onScroll,
     resetForItem,
-  } = useStickyScroll(channelId, messages.length);
+    suppressAutoScrollRef,
+  } = useStickyScroll(channelId, messages.length, hasNewer);
+
+  useEffect(() => {
+    if (!scrollToMessageId || isLoading || messages.length === 0) return;
+    const targetId = scrollToMessageId;
+
+    const tryScroll = (attempts = 0) => {
+      const el = document.getElementById(`msg-${targetId}`);
+      if (el) {
+        useMessageStore.getState().setScrollToMessageId(null);
+        el.scrollIntoView({ behavior: "instant", block: "center" });
+        el.classList.add("bg-primary/10");
+        setTimeout(() => el.classList.remove("bg-primary/10"), 3000);
+
+        // Re-center as images/embeds load and shift layout
+        const content = contentRef.current;
+        const scroller = scrollRef.current;
+        if (content && scroller) {
+          let userScrolled = false;
+          const stopOnUserScroll = () => { userScrolled = true; };
+          scroller.addEventListener("wheel", stopOnUserScroll, { once: true });
+          scroller.addEventListener("touchmove", stopOnUserScroll, { once: true });
+
+          const obs = new ResizeObserver(() => {
+            if (!userScrolled) {
+              el.scrollIntoView({ behavior: "instant", block: "center" });
+            }
+          });
+          obs.observe(content);
+          setTimeout(() => {
+            obs.disconnect();
+            scroller.removeEventListener("wheel", stopOnUserScroll);
+            scroller.removeEventListener("touchmove", stopOnUserScroll);
+          }, 5000);
+        }
+      } else if (attempts < 10) {
+        setTimeout(() => tryScroll(attempts + 1), 50);
+      } else {
+        useMessageStore.getState().setScrollToMessageId(null);
+      }
+    };
+    requestAnimationFrame(() => tryScroll());
+  }, [scrollToMessageId, isLoading, messages]);
 
   const prevCh = useRef<string | null>(null);
 
@@ -86,9 +138,20 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
     if (channelId) {
       socket?.emit("channel:join", { channelId });
       prevCh.current = channelId;
+
+      const pendingScrollId = useMessageStore.getState().scrollToMessageId;
+      if (pendingScrollId) {
+        suppressAutoScrollRef.current = true;
+      }
+
       clearMessages();
       resetForItem();
-      void fetchMessages(channelId);
+
+      if (pendingScrollId) {
+        void fetchMessagesAround(channelId, pendingScrollId);
+      } else {
+        void fetchMessages(channelId);
+      }
     } else {
       prevCh.current = null;
       clearMessages();
@@ -99,7 +162,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
         getSocket()?.emit("channel:leave", { channelId });
       }
     };
-  }, [channelId, clearMessages, fetchMessages, resetForItem]);
+  }, [channelId, clearMessages, fetchMessages, fetchMessagesAround, resetForItem, suppressAutoScrollRef]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -137,6 +200,34 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMore, isLoading, loadMore]);
+
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  const loadingNewerRef = useRef(false);
+
+  const loadNewer = useCallback(async () => {
+    if (!channelId || !messages.length || loadingNewerRef.current) return;
+    loadingNewerRef.current = true;
+    await fetchNewerMessages(channelId);
+    loadingNewerRef.current = false;
+  }, [channelId, messages, fetchNewerMessages]);
+
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const container = scrollRef.current;
+    if (!sentinel || !container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNewer && !isLoading) {
+          void loadNewer();
+        }
+      },
+      { root: container, rootMargin: "0px 0px 200px 0px", threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNewer, isLoading, loadNewer]);
 
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
@@ -313,10 +404,12 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
                 )}
 
                 {isLoading && messages.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
-                    <p className="text-sm text-gray-400">Loading messages...</p>
-                  </div>
+                  <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
+                    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+                      <p className="text-sm text-gray-400">Loading messages...</p>
+                    </div>
+                  </DelayedRender>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-1 flex-col justify-end pb-6">
                     <div className="border-t border-white/10 pt-4">
@@ -353,21 +446,35 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
                     })}
                   </ul>
                 )}
+                {hasNewer && (
+                  <div className="mb-2 flex justify-center">
+                    <span className="text-xs text-gray-500">Loading newer…</span>
+                  </div>
+                )}
+                <div ref={bottomSentinelRef} className="h-1 shrink-0" />
               </>
             )}
           </div>
         </SimpleBar>
 
-        {showScrollBtn && (
+        {(showScrollBtn || hasNewer) && (
           <button
             type="button"
-            onClick={scrollToBottom}
+            onClick={() => {
+              if (hasNewer && channelId) {
+                clearMessages();
+                resetForItem();
+                void fetchMessages(channelId);
+              } else {
+                scrollToBottom();
+              }
+            }}
             className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-lg transition hover:bg-primary/80"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
-            New messages
+            {hasNewer ? "Jump to present" : "New messages"}
           </button>
         )}
       </div>
@@ -412,7 +519,19 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
             >
               <MembersToggleIcon />
             </button>
-            <SearchBar />
+            <SearchBar
+              searchOpen={searchOpen}
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onSearch={(q) => {
+                setSearchQuery(q);
+                setSearchOpen(true);
+              }}
+              onClose={() => {
+                setSearchOpen(false);
+                setSearchQuery("");
+              }}
+            />
           </>
         ) : (
           <h1 className="text-base font-semibold text-gray-400">
@@ -425,7 +544,18 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {messageContent}
         </div>
-        {memberSidebar}
+        {searchOpen ? (
+          <SearchDrawer
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            onClose={() => {
+              setSearchOpen(false);
+              setSearchQuery("");
+            }}
+          />
+        ) : (
+          memberSidebar
+        )}
       </div>
     </section>
   );
