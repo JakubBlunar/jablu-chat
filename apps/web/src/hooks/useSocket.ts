@@ -8,6 +8,7 @@ import { useChannelStore } from "@/stores/channel.store";
 import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
+import { useNotifPrefStore } from "@/stores/notifPref.store";
 import { useReadStateStore } from "@/stores/readState.store";
 import { useVoiceStore, type VoiceParticipant } from "@/stores/voice.store";
 
@@ -98,9 +99,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           ? (msg.mentionedUserIds ?? []).includes(myId)
           : false;
         useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned);
-        const author = msg.author?.username ?? "Someone";
-        const body = msg.content?.slice(0, 100) ?? "[attachment]";
-        showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`);
+
+        const level = useNotifPrefStore.getState().get(msg.channelId);
+        if (level !== "none" && (level !== "mentions" || isMentioned)) {
+          const author = msg.author?.username ?? "Someone";
+          const body = msg.content?.slice(0, 100) ?? "[attachment]";
+          showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`);
+        }
       }
     };
 
@@ -184,6 +189,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         useAuthStore.getState().setUser({ ...currentUser, status: "online" });
       }
       useReadStateStore.getState().fetchAll();
+      useNotifPrefStore.getState().fetchAll();
     };
 
     const onDmNew = (payload: DmMessagePayload) => {

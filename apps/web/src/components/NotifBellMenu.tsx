@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
+import { useNotifPrefStore } from "@/stores/notifPref.store";
 
 type NotifLevel = "all" | "mentions" | "none";
 
@@ -58,8 +59,10 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
       setOpen(false);
       if (newLevel === "all") {
         await api.resetNotifPref(channelId);
+        useNotifPrefStore.getState().remove(channelId);
       } else {
         await api.setNotifPref(channelId, newLevel);
+        useNotifPrefStore.getState().set(channelId, newLevel);
       }
     },
     [channelId],
