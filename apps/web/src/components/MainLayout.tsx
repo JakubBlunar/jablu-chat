@@ -20,6 +20,8 @@ import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 import { useServerStore } from "@/stores/server.store";
+import { PwaInstallBanner } from "@/components/PwaInstallBanner";
+import { SettingsModal } from "@/components/SettingsModal";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
 function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
@@ -178,6 +180,15 @@ export function MainLayout() {
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom);
   const voiceChannelName = useVoiceConnectionStore((s) => s.currentChannelName);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+
+  useEffect(() => {
+    const handler = () => setSettingsOpen(true);
+    window.addEventListener("open-settings", handler);
+    return () => window.removeEventListener("open-settings", handler);
+  }, []);
+
   const prevServerRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -246,6 +257,7 @@ export function MainLayout() {
     return (
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface text-white">
         <ConnectionBanner isConnected={isConnected} />
+        <PwaInstallBanner />
         <MobileTopBar
           title={mobileTitle}
           onMenuClick={openNavDrawer}
@@ -273,9 +285,10 @@ export function MainLayout() {
             <MessageArea />
           )}
         </div>
-        <MobileNavDrawer />
+        <MobileNavDrawer onOpenSettings={openSettings} />
         <MemberDrawer />
         <ScreenSharePicker />
+        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </div>
     );
   }
@@ -285,11 +298,13 @@ export function MainLayout() {
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-surface text-white">
         <ConnectionBanner isConnected={isConnected} />
+        <PwaInstallBanner />
         <div className="flex min-h-0 flex-1">
           <ServerSidebar />
-          <DmSidebar />
+          <DmSidebar onOpenSettings={openSettings} />
           <DmMessageArea />
         </div>
+        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </div>
     );
   }
@@ -298,9 +313,10 @@ export function MainLayout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface text-white">
       <ConnectionBanner isConnected={isConnected} />
+      <PwaInstallBanner />
       <div className="flex min-h-0 flex-1">
         <ServerSidebar />
-        <ChannelSidebar />
+        <ChannelSidebar onOpenSettings={openSettings} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
@@ -322,6 +338,7 @@ export function MainLayout() {
         </div>
         <ScreenSharePicker />
       </div>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

@@ -5,7 +5,9 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
 import { api, type ActiveSession } from "@/lib/api";
 import { DownloadAppSection } from "@/components/DownloadApp";
+import { PwaInstallGuide } from "@/components/PwaInstallGuide";
 import { electronAPI, isElectron } from "@/lib/electron";
+import { getIsStandalone } from "@/hooks/usePwaInstall";
 import {
   getNotifSettings,
   saveNotifSettings,
@@ -16,7 +18,7 @@ import {
 import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
 import { useAuthStore } from "@/stores/auth.store";
 
-type Tab = "account" | "profile" | "status" | "voice" | "notifications" | "sessions" | "server" | "downloads";
+type Tab = "account" | "profile" | "status" | "voice" | "notifications" | "sessions" | "server" | "downloads" | "install";
 
 const STATUS_OPTIONS: { value: UserStatus; label: string; color: string }[] = [
   { value: "online", label: "Online", color: "bg-emerald-500" },
@@ -63,9 +65,8 @@ export function SettingsModal({
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail === "downloads") {
-        setTab("downloads");
-      }
+      if (detail === "downloads") setTab("downloads");
+      if (detail === "install") setTab("install");
     };
     window.addEventListener("open-settings", handler);
     return () => window.removeEventListener("open-settings", handler);
@@ -133,6 +134,14 @@ export function SettingsModal({
               Desktop App
             </SidebarButton>
           )}
+          {!isElectron && !getIsStandalone() && (
+            <SidebarButton
+              active={tab === "install"}
+              onClick={() => setTab("install")}
+            >
+              Install App
+            </SidebarButton>
+          )}
           <div className="my-2 border-t border-white/10" />
           <LogOutButton onClose={onClose} />
           {isElectron && electronAPI && (
@@ -162,7 +171,9 @@ export function SettingsModal({
                           ? "Server Connection"
                           : tab === "downloads"
                             ? "Desktop App"
-                            : "Status"}
+                            : tab === "install"
+                              ? "Install App"
+                              : "Status"}
             </h1>
             <button
               type="button"
@@ -183,6 +194,7 @@ export function SettingsModal({
             {tab === "sessions" && <ActiveSessionsSection />}
             {tab === "server" && <ServerConnectionSection />}
             {tab === "downloads" && <DownloadAppSection />}
+            {tab === "install" && <PwaInstallGuide />}
           </div>
         </div>
       </SimpleBar>

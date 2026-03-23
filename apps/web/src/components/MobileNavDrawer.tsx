@@ -6,7 +6,6 @@ import { EditChannelModal } from "@/components/EditChannelModal";
 import { InviteModal } from "@/components/InviteModal";
 import { MobileDrawer } from "@/components/MobileDrawer";
 import { ServerSettingsModal } from "@/components/ServerSettingsModal";
-import { SettingsModal } from "@/components/SettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 import { api } from "@/lib/api";
@@ -74,7 +73,7 @@ function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   return <span className="flex items-center gap-0.5">{icons}</span>;
 }
 
-export function MobileNavDrawer() {
+export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void }) {
   const open = useLayoutStore((s) => s.navDrawerOpen);
   const close = useLayoutStore((s) => s.closeNavDrawer);
 
@@ -98,7 +97,6 @@ export function MobileNavDrawer() {
   const voiceParticipants = useVoiceStore((s) => s.participants);
   const currentVoiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [channelModalOpen, setChannelModalOpen] = useState(false);
@@ -482,7 +480,7 @@ export function MobileNavDrawer() {
             <button
               type="button"
               title="User settings"
-              onClick={() => setSettingsOpen(true)}
+              onClick={onOpenSettings}
               className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <GearIcon />
@@ -491,7 +489,6 @@ export function MobileNavDrawer() {
         </div>
       </MobileDrawer>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       {inviteOpen && currentServer && (
         <InviteModal
           serverId={currentServer.id}

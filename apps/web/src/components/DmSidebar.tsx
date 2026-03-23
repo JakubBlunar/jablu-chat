@@ -8,7 +8,7 @@ import { useDmStore } from "@/stores/dm.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useReadStateStore } from "@/stores/readState.store";
 
-export function DmSidebar() {
+export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const user = useAuthStore((s) => s.user);
   const conversations = useDmStore((s) => s.conversations);
   const currentConvId = useDmStore((s) => s.currentConversationId);
@@ -18,7 +18,6 @@ export function DmSidebar() {
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
   const dmReadStates = useReadStateStore((s) => s.dms);
   const ackDm = useReadStateStore((s) => s.ackDm);
-
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
@@ -157,6 +156,14 @@ export function DmSidebar() {
             {user?.status ?? "online"}
           </p>
         </div>
+        <button
+          type="button"
+          title="User settings"
+          onClick={onOpenSettings}
+          className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <GearIcon />
+        </button>
       </div>
 
       {groupDmOpen && (
@@ -284,6 +291,14 @@ function PlusIcon() {
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 00-.49-.42h-3.84a.5.5 0 00-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.74 8.87c-.17.29-.11.67.19.86l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.17.29.49.38.78.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54a.5.5 0 00.49.42h3.84c.24 0 .45-.17.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.29.15.62.06.78-.22l1.92-3.32c.17-.29.11-.67-.19-.86l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
     </svg>
   );
 }
