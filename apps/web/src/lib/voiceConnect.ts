@@ -2,6 +2,7 @@ import { Room, RoomEvent } from "livekit-client";
 import { api } from "@/lib/api";
 import { getValidatedDevices } from "@/lib/deviceSettings";
 import { getSocket } from "@/lib/socket";
+import { playJoinSound } from "@/lib/sounds";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
 function showVoiceError(message: string) {
@@ -68,6 +69,7 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
 
     getSocket()?.emit("voice:join", { channelId });
     store.setConnected(room);
+    playJoinSound();
 
     room.localParticipant.setMicrophoneEnabled(true).catch((err) => {
       if (err instanceof DOMException && err.name === "NotAllowedError") {
