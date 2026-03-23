@@ -69,7 +69,42 @@ type StorageStats = {
   orphanedAttachments: number;
 };
 
-type Tab = "servers" | "users" | "invites" | "audit" | "stats" | "storage" | "push";
+type Tab =
+  | "servers"
+  | "users"
+  | "invites"
+  | "audit"
+  | "stats"
+  | "moderation"
+  | "webhooks"
+  | "storage"
+  | "push";
+
+type AdminMessage = {
+  id: string;
+  content: string | null;
+  createdAt: string;
+  author: { id: string; username: string; displayName: string | null } | null;
+  channel: {
+    id: string;
+    name: string;
+    server: { id: string; name: string } | null;
+  } | null;
+};
+
+type AdminWebhook = {
+  id: string;
+  name: string;
+  token: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  channel: {
+    id: string;
+    name: string;
+    server: { id: string; name: string } | null;
+  };
+  createdBy: { id: string; username: string } | null;
+};
 
 type StatsData = {
   days: number;
@@ -339,13 +374,15 @@ function AdminDashboard() {
         </div>
 
         <div className="mt-4 flex gap-1 border-b border-white/10">
-          {(["servers", "users", "invites", "audit", "stats", "storage", "push"] as const).map((t) => {
+          {(["servers", "users", "invites", "audit", "stats", "moderation", "webhooks", "storage", "push"] as const).map((t) => {
             let label = t as string;
             if (t === "servers") label = `Servers (${servers.length})`;
             else if (t === "users") label = `Users (${users.length})`;
             else if (t === "invites") label = `Invites (${invites.length})`;
             else if (t === "audit") label = "Audit Log";
             else if (t === "stats") label = "Stats";
+            else if (t === "moderation") label = "Moderation";
+            else if (t === "webhooks") label = "Webhooks";
             else if (t === "storage") label = "Storage";
             else if (t === "push") label = "Push";
             return (
@@ -386,6 +423,8 @@ function AdminDashboard() {
           )}
           {tab === "audit" && <AuditLogTab servers={servers} />}
           {tab === "stats" && <StatsTab />}
+          {tab === "moderation" && <ModerationTab />}
+          {tab === "webhooks" && <WebhooksTab />}
           {tab === "storage" && <StorageTab />}
           {tab === "push" && <PushTab users={users} />}
         </div>
@@ -1306,6 +1345,276 @@ function StatsTab() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Moderation Tab ───────────────────────────────────────
+
+function ModerationTab() {
+  const [messages, setMessages] = useState<AdminMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searched, setSearched] = useState(false);
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const doSearch = useCallback(
+    async (cursor?: string) => {
+      const isFirst = !cursor;
+      if (isFirst) setLoading(true);
+      else setLoadingMore(true);
+      setError("");
+      try {
+        const params = new URLSearchParams();
+        if (searchQuery.trim()) params.set("q", searchQuery.trim());
+        if (cursor) params.set("cursor", cursor);
+        params.set("limit", "50");
+        const data = await adminFetch<{
+          messages: AdminMessage[];
+          nextCursor: string | null;
+        }>(`/api/admin/messages?${params}`);
+        if (isFirst) setMessages(data.messages);
+        else setMessages((prev) => [...prev, ...data.messages]);
+        setNextCursor(data.nextCursor);
+        setSearched(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [searchQuery],
+  );
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await adminFetch(`/api/admin/messages/${id}`, { method: "DELETE" });
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void doSearch();
+        }}
+        className="flex gap-2"
+      >
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search message content…"
+          className="flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+        >
+          {loading ? "Searching…" : "Search"}
+        </button>
+      </form>
+
+      {error && (
+        <div className="rounded-md bg-red-900/30 px-4 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {error}
+        </div>
+      )}
+
+      {!searched ? (
+        <Empty>Enter a search term or click Search to browse recent messages.</Empty>
+      ) : messages.length === 0 ? (
+        <Empty>No messages found.</Empty>
+      ) : (
+        <div className="space-y-1">
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className="rounded-lg bg-surface-dark px-4 py-3 ring-1 ring-white/5"
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-white">
+                      {msg.author?.displayName ?? msg.author?.username ?? "Deleted User"}
+                    </span>
+                    {msg.channel && (
+                      <>
+                        <span className="text-gray-600">in</span>
+                        <span className="text-gray-400">
+                          #{msg.channel.name}
+                          {msg.channel.server && (
+                            <span className="text-gray-600">
+                              {" "}({msg.channel.server.name})
+                            </span>
+                          )}
+                        </span>
+                      </>
+                    )}
+                    <time className="ml-auto shrink-0 text-xs text-gray-500">
+                      {new Date(msg.createdAt).toLocaleString()}
+                    </time>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-300 whitespace-pre-wrap break-all">
+                    {msg.content ?? "[deleted]"}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  {confirmDeleteId === msg.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(msg.id)}
+                        disabled={deletingId === msg.id}
+                        className="rounded px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-red-500/30 hover:bg-red-900/30 disabled:opacity-50"
+                      >
+                        {deletingId === msg.id ? "…" : "Confirm"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="rounded px-2 py-1 text-xs text-gray-400 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(msg.id)}
+                      className="rounded px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-900/30"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {nextCursor && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => void doSearch(nextCursor)}
+            disabled={loadingMore}
+            className="rounded-md bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
+          >
+            {loadingMore ? "Loading…" : "Load More"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Webhooks Tab ─────────────────────────────────────────
+
+function WebhooksTab() {
+  const [webhooks, setWebhooks] = useState<AdminWebhook[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    adminFetch<AdminWebhook[]>("/api/admin/webhooks")
+      .then(setWebhooks)
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Failed to load"),
+      )
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await adminFetch(`/api/admin/webhooks/${id}`, { method: "DELETE" });
+      setWebhooks((prev) => prev.filter((w) => w.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center text-gray-400 py-8">Loading…</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {error && (
+        <div className="rounded-md bg-red-900/30 px-4 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {error}
+        </div>
+      )}
+
+      {webhooks.length === 0 ? (
+        <Empty>No webhooks configured.</Empty>
+      ) : (
+        webhooks.map((wh) => (
+          <div
+            key={wh.id}
+            className="flex items-center gap-4 rounded-lg bg-surface-dark p-4 ring-1 ring-white/10"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-900/40 text-sm font-bold text-purple-300">
+              {wh.avatarUrl ? (
+                <img
+                  src={wh.avatarUrl}
+                  alt=""
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                wh.name.charAt(0).toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold text-white">{wh.name}</p>
+              <p className="text-sm text-gray-400">
+                #{wh.channel.name}
+                {wh.channel.server && (
+                  <span className="text-gray-600">
+                    {" "}({wh.channel.server.name})
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-gray-500">
+                Created by {wh.createdBy?.username ?? "Unknown"} &middot;{" "}
+                {fmtDate(wh.createdAt)}
+              </p>
+            </div>
+            <ConfirmDeleteBtn
+              id={wh.id}
+              confirmId={confirmDeleteId}
+              deletingId={deletingId}
+              onConfirm={() => setConfirmDeleteId(wh.id)}
+              onCancel={() => setConfirmDeleteId(null)}
+              onDelete={() => void handleDelete(wh.id)}
+              label="Delete"
+            />
+          </div>
+        ))
+      )}
     </div>
   );
 }
