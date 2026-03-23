@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api, type DmConversation } from "@/lib/api";
@@ -58,6 +58,24 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   );
 
   const [groupDmOpen, setGroupDmOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+
+  const filteredConversations = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter((conv) => {
+      if (conv.isGroup) {
+        const groupLabel = conv.groupName || conv.members.map((m) => m.displayName ?? m.username).join(", ");
+        return groupLabel.toLowerCase().includes(q);
+      }
+      const other = conv.members.find((m) => m.userId !== user?.id);
+      if (!other) return false;
+      return (
+        other.username.toLowerCase().includes(q) ||
+        (other.displayName?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [conversations, filter, user?.id]);
 
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
@@ -67,7 +85,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         </span>
         <button
           type="button"
-          title="New Group DM"
+          title="New Message"
           onClick={() => setGroupDmOpen(true)}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
@@ -75,7 +93,16 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         </button>
       </div>
 
-      <SimpleBar className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 py-3">
+      <div className="shrink-0 px-2 pt-2.5 pb-1">
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Find a conversation"
+          className="w-full rounded bg-surface-darkest px-2.5 py-1.5 text-sm text-white outline-none placeholder:text-gray-500"
+        />
+      </div>
+
+      <SimpleBar className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 py-1.5">
         {isLoading && conversations.length === 0 ? (
           <div className="space-y-2 px-1">
             {[1, 2, 3].map((i) => (
@@ -89,8 +116,10 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <p className="px-2 text-sm text-gray-400">
             No conversations yet. Click on a user to start a DM.
           </p>
+        ) : filteredConversations.length === 0 ? (
+          <p className="px-2 text-sm text-gray-400">No matching conversations</p>
         ) : (
-          conversations.map((conv) => {
+          filteredConversations.map((conv) => {
             const info = getDisplayInfo(conv);
             const active = conv.id === currentConvId;
             const rs = dmReadStates.get(conv.id);
@@ -168,10 +197,16 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
 
       {groupDmOpen && (
         <GroupDmModal
+          conversations={conversations}
+          currentUserId={user?.id}
           onClose={() => setGroupDmOpen(false)}
           onCreated={(conv) => {
             useDmStore.getState().addOrUpdateConversation(conv);
             goToDm(conv.id);
+            setGroupDmOpen(false);
+          }}
+          onExisting={(convId) => {
+            goToDm(convId);
             setGroupDmOpen(false);
           }}
         />
@@ -181,11 +216,17 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 function GroupDmModal({
+  conversations,
+  currentUserId,
   onClose,
   onCreated,
+  onExisting,
 }: {
+  conversations: DmConversation[];
+  currentUserId: string | undefined;
   onClose: () => void;
   onCreated: (conv: DmConversation) => void;
+  onExisting: (convId: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -209,11 +250,32 @@ function GroupDmModal({
     return () => clearTimeout(timer);
   }, [search]);
 
+  const findExisting = useCallback(
+    (userIds: string[]): string | null => {
+      if (!currentUserId) return null;
+      const targetSet = new Set([...userIds, currentUserId]);
+      for (const conv of conversations) {
+        const memberIds = new Set(conv.members.map((m) => m.userId));
+        if (memberIds.size !== targetSet.size) continue;
+        if ([...targetSet].every((id) => memberIds.has(id))) return conv.id;
+      }
+      return null;
+    },
+    [conversations, currentUserId],
+  );
+
   const handleCreate = async () => {
-    if (selected.length < 2) return;
+    if (selected.length === 0) return;
+    const existingId = findExisting(selected);
+    if (existingId) {
+      onExisting(existingId);
+      return;
+    }
     setCreating(true);
     try {
-      const conv = await api.createGroupDm(selected);
+      const conv = selected.length === 1
+        ? await api.createDm(selected[0])
+        : await api.createGroupDm(selected);
       onCreated(conv);
     } catch {
       /* ignore */
@@ -231,7 +293,7 @@ function GroupDmModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">New Group DM</h2>
+          <h2 className="text-lg font-bold text-white">New Message</h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
         </div>
 
@@ -275,11 +337,15 @@ function GroupDmModal({
 
         <button
           type="button"
-          disabled={selected.length < 2 || creating}
+          disabled={selected.length === 0 || creating}
           onClick={() => void handleCreate()}
           className="mt-4 w-full rounded bg-primary py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {creating ? "Creating…" : `Create Group DM (${selected.length} members)`}
+          {creating
+            ? "Creating…"
+            : selected.length <= 1
+              ? "Create DM"
+              : `Create Group DM (${selected.length} members)`}
         </button>
       </div>
     </div>
