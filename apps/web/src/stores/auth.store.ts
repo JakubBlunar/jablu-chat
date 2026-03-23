@@ -151,7 +151,12 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
-        } catch {
+        } catch (err: unknown) {
+          const status = (err as { status?: number }).status;
+          if (status && status !== 401 && status !== 403) {
+            set({ isLoading: false });
+            return;
+          }
           try {
             const data = await api.refreshToken(refreshToken);
             set({
@@ -161,14 +166,19 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
-          } catch {
-            set({
-              user: null,
-              accessToken: null,
-              refreshToken: null,
-              isAuthenticated: false,
-              isLoading: false,
-            });
+          } catch (refreshErr: unknown) {
+            const rStatus = (refreshErr as { status?: number }).status;
+            if (rStatus === 401 || rStatus === 403) {
+              set({
+                user: null,
+                accessToken: null,
+                refreshToken: null,
+                isAuthenticated: false,
+                isLoading: false,
+              });
+            } else {
+              set({ isLoading: false });
+            }
           }
         }
       },
@@ -178,6 +188,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
       }),
     },
   ),
