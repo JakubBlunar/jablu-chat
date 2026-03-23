@@ -15,7 +15,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";
 import { migrateSettings } from "./lib/deviceSettings";
-import { setupPushNavigation, subscribeToPush } from "./lib/notifications";
+import { getNotifSettings, setupPushNavigation, subscribeToPush } from "./lib/notifications";
 import { LoginPage } from "./pages/LoginPage";
 import { useAuthStore } from "./stores/auth.store";
 
@@ -69,7 +69,7 @@ function AuthBootstrap() {
 
   useEffect(() => {
     return useAuthStore.subscribe((state) => {
-      if (state.isAuthenticated && state.accessToken) {
+      if (state.isAuthenticated && state.accessToken && getNotifSettings().enabled) {
         subscribeToPush(state.accessToken).catch(() => {});
       }
     });
