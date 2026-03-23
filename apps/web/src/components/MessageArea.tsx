@@ -623,6 +623,38 @@ function MessageRow({
   const reactions = message.reactions ?? [];
   const linkPreviews = message.linkPreviews ?? [];
 
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleStartEdit = useCallback(() => {
+    setEditValue(message.content ?? "");
+    setEditing(true);
+  }, [message.content]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== message.content) {
+      getSocket()?.emit("message:edit", {
+        messageId: message.id,
+        content: trimmed,
+      });
+    }
+    setEditing(false);
+  }, [editValue, message.id, message.content]);
+
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      const ta = textareaRef.current;
+      ta.style.height = "auto";
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  }, [editing, editValue]);
+
   const handleAuthorClick = useCallback(
     (e: React.MouseEvent) => {
       if (!message.authorId || !onUserClick) return;
@@ -635,11 +667,13 @@ function MessageRow({
   return (
     <div
       id={`msg-${message.id}`}
-      className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition hover:bg-white/[0.03] ${
-        showHead ? "mt-3 first:mt-1" : "-mt-0.5"
-      }`}
+      className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition ${
+        editing ? "bg-white/[0.02]" : "hover:bg-white/[0.03]"
+      } ${showHead ? "mt-3 first:mt-1" : "-mt-0.5"}`}
     >
-      <MessageActions message={message} channelId={channelId} />
+      {!editing && (
+        <MessageActions message={message} channelId={channelId} onEdit={handleStartEdit} />
+      )}
 
       {showHead ? (
         <button type="button" onClick={handleAuthorClick} className="shrink-0 self-start">
@@ -694,14 +728,46 @@ function MessageRow({
           </div>
         ) : null}
 
-        {message.content && (
+        {editing ? (
+          <div className="my-0.5">
+            <textarea
+              ref={textareaRef}
+              className="w-full resize-none overflow-hidden rounded-md bg-surface-raised px-3 py-2 text-[15px] leading-relaxed text-gray-100 outline-none ring-1 ring-primary/50 focus:ring-primary"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSaveEdit();
+                }
+                if (e.key === "Escape") handleCancelEdit();
+              }}
+              autoFocus
+            />
+            <div className="mt-1 flex gap-2 text-xs text-gray-400">
+              <span>
+                escape to{" "}
+                <button type="button" className="text-link hover:underline" onClick={handleCancelEdit}>
+                  cancel
+                </button>
+              </span>
+              <span>•</span>
+              <span>
+                enter to{" "}
+                <button type="button" className="text-link hover:underline" onClick={handleSaveEdit}>
+                  save
+                </button>
+              </span>
+            </div>
+          </div>
+        ) : message.content ? (
           <div>
             <MarkdownContent content={message.content} onMentionClick={onMentionClick} channels={channels} onChannelClick={onChannelClick} />
             {message.editedAt ? (
               <span className="ml-1.5 text-xs text-gray-500">(edited)</span>
             ) : null}
           </div>
-        )}
+        ) : null}
 
         {attachments.length > 0 && (
           <div className="flex flex-col gap-1">

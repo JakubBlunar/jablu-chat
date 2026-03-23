@@ -9,9 +9,10 @@ import { useMessageStore } from "@/stores/message.store";
 interface MessageActionsProps {
   message: Message;
   channelId: string;
+  onEdit?: () => void;
 }
 
-export function MessageActions({ message, channelId }: MessageActionsProps) {
+export function MessageActions({ message, channelId, onEdit }: MessageActionsProps) {
   const userId = useAuthStore((s) => s.user?.id);
   const myRole = useMemberStore((s) =>
     s.members.find((m) => m.userId === userId),
@@ -20,8 +21,6 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
   const isAdminOrOwner = myRole === "admin" || myRole === "owner";
   const canDelete = isAuthor || isAdminOrOwner;
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(message.content ?? "");
   const btnRef = useRef<HTMLDivElement>(null);
   const [pickerAbove, setPickerAbove] = useState(true);
 
@@ -70,17 +69,6 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
     [message.id],
   );
 
-  const handleEditSubmit = useCallback(() => {
-    const trimmed = editValue.trim();
-    if (trimmed && trimmed !== message.content) {
-      getSocket()?.emit("message:edit", {
-        messageId: message.id,
-        content: trimmed,
-      });
-    }
-    setEditing(false);
-  }, [editValue, message.id, message.content]);
-
   useEffect(() => {
     if (!showEmojiPicker) return;
     const onKey = (e: KeyboardEvent) => {
@@ -89,50 +77,6 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [showEmojiPicker]);
-
-  if (editing) {
-    return (
-      <div className="mt-1">
-        <textarea
-          className="w-full rounded bg-surface-raised px-3 py-1.5 text-sm text-gray-100 outline-none ring-1 ring-white/10 focus:ring-primary"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleEditSubmit();
-            }
-            if (e.key === "Escape") setEditing(false);
-          }}
-          rows={2}
-          autoFocus
-        />
-        <div className="mt-1 flex gap-2 text-xs text-gray-400">
-          <span>
-            escape to{" "}
-            <button
-              type="button"
-              className="text-blue-400 hover:underline"
-              onClick={() => setEditing(false)}
-            >
-              cancel
-            </button>
-          </span>
-          <span>•</span>
-          <span>
-            enter to{" "}
-            <button
-              type="button"
-              className="text-blue-400 hover:underline"
-              onClick={handleEditSubmit}
-            >
-              save
-            </button>
-          </span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
@@ -143,14 +87,8 @@ export function MessageActions({ message, channelId }: MessageActionsProps) {
         <ActionBtn title="Reply" onClick={handleReply}>
           <ReplyIcon />
         </ActionBtn>
-        {isAuthor && (
-          <ActionBtn
-            title="Edit"
-            onClick={() => {
-              setEditValue(message.content ?? "");
-              setEditing(true);
-            }}
-          >
+        {isAuthor && onEdit && (
+          <ActionBtn title="Edit" onClick={onEdit}>
             <EditIcon />
           </ActionBtn>
         )}
