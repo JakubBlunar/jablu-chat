@@ -2,7 +2,7 @@ import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, 
 
 export class RegisterDto {
   @IsString()
-  @MinLength(2)
+  @MinLength(5)
   @MaxLength(32)
   @Matches(/^[a-zA-Z0-9_-]+$/, {
     message: 'Username can only contain letters, numbers, hyphens, and underscores',
@@ -56,7 +56,7 @@ export class ResetPasswordDto {
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
-  @MinLength(1)
+  @MinLength(5)
   @MaxLength(32)
   displayName?: string;
 

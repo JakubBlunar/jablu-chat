@@ -8,7 +8,7 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   username: z
     .string()
-    .min(2, "Username must be at least 2 characters")
+    .min(5, "Username must be at least 5 characters")
     .max(32, "Username must be at most 32 characters")
     .regex(
       /^[a-zA-Z0-9_-]+$/,
