@@ -7,6 +7,7 @@ import {
 import { ChannelType, Prisma, ServerRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { EventBusService } from '../events/event-bus.service';
+import { LinkPreviewService } from '../messages/link-preview.service';
 import { MessagesService } from '../messages/messages.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../servers/audit-log.service';
@@ -49,6 +50,7 @@ export class WebhooksService {
     private readonly messages: MessagesService,
     private readonly events: EventBusService,
     private readonly auditLog: AuditLogService,
+    private readonly linkPreviews: LinkPreviewService,
   ) {}
 
   private async requireTextChannel(channelId: string) {
@@ -199,6 +201,20 @@ export class WebhooksService {
       channelId: webhook.channelId,
       message: wireWithWebhook,
     });
+
+    void this.linkPreviews
+      .generatePreviews(created.id, trimmed)
+      .then((previews) => {
+        if (previews.length > 0) {
+          this.events.emit('webhook:link-previews', {
+            channelId: webhook.channelId,
+            messageId: created.id,
+            linkPreviews: previews,
+          });
+        }
+      })
+      .catch(() => {});
+
     return wireWithWebhook;
   }
 }

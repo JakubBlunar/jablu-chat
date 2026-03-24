@@ -4,5 +4,6 @@ export interface Deal {
   title: string;
   description: string;
   url: string;
+  clientUrl?: string;
   imageUrl?: string;
 }
