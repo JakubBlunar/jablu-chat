@@ -20,7 +20,7 @@ import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useServerStore } from "@/stores/server.store";
 
-import { useMessageScroll, VIRTUAL_START } from "@/components/chat/hooks/useMessageScroll";
+import { useMessageScroll } from "@/components/chat/hooks/useMessageScroll";
 import { useProfileCard } from "@/components/chat/hooks/useProfileCard";
 import { usePinnedMessages } from "@/components/chat/hooks/usePinnedMessages";
 import { useTypingIndicators, formatTyping } from "@/components/chat/hooks/useTypingIndicators";
