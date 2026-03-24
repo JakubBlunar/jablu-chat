@@ -4,7 +4,7 @@ export const updateProfileSchema = z.object({
   displayName: z
     .string()
     .min(5, "Display name must be at least 5 characters")
-    .max(32, "Display name must be at most 32 characters")
+    .max(20, "Display name must be at most 20 characters")
     .optional(),
   bio: z.string().max(190, "Bio must be at most 190 characters").optional(),
 });

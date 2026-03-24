@@ -540,6 +540,7 @@ function ProfileSection() {
           label="Display Name"
           value={displayName}
           onChange={setDisplayName}
+          maxLength={20}
         />
         <div>
           <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">
@@ -1155,12 +1156,14 @@ function SettingsInput({
   value,
   onChange,
   placeholder,
+  maxLength,
 }: {
   label: string;
   type?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -1172,6 +1175,7 @@ function SettingsInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        maxLength={maxLength}
         className="w-full rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition placeholder:text-gray-500 focus:border-primary"
       />
     </div>
