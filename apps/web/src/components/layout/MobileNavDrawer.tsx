@@ -1,11 +1,11 @@
 import type { Channel } from "@chat/shared";
 import { useCallback, useMemo, useState } from "react";
 import SimpleBar from "simplebar-react";
-import { CreateChannelModal } from "@/components/CreateChannelModal";
-import { EditChannelModal } from "@/components/EditChannelModal";
-import { InviteModal } from "@/components/InviteModal";
-import { MobileDrawer } from "@/components/MobileDrawer";
-import { ServerSettingsModal } from "@/components/ServerSettingsModal";
+import { CreateChannelModal } from "@/components/channel/CreateChannelModal";
+import { EditChannelModal } from "@/components/channel/EditChannelModal";
+import { InviteModal } from "@/components/server/InviteModal";
+import { MobileDrawer } from "@/components/layout/MobileDrawer";
+import { ServerSettingsModal } from "@/components/server/ServerSettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 import { api } from "@/lib/api";

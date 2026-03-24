@@ -1,16 +1,16 @@
 import type { Channel } from "@chat/shared";
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import SimpleBar from "simplebar-react";
-import { CreateChannelModal } from "@/components/CreateChannelModal";
-import { EditChannelModal } from "@/components/EditChannelModal";
-import { InviteModal } from "@/components/InviteModal";
-import { ServerSettingsModal } from "@/components/ServerSettingsModal";
+import { CreateChannelModal } from "@/components/channel/CreateChannelModal";
+import { EditChannelModal } from "@/components/channel/EditChannelModal";
+import { InviteModal } from "@/components/server/InviteModal";
+import { ServerSettingsModal } from "@/components/server/ServerSettingsModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { api } from "@/lib/api";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
 
 const ReorderChannelsModal = React.lazy(
-  () => import("@/components/ReorderChannelsModal").then((m) => ({ default: m.ReorderChannelsModal })),
+  () => import("@/components/server/ReorderChannelsModal").then((m) => ({ default: m.ReorderChannelsModal })),
 );
 
 import { useAuthStore } from "@/stores/auth.store";
@@ -22,7 +22,7 @@ import { type VoiceParticipant, useVoiceStore } from "@/stores/voice.store";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 import { useReadStateStore } from "@/stores/readState.store";
 import { useNotifPrefStore } from "@/stores/notifPref.store";
-import { DownloadAppBanner } from "@/components/DownloadApp";
+import { DownloadAppBanner } from "@/components/settings/DownloadApp";
 import { VoicePanel } from "@/components/voice/VoicePanel";
 
 function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {

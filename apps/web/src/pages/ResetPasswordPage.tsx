@@ -1,7 +1,7 @@
 import { resetPasswordSchema } from "@chat/shared";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AuthLayout } from "../components/AuthLayout";
+import { AuthLayout } from "../components/layout/AuthLayout";
 import { ApiError, api } from "../lib/api";
 
 export function ResetPasswordPage() {

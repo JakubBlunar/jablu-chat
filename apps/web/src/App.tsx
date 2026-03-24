@@ -8,9 +8,9 @@ import {
 } from "react-router-dom";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { MainLayout } from "./components/MainLayout";
-import { ProtectedRoute } from "./components/ProtectedRoute";
-import { ServerUrlScreen, getStoredServerUrl } from "./components/ServerUrlScreen";
+import { MainLayout } from "./components/layout/MainLayout";
+import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import { ServerUrlScreen, getStoredServerUrl } from "./components/settings/ServerUrlScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { isElectron } from "./lib/electron";
 import { api } from "./lib/api";

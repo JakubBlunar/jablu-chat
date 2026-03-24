@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import SimpleBar from "simplebar-react";
-import { JoinInviteModal } from "@/components/JoinInviteModal";
+import { JoinInviteModal } from "@/components/server/JoinInviteModal";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useNavigationStore } from "@/stores/navigation.store";
 import { useReadStateStore } from "@/stores/readState.store";

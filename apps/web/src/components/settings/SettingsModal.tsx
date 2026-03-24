@@ -4,7 +4,7 @@ import SimpleBar from "simplebar-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
 import { api, type ActiveSession } from "@/lib/api";
-import { DownloadAppSection } from "@/components/DownloadApp";
+import { DownloadAppSection } from "@/components/settings/DownloadApp";
 import { PwaInstallGuide } from "@/components/PwaInstallGuide";
 import { electronAPI, isElectron } from "@/lib/electron";
 import { getIsStandalone } from "@/hooks/usePwaInstall";
@@ -15,7 +15,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/lib/notifications";
-import { getStoredServerUrl, setStoredServerUrl } from "@/components/ServerUrlScreen";
+import { getStoredServerUrl, setStoredServerUrl } from "@/components/settings/ServerUrlScreen";
 import { useAuthStore } from "@/stores/auth.store";
 
 type Tab = "account" | "profile" | "status" | "voice" | "notifications" | "sessions" | "server" | "downloads" | "install";
