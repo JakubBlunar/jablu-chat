@@ -2065,16 +2065,16 @@ function StorageTab() {
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Avatars" value={fmtBytes(stats.dirSize.avatars)} />
-            <StatCard label="Attachments" value={fmtBytes(stats.dirSize.attachments)} />
-            <StatCard label="Thumbnails" value={fmtBytes(stats.dirSize.thumbnails)} />
-            <StatCard label="Other" value={fmtBytes(stats.dirSize.other)} />
+            <StorageStatCard label="Avatars" value={fmtBytes(stats.dirSize.avatars)} />
+            <StorageStatCard label="Attachments" value={fmtBytes(stats.dirSize.attachments)} />
+            <StorageStatCard label="Thumbnails" value={fmtBytes(stats.dirSize.thumbnails)} />
+            <StorageStatCard label="Other" value={fmtBytes(stats.dirSize.other)} />
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-3">
-            <StatCard label="Total Attachments" value={stats.attachmentCount.toLocaleString()} />
-            <StatCard label="Total Messages" value={stats.messageCount.toLocaleString()} />
-            <StatCard label="Orphaned Attachments" value={stats.orphanedAttachments.toLocaleString()} />
+            <StorageStatCard label="Total Attachments" value={stats.attachmentCount.toLocaleString()} />
+            <StorageStatCard label="Total Messages" value={stats.messageCount.toLocaleString()} />
+            <StorageStatCard label="Orphaned Attachments" value={stats.orphanedAttachments.toLocaleString()} />
           </div>
         </div>
       )}
@@ -2227,7 +2227,7 @@ function StorageTab() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StorageStatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md bg-surface-darkest p-3">
       <p className="text-xs text-gray-400">{label}</p>
