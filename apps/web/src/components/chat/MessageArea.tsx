@@ -1,7 +1,6 @@
 import type { Message } from "@chat/shared";
 import { useCallback, useEffect, useState } from "react";
 import SimpleBar from "simplebar-react";
-import { type MentionChannel } from "@/components/chat/ChatInputBar";
 import { DelayedRender } from "@/components/DelayedRender";
 import { ScrollToBottomButton } from "@/components/ScrollToBottomButton";
 import { ProfileCard } from "@/components/ProfileCard";
