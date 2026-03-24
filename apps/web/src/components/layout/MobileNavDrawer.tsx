@@ -2,6 +2,7 @@ import type { Channel } from "@chat/shared";
 import { useCallback, useMemo, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { CreateChannelModal } from "@/components/channel/CreateChannelModal";
+import { GroupDmModal } from "@/components/dm/GroupDmModal";
 import { EditChannelModal } from "@/components/channel/EditChannelModal";
 import { InviteModal } from "@/components/server/InviteModal";
 import { MobileDrawer } from "@/components/layout/MobileDrawer";
@@ -107,6 +108,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const [inviteOpen, setInviteOpen] = useState(false);
   const [channelModalOpen, setChannelModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+  const [groupDmOpen, setGroupDmOpen] = useState(false);
 
   const currentServer = useMemo(
     () => servers.find((s) => s.id === currentServerId) ?? null,
@@ -428,9 +430,20 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
               </>
             ) : (
               <>
-                <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-400">
-                  DIRECT MESSAGES
-                </p>
+                <div className="mb-1 flex items-center justify-between px-2">
+                  <p className="text-[11px] font-semibold tracking-wide text-gray-400">
+                    DIRECT MESSAGES
+                  </p>
+                  <button
+                    type="button"
+                    title="New Message"
+                    aria-label="New Message"
+                    onClick={() => { close(); setGroupDmOpen(true); }}
+                    className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                  >
+                    <PlusSmallIcon />
+                  </button>
+                </div>
                 <ul className="space-y-0.5">
                   {conversations.map((conv) => {
                     const info = getConvDisplayInfo(conv);
@@ -524,6 +537,22 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
         <EditChannelModal
           channel={editingChannel}
           onClose={() => setEditingChannel(null)}
+        />
+      )}
+      {groupDmOpen && (
+        <GroupDmModal
+          conversations={conversations}
+          currentUserId={user?.id}
+          onClose={() => setGroupDmOpen(false)}
+          onCreated={(conv) => {
+            useDmStore.getState().addOrUpdateConversation(conv);
+            goToDm(conv.id);
+            setGroupDmOpen(false);
+          }}
+          onExisting={(convId) => {
+            goToDm(convId);
+            setGroupDmOpen(false);
+          }}
         />
       )}
     </>
