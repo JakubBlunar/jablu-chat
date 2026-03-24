@@ -41,8 +41,14 @@ function LightboxOverlay({
   );
 }
 
+function aspectStyle(w: number | null, h: number | null) {
+  if (!w || !h) return undefined;
+  return { aspectRatio: `${w} / ${h}` } as const;
+}
+
 export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
   const [lightbox, setLightbox] = useState(false);
+  const { width: aw, height: ah } = attachment;
 
   if (attachment.type === "image" || attachment.type === "gif") {
     return (
@@ -55,7 +61,10 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
           <img
             src={attachment.url}
             alt={attachment.filename}
-            className="max-h-[300px] rounded-lg object-contain"
+            width={aw ?? undefined}
+            height={ah ?? undefined}
+            style={aspectStyle(aw, ah)}
+            className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
             loading="lazy"
           />
         </button>
@@ -73,13 +82,17 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
   }
 
   if (attachment.type === "video") {
+    const hasDims = aw && ah;
     return (
       <div className="mt-1 max-w-md">
         <video
           src={attachment.url}
           controls
           preload="metadata"
-          className="max-h-[300px] rounded-lg"
+          width={aw ?? undefined}
+          height={ah ?? undefined}
+          style={hasDims ? aspectStyle(aw, ah) : { aspectRatio: "16 / 9" }}
+          className="h-auto max-h-[300px] w-auto max-w-full rounded-lg"
         >
           <track kind="captions" />
         </video>

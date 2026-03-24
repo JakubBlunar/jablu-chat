@@ -9,6 +9,23 @@ const VIRTUAL_START = 100_000;
 
 export { VIRTUAL_START };
 
+function waitForVisibleImages(container: HTMLElement, timeoutMs = 2000): Promise<void> {
+  return new Promise((resolve) => {
+    const imgs = Array.from(container.querySelectorAll("img"));
+    const pending = imgs.filter((img) => !img.complete && img.src);
+    if (!pending.length) { resolve(); return; }
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    let loaded = 0;
+    for (const img of pending) {
+      const h = () => { if (++loaded >= pending.length) finish(); };
+      img.addEventListener("load", h, { once: true });
+      img.addEventListener("error", h, { once: true });
+    }
+    setTimeout(finish, timeoutMs);
+  });
+}
+
 interface StoreAdapter {
   messages: Message[];
   isLoading: boolean;
@@ -42,6 +59,11 @@ export function useMessageScroll(
     setScrollParent(node);
   }, []);
   const [atBottom, setAtBottom] = useState(true);
+  const [firstItemIndex, setFirstItemIndex] = useState(VIRTUAL_START);
+  const [virtuosoKey, setVirtuosoKey] = useState(0);
+  const [settling, setSettling] = useState(false);
+  const settlingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleAtBottomChange = useCallback((bottom: boolean) => {
     if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 10) {
       setAtBottom(true);
@@ -49,8 +71,6 @@ export function useMessageScroll(
     }
     setAtBottom(bottom);
   }, [scrollParent]);
-  const [firstItemIndex, setFirstItemIndex] = useState(VIRTUAL_START);
-  const [virtuosoKey, setVirtuosoKey] = useState(0);
 
   const hasNewerRef = useRef(hasNewer);
   hasNewerRef.current = hasNewer;
@@ -71,6 +91,8 @@ export function useMessageScroll(
       return;
     }
 
+    setSettling(true);
+
     const targetId = scrollToMessageId;
     let pollCancelled = false;
     let fetchAttempted = false;
@@ -84,6 +106,7 @@ export function useMessageScroll(
       if (pollCancelled) return;
       if (Date.now() - startTime > TIMEOUT) {
         setScrollToMessageId(null);
+        setSettling(false);
         return;
       }
 
@@ -108,6 +131,7 @@ export function useMessageScroll(
           setTimeout(poll, 200);
         } else {
           setScrollToMessageId(null);
+          setSettling(false);
         }
         return;
       }
@@ -120,18 +144,32 @@ export function useMessageScroll(
       sp.scrollTop = 0;
       setVirtuosoKey((k) => k + 1);
 
+      const scrollToCenter = (el: HTMLElement, sp: HTMLElement) => {
+        const elRect = el.getBoundingClientRect();
+        const spRect = sp.getBoundingClientRect();
+        const offset = elRect.top - spRect.top + sp.scrollTop;
+        sp.scrollTo({ top: offset - sp.clientHeight / 2 + elRect.height / 2, behavior: "auto" });
+      };
+
       const tryHighlight = (attempts = 0) => {
         const currentSp = scrollParentNodeRef.current;
         const el = document.getElementById(`msg-${targetId}`);
         if (el && currentSp) {
-          const elRect = el.getBoundingClientRect();
-          const spRect = currentSp.getBoundingClientRect();
-          const offset = elRect.top - spRect.top + currentSp.scrollTop;
-          currentSp.scrollTo({ top: offset - currentSp.clientHeight / 2 + elRect.height / 2, behavior: "auto" });
-          el.classList.add("bg-primary/10");
-          setTimeout(() => el.classList.remove("bg-primary/10"), 3000);
+          scrollToCenter(el, currentSp);
+          void waitForVisibleImages(currentSp).then(() => {
+            const sp2 = scrollParentNodeRef.current;
+            const el2 = document.getElementById(`msg-${targetId}`);
+            if (el2 && sp2) scrollToCenter(el2, sp2);
+            if (el2) {
+              el2.classList.add("bg-primary/10");
+              setTimeout(() => el2.classList.remove("bg-primary/10"), 3000);
+            }
+            setSettling(false);
+          });
         } else if (attempts < 40) {
           setTimeout(() => tryHighlight(attempts + 1), 50);
+        } else {
+          setSettling(false);
         }
       };
       setTimeout(() => tryHighlight(), 200);
@@ -171,6 +209,7 @@ export function useMessageScroll(
         setFirstItemIndex(VIRTUAL_START);
         setAtBottom(true);
       } else {
+        setSettling(true);
         setFirstItemIndex(VIRTUAL_START);
         setAtBottom(true);
         clearMessages();
@@ -187,6 +226,17 @@ export function useMessageScroll(
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextId, clearMessages, fetchMessages, isDm, getLoadedForId]);
+
+  /* ── Clear settling after context switch loads ── */
+  useEffect(() => {
+    if (!settling || messages.length === 0) return;
+    if (scrollToMessageId) return;
+    if (settlingTimerRef.current) clearTimeout(settlingTimerRef.current);
+    settlingTimerRef.current = setTimeout(() => setSettling(false), 120);
+    return () => {
+      if (settlingTimerRef.current) clearTimeout(settlingTimerRef.current);
+    };
+  }, [settling, messages.length, scrollToMessageId]);
 
   /* ── Pagination ── */
   const loadingRef = useRef(false);
@@ -244,16 +294,25 @@ export function useMessageScroll(
       const idx = messages.findIndex((m) => m.id === messageId);
       if (idx >= 0) {
         const absIndex = firstItemIndex + idx;
+        const centerEl = (el: HTMLElement, sp: HTMLElement) => {
+          const cRect = sp.getBoundingClientRect();
+          const eRect = el.getBoundingClientRect();
+          sp.scrollTop += eRect.top - cRect.top - cRect.height / 2 + eRect.height / 2;
+        };
         const tryFind = (attempts = 0) => {
           const el = document.getElementById(`msg-${messageId}`);
           if (el && scrollParent) {
-            const cRect = scrollParent.getBoundingClientRect();
-            const eRect = el.getBoundingClientRect();
-            scrollParent.scrollTop += eRect.top - cRect.top - cRect.height / 2 + eRect.height / 2;
-            el.classList.add("bg-primary/10");
-            jumpTimersRef.current.push(
-              setTimeout(() => el.classList.remove("bg-primary/10"), 2000),
-            );
+            centerEl(el, scrollParent);
+            void waitForVisibleImages(scrollParent).then(() => {
+              const el2 = document.getElementById(`msg-${messageId}`);
+              if (el2 && scrollParent) centerEl(el2, scrollParent);
+              if (el2) {
+                el2.classList.add("bg-primary/10");
+                jumpTimersRef.current.push(
+                  setTimeout(() => el2.classList.remove("bg-primary/10"), 2000),
+                );
+              }
+            });
           } else if (attempts < 20) {
             virtuosoRef.current?.scrollToIndex({ index: absIndex, align: "center" });
             jumpTimersRef.current.push(
@@ -283,5 +342,6 @@ export function useMessageScroll(
     stickToBottom,
     handleBottomButtonClick,
     handleJumpToMessage,
+    settling,
   };
 }

@@ -1,0 +1,44 @@
+---
+description: Layout shift constraints for the message area and scroll-to-message functionality
+globs: apps/web/src/components/chat/**,apps/web/src/components/AttachmentPreview.tsx,apps/web/src/components/LinkPreviewCard.tsx,apps/web/src/components/MarkdownContent.tsx
+alwaysApply: false
+---
+
+# Message Area Layout & Scroll-to-Message
+
+## Scroll-to-Message Contract
+
+Any media in a message must either reserve its final height before load or be accounted for by the `waitForVisibleImages` helper in `useMessageScroll.ts`. Without this, searching for a message and scrolling to it will fail because images above the target load and push it out of view.
+
+## Media Types in Messages
+
+### Dimensions known (space reserved via HTML width/height + CSS aspect-ratio)
+
+- **Image/GIF attachments** (`AttachmentPreview.tsx`): Backend stores `width`/`height` via `sharp`. Frontend sets HTML attributes + `aspect-ratio` style. CSS: `max-h-[300px] max-w-full w-auto h-auto`.
+- **Video attachments** (`AttachmentPreview.tsx`): Backend stores `width`/`height` via `ffprobe`. Falls back to `aspect-ratio: 16/9` when dimensions are null. CSS: `max-h-[300px] max-w-full w-auto h-auto`.
+
+### Dimensions unknown (handled by waitForVisibleImages)
+
+- **Link preview embeds** (`LinkPreviewCard.tsx` `MediaEmbed`): External images with no stored dimensions. Button has `min-h-[120px]` to reduce shift magnitude.
+- **Markdown inline images** (`MarkdownContent.tsx` img renderer): External images from bots/webhooks. CSS: `max-h-72 max-w-full`.
+
+### No shift (already stable)
+
+- **YouTube thumbnails**: `aspect-video w-full` reserves space.
+- **File attachments**: Fixed-height download card.
+- **Default link preview cards**: Fixed 96px thumbnail.
+
+## Key Implementation Details
+
+- `waitForVisibleImages(container, timeoutMs)` in `useMessageScroll.ts` waits for all unloaded `<img>` elements in the scroll container to finish loading (with a timeout cap). Virtuoso renders ~15-20 items so the image count is small.
+- `tryHighlight` (search results) and `handleJumpToMessage` (pinned messages) both do: initial scroll -> wait for images -> final precise scroll -> highlight.
+- Responsive sizing: HTML `width`/`height` attributes + `max-width: 100%; height: auto` lets the browser compute the correct aspect ratio at any viewport width.
+- **Settling state**: `useMessageScroll` exposes a `settling` boolean that is `true` during search scroll-to-message and context switches while content loads. The SimpleBar container uses `opacity-0` during settling to hide scrollbar jumping from image layout shifts.
+
+## Testing Checklist
+
+After any change to message rendering components:
+1. Search for a message that has image-heavy messages above it — verify it scrolls and highlights in one click
+2. Test on mobile viewport — images should scale proportionally
+3. Test with bot messages containing inline images
+4. Test pinned message jump with images in view
