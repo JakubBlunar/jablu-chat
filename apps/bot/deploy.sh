@@ -48,6 +48,13 @@ case "${1:-help}" in
 
     echo "Building and starting bot..."
     docker compose up -d --build
+
+    echo ""
+    echo "Cleaning up unused Docker images..."
+    docker image prune -a -f --filter "until=24h" 2>/dev/null || true
+    echo "Cleaning up build cache (keeping 2GB)..."
+    docker builder prune -f --keep-storage=2GB 2>/dev/null || true
+
     echo ""
     echo "Bot is running! Check logs with: ./deploy.sh logs"
     ;;
@@ -55,6 +62,11 @@ case "${1:-help}" in
   update)
     echo "=== Updating FreeGameBot ==="
     docker compose up -d --build
+
+    echo "Cleaning up unused Docker images..."
+    docker image prune -a -f --filter "until=24h" 2>/dev/null || true
+    docker builder prune -f --keep-storage=2GB 2>/dev/null || true
+
     echo "Done. Check logs: ./deploy.sh logs"
     ;;
 
