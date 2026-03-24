@@ -1,11 +1,21 @@
 import { Controller, Get } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('health')
 export class HealthController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Get()
-  health() {
+  async health() {
+    let db = 'ok';
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      db = 'error';
+    }
     return {
-      status: 'ok',
+      status: db === 'ok' ? 'ok' : 'degraded',
+      db,
       timestamp: new Date().toISOString(),
     };
   }

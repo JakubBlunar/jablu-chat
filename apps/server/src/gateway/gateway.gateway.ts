@@ -19,7 +19,7 @@ import { PushService } from '../push/push.service';
 import { ReadStateService } from '../read-state/read-state.service';
 import { WsJwtGuard, WsUser } from './ws-jwt.guard';
 
-@WebSocketGateway({ cors: { origin: '*' }, namespace: '/' })
+@WebSocketGateway({ cors: { origin: true, credentials: true }, namespace: '/' })
 @UseGuards(WsJwtGuard)
 export class ChatGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
