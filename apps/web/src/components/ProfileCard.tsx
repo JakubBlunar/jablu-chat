@@ -134,7 +134,7 @@ function ProfileCardContent({
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [mutualServers, setMutualServers] = useState<MutualServer[]>([]);
-  const { goToServer } = useAppNavigate();
+  const { orchestratedGoToChannel } = useAppNavigate();
 
   useEffect(() => {
     if (!user.id || user.id === currentUserId) return;
@@ -208,7 +208,7 @@ function ProfileCardContent({
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => { goToServer(s.id); onClose(); }}
+                  onClick={() => { void orchestratedGoToChannel(s.id); onClose(); }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1 text-left transition hover:bg-white/5"
                 >
                   <ServerIcon name={s.name} iconUrl={s.iconUrl} />

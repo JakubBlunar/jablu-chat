@@ -8,11 +8,17 @@ type DmState = {
   currentConversationId: string | null;
   messages: Message[];
   hasMore: boolean;
+  hasNewer: boolean;
   isLoading: boolean;
   isConversationsLoading: boolean;
+  loadedForConvId: string | null;
+  scrollToMessageId: string | null;
+  scrollRequestNonce: number;
   fetchConversations: () => Promise<void>;
   setCurrentConversation: (id: string | null) => void;
   fetchMessages: (conversationId: string, cursor?: string) => Promise<void>;
+  fetchMessagesAround: (conversationId: string, messageId: string) => Promise<void>;
+  setScrollToMessageId: (id: string | null) => void;
   addMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
   removeMessage: (messageId: string) => void;
@@ -35,8 +41,12 @@ export const useDmStore = create<DmState>((set, _get) => ({
   currentConversationId: null,
   messages: [],
   hasMore: false,
+  hasNewer: false,
   isLoading: false,
   isConversationsLoading: false,
+  loadedForConvId: null,
+  scrollToMessageId: null,
+  scrollRequestNonce: 0,
 
   fetchConversations: async () => {
     set({ isConversationsLoading: true });
@@ -67,12 +77,36 @@ export const useDmStore = create<DmState>((set, _get) => ({
           messages: chronological,
           hasMore: page.hasMore,
           isLoading: false,
+          loadedForConvId: conversationId,
         });
       }
     } catch {
       set({ isLoading: false });
     }
   },
+
+  fetchMessagesAround: async (conversationId, messageId) => {
+    set({ isLoading: true });
+    try {
+      const page = await api.getDmMessagesAround(conversationId, messageId);
+      const chronological = toChronological(page.messages);
+      set({
+        messages: chronological,
+        hasMore: page.hasMore,
+        hasNewer: page.hasNewer ?? false,
+        isLoading: false,
+        loadedForConvId: conversationId,
+      });
+    } catch {
+      set({ isLoading: false });
+    }
+  },
+
+  setScrollToMessageId: (id) =>
+    set((s) => ({
+      scrollToMessageId: id,
+      scrollRequestNonce: id !== null ? s.scrollRequestNonce + 1 : s.scrollRequestNonce,
+    })),
 
   addMessage: (message) => {
     set((s) => {
@@ -93,7 +127,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     }));
   },
 
-  clearMessages: () => set({ messages: [], hasMore: false }),
+  clearMessages: () => set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null }),
 
   addReaction: (messageId, emoji, userId) => {
     set((s) => ({

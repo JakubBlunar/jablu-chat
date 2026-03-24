@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { JoinInviteModal } from "@/components/JoinInviteModal";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
+import { useNavigationStore } from "@/stores/navigation.store";
 import { useReadStateStore } from "@/stores/readState.store";
 import { useNotifPrefStore } from "@/stores/notifPref.store";
 import { useServerStore } from "@/stores/server.store";
@@ -34,7 +35,8 @@ export function ServerSidebar() {
   const currentServerId = useServerStore((s) => s.currentServerId);
   const viewMode = useServerStore((s) => s.viewMode);
   const isLoading = useServerStore((s) => s.isLoading);
-  const { goToServer, goToDms } = useAppNavigate();
+  const { goToDms, orchestratedGoToChannel } = useAppNavigate();
+  const navigatingToServerId = useNavigationStore((s) => s.navigatingToServerId);
 
   const dmReadStates = useReadStateStore((s) => s.dms);
   const channelReadStates = useReadStateStore((s) => s.channels);
@@ -112,7 +114,7 @@ export function ServerSidebar() {
                     <div className="relative">
                       <button
                         type="button"
-                        onClick={() => goToServer(server.id)}
+                        onClick={() => void orchestratedGoToChannel(server.id)}
                         title={server.name}
                         className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
                           active
@@ -128,6 +130,11 @@ export function ServerSidebar() {
                           />
                         ) : (
                           initial
+                        )}
+                        {navigatingToServerId === server.id && (
+                          <div className="absolute inset-0 flex items-center justify-center rounded-[inherit] bg-black/50">
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          </div>
                         )}
                       </button>
                       {badge && badge.mentions > 0 && (

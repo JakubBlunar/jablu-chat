@@ -24,9 +24,11 @@ type MessageState = {
   isLoading: boolean;
   hasMore: boolean;
   hasNewer: boolean;
+  loadedForChannelId: string | null;
   typingUsers: Map<string, TypingEntry>;
   replyTarget: ReplyTarget;
   scrollToMessageId: string | null;
+  scrollRequestNonce: number;
   fetchMessages: (channelId: string, cursor?: string) => Promise<void>;
   fetchMessagesAround: (channelId: string, messageId: string) => Promise<void>;
   fetchNewerMessages: (channelId: string) => Promise<void>;
@@ -47,8 +49,18 @@ type MessageState = {
   removeTypingUser: (userId: string) => void;
 };
 
+const MAX_MESSAGES = 200;
+
 function toChronological(messagesDesc: Message[]): Message[] {
   return messagesDesc.slice().reverse();
+}
+
+function trimOldest(msgs: Message[]): Message[] {
+  return msgs.length > MAX_MESSAGES ? msgs.slice(msgs.length - MAX_MESSAGES) : msgs;
+}
+
+function trimNewest(msgs: Message[]): Message[] {
+  return msgs.length > MAX_MESSAGES ? msgs.slice(0, MAX_MESSAGES) : msgs;
 }
 
 export const useMessageStore = create<MessageState>((set, get) => ({
@@ -56,9 +68,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   isLoading: false,
   hasMore: false,
   hasNewer: false,
+  loadedForChannelId: null,
   typingUsers: new Map(),
   replyTarget: null,
   scrollToMessageId: null,
+  scrollRequestNonce: 0,
 
   fetchMessages: async (channelId, cursor) => {
     set({ isLoading: true });
@@ -72,16 +86,22 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const chronological = toChronological(page.messages);
 
       if (cursor) {
-        set((s) => ({
-          messages: [...chronological, ...s.messages],
-          hasMore: page.hasMore,
-          isLoading: false,
-        }));
+        set((s) => {
+          const merged = [...chronological, ...s.messages];
+          const trimmed = trimNewest(merged);
+          return {
+            messages: trimmed,
+            hasMore: page.hasMore,
+            hasNewer: trimmed.length < merged.length ? true : s.hasNewer,
+            isLoading: false,
+          };
+        });
       } else {
         set({
           messages: chronological,
           hasMore: page.hasMore,
           isLoading: false,
+          loadedForChannelId: channelId,
         });
       }
     } catch (e) {
@@ -101,6 +121,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         hasMore: page.hasMore,
         hasNewer: page.hasNewer ?? false,
         isLoading: false,
+        loadedForChannelId: channelId,
       });
     } catch (e) {
       set({ isLoading: false });
@@ -117,11 +138,16 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const path = `/api/channels/${channelId}/messages?after=${newestId}&limit=50`;
       const page = await api.get<MessagesPage>(path);
       const chronological = toChronological(page.messages);
-      set((s) => ({
-        messages: [...s.messages, ...chronological],
-        hasNewer: page.hasNewer ?? false,
-        isLoading: false,
-      }));
+      set((s) => {
+        const merged = [...s.messages, ...chronological];
+        const trimmed = trimOldest(merged);
+        return {
+          messages: trimmed,
+          hasMore: trimmed.length < merged.length ? true : s.hasMore,
+          hasNewer: page.hasNewer ?? false,
+          isLoading: false,
+        };
+      });
     } catch (e) {
       set({ isLoading: false });
       throw e;
@@ -132,7 +158,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set((s) => {
       if (s.hasNewer) return s;
       if (s.messages.some((m) => m.id === message.id)) return s;
-      return { messages: [...s.messages, message] };
+      const merged = [...s.messages, message];
+      const trimmed = trimOldest(merged);
+      return {
+        messages: trimmed,
+        hasMore: trimmed.length < merged.length ? true : s.hasMore,
+      };
     });
   },
 
@@ -157,6 +188,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       messages: [],
       hasMore: false,
       hasNewer: false,
+      loadedForChannelId: null,
       typingUsers: new Map(),
       replyTarget: null,
     });
@@ -209,7 +241,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   setReplyTarget: (target) => set({ replyTarget: target }),
-  setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
+  setScrollToMessageId: (id) =>
+    set((s) => ({
+      scrollToMessageId: id,
+      scrollRequestNonce: id !== null ? s.scrollRequestNonce + 1 : s.scrollRequestNonce,
+    })),
 
   setLinkPreviews: (messageId, linkPreviews) => {
     set((s) => ({

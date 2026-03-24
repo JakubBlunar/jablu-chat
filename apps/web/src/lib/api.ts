@@ -578,6 +578,16 @@ export class ApiClient {
     return this.get(`/api/dm/${conversationId}/messages${qs ? `?${qs}` : ""}`);
   }
 
+  getDmMessagesAround(
+    conversationId: string,
+    messageId: string,
+    limit = 50,
+  ): Promise<{ messages: Message[]; hasMore: boolean; hasNewer: boolean }> {
+    return this.get(
+      `/api/dm/${conversationId}/messages?around=${messageId}&limit=${limit}`,
+    );
+  }
+
   getReadStates(): Promise<{
     channels: { channelId: string; serverId: string; mentionCount: number; lastReadAt: string }[];
     dms: { conversationId: string; mentionCount: number; lastReadAt: string }[];

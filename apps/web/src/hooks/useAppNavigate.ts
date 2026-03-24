@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNavigationStore } from "@/stores/navigation.store";
 
 export function useAppNavigate() {
   const navigate = useNavigate();
@@ -22,5 +23,28 @@ export function useAppNavigate() {
     [navigate],
   );
 
-  return { navigate, goToServer, goToChannel, goToDms, goToDm } as const;
+  const orchestratedGoToChannel = useCallback(
+    async (serverId: string, channelId?: string | null, scrollToMessageId?: string | null) => {
+      const path = await useNavigationStore.getState().navigateToChannel({
+        serverId,
+        channelId,
+        scrollToMessageId,
+      });
+      if (path) navigate(path);
+    },
+    [navigate],
+  );
+
+  const orchestratedGoToDm = useCallback(
+    async (conversationId: string, scrollToMessageId?: string | null) => {
+      const path = await useNavigationStore.getState().navigateToDm({
+        conversationId,
+        scrollToMessageId,
+      });
+      if (path) navigate(path);
+    },
+    [navigate],
+  );
+
+  return { navigate, goToServer, goToChannel, goToDms, goToDm, orchestratedGoToChannel, orchestratedGoToDm } as const;
 }

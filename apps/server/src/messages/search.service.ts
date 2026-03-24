@@ -24,6 +24,7 @@ export class SearchService {
       .filter(Boolean)
       .map((w) => w.replace(/[^\w]/g, ''))
       .filter(Boolean)
+      .map((w) => `${w}:*`)
       .join(' & ');
 
     if (!tsQuery) return { results: [], total: 0 };

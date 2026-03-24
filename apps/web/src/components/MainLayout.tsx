@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChannelSidebar } from "@/components/ChannelSidebar";
-import { DmMessageArea } from "@/components/DmMessageArea";
 import { DmSidebar } from "@/components/DmSidebar";
 import { MemberDrawer } from "@/components/MemberDrawer";
 import { MemberSidebar } from "@/components/MemberSidebar";
@@ -19,6 +18,8 @@ import { useChannelStore } from "@/stores/channel.store";
 import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
+import { useDmStore } from "@/stores/dm.store";
+import { useNavigationStore } from "@/stores/navigation.store";
 import { useServerStore } from "@/stores/server.store";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -168,6 +169,8 @@ export function MainLayout() {
   const channels = useChannelStore((s) => s.channels);
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
+  const channelLoadedServerId = useChannelStore((s) => s.loadedServerId);
+  const isNavigating = useNavigationStore((s) => s.isNavigating);
 
   const textChannels = useMemo(
     () => channels.filter((c) => c.type === "text").sort((a, b) => a.position - b.position),
@@ -179,6 +182,7 @@ export function MainLayout() {
 
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom);
   const voiceChannelName = useVoiceConnectionStore((s) => s.currentChannelName);
+  const currentConvId = useDmStore((s) => s.currentConversationId);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
@@ -221,17 +225,21 @@ export function MainLayout() {
 
     if (prevServerRef.current !== currentServerId) {
       prevServerRef.current = currentServerId;
-      fetchChannels(currentServerId).catch(() => {
-        navigate("/channels/@me", { replace: true });
-      });
-      void fetchMembers(currentServerId);
+      if (channelLoadedServerId !== currentServerId) {
+        fetchChannels(currentServerId).catch(() => {
+          navigate("/channels/@me", { replace: true });
+        });
+        void fetchMembers(currentServerId);
+      }
     }
   }, [viewMode, currentServerId, fetchChannels, fetchMembers, navigate]);
 
   // Auto-redirect: invalid/missing channel → navigate to first text channel
   useEffect(() => {
     if (viewMode !== "server") return;
+    if (isNavigating) return;
     if (!currentServerId || channels.length === 0) return;
+    if (channelLoadedServerId !== currentServerId) return;
     const valid =
       currentChannelId != null &&
       channels.some((c) => c.id === currentChannelId);
@@ -240,7 +248,7 @@ export function MainLayout() {
     if (firstText) {
       navigate(`/channels/${currentServerId}/${firstText.id}`, { replace: true });
     }
-  }, [viewMode, currentServerId, channels, currentChannelId, textChannels, navigate]);
+  }, [viewMode, currentServerId, channels, currentChannelId, textChannels, navigate, channelLoadedServerId, isNavigating]);
 
   const mobileTitle = useMemo(() => {
     if (viewMode === "dm") return "Direct Messages";
@@ -265,7 +273,7 @@ export function MainLayout() {
         />
         <div className="flex min-h-0 flex-1">
           {viewMode === "dm" ? (
-            <DmMessageArea />
+            <MessageArea mode="dm" contextId={currentConvId} />
           ) : serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
               <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
@@ -281,7 +289,7 @@ export function MainLayout() {
           ) : viewingVoiceRoom ? (
             <VoiceRoom />
           ) : (
-            <MessageArea />
+            <MessageArea mode="channel" contextId={currentChannelId} />
           )}
         </div>
         <MobileNavDrawer onOpenSettings={openSettings} />
@@ -301,7 +309,7 @@ export function MainLayout() {
         <div className="flex min-h-0 flex-1">
           <ServerSidebar />
           <DmSidebar onOpenSettings={openSettings} />
-          <DmMessageArea />
+          <MessageArea mode="dm" contextId={currentConvId} />
         </div>
         <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </div>
@@ -332,7 +340,7 @@ export function MainLayout() {
           ) : viewingVoiceRoom ? (
             <VoiceRoom />
           ) : (
-            <MessageArea memberSidebar={showMemberSidebar ? <MemberSidebar /> : null} />
+            <MessageArea mode="channel" contextId={currentChannelId} memberSidebar={showMemberSidebar ? <MemberSidebar /> : null} />
           )}
         </div>
         <ScreenSharePicker />
