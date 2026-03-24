@@ -8,12 +8,12 @@ type UpdateState =
   | { status: "ready"; version: string }
   | { status: "error"; message: string };
 
-export function UpdateBanner() {
+function ElectronUpdateBanner() {
   const [state, setState] = useState<UpdateState>({ status: "idle" });
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!isElectron || !electronAPI) return;
+    if (!electronAPI) return;
 
     const unsubs = [
       electronAPI.onUpdateAvailable((info) => {
@@ -35,9 +35,7 @@ export function UpdateBanner() {
     return () => unsubs.forEach((fn) => fn());
   }, []);
 
-  if (!isElectron || dismissed || state.status === "idle") return null;
-
-  if (state.status === "error") return null;
+  if (dismissed || state.status === "idle" || state.status === "error") return null;
 
   return (
     <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
@@ -85,4 +83,47 @@ export function UpdateBanner() {
       )}
     </div>
   );
+}
+
+function PwaUpdateBanner() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const handler = () => {
+      setUpdateAvailable(true);
+      setDismissed(false);
+    };
+    window.addEventListener("sw-update-available", handler);
+    return () => window.removeEventListener("sw-update-available", handler);
+  }, []);
+
+  if (!updateAvailable || dismissed) return null;
+
+  return (
+    <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
+      <span>A new version is available!</span>
+      <button
+        type="button"
+        onClick={() => {
+          (window as any).__updateSW?.(true);
+        }}
+        className="rounded-md bg-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/30"
+      >
+        Reload
+      </button>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        className="ml-auto text-xs text-white/70 hover:text-white"
+      >
+        Later
+      </button>
+    </div>
+  );
+}
+
+export function UpdateBanner() {
+  if (isElectron) return <ElectronUpdateBanner />;
+  return <PwaUpdateBanner />;
 }
