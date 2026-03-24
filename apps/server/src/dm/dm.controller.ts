@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -37,6 +38,14 @@ export class DmController {
     @Body() dto: CreateGroupDmDto,
   ) {
     return this.dm.createGroupDm(user.id, dto.memberIds, dto.groupName);
+  }
+
+  @Patch(':id/close')
+  closeConversation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.dm.closeConversation(id, user.id);
   }
 
   @Get(':id')

@@ -164,9 +164,10 @@ model DirectConversation {
 }
 
 model DirectConversationMember {
-  conversationId String   @map("conversation_id")
-  userId         String   @map("user_id")
-  joinedAt       DateTime @default(now()) @map("joined_at")
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  joinedAt       DateTime  @default(now()) @map("joined_at")
+  closedAt       DateTime? @map("closed_at")
 
   conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)

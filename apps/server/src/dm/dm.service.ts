@@ -122,6 +122,10 @@ export class DmService {
     });
 
     if (existing) {
+      await this.prisma.directConversationMember.updateMany({
+        where: { conversationId: existing.id, userId: currentUserId, closedAt: { not: null } },
+        data: { closedAt: null },
+      });
       return this.toConversationWire(existing);
     }
 
@@ -177,9 +181,24 @@ export class DmService {
     return this.toConversationWire(created);
   }
 
+  async closeConversation(conversationId: string, userId: string) {
+    await this.requireMembership(conversationId, userId);
+    await this.prisma.directConversationMember.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { closedAt: new Date() },
+    });
+  }
+
+  async openConversation(conversationId: string, userId: string) {
+    await this.prisma.directConversationMember.updateMany({
+      where: { conversationId, userId, closedAt: { not: null } },
+      data: { closedAt: null },
+    });
+  }
+
   async getConversations(userId: string) {
     const conversations = await this.prisma.directConversation.findMany({
-      where: { members: { some: { userId } } },
+      where: { members: { some: { userId, closedAt: null } } },
       include: {
         members: { select: memberSelect },
         messages: {
@@ -386,18 +405,24 @@ export class DmService {
       }
     }
 
-    const created = await this.prisma.message.create({
-      data: {
-        directConversationId: conversationId,
-        authorId: userId,
-        content: trimmed ?? null,
-        replyToId: replyToId ?? undefined,
-        attachments: hasAttachments
-          ? { connect: attachmentIds!.map((id) => ({ id })) }
-          : undefined,
-      },
-      include: messageInclude,
-    });
+    const [created] = await Promise.all([
+      this.prisma.message.create({
+        data: {
+          directConversationId: conversationId,
+          authorId: userId,
+          content: trimmed ?? null,
+          replyToId: replyToId ?? undefined,
+          attachments: hasAttachments
+            ? { connect: attachmentIds!.map((id) => ({ id })) }
+            : undefined,
+        },
+        include: messageInclude,
+      }),
+      this.prisma.directConversationMember.updateMany({
+        where: { conversationId, closedAt: { not: null } },
+        data: { closedAt: null },
+      }),
+    ]);
 
     return this.mapToWire(created);
   }
