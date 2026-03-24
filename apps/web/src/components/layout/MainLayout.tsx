@@ -106,6 +106,7 @@ function MobileTopBar({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 bg-surface px-3 shadow-sm">
       <button
         type="button"
+        aria-label="Open navigation menu"
         onClick={onMenuClick}
         className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
       >
@@ -117,6 +118,7 @@ function MobileTopBar({
       {showMembers && onMembersClick && (
         <button
           type="button"
+          aria-label="Toggle member list"
           onClick={onMembersClick}
           className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >

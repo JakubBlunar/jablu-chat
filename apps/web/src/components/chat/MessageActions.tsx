@@ -144,6 +144,7 @@ function ActionBtn({
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       className={`p-1.5 transition ${
         danger

@@ -250,6 +250,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               onClick={() => fileRef.current?.click()}
               className="shrink-0 p-3 text-gray-400 transition hover:text-white"
               title="Attach file"
+              aria-label="Attach file"
             >
               <PlusCircleIcon />
             </button>
@@ -292,6 +293,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onClick={() => { setGifOpen((p) => !p); setEmojiOpen(false); }}
             className="shrink-0 px-1.5 py-3 text-gray-400 transition hover:text-white"
             title="GIF"
+            aria-label="GIF picker"
           >
             <GifIcon />
           </button>
@@ -302,6 +304,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           onClick={() => { setEmojiOpen((p) => !p); setGifOpen(false); }}
           className="shrink-0 pl-1.5 pr-3 py-3 text-gray-400 transition hover:text-white"
           title="Emoji"
+          aria-label="Emoji picker"
         >
           <SmileIcon />
         </button>

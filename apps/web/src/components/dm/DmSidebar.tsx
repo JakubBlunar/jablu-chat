@@ -87,6 +87,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <button
           type="button"
           title="New Message"
+          aria-label="New Message"
           onClick={() => setGroupDmOpen(true)}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
@@ -205,6 +206,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <button
           type="button"
           title="User settings"
+          aria-label="User settings"
           onClick={onOpenSettings}
           className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >

@@ -29,6 +29,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = "se
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [localQuery, setLocalQuery] = useState(query);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -46,6 +47,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = "se
         return;
       }
       setLoading(true);
+      setError(false);
       try {
         const opts: Parameters<typeof api.searchMessages>[1] = { offset: off };
         if (s === "server" && currentServerId) opts.serverId = currentServerId;
@@ -58,6 +60,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = "se
       } catch {
         setResults([]);
         setTotal(0);
+        setError(true);
       } finally {
         setLoading(false);
       }
@@ -120,6 +123,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = "se
         <h2 className="text-sm font-semibold text-white">Search Results</h2>
         <button
           type="button"
+          aria-label="Close search"
           onClick={onClose}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
@@ -193,6 +197,17 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = "se
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+          </div>
+        ) : error ? (
+          <div className="px-3 py-8 text-center text-sm text-gray-400">
+            <p>Search failed</p>
+            <button
+              type="button"
+              className="mt-2 text-xs text-primary hover:underline"
+              onClick={() => doSearch(query, scope, offset)}
+            >
+              Try again
+            </button>
           </div>
         ) : results.length === 0 && query.trim() ? (
           <p className="px-3 py-8 text-center text-sm text-gray-400">No results found</p>

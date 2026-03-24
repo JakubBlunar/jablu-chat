@@ -493,6 +493,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
             <button
               type="button"
               title="User settings"
+              aria-label="User settings"
               onClick={onOpenSettings}
               className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >

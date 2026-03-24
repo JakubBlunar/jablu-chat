@@ -33,6 +33,7 @@ function ActionBtn({ title, onClick, danger, children }: {
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className={`p-1.5 transition ${danger ? "text-gray-400 hover:text-red-400" : "text-gray-400 hover:text-white"}`}
     >
