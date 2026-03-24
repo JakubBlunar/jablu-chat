@@ -843,27 +843,46 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   if (isDm) {
     return (
-      <div className="flex min-w-0 flex-1 bg-surface">
+      <div className="relative flex min-w-0 flex-1 bg-surface">
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
             <AtIcon />
-            <h2 className="flex-1 text-[15px] font-semibold text-white">{otherName}</h2>
+            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{otherName}</h2>
             {otherMember && !currentConv?.isGroup && (
               <button
                 type="button"
                 onClick={() => setShowProfile((p) => !p)}
                 title="User profile"
-                className={`rounded p-1.5 transition ${showProfile ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`shrink-0 rounded p-1.5 transition ${showProfile ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 <UserProfileIcon />
               </button>
             )}
+            <div className="shrink-0">
+              <SearchBar
+                searchOpen={searchOpen}
+                query={searchQuery}
+                onQueryChange={setSearchQuery}
+                onSearch={(q) => { setSearchQuery(q); setSearchOpen(true); }}
+                onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+              />
+            </div>
           </header>
           {messageList}
         </div>
-        {showProfile && otherMember && (
+        {searchOpen ? (
+          <div className="absolute inset-0 z-30 md:relative md:inset-auto">
+            <SearchDrawer
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+              defaultScope="conversation"
+              conversationId={dmConvId ?? undefined}
+            />
+          </div>
+        ) : showProfile && otherMember ? (
           <DmProfilePanel member={otherMember} mutualServers={mutualServers} />
-        )}
+        ) : null}
       </div>
     );
   }
@@ -872,16 +891,18 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
       {channelHeader}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {messageList}
         </div>
         {searchOpen ? (
-          <SearchDrawer
-            query={searchQuery}
-            onQueryChange={setSearchQuery}
-            onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
-          />
+          <div className="absolute inset-0 z-30 md:relative md:inset-auto">
+            <SearchDrawer
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+            />
+          </div>
         ) : (
           memberSidebar
         )}

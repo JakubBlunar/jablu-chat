@@ -13,6 +13,7 @@ export class SearchService {
     serverId?: string,
     channelId?: string,
     dmOnly?: boolean,
+    conversationId?: string,
     limit = 25,
     offset = 0,
   ) {
@@ -28,6 +29,18 @@ export class SearchService {
       .join(' & ');
 
     if (!tsQuery) return { results: [], total: 0 };
+
+    if (conversationId) {
+      const isMember = await this.prisma.directConversationMember.findFirst({
+        where: { conversationId, userId },
+      });
+      if (!isMember) return { results: [], total: 0 };
+
+      const dmPage = await this.searchInDms([conversationId], tsQuery, take, skip);
+      if (dmPage.ids.length === 0) return { results: [], total: dmPage.total };
+
+      return this.hydrateResults(dmPage.ids, dmPage.total);
+    }
 
     let channelPage: SearchPage = { ids: [], total: 0 };
     let dmPage: SearchPage = { ids: [], total: 0 };
@@ -94,8 +107,12 @@ export class SearchService {
 
     if (allIds.length === 0) return { results: [], total };
 
+    return this.hydrateResults(allIds, total);
+  }
+
+  private async hydrateResults(ids: string[], total: number) {
     const fullMessages = await this.prisma.message.findMany({
-      where: { id: { in: allIds } },
+      where: { id: { in: ids } },
       include: {
         author: {
           select: {

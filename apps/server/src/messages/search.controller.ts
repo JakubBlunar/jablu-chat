@@ -26,6 +26,10 @@ class SearchQueryDto {
   channelId?: string;
 
   @IsOptional()
+  @IsUUID()
+  conversationId?: string;
+
+  @IsOptional()
   @IsBooleanString()
   dmOnly?: string;
 
@@ -59,6 +63,7 @@ export class SearchController {
       query.serverId,
       query.channelId,
       query.dmOnly === 'true',
+      query.conversationId,
       query.limit,
       query.offset,
     );
