@@ -50,6 +50,6 @@ export class WebhooksController {
     @Param('token', ParseUUIDPipe) token: string,
     @Body() dto: ExecuteWebhookDto,
   ) {
-    return this.webhooks.executeWebhook(token, dto.content, dto.username);
+    return this.webhooks.executeWebhook(token, dto.content, dto.username, dto.avatarUrl);
   }
 }

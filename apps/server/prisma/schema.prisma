@@ -197,6 +197,7 @@ model Message {
   replies            Message[]           @relation("MessageReplies")
   threadParent       Message?            @relation("MessageThreads", fields: [threadParentId], references: [id], onDelete: SetNull)
   threadMessages     Message[]           @relation("MessageThreads")
+  webhook            Webhook?            @relation(fields: [webhookId], references: [id], onDelete: SetNull)
   attachments        Attachment[]
   reactions          Reaction[]
   linkPreviews       LinkPreview[]
@@ -290,8 +291,9 @@ model Webhook {
   createdById String?  @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  createdBy User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  messages  Message[]
 
   @@index([channelId])
   @@map("webhooks")

@@ -616,8 +616,13 @@ function MessageRow({
   onChannelClick?: (serverId: string, channelId: string) => void;
 }) {
   const userId = useAuthStore((s) => s.user?.id);
-  const name = message.author?.displayName ?? message.author?.username ?? "Deleted User";
-  const avatarUrl = message.author?.avatarUrl ?? null;
+  const isWebhook = !!message.webhookId && !!message.webhook;
+  const name = isWebhook
+    ? message.webhook!.name
+    : (message.author?.displayName ?? message.author?.username ?? "Deleted User");
+  const avatarUrl = isWebhook
+    ? message.webhook!.avatarUrl
+    : (message.author?.avatarUrl ?? null);
   const hasReplyPreview = !!message.replyTo;
   const attachments = message.attachments ?? [];
   const reactions = message.reactions ?? [];

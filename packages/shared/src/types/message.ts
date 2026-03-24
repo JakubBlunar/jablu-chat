@@ -21,6 +21,7 @@ export interface Message {
   replyTo?: MessagePreview | null;
   linkPreviews?: LinkPreview[];
   threadCount?: number;
+  webhook?: { name: string; avatarUrl: string | null } | null;
 }
 
 export interface MessagePreview {
