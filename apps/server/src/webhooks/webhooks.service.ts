@@ -179,12 +179,17 @@ export class WebhooksService {
       throw new BadRequestException('Content is required');
     }
 
+    const resolvedName = username?.trim() || webhook.name;
+    const resolvedAvatar = avatarUrl?.trim() || webhook.avatarUrl;
+
     const created = await this.prisma.message.create({
       data: {
         channelId: webhook.channelId,
         authorId: webhook.createdById,
         content: trimmed,
         webhookId: webhook.id,
+        webhookName: resolvedName,
+        webhookAvatarUrl: resolvedAvatar,
       },
       include: webhookMessageInclude,
     });
@@ -193,8 +198,8 @@ export class WebhooksService {
     const wireWithWebhook = {
       ...wire,
       webhook: {
-        name: username?.trim() || webhook.name,
-        avatarUrl: avatarUrl?.trim() || webhook.avatarUrl,
+        name: resolvedName,
+        avatarUrl: resolvedAvatar,
       },
     };
     this.events.emit('webhook:message', {

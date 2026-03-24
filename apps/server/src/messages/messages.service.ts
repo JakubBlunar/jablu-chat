@@ -68,10 +68,16 @@ export class MessagesService {
   }
 
   mapToWire(m: MessageWithRelations) {
-    const { reactions, ...rest } = m;
+    const { reactions, webhookName, webhookAvatarUrl, ...rest } = m;
     return {
       ...rest,
       reactions: this.groupReactions(reactions),
+      webhook: m.webhookId
+        ? {
+            name: webhookName || m.webhook?.name || 'Webhook',
+            avatarUrl: webhookAvatarUrl || m.webhook?.avatarUrl || null,
+          }
+        : null,
     };
   }
 

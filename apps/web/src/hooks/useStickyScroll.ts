@@ -22,10 +22,13 @@ export function useStickyScroll(itemId: string | null, messageCount: number, has
   const prevLen = useRef(0);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
-  const isNearBottom = useCallback(() => {
+  const isNearBottom = useCallback((px = 40) => {
     const el = scrollRef.current;
     if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll <= 0) return true;
+    const threshold = Math.min(px, maxScroll * 0.5);
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -40,11 +43,16 @@ export function useStickyScroll(itemId: string | null, messageCount: number, has
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
+  const showScrollBtnRef = useRef(false);
   const onScroll = useCallback(() => {
     if (forceScrollRef.current) return;
     const near = isNearBottom();
     stickRef.current = hasNewerRef.current ? false : near;
-    setShowScrollBtn(!near);
+    const shouldShow = !near;
+    if (shouldShow !== showScrollBtnRef.current) {
+      showScrollBtnRef.current = shouldShow;
+      setShowScrollBtn(shouldShow);
+    }
   }, [isNearBottom]);
 
   const resetForItem = useCallback(() => {
@@ -65,13 +73,13 @@ export function useStickyScroll(itemId: string | null, messageCount: number, has
 
     const observer = new ResizeObserver(() => {
       if (suppressAutoScrollRef.current || hasNewerRef.current) return;
-      if (stickRef.current || forceScrollRef.current) {
+      if ((stickRef.current || forceScrollRef.current) && isNearBottom(150)) {
         container.scrollTop = container.scrollHeight;
       }
     });
     observer.observe(content);
     return () => observer.disconnect();
-  }, []);
+  }, [isNearBottom]);
 
   // Guaranteed scroll-to-bottom after first batch of messages loads for a new item
   useEffect(() => {
