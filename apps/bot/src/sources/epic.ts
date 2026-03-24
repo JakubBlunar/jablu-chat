@@ -30,13 +30,21 @@ function isCurrentlyFree(game: EpicGame): boolean {
   );
 }
 
-function getStoreUrl(game: EpicGame): string {
-  const slug =
+function getSlug(game: EpicGame): string {
+  return (
     game.catalogNs?.mappings?.find((m) => m.pageType === "productHome")
       ?.pageSlug ??
     game.productSlug ??
-    game.urlSlug;
-  return `https://store.epicgames.com/en-US/p/${slug}`;
+    game.urlSlug
+  );
+}
+
+function getStoreUrl(game: EpicGame): string {
+  return `https://store.epicgames.com/en-US/p/${getSlug(game)}`;
+}
+
+function getClientUrl(game: EpicGame): string {
+  return `com.epicgames.launcher://store/p/${getSlug(game)}`;
 }
 
 function getThumbnail(game: EpicGame): string | undefined {
@@ -70,6 +78,7 @@ export async function fetchEpicDeals(): Promise<Deal[]> {
       title: game.title,
       description: game.description,
       url: getStoreUrl(game),
+      clientUrl: getClientUrl(game),
       imageUrl: getThumbnail(game),
     }));
   } catch (err) {

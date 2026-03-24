@@ -150,7 +150,10 @@ export function MarkdownContent({
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       urlTransform={(url) =>
-        url.startsWith("mention:") || url.startsWith("channel:")
+        url.startsWith("mention:") ||
+        url.startsWith("channel:") ||
+        url.startsWith("steam://") ||
+        url.startsWith("com.epicgames.launcher://")
           ? url
           : defaultUrlTransform(url)
       }
@@ -262,6 +265,14 @@ export function MarkdownContent({
           <blockquote className="border-l-4 border-gray-500 pl-3 text-gray-400">
             {children}
           </blockquote>
+        ),
+        img: ({ src, alt }) => (
+          <img
+            src={src}
+            alt={alt ?? ""}
+            className="my-1 max-h-72 max-w-full rounded-lg object-cover"
+            loading="lazy"
+          />
         ),
         hr: () => <hr className="my-2 border-white/10" />,
         h1: ({ children }) => (

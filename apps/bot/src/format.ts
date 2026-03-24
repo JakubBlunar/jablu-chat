@@ -9,7 +9,9 @@ function buildLinks(deal: Deal): string {
   const parts = [`[Open in browser](${deal.url})`];
   if (deal.clientUrl) {
     const label =
-      deal.source === "Steam" ? "Open in Steam" : `Open in ${deal.source}`;
+      deal.source === "Steam"
+        ? "Open in Steam"
+        : "Open in Epic Launcher";
     parts.push(`[${label}](${deal.clientUrl})`);
   }
   return parts.join(" · ");
@@ -22,9 +24,11 @@ export function formatDeal(deal: Deal): string {
     "",
     `**${deal.title}**`,
     deal.description,
-    "",
-    buildLinks(deal),
   ];
+  if (deal.imageUrl) {
+    lines.push("", `![${deal.title}](${deal.imageUrl})`);
+  }
+  lines.push("", buildLinks(deal));
   return lines.join("\n");
 }
 
