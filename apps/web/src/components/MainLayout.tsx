@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChannelSidebar } from "@/components/ChannelSidebar";
 import { DmSidebar } from "@/components/DmSidebar";
@@ -7,8 +7,6 @@ import { MemberSidebar } from "@/components/MemberSidebar";
 import { MessageArea } from "@/components/MessageArea";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { ServerSidebar } from "@/components/ServerSidebar";
-import { ScreenSharePicker } from "@/components/voice/ScreenSharePicker";
-import { VoiceRoom } from "@/components/voice/VoiceRoom";
 import { useIdleDetector } from "@/hooks/useIdleDetector";
 import { useIsMobile, useIsTablet } from "@/hooks/useMobile";
 import { useRouteSync } from "@/hooks/useRouteSync";
@@ -22,8 +20,17 @@ import { useDmStore } from "@/stores/dm.store";
 import { useNavigationStore } from "@/stores/navigation.store";
 import { useServerStore } from "@/stores/server.store";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
-import { SettingsModal } from "@/components/SettingsModal";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+
+const SettingsModal = lazy(() =>
+  import("@/components/SettingsModal").then((m) => ({ default: m.SettingsModal })),
+);
+const VoiceRoom = lazy(() =>
+  import("@/components/voice/VoiceRoom").then((m) => ({ default: m.VoiceRoom })),
+);
+const ScreenSharePicker = lazy(() =>
+  import("@/components/voice/ScreenSharePicker").then((m) => ({ default: m.ScreenSharePicker })),
+);
 
 function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
   const [showReconnected, setShowReconnected] = useState(false);
@@ -287,15 +294,15 @@ export function MainLayout() {
               </p>
             </div>
           ) : viewingVoiceRoom ? (
-            <VoiceRoom />
+            <Suspense fallback={null}><VoiceRoom /></Suspense>
           ) : (
             <MessageArea mode="channel" contextId={currentChannelId} />
           )}
         </div>
         <MobileNavDrawer onOpenSettings={openSettings} />
         <MemberDrawer />
-        <ScreenSharePicker />
-        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <Suspense fallback={null}><ScreenSharePicker /></Suspense>
+        {settingsOpen && <Suspense fallback={null}><SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} /></Suspense>}
       </div>
     );
   }
@@ -311,7 +318,7 @@ export function MainLayout() {
           <DmSidebar onOpenSettings={openSettings} />
           <MessageArea mode="dm" contextId={currentConvId} />
         </div>
-        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        {settingsOpen && <Suspense fallback={null}><SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} /></Suspense>}
       </div>
     );
   }
@@ -338,14 +345,14 @@ export function MainLayout() {
               </p>
             </div>
           ) : viewingVoiceRoom ? (
-            <VoiceRoom />
+            <Suspense fallback={null}><VoiceRoom /></Suspense>
           ) : (
             <MessageArea mode="channel" contextId={currentChannelId} memberSidebar={showMemberSidebar ? <MemberSidebar /> : null} />
           )}
         </div>
-        <ScreenSharePicker />
+        <Suspense fallback={null}><ScreenSharePicker /></Suspense>
       </div>
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {settingsOpen && <Suspense fallback={null}><SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} /></Suspense>}
     </div>
   );
 }

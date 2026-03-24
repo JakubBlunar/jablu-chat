@@ -32,8 +32,18 @@ type DmState = {
   addOrUpdateConversation: (conv: DmConversation) => void;
 };
 
+const MAX_MESSAGES = 200;
+
 function toChronological(messagesDesc: Message[]): Message[] {
   return messagesDesc.slice().reverse();
+}
+
+function trimOldest(msgs: Message[]): Message[] {
+  return msgs.length > MAX_MESSAGES ? msgs.slice(msgs.length - MAX_MESSAGES) : msgs;
+}
+
+function trimNewest(msgs: Message[]): Message[] {
+  return msgs.length > MAX_MESSAGES ? msgs.slice(0, MAX_MESSAGES) : msgs;
 }
 
 export const useDmStore = create<DmState>((set, _get) => ({
@@ -67,11 +77,16 @@ export const useDmStore = create<DmState>((set, _get) => ({
       const chronological = toChronological(page.messages);
 
       if (cursor) {
-        set((s) => ({
-          messages: [...chronological, ...s.messages],
-          hasMore: page.hasMore,
-          isLoading: false,
-        }));
+        set((s) => {
+          const merged = [...chronological, ...s.messages];
+          const trimmed = trimNewest(merged);
+          return {
+            messages: trimmed,
+            hasMore: page.hasMore,
+            hasNewer: trimmed.length < merged.length ? true : s.hasNewer,
+            isLoading: false,
+          };
+        });
       } else {
         set({
           messages: chronological,
@@ -110,8 +125,14 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   addMessage: (message) => {
     set((s) => {
+      if (s.hasNewer) return s;
       if (s.messages.some((m) => m.id === message.id)) return s;
-      return { messages: [...s.messages, message] };
+      const merged = [...s.messages, message];
+      const trimmed = trimOldest(merged);
+      return {
+        messages: trimmed,
+        hasMore: trimmed.length < merged.length ? true : s.hasMore,
+      };
     });
   },
 

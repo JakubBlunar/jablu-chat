@@ -1,9 +1,24 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import remarkGfm from "remark-gfm";
 import { useMemberStore, type Member } from "@/stores/member.store";
+
+type HighlighterComponent = typeof import("react-syntax-highlighter").Prism;
+type HighlighterStyle = Record<string, React.CSSProperties>;
+
+let cachedHighlighter: HighlighterComponent | null = null;
+let cachedStyle: HighlighterStyle | null = null;
+let loadPromise: Promise<void> | null = null;
+
+function loadHighlighter(): Promise<void> {
+  if (cachedHighlighter) return Promise.resolve();
+  if (loadPromise) return loadPromise;
+  loadPromise = Promise.all([
+    import("react-syntax-highlighter").then((m) => { cachedHighlighter = m.Prism; }),
+    import("react-syntax-highlighter/dist/esm/styles/prism").then((m) => { cachedStyle = m.oneDark as HighlighterStyle; }),
+  ]).then(() => {});
+  return loadPromise;
+}
 
 const TEXT_EMOTICONS: [RegExp, string][] = [
   [/(?<!\w):\)(?!\w)/g, "🙂"],
@@ -74,6 +89,12 @@ function processChannelMentions(
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const [copied, setCopied] = useState(false);
+  const [ready, setReady] = useState(!!cachedHighlighter);
+
+  useEffect(() => {
+    if (cachedHighlighter) return;
+    void loadHighlighter().then(() => setReady(true));
+  }, []);
 
   const handleCopy = useCallback(() => {
     void navigator.clipboard.writeText(code).then(() => {
@@ -81,6 +102,9 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
       setTimeout(() => setCopied(false), 2000);
     });
   }, [code]);
+
+  const SyntaxHighlighter = cachedHighlighter;
+  const style = cachedStyle;
 
   return (
     <div className="group/code relative my-1 overflow-hidden rounded-md bg-[#282c34] text-sm">
@@ -96,22 +120,30 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
-      <SyntaxHighlighter
-        style={oneDark}
-        language={language || "text"}
-        PreTag="div"
-        customStyle={{
-          margin: 0,
-          padding: "0.75rem 1rem",
-          background: "transparent",
-          fontSize: "0.875rem",
-        }}
-        codeTagProps={{
-          style: { fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace" },
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
+      {ready && SyntaxHighlighter && style ? (
+        <SyntaxHighlighter
+          style={style}
+          language={language || "text"}
+          PreTag="div"
+          customStyle={{
+            margin: 0,
+            padding: "0.75rem 1rem",
+            background: "transparent",
+            fontSize: "0.875rem",
+          }}
+          codeTagProps={{
+            style: { fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace" },
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      ) : (
+        <pre style={{ margin: 0, padding: "0.75rem 1rem", background: "transparent", fontSize: "0.875rem" }}>
+          <code style={{ fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace" }}>
+            {code}
+          </code>
+        </pre>
+      )}
     </div>
   );
 }
