@@ -2,7 +2,7 @@ import type { Message, UserStatus } from "@chat/shared";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
-import { ChatInputBar, type ChatInputBarHandle, type MentionChannel, type MentionMember } from "@/components/ChatInputBar";
+import { ChatInputBar, type ChatInputBarHandle, type MentionChannel, type MentionMember } from "@/components/chat/ChatInputBar";
 import { DelayedRender } from "@/components/DelayedRender";
 import { ScrollToBottomButton } from "@/components/ScrollToBottomButton";
 
@@ -11,7 +11,7 @@ const EmojiPicker = lazy(() =>
 );
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
-import { MessageActions } from "@/components/MessageActions";
+import { MessageActions } from "@/components/chat/MessageActions";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useMessageStoreAdapter } from "@/hooks/useMessageStoreAdapter";
@@ -1634,10 +1634,10 @@ function UnifiedInput({
    Channel-only: Pinned panel & SearchBar/Drawer
    ──────────────────────────────────────────── */
 
-import { NotifBellMenu } from "@/components/NotifBellMenu";
+import { NotifBellMenu } from "@/components/channel/NotifBellMenu";
 import { SearchBar } from "@/components/SearchBar";
-import { SearchDrawer } from "@/components/SearchDrawer";
-import { EditChannelModal } from "@/components/EditChannelModal";
+import { SearchDrawer } from "@/components/search/SearchDrawer";
+import { EditChannelModal } from "@/components/channel/EditChannelModal";
 
 function PinnedPanel({
   messages,

@@ -1,12 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChannelSidebar } from "@/components/ChannelSidebar";
-import { DmSidebar } from "@/components/DmSidebar";
-import { MemberDrawer } from "@/components/MemberDrawer";
-import { MemberSidebar } from "@/components/MemberSidebar";
-import { MessageArea } from "@/components/MessageArea";
-import { MobileNavDrawer } from "@/components/MobileNavDrawer";
-import { ServerSidebar } from "@/components/ServerSidebar";
+import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
+import { DmSidebar } from "@/components/dm/DmSidebar";
+import { MemberDrawer } from "@/components/member/MemberDrawer";
+import { MemberSidebar } from "@/components/member/MemberSidebar";
+import { MessageArea } from "@/components/chat/MessageArea";
+import { MobileNavDrawer } from "@/components/layout/MobileNavDrawer";
+import { ServerSidebar } from "@/components/server/ServerSidebar";
 import { useIdleDetector } from "@/hooks/useIdleDetector";
 import { useIsMobile, useIsTablet } from "@/hooks/useMobile";
 import { useRouteSync } from "@/hooks/useRouteSync";
@@ -23,7 +23,7 @@ import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
 
 const SettingsModal = lazy(() =>
-  import("@/components/SettingsModal").then((m) => ({ default: m.SettingsModal })),
+  import("@/components/settings/SettingsModal").then((m) => ({ default: m.SettingsModal })),
 );
 const VoiceRoom = lazy(() =>
   import("@/components/voice/VoiceRoom").then((m) => ({ default: m.VoiceRoom })),

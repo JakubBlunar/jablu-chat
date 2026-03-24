@@ -1,5 +1,5 @@
-import { MobileDrawer } from "@/components/MobileDrawer";
-import { MemberSidebar } from "@/components/MemberSidebar";
+import { MobileDrawer } from "@/components/layout/MobileDrawer";
+import { MemberSidebar } from "@/components/member/MemberSidebar";
 import { useLayoutStore } from "@/stores/layout.store";
 
 export function MemberDrawer() {

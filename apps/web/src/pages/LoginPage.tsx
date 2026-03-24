@@ -1,7 +1,7 @@
 import { loginSchema } from "@chat/shared";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AuthLayout } from "../components/AuthLayout";
+import { AuthLayout } from "../components/layout/AuthLayout";
 import { ApiError } from "../lib/api";
 import { useAuthStore } from "../stores/auth.store";
 
