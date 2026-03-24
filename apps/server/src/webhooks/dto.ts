@@ -25,4 +25,9 @@ export class ExecuteWebhookDto {
   @IsString()
   @MaxLength(80)
   username?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  avatarUrl?: string;
 }

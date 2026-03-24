@@ -35,6 +35,7 @@ const messageInclude = {
       siteName: true,
     },
   },
+  webhook: { select: { name: true, avatarUrl: true } },
 } satisfies Prisma.MessageInclude;
 
 type MessageWithRelations = Prisma.MessageGetPayload<{

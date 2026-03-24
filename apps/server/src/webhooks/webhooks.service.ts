@@ -39,6 +39,7 @@ const webhookMessageInclude = {
       siteName: true,
     },
   },
+  webhook: { select: { name: true, avatarUrl: true } },
 } satisfies Prisma.MessageInclude;
 
 @Injectable()
@@ -160,7 +161,8 @@ export class WebhooksService {
   async executeWebhook(
     token: string,
     content: string,
-    _username?: string,
+    username?: string,
+    avatarUrl?: string,
   ) {
     const webhook = await this.prisma.webhook.findUnique({
       where: { token },
@@ -186,10 +188,17 @@ export class WebhooksService {
     });
 
     const wire = this.messages.mapToWire(created);
+    const wireWithWebhook = {
+      ...wire,
+      webhook: {
+        name: username?.trim() || webhook.name,
+        avatarUrl: avatarUrl?.trim() || webhook.avatarUrl,
+      },
+    };
     this.events.emit('webhook:message', {
       channelId: webhook.channelId,
-      message: wire,
+      message: wireWithWebhook,
     });
-    return wire;
+    return wireWithWebhook;
   }
 }
