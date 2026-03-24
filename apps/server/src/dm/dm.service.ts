@@ -86,6 +86,18 @@ export class DmService {
     return { ...rest, reactions: this.groupReactions(reactions) };
   }
 
+  async getConversationReadStates(conversationId: string, userId: string) {
+    await this.requireMembership(conversationId, userId);
+    const states = await this.prisma.dmReadState.findMany({
+      where: { conversationId },
+      select: { userId: true, lastReadAt: true },
+    });
+    return states.map((s) => ({
+      userId: s.userId,
+      lastReadAt: s.lastReadAt.toISOString(),
+    }));
+  }
+
   async requireMembership(conversationId: string, userId: string) {
     const member = await this.prisma.directConversationMember.findUnique({
       where: {

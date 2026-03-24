@@ -572,6 +572,10 @@ export class ApiClient {
     return this.patch(`/api/dm/${conversationId}/close`);
   }
 
+  getDmReadStates(conversationId: string): Promise<{ userId: string; lastReadAt: string }[]> {
+    return this.get(`/api/dm/${conversationId}/read-states`);
+  }
+
   getDmMessages(
     conversationId: string,
     cursor?: string,
