@@ -4,6 +4,7 @@ import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { ChatInputBar, type ChatInputBarHandle, type MentionChannel, type MentionMember } from "@/components/ChatInputBar";
 import { DelayedRender } from "@/components/DelayedRender";
+import { ScrollToBottomButton } from "@/components/ScrollToBottomButton";
 
 const EmojiPicker = lazy(() =>
   import("@/components/EmojiPicker").then((m) => ({ default: m.EmojiPicker })),
@@ -71,14 +72,6 @@ function AtIcon() {
   return (
     <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 2a10 10 0 1 0 4.4 19 1 1 0 0 0-.8-1.8A8 8 0 1 1 20 12v1.5a2.5 2.5 0 0 1-5 0V8h-2v.3A5 5 0 1 0 15 17a4.5 4.5 0 0 0 7-3.5V12A10 10 0 0 0 12 2zm0 13a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
-    </svg>
-  );
-}
-
-function DownArrowIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
     </svg>
   );
 }
@@ -755,16 +748,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           ) : null}
         </SimpleBar>
 
-        {(!atBottom || hasNewer) && (
-          <button
-            type="button"
-            onClick={handleBottomButtonClick}
-            className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-lg transition hover:bg-primary/80"
-          >
-            <DownArrowIcon />
-            {hasNewer ? "Jump to present" : "New messages"}
-          </button>
-        )}
+        <ScrollToBottomButton
+          atBottom={atBottom}
+          hasNewer={hasNewer}
+          isLoading={isLoading}
+          messageCount={messages.length}
+          contextId={contextId}
+          onClick={handleBottomButtonClick}
+        />
       </div>
 
       {typingNames.length > 0 && (
