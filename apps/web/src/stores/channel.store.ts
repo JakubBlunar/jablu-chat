@@ -6,6 +6,7 @@ type ChannelState = {
   channels: Channel[];
   currentChannelId: string | null;
   isLoading: boolean;
+  loadedServerId: string | null;
   fetchChannels: (serverId: string) => Promise<void>;
   setCurrentChannel: (id: string | null) => void;
   getCurrentChannel: () => Channel | null;
@@ -23,16 +24,22 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   channels: [],
   currentChannelId: null,
   isLoading: false,
+  loadedServerId: null,
 
   fetchChannels: async (serverId) => {
-    set({ isLoading: true });
+    const prev = get().loadedServerId;
+    if (prev !== serverId) {
+      set({ channels: [], isLoading: true, loadedServerId: serverId });
+    } else {
+      set({ isLoading: true });
+    }
     try {
       const list = await api.get<Channel[]>(
         `/api/servers/${serverId}/channels`,
       );
-      set({ channels: list, isLoading: false });
+      set({ channels: list, isLoading: false, loadedServerId: serverId });
     } catch (e) {
-      set({ isLoading: false });
+      set({ channels: [], isLoading: false });
       throw e;
     }
   },

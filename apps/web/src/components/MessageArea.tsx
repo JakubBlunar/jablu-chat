@@ -24,6 +24,7 @@ import { useChannelStore } from "@/stores/channel.store";
 import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
+import { useServerStore } from "@/stores/server.store";
 
 function HashChannelIcon() {
   return (
@@ -64,16 +65,29 @@ function DateSeparator({ date }: { date: string }) {
 }
 
 export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode }) {
+  const currentChannelId = useChannelStore((s) => s.currentChannelId);
+  const currentServerId = useServerStore((s) => s.currentServerId);
   const channel = useChannelStore((s) =>
     s.currentChannelId ? s.channels.find((c) => c.id === s.currentChannelId) ?? null : null,
   );
-  const channelId = channel?.id ?? null;
+  const isStale = !!channel && channel.serverId !== currentServerId;
+  const activeChannel = isStale ? null : channel;
+  const channelId = activeChannel?.id ?? null;
+  const isTransitioning = !activeChannel && (!!currentChannelId || isStale);
+
+  const lastChannelRef = useRef(activeChannel);
+  if (activeChannel) lastChannelRef.current = activeChannel;
+  const headerChannel = activeChannel ?? lastChannelRef.current;
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const messages = useMessageStore((s) => s.messages);
+  const rawMessages = useMessageStore((s) => s.messages);
   const isLoading = useMessageStore((s) => s.isLoading);
+
+  const lastMessagesRef = useRef(rawMessages);
+  if (rawMessages.length > 0 && !isTransitioning) lastMessagesRef.current = rawMessages;
+  const messages = isTransitioning && rawMessages.length === 0 ? lastMessagesRef.current : rawMessages;
   const hasMore = useMessageStore((s) => s.hasMore);
   const hasNewer = useMessageStore((s) => s.hasNewer);
   const fetchMessages = useMessageStore((s) => s.fetchMessages);
@@ -398,19 +412,42 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
           scrollableNodeProps={{ ref: scrollRef, onScroll }}
         >
           <div ref={contentRef}>
-            {!channel ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-                <div className="rounded-full bg-surface-dark p-6 text-gray-400">
-                  <HashChannelIcon />
+            {!activeChannel ? (
+              isTransitioning && messages.length > 0 ? (
+                <ul className="flex flex-col gap-0.5 pb-2 opacity-30 pointer-events-none">
+                  {messages.map((msg, i) => {
+                    const prev = i > 0 ? messages[i - 1] : undefined;
+                    const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt);
+                    const showHead =
+                      newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg);
+                    return (
+                      <li key={msg.id}>
+                        {newDay && <DateSeparator date={msg.createdAt} />}
+                        <MessageRow
+                          message={msg}
+                          showHead={showHead}
+                          channelId=""
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : isTransitioning ? (
+                <div className="flex-1" />
+              ) : (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+                  <div className="rounded-full bg-surface-dark p-6 text-gray-400">
+                    <HashChannelIcon />
+                  </div>
+                  <p className="max-w-sm text-lg font-semibold text-white">
+                    Welcome to your server
+                  </p>
+                  <p className="max-w-sm text-sm text-gray-400">
+                    Pick a text channel on the left to start chatting, or join a
+                    server using an invite link.
+                  </p>
                 </div>
-                <p className="max-w-sm text-lg font-semibold text-white">
-                  Welcome to your server
-                </p>
-                <p className="max-w-sm text-sm text-gray-400">
-                  Pick a text channel on the left to start chatting, or join a
-                  server using an invite link.
-                </p>
-              </div>
+              )
             ) : (
               <>
                 <div ref={sentinelRef} className="h-1 shrink-0" />
@@ -432,7 +469,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
                     <div className="border-t border-white/10 pt-4">
                       <h2 className="text-2xl font-bold text-white">
                         This is the beginning of{" "}
-                        <span className="text-primary">#{channel.name}</span>
+                        <span className="text-primary">#{activeChannel.name}</span>
                       </h2>
                       <p className="mt-2 text-[15px] text-gray-400">
                         Send a message to spark the conversation.
@@ -496,7 +533,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
         )}
       </div>
 
-      <MessageInput key={channel?.id ?? "no-channel"} onSent={stickToBottom} />
+      <MessageInput key={channelId ?? currentChannelId ?? "no-channel"} onSent={stickToBottom} />
 
       {cardUser && (
         <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />
@@ -507,33 +544,33 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
       <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
-        {channel ? (
+        {headerChannel ? (
           <>
             <HashChannelIcon />
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-base font-semibold text-white">
-                {channel.name}
+                {headerChannel.name}
               </h1>
             </div>
             <button
               type="button"
               title="Pinned messages"
-              onClick={() => void handleOpenPinned()}
+              onClick={() => activeChannel && void handleOpenPinned()}
               className="relative rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <PinHeaderIcon />
-              {(channel.pinnedCount ?? 0) > 0 && (
+              {(headerChannel.pinnedCount ?? 0) > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white">
-                  {channel.pinnedCount}
+                  {headerChannel.pinnedCount}
                 </span>
               )}
             </button>
-            <NotifBellMenu channelId={channel.id} />
+            <NotifBellMenu channelId={headerChannel.id} />
             {isAdminOrOwner && (
               <button
                 type="button"
                 title="Channel settings"
-                onClick={() => setEditingChannel(true)}
+                onClick={() => activeChannel && setEditingChannel(true)}
                 className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
               >
                 <ChannelSettingsIcon />
@@ -586,9 +623,9 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
         )}
       </div>
 
-      {editingChannel && channel && (
+      {editingChannel && activeChannel && (
         <EditChannelModal
-          channel={channel}
+          channel={activeChannel}
           onClose={() => setEditingChannel(false)}
         />
       )}
