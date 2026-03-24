@@ -221,13 +221,12 @@ export function MainLayout() {
 
     if (prevServerRef.current !== currentServerId) {
       prevServerRef.current = currentServerId;
-      clearMessages();
       fetchChannels(currentServerId).catch(() => {
         navigate("/channels/@me", { replace: true });
       });
       void fetchMembers(currentServerId);
     }
-  }, [viewMode, currentServerId, clearMessages, fetchChannels, fetchMembers, navigate]);
+  }, [viewMode, currentServerId, fetchChannels, fetchMembers, navigate]);
 
   // Auto-redirect: invalid/missing channel → navigate to first text channel
   useEffect(() => {

@@ -44,10 +44,11 @@ export function useRouteSync() {
 
       if (prevServerRef.current !== serverId) {
         prevServerRef.current = serverId;
+        prevChannelRef.current = null;
         useServerStore.getState().setCurrentServer(serverId);
       }
 
-      if (prevChannelRef.current !== channelId) {
+      if (channelId && prevChannelRef.current !== channelId) {
         prevChannelRef.current = channelId;
         useChannelStore.getState().setCurrentChannel(channelId);
         useVoiceConnectionStore.getState().setViewingVoiceRoom(false);

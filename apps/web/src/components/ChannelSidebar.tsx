@@ -157,14 +157,21 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const channels = useChannelStore((s) => s.channels);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
 
-  const textChannels = useMemo(
+  const textChannelsRaw = useMemo(
     () => channels.filter((c) => c.type === "text").sort((a, b) => a.position - b.position),
     [channels],
   );
-  const voiceChannels = useMemo(
+  const voiceChannelsRaw = useMemo(
     () => channels.filter((c) => c.type === "voice").sort((a, b) => a.position - b.position),
     [channels],
   );
+
+  const lastTextRef = useRef(textChannelsRaw);
+  const lastVoiceRef = useRef(voiceChannelsRaw);
+  if (textChannelsRaw.length > 0) lastTextRef.current = textChannelsRaw;
+  if (voiceChannelsRaw.length > 0) lastVoiceRef.current = voiceChannelsRaw;
+  const textChannels = textChannelsRaw.length > 0 ? textChannelsRaw : lastTextRef.current;
+  const voiceChannels = voiceChannelsRaw.length > 0 ? voiceChannelsRaw : lastVoiceRef.current;
 
   const myMembership = useMemberStore((s) =>
     s.members.find((m) => m.userId === user?.id),
