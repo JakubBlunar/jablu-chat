@@ -104,6 +104,20 @@ export class ChatGateway
     );
 
     this.events.on(
+      'webhook:link-previews',
+      (payload: {
+        channelId: string;
+        messageId: string;
+        linkPreviews: unknown;
+      }) => {
+        this.emitToChannel(payload.channelId, 'message:link-previews', {
+          messageId: payload.messageId,
+          linkPreviews: payload.linkPreviews,
+        });
+      },
+    );
+
+    this.events.on(
       'channel:reorder',
       (payload: { serverId: string; channelIds: string[] }) => {
         this.server

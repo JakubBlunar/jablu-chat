@@ -38,6 +38,7 @@ export async function fetchSteamDeals(): Promise<Deal[]> {
         title: item.name,
         description: "Free on Steam — 100% off!",
         url: `https://store.steampowered.com/app/${item.id}`,
+        clientUrl: `steam://store/${item.id}`,
         imageUrl: item.header_image || undefined,
       }));
   } catch (err) {

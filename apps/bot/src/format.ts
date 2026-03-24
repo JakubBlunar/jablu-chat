@@ -5,6 +5,16 @@ const SOURCE_EMOJI: Record<string, string> = {
   Steam: "🎯",
 };
 
+function buildLinks(deal: Deal): string {
+  const parts = [`[Open in browser](${deal.url})`];
+  if (deal.clientUrl) {
+    const label =
+      deal.source === "Steam" ? "Open in Steam" : `Open in ${deal.source}`;
+    parts.push(`[${label}](${deal.clientUrl})`);
+  }
+  return parts.join(" · ");
+}
+
 export function formatDeal(deal: Deal): string {
   const emoji = SOURCE_EMOJI[deal.source] ?? "🎁";
   const lines = [
@@ -12,7 +22,8 @@ export function formatDeal(deal: Deal): string {
     "",
     `**${deal.title}**`,
     deal.description,
-    `[Claim now](${deal.url})`,
+    "",
+    buildLinks(deal),
   ];
   return lines.join("\n");
 }
@@ -32,7 +43,7 @@ export function formatBatchSummary(deals: Deal[]): string {
     const emoji = SOURCE_EMOJI[source] ?? "🎁";
     const header = `${emoji} **Free on ${source}**`;
     const list = items
-      .map((d) => `• **${d.title}** — [Claim](${d.url})`)
+      .map((d) => `• **${d.title}** — ${buildLinks(d)}`)
       .join("\n");
     sections.push(`${header}\n${list}`);
   }
