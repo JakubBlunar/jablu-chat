@@ -8,6 +8,8 @@ import { UserAvatar } from "@/components/UserAvatar";
 
 const MAX_TEXTAREA_PX = 240;
 const MIN_TEXTAREA_PX = 44;
+const MAX_MESSAGE_LENGTH = 4000;
+const CHAR_COUNTER_THRESHOLD = 3800;
 
 export type MentionMember = {
   userId: string;
@@ -219,7 +221,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        onSend();
+        if (value.length <= MAX_MESSAGE_LENGTH) onSend();
       }
     },
     [popupOpen, popupMode, popupLength, filteredMembers, filteredChannels, selectedIdx, insertMention, insertChannel, onSend],
@@ -309,6 +311,14 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           <SmileIcon />
         </button>
       </div>
+
+      {value.length > CHAR_COUNTER_THRESHOLD && (
+        <div className={`px-3 pb-1.5 text-right text-xs ${
+          value.length > MAX_MESSAGE_LENGTH ? "text-red-400 font-semibold" : "text-gray-500"
+        }`}>
+          {value.length} / {MAX_MESSAGE_LENGTH}
+        </div>
+      )}
 
       {gifOpen && onGifSelect && (
         <div className="absolute bottom-full right-0 z-50 mb-2">

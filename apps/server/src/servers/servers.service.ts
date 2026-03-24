@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ChannelType, ServerRole } from '@prisma/client';
+import { EventBusService } from '../events/event-bus.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { AuditLogService } from './audit-log.service';
@@ -12,7 +13,6 @@ const memberUserSelect = {
   id: true,
   username: true,
   displayName: true,
-  email: true,
   avatarUrl: true,
   bio: true,
   status: true,
@@ -24,6 +24,7 @@ export class ServersService {
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
     private readonly auditLog: AuditLogService,
+    private readonly events: EventBusService,
   ) {}
 
   private async getServerOrThrow(serverId: string) {
@@ -237,6 +238,7 @@ export class ServersService {
       where: { userId_serverId: { userId: targetUserId, serverId } },
     });
     await this.auditLog.log(serverId, actorId, 'member.kick', 'user', targetUserId);
+    this.events.emit('member:removed', { serverId, userId: targetUserId });
   }
 
   async deleteServer(serverId: string, userId: string) {
@@ -310,6 +312,7 @@ export class ServersService {
         userId_serverId: { userId, serverId },
       },
     });
+    this.events.emit('member:removed', { serverId, userId });
   }
 
   async getMembers(serverId: string, userId: string) {

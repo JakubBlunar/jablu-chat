@@ -186,8 +186,11 @@ export function setupPushNavigation() {
   if (!("serviceWorker" in navigator)) return;
 
   navigator.serviceWorker.addEventListener("message", (event) => {
-    if (event.data?.type === "navigate" && event.data.url) {
-      window.location.href = event.data.url;
+    if (event.data?.type === "navigate" && typeof event.data.url === "string") {
+      const target = new URL(event.data.url, window.location.origin);
+      if (target.origin === window.location.origin) {
+        window.location.href = target.href;
+      }
     }
   });
 }

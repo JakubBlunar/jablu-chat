@@ -11,7 +11,7 @@ import {
 import { Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type WsUser = { id: string; username: string; displayName: string | null; email: string };
+export type WsUser = { id: string; username: string; displayName: string | null };
 
 function extractToken(client: Socket): string | null {
   const auth = client.handshake.auth as Record<string, unknown> | undefined;
@@ -48,14 +48,14 @@ export class WsJwtGuard implements CanActivate {
     let payload: { sub: string };
     try {
       payload = await this.jwt.verifyAsync<{ sub: string }>(token, {
-        secret: this.config.get<string>('JWT_SECRET', 'change-me-in-env'),
+        secret: this.config.get<string>('JWT_SECRET'),
       });
     } catch {
       throw new WsException('Unauthorized');
     }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, username: true, displayName: true, email: true },
+      select: { id: true, username: true, displayName: true },
     });
     if (!user) {
       throw new WsException('Unauthorized');

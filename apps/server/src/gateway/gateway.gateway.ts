@@ -1,4 +1,4 @@
-import { UseGuards } from '@nestjs/common';
+import { BadRequestException, UseGuards } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -18,6 +18,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../push/push.service';
 import { ReadStateService } from '../read-state/read-state.service';
 import { WsJwtGuard, WsUser } from './ws-jwt.guard';
+
+const MAX_MESSAGE_LENGTH = 4000;
 
 @WebSocketGateway({ cors: { origin: true, credentials: true }, namespace: '/' })
 @UseGuards(WsJwtGuard)
@@ -136,6 +138,31 @@ export class ChatGateway
           .emit('channel:reorder', { channelIds: payload.channelIds });
       },
     );
+
+    this.events.on(
+      'member:removed',
+      async (payload: { serverId: string; userId: string }) => {
+        const channels = await this.prisma.channel.findMany({
+          where: { serverId: payload.serverId },
+          select: { id: true },
+        });
+        const sockets = await this.server.fetchSockets();
+        for (const s of sockets) {
+          const sUser = (s.data as { user?: WsUser }).user;
+          if (sUser?.id === payload.userId) {
+            s.leave(`server:${payload.serverId}`);
+            for (const ch of channels) {
+              s.leave(`channel:${ch.id}`);
+            }
+            const serverIds = (s.data as { serverIds?: string[] }).serverIds;
+            if (serverIds) {
+              const idx = serverIds.indexOf(payload.serverId);
+              if (idx !== -1) serverIds.splice(idx, 1);
+            }
+          }
+        }
+      },
+    );
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
@@ -180,6 +207,7 @@ export class ChatGateway
       }
     }
     (client.data as { serverIds?: string[] }).serverIds = serverIds;
+    client.join(`user:${user.id}`);
 
     const isFirstConnection = this.addOnlineUser(user.id);
 
@@ -207,10 +235,18 @@ export class ChatGateway
       client.join(`dm:${dc.conversationId}`);
     }
 
+    const userChannelIds = new Set<string>();
+    for (const m of memberships) {
+      for (const ch of m.server.channels) {
+        userChannelIds.add(ch.id);
+      }
+    }
     const voiceState: Record<string, { userId: string; username: string }[]> =
       {};
     for (const [chId, participants] of this.voiceParticipants) {
-      voiceState[chId] = [...participants.values()];
+      if (userChannelIds.has(chId)) {
+        voiceState[chId] = [...participants.values()];
+      }
     }
     client.emit('voice:participants', voiceState);
   }
@@ -280,6 +316,9 @@ export class ChatGateway
       attachmentIds?: string[];
     },
   ) {
+    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+    }
     const user = (client.data as { user: WsUser }).user;
     const msg = await this.messages.createMessage(
       body.channelId,
@@ -349,6 +388,9 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { messageId: string; content: string },
   ) {
+    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+    }
     const user = (client.data as { user: WsUser }).user;
     const updated = await this.messages.editMessage(
       body.messageId,
@@ -507,6 +549,9 @@ export class ChatGateway
       attachmentIds?: string[];
     },
   ) {
+    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+    }
     const user = (client.data as { user: WsUser }).user;
     const msg = await this.dm.createMessage(
       body.conversationId,
@@ -516,16 +561,19 @@ export class ChatGateway
       body.attachmentIds,
     );
 
-    // Ensure all conversation members are in the socket room
     const memberIds = await this.dm.getConversationMemberIds(
       body.conversationId,
     );
     const roomName = `dm:${body.conversationId}`;
-    const sockets = await this.server.fetchSockets();
-    for (const s of sockets) {
-      const sUser = (s.data as { user?: WsUser }).user;
-      if (sUser && memberIds.includes(sUser.id)) {
-        s.join(roomName);
+    const existingRoom = await this.server.in(roomName).fetchSockets();
+    const alreadyJoined = new Set(
+      existingRoom.map((s) => (s.data as { user?: WsUser }).user?.id).filter(Boolean),
+    );
+    const missingIds = memberIds.filter((id) => !alreadyJoined.has(id));
+    if (missingIds.length > 0) {
+      for (const mid of missingIds) {
+        const userSockets = await this.server.in(`user:${mid}`).fetchSockets();
+        for (const s of userSockets) s.join(roomName);
       }
     }
 
@@ -579,6 +627,9 @@ export class ChatGateway
     @MessageBody()
     body: { conversationId: string; messageId: string; content: string },
   ) {
+    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+    }
     const user = (client.data as { user: WsUser }).user;
     const updated = await this.dm.editMessage(
       body.conversationId,
@@ -667,6 +718,8 @@ export class ChatGateway
     const user = (client.data as { user: WsUser }).user;
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
 
+    await this.messages.assertUserCanAccessChannel(body.channelId, user.id);
+
     const prev = this.socketVoiceChannel.get(client.id);
     if (prev) {
       this.removeVoiceParticipant(client.id, serverIds);
@@ -719,11 +772,16 @@ export class ChatGateway
     const channelId = this.socketVoiceChannel.get(client.id);
     if (!channelId) return { ok: false };
 
+    const sanitized: Record<string, boolean> = {};
+    for (const key of ['muted', 'deafened', 'camera', 'screenShare'] as const) {
+      if (typeof body[key] === 'boolean') sanitized[key] = body[key];
+    }
+
     for (const sid of serverIds) {
       this.server.to(`server:${sid}`).emit('voice:participant-state', {
         channelId,
         userId: user.id,
-        ...body,
+        ...sanitized,
       });
     }
     return { ok: true };
