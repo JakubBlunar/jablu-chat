@@ -57,8 +57,8 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
           onFocus={() => {
             if (searchOpen) inputRef.current?.blur();
           }}
-          placeholder="Search messages..."
-          className={`w-44 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-500 ${
+          placeholder="Search..."
+          className={`w-32 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-500 md:w-44 ${
             searchOpen ? "text-gray-500 cursor-default" : "text-gray-200"
           }`}
         />

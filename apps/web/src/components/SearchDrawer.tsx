@@ -6,23 +6,25 @@ import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useChannelStore } from "@/stores/channel.store";
 import { useServerStore } from "@/stores/server.store";
 
-type Scope = "server" | "channel" | "all";
+type Scope = "server" | "channel" | "conversation" | "dm" | "all";
 const PAGE_SIZE = 25;
 
 type Props = {
   query: string;
   onQueryChange: (q: string) => void;
   onClose: () => void;
+  defaultScope?: Scope;
+  conversationId?: string;
 };
 
-export function SearchDrawer({ query, onQueryChange, onClose }: Props) {
+export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = "server", conversationId }: Props) {
   const currentServerId = useServerStore((s) => s.currentServerId);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
   const channels = useChannelStore((s) => s.channels);
   const currentChannel = channels.find((c) => c.id === currentChannelId);
   const { orchestratedGoToChannel, orchestratedGoToDm } = useAppNavigate();
 
-  const [scope, setScope] = useState<Scope>("server");
+  const [scope, setScope] = useState<Scope>(defaultScope);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -48,6 +50,8 @@ export function SearchDrawer({ query, onQueryChange, onClose }: Props) {
         const opts: Parameters<typeof api.searchMessages>[1] = { offset: off };
         if (s === "server" && currentServerId) opts.serverId = currentServerId;
         else if (s === "channel" && currentChannelId) opts.channelId = currentChannelId;
+        else if (s === "conversation" && conversationId) opts.conversationId = conversationId;
+        else if (s === "dm") opts.dmOnly = true;
         const data = await api.searchMessages(q, opts);
         setResults(data.results);
         setTotal(data.total);
@@ -58,7 +62,7 @@ export function SearchDrawer({ query, onQueryChange, onClose }: Props) {
         setLoading(false);
       }
     },
-    [currentServerId, currentChannelId],
+    [currentServerId, currentChannelId, conversationId],
   );
 
   useEffect(() => {
@@ -146,17 +150,33 @@ export function SearchDrawer({ query, onQueryChange, onClose }: Props) {
 
       {/* Scope selector */}
       <div className="flex items-center gap-1 border-b border-white/10 px-3 py-2">
-        {currentChannelId && (
-          <ScopeBtn active={scope === "channel"} onClick={() => handleScopeChange("channel")}>
-            #{currentChannel?.name}
-          </ScopeBtn>
+        {defaultScope === "conversation" ? (
+          <>
+            <ScopeBtn active={scope === "conversation"} onClick={() => handleScopeChange("conversation")}>
+              This conversation
+            </ScopeBtn>
+            <ScopeBtn active={scope === "dm"} onClick={() => handleScopeChange("dm")}>
+              All DMs
+            </ScopeBtn>
+            <ScopeBtn active={scope === "all"} onClick={() => handleScopeChange("all")}>
+              Everywhere
+            </ScopeBtn>
+          </>
+        ) : (
+          <>
+            {currentChannelId && (
+              <ScopeBtn active={scope === "channel"} onClick={() => handleScopeChange("channel")}>
+                #{currentChannel?.name}
+              </ScopeBtn>
+            )}
+            <ScopeBtn active={scope === "server"} onClick={() => handleScopeChange("server")}>
+              Server
+            </ScopeBtn>
+            <ScopeBtn active={scope === "all"} onClick={() => handleScopeChange("all")}>
+              Everywhere
+            </ScopeBtn>
+          </>
         )}
-        <ScopeBtn active={scope === "server"} onClick={() => handleScopeChange("server")}>
-          Server
-        </ScopeBtn>
-        <ScopeBtn active={scope === "all"} onClick={() => handleScopeChange("all")}>
-          Everywhere
-        </ScopeBtn>
       </div>
 
       {/* Result count */}

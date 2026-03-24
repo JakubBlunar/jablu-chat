@@ -420,6 +420,7 @@ export class ApiClient {
     opts?: {
       serverId?: string;
       channelId?: string;
+      conversationId?: string;
       dmOnly?: boolean;
       limit?: number;
       offset?: number;
@@ -428,6 +429,7 @@ export class ApiClient {
     const params = new URLSearchParams({ q: query });
     if (opts?.serverId) params.set("serverId", opts.serverId);
     if (opts?.channelId) params.set("channelId", opts.channelId);
+    if (opts?.conversationId) params.set("conversationId", opts.conversationId);
     if (opts?.dmOnly) params.set("dmOnly", "true");
     if (opts?.limit) params.set("limit", String(opts.limit));
     if (opts?.offset != null) params.set("offset", String(opts.offset));
