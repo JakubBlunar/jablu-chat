@@ -6,6 +6,7 @@ import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useDmStore } from "@/stores/dm.store";
+import { useServerStore } from "@/stores/server.store";
 import { useMemberStore } from "@/stores/member.store";
 import { useMessageStore } from "@/stores/message.store";
 import { useNotifPrefStore } from "@/stores/notifPref.store";
@@ -71,6 +72,14 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     let handlingAuthError = false;
     let hasConnectedBefore = false;
+    let lastAckTs = 0;
+    const throttledAck = (fn: () => void) => {
+      const now = Date.now();
+      if (now - lastAckTs > 3000) {
+        lastAckTs = now;
+        fn();
+      }
+    };
     const onConnect = () => {
       setIsConnected(true);
       if (hasConnectedBefore) {
@@ -110,9 +119,12 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string }) => {
       const channelId = useChannelStore.getState().currentChannelId;
+      const viewMode = useServerStore.getState().viewMode;
       const myId = useAuthStore.getState().user?.id;
-      if (msg.channelId != null && msg.channelId === channelId) {
+      const isViewingChannel = viewMode === "server" && msg.channelId != null && msg.channelId === channelId;
+      if (isViewingChannel) {
         useMessageStore.getState().addMessage(msg);
+        throttledAck(() => useReadStateStore.getState().ackChannel(channelId!));
       } else if (msg.channelId && msg.authorId !== myId) {
         const isMentioned = myId
           ? (msg.mentionedUserIds ?? []).includes(myId)
@@ -221,9 +233,12 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const onDmNew = (payload: DmMessagePayload) => {
       const dmState = useDmStore.getState();
       const currentConvId = dmState.currentConversationId;
+      const viewMode = useServerStore.getState().viewMode;
       const myId = useAuthStore.getState().user?.id;
-      if (payload.conversationId === currentConvId) {
+      const isViewingConversation = viewMode === "dm" && payload.conversationId === currentConvId;
+      if (isViewingConversation) {
         dmState.addMessage(payload);
+        throttledAck(() => useReadStateStore.getState().ackDm(currentConvId!));
       } else if (payload.authorId !== myId) {
         useReadStateStore.getState().incrementDm(payload.conversationId);
         const author = payload.author?.displayName ?? payload.author?.username ?? "Someone";

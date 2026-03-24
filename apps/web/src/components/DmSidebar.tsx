@@ -165,7 +165,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 </button>
                 {hasUnread && (
                   <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                    {rs!.mentionCount > 0 ? rs!.mentionCount : ""}
+                    {rs!.mentionCount > 10 ? "10+" : rs!.mentionCount > 0 ? rs!.mentionCount : ""}
                   </span>
                 )}
                 <button

@@ -139,7 +139,7 @@ export function ServerSidebar() {
                       </button>
                       {badge && badge.mentions > 0 && (
                         <span className="absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white">
-                          {badge.mentions}
+                          {badge.mentions > 10 ? "10+" : badge.mentions}
                         </span>
                       )}
                       {badge && badge.unread && badge.mentions === 0 && (
