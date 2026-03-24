@@ -568,6 +568,10 @@ export class ApiClient {
     return this.get(`/api/dm/${id}`);
   }
 
+  closeDm(conversationId: string): Promise<void> {
+    return this.patch(`/api/dm/${conversationId}/close`);
+  }
+
   getDmMessages(
     conversationId: string,
     cursor?: string,

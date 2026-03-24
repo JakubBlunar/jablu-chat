@@ -14,6 +14,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const currentConvId = useDmStore((s) => s.currentConversationId);
   const { goToDm, goToDms } = useAppNavigate();
   const fetchConversations = useDmStore((s) => s.fetchConversations);
+  const closeConversation = useDmStore((s) => s.closeConversation);
   const isLoading = useDmStore((s) => s.isConversationsLoading);
   const onlineIds = useMemberStore((s) => s.onlineUserIds);
   const dmReadStates = useReadStateStore((s) => s.dms);
@@ -125,11 +126,9 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
             const rs = dmReadStates.get(conv.id);
             const hasUnread = !active && rs && rs.unreadCount > 0;
             return (
-              <button
+              <div
                 key={conv.id}
-                type="button"
-                onClick={() => goToDm(conv.id)}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
+                className={`group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${
                   active
                     ? "bg-surface-selected text-white"
                     : hasUnread
@@ -137,33 +136,51 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                       : "text-gray-300 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
-                {info.isGroup ? (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-                    {conv.members.length}
-                  </div>
-                ) : (
-                  <UserAvatar
-                    username={info.name}
-                    avatarUrl={info.avatarUrl}
-                    size="md"
-                    showStatus
-                    status={info.status}
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{info.name}</p>
-                  {conv.lastMessage && (
-                    <p className="truncate text-xs text-gray-400">
-                      {conv.lastMessage.content ?? "attachment"}
-                    </p>
+                <button
+                  type="button"
+                  onClick={() => goToDm(conv.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2"
+                >
+                  {info.isGroup ? (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+                      {conv.members.length}
+                    </div>
+                  ) : (
+                    <UserAvatar
+                      username={info.name}
+                      avatarUrl={info.avatarUrl}
+                      size="md"
+                      showStatus
+                      status={info.status}
+                    />
                   )}
-                </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{info.name}</p>
+                    {conv.lastMessage && (
+                      <p className="truncate text-xs text-gray-400">
+                        {conv.lastMessage.content ?? "attachment"}
+                      </p>
+                    )}
+                  </div>
+                </button>
                 {hasUnread && (
                   <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                     {rs!.mentionCount > 0 ? rs!.mentionCount : ""}
                   </span>
                 )}
-              </button>
+                <button
+                  type="button"
+                  title="Close conversation"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void closeConversation(conv.id);
+                    if (active) goToDms();
+                  }}
+                  className="shrink-0 rounded p-0.5 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
             );
           })
         )}
@@ -349,6 +366,14 @@ function GroupDmModal({
         </button>
       </div>
     </div>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
   );
 }
 

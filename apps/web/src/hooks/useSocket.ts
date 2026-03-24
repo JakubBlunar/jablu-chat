@@ -219,10 +219,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     };
 
     const onDmNew = (payload: DmMessagePayload) => {
-      const currentConvId = useDmStore.getState().currentConversationId;
+      const dmState = useDmStore.getState();
+      const currentConvId = dmState.currentConversationId;
       const myId = useAuthStore.getState().user?.id;
       if (payload.conversationId === currentConvId) {
-        useDmStore.getState().addMessage(payload);
+        dmState.addMessage(payload);
       } else if (payload.authorId !== myId) {
         useReadStateStore.getState().incrementDm(payload.conversationId);
         const author = payload.author?.displayName ?? payload.author?.username ?? "Someone";
@@ -230,7 +231,15 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         const url = `/channels/@me/${payload.conversationId}`;
         showNotification("Direct Message", `${author}: ${body}`, url);
       }
-      useDmStore.getState().updateConversationLastMessage(
+
+      const inList = dmState.conversations.some((c) => c.id === payload.conversationId);
+      if (!inList) {
+        api.getDmConversation(payload.conversationId).then((conv) => {
+          useDmStore.getState().addOrUpdateConversation(conv);
+        }).catch(() => {});
+      }
+
+      dmState.updateConversationLastMessage(
         payload.conversationId,
         {
           content: payload.content ?? null,

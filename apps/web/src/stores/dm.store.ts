@@ -30,6 +30,7 @@ type DmState = {
     msg: { content: string | null; authorId: string; createdAt: string },
   ) => void;
   addOrUpdateConversation: (conv: DmConversation) => void;
+  closeConversation: (conversationId: string) => Promise<void>;
 };
 
 const MAX_MESSAGES = 200;
@@ -211,5 +212,22 @@ export const useDmStore = create<DmState>((set, _get) => ({
       }
       return { conversations: [conv, ...s.conversations] };
     });
+  },
+
+  closeConversation: async (conversationId) => {
+    set((s) => {
+      const updates: Partial<DmState> = {
+        conversations: s.conversations.filter((c) => c.id !== conversationId),
+      };
+      if (s.currentConversationId === conversationId) {
+        updates.currentConversationId = null;
+      }
+      return updates;
+    });
+    try {
+      await api.closeDm(conversationId);
+    } catch {
+      /* server-side close is best-effort; UI already removed it */
+    }
   },
 }));
