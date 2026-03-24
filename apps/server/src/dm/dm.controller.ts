@@ -53,12 +53,12 @@ export class DmController {
     @CurrentUser() user: { id: string },
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('around') around?: string,
   ) {
-    return this.dm.getMessages(
-      id,
-      user.id,
-      cursor,
-      limit ? parseInt(limit, 10) : undefined,
-    );
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    if (around) {
+      return this.dm.getMessagesAround(id, user.id, around, parsedLimit);
+    }
+    return this.dm.getMessages(id, user.id, cursor, parsedLimit);
   }
 }

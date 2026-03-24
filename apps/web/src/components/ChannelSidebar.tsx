@@ -152,26 +152,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
     if (!id) return null;
     return s.servers.find((x) => x.id === id) ?? null;
   });
-  const { goToChannel } = useAppNavigate();
+  const { orchestratedGoToChannel } = useAppNavigate();
   const channelsLoading = useChannelStore((s) => s.isLoading);
   const channels = useChannelStore((s) => s.channels);
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
 
-  const textChannelsRaw = useMemo(
+  const textChannels = useMemo(
     () => channels.filter((c) => c.type === "text").sort((a, b) => a.position - b.position),
     [channels],
   );
-  const voiceChannelsRaw = useMemo(
+  const voiceChannels = useMemo(
     () => channels.filter((c) => c.type === "voice").sort((a, b) => a.position - b.position),
     [channels],
   );
-
-  const lastTextRef = useRef(textChannelsRaw);
-  const lastVoiceRef = useRef(voiceChannelsRaw);
-  if (textChannelsRaw.length > 0) lastTextRef.current = textChannelsRaw;
-  if (voiceChannelsRaw.length > 0) lastVoiceRef.current = voiceChannelsRaw;
-  const textChannels = textChannelsRaw.length > 0 ? textChannelsRaw : lastTextRef.current;
-  const voiceChannels = voiceChannelsRaw.length > 0 ? voiceChannelsRaw : lastVoiceRef.current;
 
   const myMembership = useMemberStore((s) =>
     s.members.find((m) => m.userId === user?.id),
@@ -417,7 +410,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                   <button
                     type="button"
                     onClick={() => {
-                      if (currentServer) goToChannel(currentServer.id, ch.id);
+                      if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id);
                       useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
                     }}
                     className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${

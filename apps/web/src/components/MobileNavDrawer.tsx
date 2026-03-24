@@ -78,7 +78,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const open = useLayoutStore((s) => s.navDrawerOpen);
   const close = useLayoutStore((s) => s.closeNavDrawer);
 
-  const { goToServer, goToChannel, goToDms, goToDm } = useAppNavigate();
+  const { orchestratedGoToChannel, goToDms, goToDm } = useAppNavigate();
 
   const viewMode = useServerStore((s) => s.viewMode);
   const servers = useServerStore((s) => s.servers);
@@ -147,9 +147,9 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
 
   const handleServerClick = useCallback(
     (server: Server) => {
-      goToServer(server.id);
+      void orchestratedGoToChannel(server.id);
     },
-    [goToServer],
+    [orchestratedGoToChannel],
   );
 
   const handleDmClick = useCallback(() => {
@@ -158,11 +158,11 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
 
   const handleChannelClick = useCallback(
     (ch: Channel) => {
-      if (currentServerId) goToChannel(currentServerId, ch.id);
+      if (currentServerId) void orchestratedGoToChannel(currentServerId, ch.id);
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
       close();
     },
-    [currentServerId, goToChannel, close],
+    [currentServerId, orchestratedGoToChannel, close],
   );
 
   const handleVoiceChannelClick = useCallback(

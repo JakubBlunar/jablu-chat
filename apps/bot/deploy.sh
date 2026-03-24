@@ -53,7 +53,7 @@ case "${1:-help}" in
     echo "Cleaning up unused Docker images..."
     docker image prune -a -f --filter "until=24h" 2>/dev/null || true
     echo "Cleaning up build cache (keeping 2GB)..."
-    docker builder prune -f --keep-storage=2GB 2>/dev/null || true
+    docker builder prune -f --reserved-space=2GB 2>/dev/null || true
 
     echo ""
     echo "Bot is running! Check logs with: ./deploy.sh logs"
@@ -65,7 +65,7 @@ case "${1:-help}" in
 
     echo "Cleaning up unused Docker images..."
     docker image prune -a -f --filter "until=24h" 2>/dev/null || true
-    docker builder prune -f --keep-storage=2GB 2>/dev/null || true
+    docker builder prune -f --reserved-space=2GB 2>/dev/null || true
 
     echo "Done. Check logs: ./deploy.sh logs"
     ;;
@@ -84,8 +84,14 @@ case "${1:-help}" in
     docker compose run --rm freegamebot node dist/index.js --test
     ;;
 
+  start)
+    docker compose up -d
+    echo "Bot started."
+    ;;
+
   restart)
-    docker compose restart
+    docker compose down
+    docker compose up -d
     echo "Bot restarted."
     ;;
 

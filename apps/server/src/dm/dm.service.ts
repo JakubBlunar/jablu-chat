@@ -281,6 +281,69 @@ export class DmService {
     };
   }
 
+  async getMessagesAround(
+    conversationId: string,
+    userId: string,
+    messageId: string,
+    limit = 50,
+  ) {
+    await this.requireMembership(conversationId, userId);
+    const half = Math.floor(Math.min(Math.max(1, limit), 100) / 2);
+
+    const anchor = await this.prisma.message.findFirst({
+      where: { id: messageId, directConversationId: conversationId, deleted: false },
+    });
+    if (!anchor) {
+      return this.getMessages(conversationId, userId, undefined, limit);
+    }
+
+    const [before, after] = await Promise.all([
+      this.prisma.message.findMany({
+        where: {
+          directConversationId: conversationId,
+          deleted: false,
+          OR: [
+            { createdAt: { lt: anchor.createdAt } },
+            { AND: [{ createdAt: anchor.createdAt }, { id: { lt: anchor.id } }] },
+          ],
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: half,
+        include: messageInclude,
+      }),
+      this.prisma.message.findMany({
+        where: {
+          directConversationId: conversationId,
+          deleted: false,
+          OR: [
+            { createdAt: { gt: anchor.createdAt } },
+            { AND: [{ createdAt: anchor.createdAt }, { id: { gt: anchor.id } }] },
+          ],
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: half,
+        include: messageInclude,
+      }),
+    ]);
+
+    const anchorRow = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: messageInclude,
+    });
+
+    const allDesc = [
+      ...after.reverse(),
+      ...(anchorRow ? [anchorRow] : []),
+      ...before,
+    ];
+
+    return {
+      messages: allDesc.map((m) => this.mapToWire(m)),
+      hasMore: before.length >= half,
+      hasNewer: after.length >= half,
+    };
+  }
+
   async createMessage(
     conversationId: string,
     userId: string,

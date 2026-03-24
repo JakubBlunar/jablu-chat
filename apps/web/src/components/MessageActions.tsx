@@ -10,9 +10,10 @@ interface MessageActionsProps {
   message: Message;
   channelId: string;
   onEdit?: () => void;
+  onReply?: () => void;
 }
 
-export function MessageActions({ message, channelId, onEdit }: MessageActionsProps) {
+export function MessageActions({ message, channelId, onEdit, onReply }: MessageActionsProps) {
   const userId = useAuthStore((s) => s.user?.id);
   const myRole = useMemberStore((s) =>
     s.members.find((m) => m.userId === userId),
@@ -25,12 +26,16 @@ export function MessageActions({ message, channelId, onEdit }: MessageActionsPro
   const [pickerAbove, setPickerAbove] = useState(true);
 
   const handleReply = useCallback(() => {
-    useMessageStore.getState().setReplyTarget({
-      id: message.id,
-      content: message.content,
-      authorName: message.author?.displayName ?? message.author?.username ?? "Deleted User",
-    });
-  }, [message]);
+    if (onReply) {
+      onReply();
+    } else {
+      useMessageStore.getState().setReplyTarget({
+        id: message.id,
+        content: message.content,
+        authorName: message.author?.displayName ?? message.author?.username ?? "Deleted User",
+      });
+    }
+  }, [message, onReply]);
 
   const handleDelete = useCallback(() => {
     getSocket()?.emit("message:delete", { messageId: message.id });

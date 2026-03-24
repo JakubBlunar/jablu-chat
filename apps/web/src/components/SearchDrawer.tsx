@@ -4,7 +4,6 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { api, type SearchResult } from "@/lib/api";
 import { useAppNavigate } from "@/hooks/useAppNavigate";
 import { useChannelStore } from "@/stores/channel.store";
-import { useMessageStore } from "@/stores/message.store";
 import { useServerStore } from "@/stores/server.store";
 
 type Scope = "server" | "channel" | "all";
@@ -21,7 +20,7 @@ export function SearchDrawer({ query, onQueryChange, onClose }: Props) {
   const currentChannelId = useChannelStore((s) => s.currentChannelId);
   const channels = useChannelStore((s) => s.channels);
   const currentChannel = channels.find((c) => c.id === currentChannelId);
-  const { goToChannel, goToDm } = useAppNavigate();
+  const { orchestratedGoToChannel, orchestratedGoToDm } = useAppNavigate();
 
   const [scope, setScope] = useState<Scope>("server");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -95,12 +94,11 @@ export function SearchDrawer({ query, onQueryChange, onClose }: Props) {
 
   function handleResultClick(result: SearchResult) {
     setActiveId(result.id);
-    useMessageStore.getState().setScrollToMessageId(result.id);
     if (result.channelId) {
       const serverId = result.channel?.serverId ?? currentServerId;
-      if (serverId) goToChannel(serverId, result.channelId);
+      if (serverId) void orchestratedGoToChannel(serverId, result.channelId, result.id);
     } else if (result.dmConversationId) {
-      goToDm(result.dmConversationId);
+      void orchestratedGoToDm(result.dmConversationId, result.id);
     }
   }
 
