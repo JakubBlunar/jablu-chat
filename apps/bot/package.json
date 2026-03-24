@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
-    "test": "tsx src/index.ts --test"
+    "start": "node --env-file=.env dist/index.js",
+    "dev": "node --env-file=.env --import=tsx src/index.ts",
+    "test": "node --env-file=.env --import=tsx src/index.ts --test"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",
