@@ -44,8 +44,10 @@ export class PushService implements OnModuleInit {
     });
   }
 
-  async unsubscribe(endpoint: string) {
-    await this.prisma.pushSubscription.delete({ where: { endpoint } }).catch(() => {});
+  async unsubscribe(endpoint: string, userId: string) {
+    await this.prisma.pushSubscription
+      .deleteMany({ where: { endpoint, userId } })
+      .catch(() => {});
   }
 
   async sendToUser(userId: string, payload: { title: string; body: string; url?: string }) {

@@ -514,6 +514,17 @@ export class MessagesService {
 
     if (message.channelId) {
       await this.requireTextChannelMember(message.channelId, userId);
+    } else if (message.directConversationId) {
+      const member =
+        await this.prisma.directConversationMember.findUnique({
+          where: {
+            conversationId_userId: {
+              conversationId: message.directConversationId,
+              userId,
+            },
+          },
+        });
+      if (!member) throw new ForbiddenException('Not a member of this conversation');
     }
 
     const existing = await this.prisma.reaction.findUnique({

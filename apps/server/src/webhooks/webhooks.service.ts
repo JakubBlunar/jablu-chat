@@ -131,7 +131,8 @@ export class WebhooksService {
   }
 
   async getWebhooks(channelId: string, userId: string) {
-    await this.requireServerMember(channelId, userId);
+    const channel = await this.requireServerMember(channelId, userId);
+    await this.requireAdminOrOwnerForServer(channel.serverId, userId);
     return this.prisma.webhook.findMany({
       where: { channelId },
       select: {

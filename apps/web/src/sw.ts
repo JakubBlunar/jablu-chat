@@ -85,7 +85,9 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   const rawUrl = (event.notification.data as { url?: string })?.url ?? "/";
-  const absoluteUrl = new URL(rawUrl, self.location.origin).href;
+  const parsed = new URL(rawUrl, self.location.origin);
+  if (parsed.origin !== self.location.origin) return;
+  const absoluteUrl = parsed.href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windowClients) => {

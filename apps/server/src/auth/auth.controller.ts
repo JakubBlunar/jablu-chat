@@ -36,8 +36,6 @@ import {
 } from './dto';
 
 function extractIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
   return req.ip ?? '';
 }
 
@@ -112,7 +110,8 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    this.checkRateLimit(req);
     await this.auth.forgotPassword(dto.email);
     return {
       message:
@@ -122,7 +121,8 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    this.checkRateLimit(req);
     await this.auth.resetPassword(dto.token, dto.password);
     return { message: 'Password has been reset successfully' };
   }

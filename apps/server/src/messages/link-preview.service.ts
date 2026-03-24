@@ -1,8 +1,55 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { lookup } from 'dns/promises';
 import { PrismaService } from '../prisma/prisma.service';
 
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
 const FETCH_TIMEOUT = 5000;
+const MAX_RESPONSE_BYTES = 1024 * 1024; // 1 MB
+
+function isPrivateIp(ip: string): boolean {
+  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
+  const v4match = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  const addr = v4match ? v4match[1] : ip;
+
+  if (addr.includes(':')) {
+    // IPv6
+    const lower = addr.toLowerCase();
+    if (lower === '::1') return true;
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // fc00::/7
+    if (lower.startsWith('fe80')) return true; // fe80::/10
+    return false;
+  }
+
+  const parts = addr.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((p) => isNaN(p))) return false;
+  const [a, b] = parts;
+  if (a === 0) return true;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+async function readLimited(res: Response, limit: number): Promise<string> {
+  if (!res.body) return '';
+  const reader = (res.body as unknown as { getReader(): ReadableStreamDefaultReader<Uint8Array> }).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    total += value.byteLength;
+    if (total > limit) {
+      reader.cancel();
+      break;
+    }
+    chunks.push(value);
+  }
+  const decoder = new TextDecoder();
+  return chunks.map((c) => decoder.decode(c, { stream: true })).join('') + decoder.decode();
+}
 
 @Injectable()
 export class LinkPreviewService {
@@ -121,12 +168,26 @@ export class LinkPreviewService {
     return false;
   }
 
+  private async isSafeUrl(url: string): Promise<boolean> {
+    try {
+      const { hostname } = new URL(url);
+      const { address } = await lookup(hostname);
+      return !isPrivateIp(address);
+    } catch {
+      return false;
+    }
+  }
+
   private async fetchOgMeta(url: string): Promise<{
     title: string | null;
     description: string | null;
     imageUrl: string | null;
     siteName: string | null;
   }> {
+    const empty = { title: null, description: null, imageUrl: null, siteName: null };
+
+    if (!(await this.isSafeUrl(url))) return empty;
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
@@ -140,14 +201,12 @@ export class LinkPreviewService {
         redirect: 'follow',
       });
 
-      if (!res.ok) return { title: null, description: null, imageUrl: null, siteName: null };
+      if (!res.ok) return empty;
 
       const contentType = res.headers.get('content-type') ?? '';
-      if (!contentType.includes('text/html')) {
-        return { title: null, description: null, imageUrl: null, siteName: null };
-      }
+      if (!contentType.includes('text/html')) return empty;
 
-      const html = await res.text();
+      const html = await readLimited(res, MAX_RESPONSE_BYTES);
       return this.parseOgTags(html);
     } finally {
       clearTimeout(timeout);

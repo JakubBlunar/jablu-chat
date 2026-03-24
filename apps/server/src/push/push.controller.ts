@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { IsOptional, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PushService } from './push.service';
 
@@ -52,8 +52,11 @@ export class PushController {
   @Delete('unsubscribe')
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async unsubscribe(@Body() dto: UnsubscribeDto) {
-    await this.push.unsubscribe(dto.endpoint);
+  async unsubscribe(
+    @CurrentUser() user: { id: string },
+    @Body() dto: UnsubscribeDto,
+  ) {
+    await this.push.unsubscribe(dto.endpoint, user.id);
     return { ok: true };
   }
 }
