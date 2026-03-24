@@ -31,7 +31,7 @@ export function useMessageScroll(
 ) {
   const isDm = mode === "dm";
   const {
-    messages, isLoading, hasMore, hasNewer, scrollToMessageId,
+    messages, hasMore, hasNewer, scrollToMessageId,
     scrollRequestNonce, fetchMessages, fetchMessagesAround,
     fetchNewerMessages, clearMessages, setScrollToMessageId, getLoadedForId,
   } = store;
