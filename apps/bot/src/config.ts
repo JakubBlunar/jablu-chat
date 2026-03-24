@@ -16,7 +16,7 @@ export const config = {
   botName: env("BOT_NAME", "FreeGameBot"),
   botAvatarUrl: process.env["BOT_AVATAR_URL"]?.trim() || undefined,
 
-  pollCron: env("POLL_CRON", "*/30 * * * *"),
+  pollCron: env("POLL_CRON", "0 * * * *"),
 
   get dbPath(): string {
     const p = env("DB_PATH", "./data/bot.db");

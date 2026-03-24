@@ -1,7 +1,7 @@
 import type { Deal } from "../types.js";
 
 const STEAM_FEATURED =
-  "https://store.steampowered.com/api/featuredcategories?cc=us&l=en";
+  "https://store.steampowered.com/api/featuredcategories?cc=sk&l=en";
 
 interface SteamFeatured {
   specials?: {
