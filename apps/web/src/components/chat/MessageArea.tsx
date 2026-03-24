@@ -1,11 +1,11 @@
-import type { Message, UserStatus } from "@chat/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Message } from "@chat/shared";
+import { useCallback, useEffect, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { type MentionChannel } from "@/components/chat/ChatInputBar";
 import { DelayedRender } from "@/components/DelayedRender";
 import { ScrollToBottomButton } from "@/components/ScrollToBottomButton";
 import { type ChannelRef } from "@/components/MarkdownContent";
-import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
+import { ProfileCard } from "@/components/ProfileCard";
 import { MessageRow } from "@/components/chat/MessageRow";
 import { UnifiedInput } from "@/components/chat/UnifiedInput";
 import { PinnedPanel } from "@/components/chat/PinnedPanel";
@@ -13,21 +13,26 @@ import { DmProfilePanel, UserProfileIcon } from "@/components/dm/DmProfilePanel"
 import { useMessageStoreAdapter } from "@/hooks/useMessageStoreAdapter";
 import { api } from "@/lib/api";
 import { formatDateSeparator, isDifferentDay } from "@/lib/format-time";
-import { getSocket } from "@/lib/socket";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { Virtuoso } from "react-virtuoso";
 import { useAuthStore } from "@/stores/auth.store";
 import { useChannelStore } from "@/stores/channel.store";
 import { useLayoutStore } from "@/stores/layout.store";
 import { useMemberStore } from "@/stores/member.store";
-import { useMessageStore } from "@/stores/message.store";
 import { useServerStore } from "@/stores/server.store";
-import { useDmStore } from "@/stores/dm.store";
-import { useShallow } from "zustand/react/shallow";
-import { useAppNavigate } from "@/hooks/useAppNavigate";
 
-/* ────────────────────────────────────────────
-   Small icons
-   ──────────────────────────────────────────── */
+import { useMessageScroll, VIRTUAL_START } from "@/components/chat/hooks/useMessageScroll";
+import { useProfileCard } from "@/components/chat/hooks/useProfileCard";
+import { usePinnedMessages } from "@/components/chat/hooks/usePinnedMessages";
+import { useTypingIndicators, formatTyping } from "@/components/chat/hooks/useTypingIndicators";
+import { useReadReceipts } from "@/components/chat/hooks/useReadReceipts";
+import { useDmContext, dmMentionChannels } from "@/components/dm/hooks/useDmContext";
+
+import { NotifBellMenu } from "@/components/channel/NotifBellMenu";
+import { SearchBar } from "@/components/SearchBar";
+import { SearchDrawer } from "@/components/search/SearchDrawer";
+import { EditChannelModal } from "@/components/channel/EditChannelModal";
+
+/* ── Small icons ── */
 
 function HashChannelIcon() {
   return (
@@ -71,24 +76,6 @@ function AtIcon() {
   );
 }
 
-function ReplyArrowIcon() {
-  return (
-    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <polyline points="9 17 4 12 9 7" />
-      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
 function DateSeparator({ date }: { date: string }) {
   return (
     <div className="my-2 flex items-center gap-3">
@@ -101,11 +88,8 @@ function DateSeparator({ date }: { date: string }) {
   );
 }
 
-/* ────────────────────────────────────────────
-   Constants
-   ──────────────────────────────────────────── */
+/* ── Constants ── */
 
-const VIRTUAL_START = 100_000;
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
 function isGap(a: Message, b: Message): boolean {
@@ -115,9 +99,7 @@ function isGap(a: Message, b: Message): boolean {
   return tb - ta > GROUP_GAP_MS;
 }
 
-/* ────────────────────────────────────────────
-   Unified MessageArea
-   ──────────────────────────────────────────── */
+/* ── MessageArea ── */
 
 export interface MessageAreaProps {
   mode: "channel" | "dm";
@@ -128,377 +110,35 @@ export interface MessageAreaProps {
 export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps) {
   const isDm = mode === "dm";
   const store = useMessageStoreAdapter(mode);
-  const {
-    messages, isLoading, hasMore, hasNewer, scrollToMessageId,
-    scrollRequestNonce, fetchMessages, fetchMessagesAround,
-    fetchNewerMessages, clearMessages, setScrollToMessageId, getLoadedForId,
-  } = store;
+  const { messages, isLoading, hasMore, hasNewer, fetchNewerMessages } = store;
 
   const userId = useAuthStore((s) => s.user?.id);
 
-  /* ── Virtuoso core state ── */
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
-  const scrollParentRef = useCallback((node: HTMLElement | null) => {
-    setScrollParent(node);
-  }, []);
-  const [atBottom, setAtBottom] = useState(true);
-  const handleAtBottomChange = useCallback((bottom: boolean) => {
-    if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 10) {
-      setAtBottom(true);
-      return;
-    }
-    setAtBottom(bottom);
-  }, [scrollParent]);
-  const [firstItemIndex, setFirstItemIndex] = useState(VIRTUAL_START);
-  const [virtuosoKey, setVirtuosoKey] = useState(0);
+  const scroll = useMessageScroll(mode, contextId, store);
+  const dm = useDmContext(isDm, userId);
+  const { cardUser, cardRect, closeCard, handleUserClick, handleMentionClick } = useProfileCard(isDm, dm.currentConv);
+  const typingNames = useTypingIndicators(isDm, contextId, userId);
+  const { lastOwnMsg, seenByLabel } = useReadReceipts(isDm, contextId, dm.currentConv, userId, messages);
 
-  const hasNewerRef = useRef(hasNewer);
-  hasNewerRef.current = hasNewer;
+  const channelId = isDm ? null : contextId;
+  const pinned = usePinnedMessages(channelId);
 
-  const followOutput = useCallback((isAtBottom: boolean) => {
-    if (hasNewerRef.current) return false;
-    return isAtBottom ? ("smooth" as const) : false;
-  }, []);
+  const activeChannel = useChannelStore((s) => {
+    if (isDm || !s.currentChannelId) return null;
+    const ch = s.channels.find((c) => c.id === s.currentChannelId);
+    if (!ch || ch.serverId !== useServerStore.getState().currentServerId) return null;
+    return ch;
+  });
 
-  /* ── Scroll-to-message (polling-based) ── */
-  const scrollTargetIndexRef = useRef<number | null>(null);
-  const scrollParentNodeRef = useRef<HTMLElement | null>(null);
-  scrollParentNodeRef.current = scrollParent;
+  const [editingChannel, setEditingChannel] = useState(false);
+  const myRole = useMemberStore((s) =>
+    s.members.find((m) => m.userId === userId),
+  )?.role;
+  const isAdminOrOwner = myRole === "admin" || myRole === "owner";
 
-  useEffect(() => {
-    if (!scrollToMessageId || !contextId) {
-      scrollTargetIndexRef.current = null;
-      return;
-    }
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-    const targetId = scrollToMessageId;
-    let pollCancelled = false;
-    let fetchAttempted = false;
-    const startTime = Date.now();
-    const TIMEOUT = 8000;
-
-    const getStore = () =>
-      isDm ? useDmStore.getState() : useMessageStore.getState();
-
-    const poll = () => {
-      if (pollCancelled) return;
-      if (Date.now() - startTime > TIMEOUT) {
-        setScrollToMessageId(null);
-        return;
-      }
-
-      const sp = scrollParentNodeRef.current;
-      const state = getStore();
-      const loadedId = isDm
-        ? (state as ReturnType<typeof useDmStore.getState>).loadedForConvId
-        : (state as ReturnType<typeof useMessageStore.getState>).loadedForChannelId;
-
-      if (!sp || state.isLoading || state.messages.length === 0 || loadedId !== contextId) {
-        setTimeout(poll, 60);
-        return;
-      }
-
-      const idx = state.messages.findIndex((m) => m.id === targetId);
-      if (idx < 0) {
-        if (!fetchAttempted) {
-          fetchAttempted = true;
-          clearMessages();
-          setFirstItemIndex(VIRTUAL_START);
-          void fetchMessagesAround(contextId, targetId);
-          setTimeout(poll, 200);
-        } else {
-          setScrollToMessageId(null);
-        }
-        return;
-      }
-
-      pollCancelled = true;
-      scrollTargetIndexRef.current = idx;
-      setScrollToMessageId(null);
-      setFirstItemIndex(VIRTUAL_START);
-      setAtBottom(false);
-      sp.scrollTop = 0;
-      setVirtuosoKey((k) => k + 1);
-
-      // tryHighlight runs independently — NOT gated by the effect cleanup
-      // because setScrollToMessageId(null) above triggers effect re-run + cleanup
-      // before the 200ms timeout fires
-      const tryHighlight = (attempts = 0) => {
-        const currentSp = scrollParentNodeRef.current;
-        const el = document.getElementById(`msg-${targetId}`);
-        if (el && currentSp) {
-          const elRect = el.getBoundingClientRect();
-          const spRect = currentSp.getBoundingClientRect();
-          const offset = elRect.top - spRect.top + currentSp.scrollTop;
-          currentSp.scrollTo({ top: offset - currentSp.clientHeight / 2 + elRect.height / 2, behavior: "auto" });
-          el.classList.add("bg-primary/10");
-          setTimeout(() => el.classList.remove("bg-primary/10"), 3000);
-        } else if (attempts < 40) {
-          setTimeout(() => tryHighlight(attempts + 1), 50);
-        }
-      };
-      setTimeout(() => tryHighlight(), 200);
-    };
-
-    const timer = setTimeout(poll, 30);
-    return () => {
-      pollCancelled = true;
-      clearTimeout(timer);
-    };
-  }, [scrollToMessageId, scrollRequestNonce, contextId, isDm, clearMessages, fetchMessagesAround, setScrollToMessageId]);
-
-  /* ── Context switch (channel / conversation change) ── */
-  const prevIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const socket = getSocket();
-    const prev = prevIdRef.current;
-
-    if (prev && prev !== contextId) {
-      if (!isDm) socket?.emit("channel:leave", { channelId: prev });
-    }
-
-    if (contextId) {
-      const alreadyLoaded = getLoadedForId() === contextId;
-
-      if (!alreadyLoaded) {
-        if (isDm) {
-          if (socket?.connected) socket.emit("dm:join", { conversationId: contextId });
-        } else {
-          socket?.emit("channel:join", { channelId: contextId });
-        }
-      }
-      prevIdRef.current = contextId;
-
-      if (alreadyLoaded) {
-        setFirstItemIndex(VIRTUAL_START);
-        setAtBottom(true);
-      } else {
-        setFirstItemIndex(VIRTUAL_START);
-        setAtBottom(true);
-        clearMessages();
-        void fetchMessages(contextId);
-      }
-    } else {
-      prevIdRef.current = null;
-    }
-
-    return () => {
-      if (!isDm && contextId) {
-        getSocket()?.emit("channel:leave", { channelId: contextId });
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextId, clearMessages, fetchMessages, isDm, getLoadedForId]);
-
-  /* ── Pagination ── */
-  const loadingRef = useRef(false);
-  const startReached = useCallback(async () => {
-    if (!contextId || !messages.length || loadingRef.current || !hasMore) return;
-    loadingRef.current = true;
-    const prevLen = messages.length;
-    await fetchMessages(contextId, messages[0].id);
-    const currentStore = isDm ? useDmStore.getState() : useMessageStore.getState();
-    const newLen = currentStore.messages.length;
-    const prepended = newLen - prevLen;
-    if (prepended > 0) {
-      setFirstItemIndex((prev) => prev - prepended);
-    }
-    loadingRef.current = false;
-  }, [contextId, messages, hasMore, fetchMessages, isDm]);
-
-  const loadingNewerRef = useRef(false);
-  const endReached = useCallback(async () => {
-    if (!contextId || !messages.length || loadingNewerRef.current || !hasNewer || !fetchNewerMessages) return;
-    loadingNewerRef.current = true;
-    await fetchNewerMessages(contextId);
-    loadingNewerRef.current = false;
-  }, [contextId, messages, hasNewer, fetchNewerMessages]);
-
-  const stickToBottom = useCallback(() => {
-    virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "smooth" });
-  }, []);
-
-  const handleBottomButtonClick = useCallback(() => {
-    if (hasNewer && contextId) {
-      clearMessages();
-      setFirstItemIndex(VIRTUAL_START);
-      void fetchMessages(contextId);
-    } else {
-      virtuosoRef.current?.scrollToIndex({ index: "LAST", behavior: "smooth" });
-    }
-  }, [hasNewer, contextId, clearMessages, fetchMessages]);
-
-  /* ── Jump to message (from pinned panel) ── */
-  const jumpTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-
-  useEffect(() => {
-    return () => {
-      for (const t of jumpTimersRef.current) clearTimeout(t);
-      jumpTimersRef.current = [];
-    };
-  }, []);
-
-  const handleJumpToMessage = useCallback(
-    (messageId: string) => {
-      for (const t of jumpTimersRef.current) clearTimeout(t);
-      jumpTimersRef.current = [];
-
-      const idx = messages.findIndex((m) => m.id === messageId);
-      if (idx >= 0) {
-        const absIndex = firstItemIndex + idx;
-        const tryFind = (attempts = 0) => {
-          const el = document.getElementById(`msg-${messageId}`);
-          if (el && scrollParent) {
-            const cRect = scrollParent.getBoundingClientRect();
-            const eRect = el.getBoundingClientRect();
-            scrollParent.scrollTop += eRect.top - cRect.top - cRect.height / 2 + eRect.height / 2;
-            el.classList.add("bg-primary/10");
-            jumpTimersRef.current.push(
-              setTimeout(() => el.classList.remove("bg-primary/10"), 2000),
-            );
-          } else if (attempts < 20) {
-            virtuosoRef.current?.scrollToIndex({ index: absIndex, align: "center" });
-            jumpTimersRef.current.push(
-              setTimeout(() => tryFind(attempts + 1), 100),
-            );
-          }
-        };
-        virtuosoRef.current?.scrollToIndex({ index: absIndex, align: "center" });
-        requestAnimationFrame(() => tryFind());
-      }
-    },
-    [messages, firstItemIndex, scrollParent],
-  );
-
-  /* ── Profile card ── */
-  const members = useMemberStore((s) => s.members);
-  const onlineIds = useMemberStore((s) => s.onlineUserIds);
-  const [cardUser, setCardUser] = useState<ProfileCardUser | null>(null);
-  const [cardRect, setCardRect] = useState<DOMRect | null>(null);
-  const closeCard = useCallback(() => setCardUser(null), []);
-
-  const membersRef = useRef(members);
-  membersRef.current = members;
-  const onlineIdsRef = useRef(onlineIds);
-  onlineIdsRef.current = onlineIds;
-
-  const dmConversations = useDmStore((s) => s.conversations);
-  const dmConvId = useDmStore((s) => s.currentConversationId);
-  const currentConv = useMemo(
-    () => (isDm ? dmConversations.find((c) => c.id === dmConvId) ?? null : null),
-    [isDm, dmConversations, dmConvId],
-  );
-
-  const handleUserClick = useCallback(
-    (authorId: string, rect: DOMRect) => {
-      if (isDm) {
-        const convMember = currentConv?.members.find((m) => m.userId === authorId);
-        if (!convMember) return;
-        setCardUser({
-          id: convMember.userId,
-          username: convMember.username,
-          avatarUrl: convMember.avatarUrl,
-          bio: convMember.bio,
-          status: (convMember.status as UserStatus) ?? "offline",
-          joinedAt: convMember.createdAt,
-        });
-      } else {
-        const member = membersRef.current.find((m) => m.userId === authorId);
-        if (!member) return;
-        const status: UserStatus = (member.user.status as UserStatus) ??
-          (onlineIdsRef.current.has(authorId) ? "online" : "offline");
-        setCardUser({
-          id: member.userId,
-          username: member.user.username,
-          displayName: member.user.displayName,
-          avatarUrl: member.user.avatarUrl,
-          bio: member.user.bio,
-          status,
-          joinedAt: member.joinedAt,
-          role: member.role,
-        });
-      }
-      setCardRect(rect);
-    },
-    [isDm, currentConv],
-  );
-
-  const handleMentionClick = useCallback(
-    (username: string, rect: DOMRect) => {
-      const member = membersRef.current.find(
-        (m) => m.user.username.toLowerCase() === username.toLowerCase(),
-      );
-      if (!member) return;
-      const status: UserStatus = (member.user.status as UserStatus) ??
-        (onlineIdsRef.current.has(member.userId) ? "online" : "offline");
-      setCardUser({
-        id: member.userId,
-        username: member.user.username,
-        displayName: member.user.displayName,
-        avatarUrl: member.user.avatarUrl,
-        bio: member.user.bio,
-        status,
-        joinedAt: member.joinedAt,
-        role: member.role,
-      });
-      setCardRect(rect);
-    },
-    [],
-  );
-
-  /* ── Channel refs for #channel links in markdown ── */
-  const allChannels = useChannelStore((s) => s.channels);
-  const serverChannelRefs: ChannelRef[] = useMemo(
-    () =>
-      allChannels
-        .filter((c) => c.type === "text")
-        .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name })),
-    [allChannels],
-  );
-
-  const otherMember = useMemo(() => {
-    if (!currentConv || currentConv.isGroup) return null;
-    return currentConv.members.find((m) => m.userId !== userId) ?? null;
-  }, [currentConv, userId]);
-
-  const [mutualServers, setMutualServers] = useState<
-    { id: string; name: string; iconUrl: string | null; channels: { id: string; name: string }[] }[]
-  >([]);
-  useEffect(() => {
-    if (!isDm || !otherMember) {
-      setMutualServers([]);
-      return;
-    }
-    let cancelled = false;
-    api.getMutualServers(otherMember.userId).then((res) => {
-      if (!cancelled) setMutualServers(res.servers);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [isDm, otherMember?.userId]);
-
-  const dmChannelRefs: ChannelRef[] = useMemo(
-    () =>
-      mutualServers.flatMap((s) =>
-        s.channels.map((c) => ({ id: c.id, serverId: s.id, name: c.name })),
-      ),
-    [mutualServers],
-  );
-
-  const channelRefs = isDm ? dmChannelRefs : serverChannelRefs;
-
-  /* ── DM profile panel toggle ── */
-  const [showProfile, setShowProfile] = useState(false);
-  const otherName = otherMember?.displayName ?? otherMember?.username ?? "Unknown";
-
-  const { orchestratedGoToChannel } = useAppNavigate();
-  const handleChannelClick = useCallback(
-    (serverId: string, chId: string) => void orchestratedGoToChannel(serverId, chId),
-    [orchestratedGoToChannel],
-  );
-
-  /* ── Reply target (unified: local state for both modes) ── */
   const [replyTarget, setReplyTarget] = useState<{
     id: string;
     content: string | null;
@@ -517,171 +157,10 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     });
   }, []);
 
-  /* ── Typing (channel reads from store, DM from socket) ── */
-  const channelTypingNames = useMessageStore(
-    useShallow((s) => {
-      const out: string[] = [];
-      for (const [uid, entry] of s.typingUsers) {
-        if (uid !== userId) out.push(entry.username);
-      }
-      return out.length > 4 ? out.slice(0, 4) : out;
-    }),
-  );
-
-  const [dmTypingUsers, setDmTypingUsers] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!isDm) return;
-    const socket = getSocket();
-    if (!socket) return;
-    const onTyping = (payload: { conversationId: string; username: string }) => {
-      if (payload.conversationId !== contextId) return;
-      setDmTypingUsers((prev) =>
-        prev.includes(payload.username) ? prev : [...prev, payload.username],
-      );
-      setTimeout(() => {
-        setDmTypingUsers((prev) => prev.filter((u) => u !== payload.username));
-      }, 3000);
-    };
-    socket.on("dm:typing", onTyping);
-    return () => { socket.off("dm:typing", onTyping); };
-  }, [isDm, contextId]);
-
-  useEffect(() => {
-    if (isDm) setDmTypingUsers([]);
-  }, [isDm, contextId]);
-
-  const typingNames = isDm ? dmTypingUsers : channelTypingNames;
-
-  /* ── DM read receipts ("Seen") ── */
-  const [othersReadMap, setOthersReadMap] = useState<Map<string, string>>(new Map());
-
-  useEffect(() => {
-    if (!isDm || !contextId || !currentConv) {
-      setOthersReadMap(new Map());
-      return;
-    }
-    api.getDmReadStates(contextId).then((states) => {
-      const m = new Map<string, string>();
-      for (const s of states) {
-        if (s.userId !== userId) m.set(s.userId, s.lastReadAt);
-      }
-      setOthersReadMap(m);
-    }).catch(() => {});
-  }, [isDm, contextId, currentConv, userId]);
-
-  useEffect(() => {
-    if (!isDm || !contextId) return;
-    const socket = getSocket();
-    if (!socket) return;
-    const onRead = (payload: { conversationId: string; userId: string; lastReadAt: string }) => {
-      if (payload.conversationId === contextId && payload.userId !== userId) {
-        setOthersReadMap((prev) => {
-          const next = new Map(prev);
-          next.set(payload.userId, payload.lastReadAt);
-          return next;
-        });
-      }
-    };
-    socket.on("dm:read", onRead);
-    return () => { socket.off("dm:read", onRead); };
-  }, [isDm, contextId, userId]);
-
-  /* ── Channel-only: pinned messages panel ── */
-  const channelId = isDm ? null : contextId;
-  const activeChannel = useChannelStore((s) => {
-    if (isDm || !s.currentChannelId) return null;
-    const ch = s.channels.find((c) => c.id === s.currentChannelId);
-    if (!ch || ch.serverId !== useServerStore.getState().currentServerId) return null;
-    return ch;
-  });
-
-  const [pinnedOpen, setPinnedOpen] = useState(false);
-  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
-  const [pinnedLoading, setPinnedLoading] = useState(false);
-
-  useEffect(() => {
-    setPinnedOpen(false);
-    setPinnedMessages([]);
-  }, [channelId]);
-
-  const handleOpenPinned = useCallback(async () => {
-    if (!channelId) return;
-    if (pinnedOpen) { setPinnedOpen(false); return; }
-    setPinnedOpen(true);
-    setPinnedLoading(true);
-    try {
-      const msgs = await api.getPinnedMessages(channelId);
-      setPinnedMessages(msgs);
-    } catch {
-      setPinnedMessages([]);
-    } finally {
-      setPinnedLoading(false);
-    }
-  }, [channelId, pinnedOpen]);
-
-  useEffect(() => {
-    if (!pinnedOpen || !channelId) return;
-    const socket = getSocket();
-    if (!socket) return;
-    const onPin = (msg: Message) => {
-      if (msg.channelId === channelId) {
-        setPinnedMessages((prev) =>
-          prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev],
-        );
-      }
-    };
-    const onUnpin = (msg: Message) => {
-      if (msg.channelId === channelId) {
-        setPinnedMessages((prev) => prev.filter((m) => m.id !== msg.id));
-      }
-    };
-    socket.on("message:pin", onPin);
-    socket.on("message:unpin", onUnpin);
-    return () => {
-      socket.off("message:pin", onPin);
-      socket.off("message:unpin", onUnpin);
-    };
-  }, [pinnedOpen, channelId]);
-
-  const [editingChannel, setEditingChannel] = useState(false);
-  const myRole = useMemberStore((s) =>
-    s.members.find((m) => m.userId === userId),
-  )?.role;
-  const isAdminOrOwner = myRole === "admin" || myRole === "owner";
-
-  /* ── Channel-only: search ── */
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  /* ── GIF toggle ── */
   const [gifEnabled, setGifEnabled] = useState(false);
   useEffect(() => {
     api.getGifEnabled().then((r) => setGifEnabled(r.enabled)).catch(() => {});
   }, []);
-
-  const lastOwnMsg = useMemo(() => {
-    if (!isDm || othersReadMap.size === 0) return null;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].authorId === userId) return messages[i];
-    }
-    return null;
-  }, [isDm, othersReadMap, messages, userId]);
-
-  const seenByLabel = useMemo(() => {
-    if (!lastOwnMsg || !currentConv) return null;
-    const names: string[] = [];
-    for (const member of currentConv.members) {
-      if (member.userId === userId) continue;
-      const readAt = othersReadMap.get(member.userId);
-      if (readAt && readAt >= lastOwnMsg.createdAt) {
-        names.push(member.displayName ?? member.username);
-      }
-    }
-    if (names.length === 0) return null;
-    if (!currentConv.isGroup) return "Seen";
-    return `Seen by ${names.join(", ")}`;
-  }, [lastOwnMsg, currentConv, userId, othersReadMap]);
 
   /* ── Empty states ── */
   if (!contextId) {
@@ -708,21 +187,21 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   /* ── Render ── */
   const messageList = (
     <>
-      {!isDm && pinnedOpen && channelId && (
+      {!isDm && pinned.pinnedOpen && channelId && (
         <PinnedPanel
-          messages={pinnedMessages}
-          loading={pinnedLoading}
-          onClose={() => setPinnedOpen(false)}
+          messages={pinned.pinnedMessages}
+          loading={pinned.pinnedLoading}
+          onClose={() => pinned.setPinnedOpen(false)}
           isAdminOrOwner={isAdminOrOwner}
           channelId={channelId}
-          onJump={handleJumpToMessage}
+          onJump={scroll.handleJumpToMessage}
         />
       )}
 
       <div className="relative min-h-0 flex-1">
         <SimpleBar
           className="flex h-full flex-col px-4 py-2"
-          scrollableNodeProps={{ ref: scrollParentRef }}
+          scrollableNodeProps={{ ref: scroll.scrollParentRef }}
         >
           {!isDm && !activeChannel ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
@@ -756,25 +235,25 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 </p>
               </div>
             </div>
-          ) : messages.length > 0 && scrollParent ? (
+          ) : messages.length > 0 && scroll.scrollParent ? (
             <Virtuoso
-              key={virtuosoKey}
-              ref={virtuosoRef}
-              customScrollParent={scrollParent}
+              key={scroll.virtuosoKey}
+              ref={scroll.virtuosoRef}
+              customScrollParent={scroll.scrollParent}
               data={messages}
-              computeItemKey={(index) => messages[index - firstItemIndex]?.id ?? index}
-              firstItemIndex={firstItemIndex}
-              initialTopMostItemIndex={scrollTargetIndexRef.current ?? messages.length - 1}
+              computeItemKey={(index) => messages[index - scroll.firstItemIndex]?.id ?? index}
+              firstItemIndex={scroll.firstItemIndex}
+              initialTopMostItemIndex={scroll.scrollTargetIndexRef.current ?? messages.length - 1}
               alignToBottom
               atBottomThreshold={100}
-              followOutput={followOutput}
-              atBottomStateChange={handleAtBottomChange}
-              startReached={hasMore ? startReached : undefined}
-              endReached={hasNewer && fetchNewerMessages ? endReached : undefined}
+              followOutput={scroll.followOutput}
+              atBottomStateChange={scroll.handleAtBottomChange}
+              startReached={hasMore ? scroll.startReached : undefined}
+              endReached={hasNewer && fetchNewerMessages ? scroll.endReached : undefined}
               increaseViewportBy={400}
               components={{ Footer: () => <div className="h-8" /> }}
               itemContent={(index, msg) => {
-                const dataIndex = index - firstItemIndex;
+                const dataIndex = index - scroll.firstItemIndex;
                 const prev = dataIndex > 0 ? messages[dataIndex - 1] : undefined;
                 const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt);
                 const showHead =
@@ -790,8 +269,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                       onReply={handleReply}
                       onUserClick={handleUserClick}
                       onMentionClick={isDm ? undefined : handleMentionClick}
-                      channels={channelRefs}
-                      onChannelClick={handleChannelClick}
+                      channels={dm.channelRefs}
+                      onChannelClick={dm.handleChannelClick}
                     />
                     {lastOwnMsg?.id === msg.id && seenByLabel && (
                       <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">
@@ -806,12 +285,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         </SimpleBar>
 
         <ScrollToBottomButton
-          atBottom={atBottom}
+          atBottom={scroll.atBottom}
           hasNewer={hasNewer}
           isLoading={isLoading}
           messageCount={messages.length}
           contextId={contextId}
-          onClick={handleBottomButtonClick}
+          onClick={scroll.handleBottomButtonClick}
         />
       </div>
 
@@ -826,11 +305,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         contextId={contextId}
         replyTarget={replyTarget}
         onCancelReply={() => setReplyTarget(null)}
-        onSent={stickToBottom}
-        channels={isDm ? dmMentionChannels(mutualServers) : undefined}
+        onSent={scroll.stickToBottom}
+        channels={isDm ? dmMentionChannels(dm.mutualServers) : undefined}
         gifEnabled={gifEnabled}
         placeholder={isDm
-          ? `Message ${otherMember?.displayName ?? otherMember?.username ?? ""}`
+          ? `Message ${dm.otherMember?.displayName ?? dm.otherMember?.username ?? ""}`
           : activeChannel
             ? (replyTarget ? `Reply to ${replyTarget.authorName}...` : `Message #${activeChannel.name}`)
             : "Message"}
@@ -855,7 +334,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           <button
             type="button"
             title="Pinned messages"
-            onClick={() => void handleOpenPinned()}
+            onClick={() => void pinned.handleOpenPinned()}
             className="relative rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <PinHeaderIcon />
@@ -904,13 +383,13 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
             <AtIcon />
-            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{otherName}</h2>
-            {otherMember && !currentConv?.isGroup && (
+            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
+            {dm.otherMember && !dm.currentConv?.isGroup && (
               <button
                 type="button"
-                onClick={() => setShowProfile((p) => !p)}
+                onClick={() => dm.setShowProfile((p) => !p)}
                 title="User profile"
-                className={`shrink-0 rounded p-1.5 transition ${showProfile ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`shrink-0 rounded p-1.5 transition ${dm.showProfile ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 <UserProfileIcon />
               </button>
@@ -934,11 +413,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               onQueryChange={setSearchQuery}
               onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
               defaultScope="conversation"
-              conversationId={dmConvId ?? undefined}
+              conversationId={dm.dmConvId ?? undefined}
             />
           </div>
-        ) : showProfile && otherMember ? (
-          <DmProfilePanel member={otherMember} mutualServers={mutualServers} />
+        ) : dm.showProfile && dm.otherMember ? (
+          <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
         ) : null}
       </div>
     );
@@ -972,24 +451,5 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         />
       )}
     </section>
-  );
-}
-
-/* ────────────────────────────────────────────
-   Helpers
-   ──────────────────────────────────────────── */
-
-function formatTyping(names: string[]): string {
-  if (names.length === 0) return "";
-  if (names.length === 1) return `${names[0]} is typing…`;
-  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
-  return "Several people are typing…";
-}
-
-function dmMentionChannels(
-  mutualServers: { id: string; name: string; channels: { id: string; name: string }[] }[],
-): MentionChannel[] {
-  return mutualServers.flatMap((s) =>
-    s.channels.map((c) => ({ id: c.id, serverId: s.id, name: c.name, serverName: s.name })),
   );
 }
