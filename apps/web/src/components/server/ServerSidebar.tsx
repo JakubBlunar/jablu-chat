@@ -68,6 +68,7 @@ export function ServerSidebar() {
           <button
             type="button"
             title="Direct Messages"
+            aria-label="Direct Messages"
             onClick={handleDmClick}
             className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
               viewMode === "dm"
@@ -156,6 +157,7 @@ export function ServerSidebar() {
         <button
           type="button"
           title="Join a server"
+          aria-label="Join a server"
           onClick={() => setJoinOpen(true)}
           className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-surface text-success transition-all duration-200 ease-out hover:rounded-2xl hover:bg-success hover:text-white"
         >

@@ -75,12 +75,14 @@ function GifPickerContent({
   const [results, setResults] = useState<GifResult[]>([]);
   const [nextPos, setNextPos] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchGifs = useCallback(
     async (q: string, pos?: string) => {
       setLoading(true);
+      setError(false);
       try {
         const data = q.trim()
           ? await api.searchGifs(q.trim(), 20, pos)
@@ -92,7 +94,8 @@ function GifPickerContent({
         }
         setNextPos(data.next);
       } catch {
-        /* swallow */
+        if (!pos) setResults([]);
+        setError(true);
       } finally {
         setLoading(false);
       }
@@ -159,9 +162,22 @@ function GifPickerContent({
         onScroll={handleScroll}
       >
         {results.length === 0 && !loading && (
-          <p className="py-8 text-center text-sm text-gray-500">
-            {query ? "No GIFs found" : "Loading..."}
-          </p>
+          <div className="py-8 text-center text-sm text-gray-500">
+            {error ? (
+              <>
+                <p>Failed to load GIFs</p>
+                <button
+                  type="button"
+                  className="mt-2 text-xs text-primary hover:underline"
+                  onClick={() => fetchGifs(query)}
+                >
+                  Try again
+                </button>
+              </>
+            ) : query ? (
+              "No GIFs found"
+            ) : null}
+          </div>
         )}
 
         <div className="flex gap-1.5">

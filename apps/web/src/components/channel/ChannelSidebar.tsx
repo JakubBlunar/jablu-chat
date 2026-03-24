@@ -387,6 +387,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               <button
                 type="button"
                 title="Create channel"
+                aria-label="Create text channel"
                 disabled={!currentServer}
                 onClick={() => setChannelModalOpen(true)}
                 className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
@@ -445,6 +446,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               <button
                 type="button"
                 title="Create channel"
+                aria-label="Create voice channel"
                 disabled={!currentServer}
                 onClick={() => setChannelModalOpen(true)}
                 className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
@@ -531,6 +533,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
           <button
             type="button"
             title="User settings"
+            aria-label="User settings"
             onClick={onOpenSettings}
             className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >

@@ -16,7 +16,7 @@
     "setup": "bash setup.sh"
   },
   "devDependencies": {
-    "turbo": "latest",
+    "turbo": "^2.8.20",
     "typescript": "~5.8.0"
   },
   "pnpm": {

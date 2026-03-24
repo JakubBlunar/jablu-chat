@@ -332,6 +332,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           <button
             type="button"
             title="Pinned messages"
+            aria-label="Pinned messages"
             onClick={() => void pinned.handleOpenPinned()}
             className="relative rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -347,6 +348,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             <button
               type="button"
               title="Channel settings"
+              aria-label="Channel settings"
               onClick={() => setEditingChannel(true)}
               className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
@@ -356,6 +358,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           <button
             type="button"
             title="Toggle member list"
+            aria-label="Toggle member list"
             onClick={useLayoutStore.getState().toggleMemberSidebar}
             className="hidden rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white md:block"
           >
@@ -387,6 +390,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 type="button"
                 onClick={() => dm.setShowProfile((p) => !p)}
                 title="User profile"
+                aria-label="User profile"
                 className={`shrink-0 rounded p-1.5 transition ${dm.showProfile ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 <UserProfileIcon />
