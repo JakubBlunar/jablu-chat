@@ -1,10 +1,13 @@
 import type { Message, UserStatus } from "@chat/shared";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { ChatInputBar, type ChatInputBarHandle, type MentionChannel, type MentionMember } from "@/components/ChatInputBar";
 import { DelayedRender } from "@/components/DelayedRender";
-import { EmojiPicker } from "@/components/EmojiPicker";
+
+const EmojiPicker = lazy(() =>
+  import("@/components/EmojiPicker").then((m) => ({ default: m.EmojiPicker })),
+);
 import { LinkPreviewCard } from "@/components/LinkPreviewCard";
 import { MarkdownContent, type ChannelRef } from "@/components/MarkdownContent";
 import { MessageActions } from "@/components/MessageActions";
@@ -340,8 +343,20 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   }, [hasNewer, contextId, clearMessages, fetchMessages]);
 
   /* ── Jump to message (from pinned panel) ── */
+  const jumpTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const t of jumpTimersRef.current) clearTimeout(t);
+      jumpTimersRef.current = [];
+    };
+  }, []);
+
   const handleJumpToMessage = useCallback(
     (messageId: string) => {
+      for (const t of jumpTimersRef.current) clearTimeout(t);
+      jumpTimersRef.current = [];
+
       const idx = messages.findIndex((m) => m.id === messageId);
       if (idx >= 0) {
         const absIndex = firstItemIndex + idx;
@@ -352,10 +367,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             const eRect = el.getBoundingClientRect();
             scrollParent.scrollTop += eRect.top - cRect.top - cRect.height / 2 + eRect.height / 2;
             el.classList.add("bg-primary/10");
-            setTimeout(() => el.classList.remove("bg-primary/10"), 2000);
+            jumpTimersRef.current.push(
+              setTimeout(() => el.classList.remove("bg-primary/10"), 2000),
+            );
           } else if (attempts < 20) {
             virtuosoRef.current?.scrollToIndex({ index: absIndex, align: "center" });
-            setTimeout(() => tryFind(attempts + 1), 100);
+            jumpTimersRef.current.push(
+              setTimeout(() => tryFind(attempts + 1), 100),
+            );
           }
         };
         virtuosoRef.current?.scrollToIndex({ index: absIndex, align: "center" });
@@ -1040,13 +1059,15 @@ const MessageRow = memo(function MessageRow({
             </div>
             {emojiOpen && (
               <div className={`absolute right-0 z-50 ${pickerAbove ? "bottom-full mb-2" : "top-full mt-2"}`}>
-                <EmojiPicker
-                  onSelect={(emoji) => {
-                    getSocket()?.emit("reaction:toggle", { messageId: message.id, emoji });
-                    setEmojiOpen(false);
-                  }}
-                  onClose={() => setEmojiOpen(false)}
-                />
+                <Suspense fallback={null}>
+                  <EmojiPicker
+                    onSelect={(emoji) => {
+                      getSocket()?.emit("reaction:toggle", { messageId: message.id, emoji });
+                      setEmojiOpen(false);
+                    }}
+                    onClose={() => setEmojiOpen(false)}
+                  />
+                </Suspense>
               </div>
             )}
           </div>

@@ -1,5 +1,8 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { EmojiPicker } from "@/components/EmojiPicker";
+import { Suspense, forwardRef, lazy, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+
+const EmojiPicker = lazy(() =>
+  import("@/components/EmojiPicker").then((m) => ({ default: m.EmojiPicker })),
+);
 import { GifPicker } from "@/components/GifPicker";
 import { UserAvatar } from "@/components/UserAvatar";
 
@@ -318,14 +321,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
       {emojiOpen && (
         <div className="absolute bottom-full right-0 z-50 mb-2">
-          <EmojiPicker
-            onSelect={(emoji) => {
-              onChange(value + emoji);
-              setEmojiOpen(false);
-              taRef.current?.focus();
-            }}
-            onClose={() => setEmojiOpen(false)}
-          />
+          <Suspense fallback={null}>
+            <EmojiPicker
+              onSelect={(emoji) => {
+                onChange(value + emoji);
+                setEmojiOpen(false);
+                taRef.current?.focus();
+              }}
+              onClose={() => setEmojiOpen(false)}
+            />
+          </Suspense>
         </div>
       )}
     </div>

@@ -18,50 +18,56 @@ export interface MessageStoreData {
   getLoadedForId: () => string | null;
 }
 
-export function useMessageStoreAdapter(mode: "channel" | "dm"): MessageStoreData {
-  const chMessages = useMessageStore((s) => s.messages);
-  const chIsLoading = useMessageStore((s) => s.isLoading);
-  const chHasMore = useMessageStore((s) => s.hasMore);
-  const chHasNewer = useMessageStore((s) => s.hasNewer);
-  const chScrollTo = useMessageStore((s) => s.scrollToMessageId);
-  const chScrollNonce = useMessageStore((s) => s.scrollRequestNonce);
-  const chFetch = useMessageStore((s) => s.fetchMessages);
-  const chFetchAround = useMessageStore((s) => s.fetchMessagesAround);
-  const chFetchNewer = useMessageStore((s) => s.fetchNewerMessages);
-  const chClear = useMessageStore((s) => s.clearMessages);
+const EMPTY: Message[] = [];
+const NOOP_FETCH = async () => {};
+const NOOP_CLEAR = () => {};
 
-  const dmMessages = useDmStore((s) => s.messages);
-  const dmIsLoading = useDmStore((s) => s.isLoading);
-  const dmHasMore = useDmStore((s) => s.hasMore);
-  const dmHasNewer = useDmStore((s) => s.hasNewer);
-  const dmScrollTo = useDmStore((s) => s.scrollToMessageId);
-  const dmScrollNonce = useDmStore((s) => s.scrollRequestNonce);
-  const dmFetch = useDmStore((s) => s.fetchMessages);
-  const dmFetchAround = useDmStore((s) => s.fetchMessagesAround);
-  const dmClear = useDmStore((s) => s.clearMessages);
+export function useMessageStoreAdapter(mode: "channel" | "dm"): MessageStoreData {
+  const isDm = mode === "dm";
+
+  const chMessages = useMessageStore((s) => isDm ? EMPTY : s.messages);
+  const chIsLoading = useMessageStore((s) => isDm ? false : s.isLoading);
+  const chHasMore = useMessageStore((s) => isDm ? false : s.hasMore);
+  const chHasNewer = useMessageStore((s) => isDm ? false : s.hasNewer);
+  const chScrollTo = useMessageStore((s) => isDm ? null : s.scrollToMessageId);
+  const chScrollNonce = useMessageStore((s) => isDm ? 0 : s.scrollRequestNonce);
+  const chFetch = useMessageStore((s) => isDm ? NOOP_FETCH : s.fetchMessages);
+  const chFetchAround = useMessageStore((s) => isDm ? NOOP_FETCH : s.fetchMessagesAround);
+  const chFetchNewer = useMessageStore((s) => isDm ? NOOP_FETCH : s.fetchNewerMessages);
+  const chClear = useMessageStore((s) => isDm ? NOOP_CLEAR : s.clearMessages);
+
+  const dmMessages = useDmStore((s) => isDm ? s.messages : EMPTY);
+  const dmIsLoading = useDmStore((s) => isDm ? s.isLoading : false);
+  const dmHasMore = useDmStore((s) => isDm ? s.hasMore : false);
+  const dmHasNewer = useDmStore((s) => isDm ? s.hasNewer : false);
+  const dmScrollTo = useDmStore((s) => isDm ? s.scrollToMessageId : null);
+  const dmScrollNonce = useDmStore((s) => isDm ? s.scrollRequestNonce : 0);
+  const dmFetch = useDmStore((s) => isDm ? s.fetchMessages : NOOP_FETCH);
+  const dmFetchAround = useDmStore((s) => isDm ? s.fetchMessagesAround : NOOP_FETCH);
+  const dmClear = useDmStore((s) => isDm ? s.clearMessages : NOOP_CLEAR);
 
   const setScrollToMessageId = useCallback(
     (id: string | null) => {
-      if (mode === "dm") {
+      if (isDm) {
         useDmStore.getState().setScrollToMessageId(id);
       } else {
         useMessageStore.getState().setScrollToMessageId(id);
       }
     },
-    [mode],
+    [isDm],
   );
 
   const getLoadedForId = useCallback(
     () => {
-      if (mode === "dm") {
+      if (isDm) {
         return useDmStore.getState().loadedForConvId;
       }
       return useMessageStore.getState().loadedForChannelId;
     },
-    [mode],
+    [isDm],
   );
 
-  if (mode === "dm") {
+  if (isDm) {
     return {
       messages: dmMessages,
       isLoading: dmIsLoading,

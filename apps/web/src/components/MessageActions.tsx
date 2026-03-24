@@ -1,6 +1,9 @@
 import type { Message } from "@chat/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { EmojiPicker } from "@/components/EmojiPicker";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+
+const EmojiPicker = lazy(() =>
+  import("@/components/EmojiPicker").then((m) => ({ default: m.EmojiPicker })),
+);
 import { getSocket } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth.store";
 import { useMemberStore } from "@/stores/member.store";
@@ -114,10 +117,12 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
             pickerAbove ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >
-          <EmojiPicker
-            onSelect={handleEmojiSelect}
-            onClose={() => setShowEmojiPicker(false)}
-          />
+          <Suspense fallback={null}>
+            <EmojiPicker
+              onSelect={handleEmojiSelect}
+              onClose={() => setShowEmojiPicker(false)}
+            />
+          </Suspense>
         </div>
       )}
     </div>
