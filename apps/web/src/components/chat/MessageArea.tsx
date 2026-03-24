@@ -198,7 +198,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
       <div className="relative min-h-0 flex-1">
         <SimpleBar
-          className="flex h-full flex-col px-4 py-2"
+          className={`flex h-full flex-col px-4 py-2 ${scroll.settling ? "opacity-0" : "opacity-100 transition-opacity duration-150"}`}
           scrollableNodeProps={{ ref: scroll.scrollParentRef }}
         >
           {!isDm && !activeChannel ? (

@@ -51,6 +51,7 @@ CMD ["prisma", "migrate", "deploy"]
 
 # ─── Production image ───────────────────────────────────────────────
 FROM node:22-alpine AS production
+RUN apk add --no-cache ffmpeg
 WORKDIR /app
 
 COPY --from=prod-bundle /prod/node_modules ./node_modules

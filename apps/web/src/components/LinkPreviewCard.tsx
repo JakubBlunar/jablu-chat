@@ -82,13 +82,13 @@ function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
     <>
       <button
         type="button"
-        className="mt-1 block max-w-md overflow-hidden rounded-lg"
+        className="mt-1 block min-h-[120px] max-w-md overflow-hidden rounded-lg"
         onClick={() => setLightbox(true)}
       >
         <img
           src={imgUrl}
           alt={lp.title ?? label}
-          className="max-h-[300px] rounded-lg object-contain"
+          className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
           loading="lazy"
         />
       </button>

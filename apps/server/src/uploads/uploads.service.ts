@@ -6,6 +6,12 @@ import { extname, join, resolve } from 'path';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ffprobe = require('ffprobe') as (
+  filePath: string,
+  opts: { path: string },
+) => Promise<{ streams?: { codec_type?: string; width?: number; height?: number }[] }>;
+
 const IMAGE_MIMES = new Set([
   'image/jpeg',
   'image/png',
@@ -125,6 +131,18 @@ export class UploadsService {
         height = meta.height ?? null;
       } catch {
         /* can't read gif metadata */
+      }
+    } else if (attachType === AttachmentType.video) {
+      writeFileSync(dest, file.buffer);
+      try {
+        const info = await ffprobe(dest, { path: 'ffprobe' });
+        const videoStream = info.streams?.find((s) => s.codec_type === 'video');
+        if (videoStream) {
+          width = videoStream.width ?? null;
+          height = videoStream.height ?? null;
+        }
+      } catch {
+        /* ffprobe unavailable or failed – leave dimensions null */
       }
     } else {
       writeFileSync(dest, file.buffer);
