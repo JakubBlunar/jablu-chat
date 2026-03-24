@@ -4,7 +4,6 @@ import SimpleBar from "simplebar-react";
 import { type MentionChannel } from "@/components/chat/ChatInputBar";
 import { DelayedRender } from "@/components/DelayedRender";
 import { ScrollToBottomButton } from "@/components/ScrollToBottomButton";
-import { type ChannelRef } from "@/components/MarkdownContent";
 import { ProfileCard } from "@/components/ProfileCard";
 import { MessageRow } from "@/components/chat/MessageRow";
 import { UnifiedInput } from "@/components/chat/UnifiedInput";
