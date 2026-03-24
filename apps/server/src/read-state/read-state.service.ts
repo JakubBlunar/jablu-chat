@@ -6,17 +6,66 @@ export class ReadStateService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAllForUser(userId: string) {
-    const [channelRows, dms] = await Promise.all([
-      this.prisma.channelReadState.findMany({
-        where: { userId },
-        include: { channel: { select: { serverId: true } } },
-      }),
-      this.prisma.dmReadState.findMany({ where: { userId } }),
+    const [channelRows, dmRows] = await Promise.all([
+      this.prisma.$queryRaw<
+        {
+          channel_id: string;
+          last_read_at: Date;
+          mention_count: number;
+          server_id: string;
+          unread_count: bigint;
+        }[]
+      >`
+        SELECT crs.channel_id, crs.last_read_at, crs.mention_count, c.server_id,
+          (SELECT COUNT(*) FROM (
+            SELECT 1 FROM messages m
+            WHERE m.channel_id = crs.channel_id
+              AND m.created_at > crs.last_read_at
+              AND m.deleted = false
+              AND m.author_id != ${userId}
+            LIMIT 100
+          ) sub) AS unread_count
+        FROM channel_read_states crs
+        JOIN channels c ON c.id = crs.channel_id
+        WHERE crs.user_id = ${userId}
+      `,
+      this.prisma.$queryRaw<
+        {
+          conversation_id: string;
+          last_read_at: Date;
+          mention_count: number;
+          unread_count: bigint;
+        }[]
+      >`
+        SELECT drs.conversation_id, drs.last_read_at, drs.mention_count,
+          (SELECT COUNT(*) FROM (
+            SELECT 1 FROM messages m
+            WHERE m.direct_conversation_id = drs.conversation_id
+              AND m.created_at > drs.last_read_at
+              AND m.deleted = false
+              AND m.author_id != ${userId}
+            LIMIT 100
+          ) sub) AS unread_count
+        FROM dm_read_states drs
+        WHERE drs.user_id = ${userId}
+      `,
     ]);
-    const channels = channelRows.map(({ channel, ...rs }) => ({
-      ...rs,
-      serverId: channel.serverId,
+
+    const channels = channelRows.map((r) => ({
+      channelId: r.channel_id,
+      lastReadAt: r.last_read_at.toISOString(),
+      mentionCount: Number(r.mention_count),
+      serverId: r.server_id,
+      unreadCount: Number(r.unread_count),
     }));
+
+    const dms = dmRows.map((r) => ({
+      conversationId: r.conversation_id,
+      lastReadAt: r.last_read_at.toISOString(),
+      mentionCount: Number(r.mention_count),
+      unreadCount: Number(r.unread_count),
+    }));
+
     return { channels, dms };
   }
 

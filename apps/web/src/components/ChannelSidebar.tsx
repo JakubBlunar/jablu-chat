@@ -425,7 +425,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                     <span className="min-w-0 flex-1 truncate">{ch.name}</span>
                     {mentionCount > 0 && (
                       <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                        {mentionCount}
+                        {mentionCount > 10 ? "10+" : mentionCount}
                       </span>
                     )}
                     {showUnreadDot && mentionCount === 0 && (

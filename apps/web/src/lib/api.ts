@@ -595,8 +595,8 @@ export class ApiClient {
   }
 
   getReadStates(): Promise<{
-    channels: { channelId: string; serverId: string; mentionCount: number; lastReadAt: string }[];
-    dms: { conversationId: string; mentionCount: number; lastReadAt: string }[];
+    channels: { channelId: string; serverId: string; mentionCount: number; unreadCount: number; lastReadAt: string }[];
+    dms: { conversationId: string; mentionCount: number; unreadCount: number; lastReadAt: string }[];
   }> {
     return this.get("/api/read-states");
   }

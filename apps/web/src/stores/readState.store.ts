@@ -34,7 +34,7 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
       const channelToServer = new Map<string, string>();
       for (const rs of data.channels) {
         channels.set(rs.channelId, {
-          unreadCount: 0,
+          unreadCount: rs.unreadCount ?? 0,
           mentionCount: rs.mentionCount,
           lastReadAt: rs.lastReadAt,
         });
@@ -44,7 +44,7 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
       }
       for (const rs of data.dms) {
         dms.set(rs.conversationId, {
-          unreadCount: 0,
+          unreadCount: rs.unreadCount ?? 0,
           mentionCount: rs.mentionCount,
           lastReadAt: rs.lastReadAt,
         });
