@@ -29,7 +29,8 @@
       "esbuild",
       "@swc/core",
       "electron",
-      "electron-winstaller"
+      "electron-winstaller",
+      "better-sqlite3"
     ]
   }
 }
