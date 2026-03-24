@@ -1,7 +1,7 @@
 import type { Deal } from "../types.js";
 
 const EPIC_API =
-  "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en-US&country=US&allowCountries=US";
+  "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions?locale=en&country=SK&allowCountries=SK";
 
 interface EpicGame {
   title: string;

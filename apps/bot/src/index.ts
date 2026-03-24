@@ -4,67 +4,83 @@ import { wasPosted, markPosted, cleanOldEntries } from "./db.js";
 import { formatDeal } from "./format.js";
 import { fetchEpicDeals } from "./sources/epic.js";
 import { fetchSteamDeals } from "./sources/steam.js";
+import { fetchTestDeals } from "./sources/test.js";
 import type { Deal } from "./types.js";
 import { postToWebhook } from "./webhook.js";
 
-async function pollAndPost(): Promise<void> {
-  console.log(`[poll] Checking for free games at ${new Date().toISOString()}`);
+const isTestMode = process.argv.includes("--test");
 
-  const [epicDeals, steamDeals] = await Promise.all([
-    fetchEpicDeals(),
-    fetchSteamDeals(),
-  ]);
-  const allDeals: Deal[] = [...epicDeals, ...steamDeals];
-
-  if (allDeals.length === 0) {
-    console.log("[poll] No free games found.");
+async function postDeals(
+  deals: Deal[],
+  skipDuplicateCheck: boolean,
+): Promise<void> {
+  if (deals.length === 0) {
+    console.log("[poll] No deals to post.");
     return;
   }
 
-  console.log(`[poll] Found ${allDeals.length} deal(s): ${allDeals.map((d) => d.title).join(", ")}`);
+  console.log(
+    `[poll] Found ${deals.length} deal(s): ${deals.map((d) => d.title).join(", ")}`,
+  );
 
   for (const webhookUrl of config.webhookUrls) {
-    const newDeals = allDeals.filter((d) => !wasPosted(d.id, webhookUrl));
+    const newDeals = skipDuplicateCheck
+      ? deals
+      : deals.filter((d) => !wasPosted(d.id, webhookUrl));
+
     if (newDeals.length === 0) {
-      console.log(`[poll] No new deals for webhook ${webhookUrl.slice(-12)}`);
+      console.log(`[poll] No new deals for webhook …${webhookUrl.slice(-12)}`);
       continue;
     }
 
     console.log(
-      `[poll] Posting ${newDeals.length} new deal(s) to ${webhookUrl.slice(-12)}`,
+      `[poll] Posting ${newDeals.length} deal(s) to …${webhookUrl.slice(-12)}`,
     );
 
     for (const deal of newDeals) {
       const message = formatDeal(deal);
       const ok = await postToWebhook(webhookUrl, message);
       if (ok) {
-        markPosted(deal.id, webhookUrl);
-        console.log(`[poll] ✓ Posted "${deal.title}" to ${webhookUrl.slice(-12)}`);
+        if (!skipDuplicateCheck) markPosted(deal.id, webhookUrl);
+        console.log(`[poll] ✓ Posted "${deal.title}"`);
       } else {
-        console.error(`[poll] ✗ Failed "${deal.title}" to ${webhookUrl.slice(-12)}`);
+        console.error(`[poll] ✗ Failed "${deal.title}"`);
       }
-      // Small delay between posts to avoid flooding
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
 }
 
+async function pollAndPost(): Promise<void> {
+  console.log(`[poll] Checking for free games at ${new Date().toISOString()}`);
+  const [epicDeals, steamDeals] = await Promise.all([
+    fetchEpicDeals(),
+    fetchSteamDeals(),
+  ]);
+  await postDeals([...epicDeals, ...steamDeals], false);
+}
+
 // Startup
 console.log("=== FreeGameBot ===");
 console.log(`Webhooks: ${config.webhookUrls.length} configured`);
-console.log(`Schedule: ${config.pollCron}`);
 console.log(`Database: ${config.dbPath}`);
-console.log("");
 
-// Clean old entries on startup
-cleanOldEntries(90);
+if (isTestMode) {
+  console.log("[test] Running in test mode — posting sample deals...\n");
+  const deals = fetchTestDeals();
+  void postDeals(deals, true).then(() => {
+    console.log("\n[test] Done.");
+    process.exit(0);
+  });
+} else {
+  console.log(`Schedule: ${config.pollCron}\n`);
 
-// Run once immediately
-void pollAndPost();
-
-// Schedule recurring polls
-cron.schedule(config.pollCron, () => {
+  cleanOldEntries(90);
   void pollAndPost();
-});
 
-console.log("[bot] Scheduler started. Waiting for next poll...");
+  cron.schedule(config.pollCron, () => {
+    void pollAndPost();
+  });
+
+  console.log("[bot] Scheduler started. Waiting for next poll...");
+}
