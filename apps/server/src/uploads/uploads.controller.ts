@@ -49,6 +49,11 @@ export class UploadsController {
     @CurrentUser() user: { id: string },
   ) {
     if (!file) throw new BadRequestException('No file provided');
+    if (file.size > this.maxSizeBytes) {
+      throw new BadRequestException(
+        `File exceeds the maximum upload size of ${Math.round(this.maxSizeBytes / 1024 / 1024)} MB`,
+      );
+    }
 
     const saved = await this.uploads.saveAttachment(file);
 

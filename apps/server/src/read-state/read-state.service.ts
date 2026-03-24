@@ -92,34 +92,38 @@ export class ReadStateService {
 
   async incrementMention(channelId: string, userIds: string[]) {
     if (userIds.length === 0) return;
-    for (const userId of userIds) {
-      await this.prisma.channelReadState.upsert({
-        where: { userId_channelId: { userId, channelId } },
-        update: { mentionCount: { increment: 1 } },
-        create: {
-          userId,
-          channelId,
-          lastReadAt: new Date(0),
-          mentionCount: 1,
-        },
-      });
-    }
+    await Promise.all(
+      userIds.map((userId) =>
+        this.prisma.channelReadState.upsert({
+          where: { userId_channelId: { userId, channelId } },
+          update: { mentionCount: { increment: 1 } },
+          create: {
+            userId,
+            channelId,
+            lastReadAt: new Date(0),
+            mentionCount: 1,
+          },
+        }),
+      ),
+    );
   }
 
   async incrementDmMention(conversationId: string, userIds: string[]) {
     if (userIds.length === 0) return;
-    for (const userId of userIds) {
-      await this.prisma.dmReadState.upsert({
-        where: { userId_conversationId: { userId, conversationId } },
-        update: { mentionCount: { increment: 1 } },
-        create: {
-          userId,
-          conversationId,
-          lastReadAt: new Date(0),
-          mentionCount: 1,
-        },
-      });
-    }
+    await Promise.all(
+      userIds.map((userId) =>
+        this.prisma.dmReadState.upsert({
+          where: { userId_conversationId: { userId, conversationId } },
+          update: { mentionCount: { increment: 1 } },
+          create: {
+            userId,
+            conversationId,
+            lastReadAt: new Date(0),
+            mentionCount: 1,
+          },
+        }),
+      ),
+    );
   }
 
   /**

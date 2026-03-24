@@ -11,6 +11,7 @@ import {
   Post,
   Query,
   Req,
+  UnauthorizedException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -19,6 +20,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { EventBusService } from '../events/event-bus.service';
+import { AuthRateLimiter } from './auth-rate-limiter';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import {
@@ -47,11 +49,31 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly events: EventBusService,
+    private readonly rateLimiter: AuthRateLimiter,
   ) {}
+
+  private checkRateLimit(req: Request) {
+    const ip = extractIp(req);
+    const { allowed, retryAfter } = this.rateLimiter.check(ip);
+    if (!allowed) {
+      throw new BadRequestException(
+        `Too many attempts. Try again in ${retryAfter} seconds.`,
+      );
+    }
+    return ip;
+  }
 
   @Post('register')
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
-    return this.auth.register(dto.username, dto.email, dto.password, dto.inviteCode, req.headers['user-agent'], extractIp(req));
+    const ip = this.checkRateLimit(req);
+    try {
+      const result = await this.auth.register(dto.username, dto.email, dto.password, dto.inviteCode, req.headers['user-agent'], ip);
+      this.rateLimiter.resetOnSuccess(ip);
+      return result;
+    } catch (err) {
+      this.rateLimiter.recordFailure(ip);
+      throw err;
+    }
   }
 
   @Get('registration-mode')
@@ -62,7 +84,17 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.auth.login(dto.email, dto.password, req.headers['user-agent'], extractIp(req));
+    const ip = this.checkRateLimit(req);
+    try {
+      const result = await this.auth.login(dto.email, dto.password, req.headers['user-agent'], ip);
+      this.rateLimiter.resetOnSuccess(ip);
+      return result;
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        this.rateLimiter.recordFailure(ip);
+      }
+      throw err;
+    }
   }
 
   @Post('refresh')

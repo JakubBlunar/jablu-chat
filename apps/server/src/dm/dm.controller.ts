@@ -73,9 +73,13 @@ export class DmController {
     @Query('around') around?: string,
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    const safeLimit =
+      parsedLimit != null && !Number.isNaN(parsedLimit)
+        ? Math.min(Math.max(parsedLimit, 1), 100)
+        : undefined;
     if (around) {
-      return this.dm.getMessagesAround(id, user.id, around, parsedLimit);
+      return this.dm.getMessagesAround(id, user.id, around, safeLimit);
     }
-    return this.dm.getMessages(id, user.id, cursor, parsedLimit);
+    return this.dm.getMessages(id, user.id, cursor, safeLimit);
   }
 }
