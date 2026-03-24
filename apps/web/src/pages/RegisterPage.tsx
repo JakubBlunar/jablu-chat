@@ -116,6 +116,7 @@ export function RegisterPage() {
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            maxLength={20}
             className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             placeholder="cool_nickname"
             required
