@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { ProfileCard, type ProfileCardUser } from "@/components/ProfileCard";
 import { UserAvatar } from "@/components/UserAvatar";
+import { usernameAccentStyle } from "@/lib/username-color";
 import type { Member } from "@/stores/member.store";
 import { useMemberStore } from "@/stores/member.store";
 
@@ -161,7 +162,10 @@ function MemberRow({
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[15px] font-medium text-gray-200">
+            <span
+              className={`truncate text-[15px] font-medium ${dimmed ? "text-gray-200" : ""}`}
+              style={dimmed ? undefined : usernameAccentStyle(name)}
+            >
               {name}
             </span>
             {badge ? (

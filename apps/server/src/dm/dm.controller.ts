@@ -48,6 +48,14 @@ export class DmController {
     return this.dm.closeConversation(id, user.id);
   }
 
+  @Get(':id/read-states')
+  getReadStates(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.dm.getConversationReadStates(id, user.id);
+  }
+
   @Get(':id')
   getConversation(
     @Param('id', ParseUUIDPipe) id: string,

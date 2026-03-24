@@ -8,12 +8,16 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { EventBusService } from '../events/event-bus.service';
 import { ReadStateService } from './read-state.service';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
 export class ReadStateController {
-  constructor(private readonly readState: ReadStateService) {}
+  constructor(
+    private readonly readState: ReadStateService,
+    private readonly events: EventBusService,
+  ) {}
 
   @Get('read-states')
   getAll(@Request() req: { user: { id: string } }) {
@@ -35,6 +39,11 @@ export class ReadStateController {
     @Param('id', ParseUUIDPipe) conversationId: string,
   ) {
     await this.readState.ackDm(req.user.id, conversationId);
+    this.events.emit('dm:read', {
+      conversationId,
+      userId: req.user.id,
+      lastReadAt: new Date().toISOString(),
+    });
     return { ok: true };
   }
 }

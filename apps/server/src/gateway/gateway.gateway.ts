@@ -118,6 +118,17 @@ export class ChatGateway
     );
 
     this.events.on(
+      'dm:read',
+      (payload: {
+        conversationId: string;
+        userId: string;
+        lastReadAt: string;
+      }) => {
+        this.emitToDm(payload.conversationId, 'dm:read', payload);
+      },
+    );
+
+    this.events.on(
       'channel:reorder',
       (payload: { serverId: string; channelIds: string[] }) => {
         this.server
