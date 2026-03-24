@@ -187,6 +187,8 @@ model Message {
   pinned                 Boolean  @default(false)
   deleted                Boolean  @default(false)
   webhookId              String?  @map("webhook_id")
+  webhookName            String?  @map("webhook_name")
+  webhookAvatarUrl       String?  @map("webhook_avatar_url")
   createdAt              DateTime @default(now()) @map("created_at")
   editedAt               DateTime? @map("edited_at")
 

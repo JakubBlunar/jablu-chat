@@ -1,5 +1,5 @@
 import type { Message, UserStatus } from "@chat/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SimpleBar from "simplebar-react";
 import { AttachmentPreview } from "@/components/AttachmentPreview";
 import { DelayedRender } from "@/components/DelayedRender";
@@ -277,12 +277,17 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
   const [cardRect, setCardRect] = useState<DOMRect | null>(null);
   const closeCard = useCallback(() => setCardUser(null), []);
 
+  const membersRef = useRef(members);
+  membersRef.current = members;
+  const onlineIdsRef = useRef(onlineIds);
+  onlineIdsRef.current = onlineIds;
+
   const handleUserClick = useCallback(
     (authorId: string, rect: DOMRect) => {
-      const member = members.find((m) => m.userId === authorId);
+      const member = membersRef.current.find((m) => m.userId === authorId);
       if (!member) return;
       const status: UserStatus = (member.user.status as UserStatus) ??
-        (onlineIds.has(authorId) ? "online" : "offline");
+        (onlineIdsRef.current.has(authorId) ? "online" : "offline");
       setCardUser({
         id: member.userId,
         username: member.user.username,
@@ -295,17 +300,17 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
       });
       setCardRect(rect);
     },
-    [members, onlineIds],
+    [],
   );
 
   const handleMentionClick = useCallback(
     (username: string, rect: DOMRect) => {
-      const member = members.find(
+      const member = membersRef.current.find(
         (m) => m.user.username.toLowerCase() === username.toLowerCase(),
       );
       if (!member) return;
       const status: UserStatus = (member.user.status as UserStatus) ??
-        (onlineIds.has(member.userId) ? "online" : "offline");
+        (onlineIdsRef.current.has(member.userId) ? "online" : "offline");
       setCardUser({
         id: member.userId,
         username: member.user.username,
@@ -318,7 +323,7 @@ export function MessageArea({ memberSidebar }: { memberSidebar?: React.ReactNode
       });
       setCardRect(rect);
     },
-    [members, onlineIds],
+    [],
   );
 
   const allChannels = useChannelStore((s) => s.channels);
@@ -598,7 +603,7 @@ function isGap(a: Message, b: Message): boolean {
   return tb - ta > 7 * 60 * 1000;
 }
 
-function MessageRow({
+const MessageRow = memo(function MessageRow({
   message,
   showHead,
   channelId,
@@ -681,9 +686,15 @@ function MessageRow({
       )}
 
       {showHead ? (
+        isWebhook ? (
+          <div className="shrink-0 self-start">
+            <UserAvatar username={name} avatarUrl={avatarUrl} size="lg" />
+          </div>
+        ) : (
         <button type="button" onClick={handleAuthorClick} className="shrink-0 self-start">
           <UserAvatar username={name} avatarUrl={avatarUrl} size="lg" />
         </button>
+        )
       ) : (
         <div className="flex w-10 shrink-0 justify-center pt-1">
           <span className="text-[10px] text-gray-500 opacity-0 transition group-hover:opacity-100">
@@ -706,14 +717,23 @@ function MessageRow({
 
         {showHead ? (
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
-            <button
-              type="button"
-              onClick={handleAuthorClick}
-              className="text-[15px] font-semibold hover:underline"
-              style={usernameAccentStyle(name)}
-            >
-              {name}
-            </button>
+            {isWebhook ? (
+              <span
+                className="text-[15px] font-semibold"
+                style={usernameAccentStyle(name)}
+              >
+                {name}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAuthorClick}
+                className="text-[15px] font-semibold hover:underline"
+                style={usernameAccentStyle(name)}
+              >
+                {name}
+              </button>
+            )}
             {message.webhookId && (
               <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                 BOT
@@ -820,7 +840,7 @@ function MessageRow({
       </div>
     </div>
   );
-}
+});
 
 function ReplyArrowIcon() {
   return (
