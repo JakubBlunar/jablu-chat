@@ -394,9 +394,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     _saveTimer = window.setTimeout(() => {
       const overrides = get().volumeOverrides
       for (const [k, v] of Object.entries(overrides)) {
-        if (v !== 100) {
-          api.setVoiceVolume(k, v).catch(() => {})
-        }
+        api.setVoiceVolume(k, v).catch(() => {})
       }
     }, 1000)
   }
