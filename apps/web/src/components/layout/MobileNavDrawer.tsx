@@ -211,18 +211,22 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
         <div className="flex h-full flex-col bg-surface-dark">
           {/* Server row */}
           <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-black/20 px-3 py-2">
-            <button
-              type="button"
-              onClick={handleDmClick}
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
-                viewMode === 'dm'
-                  ? 'bg-primary text-white'
-                  : 'bg-surface text-gray-300 hover:bg-primary hover:text-white'
-              }`}
-            >
-              <DmIcon />
-            </button>
-            {hasDmUnread && viewMode !== 'dm' && <span className="absolute h-2 w-2 rounded-full bg-red-500" />}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={handleDmClick}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
+                  viewMode === 'dm'
+                    ? 'bg-primary text-white'
+                    : 'bg-surface text-gray-300 hover:bg-primary hover:text-white'
+                }`}
+              >
+                <DmIcon />
+              </button>
+              {hasDmUnread && viewMode !== 'dm' && (
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500" />
+              )}
+            </div>
             <div className="h-6 w-px shrink-0 bg-white/15" />
             {servers.map((s) => {
               const active = viewMode === 'server' && s.id === currentServerId

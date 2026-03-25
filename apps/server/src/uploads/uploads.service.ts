@@ -189,7 +189,8 @@ export class UploadsService {
 
   deleteFile(urlPath: string) {
     const relativePath = urlPath.replace(/^\/api\/uploads\//, '');
-    const fullPath = join(this.uploadDir, relativePath);
+    const fullPath = resolve(this.uploadDir, relativePath);
+    if (!fullPath.startsWith(this.uploadDir)) return;
     try {
       unlinkSync(fullPath);
     } catch {

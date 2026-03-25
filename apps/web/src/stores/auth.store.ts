@@ -4,6 +4,59 @@ import { persist } from 'zustand/middleware'
 import { api } from '../lib/api'
 import { unsubscribeFromPush } from '../lib/notifications'
 
+function resetAllStores() {
+  Promise.all([
+    import('./server.store'),
+    import('./channel.store'),
+    import('./member.store'),
+    import('./message.store'),
+    import('./dm.store'),
+    import('./readState.store'),
+    import('./notifPref.store'),
+    import('./voice.store'),
+    import('./voice-connection.store'),
+    import('./layout.store'),
+    import('./navigation.store')
+  ]).then(
+    ([
+      { useServerStore },
+      { useChannelStore },
+      { useMemberStore },
+      { useMessageStore },
+      { useDmStore },
+      { useReadStateStore },
+      { useNotifPrefStore },
+      { useVoiceStore },
+      { useVoiceConnectionStore },
+      { useLayoutStore },
+      { useNavigationStore }
+    ]) => {
+      useServerStore.setState({ servers: [], currentServerId: null, viewMode: 'server', isLoading: false })
+      useChannelStore.setState({ channels: [], currentChannelId: null, isLoading: false, loadedServerId: null })
+      useMemberStore.setState({ members: [], onlineUserIds: new Set(), isLoading: false })
+      useMessageStore.getState().clearMessages()
+      useDmStore.setState({
+        conversations: [],
+        currentConversationId: null,
+        messages: [],
+        hasMore: false,
+        hasNewer: false,
+        isLoading: false,
+        isConversationsLoading: false,
+        loadedForConvId: null,
+        scrollToMessageId: null,
+        scrollRequestNonce: 0
+      })
+      useReadStateStore.setState({ channels: new Map(), dms: new Map(), channelToServer: new Map() })
+      useNotifPrefStore.setState({ prefs: {} })
+      useVoiceStore.getState().reset()
+      useVoiceConnectionStore.getState().disconnect()
+      useLayoutStore.setState({ navDrawerOpen: false, memberDrawerOpen: false })
+      useNavigationStore.setState({ isNavigating: false, navigatingToServerId: null, activeNavId: 0 })
+    }
+  )
+}
+
 export type AuthUser = User
 
 type AuthState = {
@@ -68,6 +121,7 @@ export const useAuthStore = create<AuthState>()(
             refreshToken: null,
             isAuthenticated: false
           })
+          resetAllStores()
         }
       },
 

@@ -84,12 +84,17 @@ function OverviewTab({ server }: { server: Server }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const updateServerInList = useServerStore((s) => s.updateServerInList)
 
+  const [error, setError] = useState<string | null>(null)
+
   const saveName = useCallback(async () => {
     if (!name.trim() || name === server.name) return
     setSaving(true)
+    setError(null)
     try {
       await api.updateServer(server.id, { name: name.trim() })
       updateServerInList(server.id, { name: name.trim() })
+    } catch {
+      setError('Failed to update server name')
     } finally {
       setSaving(false)
     }
@@ -100,15 +105,25 @@ function OverviewTab({ server }: { server: Server }) {
       const file = e.target.files?.[0]
       if (!file) return
       const preview = URL.createObjectURL(file)
-      setIconPreview(preview)
+      setIconPreview((prev) => {
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return preview
+      })
       try {
         const updated = (await api.uploadServerIcon(server.id, file)) as {
           iconUrl: string
         }
         updateServerInList(server.id, { iconUrl: updated.iconUrl })
-        setIconPreview(updated.iconUrl)
+        setIconPreview((prev) => {
+          if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+          return updated.iconUrl
+        })
       } catch {
-        setIconPreview(server.iconUrl)
+        setIconPreview((prev) => {
+          if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+          return server.iconUrl
+        })
+        setError('Failed to upload server icon')
       }
     },
     [server, updateServerInList]
@@ -124,8 +139,15 @@ function OverviewTab({ server }: { server: Server }) {
     }
   }, [server.id, updateServerInList])
 
+  useEffect(() => {
+    return () => {
+      if (iconPreview && iconPreview.startsWith('blob:')) URL.revokeObjectURL(iconPreview)
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
+      {error && <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
       <div className="flex items-start gap-6">
         <div className="flex flex-col items-center gap-2">
           <button
@@ -187,10 +209,17 @@ function MembersTab({ server }: { server: Server }) {
     fetchMembers(server.id)
   }, [server.id, fetchMembers])
 
+  const [memberError, setMemberError] = useState<string | null>(null)
+
   const handleRoleChange = useCallback(
     async (member: Member, newRole: string) => {
-      await api.updateMemberRole(server.id, member.userId, newRole)
-      fetchMembers(server.id)
+      setMemberError(null)
+      try {
+        await api.updateMemberRole(server.id, member.userId, newRole)
+        fetchMembers(server.id)
+      } catch {
+        setMemberError(`Failed to change role for ${member.user.displayName ?? member.user.username}`)
+      }
     },
     [server.id, fetchMembers]
   )
@@ -198,14 +227,22 @@ function MembersTab({ server }: { server: Server }) {
   const handleKick = useCallback(
     async (member: Member) => {
       if (!confirm(`Kick ${member.user.displayName ?? member.user.username} from the server?`)) return
-      await api.kickMember(server.id, member.userId)
-      fetchMembers(server.id)
+      setMemberError(null)
+      try {
+        await api.kickMember(server.id, member.userId)
+        fetchMembers(server.id)
+      } catch {
+        setMemberError(`Failed to kick ${member.user.displayName ?? member.user.username}`)
+      }
     },
     [server.id, fetchMembers]
   )
 
   return (
     <div className="space-y-1">
+      {memberError && (
+        <div className="mb-2 rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{memberError}</div>
+      )}
       {members.map((m) => {
         const presence: UserStatus = onlineIds.has(m.userId) ? ((m.user.status as UserStatus) ?? 'online') : 'offline'
         const isSelf = m.userId === currentUser?.id
@@ -332,6 +369,7 @@ function WebhooksTab({ server: _server }: { server: Server }) {
   const [channelId, setChannelId] = useState(textChannels[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [webhookError, setWebhookError] = useState<string | null>(null)
 
   const fetchWebhooks = useCallback(async () => {
     const all: WebhookItem[] = []
@@ -354,18 +392,26 @@ function WebhooksTab({ server: _server }: { server: Server }) {
   const handleCreate = useCallback(async () => {
     if (!name.trim() || !channelId) return
     setCreating(true)
+    setWebhookError(null)
     try {
       await api.createWebhook(channelId, name.trim())
       setName('')
       await fetchWebhooks()
+    } catch {
+      setWebhookError('Failed to create webhook')
     } finally {
       setCreating(false)
     }
   }, [name, channelId, fetchWebhooks])
 
   const handleDelete = useCallback(async (id: string) => {
-    await api.deleteWebhook(id)
-    setWebhooks((prev) => prev.filter((w) => w.id !== id))
+    setWebhookError(null)
+    try {
+      await api.deleteWebhook(id)
+      setWebhooks((prev) => prev.filter((w) => w.id !== id))
+    } catch {
+      setWebhookError('Failed to delete webhook')
+    }
   }, [])
 
   const copyUrl = useCallback((wh: WebhookItem) => {
@@ -382,6 +428,9 @@ function WebhooksTab({ server: _server }: { server: Server }) {
 
   return (
     <div className="space-y-6">
+      {webhookError && (
+        <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{webhookError}</div>
+      )}
       <div className="rounded-md bg-surface-dark p-4">
         <h3 className="mb-3 text-sm font-semibold text-white">Create Webhook</h3>
         <div className="flex items-end gap-3">
@@ -462,10 +511,12 @@ function AuditLogTab({ server }: { server: Server }) {
   const [entries, setEntries] = useState<AuditLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(false)
+  const [logError, setLogError] = useState<string | null>(null)
 
   const fetchLog = useCallback(
     async (cursor?: string) => {
       setLoading(true)
+      setLogError(null)
       try {
         const data = await api.getAuditLog(server.id, 50, cursor)
         if (cursor) {
@@ -474,6 +525,8 @@ function AuditLogTab({ server }: { server: Server }) {
           setEntries(data.entries)
         }
         setHasMore(data.hasMore)
+      } catch {
+        setLogError('Failed to load audit log')
       } finally {
         setLoading(false)
       }
@@ -492,6 +545,7 @@ function AuditLogTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-3">
+      {logError && <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{logError}</div>}
       {entries.length === 0 && !loading ? (
         <p className="text-center text-sm text-gray-500">No audit log entries yet.</p>
       ) : (

@@ -37,7 +37,7 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       const list = await api.get<Channel[]>(`/api/servers/${serverId}/channels`)
       set({ channels: list, isLoading: false, loadedServerId: serverId })
     } catch (e) {
-      set({ channels: [], isLoading: false })
+      set({ isLoading: false })
       throw e
     }
   },

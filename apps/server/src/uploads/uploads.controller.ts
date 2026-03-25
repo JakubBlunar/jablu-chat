@@ -41,7 +41,7 @@ export class UploadsController {
   @UseGuards(AuthGuard('jwt'))
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 200 * 1024 * 1024 },
+      limits: { fileSize: (parseInt(process.env.MAX_UPLOAD_SIZE_MB ?? '50', 10) || 50) * 1024 * 1024 },
     }),
   )
   async uploadAttachment(
