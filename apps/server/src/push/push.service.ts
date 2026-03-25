@@ -19,6 +19,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PushService.name)
   private enabled = false
   private running = false
+  private workerClient: import('ioredis').default | null = null
 
   constructor(
     private readonly prisma: PrismaService,
@@ -42,8 +43,11 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     this.startWorker()
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy() {
     this.running = false
+    if (this.workerClient) {
+      await this.workerClient.quit().catch(() => {})
+    }
   }
 
   getVapidPublicKey(): string | null {
@@ -92,13 +96,16 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
   private startWorker() {
     this.running = true
+    this.workerClient = this.redis.client.duplicate()
+    this.workerClient.on('error', (err) => this.logger.warn('Push worker Redis error', err.message))
     void this.pollLoop()
   }
 
   private async pollLoop() {
+    const client = this.workerClient!
     while (this.running) {
       try {
-        const result = await this.redis.client.blpop(PUSH_QUEUE_KEY, POLL_TIMEOUT_S)
+        const result = await client.blpop(PUSH_QUEUE_KEY, POLL_TIMEOUT_S)
         if (!result) continue
         const job: PushJob = JSON.parse(result[1])
         await this.processJob(job)
