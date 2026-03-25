@@ -27,6 +27,11 @@ import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { DownloadAppBanner } from '@/components/settings/DownloadApp'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
+import { useEventStore } from '@/stores/event.store'
+
+const EventsPanel = React.lazy(() =>
+  import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
+)
 
 function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   const icons: React.ReactNode[] = []
@@ -251,6 +256,16 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const [reorderOpen, setReorderOpen] = useState(false)
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
+  const [eventsOpen, setEventsOpen] = useState(false)
+
+  const eventCount = useEventStore((s) =>
+    currentServer && s.loadedServerId === currentServer.id ? s.events.length : 0
+  )
+  const fetchEvents = useEventStore((s) => s.fetchEvents)
+
+  useEffect(() => {
+    if (currentServer) fetchEvents(currentServer.id)
+  }, [currentServer?.id, fetchEvents])
 
   const members = useMemberStore((s) => s.members)
 
@@ -423,6 +438,24 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                 <InviteIcon />
                 Invite People
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setEventsOpen(true)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Events
+                {eventCount > 0 && (
+                  <span className="ml-auto rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    {eventCount}
+                  </span>
+                )}
+              </button>
               {!isOwner && (
                 <>
                   <div className="my-1 border-t border-white/10" />
@@ -451,6 +484,22 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               <div className="h-8 w-full animate-pulse rounded bg-white/5" />
             </div>
           ) : null}
+
+          {currentServer && eventCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setEventsOpen(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
+            >
+              <svg className="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Events
+              <span className="ml-auto rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                {eventCount}
+              </span>
+            </button>
+          )}
 
           <div className="group/header flex items-center justify-between px-2 pt-1">
             <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
@@ -620,6 +669,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
       )}
       {voiceCardUser && (
         <ProfileCard user={voiceCardUser} onClose={() => setVoiceCardUser(null)} anchorRect={voiceCardRect} />
+      )}
+      {eventsOpen && currentServer && (
+        <Suspense fallback={null}>
+          <EventsPanel serverId={currentServer.id} onClose={() => setEventsOpen(false)} />
+        </Suspense>
       )}
     </>
   )
