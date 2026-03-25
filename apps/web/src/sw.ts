@@ -49,12 +49,14 @@ self.addEventListener('push', (event) => {
     }
 
     const title = payload.title ?? 'Jablu'
+    const notifUrl = payload.url ?? '/'
     const options: NotificationOptions = {
       body: payload.body ?? '',
       icon: '/pwa-192x192.png',
       badge: '/favicon-32x32.png',
-      data: { url: payload.url ?? '/' },
-      tag: `jablu-${Date.now()}`
+      data: { url: notifUrl },
+      tag: `jablu-${notifUrl}`,
+      renotify: true
     }
 
     event.waitUntil(self.registration.showNotification(title, options))

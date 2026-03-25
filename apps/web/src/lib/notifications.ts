@@ -54,12 +54,14 @@ export function showNotification(title: string, body: string, url?: string, onCl
     silent: !settings.soundEnabled
   })
 
-  if (onClick) {
-    n.onclick = () => {
-      window.focus()
+  n.onclick = () => {
+    window.focus()
+    if (onClick) {
       onClick()
-      n.close()
+    } else if (url) {
+      window.location.href = new URL(url, window.location.origin).href
     }
+    n.close()
   }
 
   if (settings.soundEnabled) {
@@ -174,17 +176,19 @@ export async function unsubscribeFromPush(token: string): Promise<void> {
   }
 }
 
-export function setupPushNavigation() {
+export function setupPushNavigation(): (() => void) | undefined {
   if (!('serviceWorker' in navigator)) return
 
-  navigator.serviceWorker.addEventListener('message', (event) => {
+  const handler = (event: MessageEvent) => {
     if (event.data?.type === 'navigate' && typeof event.data.url === 'string') {
       const target = new URL(event.data.url, window.location.origin)
       if (target.origin === window.location.origin) {
         window.location.href = target.href
       }
     }
-  })
+  }
+  navigator.serviceWorker.addEventListener('message', handler)
+  return () => navigator.serviceWorker.removeEventListener('message', handler)
 }
 
 export function setupElectronNavigation() {

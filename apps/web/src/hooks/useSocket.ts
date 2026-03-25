@@ -57,6 +57,24 @@ type DmTypingPayload = {
 }
 type DmLinkPreviewPayload = LinkPreviewPayload & { conversationId: string }
 
+function describeAttachments(msg: Message): string {
+  const attachments = msg.attachments
+  if (!attachments || attachments.length === 0) return '[attachment]'
+  const first = attachments[0]
+  const label =
+    first.type === 'image' ? 'an image'
+    : first.type === 'video' ? 'a video'
+    : first.type === 'gif' ? 'a GIF'
+    : 'a file'
+  if (attachments.length === 1) return `sent ${label}`
+  return `sent ${attachments.length} files`
+}
+
+function notifBody(msg: Message): string {
+  if (msg.content && msg.content.trim()) return msg.content.slice(0, 100)
+  return describeAttachments(msg)
+}
+
 export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected: boolean } {
   const accessToken = useAuthStore((s) => s.accessToken)
   const [isConnected, setIsConnected] = useState(false)
@@ -132,11 +150,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         const level = useNotifPrefStore.getState().get(msg.channelId)
         if (level !== 'none' && (level !== 'mentions' || isMentioned)) {
           const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
-          const body = msg.content?.slice(0, 100) ?? '[attachment]'
+          const preview = notifBody(msg)
           const url = msg.serverId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined
           const ch = useChannelStore.getState().channels.find((c) => c.id === msg.channelId)
           const channelTitle = ch ? `#${ch.name}` : `#${msg.channelId.slice(0, 8)}`
-          showNotification(channelTitle, `${author}: ${body}`, url)
+          showNotification(channelTitle, `${author}: ${preview}`, url)
         }
       }
     }
@@ -241,9 +259,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       } else if (payload.authorId !== myId) {
         useReadStateStore.getState().incrementDm(payload.conversationId)
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
-        const body = payload.content?.slice(0, 100) ?? '[attachment]'
+        const preview = notifBody(payload)
         const url = `/channels/@me/${payload.conversationId}`
-        showNotification('Direct Message', `${author}: ${body}`, url)
+        showNotification(`DM from ${author}`, preview, url)
       }
 
       const inList = dmState.conversations.some((c) => c.id === payload.conversationId)

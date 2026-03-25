@@ -62,8 +62,12 @@ function AuthBootstrap() {
   }, [])
 
   useEffect(() => {
-    setupPushNavigation()
-    return setupElectronNavigation()
+    const cleanupPush = setupPushNavigation()
+    const cleanupElectron = setupElectronNavigation()
+    return () => {
+      cleanupPush?.()
+      cleanupElectron?.()
+    }
   }, [])
 
   useEffect(() => {

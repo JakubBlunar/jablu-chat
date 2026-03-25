@@ -1,17 +1,20 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
-import { IsString } from 'class-validator'
+import { IsNotEmpty, IsString } from 'class-validator'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PushService } from './push.service'
 
 class SubscribeDto {
   @IsString()
+  @IsNotEmpty()
   endpoint: string
 
   @IsString()
+  @IsNotEmpty()
   p256dh: string
 
   @IsString()
+  @IsNotEmpty()
   auth: string
 }
 

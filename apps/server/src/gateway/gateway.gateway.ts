@@ -332,9 +332,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         user.id,
         msg.author?.displayName ?? msg.author?.username ?? 'Someone',
         body.content,
-        `/channels/${body.channelId}`,
+        `/channels/${serverId}/${body.channelId}`,
         body.channelId,
-        mentionedUserIds
+        mentionedUserIds,
+        msg.attachments
       ).catch((err) => this.logger.warn('Push notification failed', err?.message))
     }
 
@@ -535,7 +536,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const offlineDmMembers = otherMemberIds.filter((id) => !this.onlineUsers.has(id))
     if (offlineDmMembers.length > 0) {
       const authorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
-      const preview = body.content?.slice(0, 100) || '[attachment]'
+      const preview = this.describePushPreview(body.content, msg.attachments)
       this.push
         .sendToUsers(offlineDmMembers, {
           title: `DM from ${authorName}`,
@@ -721,6 +722,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
    * At current scale (<20 concurrent users) the indexed queries are
    * sub-millisecond and the simple approach is appropriate.
    */
+  private describePushPreview(
+    content: string | undefined,
+    attachments?: { type: string }[]
+  ): string {
+    if (content?.trim()) return content.slice(0, 100)
+    if (!attachments || attachments.length === 0) return '[attachment]'
+    const first = attachments[0]
+    const label =
+      first.type === 'image' ? 'an image'
+      : first.type === 'video' ? 'a video'
+      : first.type === 'gif' ? 'a GIF'
+      : 'a file'
+    if (attachments.length === 1) return `sent ${label}`
+    return `sent ${attachments.length} files`
+  }
+
   private async sendPushToOfflineMembers(
     serverId: string,
     senderId: string,
@@ -728,7 +745,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     content: string | undefined,
     url: string,
     channelId: string,
-    mentionedUserIds: string[]
+    mentionedUserIds: string[],
+    attachments?: { type: string }[]
   ) {
     const members = await this.prisma.serverMember.findMany({
       where: { serverId, NOT: { userId: senderId } },
@@ -751,7 +769,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     if (eligibleIds.length === 0) return
 
-    const preview = content?.slice(0, 100) || '[attachment]'
+    const preview = this.describePushPreview(content, attachments)
     await this.push.sendToUsers(eligibleIds, {
       title: senderName,
       body: preview,
