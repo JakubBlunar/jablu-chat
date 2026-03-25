@@ -2213,8 +2213,8 @@ function PushTab({ users }: { users: AdminUser[] }) {
       })
       setTitle('')
       setBody('')
-    } catch (err: any) {
-      setResult({ type: 'error', text: err?.message ?? 'Failed to send notification' })
+    } catch (err: unknown) {
+      setResult({ type: 'error', text: err instanceof Error ? err.message : 'Failed to send notification' })
     } finally {
       setSending(false)
     }

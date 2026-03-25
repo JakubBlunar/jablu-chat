@@ -1,5 +1,5 @@
 import type { Attachment } from '@chat/shared'
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 interface AttachmentPreviewProps {
@@ -37,7 +37,7 @@ function aspectStyle(w: number | null, h: number | null) {
   return { aspectRatio: `${w} / ${h}` } as const
 }
 
-export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
+export const AttachmentPreview = memo(function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
   const [lightbox, setLightbox] = useState(false)
   const { width: aw, height: ah } = attachment
 
@@ -110,7 +110,7 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
       <DownloadIcon />
     </a>
   )
-}
+})
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`

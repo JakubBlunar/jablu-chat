@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { DelayedRender } from '@/components/DelayedRender'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
@@ -28,7 +28,7 @@ import { useDmContext, dmMentionChannels } from '@/components/dm/hooks/useDmCont
 
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { SearchBar } from '@/components/SearchBar'
-import { SearchDrawer } from '@/components/search/SearchDrawer'
+const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then((m) => ({ default: m.SearchDrawer })))
 import { EditChannelModal } from '@/components/channel/EditChannelModal'
 
 /* ── Small icons ── */
@@ -95,6 +95,8 @@ function isGap(a: Message, b: Message): boolean {
   if (Number.isNaN(ta) || Number.isNaN(tb)) return false
   return tb - ta > GROUP_GAP_MS
 }
+
+const VirtuosoFooter = () => <div className="h-8" />
 
 /* ── MessageArea ── */
 
@@ -168,6 +170,38 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       .catch(() => {})
   }, [])
 
+  const virtuosoComponents = useMemo(() => ({ Footer: VirtuosoFooter }), [])
+
+  const renderItem = useCallback(
+    (index: number, msg: Message) => {
+      const dataIndex = index - scroll.firstItemIndex
+      const prev = dataIndex > 0 ? messages[dataIndex - 1] : undefined
+      const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
+      const showHead = newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
+      return (
+        <div className="pb-0.5">
+          {newDay && <DateSeparator date={msg.createdAt} />}
+          <MessageRow
+            mode={mode}
+            message={msg}
+            showHead={showHead}
+            contextId={contextId!}
+            onReply={handleReply}
+            onUserClick={handleUserClick}
+            onMentionClick={isDm ? undefined : handleMentionClick}
+            channels={dm.channelRefs}
+            onChannelClick={dm.handleChannelClick}
+            membersByUsername={membersByUsername}
+          />
+          {lastOwnMsg?.id === msg.id && seenByLabel && (
+            <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabel}</div>
+          )}
+        </div>
+      )
+    },
+    [scroll.firstItemIndex, messages, mode, contextId, handleReply, handleUserClick, handleMentionClick, isDm, dm.channelRefs, dm.handleChannelClick, membersByUsername, lastOwnMsg?.id, seenByLabel]
+  )
+
   /* ── Empty states ── */
   if (!contextId) {
     if (isDm) {
@@ -175,7 +209,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 bg-surface text-center">
           <p className="text-lg font-semibold text-white">Select a conversation</p>
           <p className="max-w-sm text-sm text-gray-400">
-            Choose a DM from the sidebar or click on a user to start chatting.
+            {isMobile
+              ? 'Open the menu and pick a conversation, or tap a user to start chatting.'
+              : 'Choose a DM from the sidebar or click on a user to start chatting.'}
           </p>
         </div>
       )
@@ -216,7 +252,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               </div>
               <p className="max-w-sm text-lg font-semibold text-white">Welcome to your server</p>
               <p className="max-w-sm text-sm text-gray-400">
-                Pick a text channel on the left to start chatting, or join a server using an invite link.
+                {isMobile
+                  ? 'Open the menu to pick a channel, or join a server using an invite link.'
+                  : 'Pick a text channel on the left to start chatting, or join a server using an invite link.'}
               </p>
             </div>
           ) : isLoading && messages.length === 0 ? (
@@ -259,33 +297,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               startReached={hasMore ? scroll.startReached : undefined}
               endReached={hasNewer && fetchNewerMessages ? scroll.endReached : undefined}
               increaseViewportBy={400}
-              components={{ Footer: () => <div className="h-8" /> }}
-              itemContent={(index, msg) => {
-                const dataIndex = index - scroll.firstItemIndex
-                const prev = dataIndex > 0 ? messages[dataIndex - 1] : undefined
-                const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
-                const showHead = newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
-                return (
-                  <div className="pb-0.5">
-                    {newDay && <DateSeparator date={msg.createdAt} />}
-                    <MessageRow
-                      mode={mode}
-                      message={msg}
-                      showHead={showHead}
-                      contextId={contextId}
-                      onReply={handleReply}
-                      onUserClick={handleUserClick}
-                      onMentionClick={isDm ? undefined : handleMentionClick}
-                      channels={dm.channelRefs}
-                      onChannelClick={dm.handleChannelClick}
-                      membersByUsername={membersByUsername}
-                    />
-                    {lastOwnMsg?.id === msg.id && seenByLabel && (
-                      <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabel}</div>
-                    )}
-                  </div>
-                )
-              }}
+              components={virtuosoComponents}
+              itemContent={renderItem}
             />
           ) : null}
         </SimpleBar>
@@ -428,16 +441,18 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         </div>
         {searchOpen ? (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">
-            <SearchDrawer
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              onClose={() => {
-                setSearchOpen(false)
-                setSearchQuery('')
-              }}
-              defaultScope="conversation"
-              conversationId={dm.dmConvId ?? undefined}
-            />
+            <Suspense fallback={null}>
+              <SearchDrawer
+                query={searchQuery}
+                onQueryChange={setSearchQuery}
+                onClose={() => {
+                  setSearchOpen(false)
+                  setSearchQuery('')
+                }}
+                defaultScope="conversation"
+                conversationId={dm.dmConvId ?? undefined}
+              />
+            </Suspense>
           </div>
         ) : dm.showProfile && dm.otherMember ? (
           isMobile ? (
@@ -473,14 +488,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
         {searchOpen ? (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">
-            <SearchDrawer
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              onClose={() => {
-                setSearchOpen(false)
-                setSearchQuery('')
-              }}
-            />
+            <Suspense fallback={null}>
+              <SearchDrawer
+                query={searchQuery}
+                onQueryChange={setSearchQuery}
+                onClose={() => {
+                  setSearchOpen(false)
+                  setSearchQuery('')
+                }}
+              />
+            </Suspense>
           </div>
         ) : (
           memberSidebar

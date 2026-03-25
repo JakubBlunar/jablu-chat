@@ -1,5 +1,5 @@
 import type { LinkPreview } from '@chat/shared'
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 const YOUTUBE_PATTERNS = [
@@ -178,10 +178,10 @@ function DefaultPreview({ lp }: { lp: LinkPreview }) {
   )
 }
 
-export function LinkPreviewCard({ lp }: { lp: LinkPreview }) {
+export const LinkPreviewCard = memo(function LinkPreviewCard({ lp }: { lp: LinkPreview }) {
   const youtubeId = extractYouTubeId(lp.url)
   if (youtubeId) return <YouTubeEmbed lp={lp} videoId={youtubeId} />
   if (isGifUrl(lp)) return <MediaEmbed lp={lp} label="GIF" />
   if (isImageUrl(lp)) return <MediaEmbed lp={lp} label="Image" />
   return <DefaultPreview lp={lp} />
-}
+})

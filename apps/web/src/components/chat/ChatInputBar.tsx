@@ -287,6 +287,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           value={value}
           placeholder={placeholder}
           disabled={disabled}
+          enterKeyHint={isMobile ? 'send' : undefined}
           className="max-h-[240px] min-h-[44px] flex-1 resize-none bg-transparent py-3 text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
           onChange={(e) => {
             onChange(e.target.value)

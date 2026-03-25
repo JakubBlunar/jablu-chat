@@ -1,4 +1,4 @@
-import type { LinkPreview, Message } from '@chat/shared'
+import type { LinkPreview, Message, ServerEvent } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { showNotification } from '@/lib/notifications'
@@ -356,11 +356,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
-    const onEventCreated = (event: any) => useEventStore.getState().addEvent(event)
-    const onEventUpdated = (event: any) => useEventStore.getState().updateEvent(event)
-    const onEventCancelled = (event: any) => useEventStore.getState().removeEvent(event.id)
-    const onEventCompleted = (event: any) => useEventStore.getState().removeEvent(event.id)
-    const onEventStarted = (event: any) => useEventStore.getState().updateEvent(event)
+    const onEventCreated = (event: ServerEvent) => useEventStore.getState().addEvent(event)
+    const onEventUpdated = (event: ServerEvent) => useEventStore.getState().updateEvent(event)
+    const onEventCancelled = (event: ServerEvent) => useEventStore.getState().removeEvent(event.id)
+    const onEventCompleted = (event: ServerEvent) => useEventStore.getState().removeEvent(event.id)
+    const onEventStarted = (event: ServerEvent) => useEventStore.getState().updateEvent(event)
     const onEventInterest = (payload: { eventId: string; userId: string; interested: boolean; count: number }) => {
       useEventStore.getState().updateInterest(payload.eventId, payload.userId, payload.interested, payload.count)
     }

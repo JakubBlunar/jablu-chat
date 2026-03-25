@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { UserStatus } from '@chat/shared'
 import { hashUsernameToHue } from '@/lib/username-color'
 
@@ -27,7 +28,7 @@ export type UserAvatarProps = {
   status?: UserStatus
 }
 
-export function UserAvatar({
+export const UserAvatar = memo(function UserAvatar({
   username,
   avatarUrl,
   size = 'md',
@@ -57,4 +58,4 @@ export function UserAvatar({
       ) : null}
     </div>
   )
-}
+})
