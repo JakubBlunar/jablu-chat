@@ -100,9 +100,10 @@ export class UploadsController {
 
   private serveFromSubdir(subdir: string, filename: string, res: Response) {
     const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '');
-    const fullPath = resolve(this.uploads.getUploadDir(), subdir, safe);
+    const baseDir = resolve(this.uploads.getUploadDir(), subdir);
+    const fullPath = resolve(baseDir, safe);
 
-    if (!existsSync(fullPath)) {
+    if (!fullPath.startsWith(baseDir) || !existsSync(fullPath)) {
       return res.status(404).json({ message: 'File not found' });
     }
 

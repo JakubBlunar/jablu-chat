@@ -240,10 +240,11 @@ export class MessagesService {
         replyToId: replyToId ?? undefined,
         attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
       },
-      include: messageInclude
+      include: { ...messageInclude, channel: { select: { serverId: true } } }
     })
 
-    return this.mapToWire(created)
+    const { channel, ...rest } = created
+    return { ...this.mapToWire(rest as any), serverId: channel!.serverId }
   }
 
   async editMessageInChannel(messageId: string, channelId: string, userId: string, content: string) {

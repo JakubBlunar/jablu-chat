@@ -1,5 +1,6 @@
 import type { UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoiceSettings } from '@/components/voice/VoiceSettings'
@@ -55,6 +56,8 @@ function CameraIcon() {
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('account')
+  const modalRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(modalRef, open)
 
   useEffect(() => {
     if (!open) return
@@ -78,7 +81,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex bg-surface" role="dialog" aria-modal="true" aria-label="Settings">
+    <div ref={modalRef} className="fixed inset-0 z-[100] flex bg-surface" role="dialog" aria-modal="true" aria-label="Settings">
       {/* Left sidebar */}
       <div className="flex w-56 shrink-0 flex-col items-end bg-surface-dark">
         <nav className="w-44 space-y-0.5 px-2 py-16">

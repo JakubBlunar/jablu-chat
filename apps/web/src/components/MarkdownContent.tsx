@@ -241,7 +241,13 @@ export function MarkdownContent({
               )
             }
             return (
-              <a href={href} target="_blank" rel="noopener noreferrer" className="text-link hover:underline">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerPolicy="no-referrer"
+                className="text-link hover:underline"
+              >
                 {children}
               </a>
             )
@@ -257,6 +263,8 @@ export function MarkdownContent({
               alt={alt ?? ''}
               className="my-1 max-h-72 max-w-full rounded-lg object-cover"
               loading="lazy"
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
             />
           ),
           hr: () => <hr className="my-2 border-white/10" />,

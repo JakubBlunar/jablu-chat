@@ -178,6 +178,33 @@ export class LinkPreviewService {
     }
   }
 
+  private async fetchWithSafeRedirects(
+    url: string,
+    signal: AbortSignal,
+    maxHops = 5
+  ): Promise<Response | null> {
+    let current = url
+    for (let i = 0; i <= maxHops; i++) {
+      if (!(await this.isSafeUrl(current))) return null
+
+      const res = await fetch(current, {
+        signal,
+        headers: { 'User-Agent': 'ChatBot/1.0 (link preview)', Accept: 'text/html' },
+        redirect: 'manual'
+      })
+
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get('location')
+        if (!location) return null
+        current = new URL(location, current).href
+        continue
+      }
+
+      return res
+    }
+    return null
+  }
+
   private async fetchOgMeta(url: string): Promise<{
     title: string | null
     description: string | null
@@ -186,22 +213,12 @@ export class LinkPreviewService {
   }> {
     const empty = { title: null, description: null, imageUrl: null, siteName: null }
 
-    if (!(await this.isSafeUrl(url))) return empty
-
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
     try {
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'ChatBot/1.0 (link preview)',
-          Accept: 'text/html'
-        },
-        redirect: 'follow'
-      })
-
-      if (!res.ok) return empty
+      const res = await this.fetchWithSafeRedirects(url, controller.signal)
+      if (!res || !res.ok) return empty
 
       const contentType = res.headers.get('content-type') ?? ''
       if (!contentType.includes('text/html')) return empty

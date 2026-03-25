@@ -3,18 +3,20 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.cjs.json && node scripts/post-build.js",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "node -e \"require('fs').rmSync('./dist',{recursive:true,force:true})\""
   },
   "dependencies": {
     "zod": "^4.3.6"

@@ -68,9 +68,10 @@ export class DownloadsController {
   @Get(':filename')
   downloadFile(@Param('filename') filename: string, @Res() res: Response) {
     const safe = filename.replace(/[^a-zA-Z0-9._\- ]/g, '')
-    const fullPath = join(this.downloadsDir, safe)
+    const baseDir = resolve(this.downloadsDir)
+    const fullPath = resolve(baseDir, safe)
 
-    if (!existsSync(fullPath)) {
+    if (!fullPath.startsWith(baseDir) || !existsSync(fullPath)) {
       return res.status(404).json({ message: 'File not found' })
     }
 

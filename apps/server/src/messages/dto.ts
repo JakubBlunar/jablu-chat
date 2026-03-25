@@ -1,3 +1,4 @@
+import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { Type } from 'class-transformer'
 import {
   ArrayMaxSize,
@@ -15,7 +16,7 @@ import {
 export class SendMessageDto {
   @IsOptional()
   @IsString()
-  @MaxLength(4000)
+  @MaxLength(MAX_MESSAGE_LENGTH)
   content?: string
 
   @IsOptional()
@@ -32,7 +33,7 @@ export class SendMessageDto {
 export class EditMessageDto {
   @IsString()
   @MinLength(1)
-  @MaxLength(4000)
+  @MaxLength(MAX_MESSAGE_LENGTH)
   content!: string
 }
 
