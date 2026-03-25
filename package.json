@@ -13,9 +13,12 @@
     "db:generate": "pnpm --filter @chat/server db:generate",
     "db:studio": "pnpm --filter @chat/server db:studio",
     "desktop": "pnpm --filter @chat/desktop start",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "setup": "bash setup.sh"
   },
   "devDependencies": {
+    "prettier": "^3.8.1",
     "turbo": "^2.8.20",
     "typescript": "~5.8.0"
   },

@@ -3,8 +3,8 @@ services:
   nginx:
     build: ./docker/nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./docker/nginx/certs:/etc/nginx/certs
       - letsencrypt:/etc/letsencrypt
@@ -17,6 +17,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      web:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # ─── API Server ──────────────────────────────────────────────────────
@@ -68,7 +70,7 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost:3001/api/health']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -81,7 +83,7 @@ services:
       dockerfile: apps/web/Dockerfile
     volumes:
       - web-dist:/output
-    restart: "no"
+    restart: 'no'
 
   # ─── Database Migration ─────────────────────────────────────────────
   migrate:
@@ -105,7 +107,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chat}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-chat}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -117,7 +119,7 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -125,12 +127,12 @@ services:
 
   # ─── LiveKit ────────────────────────────────────────────────────────
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.8.4
     ports:
-      - "7882:7882/udp"
-      - "50000-50100:50000-50100/udp"
+      - '7882:7882/udp'
+      - '50000-50100:50000-50100/udp'
     environment:
-      - "LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret}"
+      - 'LIVEKIT_KEYS=${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret}'
     command: --config /etc/livekit.yaml
     volumes:
       - ./docker/livekit/livekit.yaml:/etc/livekit.yaml:ro
@@ -140,7 +142,7 @@ services:
   mailpit:
     image: axllent/mailpit
     ports:
-      - "8025:8025"
+      - '8025:8025'
     restart: unless-stopped
     profiles:
       - dev

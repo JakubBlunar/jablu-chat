@@ -1,13 +1,13 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { isElectron } from "@/lib/electron";
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { isElectron } from '@/lib/electron'
 import {
   getSavedAudioInput,
   setSavedAudioInput,
   getSavedAudioOutput,
   setSavedAudioOutput,
   getSavedCamera,
-  setSavedCamera,
-} from "@/lib/deviceSettings";
+  setSavedCamera
+} from '@/lib/deviceSettings'
 import {
   type MicMode,
   type PttBinding,
@@ -20,199 +20,199 @@ import {
   setVadThreshold as saveVadThreshold,
   type VadMode,
   getVadMode,
-  setVadMode as saveVadMode,
-} from "@/lib/micMode";
-import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+  setVadMode as saveVadMode
+} from '@/lib/micMode'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 type DeviceInfo = {
-  deviceId: string;
-  label: string;
-};
+  deviceId: string
+  label: string
+}
 
-const supportsSinkId =
-  typeof HTMLMediaElement !== "undefined" &&
-  "setSinkId" in HTMLMediaElement.prototype;
+const supportsSinkId = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype
 
 export function VoiceSettings() {
-  const [audioInputs, setAudioInputs] = useState<DeviceInfo[]>([]);
-  const [audioOutputs, setAudioOutputs] = useState<DeviceInfo[]>([]);
-  const [videoInputs, setVideoInputs] = useState<DeviceInfo[]>([]);
-  const [micDenied, setMicDenied] = useState(false);
-  const [cameraDenied, setCameraDenied] = useState(false);
+  const [audioInputs, setAudioInputs] = useState<DeviceInfo[]>([])
+  const [audioOutputs, setAudioOutputs] = useState<DeviceInfo[]>([])
+  const [videoInputs, setVideoInputs] = useState<DeviceInfo[]>([])
+  const [micDenied, setMicDenied] = useState(false)
+  const [cameraDenied, setCameraDenied] = useState(false)
 
-  const [selectedInput, setSelectedInput] = useState(getSavedAudioInput);
-  const [selectedOutput, setSelectedOutput] = useState(getSavedAudioOutput);
-  const [selectedCamera, setSelectedCamera] = useState(getSavedCamera);
+  const [selectedInput, setSelectedInput] = useState(getSavedAudioInput)
+  const [selectedOutput, setSelectedOutput] = useState(getSavedAudioOutput)
+  const [selectedCamera, setSelectedCamera] = useState(getSavedCamera)
 
-  const [micGranted, setMicGranted] = useState(false);
-  const [cameraGranted, setCameraGranted] = useState(false);
+  const [micGranted, setMicGranted] = useState(false)
+  const [cameraGranted, setCameraGranted] = useState(false)
 
   const enumerateDevices = useCallback(async () => {
-    const devices = await navigator.mediaDevices.enumerateDevices();
+    const devices = await navigator.mediaDevices.enumerateDevices()
     const inputs = devices
-      .filter((d) => d.kind === "audioinput")
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }));
+      .filter((d) => d.kind === 'audioinput')
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }))
     const outputs = devices
-      .filter((d) => d.kind === "audiooutput")
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }));
+      .filter((d) => d.kind === 'audiooutput')
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }))
     const cameras = devices
-      .filter((d) => d.kind === "videoinput")
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` }));
-    setAudioInputs(inputs);
-    setAudioOutputs(outputs);
-    setVideoInputs(cameras);
-    return { inputs, cameras };
-  }, []);
+      .filter((d) => d.kind === 'videoinput')
+      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` }))
+    setAudioInputs(inputs)
+    setAudioOutputs(outputs)
+    setVideoInputs(cameras)
+    return { inputs, cameras }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
 
     async function checkAndEnumerate() {
-      let micAllowed = false;
-      let camAllowed = false;
+      let micAllowed = false
+      let camAllowed = false
 
       if (navigator.permissions?.query) {
         const [micPerm, camPerm] = await Promise.all([
-          navigator.permissions.query({ name: "microphone" as PermissionName }).catch(() => null),
-          navigator.permissions.query({ name: "camera" as PermissionName }).catch(() => null),
-        ]);
-        micAllowed = micPerm?.state === "granted";
-        camAllowed = camPerm?.state === "granted";
-        if (micPerm?.state === "denied") setMicDenied(true);
-        if (camPerm?.state === "denied") setCameraDenied(true);
+          navigator.permissions.query({ name: 'microphone' as PermissionName }).catch(() => null),
+          navigator.permissions.query({ name: 'camera' as PermissionName }).catch(() => null)
+        ])
+        micAllowed = micPerm?.state === 'granted'
+        camAllowed = camPerm?.state === 'granted'
+        if (micPerm?.state === 'denied') setMicDenied(true)
+        if (camPerm?.state === 'denied') setCameraDenied(true)
       }
 
-      if (cancelled) return;
-      setMicGranted(micAllowed);
-      setCameraGranted(camAllowed);
+      if (cancelled) return
+      setMicGranted(micAllowed)
+      setCameraGranted(camAllowed)
 
       if (micAllowed || camAllowed) {
-        const streams: MediaStream[] = [];
+        const streams: MediaStream[] = []
         try {
           if (micAllowed) {
-            const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-            streams.push(s);
+            const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+            streams.push(s)
           }
           if (camAllowed) {
-            const s = await navigator.mediaDevices.getUserMedia({ video: true });
-            streams.push(s);
+            const s = await navigator.mediaDevices.getUserMedia({ video: true })
+            streams.push(s)
           }
-        } catch { /* ignored */ }
-        if (!cancelled) await enumerateDevices();
-        for (const s of streams) s.getTracks().forEach((t) => t.stop());
+        } catch {
+          /* ignored */
+        }
+        if (!cancelled) await enumerateDevices()
+        for (const s of streams) s.getTracks().forEach((t) => t.stop())
       } else {
-        await enumerateDevices();
+        await enumerateDevices()
       }
     }
 
-    void checkAndEnumerate();
-    return () => { cancelled = true; };
-  }, [enumerateDevices]);
+    void checkAndEnumerate()
+    return () => {
+      cancelled = true
+    }
+  }, [enumerateDevices])
 
   const requestMicAccess = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((t) => t.stop());
-      setMicGranted(true);
-      setMicDenied(false);
-      await enumerateDevices();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach((t) => t.stop())
+      setMicGranted(true)
+      setMicDenied(false)
+      await enumerateDevices()
     } catch {
-      setMicDenied(true);
+      setMicDenied(true)
     }
-  }, [enumerateDevices]);
+  }, [enumerateDevices])
 
   const requestCameraAccess = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach((t) => t.stop());
-      setCameraGranted(true);
-      setCameraDenied(false);
-      await enumerateDevices();
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      stream.getTracks().forEach((t) => t.stop())
+      setCameraGranted(true)
+      setCameraDenied(false)
+      await enumerateDevices()
     } catch {
-      setCameraDenied(true);
+      setCameraDenied(true)
     }
-  }, [enumerateDevices]);
+  }, [enumerateDevices])
 
   const micModeOptions = useMemo(() => {
     const all: { value: MicMode; label: string }[] = [
-      { value: "always", label: "Always On" },
-      { value: "activity", label: "Voice Activity" },
-    ];
+      { value: 'always', label: 'Always On' },
+      { value: 'activity', label: 'Voice Activity' }
+    ]
     if (isElectron) {
-      all.push({ value: "push-to-talk", label: "Push to Talk" });
+      all.push({ value: 'push-to-talk', label: 'Push to Talk' })
     }
-    return all;
-  }, []);
+    return all
+  }, [])
 
   const [micMode, setMicMode] = useState<MicMode>(() => {
-    const saved = getMicMode();
-    if (saved === "push-to-talk" && !isElectron) return "activity";
-    return saved;
-  });
-  const [pttBinding, setPttBinding] = useState<PttBinding>(getPttBinding);
-  const [vadThreshold, setVadThreshold] = useState(getVadThreshold);
-  const [vadMode, setVadModeState] = useState<VadMode>(getVadMode);
-  const [recordingPtt, setRecordingPtt] = useState(false);
-  const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode);
+    const saved = getMicMode()
+    if (saved === 'push-to-talk' && !isElectron) return 'activity'
+    return saved
+  })
+  const [pttBinding, setPttBinding] = useState<PttBinding>(getPttBinding)
+  const [vadThreshold, setVadThreshold] = useState(getVadThreshold)
+  const [vadMode, setVadModeState] = useState<VadMode>(getVadMode)
+  const [recordingPtt, setRecordingPtt] = useState(false)
+  const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode)
 
   const handleMicModeChange = useCallback(
     (mode: MicMode) => {
-      setMicMode(mode);
-      saveMicMode(mode);
-      storeSetMicMode(mode);
+      setMicMode(mode)
+      saveMicMode(mode)
+      storeSetMicMode(mode)
     },
-    [storeSetMicMode],
-  );
+    [storeSetMicMode]
+  )
 
   const handlePttRecord = useCallback(() => {
-    setRecordingPtt(true);
+    setRecordingPtt(true)
 
     const finish = (binding: PttBinding) => {
-      setPttBinding(binding);
-      savePttBinding(binding);
-      setRecordingPtt(false);
-      cleanup();
-      if (getMicMode() === "push-to-talk") {
-        useVoiceConnectionStore.getState().setMicMode("push-to-talk");
+      setPttBinding(binding)
+      savePttBinding(binding)
+      setRecordingPtt(false)
+      cleanup()
+      if (getMicMode() === 'push-to-talk') {
+        useVoiceConnectionStore.getState().setMicMode('push-to-talk')
       }
-    };
+    }
 
     const onKey = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.key === "Escape") {
-        setRecordingPtt(false);
-        cleanup();
-        return;
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'Escape') {
+        setRecordingPtt(false)
+        cleanup()
+        return
       }
-      finish({ type: "key", key: e.key });
-    };
+      finish({ type: 'key', key: e.key })
+    }
 
     const onMouse = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      finish({ type: "mouse", button: e.button });
-    };
+      e.preventDefault()
+      e.stopPropagation()
+      finish({ type: 'mouse', button: e.button })
+    }
 
-    const onContext = (e: Event) => e.preventDefault();
+    const onContext = (e: Event) => e.preventDefault()
 
     const cleanup = () => {
-      window.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("mousedown", onMouse, true);
-      window.removeEventListener("contextmenu", onContext, true);
-    };
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('mousedown', onMouse, true)
+      window.removeEventListener('contextmenu', onContext, true)
+    }
 
-    window.addEventListener("keydown", onKey, true);
-    window.addEventListener("mousedown", onMouse, true);
-    window.addEventListener("contextmenu", onContext, true);
-  }, []);
+    window.addEventListener('keydown', onKey, true)
+    window.addEventListener('mousedown', onMouse, true)
+    window.addEventListener('contextmenu', onContext, true)
+  }, [])
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-          Microphone Mode
-        </h3>
+        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Microphone Mode</h3>
         <div className="flex gap-2">
           {micModeOptions.map((opt) => (
             <button
@@ -220,9 +220,7 @@ export function VoiceSettings() {
               type="button"
               onClick={() => handleMicModeChange(opt.value)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                micMode === opt.value
-                  ? "bg-primary text-white"
-                  : "bg-surface-darkest text-gray-300 hover:bg-white/10"
+                micMode === opt.value ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
               }`}
             >
               {opt.label}
@@ -230,51 +228,47 @@ export function VoiceSettings() {
           ))}
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
-          {micMode === "always" && "Your mic stays on while unmuted."}
-          {micMode === "activity" && "Mic activates when you speak."}
-          {micMode === "push-to-talk" && "Hold a key to transmit your voice."}
+          {micMode === 'always' && 'Your mic stays on while unmuted.'}
+          {micMode === 'activity' && 'Mic activates when you speak.'}
+          {micMode === 'push-to-talk' && 'Hold a key to transmit your voice.'}
         </p>
 
-        {micMode === "activity" && (
+        {micMode === 'activity' && (
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">Threshold:</span>
-              {(["auto", "manual"] as const).map((m) => (
+              {(['auto', 'manual'] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => {
-                    setVadModeState(m);
-                    saveVadMode(m);
+                    setVadModeState(m)
+                    saveVadMode(m)
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    vadMode === m
-                      ? "bg-primary text-white"
-                      : "bg-surface-darkest text-gray-300 hover:bg-white/10"
+                    vadMode === m ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
-                  {m === "auto" ? "Auto" : "Manual"}
+                  {m === 'auto' ? 'Auto' : 'Manual'}
                 </button>
               ))}
             </div>
-            {vadMode === "auto" ? (
+            {vadMode === 'auto' ? (
               <p className="text-[11px] text-gray-500">
                 Automatically calibrates from ambient noise when you join or unmute.
               </p>
             ) : (
               <>
-                <label className="block text-xs text-gray-400">
-                  Sensitivity: {vadThreshold}
-                </label>
+                <label className="block text-xs text-gray-400">Sensitivity: {vadThreshold}</label>
                 <input
                   type="range"
                   min={1}
                   max={60}
                   value={vadThreshold}
                   onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setVadThreshold(v);
-                    saveVadThreshold(v);
+                    const v = Number(e.target.value)
+                    setVadThreshold(v)
+                    saveVadThreshold(v)
                   }}
                   className="w-full accent-primary"
                 />
@@ -290,7 +284,7 @@ export function VoiceSettings() {
           </div>
         )}
 
-        {micMode === "push-to-talk" && (
+        {micMode === 'push-to-talk' && (
           <div className="mt-3 flex items-center gap-3">
             <span className="text-xs text-gray-400">Bind:</span>
             <button
@@ -298,17 +292,13 @@ export function VoiceSettings() {
               onClick={handlePttRecord}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ring-1 transition ${
                 recordingPtt
-                  ? "bg-primary/20 text-primary ring-primary/40"
-                  : "bg-surface-darkest text-white ring-white/10 hover:bg-white/10"
+                  ? 'bg-primary/20 text-primary ring-primary/40'
+                  : 'bg-surface-darkest text-white ring-white/10 hover:bg-white/10'
               }`}
             >
-              {recordingPtt
-                ? "Press any key or mouse button..."
-                : pttBindingLabel(pttBinding)}
+              {recordingPtt ? 'Press any key or mouse button...' : pttBindingLabel(pttBinding)}
             </button>
-            {recordingPtt && (
-              <span className="text-[10px] text-gray-500">Esc to cancel</span>
-            )}
+            {recordingPtt && <span className="text-[10px] text-gray-500">Esc to cancel</span>}
           </div>
         )}
       </div>
@@ -334,7 +324,10 @@ export function VoiceSettings() {
             label="Audio Input"
             value={selectedInput}
             devices={audioInputs}
-            onChange={(v) => { setSelectedInput(v); setSavedAudioInput(v); }}
+            onChange={(v) => {
+              setSelectedInput(v)
+              setSavedAudioInput(v)
+            }}
           />
 
           {supportsSinkId && (
@@ -342,7 +335,10 @@ export function VoiceSettings() {
               label="Audio Output"
               value={selectedOutput}
               devices={audioOutputs}
-              onChange={(v) => { setSelectedOutput(v); setSavedAudioOutput(v); }}
+              onChange={(v) => {
+                setSelectedOutput(v)
+                setSavedAudioOutput(v)
+              }}
             />
           )}
         </>
@@ -368,7 +364,10 @@ export function VoiceSettings() {
           label="Camera"
           value={selectedCamera}
           devices={videoInputs}
-          onChange={(v) => { setSelectedCamera(v); setSavedCamera(v); }}
+          onChange={(v) => {
+            setSelectedCamera(v)
+            setSavedCamera(v)
+          }}
         />
       )}
 
@@ -376,69 +375,69 @@ export function VoiceSettings() {
         Camera resolution, background blur, and screen share quality can be configured when starting a call.
       </p>
     </div>
-  );
+  )
 }
 
 function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: number }) {
-  const [level, setLevel] = useState(0);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const [level, setLevel] = useState(0)
+  const cleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    let running = true;
+    let running = true
 
     async function start() {
       try {
         const constraints: MediaStreamConstraints = {
-          audio: deviceId ? { deviceId: { exact: deviceId } } : true,
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          audio: deviceId ? { deviceId: { exact: deviceId } } : true
+        }
+        const stream = await navigator.mediaDevices.getUserMedia(constraints)
         if (!running) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
+          stream.getTracks().forEach((t) => t.stop())
+          return
         }
 
-        const audioCtx = new AudioContext();
-        const source = audioCtx.createMediaStreamSource(stream);
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.2;
-        source.connect(analyser);
+        const audioCtx = new AudioContext()
+        const source = audioCtx.createMediaStreamSource(stream)
+        const analyser = audioCtx.createAnalyser()
+        analyser.fftSize = 512
+        analyser.smoothingTimeConstant = 0.2
+        source.connect(analyser)
 
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
         function tick() {
-          if (!running) return;
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-          setLevel(sum / dataArray.length);
-          requestAnimationFrame(tick);
+          if (!running) return
+          analyser.getByteFrequencyData(dataArray)
+          let sum = 0
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+          setLevel(sum / dataArray.length)
+          requestAnimationFrame(tick)
         }
-        requestAnimationFrame(tick);
+        requestAnimationFrame(tick)
 
         cleanupRef.current = () => {
-          running = false;
-          source.disconnect();
-          audioCtx.close().catch(() => {});
-          stream.getTracks().forEach((t) => t.stop());
-        };
+          running = false
+          source.disconnect()
+          audioCtx.close().catch(() => {})
+          stream.getTracks().forEach((t) => t.stop())
+        }
       } catch {
         // mic denied or unavailable
       }
     }
 
-    void start();
+    void start()
 
     return () => {
-      running = false;
-      cleanupRef.current?.();
-      cleanupRef.current = null;
-    };
-  }, [deviceId]);
+      running = false
+      cleanupRef.current?.()
+      cleanupRef.current = null
+    }
+  }, [deviceId])
 
-  const maxBar = 60;
-  const pct = Math.min((level / maxBar) * 100, 100);
-  const threshPct = Math.min((threshold / maxBar) * 100, 100);
+  const maxBar = 60
+  const pct = Math.min((level / maxBar) * 100, 100)
+  const threshPct = Math.min((threshold / maxBar) * 100, 100)
 
   return (
     <div className="space-y-1">
@@ -449,7 +448,7 @@ function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: n
       <div className="relative h-3 w-full overflow-hidden rounded-full bg-surface-darkest">
         <div
           className={`absolute inset-y-0 left-0 rounded-full transition-all duration-75 ${
-            level > threshold ? "bg-green-500" : "bg-gray-500"
+            level > threshold ? 'bg-green-500' : 'bg-gray-500'
           }`}
           style={{ width: `${pct}%` }}
         />
@@ -463,35 +462,33 @@ function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: n
         The orange line is your threshold. Speak and adjust so green exceeds it.
       </p>
     </div>
-  );
+  )
 }
 
 function DeviceSelect({
   label,
   value,
   devices,
-  onChange,
+  onChange
 }: {
-  label: string;
-  value: string;
-  devices: DeviceInfo[];
-  onChange: (v: string) => void;
+  label: string
+  value: string
+  devices: DeviceInfo[]
+  onChange: (v: string) => void
 }) {
-  const isMissing = value !== "" && devices.length > 0 && !devices.some((d) => d.deviceId === value);
+  const isMissing = value !== '' && devices.length > 0 && !devices.some((d) => d.deviceId === value)
 
   return (
     <div>
-      <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">
-        {label}
-      </h3>
+      <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{label}</h3>
       <select
-        value={isMissing ? "__missing__" : value}
+        value={isMissing ? '__missing__' : value}
         onChange={(e) => {
-          const v = e.target.value === "__missing__" ? "" : e.target.value;
-          onChange(v);
+          const v = e.target.value === '__missing__' ? '' : e.target.value
+          onChange(v)
         }}
         className={`w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ${
-          isMissing ? "ring-amber-500/50" : "ring-white/10"
+          isMissing ? 'ring-amber-500/50' : 'ring-white/10'
         }`}
       >
         <option value="">Default</option>
@@ -512,5 +509,5 @@ function DeviceSelect({
         </p>
       )}
     </div>
-  );
+  )
 }

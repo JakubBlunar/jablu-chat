@@ -1,38 +1,38 @@
-import { useState } from "react";
-import { useAppNavigate } from "@/hooks/useAppNavigate";
-import { useServerStore } from "@/stores/server.store";
+import { useState } from 'react'
+import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { useServerStore } from '@/stores/server.store'
 
 type CreateServerModalProps = {
-  open: boolean;
-  onClose: () => void;
-};
+  open: boolean
+  onClose: () => void
+}
 
 export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
-  const createServer = useServerStore((s) => s.createServer);
-  const { orchestratedGoToChannel } = useAppNavigate();
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const createServer = useServerStore((s) => s.createServer)
+  const { orchestratedGoToChannel } = useAppNavigate()
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!open) return null;
+  if (!open) return null
 
   async function handleCreate() {
-    const trimmed = name.trim();
+    const trimmed = name.trim()
     if (!trimmed) {
-      setError("Enter a server name.");
-      return;
+      setError('Enter a server name.')
+      return
     }
-    setBusy(true);
-    setError(null);
+    setBusy(true)
+    setError(null)
     try {
-      const server = await createServer(trimmed);
-      void orchestratedGoToChannel(server.id);
-      setName("");
-      onClose();
+      const server = await createServer(trimmed)
+      void orchestratedGoToChannel(server.id)
+      setName('')
+      onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create server.");
+      setError(e instanceof Error ? e.message : 'Could not create server.')
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
@@ -41,7 +41,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm transition-opacity"
       role="presentation"
       onMouseDown={(ev) => {
-        if (ev.target === ev.currentTarget) onClose();
+        if (ev.target === ev.currentTarget) onClose()
       }}
     >
       <div
@@ -50,15 +50,10 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
         aria-labelledby="create-server-title"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2
-          id="create-server-title"
-          className="text-xl font-semibold text-white"
-        >
+        <h2 id="create-server-title" className="text-xl font-semibold text-white">
           Create a Server
         </h2>
-        <p className="mt-2 text-sm text-gray-400">
-          Give your new server a name. You can change it later.
-        </p>
+        <p className="mt-2 text-sm text-gray-400">Give your new server a name. You can change it later.</p>
         <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
           Server name
           <input
@@ -70,7 +65,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             maxLength={100}
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === "Enter") void handleCreate();
+              if (e.key === 'Enter') void handleCreate()
             }}
           />
         </label>
@@ -83,9 +78,9 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
           <button
             type="button"
             onClick={() => {
-              setName("");
-              setError(null);
-              onClose();
+              setName('')
+              setError(null)
+              onClose()
             }}
             disabled={busy}
             className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
@@ -98,10 +93,10 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             disabled={busy}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
           >
-            {busy ? "Creating…" : "Create"}
+            {busy ? 'Creating…' : 'Create'}
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }

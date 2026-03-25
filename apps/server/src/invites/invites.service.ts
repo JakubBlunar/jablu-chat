@@ -1,79 +1,63 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { Prisma, ServerRole } from '@prisma/client';
-import crypto from 'node:crypto';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuditLogService } from '../servers/audit-log.service';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma, ServerRole } from '@prisma/client'
+import crypto from 'node:crypto'
+import { PrismaService } from '../prisma/prisma.service'
+import { AuditLogService } from '../servers/audit-log.service'
 
 const createdByUserSelect = {
   id: true,
   username: true,
   email: true,
-  avatarUrl: true,
-} as const;
+  avatarUrl: true
+} as const
 
 function generateInviteCode(): string {
-  return crypto.randomBytes(6).toString('base64url').slice(0, 8);
+  return crypto.randomBytes(6).toString('base64url').slice(0, 8)
 }
 
 @Injectable()
 export class InvitesService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly auditLog: AuditLogService,
+    private readonly auditLog: AuditLogService
   ) {}
 
   private async getServerOrThrow(serverId: string) {
     const server = await this.prisma.server.findUnique({
-      where: { id: serverId },
-    });
+      where: { id: serverId }
+    })
     if (!server) {
-      throw new NotFoundException('Server not found');
+      throw new NotFoundException('Server not found')
     }
-    return server;
+    return server
   }
 
   private async requireAdminOrOwner(serverId: string, userId: string) {
-    const server = await this.getServerOrThrow(serverId);
+    const server = await this.getServerOrThrow(serverId)
     if (server.ownerId === userId) {
-      return server;
+      return server
     }
     const membership = await this.prisma.serverMember.findUnique({
       where: {
-        userId_serverId: { userId, serverId },
-      },
-    });
+        userId_serverId: { userId, serverId }
+      }
+    })
     if (!membership) {
-      throw new ForbiddenException('You are not a member of this server');
+      throw new ForbiddenException('You are not a member of this server')
     }
-    if (
-      membership.role !== ServerRole.admin &&
-      membership.role !== ServerRole.owner
-    ) {
-      throw new ForbiddenException('Insufficient permissions');
+    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
+      throw new ForbiddenException('Insufficient permissions')
     }
-    return server;
+    return server
   }
 
-  async createInvite(
-    serverId: string,
-    userId: string,
-    maxUses?: number,
-    expiresInMinutes?: number,
-  ) {
-    await this.requireAdminOrOwner(serverId, userId);
+  async createInvite(serverId: string, userId: string, maxUses?: number, expiresInMinutes?: number) {
+    await this.requireAdminOrOwner(serverId, userId)
 
-    const expiresAt =
-      expiresInMinutes !== undefined
-        ? new Date(Date.now() + expiresInMinutes * 60 * 1000)
-        : undefined;
+    const expiresAt = expiresInMinutes !== undefined ? new Date(Date.now() + expiresInMinutes * 60 * 1000) : undefined
 
     for (let attempt = 0; attempt < 20; attempt++) {
-      const code = generateInviteCode();
+      const code = generateInviteCode()
       try {
         const invite = await this.prisma.invite.create({
           data: {
@@ -81,75 +65,69 @@ export class InvitesService {
             createdById: userId,
             code,
             maxUses: maxUses ?? null,
-            expiresAt: expiresAt ?? null,
+            expiresAt: expiresAt ?? null
           },
           include: {
-            server: { select: { name: true } },
-          },
-        });
-        await this.auditLog.log(serverId, userId, 'invite.create', 'invite', invite.id, `Code: ${code}`);
-        return invite;
+            server: { select: { name: true } }
+          }
+        })
+        await this.auditLog.log(serverId, userId, 'invite.create', 'invite', invite.id, `Code: ${code}`)
+        return invite
       } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002'
-        ) {
-          continue;
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          continue
         }
-        throw e;
+        throw e
       }
     }
-    throw new ConflictException('Could not generate a unique invite code');
+    throw new ConflictException('Could not generate a unique invite code')
   }
 
   async getInvites(serverId: string, userId: string) {
-    await this.requireAdminOrOwner(serverId, userId);
+    await this.requireAdminOrOwner(serverId, userId)
     return this.prisma.invite.findMany({
       where: { serverId },
       include: {
-        createdBy: { select: createdByUserSelect },
+        createdBy: { select: createdByUserSelect }
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      orderBy: { createdAt: 'desc' }
+    })
   }
 
   async deleteInvite(inviteId: string, userId: string) {
     const invite = await this.prisma.invite.findUnique({
-      where: { id: inviteId },
-    });
+      where: { id: inviteId }
+    })
     if (!invite) {
-      throw new NotFoundException('Invite not found');
+      throw new NotFoundException('Invite not found')
     }
-    await this.requireAdminOrOwner(invite.serverId, userId);
-    await this.prisma.invite.delete({ where: { id: inviteId } });
-    await this.auditLog.log(invite.serverId, userId, 'invite.delete', 'invite', inviteId, `Code: ${invite.code}`);
+    await this.requireAdminOrOwner(invite.serverId, userId)
+    await this.prisma.invite.delete({ where: { id: inviteId } })
+    await this.auditLog.log(invite.serverId, userId, 'invite.delete', 'invite', inviteId, `Code: ${invite.code}`)
   }
 
   async useInvite(code: string, userId: string) {
     const invite = await this.prisma.invite.findUnique({
       where: { code },
-      include: { server: true },
-    });
+      include: { server: true }
+    })
     if (!invite) {
-      throw new NotFoundException('Invalid invite code');
+      throw new NotFoundException('Invalid invite code')
     }
     if (invite.expiresAt && invite.expiresAt < new Date()) {
-      throw new ForbiddenException('This invite has expired');
+      throw new ForbiddenException('This invite has expired')
     }
-    if (
-      invite.maxUses !== null &&
-      invite.useCount >= invite.maxUses
-    ) {
-      throw new ForbiddenException('This invite has reached its use limit');
+    if (invite.maxUses !== null && invite.useCount >= invite.maxUses) {
+      throw new ForbiddenException('This invite has reached its use limit')
     }
 
     const existing = await this.prisma.serverMember.findUnique({
       where: {
-        userId_serverId: { userId, serverId: invite.serverId },
-      },
-    });
+        userId_serverId: { userId, serverId: invite.serverId }
+      }
+    })
     if (existing) {
-      throw new ConflictException('You are already a member of this server');
+      throw new ConflictException('You are already a member of this server')
     }
 
     await this.prisma.$transaction([
@@ -157,14 +135,14 @@ export class InvitesService {
         data: {
           userId,
           serverId: invite.serverId,
-          role: ServerRole.member,
-        },
+          role: ServerRole.member
+        }
       }),
       this.prisma.invite.update({
         where: { id: invite.id },
-        data: { useCount: { increment: 1 } },
-      }),
-    ]);
+        data: { useCount: { increment: 1 } }
+      })
+    ])
 
     const server = await this.prisma.server.findUnique({
       where: { id: invite.serverId },
@@ -177,17 +155,17 @@ export class InvitesService {
                 id: true,
                 username: true,
                 email: true,
-                avatarUrl: true,
-              },
-            },
+                avatarUrl: true
+              }
+            }
           },
-          orderBy: { joinedAt: 'asc' },
-        },
-      },
-    });
+          orderBy: { joinedAt: 'asc' }
+        }
+      }
+    })
     if (!server) {
-      throw new NotFoundException('Server not found');
+      throw new NotFoundException('Server not found')
     }
-    return server;
+    return server
   }
 }

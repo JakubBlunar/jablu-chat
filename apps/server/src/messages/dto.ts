@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type } from 'class-transformer'
 import {
   ArrayMaxSize,
   IsArray,
@@ -9,60 +9,60 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
-} from 'class-validator';
+  MinLength
+} from 'class-validator'
 
 export class SendMessageDto {
   @IsOptional()
   @IsString()
   @MaxLength(4000)
-  content?: string;
+  content?: string
 
   @IsOptional()
   @IsUUID()
-  replyToId?: string;
+  replyToId?: string
 
   @IsOptional()
   @IsArray()
   @IsUUID('4', { each: true })
   @ArrayMaxSize(20)
-  attachmentIds?: string[];
+  attachmentIds?: string[]
 }
 
 export class EditMessageDto {
   @IsString()
   @MinLength(1)
   @MaxLength(4000)
-  content!: string;
+  content!: string
 }
 
 export class MessageQueryDto {
   @IsOptional()
   @IsString()
-  cursor?: string;
+  cursor?: string
 
   @IsOptional()
   @IsUUID()
-  around?: string;
+  around?: string
 
   @IsOptional()
   @IsString()
-  after?: string;
+  after?: string
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  limit?: number;
+  limit?: number
 }
 
 export class ToggleReactionDto {
   @IsString()
   @MinLength(1)
   @MaxLength(50)
-  emoji!: string;
+  emoji!: string
 
   @IsOptional()
-  isCustom?: boolean;
+  isCustom?: boolean
 }

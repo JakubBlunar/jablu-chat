@@ -1,50 +1,36 @@
-import type { Message } from "@chat/shared";
-import { create } from "zustand";
-import { api, type DmConversation } from "@/lib/api";
-
+import type { Message } from '@chat/shared'
+import { create } from 'zustand'
+import { api, type DmConversation } from '@/lib/api'
+import { toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
 
 type DmState = {
-  conversations: DmConversation[];
-  currentConversationId: string | null;
-  messages: Message[];
-  hasMore: boolean;
-  hasNewer: boolean;
-  isLoading: boolean;
-  isConversationsLoading: boolean;
-  loadedForConvId: string | null;
-  scrollToMessageId: string | null;
-  scrollRequestNonce: number;
-  fetchConversations: () => Promise<void>;
-  setCurrentConversation: (id: string | null) => void;
-  fetchMessages: (conversationId: string, cursor?: string) => Promise<void>;
-  fetchMessagesAround: (conversationId: string, messageId: string) => Promise<void>;
-  setScrollToMessageId: (id: string | null) => void;
-  addMessage: (message: Message) => void;
-  updateMessage: (message: Message) => void;
-  removeMessage: (messageId: string) => void;
-  clearMessages: () => void;
-  addReaction: (messageId: string, emoji: string, userId: string) => void;
-  removeReaction: (messageId: string, emoji: string, userId: string) => void;
+  conversations: DmConversation[]
+  currentConversationId: string | null
+  messages: Message[]
+  hasMore: boolean
+  hasNewer: boolean
+  isLoading: boolean
+  isConversationsLoading: boolean
+  loadedForConvId: string | null
+  scrollToMessageId: string | null
+  scrollRequestNonce: number
+  fetchConversations: () => Promise<void>
+  setCurrentConversation: (id: string | null) => void
+  fetchMessages: (conversationId: string, cursor?: string) => Promise<void>
+  fetchMessagesAround: (conversationId: string, messageId: string) => Promise<void>
+  setScrollToMessageId: (id: string | null) => void
+  addMessage: (message: Message) => void
+  updateMessage: (message: Message) => void
+  removeMessage: (messageId: string) => void
+  clearMessages: () => void
+  addReaction: (messageId: string, emoji: string, userId: string) => void
+  removeReaction: (messageId: string, emoji: string, userId: string) => void
   updateConversationLastMessage: (
     conversationId: string,
-    msg: { content: string | null; authorId: string; createdAt: string },
-  ) => void;
-  addOrUpdateConversation: (conv: DmConversation) => void;
-  closeConversation: (conversationId: string) => Promise<void>;
-};
-
-const MAX_MESSAGES = 200;
-
-function toChronological(messagesDesc: Message[]): Message[] {
-  return messagesDesc.slice().reverse();
-}
-
-function trimOldest(msgs: Message[]): Message[] {
-  return msgs.length > MAX_MESSAGES ? msgs.slice(msgs.length - MAX_MESSAGES) : msgs;
-}
-
-function trimNewest(msgs: Message[]): Message[] {
-  return msgs.length > MAX_MESSAGES ? msgs.slice(0, MAX_MESSAGES) : msgs;
+    msg: { content: string | null; authorId: string; createdAt: string }
+  ) => void
+  addOrUpdateConversation: (conv: DmConversation) => void
+  closeConversation: (conversationId: string) => Promise<void>
 }
 
 export const useDmStore = create<DmState>((set, _get) => ({
@@ -60,93 +46,97 @@ export const useDmStore = create<DmState>((set, _get) => ({
   scrollRequestNonce: 0,
 
   fetchConversations: async () => {
-    set({ isConversationsLoading: true });
+    set({ isConversationsLoading: true })
     try {
-      const list = await api.getDmConversations();
-      set({ conversations: list, isConversationsLoading: false });
+      const list = await api.getDmConversations()
+      set({ conversations: list, isConversationsLoading: false })
     } catch {
-      set({ isConversationsLoading: false });
+      set({ isConversationsLoading: false })
     }
   },
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
 
   fetchMessages: async (conversationId, cursor) => {
-    set({ isLoading: true });
+    set({ isLoading: true })
     try {
-      const page = await api.getDmMessages(conversationId, cursor);
-      const chronological = toChronological(page.messages);
+      const page = await api.getDmMessages(conversationId, cursor)
+      if (!cursor && _get().loadedForConvId !== null && _get().loadedForConvId !== conversationId) {
+        set({ isLoading: false })
+        return
+      }
+      const chronological = toChronological(page.messages)
 
       if (cursor) {
         set((s) => {
-          const merged = [...chronological, ...s.messages];
-          const trimmed = trimNewest(merged);
+          const merged = [...chronological, ...s.messages]
+          const trimmed = trimNewest(merged)
           return {
             messages: trimmed,
             hasMore: page.hasMore,
             hasNewer: trimmed.length < merged.length ? true : s.hasNewer,
-            isLoading: false,
-          };
-        });
+            isLoading: false
+          }
+        })
       } else {
         set({
           messages: chronological,
           hasMore: page.hasMore,
           isLoading: false,
-          loadedForConvId: conversationId,
-        });
+          loadedForConvId: conversationId
+        })
       }
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false })
     }
   },
 
   fetchMessagesAround: async (conversationId, messageId) => {
-    set({ isLoading: true });
+    set({ isLoading: true })
     try {
-      const page = await api.getDmMessagesAround(conversationId, messageId);
-      const chronological = toChronological(page.messages);
+      const page = await api.getDmMessagesAround(conversationId, messageId)
+      const chronological = toChronological(page.messages)
       set({
         messages: chronological,
         hasMore: page.hasMore,
         hasNewer: page.hasNewer ?? false,
         isLoading: false,
-        loadedForConvId: conversationId,
-      });
+        loadedForConvId: conversationId
+      })
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false })
     }
   },
 
   setScrollToMessageId: (id) =>
     set((s) => ({
       scrollToMessageId: id,
-      scrollRequestNonce: id !== null ? s.scrollRequestNonce + 1 : s.scrollRequestNonce,
+      scrollRequestNonce: id !== null ? s.scrollRequestNonce + 1 : s.scrollRequestNonce
     })),
 
   addMessage: (message) => {
     set((s) => {
-      if (s.hasNewer) return s;
-      if (s.messages.some((m) => m.id === message.id)) return s;
-      const merged = [...s.messages, message];
-      const trimmed = trimOldest(merged);
+      if (s.hasNewer) return s
+      if (s.messages.some((m) => m.id === message.id)) return s
+      const merged = [...s.messages, message]
+      const trimmed = trimOldest(merged)
       return {
         messages: trimmed,
-        hasMore: trimmed.length < merged.length ? true : s.hasMore,
-      };
-    });
+        hasMore: trimmed.length < merged.length ? true : s.hasMore
+      }
+    })
   },
 
   updateMessage: (message) => {
     set((s) => ({
-      messages: s.messages.map((m) => (m.id === message.id ? message : m)),
-    }));
+      messages: s.messages.map((m) => (m.id === message.id ? message : m))
+    }))
   },
 
   removeMessage: (messageId) => {
     set((s) => ({
-      messages: s.messages.filter((m) => m.id !== messageId),
-    }));
+      messages: s.messages.filter((m) => m.id !== messageId)
+    }))
   },
 
   clearMessages: () => set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null }),
@@ -154,80 +144,76 @@ export const useDmStore = create<DmState>((set, _get) => ({
   addReaction: (messageId, emoji, userId) => {
     set((s) => ({
       messages: s.messages.map((m) => {
-        if (m.id !== messageId) return m;
-        const reactions = [...(m.reactions ?? [])];
-        const existing = reactions.find((r) => r.emoji === emoji);
+        if (m.id !== messageId) return m
+        const reactions = [...(m.reactions ?? [])]
+        const existing = reactions.find((r) => r.emoji === emoji)
         if (existing) {
           if (!existing.userIds.includes(userId)) {
-            existing.userIds = [...existing.userIds, userId];
-            existing.count += 1;
+            existing.userIds = [...existing.userIds, userId]
+            existing.count += 1
           }
         } else {
-          reactions.push({ emoji, count: 1, userIds: [userId], isCustom: false });
+          reactions.push({ emoji, count: 1, userIds: [userId], isCustom: false })
         }
-        return { ...m, reactions };
-      }),
-    }));
+        return { ...m, reactions }
+      })
+    }))
   },
 
   removeReaction: (messageId, emoji, userId) => {
     set((s) => ({
       messages: s.messages.map((m) => {
-        if (m.id !== messageId) return m;
+        if (m.id !== messageId) return m
         const reactions = (m.reactions ?? [])
           .map((r) => {
-            if (r.emoji !== emoji) return r;
-            const userIds = r.userIds.filter((id) => id !== userId);
-            return { ...r, userIds, count: userIds.length };
+            if (r.emoji !== emoji) return r
+            const userIds = r.userIds.filter((id) => id !== userId)
+            return { ...r, userIds, count: userIds.length }
           })
-          .filter((r) => r.count > 0);
-        return { ...m, reactions };
-      }),
-    }));
+          .filter((r) => r.count > 0)
+        return { ...m, reactions }
+      })
+    }))
   },
 
   updateConversationLastMessage: (conversationId, msg) => {
     set((s) => ({
       conversations: s.conversations
-        .map((c) =>
-          c.id === conversationId ? { ...c, lastMessage: msg } : c,
-        )
+        .map((c) => (c.id === conversationId ? { ...c, lastMessage: msg } : c))
         .sort((a, b) => {
-          const aTime = a.lastMessage?.createdAt ?? a.createdAt;
-          const bTime = b.lastMessage?.createdAt ?? b.createdAt;
-          return new Date(bTime).getTime() - new Date(aTime).getTime();
-        }),
-    }));
+          const aTime = a.lastMessage?.createdAt ?? a.createdAt
+          const bTime = b.lastMessage?.createdAt ?? b.createdAt
+          return new Date(bTime).getTime() - new Date(aTime).getTime()
+        })
+    }))
   },
 
   addOrUpdateConversation: (conv) => {
     set((s) => {
-      const existing = s.conversations.find((c) => c.id === conv.id);
+      const existing = s.conversations.find((c) => c.id === conv.id)
       if (existing) {
         return {
-          conversations: s.conversations.map((c) =>
-            c.id === conv.id ? { ...c, ...conv } : c,
-          ),
-        };
+          conversations: s.conversations.map((c) => (c.id === conv.id ? { ...c, ...conv } : c))
+        }
       }
-      return { conversations: [conv, ...s.conversations] };
-    });
+      return { conversations: [conv, ...s.conversations] }
+    })
   },
 
   closeConversation: async (conversationId) => {
     set((s) => {
       const updates: Partial<DmState> = {
-        conversations: s.conversations.filter((c) => c.id !== conversationId),
-      };
-      if (s.currentConversationId === conversationId) {
-        updates.currentConversationId = null;
+        conversations: s.conversations.filter((c) => c.id !== conversationId)
       }
-      return updates;
-    });
+      if (s.currentConversationId === conversationId) {
+        updates.currentConversationId = null
+      }
+      return updates
+    })
     try {
-      await api.closeDm(conversationId);
+      await api.closeDm(conversationId)
     } catch {
       /* server-side close is best-effort; UI already removed it */
     }
-  },
-}));
+  }
+}))

@@ -1,58 +1,58 @@
-import { useEffect, useRef } from "react";
-import { useLocation, useParams } from "react-router-dom";
-import { useChannelStore } from "@/stores/channel.store";
-import { useDmStore } from "@/stores/dm.store";
-import { useServerStore } from "@/stores/server.store";
-import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
+import { useEffect, useRef } from 'react'
+import { useLocation, useParams } from 'react-router-dom'
+import { useChannelStore } from '@/stores/channel.store'
+import { useDmStore } from '@/stores/dm.store'
+import { useServerStore } from '@/stores/server.store'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 /**
  * One-way sync: URL params → Zustand stores.
  * Call once at the top of MainLayout.
  */
 export function useRouteSync() {
-  const params = useParams();
-  const { pathname } = useLocation();
-  const isDm = pathname.startsWith("/channels/@me");
+  const params = useParams()
+  const { pathname } = useLocation()
+  const isDm = pathname.startsWith('/channels/@me')
 
-  const serverId = isDm ? null : params.serverId ?? null;
-  const channelId = isDm ? null : params.channelId ?? null;
-  const conversationId = isDm ? params.conversationId ?? null : null;
+  const serverId = isDm ? null : (params.serverId ?? null)
+  const channelId = isDm ? null : (params.channelId ?? null)
+  const conversationId = isDm ? (params.conversationId ?? null) : null
 
-  const prevIsDmRef = useRef<boolean | undefined>(undefined);
-  const prevServerRef = useRef<string | null>(null);
-  const prevChannelRef = useRef<string | null>(null);
-  const prevConvRef = useRef<string | null>(null);
+  const prevIsDmRef = useRef<boolean | undefined>(undefined)
+  const prevServerRef = useRef<string | null>(null)
+  const prevChannelRef = useRef<string | null>(null)
+  const prevConvRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (isDm) {
       if (prevIsDmRef.current !== true) {
-        useServerStore.getState().setViewMode("dm");
-        prevIsDmRef.current = true;
-        prevServerRef.current = null;
-        prevChannelRef.current = null;
+        useServerStore.getState().setViewMode('dm')
+        prevIsDmRef.current = true
+        prevServerRef.current = null
+        prevChannelRef.current = null
       }
 
       if (prevConvRef.current !== conversationId) {
-        prevConvRef.current = conversationId;
-        useDmStore.getState().setCurrentConversation(conversationId);
+        prevConvRef.current = conversationId
+        useDmStore.getState().setCurrentConversation(conversationId)
       }
     } else if (serverId) {
       if (prevIsDmRef.current !== false) {
-        prevIsDmRef.current = false;
-        prevConvRef.current = null;
+        prevIsDmRef.current = false
+        prevConvRef.current = null
       }
 
       if (prevServerRef.current !== serverId) {
-        prevServerRef.current = serverId;
-        prevChannelRef.current = null;
-        useServerStore.getState().setCurrentServer(serverId);
+        prevServerRef.current = serverId
+        prevChannelRef.current = null
+        useServerStore.getState().setCurrentServer(serverId)
       }
 
       if (channelId && prevChannelRef.current !== channelId) {
-        prevChannelRef.current = channelId;
-        useChannelStore.getState().setCurrentChannel(channelId);
-        useVoiceConnectionStore.getState().setViewingVoiceRoom(false);
+        prevChannelRef.current = channelId
+        useChannelStore.getState().setCurrentChannel(channelId)
+        useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
       }
     }
-  }, [isDm, serverId, channelId, conversationId]);
+  }, [isDm, serverId, channelId, conversationId])
 }

@@ -1,20 +1,20 @@
-import { IsEnum, IsOptional, IsString, Length } from 'class-validator';
-import { ServerRole } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, Length } from 'class-validator'
+import { ServerRole } from '@prisma/client'
 
 export class CreateServerDto {
   @IsString()
   @Length(1, 100)
-  name: string;
+  name: string
 }
 
 export class UpdateServerDto {
   @IsOptional()
   @IsString()
   @Length(1, 100)
-  name?: string;
+  name?: string
 }
 
 export class UpdateMemberRoleDto {
   @IsEnum(ServerRole)
-  role: ServerRole;
+  role: ServerRole
 }

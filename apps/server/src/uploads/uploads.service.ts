@@ -11,6 +11,8 @@ const ffprobe = require('ffprobe') as (
   filePath: string,
   opts: { path: string },
 ) => Promise<{ streams?: { codec_type?: string; width?: number; height?: number }[] }>;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ffprobePath: string = require('ffprobe-static').path;
 
 const IMAGE_MIMES = new Set([
   'image/jpeg',
@@ -135,7 +137,7 @@ export class UploadsService {
     } else if (attachType === AttachmentType.video) {
       writeFileSync(dest, file.buffer);
       try {
-        const info = await ffprobe(dest, { path: 'ffprobe' });
+        const info = await ffprobe(dest, { path: ffprobePath });
         const videoStream = info.streams?.find((s) => s.codec_type === 'video');
         if (videoStream) {
           width = videoStream.width ?? null;

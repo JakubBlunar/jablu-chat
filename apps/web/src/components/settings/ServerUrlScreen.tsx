@@ -1,66 +1,57 @@
-import { useState } from "react";
-import { api } from "@/lib/api";
-import { electronAPI } from "@/lib/electron";
+import { useState } from 'react'
+import { api } from '@/lib/api'
+import { electronAPI } from '@/lib/electron'
 
-const STORAGE_KEY = "chat:server-url";
+const STORAGE_KEY = 'chat:server-url'
 
 export function getStoredServerUrl(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
+  return localStorage.getItem(STORAGE_KEY)
 }
 
 export function setStoredServerUrl(url: string) {
-  localStorage.setItem(STORAGE_KEY, url);
-  electronAPI?.setServerUrl(url).catch(() => {});
+  localStorage.setItem(STORAGE_KEY, url)
+  electronAPI?.setServerUrl(url).catch(() => {})
 }
 
 export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => void }) {
-  const [url, setUrl] = useState(getStoredServerUrl() ?? "http://");
-  const [error, setError] = useState("");
-  const [testing, setTesting] = useState(false);
+  const [url, setUrl] = useState(getStoredServerUrl() ?? 'http://')
+  const [error, setError] = useState('')
+  const [testing, setTesting] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
+    e.preventDefault()
+    setError('')
 
-    const trimmed = url.trim().replace(/\/+$/, "");
+    const trimmed = url.trim().replace(/\/+$/, '')
     if (!trimmed) {
-      setError("Please enter a server URL");
-      return;
+      setError('Please enter a server URL')
+      return
     }
 
-    setTesting(true);
+    setTesting(true)
     try {
       const resp = await fetch(`${trimmed}/api/health`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!resp.ok) throw new Error("Server returned an error");
+        signal: AbortSignal.timeout(5000)
+      })
+      if (!resp.ok) throw new Error('Server returned an error')
 
-      setStoredServerUrl(trimmed);
-      api.baseUrl = trimmed;
-      onConnect(trimmed);
+      setStoredServerUrl(trimmed)
+      api.baseUrl = trimmed
+      onConnect(trimmed)
     } catch {
-      setError("Could not connect to the server. Check the URL and try again.");
+      setError('Could not connect to the server. Check the URL and try again.')
     } finally {
-      setTesting(false);
+      setTesting(false)
     }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface">
-      <form
-        onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-md rounded-lg bg-surface-dark p-8 shadow-xl"
-      >
-        <h1 className="mb-2 text-center text-2xl font-bold text-white">
-          Connect to Server
-        </h1>
-        <p className="mb-6 text-center text-sm text-gray-400">
-          Enter the address of your Jablu server
-        </p>
+      <form onSubmit={(e) => void handleSubmit(e)} className="w-full max-w-md rounded-lg bg-surface-dark p-8 shadow-xl">
+        <h1 className="mb-2 text-center text-2xl font-bold text-white">Connect to Server</h1>
+        <p className="mb-6 text-center text-sm text-gray-400">Enter the address of your Jablu server</p>
 
-        <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">
-          Server URL
-        </label>
+        <label className="mb-1 block text-xs font-semibold uppercase text-gray-400">Server URL</label>
         <input
           type="text"
           value={url}
@@ -69,23 +60,21 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
           className="mb-4 w-full rounded-md bg-surface-darkest px-3 py-2 text-white outline-none ring-1 ring-white/10 focus:ring-primary"
         />
 
-        {error && (
-          <p className="mb-3 text-sm text-red-400">{error}</p>
-        )}
+        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
         <button
           type="submit"
           disabled={testing}
           className="w-full rounded-md bg-primary py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {testing ? "Connecting..." : "Connect"}
+          {testing ? 'Connecting...' : 'Connect'}
         </button>
 
         <button
           type="button"
           onClick={() => {
-            localStorage.removeItem(STORAGE_KEY);
-            setUrl("http://");
+            localStorage.removeItem(STORAGE_KEY)
+            setUrl('http://')
           }}
           className="mt-3 w-full text-center text-xs text-gray-500 hover:text-gray-300"
         >
@@ -93,5 +82,5 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
         </button>
       </form>
     </div>
-  );
+  )
 }

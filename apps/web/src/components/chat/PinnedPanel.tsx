@@ -1,9 +1,9 @@
-import type { Message } from "@chat/shared";
-import { useCallback } from "react";
-import SimpleBar from "simplebar-react";
-import { UserAvatar } from "@/components/UserAvatar";
-import { formatSmartTimestamp } from "@/lib/format-time";
-import { getSocket } from "@/lib/socket";
+import type { Message } from '@chat/shared'
+import { useCallback } from 'react'
+import SimpleBar from 'simplebar-react'
+import { UserAvatar } from '@/components/UserAvatar'
+import { formatSmartTimestamp } from '@/lib/format-time'
+import { getSocket } from '@/lib/socket'
 
 export function PinnedPanel({
   messages,
@@ -11,21 +11,21 @@ export function PinnedPanel({
   onClose,
   isAdminOrOwner,
   channelId,
-  onJump,
+  onJump
 }: {
-  messages: Message[];
-  loading: boolean;
-  onClose: () => void;
-  isAdminOrOwner: boolean;
-  channelId: string;
-  onJump: (messageId: string) => void;
+  messages: Message[]
+  loading: boolean
+  onClose: () => void
+  isAdminOrOwner: boolean
+  channelId: string
+  onJump: (messageId: string) => void
 }) {
   const handleUnpin = useCallback(
     (messageId: string) => {
-      getSocket()?.emit("message:unpin", { messageId, channelId });
+      getSocket()?.emit('message:unpin', { messageId, channelId })
     },
-    [channelId],
-  );
+    [channelId]
+  )
 
   return (
     <div className="absolute right-4 top-14 z-30 flex max-h-[28rem] w-96 flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10">
@@ -45,13 +45,11 @@ export function PinnedPanel({
         {loading ? (
           <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
         ) : messages.length === 0 ? (
-          <p className="p-6 text-center text-sm text-gray-400">
-            No pinned messages in this channel.
-          </p>
+          <p className="p-6 text-center text-sm text-gray-400">No pinned messages in this channel.</p>
         ) : (
           <div className="divide-y divide-white/5">
             {messages.map((m) => {
-              const name = m.author?.displayName ?? m.author?.username ?? "Deleted User";
+              const name = m.author?.displayName ?? m.author?.username ?? 'Deleted User'
               return (
                 <div key={m.id} className="group/pin px-4 py-3">
                   <div className="flex items-start gap-2.5">
@@ -59,13 +57,11 @@ export function PinnedPanel({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-semibold text-white">{name}</span>
-                        <time className="text-[11px] text-gray-500">
-                          {formatSmartTimestamp(m.createdAt)}
-                        </time>
+                        <time className="text-[11px] text-gray-500">{formatSmartTimestamp(m.createdAt)}</time>
                       </div>
                       <button type="button" onClick={() => onJump(m.id)} className="mt-0.5 block w-full text-left">
                         <p className="whitespace-pre-wrap break-words text-sm text-gray-300 transition hover:text-white">
-                          {m.content || "[attachment]"}
+                          {m.content || '[attachment]'}
                         </p>
                       </button>
                     </div>
@@ -76,7 +72,13 @@ export function PinnedPanel({
                         onClick={() => handleUnpin(m.id)}
                         className="shrink-0 rounded p-1 text-gray-500 opacity-0 transition hover:bg-white/10 hover:text-red-400 group-hover/pin:opacity-100"
                       >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
                           <path d="M6 18 18 6M6 6l12 12" />
                         </svg>
                       </button>
@@ -90,11 +92,11 @@ export function PinnedPanel({
                     Jump to message
                   </button>
                 </div>
-              );
+              )
             })}
           </div>
         )}
       </SimpleBar>
     </div>
-  );
+  )
 }

@@ -1,8 +1,8 @@
-@import "tailwindcss";
-@import "simplebar-react/dist/simplebar.min.css";
+@import 'tailwindcss';
+@import 'simplebar-react/dist/simplebar.min.css';
 
 button,
-[role="button"] {
+[role='button'] {
   cursor: pointer;
 }
 
@@ -12,7 +12,7 @@ html {
 }
 
 /* Prevent iOS Safari auto-zoom on input focus (triggers at <16px) */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
 textarea,
 select {
   font-size: 1rem !important;
@@ -40,8 +40,8 @@ select {
 @theme {
   /* ──── Primary accent ──── */
   /* Preset A: Amber (default) */
-  --color-primary: #F59E0B;
-  --color-primary-hover: #D97706;
+  --color-primary: #f59e0b;
+  --color-primary-hover: #d97706;
   /* Preset B: Teal
   --color-primary: #14B8A6;
   --color-primary-hover: #0D9488;

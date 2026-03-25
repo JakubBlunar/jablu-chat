@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
-import { GifController } from './gif.controller';
+import { Module } from '@nestjs/common'
+import { GifController } from './gif.controller'
 
 @Module({
-  controllers: [GifController],
+  controllers: [GifController]
 })
 export class GifModule {}

@@ -1,29 +1,29 @@
-import { useState } from "react";
+import { useState } from 'react'
 import {
   type CameraQuality,
   CAMERA_PRESETS,
   getSavedCameraQuality,
   setSavedCameraQuality,
   getSavedBlurEnabled,
-  setSavedBlurEnabled,
-} from "@/lib/deviceSettings";
+  setSavedBlurEnabled
+} from '@/lib/deviceSettings'
 
 type Props = {
-  mode: "start" | "edit";
-  onConfirm: (quality: CameraQuality, blur: boolean) => void;
-  onClose: () => void;
-};
+  mode: 'start' | 'edit'
+  onConfirm: (quality: CameraQuality, blur: boolean) => void
+  onClose: () => void
+}
 
-const QUALITY_OPTIONS = Object.keys(CAMERA_PRESETS) as CameraQuality[];
+const QUALITY_OPTIONS = Object.keys(CAMERA_PRESETS) as CameraQuality[]
 
 export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
-  const [quality, setQuality] = useState<CameraQuality>(getSavedCameraQuality);
-  const [blur, setBlur] = useState(getSavedBlurEnabled);
+  const [quality, setQuality] = useState<CameraQuality>(getSavedCameraQuality)
+  const [blur, setBlur] = useState(getSavedBlurEnabled)
 
   function handleConfirm() {
-    setSavedCameraQuality(quality);
-    setSavedBlurEnabled(blur);
-    onConfirm(quality, blur);
+    setSavedCameraQuality(quality)
+    setSavedBlurEnabled(blur)
+    onConfirm(quality, blur)
   }
 
   return (
@@ -31,7 +31,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
       <div className="w-full max-w-md rounded-lg bg-surface-dark shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <h2 className="text-lg font-semibold text-white">
-            {mode === "start" ? "Camera Settings" : "Change Camera Settings"}
+            {mode === 'start' ? 'Camera Settings' : 'Change Camera Settings'}
           </h2>
           <button
             type="button"
@@ -46,21 +46,17 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
 
         <div className="space-y-5 px-6 py-5">
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-              Resolution
-            </h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Resolution</h3>
             <div className="flex gap-2">
               {QUALITY_OPTIONS.map((q) => {
-                const preset = CAMERA_PRESETS[q];
+                const preset = CAMERA_PRESETS[q]
                 return (
                   <button
                     key={q}
                     type="button"
                     onClick={() => setQuality(q)}
                     className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
-                      quality === q
-                        ? "bg-primary text-white"
-                        : "bg-surface-darkest text-gray-300 hover:bg-white/10"
+                      quality === q ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                     }`}
                   >
                     <span className="block">{q}</span>
@@ -68,35 +64,29 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
                       {preset.width}x{preset.height}
                     </span>
                   </button>
-                );
+                )
               })}
             </div>
           </div>
 
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-              Background Blur
-            </h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Background Blur</h3>
             <button
               type="button"
               onClick={() => setBlur(!blur)}
               className="flex w-full items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
             >
               <div
-                className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-                  blur ? "bg-primary" : "bg-white/10"
-                }`}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition ${blur ? 'bg-primary' : 'bg-white/10'}`}
               >
                 <div
                   className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                    blur ? "translate-x-5" : ""
+                    blur ? 'translate-x-5' : ''
                   }`}
                 />
               </div>
               <div className="text-left">
-                <span className="block text-sm text-gray-200">
-                  Blur background
-                </span>
+                <span className="block text-sm text-gray-200">Blur background</span>
                 <span className="block text-[11px] text-gray-500">
                   Uses AI segmentation. May impact performance on older devices.
                 </span>
@@ -118,10 +108,10 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
             onClick={handleConfirm}
             className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
           >
-            {mode === "start" ? "Start Camera" : "Apply Changes"}
+            {mode === 'start' ? 'Start Camera' : 'Apply Changes'}
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }

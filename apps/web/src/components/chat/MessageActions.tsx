@@ -1,90 +1,77 @@
-import type { Message } from "@chat/shared";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import type { Message } from '@chat/shared'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 
-const EmojiPicker = lazy(() =>
-  import("@/components/EmojiPicker").then((m) => ({ default: m.EmojiPicker })),
-);
-import { getSocket } from "@/lib/socket";
-import { useAuthStore } from "@/stores/auth.store";
-import { useMemberStore } from "@/stores/member.store";
-import { useMessageStore } from "@/stores/message.store";
+const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+import { getSocket } from '@/lib/socket'
+import { useAuthStore } from '@/stores/auth.store'
+import { useMemberStore } from '@/stores/member.store'
 
 interface MessageActionsProps {
-  message: Message;
-  channelId: string;
-  onEdit?: () => void;
-  onReply?: () => void;
+  message: Message
+  channelId: string
+  onEdit?: () => void
+  onReply?: () => void
 }
 
 export function MessageActions({ message, channelId, onEdit, onReply }: MessageActionsProps) {
-  const userId = useAuthStore((s) => s.user?.id);
-  const myRole = useMemberStore((s) =>
-    s.members.find((m) => m.userId === userId),
-  )?.role;
-  const isAuthor = message.authorId === userId;
-  const isAdminOrOwner = myRole === "admin" || myRole === "owner";
-  const canDelete = isAuthor || isAdminOrOwner;
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const btnRef = useRef<HTMLDivElement>(null);
-  const [pickerAbove, setPickerAbove] = useState(true);
+  const userId = useAuthStore((s) => s.user?.id)
+  const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId))?.role
+  const isAuthor = message.authorId === userId
+  const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
+  const canDelete = isAuthor || isAdminOrOwner
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const btnRef = useRef<HTMLDivElement>(null)
+  const [pickerAbove, setPickerAbove] = useState(true)
 
   const handleReply = useCallback(() => {
-    if (onReply) {
-      onReply();
-    } else {
-      useMessageStore.getState().setReplyTarget({
-        id: message.id,
-        content: message.content,
-        authorName: message.author?.displayName ?? message.author?.username ?? "Deleted User",
-      });
-    }
-  }, [message, onReply]);
+    onReply?.()
+  }, [onReply])
 
   const handleDelete = useCallback(() => {
-    getSocket()?.emit("message:delete", { messageId: message.id });
-  }, [message.id]);
+    getSocket()?.emit('message:delete', { messageId: message.id })
+  }, [message.id])
 
   const handlePin = useCallback(() => {
     if (message.pinned) {
-      getSocket()?.emit("message:unpin", {
+      getSocket()?.emit('message:unpin', {
         messageId: message.id,
-        channelId,
-      });
+        channelId
+      })
     } else {
-      getSocket()?.emit("message:pin", {
+      getSocket()?.emit('message:pin', {
         messageId: message.id,
-        channelId,
-      });
+        channelId
+      })
     }
-  }, [message.id, message.pinned, channelId]);
+  }, [message.id, message.pinned, channelId])
 
   const openEmojiPicker = useCallback(() => {
     if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPickerAbove(rect.top > 460);
+      const rect = btnRef.current.getBoundingClientRect()
+      setPickerAbove(rect.top > 460)
     }
-    setShowEmojiPicker((p) => !p);
-  }, []);
+    setShowEmojiPicker((p) => !p)
+  }, [])
 
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
-      getSocket()?.emit("reaction:toggle", {
+      getSocket()?.emit('reaction:toggle', {
         messageId: message.id,
-        emoji,
-      });
-      setShowEmojiPicker(false);
+        emoji
+      })
+      setShowEmojiPicker(false)
     },
-    [message.id],
-  );
+    [message.id]
+  )
 
   useEffect(() => {
-    if (!showEmojiPicker) return;
+    if (!showEmojiPicker) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowEmojiPicker(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [showEmojiPicker]);
+      if (e.key === 'Escape') setShowEmojiPicker(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showEmojiPicker])
 
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
@@ -101,7 +88,7 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
           </ActionBtn>
         )}
         {isAdminOrOwner && (
-          <ActionBtn title={message.pinned ? "Unpin" : "Pin"} onClick={handlePin}>
+          <ActionBtn title={message.pinned ? 'Unpin' : 'Pin'} onClick={handlePin}>
             <PinIcon />
           </ActionBtn>
         )}
@@ -112,33 +99,26 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
         )}
       </div>
       {showEmojiPicker && (
-        <div
-          className={`absolute right-0 z-50 ${
-            pickerAbove ? "bottom-full mb-2" : "top-full mt-2"
-          }`}
-        >
+        <div className={`absolute right-0 z-50 ${pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
           <Suspense fallback={null}>
-            <EmojiPicker
-              onSelect={handleEmojiSelect}
-              onClose={() => setShowEmojiPicker(false)}
-            />
+            <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />
           </Suspense>
         </div>
       )}
     </div>
-  );
+  )
 }
 
 function ActionBtn({
   children,
   title,
   onClick,
-  danger,
+  danger
 }: {
-  children: React.ReactNode;
-  title: string;
-  onClick: () => void;
-  danger?: boolean;
+  children: React.ReactNode
+  title: string
+  onClick: () => void
+  danger?: boolean
 }) {
   return (
     <button
@@ -146,15 +126,11 @@ function ActionBtn({
       title={title}
       aria-label={title}
       onClick={onClick}
-      className={`p-1.5 transition ${
-        danger
-          ? "text-gray-400 hover:text-red-400"
-          : "text-gray-400 hover:text-white"
-      }`}
+      className={`p-1.5 transition ${danger ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-white'}`}
     >
       {children}
     </button>
-  );
+  )
 }
 
 function SmileIcon() {
@@ -165,7 +141,7 @@ function SmileIcon() {
       <line x1="9" y1="9" x2="9.01" y2="9" />
       <line x1="15" y1="9" x2="15.01" y2="9" />
     </svg>
-  );
+  )
 }
 
 function ReplyIcon() {
@@ -174,7 +150,7 @@ function ReplyIcon() {
       <polyline points="9 17 4 12 9 7" />
       <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
     </svg>
-  );
+  )
 }
 
 function EditIcon() {
@@ -183,7 +159,7 @@ function EditIcon() {
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
     </svg>
-  );
+  )
 }
 
 function PinIcon() {
@@ -191,7 +167,7 @@ function PinIcon() {
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4H7v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1v3.76z" />
     </svg>
-  );
+  )
 }
 
 function TrashIcon() {
@@ -200,5 +176,5 @@ function TrashIcon() {
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
-  );
+  )
 }

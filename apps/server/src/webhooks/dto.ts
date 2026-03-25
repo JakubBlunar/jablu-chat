@@ -1,17 +1,11 @@
-import {
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
 
 export class CreateWebhookDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
   @MaxLength(100)
-  name!: string;
+  name!: string
 }
 
 export class ExecuteWebhookDto {
@@ -19,15 +13,15 @@ export class ExecuteWebhookDto {
   @IsNotEmpty()
   @MinLength(1)
   @MaxLength(4000)
-  content!: string;
+  content!: string
 
   @IsOptional()
   @IsString()
   @MaxLength(80)
-  username?: string;
+  username?: string
 
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  avatarUrl?: string;
+  avatarUrl?: string
 }

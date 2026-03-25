@@ -1,14 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Injectable, Logger } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import * as nodemailer from 'nodemailer'
 
 @Injectable()
 export class MailService {
-  private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
+  private readonly logger = new Logger(MailService.name)
+  private transporter: nodemailer.Transporter
 
   constructor(private readonly config: ConfigService) {
-    const port = parseInt(this.config.get<string>('SMTP_PORT', '1025'), 10);
+    const port = parseInt(this.config.get<string>('SMTP_PORT', '1025'), 10)
     this.transporter = nodemailer.createTransport({
       host: this.config.get<string>('SMTP_HOST', 'localhost'),
       port,
@@ -16,22 +16,22 @@ export class MailService {
       auth: this.config.get<string>('SMTP_USER')
         ? {
             user: this.config.get<string>('SMTP_USER'),
-            pass: this.config.get<string>('SMTP_PASS'),
+            pass: this.config.get<string>('SMTP_PASS')
           }
-        : undefined,
-    });
+        : undefined
+    })
   }
 
   private get appName(): string {
-    return this.config.get<string>('APP_NAME', 'Jablu');
+    return this.config.get<string>('APP_NAME', 'Jablu')
   }
 
   private get from(): string {
-    return this.config.get<string>('SMTP_FROM', 'noreply@chat.local');
+    return this.config.get<string>('SMTP_FROM', 'noreply@chat.local')
   }
 
   private wrap(body: string): string {
-    const name = this.appName;
+    const name = this.appName
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -58,14 +58,10 @@ export class MailService {
     </td></tr>
   </table>
 </body>
-</html>`;
+</html>`
   }
 
-  async sendPasswordReset(
-    to: string,
-    username: string,
-    resetUrl: string,
-  ): Promise<void> {
+  async sendPasswordReset(to: string, username: string, resetUrl: string): Promise<void> {
     try {
       await this.transporter.sendMail({
         from: this.from,
@@ -91,20 +87,16 @@ export class MailService {
           <p style="margin:16px 0 0;font-size:12px;color:#6b7280;word-break:break-all">
             <a href="${resetUrl}" style="color:#F59E0B">${resetUrl}</a>
           </p>
-        `),
-      });
-      this.logger.log(`Password reset email sent to ${to}`);
+        `)
+      })
+      this.logger.log(`Password reset email sent to ${to}`)
     } catch (error) {
-      this.logger.error(`Failed to send password reset email to ${to}`, error);
+      this.logger.error(`Failed to send password reset email to ${to}`, error)
     }
   }
 
-  async sendInvite(
-    to: string,
-    code: string,
-    registerUrl: string,
-  ): Promise<void> {
-    const name = this.appName;
+  async sendInvite(to: string, code: string, registerUrl: string): Promise<void> {
+    const name = this.appName
     try {
       await this.transporter.sendMail({
         from: this.from,
@@ -137,11 +129,11 @@ export class MailService {
           <p style="margin:16px 0 0;font-size:12px;color:#6b7280;word-break:break-all">
             <a href="${registerUrl}" style="color:#F59E0B">${registerUrl}</a>
           </p>
-        `),
-      });
-      this.logger.log(`Invite email sent to ${to}`);
+        `)
+      })
+      this.logger.log(`Invite email sent to ${to}`)
     } catch (error) {
-      this.logger.error(`Failed to send invite email to ${to}`, error);
+      this.logger.error(`Failed to send invite email to ${to}`, error)
     }
   }
 }

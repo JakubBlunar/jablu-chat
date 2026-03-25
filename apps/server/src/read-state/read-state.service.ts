@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from '@nestjs/common'
+import { PrismaService } from '../prisma/prisma.service'
 
 @Injectable()
 export class ReadStateService {
@@ -9,11 +9,11 @@ export class ReadStateService {
     const [channelRows, dmRows] = await Promise.all([
       this.prisma.$queryRaw<
         {
-          channel_id: string;
-          last_read_at: Date;
-          mention_count: number;
-          server_id: string;
-          unread_count: bigint;
+          channel_id: string
+          last_read_at: Date
+          mention_count: number
+          server_id: string
+          unread_count: bigint
         }[]
       >`
         SELECT crs.channel_id, crs.last_read_at, crs.mention_count, c.server_id,
@@ -31,10 +31,10 @@ export class ReadStateService {
       `,
       this.prisma.$queryRaw<
         {
-          conversation_id: string;
-          last_read_at: Date;
-          mention_count: number;
-          unread_count: bigint;
+          conversation_id: string
+          last_read_at: Date
+          mention_count: number
+          unread_count: bigint
         }[]
       >`
         SELECT drs.conversation_id, drs.last_read_at, drs.mention_count,
@@ -48,33 +48,33 @@ export class ReadStateService {
           ) sub) AS unread_count
         FROM dm_read_states drs
         WHERE drs.user_id = ${userId}
-      `,
-    ]);
+      `
+    ])
 
     const channels = channelRows.map((r) => ({
       channelId: r.channel_id,
       lastReadAt: r.last_read_at.toISOString(),
       mentionCount: Number(r.mention_count),
       serverId: r.server_id,
-      unreadCount: Number(r.unread_count),
-    }));
+      unreadCount: Number(r.unread_count)
+    }))
 
     const dms = dmRows.map((r) => ({
       conversationId: r.conversation_id,
       lastReadAt: r.last_read_at.toISOString(),
       mentionCount: Number(r.mention_count),
-      unreadCount: Number(r.unread_count),
-    }));
+      unreadCount: Number(r.unread_count)
+    }))
 
-    return { channels, dms };
+    return { channels, dms }
   }
 
   async ackChannel(userId: string, channelId: string) {
     await this.prisma.channelReadState.upsert({
       where: { userId_channelId: { userId, channelId } },
       update: { lastReadAt: new Date(), mentionCount: 0 },
-      create: { userId, channelId, lastReadAt: new Date(), mentionCount: 0 },
-    });
+      create: { userId, channelId, lastReadAt: new Date(), mentionCount: 0 }
+    })
   }
 
   async ackDm(userId: string, conversationId: string) {
@@ -85,13 +85,13 @@ export class ReadStateService {
         userId,
         conversationId,
         lastReadAt: new Date(),
-        mentionCount: 0,
-      },
-    });
+        mentionCount: 0
+      }
+    })
   }
 
   async incrementMention(channelId: string, userIds: string[]) {
-    if (userIds.length === 0) return;
+    if (userIds.length === 0) return
     await Promise.all(
       userIds.map((userId) =>
         this.prisma.channelReadState.upsert({
@@ -101,15 +101,15 @@ export class ReadStateService {
             userId,
             channelId,
             lastReadAt: new Date(0),
-            mentionCount: 1,
-          },
-        }),
-      ),
-    );
+            mentionCount: 1
+          }
+        })
+      )
+    )
   }
 
   async incrementDmMention(conversationId: string, userIds: string[]) {
-    if (userIds.length === 0) return;
+    if (userIds.length === 0) return
     await Promise.all(
       userIds.map((userId) =>
         this.prisma.dmReadState.upsert({
@@ -119,11 +119,11 @@ export class ReadStateService {
             userId,
             conversationId,
             lastReadAt: new Date(0),
-            mentionCount: 1,
-          },
-        }),
-      ),
-    );
+            mentionCount: 1
+          }
+        })
+      )
+    )
   }
 
   /**
@@ -133,38 +133,34 @@ export class ReadStateService {
    * Supports: @username, @DisplayName (single word), @"Display Name" (quoted, multi-word).
    * Matches against both username and displayName (case-insensitive).
    */
-  async resolveMentions(
-    content: string,
-    serverId: string,
-    excludeUserId: string,
-  ): Promise<string[]> {
-    const mentions = new Set<string>();
+  async resolveMentions(content: string, serverId: string, excludeUserId: string): Promise<string[]> {
+    const mentions = new Set<string>()
 
-    const quotedPattern = /@"([^"]+)"/g;
-    let match: RegExpExecArray | null;
+    const quotedPattern = /@"([^"]+)"/g
+    let match: RegExpExecArray | null
     while ((match = quotedPattern.exec(content)) !== null) {
-      mentions.add(match[1].toLowerCase());
+      mentions.add(match[1].toLowerCase())
     }
 
-    const wordPattern = /@(\w+)/g;
+    const wordPattern = /@(\w+)/g
     while ((match = wordPattern.exec(content)) !== null) {
-      mentions.add(match[1].toLowerCase());
+      mentions.add(match[1].toLowerCase())
     }
 
-    if (mentions.size === 0) return [];
+    if (mentions.size === 0) return []
 
     const members = await this.prisma.serverMember.findMany({
       where: { serverId },
-      include: { user: { select: { id: true, username: true, displayName: true } } },
-    });
+      include: { user: { select: { id: true, username: true, displayName: true } } }
+    })
 
     return members
       .filter(
         (m) =>
           m.userId !== excludeUserId &&
           (mentions.has(m.user.username.toLowerCase()) ||
-            (m.user.displayName && mentions.has(m.user.displayName.toLowerCase()))),
+            (m.user.displayName && mentions.has(m.user.displayName.toLowerCase())))
       )
-      .map((m) => m.userId);
+      .map((m) => m.userId)
   }
 }

@@ -1,83 +1,63 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common'
+import { RedisService } from '../redis/redis.service'
 
-interface AttemptRecord {
-  count: number;
-  lastAttempt: number;
-  lockedUntil: number;
-}
-
-const MAX_ATTEMPTS_BEFORE_LOCK = 10;
+const MAX_ATTEMPTS_BEFORE_LOCK = 10
 const ESCALATION_THRESHOLDS = [
   { attempts: 10, lockSeconds: 5 * 60 },
   { attempts: 20, lockSeconds: 30 * 60 },
-  { attempts: 40, lockSeconds: 2 * 60 * 60 },
-];
-const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
-const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+  { attempts: 40, lockSeconds: 2 * 60 * 60 }
+]
+const KEY_PREFIX = 'ratelimit:auth:'
+const STALE_TTL = 2 * 60 * 60
 
 @Injectable()
-export class AuthRateLimiter implements OnModuleDestroy {
-  private readonly attempts = new Map<string, AttemptRecord>();
-  private readonly cleanupTimer: ReturnType<typeof setInterval>;
+export class AuthRateLimiter {
+  private readonly logger = new Logger(AuthRateLimiter.name)
 
-  constructor() {
-    this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
-  }
+  constructor(private readonly redis: RedisService) {}
 
-  onModuleDestroy() {
-    clearInterval(this.cleanupTimer);
-  }
-
-  check(ip: string): { allowed: boolean; retryAfter?: number } {
-    const record = this.attempts.get(ip);
-    if (!record) return { allowed: true };
-
-    const now = Date.now();
-    if (record.lockedUntil > now) {
-      return {
-        allowed: false,
-        retryAfter: Math.ceil((record.lockedUntil - now) / 1000),
-      };
-    }
-
-    return { allowed: true };
-  }
-
-  recordFailure(ip: string): { retryAfter?: number } {
-    const now = Date.now();
-    const record = this.attempts.get(ip) ?? {
-      count: 0,
-      lastAttempt: now,
-      lockedUntil: 0,
-    };
-
-    record.count++;
-    record.lastAttempt = now;
-
-    if (record.count >= MAX_ATTEMPTS_BEFORE_LOCK) {
-      let lockSeconds = ESCALATION_THRESHOLDS[0].lockSeconds;
-      for (const t of ESCALATION_THRESHOLDS) {
-        if (record.count >= t.attempts) lockSeconds = t.lockSeconds;
+  async check(ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+    try {
+      const lockUntil = await this.redis.client.get(`${KEY_PREFIX}${ip}:lock`)
+      if (lockUntil) {
+        const remaining = Math.ceil((Number(lockUntil) - Date.now()) / 1000)
+        if (remaining > 0) return { allowed: false, retryAfter: remaining }
+        await this.redis.client.del(`${KEY_PREFIX}${ip}:lock`)
       }
-      record.lockedUntil = now + lockSeconds * 1000;
-      this.attempts.set(ip, record);
-      return { retryAfter: lockSeconds };
+      return { allowed: true }
+    } catch (err) {
+      this.logger.warn('Redis rate-limit check failed, allowing request', err)
+      return { allowed: true }
     }
-
-    this.attempts.set(ip, record);
-    return {};
   }
 
-  resetOnSuccess(ip: string): void {
-    this.attempts.delete(ip);
-  }
+  async recordFailure(ip: string): Promise<{ retryAfter?: number }> {
+    try {
+      const key = `${KEY_PREFIX}${ip}:count`
+      const count = await this.redis.client.incr(key)
+      await this.redis.client.expire(key, STALE_TTL)
 
-  private cleanup(): void {
-    const now = Date.now();
-    for (const [ip, record] of this.attempts) {
-      if (now - record.lastAttempt > STALE_AFTER_MS && record.lockedUntil < now) {
-        this.attempts.delete(ip);
+      if (count >= MAX_ATTEMPTS_BEFORE_LOCK) {
+        let lockSeconds = ESCALATION_THRESHOLDS[0].lockSeconds
+        for (const t of ESCALATION_THRESHOLDS) {
+          if (count >= t.attempts) lockSeconds = t.lockSeconds
+        }
+        const lockUntil = Date.now() + lockSeconds * 1000
+        await this.redis.client.set(`${KEY_PREFIX}${ip}:lock`, String(lockUntil), 'EX', lockSeconds)
+        return { retryAfter: lockSeconds }
       }
+      return {}
+    } catch (err) {
+      this.logger.warn('Redis rate-limit record failed', err)
+      return {}
+    }
+  }
+
+  async resetOnSuccess(ip: string): Promise<void> {
+    try {
+      await this.redis.client.del(`${KEY_PREFIX}${ip}:count`, `${KEY_PREFIX}${ip}:lock`)
+    } catch {
+      /* best-effort */
     }
   }
 }

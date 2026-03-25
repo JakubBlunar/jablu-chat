@@ -1,45 +1,45 @@
-import { useEffect, useState } from "react";
-import { electronAPI, isElectron } from "@/lib/electron";
+import { useEffect, useState } from 'react'
+import { electronAPI, isElectron } from '@/lib/electron'
 
 type UpdateState =
-  | { status: "idle" }
-  | { status: "available"; version: string }
-  | { status: "downloading"; percent: number }
-  | { status: "ready"; version: string }
-  | { status: "error"; message: string };
+  | { status: 'idle' }
+  | { status: 'available'; version: string }
+  | { status: 'downloading'; percent: number }
+  | { status: 'ready'; version: string }
+  | { status: 'error'; message: string }
 
 function ElectronUpdateBanner() {
-  const [state, setState] = useState<UpdateState>({ status: "idle" });
-  const [dismissed, setDismissed] = useState(false);
+  const [state, setState] = useState<UpdateState>({ status: 'idle' })
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
-    if (!electronAPI) return;
+    if (!electronAPI) return
 
     const unsubs = [
       electronAPI.onUpdateAvailable((info) => {
-        setState({ status: "available", version: info.version });
-        setDismissed(false);
+        setState({ status: 'available', version: info.version })
+        setDismissed(false)
       }),
       electronAPI.onUpdateDownloadProgress((progress) => {
-        setState({ status: "downloading", percent: progress.percent });
+        setState({ status: 'downloading', percent: progress.percent })
       }),
       electronAPI.onUpdateDownloaded((info) => {
-        setState({ status: "ready", version: info.version });
-        setDismissed(false);
+        setState({ status: 'ready', version: info.version })
+        setDismissed(false)
       }),
       electronAPI.onUpdateError((err) => {
-        setState({ status: "error", message: err.message });
-      }),
-    ];
+        setState({ status: 'error', message: err.message })
+      })
+    ]
 
-    return () => unsubs.forEach((fn) => fn());
-  }, []);
+    return () => unsubs.forEach((fn) => fn())
+  }, [])
 
-  if (dismissed || state.status === "idle" || state.status === "error") return null;
+  if (dismissed || state.status === 'idle' || state.status === 'error') return null
 
   return (
     <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
-      {state.status === "available" && (
+      {state.status === 'available' && (
         <>
           <span>A new version ({state.version}) is being downloaded...</span>
           <button
@@ -51,18 +51,15 @@ function ElectronUpdateBanner() {
           </button>
         </>
       )}
-      {state.status === "downloading" && (
+      {state.status === 'downloading' && (
         <>
           <span>Downloading update... {state.percent.toFixed(0)}%</span>
           <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/30">
-            <div
-              className="h-full rounded-full bg-white transition-all"
-              style={{ width: `${state.percent}%` }}
-            />
+            <div className="h-full rounded-full bg-white transition-all" style={{ width: `${state.percent}%` }} />
           </div>
         </>
       )}
-      {state.status === "ready" && (
+      {state.status === 'ready' && (
         <>
           <span>Update {state.version} ready to install!</span>
           <button
@@ -82,23 +79,23 @@ function ElectronUpdateBanner() {
         </>
       )}
     </div>
-  );
+  )
 }
 
 function PwaUpdateBanner() {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     const handler = () => {
-      setUpdateAvailable(true);
-      setDismissed(false);
-    };
-    window.addEventListener("sw-update-available", handler);
-    return () => window.removeEventListener("sw-update-available", handler);
-  }, []);
+      setUpdateAvailable(true)
+      setDismissed(false)
+    }
+    window.addEventListener('sw-update-available', handler)
+    return () => window.removeEventListener('sw-update-available', handler)
+  }, [])
 
-  if (!updateAvailable || dismissed) return null;
+  if (!updateAvailable || dismissed) return null
 
   return (
     <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
@@ -106,7 +103,7 @@ function PwaUpdateBanner() {
       <button
         type="button"
         onClick={() => {
-          (window as any).__updateSW?.(true);
+          ;(window as any).__updateSW?.(true)
         }}
         className="rounded-md bg-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/30"
       >
@@ -120,10 +117,10 @@ function PwaUpdateBanner() {
         Later
       </button>
     </div>
-  );
+  )
 }
 
 export function UpdateBanner() {
-  if (isElectron) return <ElectronUpdateBanner />;
-  return <PwaUpdateBanner />;
+  if (isElectron) return <ElectronUpdateBanner />
+  return <PwaUpdateBanner />
 }

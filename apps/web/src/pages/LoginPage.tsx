@@ -1,63 +1,60 @@
-import { loginSchema } from "@chat/shared";
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { AuthLayout } from "../components/layout/AuthLayout";
-import { ApiError } from "../lib/api";
-import { useAuthStore } from "../stores/auth.store";
+import { loginSchema } from '@chat/shared'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { AuthLayout } from '../components/layout/AuthLayout'
+import { ApiError } from '../lib/api'
+import { useAuthStore } from '../stores/auth.store'
 
 export function LoginPage() {
-  const navigate = useNavigate();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isAuthLoading = useAuthStore((s) => s.isLoading);
-  const login = useAuthStore((s) => s.login);
+  const navigate = useNavigate()
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const isAuthLoading = useAuthStore((s) => s.isLoading)
+  const login = useAuthStore((s) => s.login)
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated) {
-      navigate("/", { replace: true });
+      navigate('/', { replace: true })
     }
-  }, [isAuthenticated, isAuthLoading, navigate]);
+  }, [isAuthenticated, isAuthLoading, navigate])
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+    e.preventDefault()
+    setError(null)
 
-    const parsed = loginSchema.safeParse({ email, password });
+    const parsed = loginSchema.safeParse({ email, password })
     if (!parsed.success) {
-      const first = parsed.error.issues[0]?.message ?? "Invalid input";
-      setError(first);
-      return;
+      const first = parsed.error.issues[0]?.message ?? 'Invalid input'
+      setError(first)
+      return
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      await login(parsed.data.email, parsed.data.password);
-      navigate("/", { replace: true });
+      await login(parsed.data.email, parsed.data.password)
+      navigate('/', { replace: true })
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(err.message)
       } else {
-        setError("Something went wrong. Please try again.");
+        setError('Something went wrong. Please try again.')
       }
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-auth-bg">
-        <div
-          className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent"
-          aria-hidden
-        />
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
         <span className="sr-only">Checking session</span>
       </div>
-    );
+    )
   }
 
   return (
@@ -75,10 +72,7 @@ export function LoginPage() {
         ) : null}
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="email"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Email
           </label>
           <input
@@ -95,10 +89,7 @@ export function LoginPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="password"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Password
           </label>
           <input
@@ -119,19 +110,16 @@ export function LoginPage() {
           disabled={isSubmitting}
           className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
         >
-          {isSubmitting ? "Signing in…" : "Log In"}
+          {isSubmitting ? 'Signing in…' : 'Log In'}
         </button>
       </form>
 
       <div className="mt-6 flex flex-col gap-3 text-center text-sm">
-        <Link
-          to="/forgot-password"
-          className="text-primary hover:underline focus:outline-none focus-visible:underline"
-        >
+        <Link to="/forgot-password" className="text-primary hover:underline focus:outline-none focus-visible:underline">
           Forgot your password?
         </Link>
         <p className="text-gray-400">
-          Need an account?{" "}
+          Need an account?{' '}
           <Link
             to="/register"
             className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
@@ -141,5 +129,5 @@ export function LoginPage() {
         </p>
       </div>
     </AuthLayout>
-  );
+  )
 }
