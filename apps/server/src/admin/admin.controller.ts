@@ -708,6 +708,67 @@ export class AdminController {
     })
   }
 
+  // ─── Deleted Messages ───────────────────────────────────
+
+  @Get('messages/deleted-stats')
+  @UseGuards(AdminAuthGuard)
+  async getDeletedMessageStats() {
+    const messageCount = await this.prisma.message.count({ where: { deleted: true } })
+
+    const attachmentAgg = await this.prisma.attachment.aggregate({
+      where: { message: { deleted: true } },
+      _count: { id: true },
+      _sum: { sizeBytes: true }
+    })
+
+    return {
+      messageCount,
+      attachmentCount: attachmentAgg._count.id,
+      totalSizeBytes: attachmentAgg._sum.sizeBytes ?? 0
+    }
+  }
+
+  @Post('messages/purge-deleted')
+  @UseGuards(AdminAuthGuard)
+  async purgeDeletedMessages() {
+    let purgedMessages = 0
+    let purgedAttachments = 0
+    let freedBytes = 0
+    const batchSize = 100
+
+    while (true) {
+      const batch = await this.prisma.message.findMany({
+        where: { deleted: true },
+        take: batchSize,
+        select: {
+          id: true,
+          attachments: {
+            select: { url: true, thumbnailUrl: true, sizeBytes: true }
+          }
+        }
+      })
+
+      if (batch.length === 0) break
+
+      for (const msg of batch) {
+        for (const att of msg.attachments) {
+          this.uploads.deleteFile(att.url)
+          if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl)
+          freedBytes += att.sizeBytes
+          purgedAttachments++
+        }
+      }
+
+      await this.prisma.message.deleteMany({
+        where: { id: { in: batch.map((m) => m.id) } }
+      })
+
+      purgedMessages += batch.length
+    }
+
+    return { purgedMessages, purgedAttachments, freedBytes }
+  }
+
   // ─── Webhooks Management ─────────────────────────────────
 
   @Get('webhooks')
