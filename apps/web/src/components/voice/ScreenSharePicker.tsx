@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import SimpleBar from 'simplebar-react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { type ScreenShareOptions, publishScreenShare } from './screenShareUtils'
 
 type ScreenSource = {
@@ -57,10 +58,8 @@ export function ScreenSharePicker() {
   const windows = sources.filter((s) => s.id.startsWith('window:'))
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-      <div className="flex w-full max-w-4xl flex-col rounded-lg bg-surface-dark shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+    <ModalOverlay onClose={() => setOpen(false)} zIndex="z-[200]" maxWidth="max-w-4xl" noPadding>
+      <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <h2 className="text-lg font-semibold text-white">Share Your Screen</h2>
           <button
             type="button"
@@ -153,8 +152,7 @@ export function ScreenSharePicker() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

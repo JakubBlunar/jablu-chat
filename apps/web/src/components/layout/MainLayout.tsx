@@ -102,12 +102,12 @@ function MobileTopBar({
   showMembers?: boolean
 }) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-black/20 bg-surface px-3 shadow-sm">
+    <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
       <button
         type="button"
         aria-label="Open navigation menu"
         onClick={onMenuClick}
-        className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+        className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
       >
         <HamburgerIcon />
       </button>
@@ -117,7 +117,7 @@ function MobileTopBar({
           type="button"
           aria-label="Toggle member list"
           onClick={onMembersClick}
-          className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+          className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
           <MembersIcon />
         </button>
@@ -189,10 +189,15 @@ export function MainLayout() {
   const currentConvId = useDmStore((s) => s.currentConversationId)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
   const openSettings = useCallback(() => setSettingsOpen(true), [])
 
   useEffect(() => {
-    const handler = () => setSettingsOpen(true)
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string | undefined
+      if (detail) setSettingsInitialTab(detail)
+      setSettingsOpen(true)
+    }
     window.addEventListener('open-settings', handler)
     return () => window.removeEventListener('open-settings', handler)
   }, [])
@@ -311,7 +316,7 @@ export function MainLayout() {
         </Suspense>
         {settingsOpen && (
           <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
-            <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
           </Suspense>
         )}
       </div>
@@ -332,7 +337,7 @@ export function MainLayout() {
         </div>
         {settingsOpen && (
           <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
-            <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
           </Suspense>
         )}
       </div>
@@ -379,7 +384,7 @@ export function MainLayout() {
       </div>
       {settingsOpen && (
         <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
-          <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+          <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
         </Suspense>
       )}
     </div>

@@ -1,6 +1,7 @@
 import type { UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useIsMobile } from '@/hooks/useMobile'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoiceSettings } from '@/components/voice/VoiceSettings'
@@ -55,10 +56,15 @@ function CameraIcon() {
   )
 }
 
-export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('account')
+export function SettingsModal({ open, onClose, initialTab }: { open: boolean; onClose: () => void; initialTab?: string }) {
+  const [tab, setTab] = useState<Tab>((initialTab as Tab) || 'account')
   const modalRef = useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
   useFocusTrap(modalRef, open)
+
+  useEffect(() => {
+    if (initialTab) setTab(initialTab as Tab)
+  }, [initialTab])
 
   useEffect(() => {
     if (!open) return
@@ -69,17 +75,78 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail === 'downloads') setTab('downloads')
-      if (detail === 'install') setTab('install')
-    }
-    window.addEventListener('open-settings', handler)
-    return () => window.removeEventListener('open-settings', handler)
-  }, [])
-
   if (!open) return null
+
+  const tabEntries: { key: Tab; label: string; show?: boolean }[] = [
+    { key: 'account', label: 'My Account' },
+    { key: 'profile', label: 'Profile' },
+    { key: 'status', label: 'Status' },
+    { key: 'voice', label: 'Voice & Video' },
+    { key: 'notifications', label: 'Notifications' },
+    { key: 'sessions', label: 'Sessions' },
+    { key: 'server', label: 'Server Connection', show: isElectron },
+    { key: 'desktop', label: 'Desktop App', show: isElectron },
+    { key: 'downloads', label: 'Desktop App', show: !isElectron },
+    { key: 'install', label: 'Install App', show: !isElectron && !getIsStandalone() }
+  ]
+
+  const visibleTabs = tabEntries.filter((t) => t.show !== false)
+  const currentLabel = visibleTabs.find((t) => t.key === tab)?.label ?? 'Settings'
+
+  const settingsContent = (
+    <>
+      {tab === 'account' && <AccountSection />}
+      {tab === 'profile' && <ProfileSection />}
+      {tab === 'status' && <StatusSection />}
+      {tab === 'voice' && <VoiceSettings />}
+      {tab === 'notifications' && <NotificationsSection />}
+      {tab === 'sessions' && <ActiveSessionsSection />}
+      {tab === 'server' && <ServerConnectionSection />}
+      {tab === 'desktop' && <DesktopAppSection />}
+      {tab === 'downloads' && <DownloadAppSection />}
+      {tab === 'install' && <PwaInstallGuide />}
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <div ref={modalRef} className="fixed inset-0 z-[100] flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label="Settings">
+        <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            aria-label="Close settings"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="ml-2 text-base font-semibold text-white">{currentLabel}</h1>
+        </div>
+        <div className="shrink-0 overflow-x-auto border-b border-white/10 scrollbar-none">
+          <div className="flex gap-1 px-2 py-1.5">
+            {visibleTabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                  tab === t.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+            <LogOutButton onClose={onClose} />
+          </div>
+        </div>
+        <SimpleBar className="min-w-0 flex-1">
+          <div className="px-4 py-6">{settingsContent}</div>
+        </SimpleBar>
+      </div>
+    )
+  }
 
   return (
     <div ref={modalRef} className="fixed inset-0 z-[100] flex bg-surface" role="dialog" aria-modal="true" aria-label="Settings">
@@ -87,44 +154,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       <div className="flex w-56 shrink-0 flex-col items-end bg-surface-dark">
         <nav className="w-44 space-y-0.5 px-2 py-16">
           <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-400">USER SETTINGS</p>
-          <SidebarButton active={tab === 'account'} onClick={() => setTab('account')}>
-            My Account
-          </SidebarButton>
-          <SidebarButton active={tab === 'profile'} onClick={() => setTab('profile')}>
-            Profile
-          </SidebarButton>
-          <SidebarButton active={tab === 'status'} onClick={() => setTab('status')}>
-            Status
-          </SidebarButton>
-          <SidebarButton active={tab === 'voice'} onClick={() => setTab('voice')}>
-            Voice & Video
-          </SidebarButton>
-          <SidebarButton active={tab === 'notifications'} onClick={() => setTab('notifications')}>
-            Notifications
-          </SidebarButton>
-          <SidebarButton active={tab === 'sessions'} onClick={() => setTab('sessions')}>
-            Active Sessions
-          </SidebarButton>
-          {isElectron && (
-            <SidebarButton active={tab === 'server'} onClick={() => setTab('server')}>
-              Server Connection
+          {visibleTabs.map((t) => (
+            <SidebarButton key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+              {t.label}
             </SidebarButton>
-          )}
-          {isElectron && (
-            <SidebarButton active={tab === 'desktop'} onClick={() => setTab('desktop')}>
-              Desktop App
-            </SidebarButton>
-          )}
-          {!isElectron && (
-            <SidebarButton active={tab === 'downloads'} onClick={() => setTab('downloads')}>
-              Desktop App
-            </SidebarButton>
-          )}
-          {!isElectron && !getIsStandalone() && (
-            <SidebarButton active={tab === 'install'} onClick={() => setTab('install')}>
-              Install App
-            </SidebarButton>
-          )}
+          ))}
           <div className="my-2 border-t border-white/10" />
           <LogOutButton onClose={onClose} />
           {isElectron && electronAPI && (
@@ -139,27 +173,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       <SimpleBar className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-[660px] px-10 py-16">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-white">
-              {tab === 'account'
-                ? 'My Account'
-                : tab === 'profile'
-                  ? 'Profile'
-                  : tab === 'voice'
-                    ? 'Voice & Video'
-                    : tab === 'notifications'
-                      ? 'Notifications'
-                      : tab === 'sessions'
-                        ? 'Active Sessions'
-                        : tab === 'server'
-                          ? 'Server Connection'
-                          : tab === 'desktop'
-                            ? 'Desktop App'
-                            : tab === 'downloads'
-                            ? 'Desktop App'
-                            : tab === 'install'
-                              ? 'Install App'
-                              : 'Status'}
-            </h1>
+            <h1 className="text-xl font-bold text-white">{currentLabel}</h1>
             <button
               type="button"
               onClick={onClose}
@@ -170,18 +184,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </button>
           </div>
 
-          <div className="mt-6">
-            {tab === 'account' && <AccountSection />}
-            {tab === 'profile' && <ProfileSection />}
-            {tab === 'status' && <StatusSection />}
-            {tab === 'voice' && <VoiceSettings />}
-            {tab === 'notifications' && <NotificationsSection />}
-            {tab === 'sessions' && <ActiveSessionsSection />}
-            {tab === 'server' && <ServerConnectionSection />}
-            {tab === 'desktop' && <DesktopAppSection />}
-            {tab === 'downloads' && <DownloadAppSection />}
-            {tab === 'install' && <PwaInstallGuide />}
-          </div>
+          <div className="mt-6">{settingsContent}</div>
         </div>
       </SimpleBar>
     </div>

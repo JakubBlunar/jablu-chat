@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useServerStore } from '@/stores/server.store'
 
@@ -37,22 +38,8 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm transition-opacity"
-      role="presentation"
-      onMouseDown={(ev) => {
-        if (ev.target === ev.currentTarget) onClose()
-      }}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-surface-dark p-6 shadow-2xl ring-1 ring-white/10 transition-transform"
-        role="dialog"
-        aria-labelledby="create-server-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 id="create-server-title" className="text-xl font-semibold text-white">
-          Create a Server
-        </h2>
+    <ModalOverlay onClose={onClose}>
+      <h2 className="text-xl font-semibold text-white">Create a Server</h2>
         <p className="mt-2 text-sm text-gray-400">Give your new server a name. You can change it later.</p>
         <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
           Server name
@@ -96,7 +83,6 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             {busy ? 'Creating…' : 'Create'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalOverlay>
   )
 }

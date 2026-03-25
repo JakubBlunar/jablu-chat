@@ -37,9 +37,9 @@ export function PinnedPanel({
         <button
           type="button"
           onClick={onClose}
-          className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+          className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
@@ -96,7 +96,7 @@ export function PinnedPanel({
                         type="button"
                         title="Unpin message"
                         onClick={() => handleUnpin(m.id)}
-                        className="shrink-0 rounded p-1 text-gray-500 opacity-0 transition hover:bg-white/10 hover:text-red-400 group-hover/pin:opacity-100"
+                        className="shrink-0 rounded p-1 text-gray-500 opacity-60 transition hover:bg-white/10 hover:text-red-400 hover:opacity-100"
                       >
                         <svg
                           className="h-3.5 w-3.5"

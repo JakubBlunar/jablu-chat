@@ -1,5 +1,6 @@
 import type { ServerEvent } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useEventStore } from '@/stores/event.store'
 import { api } from '@/lib/api'
 import { CreateEventWizard } from './CreateEventWizard'
@@ -232,19 +233,8 @@ export function EventsPanel({ serverId, onClose }: Props) {
   const scheduledEvents = events.filter((e) => e.status === 'scheduled')
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Server Events"
-        tabIndex={-1}
-        className="flex max-h-[70vh] w-full max-w-lg flex-col rounded-xl bg-surface shadow-2xl outline-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+    <ModalOverlay onClose={onClose} maxWidth="max-w-lg" noPadding className="flex max-h-[70vh] flex-col">
+      <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <h2 className="text-lg font-bold text-white">Events</h2>
           <div className="flex items-center gap-2">
             <button
@@ -336,7 +326,6 @@ export function EventsPanel({ serverId, onClose }: Props) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ModalOverlay>
   )
 }

@@ -1,6 +1,7 @@
 import type { Invite } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 
 interface InviteModalProps {
@@ -69,25 +70,12 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
     dialogRef.current?.focus()
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Invite to ${serverName}`}
-        tabIndex={-1}
-        className="w-full max-w-lg rounded-lg bg-surface p-6 shadow-xl outline-none"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalOverlay onClose={onClose} maxWidth="max-w-lg">
+      <div ref={dialogRef} tabIndex={-1} className="outline-none" aria-label={`Invite to ${serverName}`}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Invite to {serverName}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 transition hover:text-white">
@@ -95,7 +83,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
           </button>
         </div>
 
-        <div className="mb-4 flex gap-2">
+        <div className="mb-4 flex flex-wrap gap-2">
           <select
             value={expiresIn}
             onChange={(e) => setExpiresIn(e.target.value)}
@@ -143,7 +131,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
             <p className="py-4 text-center text-sm text-gray-400">No invites yet. Create one above.</p>
           ) : (
             invites.map((inv) => (
-              <div key={inv.id} className="flex items-center gap-3 rounded bg-surface-dark px-3 py-2">
+              <div key={inv.id} className="flex items-center gap-3 rounded bg-surface-darkest px-3 py-2">
                 <code className="flex-1 truncate text-sm font-medium text-white">{inv.code}</code>
                 <span className="text-xs text-gray-400">
                   {inv.useCount}
@@ -169,7 +157,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
           )}
         </SimpleBar>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

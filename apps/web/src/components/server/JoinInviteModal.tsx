@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
 
@@ -28,58 +29,42 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
     }
   }
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Join a Server"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-lg bg-surface p-6 shadow-xl"
-      >
-        <h2 className="mb-1 text-lg font-bold text-white">Join a Server</h2>
-        <p className="mb-4 text-sm text-gray-400">Enter an invite code to join an existing server.</p>
+    <ModalOverlay onClose={onClose} maxWidth="max-w-sm">
+      <h2 className="mb-1 text-lg font-bold text-white">Join a Server</h2>
+      <p className="mb-4 text-sm text-gray-400">Enter an invite code to join an existing server.</p>
 
-        <input
-          type="text"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter invite code"
-          className="mb-3 w-full rounded bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void handleJoin()
-          }}
-          autoFocus
-        />
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Enter invite code"
+        className="mb-3 w-full rounded bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void handleJoin()
+        }}
+        autoFocus
+      />
 
-        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+      {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-4 py-2 text-sm text-gray-300 transition hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={loading || !code.trim()}
-            onClick={() => void handleJoin()}
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
-          >
-            {loading ? 'Joining...' : 'Join Server'}
-          </button>
-        </div>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded px-4 py-2 text-sm text-gray-300 transition hover:text-white"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={loading || !code.trim()}
+          onClick={() => void handleJoin()}
+          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+        >
+          {loading ? 'Joining...' : 'Join Server'}
+        </button>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }

@@ -159,7 +159,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       </div>
 
       {/* Scope selector */}
-      <div className="flex items-center gap-1 border-b border-white/10 px-3 py-2">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none">
         {defaultScope === 'conversation' ? (
           <>
             <ScopeBtn active={scope === 'conversation'} onClick={() => handleScopeChange('conversation')}>
@@ -286,7 +286,7 @@ function ScopeBtn({ active, onClick, children }: { active: boolean; onClick: () 
     <button
       type="button"
       onClick={onClick}
-      className={`rounded px-2 py-0.5 text-xs font-medium transition ${
+      className={`shrink-0 whitespace-nowrap rounded px-2 py-1 text-xs font-medium transition ${
         active ? 'bg-primary text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
       }`}
     >

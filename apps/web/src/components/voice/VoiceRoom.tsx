@@ -403,11 +403,11 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
   return (
     <>
-      <div className="flex h-12 shrink-0 items-center border-b border-black/20 bg-surface px-3 shadow-sm md:px-4">
-        <svg className="mr-2 h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+      <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-black/20 bg-surface px-3 shadow-sm md:px-4">
+        <svg className="mr-2 h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
         </svg>
-        <span className="text-[15px] font-semibold text-white">{channelName}</span>
+        <span className="min-w-0 truncate text-[15px] font-semibold text-white">{channelName}</span>
         <span className="ml-2 hidden text-sm text-gray-400 md:inline">
           {participantCount} participant{participantCount !== 1 ? 's' : ''}
         </span>

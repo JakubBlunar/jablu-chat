@@ -1,5 +1,6 @@
 import type { ServerEvent, UpdateEventInput } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useEventStore } from '@/stores/event.store'
@@ -126,16 +127,8 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
   const isActive = event.status === 'active'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={event.name}
-        tabIndex={-1}
-        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-surface shadow-2xl outline-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+    <ModalOverlay onClose={onClose} maxWidth="max-w-lg" noPadding className="flex max-h-[85vh] flex-col">
+      <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -370,7 +363,6 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalOverlay>
   )
 }

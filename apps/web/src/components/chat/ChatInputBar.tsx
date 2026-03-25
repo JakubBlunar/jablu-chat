@@ -10,6 +10,7 @@ import {
   useState
 } from 'react'
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
+import { useIsMobile } from '@/hooks/useMobile'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 const GifPicker = lazy(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
@@ -77,6 +78,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     focus: () => taRef.current?.focus()
   }))
   const fileRef = useRef<HTMLInputElement>(null)
+  const isMobile = useIsMobile()
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [gifOpen, setGifOpen] = useState(false)
 
@@ -290,9 +292,6 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
           onClick={detectTrigger}
-          onBlur={() => {
-            window.scrollTo(0, 0)
-          }}
         />
 
         {gifEnabled && onGifSelect && (
@@ -322,6 +321,21 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         >
           <SmileIcon />
         </button>
+
+        {isMobile && value.trim().length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (value.length <= MAX_MESSAGE_LENGTH) onSend()
+            }}
+            className="shrink-0 px-2.5 py-3 text-primary transition hover:text-primary-hover"
+            aria-label="Send message"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {value.length > CHAR_COUNTER_THRESHOLD && (

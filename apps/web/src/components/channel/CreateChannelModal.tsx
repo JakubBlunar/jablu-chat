@@ -1,5 +1,6 @@
 import type { ChannelType } from '@chat/shared'
 import { useState } from 'react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
@@ -69,22 +70,8 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(ev) => {
-        if (ev.target === ev.currentTarget) onClose()
-      }}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-surface-dark p-6 shadow-2xl ring-1 ring-white/10"
-        role="dialog"
-        aria-labelledby="create-channel-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 id="create-channel-title" className="text-xl font-semibold text-white">
-          Create Channel
-        </h2>
+    <ModalOverlay onClose={onClose}>
+      <h2 className="text-xl font-semibold text-white">Create Channel</h2>
         <p className="mt-2 text-sm text-gray-400">Names are saved in lowercase with hyphens instead of spaces.</p>
         <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
           Channel name
@@ -169,7 +156,6 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
             {busy ? 'Creating…' : 'Create'}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalOverlay>
   )
 }

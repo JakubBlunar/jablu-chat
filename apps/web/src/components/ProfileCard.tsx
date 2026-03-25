@@ -1,6 +1,7 @@
 import type { UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -59,28 +60,24 @@ export function ProfileCard({
   const isMobile = useIsMobile()
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => document.removeEventListener('pointerdown', handler)
   }, [onClose])
 
   const badge = roleLabel(user.role)
 
   if (isMobile) {
     return createPortal(
-      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60" onClick={onClose}>
-        <div
-          ref={cardRef}
-          className="w-[90vw] max-w-[320px] overflow-hidden rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <ModalOverlay onClose={onClose} zIndex="z-[110]" maxWidth="max-w-[320px]" noPadding className="max-h-[80vh] overflow-y-auto overflow-x-hidden">
+        <div ref={cardRef}>
           <ProfileCardContent user={user} badge={badge} onClose={onClose} />
         </div>
-      </div>,
+      </ModalOverlay>,
       document.body
     )
   }

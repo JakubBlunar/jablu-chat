@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api, type GifResult } from '@/lib/api'
 import { useIsMobile } from '@/hooks/useMobile'
 
@@ -13,25 +14,21 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('pointerdown', handleClick)
+    return () => document.removeEventListener('pointerdown', handleClick)
   }, [onClose])
 
   const content = <GifPickerContent onSelect={onSelect} onClose={onClose} />
 
   if (isMobile) {
     return createPortal(
-      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60" onClick={onClose}>
-        <div
-          ref={ref}
-          className="relative flex max-h-[80vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-xl bg-surface-dark shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <ModalOverlay onClose={onClose} zIndex="z-[110]" maxWidth="max-w-sm" noPadding className="flex max-h-[80vh] flex-col overflow-hidden">
+        <div ref={ref} className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
             <span className="text-sm font-semibold text-white">GIFs</span>
             <button
@@ -44,7 +41,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
           </div>
           {content}
         </div>
-      </div>,
+      </ModalOverlay>,
       document.body
     )
   }

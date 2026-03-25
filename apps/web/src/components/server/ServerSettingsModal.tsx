@@ -1,6 +1,8 @@
 import type { UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { useIsMobile } from '@/hooks/useMobile'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api, type AuditLogEntry } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -12,74 +14,98 @@ import { useServerStore } from '@/stores/server.store'
 
 type Tab = 'overview' | 'members' | 'webhooks' | 'audit' | 'danger'
 
+const SERVER_TABS: { key: Tab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'members', label: 'Members' },
+  { key: 'webhooks', label: 'Webhooks' },
+  { key: 'audit', label: 'Audit Log' },
+  { key: 'danger', label: 'Danger Zone' }
+]
+
 export function ServerSettingsModal({ server, onClose }: { server: Server; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('overview')
+  const isMobile = useIsMobile()
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
+  const currentLabel = SERVER_TABS.find((t) => t.key === tab)?.label ?? 'Settings'
+
+  const tabContent = (
+    <>
+      {tab === 'overview' && <OverviewTab server={server} />}
+      {tab === 'members' && <MembersTab server={server} />}
+      {tab === 'webhooks' && <WebhooksTab server={server} />}
+      {tab === 'audit' && <AuditLogTab server={server} />}
+      {tab === 'danger' && <DangerTab server={server} onClose={onClose} />}
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label="Server Settings">
+        <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            aria-label="Close server settings"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="ml-2 text-base font-semibold text-white">{currentLabel}</h1>
+        </div>
+        <div className="shrink-0 overflow-x-auto border-b border-white/10 scrollbar-none">
+          <div className="flex gap-1 px-2 py-1.5">
+            {SERVER_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                  tab === t.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <SimpleBar className="min-w-0 flex-1">
+          <div className="px-4 py-4">{tabContent}</div>
+        </SimpleBar>
+      </div>
+    )
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Server Settings"
-        onClick={(e) => e.stopPropagation()}
-        className="flex h-[80vh] w-[720px] max-w-[95vw] overflow-hidden rounded-lg bg-surface shadow-xl"
-      >
-        <nav className="flex w-44 shrink-0 flex-col gap-0.5 bg-surface-dark p-3">
-          <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server Settings</h2>
-          {(
-            [
-              ['overview', 'Overview'],
-              ['members', 'Members'],
-              ['webhooks', 'Webhooks'],
-              ['audit', 'Audit Log'],
-              ['danger', 'Danger Zone']
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
-                tab === id ? 'bg-surface-selected text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+    <ModalOverlay onClose={onClose} maxWidth="max-w-[720px]" noPadding className="flex h-[80vh] overflow-hidden">
+      <nav className="flex w-44 shrink-0 flex-col gap-0.5 bg-surface-darkest p-3">
+        <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server Settings</h2>
+        {SERVER_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
+              tab === t.key ? 'bg-surface-selected text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-            <h1 className="text-lg font-semibold text-white">
-              {tab === 'overview' && 'Server Overview'}
-              {tab === 'members' && 'Members'}
-              {tab === 'webhooks' && 'Webhooks'}
-              {tab === 'audit' && 'Audit Log'}
-              {tab === 'danger' && 'Danger Zone'}
-            </h1>
-            <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 transition hover:text-white">
-              <XIcon />
-            </button>
-          </div>
-
-          <SimpleBar className="flex-1 p-6">
-            {tab === 'overview' && <OverviewTab server={server} />}
-            {tab === 'members' && <MembersTab server={server} />}
-            {tab === 'webhooks' && <WebhooksTab server={server} />}
-            {tab === 'audit' && <AuditLogTab server={server} />}
-            {tab === 'danger' && <DangerTab server={server} onClose={onClose} />}
-          </SimpleBar>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <h1 className="text-lg font-semibold text-white">{currentLabel}</h1>
+          <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 transition hover:text-white">
+            <XIcon />
+          </button>
         </div>
+
+        <SimpleBar className="flex-1 p-6">{tabContent}</SimpleBar>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

@@ -1,5 +1,6 @@
 import type { Channel } from '@chat/shared'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
@@ -29,14 +30,6 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const [deleting, setDeleting] = useState(false)
 
   const name = normalizeChannelName(rawName)
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
 
   const handleSave = useCallback(async () => {
     if (!currentServerId || !name) return
@@ -75,19 +68,8 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   }, [currentServerId, channel.id, currentChannelId, goToServer, fetchChannels, onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(ev) => {
-        if (ev.target === ev.currentTarget) onClose()
-      }}
-    >
-      <div
-        className="w-full max-w-md rounded-lg bg-surface-dark p-6 shadow-2xl ring-1 ring-white/10"
-        role="dialog"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-xl font-semibold text-white">Edit Channel</h2>
+    <ModalOverlay onClose={onClose}>
+      <h2 className="text-xl font-semibold text-white">Edit Channel</h2>
         <p className="mt-1 text-sm text-gray-400">
           #{channel.name} &middot; {channel.type === 'text' ? 'Text Channel' : 'Voice Channel'}
         </p>
@@ -165,7 +147,6 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalOverlay>
   )
 }

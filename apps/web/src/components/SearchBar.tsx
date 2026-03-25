@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useIsMobile } from '@/hooks/useMobile'
 
 type Props = {
   searchOpen: boolean
@@ -9,6 +10,7 @@ type Props = {
 }
 
 export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose }: Props) {
+  const isMobile = useIsMobile()
   const [local, setLocal] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -41,6 +43,30 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
     if (e.key === 'Escape' && searchOpen) {
       onClose()
     }
+  }
+
+  if (isMobile) {
+    return searchOpen ? (
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded p-1.5 text-white transition hover:bg-white/10"
+        aria-label="Close search"
+      >
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => onSearch('')}
+        className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+        aria-label="Search"
+      >
+        <SearchIcon />
+      </button>
+    )
   }
 
   return (

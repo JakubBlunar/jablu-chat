@@ -8,6 +8,7 @@ import { MessageRow } from '@/components/chat/MessageRow'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
 import { DmProfilePanel, UserProfileIcon } from '@/components/dm/DmProfilePanel'
+import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
 import { formatDateSeparator, isDifferentDay } from '@/lib/format-time'
@@ -104,6 +105,7 @@ export interface MessageAreaProps {
 }
 
 export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps) {
+  const isMobile = useIsMobile()
   const isDm = mode === 'dm'
   const store = useMessageStoreAdapter(mode)
   const { messages, isLoading, hasMore, hasNewer, fetchNewerMessages } = store
@@ -438,7 +440,26 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             />
           </div>
         ) : dm.showProfile && dm.otherMember ? (
-          <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
+          isMobile ? (
+            <div className="absolute inset-0 z-30 bg-surface-dark">
+              <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
+                <button
+                  type="button"
+                  onClick={() => dm.setShowProfile(false)}
+                  className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Close profile"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="ml-2 text-sm font-semibold text-white">Profile</span>
+              </div>
+              <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
+            </div>
+          ) : (
+            <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
+          )
         ) : null}
       </div>
     )
