@@ -174,9 +174,11 @@ export class AuthService implements OnModuleInit {
       throw new UnauthorizedException('Invalid or expired refresh token')
     }
 
-    await this.prisma.refreshToken.delete({ where: { id: stored.id } })
+    const tokens = await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.delete({ where: { id: stored.id } })
+      return this.generateTokensTx(tx, stored.userId, userAgent, ipAddress)
+    })
 
-    const tokens = await this.generateTokens(stored.userId, userAgent, ipAddress)
     const profile = await this.prisma.user.findUnique({
       where: { id: stored.userId },
       select: PROFILE_SELECT
@@ -396,6 +398,15 @@ export class AuthService implements OnModuleInit {
   }
 
   private async generateTokens(userId: string, userAgent?: string, ipAddress?: string) {
+    return this.generateTokensTx(this.prisma, userId, userAgent, ipAddress)
+  }
+
+  private async generateTokensTx(
+    tx: { refreshToken: { create: (...args: any[]) => any } },
+    userId: string,
+    userAgent?: string,
+    ipAddress?: string
+  ) {
     const accessToken = this.jwt.sign({ sub: userId })
 
     const refreshTokenValue = uuidv4()
@@ -403,7 +414,7 @@ export class AuthService implements OnModuleInit {
       Date.now() + 90 * 24 * 60 * 60 * 1000 // 90 days
     )
 
-    await this.prisma.refreshToken.create({
+    await tx.refreshToken.create({
       data: {
         token: refreshTokenValue,
         userId,

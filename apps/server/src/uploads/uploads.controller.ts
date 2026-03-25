@@ -19,6 +19,34 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from './uploads.service';
 
+const ALLOWED_MIMETYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
+  'audio/webm',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/json',
+  'application/zip',
+  'application/x-tar',
+  'application/gzip',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+]
+
 @Controller('uploads')
 export class UploadsController {
   private readonly maxSizeBytes: number;
@@ -42,6 +70,13 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: (parseInt(process.env.MAX_UPLOAD_SIZE_MB ?? '50', 10) || 50) * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
+          cb(null, true)
+        } else {
+          cb(new BadRequestException('File type not allowed'), false)
+        }
+      }
     }),
   )
   async uploadAttachment(

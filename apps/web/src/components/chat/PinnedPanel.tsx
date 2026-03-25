@@ -31,7 +31,7 @@ export function PinnedPanel({
   )
 
   return (
-    <div className="absolute right-4 top-14 z-30 flex max-h-[28rem] w-96 flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10">
+    <div className="absolute right-2 top-14 z-30 flex max-h-[28rem] w-96 max-w-[calc(100vw-1rem)] flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10 sm:right-4">
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
         <h3 className="text-sm font-semibold text-white">Pinned Messages</h3>
         <button

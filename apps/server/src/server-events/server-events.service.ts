@@ -202,29 +202,33 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     if (!event) throw new NotFoundException('Event not found')
     await this.assertMember(event.serverId, userId)
 
-    const existing = await this.prisma.eventInterest.findUnique({
-      where: { eventId_userId: { eventId, userId } }
-    })
-
-    if (existing) {
-      await this.prisma.eventInterest.delete({
+    const { interested, count } = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.eventInterest.findUnique({
         where: { eventId_userId: { eventId, userId } }
       })
-    } else {
-      await this.prisma.eventInterest.create({
-        data: { eventId, userId }
-      })
-    }
 
-    const count = await this.prisma.eventInterest.count({ where: { eventId } })
+      if (existing) {
+        await tx.eventInterest.delete({
+          where: { eventId_userId: { eventId, userId } }
+        })
+      } else {
+        await tx.eventInterest.create({
+          data: { eventId, userId }
+        })
+      }
+
+      const count = await tx.eventInterest.count({ where: { eventId } })
+      return { interested: !existing, count }
+    })
+
     this.eventBus.emit('event:interest', {
       serverId: event.serverId,
       eventId,
       userId,
-      interested: !existing,
+      interested,
       count
     })
-    return { interested: !existing, count }
+    return { interested, count }
   }
 
   async getInterestedUsers(eventId: string, userId: string) {
@@ -284,7 +288,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       data: { status: 'completed' }
     })
 
-    this.eventBus.emit('event:cancelled', { serverId: event.serverId, event: { id: eventId, status: 'completed' } })
+    this.eventBus.emit('event:completed', { serverId: event.serverId, event: { id: eventId, status: 'completed' } })
 
     if (event.recurrenceRule) {
       await this.spawnNextOccurrence(event)

@@ -24,8 +24,14 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="flex h-[80vh] w-[720px] max-w-[95vw] overflow-hidden rounded-lg bg-surface shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Server Settings"
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-[80vh] w-[720px] max-w-[95vw] overflow-hidden rounded-lg bg-surface shadow-xl"
+      >
         <nav className="flex w-44 shrink-0 flex-col gap-0.5 bg-surface-dark p-3">
           <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server Settings</h2>
           {(
@@ -135,7 +141,7 @@ function OverviewTab({ server }: { server: Server }) {
       updateServerInList(server.id, { iconUrl: null })
       setIconPreview(null)
     } catch {
-      /* ignore */
+      setError('Failed to remove icon')
     }
   }, [server.id, updateServerInList])
 
@@ -302,16 +308,19 @@ function DangerTab({ server, onClose }: { server: Server; onClose: () => void })
   const removeServer = useServerStore((s) => s.removeServer)
   const [confirmText, setConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const isOwner = currentUser?.id === server.ownerId
 
   const handleDelete = useCallback(async () => {
     if (confirmText !== server.name) return
     setDeleting(true)
+    setDeleteError(null)
     try {
       await api.deleteServer(server.id)
       removeServer(server.id)
       onClose()
     } catch {
+      setDeleteError('Failed to delete server')
       setDeleting(false)
     }
   }, [confirmText, server, removeServer, onClose])
@@ -346,6 +355,7 @@ function DangerTab({ server, onClose }: { server: Server; onClose: () => void })
           >
             {deleting ? 'Deleting…' : 'Delete Server'}
           </button>
+          {deleteError && <p className="mt-2 text-xs text-red-400">{deleteError}</p>}
         </div>
       </div>
     </div>

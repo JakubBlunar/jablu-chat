@@ -308,14 +308,16 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
     [currentServer]
   )
 
+  const [leaveError, setLeaveError] = useState<string | null>(null)
   const handleLeave = useCallback(async () => {
     if (!currentServer) return
     if (!confirm(`Leave ${currentServer.name}? You will need a new invite to rejoin.`)) return
+    setLeaveError(null)
     try {
       await api.leaveServer(currentServer.id)
       removeServer(currentServer.id)
     } catch {
-      /* ignore */
+      setLeaveError('Failed to leave server')
     }
   }, [currentServer, removeServer])
 
@@ -476,6 +478,10 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
           )}
         </div>
 
+        {leaveError && (
+          <div className="mx-2 mt-1 rounded bg-red-500/10 px-2 py-1 text-xs text-red-400">{leaveError}</div>
+        )}
+
         <SimpleBar className="flex min-h-0 flex-1 flex-col gap-1 px-2 py-3">
           {channelsLoading && !textChannels.length && currentServer ? (
             <div className="space-y-2 px-1">
@@ -510,7 +516,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                 aria-label="Create text channel"
                 disabled={!currentServer}
                 onClick={() => setChannelModalOpen(true)}
-                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
+                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
               >
                 <PlusSmallIcon />
               </button>
@@ -567,7 +573,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                 aria-label="Create voice channel"
                 disabled={!currentServer}
                 onClick={() => setChannelModalOpen(true)}
-                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 disabled:opacity-0"
+                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
               >
                 <PlusSmallIcon />
               </button>

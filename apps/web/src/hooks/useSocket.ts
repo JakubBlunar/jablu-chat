@@ -363,6 +363,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const onEventCreated = (event: any) => useEventStore.getState().addEvent(event)
     const onEventUpdated = (event: any) => useEventStore.getState().updateEvent(event)
     const onEventCancelled = (event: any) => useEventStore.getState().removeEvent(event.id)
+    const onEventCompleted = (event: any) => useEventStore.getState().removeEvent(event.id)
     const onEventStarted = (event: any) => useEventStore.getState().updateEvent(event)
     const onEventInterest = (payload: { eventId: string; userId: string; interested: boolean; count: number }) => {
       useEventStore.getState().updateInterest(payload.eventId, payload.userId, payload.interested, payload.count)
@@ -397,6 +398,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('event:created', onEventCreated)
     socket.on('event:updated', onEventUpdated)
     socket.on('event:cancelled', onEventCancelled)
+    socket.on('event:completed', onEventCompleted)
     socket.on('event:started', onEventStarted)
     socket.on('event:interest', onEventInterest)
 
@@ -432,6 +434,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('event:created', onEventCreated)
       socket.off('event:updated', onEventUpdated)
       socket.off('event:cancelled', onEventCancelled)
+      socket.off('event:completed', onEventCompleted)
       socket.off('event:started', onEventStarted)
       socket.off('event:interest', onEventInterest)
       disconnectSocket()

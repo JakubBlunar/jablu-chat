@@ -16,13 +16,15 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
   const [maxUses, setMaxUses] = useState<string>('')
   const [expiresIn, setExpiresIn] = useState<string>('1440')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchInvites = useCallback(async () => {
+    setError(null)
     try {
       const data = await api.getInvites(serverId)
       setInvites(data)
     } catch {
-      /* ignore */
+      setError('Failed to load invites')
     } finally {
       setLoading(false)
     }
@@ -34,6 +36,7 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
 
   async function handleCreate() {
     setCreating(true)
+    setError(null)
     try {
       const invite = await api.createInvite(serverId, {
         maxUses: maxUses ? parseInt(maxUses, 10) : undefined,
@@ -41,18 +44,19 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
       })
       setInvites((prev) => [invite, ...prev])
     } catch {
-      /* ignore */
+      setError('Failed to create invite')
     } finally {
       setCreating(false)
     }
   }
 
   async function handleDelete(id: string) {
+    setError(null)
     try {
       await api.deleteInvite(id)
       setInvites((prev) => prev.filter((i) => i.id !== id))
     } catch {
-      /* ignore */
+      setError('Failed to delete invite')
     }
   }
 
@@ -127,6 +131,10 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
             {creating ? 'Creating...' : 'Generate'}
           </button>
         </div>
+
+        {error && (
+          <div className="mb-3 rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
+        )}
 
         <SimpleBar className="max-h-64 space-y-2">
           {loading ? (

@@ -20,6 +20,8 @@ import { CurrentUser } from '../auth/current-user.decorator'
 import { UpdateMemberRoleDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
+const IMAGE_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
 @Controller('servers')
 @UseGuards(AuthGuard('jwt'))
 export class ServersController {
@@ -45,7 +47,18 @@ export class ServersController {
   }
 
   @Post(':id/icon')
-  @UseInterceptors(FileInterceptor('icon', { limits: { fileSize: 8 * 1024 * 1024 } }))
+  @UseInterceptors(
+    FileInterceptor('icon', {
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (IMAGE_MIMETYPES.includes(file.mimetype)) {
+          cb(null, true)
+        } else {
+          cb(new BadRequestException('Only JPEG, PNG, GIF, and WebP images are allowed'), false)
+        }
+      }
+    })
+  )
   async uploadIcon(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: { id: string },

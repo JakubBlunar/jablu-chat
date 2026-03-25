@@ -75,7 +75,7 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
 
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
-      <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <ActionBtn title="React" onClick={openEmojiPicker}>
           <SmileIcon />
         </ActionBtn>
