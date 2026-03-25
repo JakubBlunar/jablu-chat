@@ -90,7 +90,6 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const socket = connectSocket(accessToken)
 
     let handlingAuthError = false
-    let hasConnectedBefore = false
     let lastAckTs = 0
     const throttledAck = (fn: () => void) => {
       const now = Date.now()
@@ -109,7 +108,6 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (convId) {
         socket.emit('dm:join', { conversationId: convId })
       }
-      hasConnectedBefore = true
     }
     const onDisconnect = () => setIsConnected(false)
     const onConnectError = async () => {
