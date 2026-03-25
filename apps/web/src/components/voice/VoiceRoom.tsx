@@ -261,11 +261,18 @@ function FocusedLayout({
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
       <div ref={fsRef} className="relative min-h-0 flex-1 bg-surface-darkest">
-        <button type="button" className="h-full w-full text-left" onClick={onUnfocus}>
+        <div
+          className="h-full w-full cursor-pointer"
+          onClick={onUnfocus}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onUnfocus() }}
+          aria-label="Unfocus tile"
+        >
           <div className="h-full [&>div]:aspect-auto [&>div]:h-full [&>div]:w-full">
             <TileContent tile={focused} focused />
           </div>
-        </button>
+        </div>
 
         <div className="absolute right-3 top-3 flex items-center gap-1.5">
           <button
@@ -410,6 +417,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           <button
             type="button"
             title={vc.isMuted ? 'Unmute' : 'Mute'}
+            aria-label={vc.isMuted ? 'Unmute' : 'Mute'}
+            aria-pressed={vc.isMuted}
             onClick={vc.toggleMute}
             className={`rounded-md p-1.5 transition ${
               vc.isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -427,6 +436,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           <button
             type="button"
             title={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+            aria-label={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+            aria-pressed={vc.isDeafened}
             onClick={vc.toggleDeafen}
             className={`rounded-md p-1.5 transition ${
               vc.isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -440,6 +451,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           <button
             type="button"
             title={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+            aria-label={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+            aria-pressed={vc.isCameraOn}
             onClick={vc.handleCameraClick}
             className={`rounded-md p-1.5 transition ${
               vc.isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -458,6 +471,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             <button
               type="button"
               title="Camera settings"
+              aria-label="Camera settings"
               onClick={() => vc.setCameraModalMode('edit')}
               className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
@@ -471,6 +485,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             <button
               type="button"
               title={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+              aria-label={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+              aria-pressed={vc.isScreenSharing}
               onClick={vc.handleScreenShare}
               className={`rounded-md p-1.5 transition ${
                 vc.isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -485,6 +501,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           <button
             type="button"
             title="Disconnect"
+            aria-label="Disconnect from voice"
             onClick={vc.handleDisconnect}
             className="rounded-md p-1.5 text-red-400 transition hover:bg-red-500/20"
           >
