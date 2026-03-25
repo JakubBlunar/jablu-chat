@@ -136,6 +136,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         }
       }
     })
+
+    for (const ev of ['event:created', 'event:updated', 'event:cancelled', 'event:started'] as const) {
+      this.events.on(ev, (payload: { serverId: string; event: unknown }) => {
+        this.server.to(`server:${payload.serverId}`).emit(ev, payload.event)
+      })
+    }
+
+    this.events.on(
+      'event:interest',
+      (payload: { serverId: string; eventId: string; userId: string; interested: boolean; count: number }) => {
+        this.server.to(`server:${payload.serverId}`).emit('event:interest', {
+          eventId: payload.eventId,
+          userId: payload.userId,
+          interested: payload.interested,
+          count: payload.count
+        })
+      }
+    )
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {

@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   ChangeEmailInput,
   ChangePasswordInput,
+  CreateEventInput,
   ForgotPasswordRequest,
   Invite,
   LoginRequest,
@@ -10,6 +11,8 @@ import type {
   RefreshTokenRequest,
   RegisterRequest,
   ResetPasswordRequest,
+  ServerEvent,
+  UpdateEventInput,
   UpdateProfileInput,
   User,
   UserStatus,
@@ -582,6 +585,48 @@ export class ApiClient {
 
   revokeAllSessions(refreshToken: string): Promise<{ message: string }> {
     return this.request('DELETE', '/api/auth/sessions', { refreshToken })
+  }
+
+  getServerEvents(
+    serverId: string,
+    cursor?: string,
+    afterId?: string
+  ): Promise<{ events: ServerEvent[]; hasMore: boolean; nextCursor: string | null; nextAfterId: string | null }> {
+    const params = new URLSearchParams()
+    if (cursor) params.set('cursor', cursor)
+    if (afterId) params.set('afterId', afterId)
+    const qs = params.toString()
+    return this.get(`/api/servers/${serverId}/events${qs ? `?${qs}` : ''}`)
+  }
+
+  getServerEvent(serverId: string, eventId: string): Promise<ServerEvent> {
+    return this.get(`/api/servers/${serverId}/events/${eventId}`)
+  }
+
+  createServerEvent(serverId: string, data: CreateEventInput): Promise<ServerEvent> {
+    return this.post(`/api/servers/${serverId}/events`, data)
+  }
+
+  updateServerEvent(serverId: string, eventId: string, data: UpdateEventInput): Promise<ServerEvent> {
+    return this.put(`/api/servers/${serverId}/events/${eventId}`, data)
+  }
+
+  cancelServerEvent(serverId: string, eventId: string): Promise<ServerEvent> {
+    return this.post(`/api/servers/${serverId}/events/${eventId}/cancel`)
+  }
+
+  toggleEventInterest(
+    serverId: string,
+    eventId: string
+  ): Promise<{ interested: boolean; count: number }> {
+    return this.post(`/api/servers/${serverId}/events/${eventId}/interest`)
+  }
+
+  getEventInterestedUsers(
+    serverId: string,
+    eventId: string
+  ): Promise<{ userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]> {
+    return this.get(`/api/servers/${serverId}/events/${eventId}/interested`)
   }
 }
 

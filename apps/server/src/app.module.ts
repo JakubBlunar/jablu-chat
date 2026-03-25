@@ -20,6 +20,7 @@ import { UploadsModule } from './uploads/uploads.module'
 import { PushModule } from './push/push.module'
 import { RedisModule } from './redis/redis.module'
 import { VoiceModule } from './voice/voice.module'
+import { ServerEventsModule } from './server-events/server-events.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
 
 @Module({
@@ -51,7 +52,8 @@ import { WebhooksModule } from './webhooks/webhooks.module'
     ReadStateModule,
     PushModule,
     GifModule,
-    GatewayModule
+    GatewayModule,
+    ServerEventsModule
   ]
 })
 export class AppModule {}

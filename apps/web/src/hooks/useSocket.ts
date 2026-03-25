@@ -13,6 +13,7 @@ import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useEventStore } from '@/stores/event.store'
 import { playJoinSound, playLeaveSound } from '@/lib/sounds'
 
 type MessageDeletePayload = {
@@ -359,6 +360,14 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
+    const onEventCreated = (event: any) => useEventStore.getState().addEvent(event)
+    const onEventUpdated = (event: any) => useEventStore.getState().updateEvent(event)
+    const onEventCancelled = (event: any) => useEventStore.getState().removeEvent(event.id)
+    const onEventStarted = (event: any) => useEventStore.getState().updateEvent(event)
+    const onEventInterest = (payload: { eventId: string; userId: string; interested: boolean; count: number }) => {
+      useEventStore.getState().updateInterest(payload.eventId, payload.userId, payload.interested, payload.count)
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
@@ -385,6 +394,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('voice:participant-left', onVoiceParticipantLeft)
     socket.on('voice:participant-state', onVoiceParticipantState)
     socket.on('channel:reorder', onChannelReorder)
+    socket.on('event:created', onEventCreated)
+    socket.on('event:updated', onEventUpdated)
+    socket.on('event:cancelled', onEventCancelled)
+    socket.on('event:started', onEventStarted)
+    socket.on('event:interest', onEventInterest)
 
     setIsConnected(socket.connected)
 
@@ -415,6 +429,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('voice:participant-left', onVoiceParticipantLeft)
       socket.off('voice:participant-state', onVoiceParticipantState)
       socket.off('channel:reorder', onChannelReorder)
+      socket.off('event:created', onEventCreated)
+      socket.off('event:updated', onEventUpdated)
+      socket.off('event:cancelled', onEventCancelled)
+      socket.off('event:started', onEventStarted)
+      socket.off('event:interest', onEventInterest)
       disconnectSocket()
       setIsConnected(false)
     }
