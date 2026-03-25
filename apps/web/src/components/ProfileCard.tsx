@@ -282,10 +282,12 @@ function SendDmButton({ userId, onClose }: { userId: string; onClose: () => void
   const { goToDm } = useAppNavigate()
   const addOrUpdateConv = useDmStore((s) => s.addOrUpdateConversation)
   const [loading, setLoading] = useState(false)
+  const [dmError, setDmError] = useState<string | null>(null)
 
   const handleClick = useCallback(async () => {
     if (!userId || userId === currentUserId) return
     setLoading(true)
+    setDmError(null)
     try {
       const conv = await api.createDm(userId)
       addOrUpdateConv(conv)
@@ -295,6 +297,8 @@ function SendDmButton({ userId, onClose }: { userId: string; onClose: () => void
       }
       goToDm(conv.id)
       onClose()
+    } catch {
+      setDmError('Failed to open conversation')
     } finally {
       setLoading(false)
     }
@@ -304,6 +308,7 @@ function SendDmButton({ userId, onClose }: { userId: string; onClose: () => void
 
   return (
     <div className="mt-3">
+      {dmError && <p className="mb-1.5 text-xs text-red-400">{dmError}</p>}
       <button
         type="button"
         disabled={loading}

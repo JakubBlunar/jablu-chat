@@ -103,6 +103,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
+    await this.checkRateLimit(req)
     return this.auth.refreshToken(dto.refreshToken, req.headers['user-agent'], extractIp(req))
   }
 
@@ -197,7 +198,8 @@ export class AuthController {
 
   @Get('users/search')
   @UseGuards(AuthGuard('jwt'))
-  async searchUsers(@Query('q') q: string) {
+  async searchUsers(@Query('q') q: string, @Req() req: Request) {
+    await this.checkRateLimit(req)
     return this.auth.searchUsers(q ?? '')
   }
 

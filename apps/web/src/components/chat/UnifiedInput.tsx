@@ -240,7 +240,7 @@ export function UnifiedInput({
           <span className="text-gray-500">Replying to</span>
           <span className="font-semibold text-white">{replyTarget.authorName}</span>
           <span className="flex-1 truncate text-gray-400">{replyTarget.content || '[attachment]'}</span>
-          <button type="button" onClick={onCancelReply} className="text-gray-500 transition hover:text-white">
+          <button type="button" onClick={onCancelReply} aria-label="Cancel reply" className="text-gray-500 transition hover:text-white">
             <XIcon />
           </button>
         </div>

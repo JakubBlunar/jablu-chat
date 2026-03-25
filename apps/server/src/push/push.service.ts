@@ -55,10 +55,14 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
 
   async subscribe(userId: string, endpoint: string, p256dh: string, auth: string) {
+    const existing = await this.prisma.pushSubscription.findUnique({ where: { endpoint } })
+    if (existing && existing.userId !== userId) {
+      await this.prisma.pushSubscription.delete({ where: { endpoint } })
+    }
     await this.prisma.pushSubscription.upsert({
       where: { endpoint },
       create: { userId, endpoint, p256dh, auth },
-      update: { userId, p256dh, auth }
+      update: { p256dh, auth }
     })
   }
 

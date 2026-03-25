@@ -315,22 +315,22 @@ export class DmService {
       }
     }
 
-    if (hasAttachments) {
-      const found = await this.prisma.attachment.findMany({
-        where: {
-          id: { in: attachmentIds },
-          uploaderId: userId,
-          messageId: null
-        },
-        select: { id: true }
-      })
-      if (found.length !== attachmentIds!.length) {
-        throw new BadRequestException('One or more attachments were not found or do not belong to you')
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (hasAttachments) {
+        const found = await tx.attachment.findMany({
+          where: {
+            id: { in: attachmentIds },
+            uploaderId: userId,
+            messageId: null
+          },
+          select: { id: true }
+        })
+        if (found.length !== attachmentIds!.length) {
+          throw new BadRequestException('One or more attachments were not found or do not belong to you')
+        }
       }
-    }
 
-    const [created] = await Promise.all([
-      this.prisma.message.create({
+      const msg = await tx.message.create({
         data: {
           directConversationId: conversationId,
           authorId: userId,
@@ -339,12 +339,15 @@ export class DmService {
           attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
         },
         include: messageInclude
-      }),
-      this.prisma.directConversationMember.updateMany({
+      })
+
+      await tx.directConversationMember.updateMany({
         where: { conversationId, closedAt: { not: null } },
         data: { closedAt: null }
       })
-    ])
+
+      return msg
+    })
 
     return this.mapToWire(created)
   }

@@ -180,7 +180,7 @@ export const MessageRow = memo(function MessageRow({
           />
         ) : (
           <div ref={actionsRef} className="absolute -top-3 right-2 z-10 flex items-start">
-            <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100">
+            <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
               <ActionBtn
                 title="React"
                 onClick={() => {
@@ -354,6 +354,8 @@ export const MessageRow = memo(function MessageRow({
                 <button
                   key={r.emoji}
                   type="button"
+                  aria-pressed={isMine}
+                  aria-label={`${r.emoji} ${r.count}`}
                   onClick={() => {
                     getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji: r.emoji })
                   }}

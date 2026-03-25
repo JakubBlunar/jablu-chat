@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
 
@@ -28,9 +28,23 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
     }
   }
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-sm rounded-lg bg-surface p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Join a Server"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-lg bg-surface p-6 shadow-xl"
+      >
         <h2 className="mb-1 text-lg font-bold text-white">Join a Server</h2>
         <p className="mb-4 text-sm text-gray-400">Enter an invite code to join an existing server.</p>
 

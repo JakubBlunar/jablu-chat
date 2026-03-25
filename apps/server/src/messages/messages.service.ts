@@ -218,29 +218,31 @@ export class MessagesService {
       }
     }
 
-    if (hasAttachments) {
-      const found = await this.prisma.attachment.findMany({
-        where: {
-          id: { in: attachmentIds },
-          uploaderId: userId,
-          messageId: null
-        },
-        select: { id: true }
-      })
-      if (found.length !== attachmentIds!.length) {
-        throw new BadRequestException('One or more attachments were not found or do not belong to you')
+    const created = await this.prisma.$transaction(async (tx) => {
+      if (hasAttachments) {
+        const found = await tx.attachment.findMany({
+          where: {
+            id: { in: attachmentIds },
+            uploaderId: userId,
+            messageId: null
+          },
+          select: { id: true }
+        })
+        if (found.length !== attachmentIds!.length) {
+          throw new BadRequestException('One or more attachments were not found or do not belong to you')
+        }
       }
-    }
 
-    const created = await this.prisma.message.create({
-      data: {
-        channelId,
-        authorId: userId,
-        content: trimmed ?? null,
-        replyToId: replyToId ?? undefined,
-        attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
-      },
-      include: { ...messageInclude, channel: { select: { serverId: true } } }
+      return tx.message.create({
+        data: {
+          channelId,
+          authorId: userId,
+          content: trimmed ?? null,
+          replyToId: replyToId ?? undefined,
+          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
+        },
+        include: { ...messageInclude, channel: { select: { serverId: true } } }
+      })
     })
 
     const { channel, ...rest } = created
