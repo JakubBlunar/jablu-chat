@@ -1,5 +1,5 @@
 import { RoomEvent, Track, type Participant, type TrackPublication } from 'livekit-client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
 import { ParticipantTile } from './ParticipantTile'

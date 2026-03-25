@@ -37,13 +37,15 @@ export function ParticipantTile({
     setIsMicMuted(checkMicMuted())
   }, [participant, checkMicMuted])
 
+  const cameraTrackSid = participant.getTrackPublication(Track.Source.Camera)?.track?.sid
+
   useEffect(() => {
     if (!hasVideo || !videoRef.current) return
     const cameraPub = participant.getTrackPublication(Track.Source.Camera)
     if (cameraPub?.track) {
       cameraPub.track.attach(videoRef.current)
     }
-  }, [hasVideo, participant])
+  }, [hasVideo, participant, cameraTrackSid])
 
   // Auto-adjust subscription quality based on view context
   useEffect(() => {
@@ -74,9 +76,11 @@ export function ParticipantTile({
 
   useEffect(() => {
     updateVideoState()
+    let trackChangeTimer: ReturnType<typeof setTimeout>
 
     const onTrackChange = () => {
-      setTimeout(() => updateVideoState(), 50)
+      clearTimeout(trackChangeTimer)
+      trackChangeTimer = setTimeout(() => updateVideoState(), 50)
     }
 
     const onTrackMuted = (pub: TrackPublication) => {
@@ -101,6 +105,7 @@ export function ParticipantTile({
     participant.on(ParticipantEvent.TrackUnmuted, onTrackUnmuted)
 
     return () => {
+      clearTimeout(trackChangeTimer)
       const cameraPub = participant.getTrackPublication(Track.Source.Camera)
       if (cameraPub?.track && videoRef.current) {
         cameraPub.track.detach(videoRef.current)

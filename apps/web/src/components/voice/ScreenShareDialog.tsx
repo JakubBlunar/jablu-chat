@@ -21,7 +21,7 @@ export function ScreenShareDialog({
   const [fps, setFps] = useState<ScreenShareSettings['fps']>(30)
   const [audio, setAudio] = useState(false)
 
-  const supportsAudio = !isElectron || navigator.platform?.startsWith('Win') || navigator.platform?.startsWith('Linux')
+  const supportsAudio = !isElectron || /win|linux/i.test(navigator.userAgent)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
