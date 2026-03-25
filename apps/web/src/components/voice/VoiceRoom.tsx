@@ -20,6 +20,7 @@ export function VoiceRoom() {
   const [tiles, setTiles] = useState<TileEntry[]>([])
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [pendingFullscreen, setPendingFullscreen] = useState(false)
+  const prevScreenIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!room) return
@@ -75,6 +76,23 @@ export function VoiceRoom() {
     }
   }, [tiles, focusedId])
 
+  // Auto-focus new screen shares
+  useEffect(() => {
+    const currentScreenIds = new Set(tiles.filter((t) => t.kind === 'screen').map((t) => t.id))
+    const prev = prevScreenIdsRef.current
+
+    if (!focusedId) {
+      for (const id of currentScreenIds) {
+        if (!prev.has(id)) {
+          setFocusedId(id)
+          break
+        }
+      }
+    }
+
+    prevScreenIdsRef.current = currentScreenIds
+  }, [tiles, focusedId])
+
   const handleTileClick = useCallback((id: string) => {
     setFocusedId((prev) => (prev === id ? null : id))
     setPendingFullscreen(false)
@@ -85,7 +103,6 @@ export function VoiceRoom() {
     setPendingFullscreen(true)
   }, [])
 
-  // Orientation unlock for calls
   useEffect(() => {
     const orient = screen?.orientation as
       | (ScreenOrientation & {
@@ -125,9 +142,11 @@ export function VoiceRoom() {
             onFullscreenConsumed={() => setPendingFullscreen(false)}
           />
         ) : (
-          <div className="flex h-full flex-wrap content-center items-center justify-center gap-2 md:gap-3">
+          <div
+            className={`grid h-full content-center gap-2 overflow-y-auto md:gap-3 ${gridCols(tiles.length)}`}
+          >
             {tiles.map((tile) => (
-              <div key={tile.id} className={tileSize(tiles.length)}>
+              <div key={tile.id} className="mx-auto w-full max-w-2xl">
                 <ClickableTile tile={tile} onClick={handleTileClick} onFullscreen={handleTileFullscreen} />
               </div>
             ))}
@@ -136,6 +155,13 @@ export function VoiceRoom() {
       </div>
     </div>
   )
+}
+
+function gridCols(count: number): string {
+  if (count <= 1) return 'grid-cols-1'
+  if (count <= 4) return 'grid-cols-2'
+  if (count <= 9) return 'grid-cols-2 md:grid-cols-3'
+  return 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
 }
 
 function TileContent({ tile }: { tile: TileEntry }) {
@@ -280,15 +306,88 @@ function FocusedLayout({
         </div>
       </div>
 
-      {others.length > 0 && !isFullscreen && (
-        <div className="flex h-28 shrink-0 gap-2 overflow-x-auto pb-1">
-          {others.map((t) => (
-            <div key={t.id} className="h-full w-44 shrink-0">
-              <ClickableTile tile={t} onClick={onTileClick} />
-            </div>
-          ))}
-        </div>
+      {others.length > 0 && !isFullscreen && <CarouselStrip tiles={others} onTileClick={onTileClick} />}
+    </div>
+  )
+}
+
+function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick: (id: string) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 4)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    checkScroll()
+    const el = scrollRef.current
+    if (!el) return
+    el.addEventListener('scroll', checkScroll, { passive: true })
+    const ro = new ResizeObserver(checkScroll)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', checkScroll)
+      ro.disconnect()
+    }
+  }, [checkScroll, tiles.length])
+
+  const scroll = useCallback((dir: 'left' | 'right') => {
+    const el = scrollRef.current
+    if (!el) return
+    const amount = el.clientWidth * 0.7
+    el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' })
+  }, [])
+
+  return (
+    <div className="group/carousel relative shrink-0">
+      {/* Left gradient + arrow */}
+      {canScrollLeft && (
+        <>
+          <div className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 bg-gradient-to-r from-surface to-transparent" />
+          <button
+            type="button"
+            onClick={() => scroll('left')}
+            className="absolute bottom-0 left-0 top-0 z-20 flex w-8 items-center justify-center text-white/70 opacity-100 transition hover:text-white md:opacity-0 md:group-hover/carousel:opacity-100"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </>
       )}
+
+      {/* Right gradient + arrow */}
+      {canScrollRight && (
+        <>
+          <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-10 bg-gradient-to-l from-surface to-transparent" />
+          <button
+            type="button"
+            onClick={() => scroll('right')}
+            className="absolute bottom-0 right-0 top-0 z-20 flex w-8 items-center justify-center text-white/70 opacity-100 transition hover:text-white md:opacity-0 md:group-hover/carousel:opacity-100"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* Scrollable strip */}
+      <div
+        ref={scrollRef}
+        className="flex h-32 gap-2 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory scrollbar-none md:h-28"
+      >
+        {tiles.map((t) => (
+          <div key={t.id} className="h-full w-48 shrink-0 snap-center md:w-44">
+            <ClickableTile tile={t} onClick={onTileClick} />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -373,7 +472,6 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
         <span className="ml-2 text-xs tabular-nums text-gray-500">{timeStr}</span>
 
         <div className="ml-auto flex items-center gap-1">
-          {/* Mute */}
           <button
             type="button"
             title={isMuted ? 'Unmute' : 'Mute'}
@@ -391,7 +489,6 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </svg>
           </button>
 
-          {/* Deafen */}
           <button
             type="button"
             title={isDeafened ? 'Undeafen' : 'Deafen'}
@@ -405,7 +502,6 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </svg>
           </button>
 
-          {/* Camera */}
           <button
             type="button"
             title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
@@ -423,7 +519,6 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </svg>
           </button>
 
-          {/* Camera settings */}
           {isCameraOn && (
             <button
               type="button"
@@ -437,7 +532,6 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </button>
           )}
 
-          {/* Screen share - hidden if not supported */}
           {supportsScreenShare && (
             <button
               type="button"
@@ -453,7 +547,6 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </button>
           )}
 
-          {/* Disconnect */}
           <button
             type="button"
             title="Disconnect"
@@ -476,12 +569,4 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
       )}
     </>
   )
-}
-
-function tileSize(count: number): string {
-  if (count <= 1) return 'w-full max-w-2xl'
-  if (count <= 2) return 'w-[calc(50%-0.375rem)] max-w-xl'
-  if (count <= 4) return 'w-[calc(50%-0.375rem)] max-w-lg'
-  if (count <= 6) return 'w-[calc(33.333%-0.5rem)] max-w-md'
-  return 'w-[calc(25%-0.5rem)] max-w-sm'
 }
