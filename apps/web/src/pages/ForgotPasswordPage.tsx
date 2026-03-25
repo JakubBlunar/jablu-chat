@@ -1,50 +1,47 @@
-import { forgotPasswordSchema } from "@chat/shared";
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { AuthLayout } from "../components/layout/AuthLayout";
-import { ApiError, api } from "../lib/api";
+import { forgotPasswordSchema } from '@chat/shared'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AuthLayout } from '../components/layout/AuthLayout'
+import { ApiError, api } from '../lib/api'
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
 
-    const parsed = forgotPasswordSchema.safeParse({ email });
+    const parsed = forgotPasswordSchema.safeParse({ email })
     if (!parsed.success) {
-      const first = parsed.error.issues[0]?.message ?? "Invalid input";
-      setError(first);
-      return;
+      const first = parsed.error.issues[0]?.message ?? 'Invalid input'
+      setError(first)
+      return
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      const res = await api.forgotPassword(parsed.data.email);
-      setSuccess(res.message);
+      const res = await api.forgotPassword(parsed.data.email)
+      setSuccess(res.message)
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(err.message)
       } else {
-        setError("Something went wrong. Please try again.");
+        setError('Something went wrong. Please try again.')
       }
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   return (
     <AuthLayout>
-      <h2 className="mb-2 text-xl font-semibold text-white">
-        Reset your password
-      </h2>
+      <h2 className="mb-2 text-xl font-semibold text-white">Reset your password</h2>
       <p className="mb-6 text-sm text-gray-400">
-        Enter your email and we&apos;ll send you a reset link if an account
-        exists.
+        Enter your email and we&apos;ll send you a reset link if an account exists.
       </p>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
@@ -67,10 +64,7 @@ export function ForgotPasswordPage() {
         ) : null}
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="email"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Email
           </label>
           <input
@@ -91,7 +85,7 @@ export function ForgotPasswordPage() {
           disabled={isSubmitting}
           className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
         >
-          {isSubmitting ? "Sending…" : "Send Reset Link"}
+          {isSubmitting ? 'Sending…' : 'Send Reset Link'}
         </button>
       </form>
 
@@ -104,5 +98,5 @@ export function ForgotPasswordPage() {
         </Link>
       </p>
     </AuthLayout>
-  );
+  )
 }

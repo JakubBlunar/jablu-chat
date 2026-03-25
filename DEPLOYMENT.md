@@ -4,35 +4,35 @@
 
 **VPS (4 vCPU, 8 GB RAM)** (~$7-10/mo)
 
-| Spec | Value |
-|---|---|
-| vCPU | 4 cores |
-| RAM | 8 GB |
-| Storage | 200 GB NVMe |
-| Traffic | 32 TB/month (unlimited inbound) |
-| OS | Ubuntu 22.04 or 24.04 LTS |
-| Region | EU (Nuremberg/Munich) or US (St. Louis/Seattle) |
+| Spec    | Value                                           |
+| ------- | ----------------------------------------------- |
+| vCPU    | 4 cores                                         |
+| RAM     | 8 GB                                            |
+| Storage | 200 GB NVMe                                     |
+| Traffic | 32 TB/month (unlimited inbound)                 |
+| OS      | Ubuntu 22.04 or 24.04 LTS                       |
+| Region  | EU (Nuremberg/Munich) or US (St. Louis/Seattle) |
 
 This comfortably handles all services for under 20 concurrent users, including voice/video calls.
 
 ## Services Running on the VPS
 
-| Service | Port | Purpose |
-|---|---|---|
-| Nginx | 80 (443 with TLS) | Reverse proxy, serves web frontend |
-| Node.js API | 3001 | Backend (NestJS + Socket.io) |
-| PostgreSQL | 5432 | Database |
-| Redis | 6379 | Cache, presence |
-| LiveKit | 7880, 7882/udp, 50000-50100/udp | Voice/video/screen share (WebRTC) |
-| Mailpit (dev) / SMTP (prod) | 1025 / 587 | Email for password resets |
+| Service                     | Port                            | Purpose                            |
+| --------------------------- | ------------------------------- | ---------------------------------- |
+| Nginx                       | 80 (443 with TLS)               | Reverse proxy, serves web frontend |
+| Node.js API                 | 3001                            | Backend (NestJS + Socket.io)       |
+| PostgreSQL                  | 5432                            | Database                           |
+| Redis                       | 6379                            | Cache, presence                    |
+| LiveKit                     | 7880, 7882/udp, 50000-50100/udp | Voice/video/screen share (WebRTC)  |
+| Mailpit (dev) / SMTP (prod) | 1025 / 587                      | Email for password resets          |
 
 ## Estimated Resource Usage (20 users)
 
-| Resource | Idle | Active (voice/video) |
-|---|---|---|
-| CPU | ~5% | ~30-50% (during calls) |
-| RAM | ~1.5 GB | ~2-3 GB |
-| Disk | ~2-5 GB (base) | Grows with media uploads |
+| Resource  | Idle                 | Active (voice/video)           |
+| --------- | -------------------- | ------------------------------ |
+| CPU       | ~5%                  | ~30-50% (during calls)         |
+| RAM       | ~1.5 GB              | ~2-3 GB                        |
+| Disk      | ~2-5 GB (base)       | Grows with media uploads       |
 | Bandwidth | ~1-5 GB/month (text) | ~200-500 GB/month (with video) |
 
 ## Disk Management
@@ -50,10 +50,12 @@ headroom for a small community.
 ## Prerequisites
 
 On your **local machine** (for building the desktop app):
+
 - Node.js 22+
 - pnpm 10+
 
 On the **VPS**:
+
 - SSH access (root or sudo user)
 - Docker Engine 24+ and Docker Compose v2
 
@@ -206,11 +208,11 @@ http://YOUR_VPS_IP
 
 Jablu supports three TLS modes controlled by the `TLS_MODE` environment variable:
 
-| Mode | Value | Use case |
-|---|---|---|
-| HTTP only | `off` (default) | Local dev, IP-only access |
-| Self-signed | `self-signed` | IP-only with HTTPS (shows browser warning) |
-| Let's Encrypt | `letsencrypt` | Production with a real domain |
+| Mode          | Value           | Use case                                   |
+| ------------- | --------------- | ------------------------------------------ |
+| HTTP only     | `off` (default) | Local dev, IP-only access                  |
+| Self-signed   | `self-signed`   | IP-only with HTTPS (shows browser warning) |
+| Let's Encrypt | `letsencrypt`   | Production with a real domain              |
 
 ### Let's Encrypt (recommended for production)
 
@@ -233,6 +235,7 @@ docker compose up -d
 ```
 
 On first start, the Nginx container will:
+
 1. Start a temporary HTTP server for the ACME challenge
 2. Obtain a Let's Encrypt certificate via certbot
 3. Switch to HTTPS with automatic HTTP → HTTPS redirect
@@ -465,37 +468,37 @@ du -sh /var/lib/docker/volumes/*
 
 ## Environment Variables Reference
 
-| Variable | Default | Description |
-|---|---|---|
-| `SERVER_HOST` | `192.168.1.100` | Public IP or domain |
-| `TLS_MODE` | `off` | `off`, `self-signed`, or `letsencrypt` |
-| `PORT` | `3001` | Internal API port |
-| `POSTGRES_USER` | `chat` | Database user |
-| `POSTGRES_PASSWORD` | (generated) | Database password |
-| `DATABASE_URL` | (generated) | Full PostgreSQL connection string |
-| `REDIS_URL` | `redis://redis:6379` | Redis connection |
-| `JWT_SECRET` | (generated) | Access token signing key |
-| `JWT_REFRESH_SECRET` | (generated) | Refresh token signing key |
-| `LIVEKIT_API_KEY` | (generated) | LiveKit auth key |
-| `LIVEKIT_API_SECRET` | (generated) | LiveKit auth secret |
-| `LIVEKIT_URL` | `ws://localhost/livekit` | LiveKit WebSocket URL |
-| `REGISTRATION_MODE` | `open` | `open` or `invite` |
-| `SUPERADMIN_USERNAME` | (set manually) | Admin panel username |
-| `SUPERADMIN_PASSWORD` | (set manually) | Admin panel password |
-| `UPLOAD_DIR` | `/data/uploads` | File storage path |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Max file upload size |
-| `UPDATES_DIR` | `/data/updates` | Desktop app update artifacts |
-| `STORAGE_LIMIT_GB` | `100` | Storage warning threshold |
-| `CLEANUP_ENABLED` | `false` | Enable periodic storage audits |
-| `CLEANUP_CRON` | `0 3 * * *` | Audit schedule (cron syntax) |
-| `CLEANUP_MIN_AGE_DAYS` | `30` | Minimum age for cleanup eligibility |
-| `CLEANUP_DELETE_MESSAGES` | `false` | Allow deleting entire messages |
-| `CLEANUP_ORPHAN_HOURS` | `24` | Age threshold for orphaned uploads |
-| `SMTP_HOST` | `mailpit` | SMTP server |
-| `SMTP_PORT` | `1025` | SMTP port |
-| `SMTP_USER` | (empty) | SMTP username |
-| `SMTP_PASS` | (empty) | SMTP password |
-| `SMTP_FROM` | `noreply@chat.local` | From address for emails |
+| Variable                  | Default                  | Description                            |
+| ------------------------- | ------------------------ | -------------------------------------- |
+| `SERVER_HOST`             | `192.168.1.100`          | Public IP or domain                    |
+| `TLS_MODE`                | `off`                    | `off`, `self-signed`, or `letsencrypt` |
+| `PORT`                    | `3001`                   | Internal API port                      |
+| `POSTGRES_USER`           | `chat`                   | Database user                          |
+| `POSTGRES_PASSWORD`       | (generated)              | Database password                      |
+| `DATABASE_URL`            | (generated)              | Full PostgreSQL connection string      |
+| `REDIS_URL`               | `redis://redis:6379`     | Redis connection                       |
+| `JWT_SECRET`              | (generated)              | Access token signing key               |
+| `JWT_REFRESH_SECRET`      | (generated)              | Refresh token signing key              |
+| `LIVEKIT_API_KEY`         | (generated)              | LiveKit auth key                       |
+| `LIVEKIT_API_SECRET`      | (generated)              | LiveKit auth secret                    |
+| `LIVEKIT_URL`             | `ws://localhost/livekit` | LiveKit WebSocket URL                  |
+| `REGISTRATION_MODE`       | `open`                   | `open` or `invite`                     |
+| `SUPERADMIN_USERNAME`     | (set manually)           | Admin panel username                   |
+| `SUPERADMIN_PASSWORD`     | (set manually)           | Admin panel password                   |
+| `UPLOAD_DIR`              | `/data/uploads`          | File storage path                      |
+| `MAX_UPLOAD_SIZE_MB`      | `50`                     | Max file upload size                   |
+| `UPDATES_DIR`             | `/data/updates`          | Desktop app update artifacts           |
+| `STORAGE_LIMIT_GB`        | `100`                    | Storage warning threshold              |
+| `CLEANUP_ENABLED`         | `false`                  | Enable periodic storage audits         |
+| `CLEANUP_CRON`            | `0 3 * * *`              | Audit schedule (cron syntax)           |
+| `CLEANUP_MIN_AGE_DAYS`    | `30`                     | Minimum age for cleanup eligibility    |
+| `CLEANUP_DELETE_MESSAGES` | `false`                  | Allow deleting entire messages         |
+| `CLEANUP_ORPHAN_HOURS`    | `24`                     | Age threshold for orphaned uploads     |
+| `SMTP_HOST`               | `mailpit`                | SMTP server                            |
+| `SMTP_PORT`               | `1025`                   | SMTP port                              |
+| `SMTP_USER`               | (empty)                  | SMTP username                          |
+| `SMTP_PASS`               | (empty)                  | SMTP password                          |
+| `SMTP_FROM`               | `noreply@chat.local`     | From address for emails                |
 
 ---
 
@@ -547,10 +550,10 @@ su - jablu
 
 In your domain registrar's DNS settings, add **A records** pointing to the VPS IP:
 
-| Type | Name | Value |
-|---|---|---|
-| A | `chat.example.com` | `YOUR_VPS_IP` |
-| A | `example.com` | `YOUR_VPS_IP` (optional, for landing page) |
+| Type | Name          | Value                                      |
+| ---- | ------------- | ------------------------------------------ |
+| A    | `chat.example.com` | `YOUR_VPS_IP`                              |
+| A    | `example.com`      | `YOUR_VPS_IP` (optional, for landing page) |
 
 DNS propagation typically takes 5–30 minutes. Verify with:
 
@@ -583,8 +586,8 @@ services:
     environment:
       - DOCKER_API_VERSION=1.45
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
@@ -603,14 +606,14 @@ Create `traefik.yml`:
 ```yaml
 entryPoints:
   web:
-    address: ":80"
+    address: ':80'
     http:
       redirections:
         entryPoint:
           to: websecure
           scheme: https
   websecure:
-    address: ":443"
+    address: ':443'
 
 providers:
   docker:
@@ -716,6 +719,7 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 ```
 
 This uses the `docker-compose.traefik.yml` override which:
+
 - Removes ports 80/443 from Jablu's nginx (Traefik owns those)
 - Adds Traefik routing labels for `chat.example.com`
 - Connects to the shared `web` network
@@ -762,11 +766,11 @@ services:
     networks:
       - web
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.website.rule=Host(`example.com`)"
-      - "traefik.http.routers.website.entrypoints=websecure"
-      - "traefik.http.routers.website.tls.certresolver=letsencrypt"
-      - "traefik.http.services.website.loadbalancer.server.port=80"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.website.rule=Host(`example.com`)'
+      - 'traefik.http.routers.website.entrypoints=websecure'
+      - 'traefik.http.routers.website.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.website.loadbalancer.server.port=80'
     restart: unless-stopped
 
 networks:
@@ -794,19 +798,19 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 
 ### Quick Reference: File Locations on VPS
 
-| Path | Purpose |
-|---|---|
-| `/opt/traefik/` | Traefik edge proxy (shared across all sites) |
-| `/opt/jablu/` | Jablu chat application |
-| `/opt/jablu-website/` | Landing page or other sites |
+| Path                  | Purpose                                      |
+| --------------------- | -------------------------------------------- |
+| `/opt/traefik/`       | Traefik edge proxy (shared across all sites) |
+| `/opt/jablu/`         | Jablu chat application                       |
+| `/opt/jablu-website/` | Landing page or other sites                  |
 
 ---
 
 ## Monthly Cost Summary
 
-| Item | Cost |
-|---|---|
-| VPS (4 vCPU, 8 GB RAM) | ~$7-10/mo |
-| Domain (optional) | ~$1/mo ($10-15/year) |
-| Email sending (Mailgun free tier) | $0 |
-| **Total** | **~$7-11/mo** |
+| Item                              | Cost                 |
+| --------------------------------- | -------------------- |
+| VPS (4 vCPU, 8 GB RAM)                     | ~$7-10/mo            |
+| Domain (optional)                 | ~$1/mo ($10-15/year) |
+| Email sending (Mailgun free tier) | $0                   |
+| **Total**                         | **~$7-11/mo**        |

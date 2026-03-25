@@ -1,39 +1,39 @@
 export interface LoginRequest {
-  email: string;
-  password: string;
+  email: string
+  password: string
 }
 
 export interface RegisterRequest {
-  username: string;
-  email: string;
-  password: string;
+  username: string
+  email: string
+  password: string
 }
 
 export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
+  accessToken: string
+  refreshToken: string
   user: {
-    id: string;
-    username: string;
-    displayName: string | null;
-    email: string;
-    avatarUrl: string | null;
-    bio: string | null;
-    status: string;
-    lastSeenAt: string | null;
-    createdAt: string;
-  };
+    id: string
+    username: string
+    displayName: string | null
+    email: string
+    avatarUrl: string | null
+    bio: string | null
+    status: string
+    lastSeenAt: string | null
+    createdAt: string
+  }
 }
 
 export interface ForgotPasswordRequest {
-  email: string;
+  email: string
 }
 
 export interface ResetPasswordRequest {
-  token: string;
-  password: string;
+  token: string
+  password: string
 }
 
 export interface RefreshTokenRequest {
-  refreshToken: string;
+  refreshToken: string
 }

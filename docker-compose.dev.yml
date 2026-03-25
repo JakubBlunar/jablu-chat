@@ -6,7 +6,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
       - POSTGRES_USER=chat
       - POSTGRES_PASSWORD=dev
@@ -14,7 +14,7 @@ services:
     volumes:
       - pgdata-dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chat"]
+      test: ['CMD-SHELL', 'pg_isready -U chat']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,11 +22,11 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redisdata-dev:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,17 +34,17 @@ services:
   mailpit:
     image: axllent/mailpit
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - '1025:1025'
+      - '8025:8025'
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.8.4
     ports:
-      - "7880:7880"
-      - "7882:7882/udp"
-      - "50000-50100:50000-50100/udp"
+      - '7880:7880'
+      - '7882:7882/udp'
+      - '50000-50100:50000-50100/udp'
     environment:
-      - "LIVEKIT_KEYS=devkey: devsecret"
+      - 'LIVEKIT_KEYS=devkey: devsecret'
     volumes:
       - ./docker/livekit/livekit.dev.yaml:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml

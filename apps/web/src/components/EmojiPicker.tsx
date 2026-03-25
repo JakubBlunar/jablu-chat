@@ -1,27 +1,27 @@
-import data from "@emoji-mart/data";
-import Picker from "@emoji-mart/react";
-import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
-import { useIsMobile } from "@/hooks/useMobile";
+import data from '@emoji-mart/data'
+import Picker from '@emoji-mart/react'
+import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { useIsMobile } from '@/hooks/useMobile'
 
 interface EmojiPickerProps {
-  onSelect: (emoji: string) => void;
-  onClose: () => void;
+  onSelect: (emoji: string) => void
+  onClose: () => void
 }
 
 export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isMobile = useIsMobile();
+  const ref = useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
+        onClose()
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [onClose]);
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [onClose])
 
   if (isMobile) {
     return createPortal(
@@ -46,7 +46,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
           <Picker
             data={data}
             onEmojiSelect={(emoji: { native?: string }) => {
-              if (emoji.native) onSelect(emoji.native);
+              if (emoji.native) onSelect(emoji.native)
             }}
             theme="dark"
             previewPosition="none"
@@ -55,8 +55,8 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
           />
         </div>
       </div>,
-      document.body,
-    );
+      document.body
+    )
   }
 
   return (
@@ -64,7 +64,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       <Picker
         data={data}
         onEmojiSelect={(emoji: { native?: string }) => {
-          if (emoji.native) onSelect(emoji.native);
+          if (emoji.native) onSelect(emoji.native)
         }}
         theme="dark"
         previewPosition="none"
@@ -72,5 +72,5 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
         set="native"
       />
     </div>
-  );
+  )
 }

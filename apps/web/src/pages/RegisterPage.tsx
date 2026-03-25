@@ -1,96 +1,94 @@
-import { registerSchema } from "@chat/shared";
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AuthLayout } from "../components/layout/AuthLayout";
-import { api, ApiError } from "../lib/api";
-import { useAuthStore } from "../stores/auth.store";
+import { registerSchema } from '@chat/shared'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { AuthLayout } from '../components/layout/AuthLayout'
+import { api, ApiError } from '../lib/api'
+import { useAuthStore } from '../stores/auth.store'
 
 export function RegisterPage() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isAuthLoading = useAuthStore((s) => s.isLoading);
-  const register = useAuthStore((s) => s.register);
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const isAuthLoading = useAuthStore((s) => s.isLoading)
+  const register = useAuthStore((s) => s.register)
 
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState(() => searchParams.get("code") ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [regMode, setRegMode] = useState<"open" | "invite">("open");
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState(() => searchParams.get('email') ?? '')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState(() => searchParams.get('code') ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [regMode, setRegMode] = useState<'open' | 'invite'>('open')
 
   useEffect(() => {
-    api.getRegistrationMode().then((r) => {
-      if (r.mode === "invite") setRegMode("invite");
-    }).catch(() => {});
-  }, []);
+    api
+      .getRegistrationMode()
+      .then((r) => {
+        if (r.mode === 'invite') setRegMode('invite')
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated) {
-      navigate("/", { replace: true });
+      navigate('/', { replace: true })
     }
-  }, [isAuthenticated, isAuthLoading, navigate]);
+  }, [isAuthenticated, isAuthLoading, navigate])
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+    e.preventDefault()
+    setError(null)
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
+      setError('Passwords do not match')
+      return
     }
 
-    if (regMode === "invite" && !inviteCode.trim()) {
-      setError("An invite code is required to register");
-      return;
+    if (regMode === 'invite' && !inviteCode.trim()) {
+      setError('An invite code is required to register')
+      return
     }
 
-    const parsed = registerSchema.safeParse({ username, email, password });
+    const parsed = registerSchema.safeParse({ username, email, password })
     if (!parsed.success) {
-      const first = parsed.error.issues[0]?.message ?? "Invalid input";
-      setError(first);
-      return;
+      const first = parsed.error.issues[0]?.message ?? 'Invalid input'
+      setError(first)
+      return
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
       await register(
         parsed.data.username,
         parsed.data.email,
         parsed.data.password,
-        regMode === "invite" ? inviteCode.trim() : undefined,
-      );
-      navigate("/", { replace: true });
+        regMode === 'invite' ? inviteCode.trim() : undefined
+      )
+      navigate('/', { replace: true })
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(err.message)
       } else {
-        setError("Something went wrong. Please try again.");
+        setError('Something went wrong. Please try again.')
       }
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-auth-bg">
-        <div
-          className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent"
-          aria-hidden
-        />
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
         <span className="sr-only">Checking session</span>
       </div>
-    );
+    )
   }
 
   return (
     <AuthLayout>
-      <h2 className="mb-6 text-xl font-semibold text-white">
-        Create an account
-      </h2>
+      <h2 className="mb-6 text-xl font-semibold text-white">Create an account</h2>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {error ? (
@@ -103,10 +101,7 @@ export function RegisterPage() {
         ) : null}
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="username"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="username" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Username
           </label>
           <input
@@ -124,10 +119,7 @@ export function RegisterPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="email"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Email
           </label>
           <input
@@ -144,10 +136,7 @@ export function RegisterPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="password"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Password
           </label>
           <input
@@ -164,10 +153,7 @@ export function RegisterPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label
-            htmlFor="confirmPassword"
-            className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-          >
+          <label htmlFor="confirmPassword" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
             Confirm Password
           </label>
           <input
@@ -183,12 +169,9 @@ export function RegisterPage() {
           />
         </div>
 
-        {regMode === "invite" && (
+        {regMode === 'invite' && (
           <div className="space-y-1.5">
-            <label
-              htmlFor="inviteCode"
-              className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-            >
+            <label htmlFor="inviteCode" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
               Invite Code
             </label>
             <input
@@ -201,9 +184,7 @@ export function RegisterPage() {
               placeholder="XXXXXXXX"
               required
             />
-            <p className="text-xs text-gray-500">
-              Enter the code you received from an administrator.
-            </p>
+            <p className="text-xs text-gray-500">Enter the code you received from an administrator.</p>
           </div>
         )}
 
@@ -212,12 +193,12 @@ export function RegisterPage() {
           disabled={isSubmitting}
           className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
         >
-          {isSubmitting ? "Creating account…" : "Create Account"}
+          {isSubmitting ? 'Creating account…' : 'Create Account'}
         </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-400">
-        Already have an account?{" "}
+        Already have an account?{' '}
         <Link
           to="/login"
           className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
@@ -226,5 +207,5 @@ export function RegisterPage() {
         </Link>
       </p>
     </AuthLayout>
-  );
+  )
 }

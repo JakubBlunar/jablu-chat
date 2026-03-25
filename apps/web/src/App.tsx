@@ -1,108 +1,106 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import {
-  BrowserRouter,
-  HashRouter,
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
-import "./index.css";
-import { ErrorBoundary } from "./components/ErrorBoundary";
-import { MainLayout } from "./components/layout/MainLayout";
-import { ProtectedRoute } from "./components/layout/ProtectedRoute";
-import { ServerUrlScreen, getStoredServerUrl } from "./components/settings/ServerUrlScreen";
-import { UpdateBanner } from "./components/UpdateBanner";
-import { isElectron } from "./lib/electron";
-import { api } from "./lib/api";
-import { migrateSettings } from "./lib/deviceSettings";
-import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from "./lib/notifications";
-import { LoginPage } from "./pages/LoginPage";
-import { useAuthStore } from "./stores/auth.store";
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import './index.css'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { MainLayout } from './components/layout/MainLayout'
+import { ProtectedRoute } from './components/layout/ProtectedRoute'
+import { ServerUrlScreen, getStoredServerUrl } from './components/settings/ServerUrlScreen'
+import { UpdateBanner } from './components/UpdateBanner'
+import { isElectron } from './lib/electron'
+import { api } from './lib/api'
+import { migrateSettings } from './lib/deviceSettings'
+import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
+import { LoginPage } from './pages/LoginPage'
+import { useAuthStore } from './stores/auth.store'
 
-const Router = isElectron ? HashRouter : BrowserRouter;
+const Router = isElectron ? HashRouter : BrowserRouter
 
-const AdminPage = lazy(() => import("./pages/AdminPage").then((m) => ({ default: m.AdminPage })));
-const RegisterPage = lazy(() => import("./pages/RegisterPage").then((m) => ({ default: m.RegisterPage })));
-const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
-const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })))
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })))
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage }))
+)
+const ResetPasswordPage = lazy(() =>
+  import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage }))
+)
 
-migrateSettings();
+migrateSettings()
 
-const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
 function AuthBootstrap() {
   useEffect(() => {
-    const boot = () => void useAuthStore.getState().checkAuth();
+    const boot = () => void useAuthStore.getState().checkAuth()
     if (useAuthStore.persist.hasHydrated()) {
-      boot();
+      boot()
     } else {
-      const unsub = useAuthStore.persist.onFinishHydration(() => boot());
-      return unsub;
+      const unsub = useAuthStore.persist.onFinishHydration(() => boot())
+      return unsub
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     api.onAuthFailure = () => {
-      const store = useAuthStore.getState();
+      const store = useAuthStore.getState()
       if (store.isAuthenticated) {
-        store.logout().catch(() => {});
+        store.logout().catch(() => {})
       }
-    };
+    }
     return () => {
-      api.onAuthFailure = null;
-    };
-  }, []);
+      api.onAuthFailure = null
+    }
+  }, [])
 
   useEffect(() => {
     const id = setInterval(() => {
-      const { isAuthenticated, refreshSession } = useAuthStore.getState();
+      const { isAuthenticated, refreshSession } = useAuthStore.getState()
       if (isAuthenticated) {
-        void refreshSession().catch(() => {});
+        void refreshSession().catch(() => {})
       }
-    }, REFRESH_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, []);
+    }, REFRESH_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
-    setupPushNavigation();
-    return setupElectronNavigation();
-  }, []);
+    setupPushNavigation()
+    return setupElectronNavigation()
+  }, [])
 
   useEffect(() => {
     return useAuthStore.subscribe((state) => {
       if (state.isAuthenticated && state.accessToken && getNotifSettings().enabled) {
-        subscribeToPush(state.accessToken).catch(() => {});
+        subscribeToPush(state.accessToken).catch(() => {})
       }
-    });
-  }, []);
+    })
+  }, [])
 
-  return null;
+  return null
 }
 
 function ElectronUrlGate({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(() => {
-    const saved = getStoredServerUrl();
+    const saved = getStoredServerUrl()
     if (saved) {
-      api.baseUrl = saved;
-      return true;
+      api.baseUrl = saved
+      return true
     }
-    return false;
-  });
+    return false
+  })
 
-  if (!isElectron) return <>{children}</>;
+  if (!isElectron) return <>{children}</>
 
   if (!connected) {
     return (
       <ServerUrlScreen
         onConnect={(url) => {
-          api.baseUrl = url;
-          setConnected(true);
+          api.baseUrl = url
+          setConnected(true)
         }}
       />
-    );
+    )
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }
 
 function LazyFallback() {
@@ -110,7 +108,7 @@ function LazyFallback() {
     <div className="flex h-screen items-center justify-center bg-surface">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
     </div>
-  );
+  )
 }
 
 export default function App() {
@@ -147,5 +145,5 @@ export default function App() {
         </Router>
       </ElectronUrlGate>
     </ErrorBoundary>
-  );
+  )
 }

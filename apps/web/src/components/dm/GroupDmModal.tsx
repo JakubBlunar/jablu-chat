@@ -1,88 +1,91 @@
-import { useCallback, useEffect, useState } from "react";
-import SimpleBar from "simplebar-react";
-import { UserAvatar } from "@/components/UserAvatar";
-import { api, type DmConversation } from "@/lib/api";
+import { useCallback, useEffect, useState } from 'react'
+import SimpleBar from 'simplebar-react'
+import { UserAvatar } from '@/components/UserAvatar'
+import { api, type DmConversation } from '@/lib/api'
 
 export function GroupDmModal({
   conversations,
   currentUserId,
   onClose,
   onCreated,
-  onExisting,
+  onExisting
 }: {
-  conversations: DmConversation[];
-  currentUserId: string | undefined;
-  onClose: () => void;
-  onCreated: (conv: DmConversation) => void;
-  onExisting: (convId: string) => void;
+  conversations: DmConversation[]
+  currentUserId: string | undefined
+  onClose: () => void
+  onCreated: (conv: DmConversation) => void
+  onExisting: (convId: string) => void
 }) {
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<string[]>([])
   const [results, setResults] = useState<
     { id: string; username: string; displayName: string | null; avatarUrl: string | null }[]
-  >([]);
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
+  >([])
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    const q = search.trim();
-    if (!q) { setResults([]); return; }
+    const q = search.trim()
+    if (!q) {
+      setResults([])
+      return
+    }
     const timer = setTimeout(async () => {
-      setLoading(true);
+      setLoading(true)
       try {
-        const data = await api.searchUsers(q);
-        setResults(data);
-      } catch { setResults([]); }
-      setLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+        const data = await api.searchUsers(q)
+        setResults(data)
+      } catch {
+        setResults([])
+      }
+      setLoading(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
 
   const findExisting = useCallback(
     (userIds: string[]): string | null => {
-      if (!currentUserId) return null;
-      const targetSet = new Set([...userIds, currentUserId]);
+      if (!currentUserId) return null
+      const targetSet = new Set([...userIds, currentUserId])
       for (const conv of conversations) {
-        const memberIds = new Set(conv.members.map((m) => m.userId));
-        if (memberIds.size !== targetSet.size) continue;
-        if ([...targetSet].every((id) => memberIds.has(id))) return conv.id;
+        const memberIds = new Set(conv.members.map((m) => m.userId))
+        if (memberIds.size !== targetSet.size) continue
+        if ([...targetSet].every((id) => memberIds.has(id))) return conv.id
       }
-      return null;
+      return null
     },
-    [conversations, currentUserId],
-  );
+    [conversations, currentUserId]
+  )
 
   const handleCreate = async () => {
-    if (selected.length === 0) return;
-    const existingId = findExisting(selected);
+    if (selected.length === 0) return
+    const existingId = findExisting(selected)
     if (existingId) {
-      onExisting(existingId);
-      return;
+      onExisting(existingId)
+      return
     }
-    setCreating(true);
+    setCreating(true)
     try {
-      const conv = selected.length === 1
-        ? await api.createDm(selected[0])
-        : await api.createGroupDm(selected);
-      onCreated(conv);
+      const conv = selected.length === 1 ? await api.createDm(selected[0]) : await api.createGroupDm(selected)
+      onCreated(conv)
     } catch {
       /* ignore */
     }
-    setCreating(false);
-  };
+    setCreating(false)
+  }
 
   const toggle = (id: string) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="w-full max-w-md rounded-lg bg-surface p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">New Message</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white">✕</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white">
+            ✕
+          </button>
         </div>
 
         <input
@@ -95,13 +98,18 @@ export function GroupDmModal({
         {selected.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-1">
             {selected.map((id) => {
-              const u = results.find((r) => r.id === id);
+              const u = results.find((r) => r.id === id)
               return (
-                <span key={id} className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary">
+                <span
+                  key={id}
+                  className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary"
+                >
                   {u?.displayName ?? u?.username ?? id.slice(0, 8)}
-                  <button type="button" onClick={() => toggle(id)} aria-label="Remove" className="hover:text-white">✕</button>
+                  <button type="button" onClick={() => toggle(id)} aria-label="Remove" className="hover:text-white">
+                    ✕
+                  </button>
                 </span>
-              );
+              )
             })}
           </div>
         )}
@@ -129,13 +137,9 @@ export function GroupDmModal({
           onClick={() => void handleCreate()}
           className="mt-4 w-full rounded bg-primary py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {creating
-            ? "Creating…"
-            : selected.length <= 1
-              ? "Create DM"
-              : `Create Group DM (${selected.length} members)`}
+          {creating ? 'Creating…' : selected.length <= 1 ? 'Create DM' : `Create Group DM (${selected.length} members)`}
         </button>
       </div>
     </div>
-  );
+  )
 }

@@ -1,59 +1,58 @@
-import { IsEmail, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, Length } from 'class-validator'
 
 export class AdminCreateServerDto {
   @IsString()
   @Length(1, 100)
-  name: string;
+  name: string
 
   @IsUUID()
-  ownerUserId: string;
+  ownerUserId: string
 }
 
 export class AdminLoginDto {
   @IsString()
-  username: string;
+  username: string
 
   @IsString()
-  password: string;
+  password: string
 }
 
 export class AdminUpdateUserDto {
   @IsOptional()
   @IsString()
   @Length(1, 32)
-  username?: string;
+  username?: string
 
   @IsOptional()
   @IsString()
   @Length(1, 32)
-  displayName?: string;
+  displayName?: string
 
   @IsOptional()
   @IsEmail()
-  email?: string;
+  email?: string
 
   @IsOptional()
   @IsString()
   @Length(0, 500)
-  bio?: string;
+  bio?: string
 }
 
 export class AdminCreateInviteDto {
   @IsEmail()
-  email: string;
+  email: string
 
   @IsOptional()
   @IsUUID()
-  serverId?: string;
+  serverId?: string
 }
 
 export class AdminAddServerMemberDto {
   @IsUUID()
-  userId: string;
+  userId: string
 }
 
 export class AdminUpdateMemberRoleDto {
   @IsString()
-  role: string;
+  role: string
 }
-

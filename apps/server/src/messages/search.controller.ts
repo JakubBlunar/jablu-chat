@@ -1,50 +1,42 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import {
-  IsBooleanString,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  Min,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { SearchService } from './search.service';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common'
+import { AuthGuard } from '@nestjs/passport'
+import { IsBooleanString, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
+import { Type } from 'class-transformer'
+import { CurrentUser } from '../auth/current-user.decorator'
+import { SearchService } from './search.service'
 
 class SearchQueryDto {
   @IsString()
-  q!: string;
+  q!: string
 
   @IsOptional()
   @IsUUID()
-  serverId?: string;
+  serverId?: string
 
   @IsOptional()
   @IsUUID()
-  channelId?: string;
+  channelId?: string
 
   @IsOptional()
   @IsUUID()
-  conversationId?: string;
+  conversationId?: string
 
   @IsOptional()
   @IsBooleanString()
-  dmOnly?: string;
+  dmOnly?: string
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(50)
-  limit?: number;
+  limit?: number
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  offset?: number;
+  offset?: number
 }
 
 @Controller('search')
@@ -53,10 +45,7 @@ export class SearchController {
   constructor(private readonly search: SearchService) {}
 
   @Get('messages')
-  searchMessages(
-    @CurrentUser() user: { id: string },
-    @Query() query: SearchQueryDto,
-  ) {
+  searchMessages(@CurrentUser() user: { id: string }, @Query() query: SearchQueryDto) {
     return this.search.searchMessages(
       user.id,
       query.q,
@@ -65,7 +54,7 @@ export class SearchController {
       query.dmOnly === 'true',
       query.conversationId,
       query.limit,
-      query.offset,
-    );
+      query.offset
+    )
   }
 }

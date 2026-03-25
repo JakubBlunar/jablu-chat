@@ -1,37 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { api, type GifResult } from "@/lib/api";
-import { useIsMobile } from "@/hooks/useMobile";
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { api, type GifResult } from '@/lib/api'
+import { useIsMobile } from '@/hooks/useMobile'
 
 interface GifPickerProps {
-  onSelect: (gifUrl: string) => void;
-  onClose: () => void;
+  onSelect: (gifUrl: string) => void
+  onClose: () => void
 }
 
 export function GifPicker({ onSelect, onClose }: GifPickerProps) {
-  const isMobile = useIsMobile();
-  const ref = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile()
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
+        onClose()
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [onClose]);
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [onClose])
 
-  const content = (
-    <GifPickerContent onSelect={onSelect} onClose={onClose} />
-  );
+  const content = <GifPickerContent onSelect={onSelect} onClose={onClose} />
 
   if (isMobile) {
     return createPortal(
-      <div
-        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60"
-        onClick={onClose}
-      >
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60" onClick={onClose}>
         <div
           ref={ref}
           className="relative flex max-h-[80vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-xl bg-surface-dark shadow-2xl"
@@ -50,8 +45,8 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
           {content}
         </div>
       </div>,
-      document.body,
-    );
+      document.body
+    )
   }
 
   return (
@@ -61,85 +56,74 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
     >
       {content}
     </div>
-  );
+  )
 }
 
-function GifPickerContent({
-  onSelect,
-  onClose,
-}: {
-  onSelect: (url: string) => void;
-  onClose: () => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GifResult[]>([]);
-  const [nextPos, setNextPos] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const scrollRef = useRef<HTMLDivElement>(null);
+function GifPickerContent({ onSelect, onClose }: { onSelect: (url: string) => void; onClose: () => void }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<GifResult[]>([])
+  const [nextPos, setNextPos] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  const fetchGifs = useCallback(
-    async (q: string, pos?: string) => {
-      setLoading(true);
-      setError(false);
-      try {
-        const data = q.trim()
-          ? await api.searchGifs(q.trim(), 20, pos)
-          : await api.getTrendingGifs(20, pos);
-        if (pos) {
-          setResults((prev) => [...prev, ...data.results]);
-        } else {
-          setResults(data.results);
-        }
-        setNextPos(data.next);
-      } catch {
-        if (!pos) setResults([]);
-        setError(true);
-      } finally {
-        setLoading(false);
+  const fetchGifs = useCallback(async (q: string, pos?: string) => {
+    setLoading(true)
+    setError(false)
+    try {
+      const data = q.trim() ? await api.searchGifs(q.trim(), 20, pos) : await api.getTrendingGifs(20, pos)
+      if (pos) {
+        setResults((prev) => [...prev, ...data.results])
+      } else {
+        setResults(data.results)
       }
-    },
-    [],
-  );
+      setNextPos(data.next)
+    } catch {
+      if (!pos) setResults([])
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  const mountedRef = useRef(false);
+  const mountedRef = useRef(false)
 
   useEffect(() => {
     if (!mountedRef.current) {
-      mountedRef.current = true;
-      fetchGifs("");
-      return;
+      mountedRef.current = true
+      fetchGifs('')
+      return
     }
-    clearTimeout(debounceRef.current);
+    clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      setResults([]);
-      setNextPos("");
-      fetchGifs(query);
-    }, 300);
-    return () => clearTimeout(debounceRef.current);
-  }, [query, fetchGifs]);
+      setResults([])
+      setNextPos('')
+      fetchGifs(query)
+    }, 300)
+    return () => clearTimeout(debounceRef.current)
+  }, [query, fetchGifs])
 
   const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || loading || !nextPos) return;
+    const el = scrollRef.current
+    if (!el || loading || !nextPos) return
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
-      fetchGifs(query, nextPos);
+      fetchGifs(query, nextPos)
     }
-  }, [loading, nextPos, query, fetchGifs]);
+  }, [loading, nextPos, query, fetchGifs])
 
-  const left: GifResult[] = [];
-  const right: GifResult[] = [];
-  let leftH = 0;
-  let rightH = 0;
+  const left: GifResult[] = []
+  const right: GifResult[] = []
+  let leftH = 0
+  let rightH = 0
   for (const gif of results) {
-    const ratio = gif.width > 0 ? gif.height / gif.width : 1;
+    const ratio = gif.width > 0 ? gif.height / gif.width : 1
     if (leftH <= rightH) {
-      left.push(gif);
-      leftH += ratio;
+      left.push(gif)
+      leftH += ratio
     } else {
-      right.push(gif);
-      rightH += ratio;
+      right.push(gif)
+      rightH += ratio
     }
   }
 
@@ -156,11 +140,7 @@ function GifPickerContent({
         />
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-2"
-        onScroll={handleScroll}
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2" onScroll={handleScroll}>
         {results.length === 0 && !loading && (
           <div className="py-8 text-center text-sm text-gray-500">
             {error ? (
@@ -175,7 +155,7 @@ function GifPickerContent({
                 </button>
               </>
             ) : query ? (
-              "No GIFs found"
+              'No GIFs found'
             ) : null}
           </div>
         )}
@@ -204,25 +184,25 @@ function GifPickerContent({
         <p className="text-center text-[10px] text-gray-500">Powered by GIPHY</p>
       </div>
     </>
-  );
+  )
 }
 
 function GifThumb({
   gif,
   onSelect,
-  onClose,
+  onClose
 }: {
-  gif: GifResult;
-  onSelect: (url: string) => void;
-  onClose: () => void;
+  gif: GifResult
+  onSelect: (url: string) => void
+  onClose: () => void
 }) {
   return (
     <button
       type="button"
       className="block w-full overflow-hidden rounded-md transition hover:ring-2 hover:ring-primary"
       onClick={() => {
-        onSelect(gif.url);
-        onClose();
+        onSelect(gif.url)
+        onClose()
       }}
       title={gif.title}
     >
@@ -232,26 +212,17 @@ function GifThumb({
         className="w-full rounded-md object-cover"
         loading="lazy"
         style={{
-          aspectRatio:
-            gif.width > 0 && gif.height > 0
-              ? `${gif.width}/${gif.height}`
-              : undefined,
+          aspectRatio: gif.width > 0 && gif.height > 0 ? `${gif.width}/${gif.height}` : undefined
         }}
       />
     </button>
-  );
+  )
 }
 
 function XIcon() {
   return (
-    <svg
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path d="M6 18 18 6M6 6l12 12" />
     </svg>
-  );
+  )
 }

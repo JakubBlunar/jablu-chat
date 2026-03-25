@@ -1,4 +1,4 @@
-import { BadRequestException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Logger, UseGuards } from '@nestjs/common'
 import {
   ConnectedSocket,
   MessageBody,
@@ -7,42 +7,40 @@ import {
   OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
-  WebSocketServer,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { DmService } from '../dm/dm.service';
-import { EventBusService } from '../events/event-bus.service';
-import { LinkPreviewService } from '../messages/link-preview.service';
-import { MessagesService } from '../messages/messages.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { PushService } from '../push/push.service';
-import { ReadStateService } from '../read-state/read-state.service';
-import { WsJwtGuard, WsUser } from './ws-jwt.guard';
+  WebSocketServer
+} from '@nestjs/websockets'
+import { Server, Socket } from 'socket.io'
+import { DmService } from '../dm/dm.service'
+import { EventBusService } from '../events/event-bus.service'
+import { LinkPreviewService } from '../messages/link-preview.service'
+import { MessagesService } from '../messages/messages.service'
+import { PrismaService } from '../prisma/prisma.service'
+import { PushService } from '../push/push.service'
+import { ReadStateService } from '../read-state/read-state.service'
+import { RedisService } from '../redis/redis.service'
+import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 
-const MAX_MESSAGE_LENGTH = 4000;
+const MAX_MESSAGE_LENGTH = 4000
 
 @WebSocketGateway({ cors: { origin: true, credentials: true }, namespace: '/' })
 @UseGuards(WsJwtGuard)
-export class ChatGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+  private readonly logger = new Logger(ChatGateway.name)
+
   @WebSocketServer()
-  server!: Server;
+  server!: Server
 
   /** userId -> number of active socket connections */
-  private readonly onlineUsers = new Map<string, number>();
+  private readonly onlineUsers = new Map<string, number>()
 
   /** userId -> manually chosen status (dnd) that should not be overridden by idle detection */
-  private readonly manualStatus = new Map<string, string>();
+  private readonly manualStatus = new Map<string, string>()
 
   /** channelId -> Set of participants in voice channel */
-  private readonly voiceParticipants = new Map<
-    string,
-    Map<string, { userId: string; username: string }>
-  >();
+  private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
 
   /** socketId -> channelId the socket is in (for cleanup on disconnect) */
-  private readonly socketVoiceChannel = new Map<string, string>();
+  private readonly socketVoiceChannel = new Map<string, string>()
 
   constructor(
     private readonly prisma: PrismaService,
@@ -53,133 +51,106 @@ export class ChatGateway
     private readonly events: EventBusService,
     private readonly readState: ReadStateService,
     private readonly push: PushService,
+    private readonly redis: RedisService
   ) {}
 
   private addOnlineUser(userId: string): boolean {
-    const count = this.onlineUsers.get(userId) ?? 0;
-    this.onlineUsers.set(userId, count + 1);
-    return count === 0;
+    const count = this.onlineUsers.get(userId) ?? 0
+    this.onlineUsers.set(userId, count + 1)
+    return count === 0
   }
 
   private removeOnlineUser(userId: string): boolean {
-    const count = this.onlineUsers.get(userId) ?? 0;
+    const count = this.onlineUsers.get(userId) ?? 0
     if (count <= 1) {
-      this.onlineUsers.delete(userId);
-      return true;
+      this.onlineUsers.delete(userId)
+      return true
     }
-    this.onlineUsers.set(userId, count - 1);
-    return false;
+    this.onlineUsers.set(userId, count - 1)
+    return false
   }
 
   getOnlineUserIds(): string[] {
-    return [...this.onlineUsers.keys()];
+    return [...this.onlineUsers.keys()]
   }
 
   afterInit() {
-    this.events.on(
-      'user:status',
-      async (payload: { userId: string; status: string }) => {
-        if (payload.status === 'dnd') {
-          this.manualStatus.set(payload.userId, 'dnd');
-        } else {
-          this.manualStatus.delete(payload.userId);
-        }
+    this.events.on('user:status', async (payload: { userId: string; status: string }) => {
+      if (payload.status === 'dnd') {
+        this.manualStatus.set(payload.userId, 'dnd')
+      } else {
+        this.manualStatus.delete(payload.userId)
+      }
 
-        const memberships = await this.prisma.serverMember.findMany({
-          where: { userId: payload.userId },
-          select: { serverId: true },
-        });
-        for (const m of memberships) {
-          this.server.to(`server:${m.serverId}`).emit('user:status', {
-            userId: payload.userId,
-            status: payload.status,
-          });
-        }
-      },
-    );
+      const memberships = await this.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      })
+      for (const m of memberships) {
+        this.server.to(`server:${m.serverId}`).emit('user:status', {
+          userId: payload.userId,
+          status: payload.status
+        })
+      }
+    })
 
-    this.events.on(
-      'webhook:message',
-      (payload: { channelId: string; message: unknown }) => {
-        this.emitToChannel(payload.channelId, 'message:new', payload.message);
-      },
-    );
+    this.events.on('webhook:message', (payload: { channelId: string; message: unknown }) => {
+      this.emitToChannel(payload.channelId, 'message:new', payload.message)
+    })
 
     this.events.on(
       'webhook:link-previews',
-      (payload: {
-        channelId: string;
-        messageId: string;
-        linkPreviews: unknown;
-      }) => {
+      (payload: { channelId: string; messageId: string; linkPreviews: unknown }) => {
         this.emitToChannel(payload.channelId, 'message:link-previews', {
           messageId: payload.messageId,
-          linkPreviews: payload.linkPreviews,
-        });
-      },
-    );
+          linkPreviews: payload.linkPreviews
+        })
+      }
+    )
 
-    this.events.on(
-      'dm:read',
-      (payload: {
-        conversationId: string;
-        userId: string;
-        lastReadAt: string;
-      }) => {
-        this.emitToDm(payload.conversationId, 'dm:read', payload);
-      },
-    );
+    this.events.on('dm:read', (payload: { conversationId: string; userId: string; lastReadAt: string }) => {
+      this.emitToDm(payload.conversationId, 'dm:read', payload)
+    })
 
-    this.events.on(
-      'channel:reorder',
-      (payload: { serverId: string; channelIds: string[] }) => {
-        this.server
-          .to(`server:${payload.serverId}`)
-          .emit('channel:reorder', { channelIds: payload.channelIds });
-      },
-    );
+    this.events.on('channel:reorder', (payload: { serverId: string; channelIds: string[] }) => {
+      this.server.to(`server:${payload.serverId}`).emit('channel:reorder', { channelIds: payload.channelIds })
+    })
 
-    this.events.on(
-      'member:removed',
-      async (payload: { serverId: string; userId: string }) => {
-        const channels = await this.prisma.channel.findMany({
-          where: { serverId: payload.serverId },
-          select: { id: true },
-        });
-        const sockets = await this.server.fetchSockets();
-        for (const s of sockets) {
-          const sUser = (s.data as { user?: WsUser }).user;
-          if (sUser?.id === payload.userId) {
-            s.leave(`server:${payload.serverId}`);
-            for (const ch of channels) {
-              s.leave(`channel:${ch.id}`);
-            }
-            const serverIds = (s.data as { serverIds?: string[] }).serverIds;
-            if (serverIds) {
-              const idx = serverIds.indexOf(payload.serverId);
-              if (idx !== -1) serverIds.splice(idx, 1);
-            }
-          }
+    this.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {
+      const channels = await this.prisma.channel.findMany({
+        where: { serverId: payload.serverId },
+        select: { id: true }
+      })
+      const userSockets = await this.server.in(`user:${payload.userId}`).fetchSockets()
+      for (const s of userSockets) {
+        s.leave(`server:${payload.serverId}`)
+        for (const ch of channels) {
+          s.leave(`channel:${ch.id}`)
         }
-      },
-    );
+        const serverIds = (s.data as { serverIds?: string[] }).serverIds
+        if (serverIds) {
+          const idx = serverIds.indexOf(payload.serverId)
+          if (idx !== -1) serverIds.splice(idx, 1)
+        }
+      }
+    })
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
-    this.server.to(`channel:${channelId}`).emit(event, data);
+    this.server.to(`channel:${channelId}`).emit(event, data)
   }
 
   emitToDm(conversationId: string, event: string, data: unknown) {
-    this.server.to(`dm:${conversationId}`).emit(event, data);
+    this.server.to(`dm:${conversationId}`).emit(event, data)
   }
 
   async handleConnection(client: Socket) {
-    let user: WsUser;
+    let user: WsUser
     try {
-      user = await this.wsJwtGuard.authenticateClient(client);
+      user = await this.wsJwtGuard.authenticateClient(client)
     } catch {
-      client.disconnect(true);
-      return;
+      client.disconnect(true)
+      return
     }
 
     const memberships = await this.prisma.serverMember.findMany({
@@ -188,119 +159,110 @@ export class ChatGateway
         server: {
           include: {
             channels: { select: { id: true } },
-            members: { select: { userId: true } },
-          },
-        },
-      },
-    });
+            members: { select: { userId: true } }
+          }
+        }
+      }
+    })
 
-    const serverIds: string[] = [];
-    const allMemberUserIds = new Set<string>();
+    const serverIds: string[] = []
+    const allMemberUserIds = new Set<string>()
     for (const m of memberships) {
-      serverIds.push(m.serverId);
-      client.join(`server:${m.serverId}`);
+      serverIds.push(m.serverId)
+      client.join(`server:${m.serverId}`)
       for (const ch of m.server.channels) {
-        client.join(`channel:${ch.id}`);
+        client.join(`channel:${ch.id}`)
       }
       for (const mem of m.server.members) {
-        allMemberUserIds.add(mem.userId);
+        allMemberUserIds.add(mem.userId)
       }
     }
-    (client.data as { serverIds?: string[] }).serverIds = serverIds;
-    client.join(`user:${user.id}`);
+    ;(client.data as { serverIds?: string[] }).serverIds = serverIds
+    client.join(`user:${user.id}`)
 
-    const isFirstConnection = this.addOnlineUser(user.id);
+    const isFirstConnection = this.addOnlineUser(user.id)
 
     if (isFirstConnection) {
       await this.prisma.user.update({
         where: { id: user.id },
-        data: { status: 'online', lastSeenAt: new Date() },
-      });
+        data: { status: 'online', lastSeenAt: new Date() }
+      })
       for (const sid of serverIds) {
-        this.server.to(`server:${sid}`).emit('user:online', { userId: user.id });
+        this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
       }
     }
 
-    const onlineNow = this.getOnlineUserIds().filter((id) =>
-      allMemberUserIds.has(id),
-    );
-    client.emit('presence:init', { onlineUserIds: onlineNow });
+    const onlineNow = this.getOnlineUserIds().filter((id) => allMemberUserIds.has(id))
+    client.emit('presence:init', { onlineUserIds: onlineNow })
 
-    const dmConversations =
-      await this.prisma.directConversationMember.findMany({
-        where: { userId: user.id },
-        select: { conversationId: true },
-      });
+    const dmConversations = await this.prisma.directConversationMember.findMany({
+      where: { userId: user.id },
+      select: { conversationId: true }
+    })
     for (const dc of dmConversations) {
-      client.join(`dm:${dc.conversationId}`);
+      client.join(`dm:${dc.conversationId}`)
     }
 
-    const userChannelIds = new Set<string>();
+    const userChannelIds = new Set<string>()
     for (const m of memberships) {
       for (const ch of m.server.channels) {
-        userChannelIds.add(ch.id);
+        userChannelIds.add(ch.id)
       }
     }
-    const voiceState: Record<string, { userId: string; username: string }[]> =
-      {};
+    const voiceState: Record<string, { userId: string; username: string }[]> = {}
     for (const [chId, participants] of this.voiceParticipants) {
       if (userChannelIds.has(chId)) {
-        voiceState[chId] = [...participants.values()];
+        voiceState[chId] = [...participants.values()]
       }
     }
-    client.emit('voice:participants', voiceState);
+    client.emit('voice:participants', voiceState)
   }
 
   async handleDisconnect(client: Socket) {
-    const data = client.data as { user?: WsUser; serverIds?: string[] };
-    const user = data.user;
-    const serverIds = data.serverIds;
+    const data = client.data as { user?: WsUser; serverIds?: string[] }
+    const user = data.user
+    const serverIds = data.serverIds
 
-    this.removeVoiceParticipant(client.id, serverIds);
+    this.removeVoiceParticipant(client.id, serverIds)
 
     if (!user || !serverIds?.length) {
-      return;
+      return
     }
 
-    const isLastConnection = this.removeOnlineUser(user.id);
+    const isLastConnection = this.removeOnlineUser(user.id)
 
     if (isLastConnection) {
-      this.manualStatus.delete(user.id);
+      this.manualStatus.delete(user.id)
       await this.prisma.user.update({
         where: { id: user.id },
-        data: { status: 'offline', lastSeenAt: new Date() },
-      });
+        data: { status: 'offline', lastSeenAt: new Date() }
+      })
       for (const sid of serverIds) {
-        this.server
-          .to(`server:${sid}`)
-          .emit('user:offline', { userId: user.id });
+        this.server.to(`server:${sid}`).emit('user:offline', { userId: user.id })
       }
     }
   }
 
-  private removeVoiceParticipant(
-    socketId: string,
-    serverIds?: string[],
-  ) {
-    const channelId = this.socketVoiceChannel.get(socketId);
-    if (!channelId) return;
+  private removeVoiceParticipant(socketId: string, serverIds?: string[]) {
+    const channelId = this.socketVoiceChannel.get(socketId)
+    if (!channelId) return
 
-    this.socketVoiceChannel.delete(socketId);
-    const participants = this.voiceParticipants.get(channelId);
-    if (!participants) return;
+    this.socketVoiceChannel.delete(socketId)
+    const participants = this.voiceParticipants.get(channelId)
+    if (!participants) return
 
-    const leaving = participants.get(socketId);
-    participants.delete(socketId);
+    const leaving = participants.get(socketId)
+    participants.delete(socketId)
     if (participants.size === 0) {
-      this.voiceParticipants.delete(channelId);
+      this.voiceParticipants.delete(channelId)
     }
 
     if (leaving && serverIds) {
       for (const sid of serverIds) {
         this.server.to(`server:${sid}`).emit('voice:participant-left', {
           channelId,
-          userId: leaving.userId,
-        });
+          userId: leaving.userId
+        })
       }
     }
   }
@@ -310,49 +272,42 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody()
     body: {
-      channelId: string;
-      content?: string;
-      replyToId?: string;
-      attachmentIds?: string[];
-    },
+      channelId: string
+      content?: string
+      replyToId?: string
+      attachmentIds?: string[]
+    }
   ) {
     if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
-    const user = (client.data as { user: WsUser }).user;
+    const user = (client.data as { user: WsUser }).user
     const msg = await this.messages.createMessage(
       body.channelId,
       user.id,
       body.content,
       body.replyToId,
-      body.attachmentIds,
-    );
+      body.attachmentIds
+    )
 
     const channel = await this.prisma.channel.findUnique({
       where: { id: body.channelId },
-      select: { serverId: true },
-    });
+      select: { serverId: true }
+    })
 
-    let mentionedUserIds: string[] = [];
+    let mentionedUserIds: string[] = []
     if (body.content && channel) {
-      mentionedUserIds = await this.readState.resolveMentions(
-        body.content,
-        channel.serverId,
-        user.id,
-      );
+      mentionedUserIds = await this.readState.resolveMentions(body.content, channel.serverId, user.id)
       if (mentionedUserIds.length > 0) {
-        await this.readState.incrementMention(
-          body.channelId,
-          mentionedUserIds,
-        );
+        await this.readState.incrementMention(body.channelId, mentionedUserIds)
       }
     }
 
     this.emitToChannel(body.channelId, 'message:new', {
       ...msg,
       mentionedUserIds,
-      serverId: channel?.serverId ?? null,
-    });
+      serverId: channel?.serverId ?? null
+    })
 
     if (body.content) {
       this.linkPreviews
@@ -361,11 +316,11 @@ export class ChatGateway
           if (previews.length > 0) {
             this.emitToChannel(body.channelId, 'message:link-previews', {
               messageId: msg.id,
-              linkPreviews: previews,
-            });
+              linkPreviews: previews
+            })
           }
         })
-        .catch(() => {});
+        .catch((err) => this.logger.warn('Link preview fetch failed', err?.message))
     }
 
     if (channel) {
@@ -376,166 +331,129 @@ export class ChatGateway
         body.content,
         `/channels/${body.channelId}`,
         body.channelId,
-        mentionedUserIds,
-      ).catch(() => {});
+        mentionedUserIds
+      ).catch((err) => this.logger.warn('Push notification failed', err?.message))
     }
 
-    return { ok: true, message: msg };
+    return { ok: true, message: msg }
   }
 
   @SubscribeMessage('message:edit')
-  async onMessageEdit(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string; content: string },
-  ) {
+  async onMessageEdit(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string; content: string }) {
     if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
-    const user = (client.data as { user: WsUser }).user;
-    const updated = await this.messages.editMessage(
-      body.messageId,
-      user.id,
-      body.content,
-    );
-    const channelId = updated.channelId;
+    const user = (client.data as { user: WsUser }).user
+    const updated = await this.messages.editMessage(body.messageId, user.id, body.content)
+    const channelId = updated.channelId
     if (channelId) {
-      this.emitToChannel(channelId, 'message:edit', updated);
+      this.emitToChannel(channelId, 'message:edit', updated)
     }
-    return { ok: true, message: updated };
+    return { ok: true, message: updated }
   }
 
   @SubscribeMessage('message:delete')
-  async onMessageDelete(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    const channelId = await this.messages.getMessageChannelId(body.messageId);
-    await this.messages.deleteMessage(body.messageId, user.id);
+  async onMessageDelete(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    const channelId = await this.messages.getMessageChannelId(body.messageId)
+    await this.messages.deleteMessage(body.messageId, user.id)
     if (channelId) {
       this.emitToChannel(channelId, 'message:delete', {
         messageId: body.messageId,
-        channelId,
-      });
+        channelId
+      })
     }
-    return { ok: true };
+    return { ok: true }
   }
 
   @SubscribeMessage('reaction:toggle')
   async onReactionToggle(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string; emoji: string; isCustom?: boolean },
+    @MessageBody() body: { messageId: string; emoji: string; isCustom?: boolean }
   ) {
-    const user = (client.data as { user: WsUser }).user;
-    const result = await this.messages.toggleReaction(
-      body.messageId,
-      user.id,
-      body.emoji,
-      body.isCustom ?? false,
-    );
-    const ctx = await this.messages.getMessageContext(body.messageId);
-    const event =
-      result.action === 'added' ? 'reaction:add' : 'reaction:remove';
+    const user = (client.data as { user: WsUser }).user
+    const result = await this.messages.toggleReaction(body.messageId, user.id, body.emoji, body.isCustom ?? false)
+    const event = result.action === 'added' ? 'reaction:add' : 'reaction:remove'
     const payload = {
       messageId: body.messageId,
       emoji: body.emoji,
       userId: user.id,
-      isCustom: result.isCustom,
-    };
-    if (ctx.channelId) {
-      this.emitToChannel(ctx.channelId, event, payload);
-    } else if (ctx.directConversationId) {
-      this.emitToDm(ctx.directConversationId, event, {
-        ...payload,
-        conversationId: ctx.directConversationId,
-      });
+      isCustom: result.isCustom
     }
-    return { ok: true, action: result.action };
+    if (result.channelId) {
+      this.emitToChannel(result.channelId, event, payload)
+    } else if (result.directConversationId) {
+      this.emitToDm(result.directConversationId, event, {
+        ...payload,
+        conversationId: result.directConversationId
+      })
+    }
+    return { ok: true, action: result.action }
   }
 
   @SubscribeMessage('message:pin')
-  async onMessagePin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string; channelId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    const msg = await this.messages.pinMessage(
-      body.messageId,
-      user.id,
-      body.channelId,
-    );
-    this.emitToChannel(body.channelId, 'message:pin', msg);
-    return { ok: true, message: msg };
+  async onMessagePin(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string; channelId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    const msg = await this.messages.pinMessage(body.messageId, user.id, body.channelId)
+    this.emitToChannel(body.channelId, 'message:pin', msg)
+    return { ok: true, message: msg }
   }
 
   @SubscribeMessage('message:unpin')
   async onMessageUnpin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string; channelId: string },
+    @MessageBody() body: { messageId: string; channelId: string }
   ) {
-    const user = (client.data as { user: WsUser }).user;
-    const msg = await this.messages.unpinMessage(
-      body.messageId,
-      user.id,
-      body.channelId,
-    );
-    this.emitToChannel(body.channelId, 'message:unpin', msg);
-    return { ok: true, message: msg };
+    const user = (client.data as { user: WsUser }).user
+    const msg = await this.messages.unpinMessage(body.messageId, user.id, body.channelId)
+    this.emitToChannel(body.channelId, 'message:unpin', msg)
+    return { ok: true, message: msg }
   }
 
   @SubscribeMessage('activity:idle')
   async onActivityIdle(@ConnectedSocket() client: Socket) {
-    const user = (client.data as { user: WsUser }).user;
+    const user = (client.data as { user: WsUser }).user
     if (this.manualStatus.get(user.id) === 'dnd') {
-      return { ok: true };
+      return { ok: true }
     }
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { status: 'idle' },
-    });
-    const serverIds =
-      (client.data as { serverIds?: string[] }).serverIds ?? [];
+      data: { status: 'idle' }
+    })
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
     for (const sid of serverIds) {
-      this.server
-        .to(`server:${sid}`)
-        .emit('user:status', { userId: user.id, status: 'idle' });
+      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'idle' })
     }
-    return { ok: true };
+    return { ok: true }
   }
 
   @SubscribeMessage('activity:active')
   async onActivityActive(@ConnectedSocket() client: Socket) {
-    const user = (client.data as { user: WsUser }).user;
+    const user = (client.data as { user: WsUser }).user
     if (this.manualStatus.get(user.id) === 'dnd') {
-      return { ok: true };
+      return { ok: true }
     }
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { status: 'online' },
-    });
-    const serverIds =
-      (client.data as { serverIds?: string[] }).serverIds ?? [];
+      data: { status: 'online' }
+    })
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
     for (const sid of serverIds) {
-      this.server
-        .to(`server:${sid}`)
-        .emit('user:status', { userId: user.id, status: 'online' });
+      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
     }
-    return { ok: true };
+    return { ok: true }
   }
 
   @SubscribeMessage('typing:start')
-  async onTypingStart(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { channelId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    await this.messages.assertUserCanAccessChannel(body.channelId, user.id);
+  async onTypingStart(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     this.emitToChannel(body.channelId, 'user:typing', {
       userId: user.id,
       channelId: body.channelId,
-      username: user.displayName ?? user.username,
-    });
-    return { ok: true };
+      username: user.displayName ?? user.username
+    })
+    return { ok: true }
   }
 
   @SubscribeMessage('dm:send')
@@ -543,50 +461,43 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody()
     body: {
-      conversationId: string;
-      content?: string;
-      replyToId?: string;
-      attachmentIds?: string[];
-    },
+      conversationId: string
+      content?: string
+      replyToId?: string
+      attachmentIds?: string[]
+    }
   ) {
     if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
-    const user = (client.data as { user: WsUser }).user;
+    const user = (client.data as { user: WsUser }).user
     const msg = await this.dm.createMessage(
       body.conversationId,
       user.id,
       body.content,
       body.replyToId,
-      body.attachmentIds,
-    );
+      body.attachmentIds
+    )
 
-    const memberIds = await this.dm.getConversationMemberIds(
-      body.conversationId,
-    );
-    const roomName = `dm:${body.conversationId}`;
-    const existingRoom = await this.server.in(roomName).fetchSockets();
-    const alreadyJoined = new Set(
-      existingRoom.map((s) => (s.data as { user?: WsUser }).user?.id).filter(Boolean),
-    );
-    const missingIds = memberIds.filter((id) => !alreadyJoined.has(id));
+    const memberIds = await this.dm.getConversationMemberIds(body.conversationId)
+    const roomName = `dm:${body.conversationId}`
+    const existingRoom = await this.server.in(roomName).fetchSockets()
+    const alreadyJoined = new Set(existingRoom.map((s) => (s.data as { user?: WsUser }).user?.id).filter(Boolean))
+    const missingIds = memberIds.filter((id) => !alreadyJoined.has(id))
     if (missingIds.length > 0) {
       for (const mid of missingIds) {
-        const userSockets = await this.server.in(`user:${mid}`).fetchSockets();
-        for (const s of userSockets) s.join(roomName);
+        const userSockets = await this.server.in(`user:${mid}`).fetchSockets()
+        for (const s of userSockets) s.join(roomName)
       }
     }
 
-    const otherMemberIds = memberIds.filter((id) => id !== user.id);
-    await this.readState.incrementDmMention(
-      body.conversationId,
-      otherMemberIds,
-    );
+    const otherMemberIds = memberIds.filter((id) => id !== user.id)
+    await this.readState.incrementDmMention(body.conversationId, otherMemberIds)
 
     this.emitToDm(body.conversationId, 'dm:new', {
       ...msg,
-      conversationId: body.conversationId,
-    });
+      conversationId: body.conversationId
+    })
 
     if (body.content) {
       this.linkPreviews
@@ -596,164 +507,136 @@ export class ChatGateway
             this.emitToDm(body.conversationId, 'dm:link-previews', {
               messageId: msg.id,
               conversationId: body.conversationId,
-              linkPreviews: previews,
-            });
+              linkPreviews: previews
+            })
           }
         })
-        .catch(() => {});
+        .catch((err) => this.logger.warn('DM link preview fetch failed', err?.message))
     }
 
-    const offlineDmMembers = otherMemberIds.filter(
-      (id) => !this.onlineUsers.has(id),
-    );
+    const offlineDmMembers = otherMemberIds.filter((id) => !this.onlineUsers.has(id))
     if (offlineDmMembers.length > 0) {
-      const authorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone';
-      const preview = body.content?.slice(0, 100) || '[attachment]';
+      const authorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
+      const preview = body.content?.slice(0, 100) || '[attachment]'
       this.push
         .sendToUsers(offlineDmMembers, {
           title: `DM from ${authorName}`,
           body: preview,
-          url: `/dm/${body.conversationId}`,
+          url: `/dm/${body.conversationId}`
         })
-        .catch(() => {});
+        .catch((err) => this.logger.warn('DM push notification failed', err?.message))
     }
 
-    return { ok: true, message: msg };
+    return { ok: true, message: msg }
   }
 
   @SubscribeMessage('dm:edit')
   async onDmEdit(
     @ConnectedSocket() client: Socket,
     @MessageBody()
-    body: { conversationId: string; messageId: string; content: string },
+    body: { conversationId: string; messageId: string; content: string }
   ) {
     if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
-    const user = (client.data as { user: WsUser }).user;
-    const updated = await this.dm.editMessage(
-      body.conversationId,
-      body.messageId,
-      user.id,
-      body.content,
-    );
+    const user = (client.data as { user: WsUser }).user
+    const updated = await this.dm.editMessage(body.conversationId, body.messageId, user.id, body.content)
     this.emitToDm(body.conversationId, 'dm:edit', {
       ...updated,
-      conversationId: body.conversationId,
-    });
-    return { ok: true, message: updated };
+      conversationId: body.conversationId
+    })
+    return { ok: true, message: updated }
   }
 
   @SubscribeMessage('dm:delete')
   async onDmDelete(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { conversationId: string; messageId: string },
+    @MessageBody() body: { conversationId: string; messageId: string }
   ) {
-    const user = (client.data as { user: WsUser }).user;
-    await this.dm.deleteMessage(
-      body.conversationId,
-      body.messageId,
-      user.id,
-    );
+    const user = (client.data as { user: WsUser }).user
+    await this.dm.deleteMessage(body.conversationId, body.messageId, user.id)
     this.emitToDm(body.conversationId, 'dm:delete', {
       messageId: body.messageId,
-      conversationId: body.conversationId,
-    });
-    return { ok: true };
+      conversationId: body.conversationId
+    })
+    return { ok: true }
   }
 
   @SubscribeMessage('dm:typing')
-  async onDmTyping(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { conversationId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    await this.dm.requireMembership(body.conversationId, user.id);
+  async onDmTyping(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    await this.dm.requireMembership(body.conversationId, user.id)
     client.to(`dm:${body.conversationId}`).emit('dm:typing', {
       userId: user.id,
       conversationId: body.conversationId,
-      username: user.displayName ?? user.username,
-    });
-    return { ok: true };
+      username: user.displayName ?? user.username
+    })
+    return { ok: true }
   }
 
   @SubscribeMessage('dm:join')
-  async onDmJoin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { conversationId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    await this.dm.requireMembership(body.conversationId, user.id);
-    client.join(`dm:${body.conversationId}`);
-    return { ok: true };
+  async onDmJoin(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    await this.dm.requireMembership(body.conversationId, user.id)
+    client.join(`dm:${body.conversationId}`)
+    return { ok: true }
   }
 
   @SubscribeMessage('channel:join')
-  async onChannelJoin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { channelId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    await this.messages.assertUserCanAccessChannel(body.channelId, user.id);
-    client.join(`channel:${body.channelId}`);
-    return { ok: true };
+  async onChannelJoin(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
+    client.join(`channel:${body.channelId}`)
+    return { ok: true }
   }
 
   @SubscribeMessage('channel:leave')
-  async onChannelLeave(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { channelId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    await this.messages.assertUserCanAccessChannel(body.channelId, user.id);
-    client.leave(`channel:${body.channelId}`);
-    return { ok: true };
+  async onChannelLeave(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
+    client.leave(`channel:${body.channelId}`)
+    return { ok: true }
   }
 
   @SubscribeMessage('voice:join')
-  async onVoiceJoin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { channelId: string },
-  ) {
-    const user = (client.data as { user: WsUser }).user;
-    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
+  async onVoiceJoin(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
 
-    await this.messages.assertUserCanAccessChannel(body.channelId, user.id);
+    await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
 
-    const prev = this.socketVoiceChannel.get(client.id);
+    const prev = this.socketVoiceChannel.get(client.id)
     if (prev) {
-      this.removeVoiceParticipant(client.id, serverIds);
+      this.removeVoiceParticipant(client.id, serverIds)
     }
 
-    let participants = this.voiceParticipants.get(body.channelId);
+    let participants = this.voiceParticipants.get(body.channelId)
     if (!participants) {
-      participants = new Map();
-      this.voiceParticipants.set(body.channelId, participants);
+      participants = new Map()
+      this.voiceParticipants.set(body.channelId, participants)
     }
     participants.set(client.id, {
       userId: user.id,
-      username: user.displayName ?? user.username,
-    });
-    this.socketVoiceChannel.set(client.id, body.channelId);
+      username: user.displayName ?? user.username
+    })
+    this.socketVoiceChannel.set(client.id, body.channelId)
 
     for (const sid of serverIds) {
       this.server.to(`server:${sid}`).emit('voice:participant-joined', {
         channelId: body.channelId,
         userId: user.id,
-        username: user.displayName ?? user.username,
-      });
+        username: user.displayName ?? user.username
+      })
     }
 
-    return { ok: true };
+    return { ok: true }
   }
 
   @SubscribeMessage('voice:leave')
-  async onVoiceLeave(
-    @ConnectedSocket() client: Socket,
-  ) {
-    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
-    this.removeVoiceParticipant(client.id, serverIds);
-    return { ok: true };
+  async onVoiceLeave(@ConnectedSocket() client: Socket) {
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
+    this.removeVoiceParticipant(client.id, serverIds)
+    return { ok: true }
   }
 
   @SubscribeMessage('voice:state')
@@ -761,30 +644,30 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody()
     body: {
-      muted?: boolean;
-      deafened?: boolean;
-      camera?: boolean;
-      screenShare?: boolean;
-    },
+      muted?: boolean
+      deafened?: boolean
+      camera?: boolean
+      screenShare?: boolean
+    }
   ) {
-    const user = (client.data as { user: WsUser }).user;
-    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? [];
-    const channelId = this.socketVoiceChannel.get(client.id);
-    if (!channelId) return { ok: false };
+    const user = (client.data as { user: WsUser }).user
+    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
+    const channelId = this.socketVoiceChannel.get(client.id)
+    if (!channelId) return { ok: false }
 
-    const sanitized: Record<string, boolean> = {};
+    const sanitized: Record<string, boolean> = {}
     for (const key of ['muted', 'deafened', 'camera', 'screenShare'] as const) {
-      if (typeof body[key] === 'boolean') sanitized[key] = body[key];
+      if (typeof body[key] === 'boolean') sanitized[key] = body[key]
     }
 
     for (const sid of serverIds) {
       this.server.to(`server:${sid}`).emit('voice:participant-state', {
         channelId,
         userId: user.id,
-        ...sanitized,
-      });
+        ...sanitized
+      })
     }
-    return { ok: true };
+    return { ok: true }
   }
 
   /**
@@ -827,39 +710,69 @@ export class ChatGateway
     content: string | undefined,
     url: string,
     channelId: string,
-    mentionedUserIds: string[],
+    mentionedUserIds: string[]
   ) {
     const members = await this.prisma.serverMember.findMany({
       where: { serverId, NOT: { userId: senderId } },
-      select: { userId: true },
-    });
+      select: { userId: true }
+    })
 
-    const offlineIds = members
-      .map((m) => m.userId)
-      .filter((id) => !this.onlineUsers.has(id));
+    const offlineIds = members.map((m) => m.userId).filter((id) => !this.onlineUsers.has(id))
 
-    if (offlineIds.length === 0) return;
+    if (offlineIds.length === 0) return
 
-    const prefs = await this.prisma.channelNotifPref.findMany({
-      where: { channelId, userId: { in: offlineIds } },
-    });
-    const prefMap = new Map(prefs.map((p) => [p.userId, p.level]));
-    const mentionSet = new Set(mentionedUserIds);
+    const prefMap = await this.getChannelNotifPrefs(channelId, offlineIds)
+    const mentionSet = new Set(mentionedUserIds)
 
     const eligibleIds = offlineIds.filter((id) => {
-      const level = prefMap.get(id) ?? 'all';
-      if (level === 'none') return false;
-      if (level === 'mentions') return mentionSet.has(id);
-      return true;
-    });
+      const level = prefMap.get(id) ?? 'all'
+      if (level === 'none') return false
+      if (level === 'mentions') return mentionSet.has(id)
+      return true
+    })
 
-    if (eligibleIds.length === 0) return;
+    if (eligibleIds.length === 0) return
 
-    const preview = content?.slice(0, 100) || '[attachment]';
+    const preview = content?.slice(0, 100) || '[attachment]'
     await this.push.sendToUsers(eligibleIds, {
       title: senderName,
       body: preview,
-      url,
-    });
+      url
+    })
+  }
+
+  private async getChannelNotifPrefs(channelId: string, userIds: string[]): Promise<Map<string, string>> {
+    const cacheKey = `notifprefs:${channelId}`
+    try {
+      const cached = await this.redis.client.hgetall(cacheKey)
+      if (Object.keys(cached).length > 0) {
+        const map = new Map<string, string>()
+        for (const uid of userIds) {
+          if (cached[uid]) map.set(uid, cached[uid])
+        }
+        return map
+      }
+    } catch {
+      /* fall through to DB */
+    }
+
+    const prefs = await this.prisma.channelNotifPref.findMany({
+      where: { channelId }
+    })
+    const map = new Map<string, string>()
+    if (prefs.length > 0) {
+      const hash: Record<string, string> = {}
+      for (const p of prefs) {
+        hash[p.userId] = p.level
+        if (userIds.includes(p.userId)) map.set(p.userId, p.level)
+      }
+      try {
+        await this.redis.client.hmset(cacheKey, hash)
+        await this.redis.client.expire(cacheKey, 300)
+      } catch {
+        /* best-effort cache */
+      }
+    }
+    return map
   }
 }

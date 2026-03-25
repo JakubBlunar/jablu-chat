@@ -1,22 +1,22 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-type Props = { children: ReactNode; fallback?: ReactNode };
-type State = { hasError: boolean; error: Error | null };
+type Props = { children: ReactNode; fallback?: ReactNode }
+type State = { hasError: boolean; error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+  state: State = { hasError: false, error: null }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, info.componentStack);
+    console.error('ErrorBoundary caught:', error, info.componentStack)
   }
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) return this.props.fallback;
+      if (this.props.fallback) return this.props.fallback
 
       return (
         <div className="flex h-screen flex-col items-center justify-center gap-4 bg-surface text-white">
@@ -43,9 +43,9 @@ export class ErrorBoundary extends Component<Props, State> {
             Reload
           </button>
         </div>
-      );
+      )
     }
 
-    return this.props.children;
+    return this.props.children
   }
 }

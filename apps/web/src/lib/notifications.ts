@@ -1,207 +1,199 @@
-const NOTIF_SETTINGS_KEY = "jablu-notif-settings";
+const NOTIF_SETTINGS_KEY = 'jablu-notif-settings'
 
 type NotifSettings = {
-  enabled: boolean;
-  soundEnabled: boolean;
-};
+  enabled: boolean
+  soundEnabled: boolean
+}
 
-const defaults: NotifSettings = { enabled: true, soundEnabled: true };
+const defaults: NotifSettings = { enabled: true, soundEnabled: true }
 
 export function getNotifSettings(): NotifSettings {
   try {
-    const raw = localStorage.getItem(NOTIF_SETTINGS_KEY);
-    if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    const raw = localStorage.getItem(NOTIF_SETTINGS_KEY)
+    if (!raw) return defaults
+    return { ...defaults, ...JSON.parse(raw) }
   } catch {
-    return defaults;
+    return defaults
   }
 }
 
 export function saveNotifSettings(s: Partial<NotifSettings>) {
-  const current = getNotifSettings();
-  localStorage.setItem(
-    NOTIF_SETTINGS_KEY,
-    JSON.stringify({ ...current, ...s }),
-  );
+  const current = getNotifSettings()
+  localStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify({ ...current, ...s }))
 }
 
 export async function requestPermission(): Promise<boolean> {
-  if (!("Notification" in window)) return false;
-  if (Notification.permission === "granted") return true;
-  if (Notification.permission === "denied") return false;
-  const result = await Notification.requestPermission();
-  return result === "granted";
+  if (!('Notification' in window)) return false
+  if (Notification.permission === 'granted') return true
+  if (Notification.permission === 'denied') return false
+  const result = await Notification.requestPermission()
+  return result === 'granted'
 }
 
-export function showNotification(
-  title: string,
-  body: string,
-  url?: string,
-  onClick?: () => void,
-) {
-  if (document.hasFocus()) return;
+export function showNotification(title: string, body: string, url?: string, onClick?: () => void) {
+  if (document.hasFocus()) return
 
-  const settings = getNotifSettings();
-  if (!settings.enabled) return;
+  const settings = getNotifSettings()
+  if (!settings.enabled) return
 
   const { electronAPI } = window as unknown as {
-    electronAPI?: { showNotification: (t: string, b: string, u?: string) => void };
-  };
+    electronAPI?: { showNotification: (t: string, b: string, u?: string) => void }
+  }
   if (electronAPI?.showNotification) {
-    electronAPI.showNotification(title, body, url);
-    if (settings.soundEnabled) playSound();
-    return;
+    electronAPI.showNotification(title, body, url)
+    if (settings.soundEnabled) playSound()
+    return
   }
 
-  if (!("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
+  if (!('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
 
   const n = new Notification(title, {
     body,
-    icon: "/favicon-32x32.png",
-    silent: !settings.soundEnabled,
-  });
+    icon: '/favicon-32x32.png',
+    silent: !settings.soundEnabled
+  })
 
   if (onClick) {
     n.onclick = () => {
-      window.focus();
-      onClick();
-      n.close();
-    };
+      window.focus()
+      onClick()
+      n.close()
+    }
   }
 
   if (settings.soundEnabled) {
-    playSound();
+    playSound()
   }
 }
 
-let audioEl: HTMLAudioElement | null = null;
+let audioEl: HTMLAudioElement | null = null
 
 export function playSound() {
-  const settings = getNotifSettings();
-  if (!settings.soundEnabled) return;
+  const settings = getNotifSettings()
+  if (!settings.soundEnabled) return
 
   if (!audioEl) {
-    audioEl = new Audio("/sounds/notification.mp3");
-    audioEl.volume = 0.5;
+    audioEl = new Audio('/sounds/notification.mp3')
+    audioEl.volume = 0.5
   }
-  audioEl.currentTime = 0;
-  audioEl.play().catch(() => {});
+  audioEl.currentTime = 0
+  audioEl.play().catch(() => {})
 }
 
 // ─── Web Push Subscription ─────────────────────────────────────
 
-let pushSubscribed = false;
+let pushSubscribed = false
 
 async function getVapidKey(): Promise<string | null> {
   try {
-    const resp = await fetch("/api/push/vapid-key");
-    const data = await resp.json();
-    return data.key ?? null;
+    const resp = await fetch('/api/push/vapid-key')
+    const data = await resp.json()
+    return data.key ?? null
   } catch {
-    return null;
+    return null
   }
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
   for (let i = 0; i < rawData.length; i++) {
-    outputArray[i] = rawData.charCodeAt(i);
+    outputArray[i] = rawData.charCodeAt(i)
   }
-  return outputArray;
+  return outputArray
 }
 
 export async function subscribeToPush(token: string): Promise<void> {
-  if (pushSubscribed) return;
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (pushSubscribed) return
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
-  if (Notification.permission === "denied") return;
-  if (Notification.permission === "default") {
-    const result = await Notification.requestPermission();
-    if (result !== "granted") return;
+  if (Notification.permission === 'denied') return
+  if (Notification.permission === 'default') {
+    const result = await Notification.requestPermission()
+    if (result !== 'granted') return
   }
 
   try {
-    const vapidKey = await getVapidKey();
-    if (!vapidKey) return;
+    const vapidKey = await getVapidKey()
+    if (!vapidKey) return
 
-    const reg = await navigator.serviceWorker.ready;
-    let sub = await reg.pushManager.getSubscription();
+    const reg = await navigator.serviceWorker.ready
+    let sub = await reg.pushManager.getSubscription()
 
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
+        applicationServerKey: urlBase64ToUint8Array(vapidKey)
+      })
     }
 
-    const subJson = sub.toJSON();
-    await fetch("/api/push/subscribe", {
-      method: "POST",
+    const subJson = sub.toJSON()
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({
         endpoint: sub.endpoint,
-        p256dh: subJson.keys?.p256dh ?? "",
-        auth: subJson.keys?.auth ?? "",
-      }),
-    });
+        p256dh: subJson.keys?.p256dh ?? '',
+        auth: subJson.keys?.auth ?? ''
+      })
+    })
 
-    pushSubscribed = true;
+    pushSubscribed = true
   } catch {
     // Push subscription failed -- non-critical
   }
 }
 
 export async function unsubscribeFromPush(token: string): Promise<void> {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
   try {
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    if (!sub) return;
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (!sub) return
 
-    await fetch("/api/push/unsubscribe", {
-      method: "DELETE",
+    await fetch('/api/push/unsubscribe', {
+      method: 'DELETE',
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ endpoint: sub.endpoint }),
-    });
+      body: JSON.stringify({ endpoint: sub.endpoint })
+    })
 
-    await sub.unsubscribe();
-    pushSubscribed = false;
+    await sub.unsubscribe()
+    pushSubscribed = false
   } catch {
     // Unsubscribe failed -- non-critical
   }
 }
 
 export function setupPushNavigation() {
-  if (!("serviceWorker" in navigator)) return;
+  if (!('serviceWorker' in navigator)) return
 
-  navigator.serviceWorker.addEventListener("message", (event) => {
-    if (event.data?.type === "navigate" && typeof event.data.url === "string") {
-      const target = new URL(event.data.url, window.location.origin);
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'navigate' && typeof event.data.url === 'string') {
+      const target = new URL(event.data.url, window.location.origin)
       if (target.origin === window.location.origin) {
-        window.location.href = target.href;
+        window.location.href = target.href
       }
     }
-  });
+  })
 }
 
 export function setupElectronNavigation() {
   const { electronAPI } = window as unknown as {
-    electronAPI?: { onNavigate?: (cb: (url: string) => void) => () => void };
-  };
-  if (!electronAPI?.onNavigate) return;
+    electronAPI?: { onNavigate?: (cb: (url: string) => void) => () => void }
+  }
+  if (!electronAPI?.onNavigate) return
 
   return electronAPI.onNavigate((url: string) => {
-    window.location.hash = `#${url}`;
-  });
+    window.location.hash = `#${url}`
+  })
 }

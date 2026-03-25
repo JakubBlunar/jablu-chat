@@ -8,12 +8,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  UseGuards,
-} from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { CreateInviteDto } from './dto';
-import { InvitesService } from './invites.service';
+  UseGuards
+} from '@nestjs/common'
+import { AuthGuard } from '@nestjs/passport'
+import { CurrentUser } from '../auth/current-user.decorator'
+import { CreateInviteDto } from './dto'
+import { InvitesService } from './invites.service'
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
@@ -24,38 +24,30 @@ export class InvitesController {
   create(
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @CurrentUser() user: { id: string; username: string; email: string },
-    @Body() dto: CreateInviteDto,
+    @Body() dto: CreateInviteDto
   ) {
-    return this.invites.createInvite(
-      serverId,
-      user.id,
-      dto.maxUses,
-      dto.expiresInMinutes,
-    );
+    return this.invites.createInvite(serverId, user.id, dto.maxUses, dto.expiresInMinutes)
   }
 
   @Get('servers/:serverId/invites')
   list(
     @Param('serverId', ParseUUIDPipe) serverId: string,
-    @CurrentUser() user: { id: string; username: string; email: string },
+    @CurrentUser() user: { id: string; username: string; email: string }
   ) {
-    return this.invites.getInvites(serverId, user.id);
+    return this.invites.getInvites(serverId, user.id)
   }
 
   @Delete('invites/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: { id: string; username: string; email: string },
+    @CurrentUser() user: { id: string; username: string; email: string }
   ) {
-    await this.invites.deleteInvite(id, user.id);
+    await this.invites.deleteInvite(id, user.id)
   }
 
   @Post('invites/:code/join')
-  join(
-    @Param('code') code: string,
-    @CurrentUser() user: { id: string; username: string; email: string },
-  ) {
-    return this.invites.useInvite(code, user.id);
+  join(@Param('code') code: string, @CurrentUser() user: { id: string; username: string; email: string }) {
+    return this.invites.useInvite(code, user.id)
   }
 }

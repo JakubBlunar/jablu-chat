@@ -1,20 +1,20 @@
 export interface User {
-  id: string;
-  username: string;
-  displayName: string | null;
-  email: string;
-  avatarUrl: string | null;
-  bio: string | null;
-  status: UserStatus;
-  lastSeenAt: string | null;
-  createdAt: string;
+  id: string
+  username: string
+  displayName: string | null
+  email: string
+  avatarUrl: string | null
+  bio: string | null
+  status: UserStatus
+  lastSeenAt: string | null
+  createdAt: string
 }
 
-export type UserStatus = "online" | "idle" | "dnd" | "offline";
+export type UserStatus = 'online' | 'idle' | 'dnd' | 'offline'
 
 export interface UserProfile extends User {
-  memberSince?: string;
-  role?: ServerRole;
+  memberSince?: string
+  role?: ServerRole
 }
 
-export type ServerRole = "owner" | "admin" | "member";
+export type ServerRole = 'owner' | 'admin' | 'member'

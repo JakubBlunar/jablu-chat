@@ -1,42 +1,40 @@
-import { useEffect, useState } from "react";
-import { isElectron } from "@/lib/electron";
-import { usePwaInstall, isDismissed, dismissBanner } from "@/hooks/usePwaInstall";
+import { useEffect, useState } from 'react'
+import { isElectron } from '@/lib/electron'
+import { usePwaInstall, isDismissed, dismissBanner } from '@/hooks/usePwaInstall'
 
 export function PwaInstallBanner() {
-  const { canPrompt, showInstallUi, triggerInstall } = usePwaInstall();
-  const [visible, setVisible] = useState(false);
+  const { canPrompt, showInstallUi, triggerInstall } = usePwaInstall()
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (!showInstallUi || isDismissed()) return;
-    const id = setTimeout(() => setVisible(true), 5000);
-    return () => clearTimeout(id);
-  }, [showInstallUi]);
+    if (!showInstallUi || isDismissed()) return
+    const id = setTimeout(() => setVisible(true), 5000)
+    return () => clearTimeout(id)
+  }, [showInstallUi])
 
-  if (isElectron || !showInstallUi || !visible) return null;
+  if (isElectron || !showInstallUi || !visible) return null
 
   const handleDismiss = () => {
-    setVisible(false);
-    dismissBanner();
-  };
+    setVisible(false)
+    dismissBanner()
+  }
 
   const handleInstall = async () => {
-    const accepted = await triggerInstall();
-    if (accepted) setVisible(false);
-  };
+    const accepted = await triggerInstall()
+    if (accepted) setVisible(false)
+  }
 
   const openGuide = () => {
-    handleDismiss();
-    window.dispatchEvent(new CustomEvent("open-settings", { detail: "install" }));
-  };
+    handleDismiss()
+    window.dispatchEvent(new CustomEvent('open-settings', { detail: 'install' }))
+  }
 
   return (
     <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
       <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
       </svg>
-      <span className="min-w-0 flex-1">
-        Install Jablu for a faster, app-like experience
-      </span>
+      <span className="min-w-0 flex-1">Install Jablu for a faster, app-like experience</span>
       {canPrompt ? (
         <button
           type="button"
@@ -65,5 +63,5 @@ export function PwaInstallBanner() {
         </svg>
       </button>
     </div>
-  );
+  )
 }

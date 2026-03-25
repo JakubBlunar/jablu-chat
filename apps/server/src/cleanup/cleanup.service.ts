@@ -1,101 +1,99 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { CronJob } from 'cron';
-import { readdir, stat } from 'fs/promises';
-import { join } from 'path';
-import { PrismaService } from '../prisma/prisma.service';
-import { UploadsService } from '../uploads/uploads.service';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { SchedulerRegistry } from '@nestjs/schedule'
+import { CronJob } from 'cron'
+import { readdir, stat } from 'fs/promises'
+import { join } from 'path'
+import { PrismaService } from '../prisma/prisma.service'
+import { UploadsService } from '../uploads/uploads.service'
 
 interface DirBreakdown {
-  avatars: number;
-  attachments: number;
-  thumbnails: number;
-  other: number;
-  total: number;
+  avatars: number
+  attachments: number
+  thumbnails: number
+  other: number
+  total: number
 }
 
 export interface StorageStats {
-  dirSize: DirBreakdown;
-  limitBytes: number;
-  attachmentCount: number;
-  messageCount: number;
-  orphanedAttachments: number;
+  dirSize: DirBreakdown
+  limitBytes: number
+  attachmentCount: number
+  messageCount: number
+  orphanedAttachments: number
 }
 
 @Injectable()
 export class CleanupService implements OnModuleInit {
-  private readonly logger = new Logger(CleanupService.name);
-  private readonly uploadDir: string;
-  private readonly limitBytes: number;
-  private readonly watermarkBytes: number;
-  private readonly minAgeDays: number;
-  private readonly orphanHours: number;
-  private readonly deleteMessages: boolean;
+  private readonly logger = new Logger(CleanupService.name)
+  private readonly uploadDir: string
+  private readonly limitBytes: number
+  private readonly watermarkBytes: number
+  private readonly minAgeDays: number
+  private readonly orphanHours: number
+  private readonly deleteMessages: boolean
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
     private readonly config: ConfigService,
-    private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly schedulerRegistry: SchedulerRegistry
   ) {
-    this.uploadDir = this.uploads.getUploadDir();
-    const limitGb = this.config.get<number>('STORAGE_LIMIT_GB', 100);
-    this.limitBytes = Math.floor(limitGb * 1024 * 1024 * 1024);
-    this.watermarkBytes = Math.floor(this.limitBytes * 0.9);
-    this.minAgeDays = this.config.get<number>('CLEANUP_MIN_AGE_DAYS', 30);
-    this.orphanHours = this.config.get<number>('CLEANUP_ORPHAN_HOURS', 24);
-    this.deleteMessages =
-      this.config.get<string>('CLEANUP_DELETE_MESSAGES', 'false') === 'true';
+    this.uploadDir = this.uploads.getUploadDir()
+    const limitGb = this.config.get<number>('STORAGE_LIMIT_GB', 100)
+    this.limitBytes = Math.floor(limitGb * 1024 * 1024 * 1024)
+    this.watermarkBytes = Math.floor(this.limitBytes * 0.9)
+    this.minAgeDays = this.config.get<number>('CLEANUP_MIN_AGE_DAYS', 30)
+    this.orphanHours = this.config.get<number>('CLEANUP_ORPHAN_HOURS', 24)
+    this.deleteMessages = this.config.get<string>('CLEANUP_DELETE_MESSAGES', 'false') === 'true'
   }
 
   onModuleInit() {
-    const enabled =
-      this.config.get<string>('CLEANUP_ENABLED', 'false') === 'true';
+    const enabled = this.config.get<string>('CLEANUP_ENABLED', 'false') === 'true'
     if (!enabled) {
-      this.logger.log('Periodic audit cron is disabled (CLEANUP_ENABLED=false)');
-      return;
+      this.logger.log('Periodic audit cron is disabled (CLEANUP_ENABLED=false)')
+      return
     }
 
-    const cronExpr = this.config.get<string>('CLEANUP_CRON', '0 3 * * *');
+    const cronExpr = this.config.get<string>('CLEANUP_CRON', '0 3 * * *')
     const job = new CronJob(cronExpr, () => {
-      void this.runScheduledAudit();
-    });
-    this.schedulerRegistry.addCronJob('storage-audit', job);
-    job.start();
-    this.logger.log(`Periodic audit cron registered: ${cronExpr}`);
+      void this.runScheduledAudit()
+    })
+    this.schedulerRegistry.addCronJob('storage-audit', job)
+    job.start()
+    this.logger.log(`Periodic audit cron registered: ${cronExpr}`)
   }
 
   private async runScheduledAudit() {
-    this.logger.log('Running scheduled storage audit...');
+    this.logger.log('Running scheduled storage audit...')
     try {
-      const audit = await this.runAudit();
+      const audit = await this.runAudit()
       this.logger.log(
         `Audit complete: ${this.formatBytes(Number(audit.totalSizeBytes))} used, ` +
-          `${this.formatBytes(Number(audit.totalFreeable))} freeable`,
-      );
+          `${this.formatBytes(Number(audit.totalFreeable))} freeable`
+      )
     } catch (err) {
-      this.logger.error('Scheduled audit failed', err);
+      this.logger.error('Scheduled audit failed', err)
     }
   }
 
   async calculateDirSize(dir: string): Promise<number> {
-    let total = 0;
+    let total = 0
     try {
-      const entries = await readdir(dir, { withFileTypes: true });
+      const entries = await readdir(dir, { withFileTypes: true })
       for (const entry of entries) {
-        const fullPath = join(dir, entry.name);
+        const fullPath = join(dir, entry.name)
         if (entry.isDirectory()) {
-          total += await this.calculateDirSize(fullPath);
+          total += await this.calculateDirSize(fullPath)
         } else if (entry.isFile()) {
-          const s = await stat(fullPath);
-          total += s.size;
+          const s = await stat(fullPath)
+          total += s.size
         }
       }
     } catch {
       // directory may not exist
     }
-    return total;
+    return total
   }
 
   async getStorageStats(): Promise<StorageStats> {
@@ -103,15 +101,14 @@ export class CleanupService implements OnModuleInit {
       this.calculateDirSize(join(this.uploadDir, 'avatars')),
       this.calculateDirSize(join(this.uploadDir, 'attachments')),
       this.calculateDirSize(join(this.uploadDir, 'thumbnails')),
-      this.calculateDirSize(this.uploadDir),
-    ]);
+      this.calculateDirSize(this.uploadDir)
+    ])
 
-    const [attachmentCount, messageCount, orphanedAttachments] =
-      await Promise.all([
-        this.prisma.attachment.count(),
-        this.prisma.message.count(),
-        this.prisma.attachment.count({ where: { messageId: null } }),
-      ]);
+    const [attachmentCount, messageCount, orphanedAttachments] = await Promise.all([
+      this.prisma.attachment.count(),
+      this.prisma.message.count(),
+      this.prisma.attachment.count({ where: { messageId: null } })
+    ])
 
     return {
       dirSize: {
@@ -119,68 +116,58 @@ export class CleanupService implements OnModuleInit {
         attachments,
         thumbnails,
         other: total - avatars - attachments - thumbnails,
-        total,
+        total
       },
       limitBytes: this.limitBytes,
       attachmentCount,
       messageCount,
-      orphanedAttachments,
-    };
+      orphanedAttachments
+    }
   }
 
   async runAudit() {
-    const totalSize = await this.calculateDirSize(this.uploadDir);
-    const orphanCutoff = new Date(Date.now() - this.orphanHours * 3600_000);
-    const ageCutoff = new Date(
-      Date.now() - this.minAgeDays * 24 * 3600_000,
-    );
+    const totalSize = await this.calculateDirSize(this.uploadDir)
+    const orphanCutoff = new Date(Date.now() - this.orphanHours * 3600_000)
+    const ageCutoff = new Date(Date.now() - this.minAgeDays * 24 * 3600_000)
 
     // Phase 1: orphaned DB attachments
     const orphaned = await this.prisma.attachment.findMany({
       where: { messageId: null, createdAt: { lt: orphanCutoff } },
-      select: { sizeBytes: true },
-    });
-    const orphanedCount = orphaned.length;
-    const orphanedBytes = orphaned.reduce((s, a) => s + a.sizeBytes, 0);
+      select: { sizeBytes: true }
+    })
+    const orphanedCount = orphaned.length
+    const orphanedBytes = orphaned.reduce((s, a) => s + a.sizeBytes, 0)
 
     // Phase 1b: disk orphans
-    const { count: diskOrphanCount, bytes: diskOrphanBytes } =
-      await this.scanDiskOrphans();
+    const { count: diskOrphanCount, bytes: diskOrphanBytes } = await this.scanDiskOrphans()
 
     // Phase 2: old attachments (file-only deletion)
     const oldAttachments = await this.prisma.attachment.findMany({
       where: {
         messageId: { not: null },
-        createdAt: { lt: ageCutoff },
+        createdAt: { lt: ageCutoff }
       },
-      select: { sizeBytes: true },
-    });
-    const attachmentCount = oldAttachments.length;
-    const attachmentBytes = oldAttachments.reduce(
-      (s, a) => s + a.sizeBytes,
-      0,
-    );
+      select: { sizeBytes: true }
+    })
+    const attachmentCount = oldAttachments.length
+    const attachmentBytes = oldAttachments.reduce((s, a) => s + a.sizeBytes, 0)
 
     // Phase 3: old messages with attachments
-    let messageCount = 0;
-    let messageBytes = 0;
+    let messageCount = 0
+    let messageBytes = 0
     if (this.deleteMessages) {
       const oldMessages = await this.prisma.message.findMany({
         where: { createdAt: { lt: ageCutoff } },
         select: {
           id: true,
-          attachments: { select: { sizeBytes: true } },
-        },
-      });
-      messageCount = oldMessages.length;
-      messageBytes = oldMessages.reduce(
-        (s, m) => s + m.attachments.reduce((sa, a) => sa + a.sizeBytes, 0),
-        0,
-      );
+          attachments: { select: { sizeBytes: true } }
+        }
+      })
+      messageCount = oldMessages.length
+      messageBytes = oldMessages.reduce((s, m) => s + m.attachments.reduce((sa, a) => sa + a.sizeBytes, 0), 0)
     }
 
-    const totalFreeable =
-      orphanedBytes + diskOrphanBytes + attachmentBytes + messageBytes;
+    const totalFreeable = orphanedBytes + diskOrphanBytes + attachmentBytes + messageBytes
 
     return this.prisma.storageAudit.create({
       data: {
@@ -195,66 +182,63 @@ export class CleanupService implements OnModuleInit {
         messageBytes: BigInt(Math.floor(messageBytes)),
         diskOrphanCount,
         diskOrphanBytes: BigInt(Math.floor(diskOrphanBytes)),
-        totalFreeable: BigInt(Math.floor(totalFreeable)),
-      },
-    });
+        totalFreeable: BigInt(Math.floor(totalFreeable))
+      }
+    })
   }
 
   async executeCleanup(auditId: string) {
     const audit = await this.prisma.storageAudit.findUnique({
-      where: { id: auditId },
-    });
+      where: { id: auditId }
+    })
     if (!audit || audit.status !== 'completed') {
-      throw new Error('Audit not found or not in completed status');
+      throw new Error('Audit not found or not in completed status')
     }
 
     await this.prisma.storageAudit.update({
       where: { id: auditId },
-      data: { status: 'executing' },
-    });
+      data: { status: 'executing' }
+    })
 
-    let freedBytes = 0;
+    let freedBytes = 0
 
     try {
       // Phase 1: orphaned DB attachments
-      freedBytes += await this.cleanOrphanedAttachments();
+      freedBytes += await this.cleanOrphanedAttachments()
 
       if ((await this.currentSize()) <= this.watermarkBytes) {
-        return this.finalizeAudit(auditId, freedBytes);
+        return this.finalizeAudit(auditId, freedBytes)
       }
 
       // Phase 1b: disk orphans
-      freedBytes += await this.cleanDiskOrphans();
+      freedBytes += await this.cleanDiskOrphans()
 
       if ((await this.currentSize()) <= this.watermarkBytes) {
-        return this.finalizeAudit(auditId, freedBytes);
+        return this.finalizeAudit(auditId, freedBytes)
       }
 
       // Phase 2: old attachments (keep messages)
-      freedBytes += await this.cleanOldAttachments();
+      freedBytes += await this.cleanOldAttachments()
 
-      if (
-        !this.deleteMessages ||
-        (await this.currentSize()) <= this.watermarkBytes
-      ) {
-        return this.finalizeAudit(auditId, freedBytes);
+      if (!this.deleteMessages || (await this.currentSize()) <= this.watermarkBytes) {
+        return this.finalizeAudit(auditId, freedBytes)
       }
 
       // Phase 3: old messages
-      freedBytes += await this.cleanOldMessages();
+      freedBytes += await this.cleanOldMessages()
 
-      return this.finalizeAudit(auditId, freedBytes);
+      return this.finalizeAudit(auditId, freedBytes)
     } catch (err) {
       await this.prisma.storageAudit.update({
         where: { id: auditId },
-        data: { status: 'failed', freedBytes: BigInt(Math.floor(freedBytes)) },
-      });
-      throw err;
+        data: { status: 'failed', freedBytes: BigInt(Math.floor(freedBytes)) }
+      })
+      throw err
     }
   }
 
   private async currentSize(): Promise<number> {
-    return this.calculateDirSize(this.uploadDir);
+    return this.calculateDirSize(this.uploadDir)
   }
 
   private async finalizeAudit(auditId: string, freedBytes: number) {
@@ -263,132 +247,119 @@ export class CleanupService implements OnModuleInit {
       data: {
         status: 'executed',
         executedAt: new Date(),
-        freedBytes: BigInt(Math.floor(freedBytes)),
-      },
-    });
+        freedBytes: BigInt(Math.floor(freedBytes))
+      }
+    })
   }
 
   private async cleanOrphanedAttachments(): Promise<number> {
-    const cutoff = new Date(Date.now() - this.orphanHours * 3600_000);
+    const cutoff = new Date(Date.now() - this.orphanHours * 3600_000)
     const orphans = await this.prisma.attachment.findMany({
-      where: { messageId: null, createdAt: { lt: cutoff } },
-    });
+      where: { messageId: null, createdAt: { lt: cutoff } }
+    })
 
-    let freed = 0;
+    let freed = 0
     for (const att of orphans) {
-      this.uploads.deleteFile(att.url);
-      if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl);
-      freed += att.sizeBytes;
+      this.uploads.deleteFile(att.url)
+      if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl)
+      freed += att.sizeBytes
     }
 
     if (orphans.length > 0) {
       await this.prisma.attachment.deleteMany({
-        where: { id: { in: orphans.map((a) => a.id) } },
-      });
-      this.logger.log(
-        `Phase 1: deleted ${orphans.length} orphaned attachments (${this.formatBytes(freed)})`,
-      );
+        where: { id: { in: orphans.map((a) => a.id) } }
+      })
+      this.logger.log(`Phase 1: deleted ${orphans.length} orphaned attachments (${this.formatBytes(freed)})`)
     }
 
-    return freed;
+    return freed
   }
 
   private async cleanDiskOrphans(): Promise<number> {
-    const { files } = await this.collectDiskOrphanFiles();
-    let freed = 0;
+    const { files } = await this.collectDiskOrphanFiles()
+    let freed = 0
 
     for (const { path: filePath, size } of files) {
       try {
-        const { unlink } = await import('fs/promises');
-        await unlink(filePath);
-        freed += size;
+        const { unlink } = await import('fs/promises')
+        await unlink(filePath)
+        freed += size
       } catch {
         // file may already be gone
       }
     }
 
     if (files.length > 0) {
-      this.logger.log(
-        `Phase 1b: deleted ${files.length} disk orphans (${this.formatBytes(freed)})`,
-      );
+      this.logger.log(`Phase 1b: deleted ${files.length} disk orphans (${this.formatBytes(freed)})`)
     }
 
-    return freed;
+    return freed
   }
 
   private async cleanOldAttachments(): Promise<number> {
-    const cutoff = new Date(
-      Date.now() - this.minAgeDays * 24 * 3600_000,
-    );
-    const BATCH = 100;
-    let freed = 0;
-    let deleted = 0;
+    const cutoff = new Date(Date.now() - this.minAgeDays * 24 * 3600_000)
+    const BATCH = 100
+    let freed = 0
+    let deleted = 0
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      if ((await this.currentSize()) <= this.watermarkBytes) break;
+      if ((await this.currentSize()) <= this.watermarkBytes) break
 
       const batch = await this.prisma.attachment.findMany({
         where: { messageId: { not: null }, createdAt: { lt: cutoff } },
         orderBy: { createdAt: 'asc' },
         take: BATCH,
-        include: { message: { select: { id: true, content: true } } },
-      });
+        include: { message: { select: { id: true, content: true } } }
+      })
 
-      if (batch.length === 0) break;
+      if (batch.length === 0) break
 
-      const emptyMessageIds: string[] = [];
+      const emptyMessageIds: string[] = []
 
       for (const att of batch) {
-        this.uploads.deleteFile(att.url);
-        if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl);
-        freed += att.sizeBytes;
+        this.uploads.deleteFile(att.url)
+        if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl)
+        freed += att.sizeBytes
 
-        if (
-          att.message &&
-          (!att.message.content || att.message.content.trim() === '')
-        ) {
+        if (att.message && (!att.message.content || att.message.content.trim() === '')) {
           const remaining = await this.prisma.attachment.count({
-            where: { messageId: att.message.id, id: { not: att.id } },
-          });
+            where: { messageId: att.message.id, id: { not: att.id } }
+          })
           if (remaining === 0) {
-            emptyMessageIds.push(att.message.id);
+            emptyMessageIds.push(att.message.id)
           }
         }
       }
 
       await this.prisma.attachment.deleteMany({
-        where: { id: { in: batch.map((a) => a.id) } },
-      });
-      deleted += batch.length;
+        where: { id: { in: batch.map((a) => a.id) } }
+      })
+      deleted += batch.length
 
       if (emptyMessageIds.length > 0) {
         await this.prisma.message.deleteMany({
-          where: { id: { in: emptyMessageIds } },
-        });
+          where: { id: { in: emptyMessageIds } }
+        })
       }
     }
 
     if (deleted > 0) {
-      this.logger.log(
-        `Phase 2: deleted ${deleted} old attachments (${this.formatBytes(freed)})`,
-      );
+      this.logger.log(`Phase 2: deleted ${deleted} old attachments (${this.formatBytes(freed)})`)
     }
 
-    return freed;
+    return freed
   }
 
   private async cleanOldMessages(): Promise<number> {
-    const cutoff = new Date(
-      Date.now() - this.minAgeDays * 24 * 3600_000,
-    );
-    const BATCH = 100;
-    let freed = 0;
-    let deleted = 0;
+    const cutoff = new Date(Date.now() - this.minAgeDays * 24 * 3600_000)
+    const BATCH = 100
+    let freed = 0
+    let deleted = 0
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      if ((await this.currentSize()) <= this.watermarkBytes) break;
+      if ((await this.currentSize()) <= this.watermarkBytes) break
 
       const batch = await this.prisma.message.findMany({
         where: { createdAt: { lt: cutoff } },
@@ -396,111 +367,106 @@ export class CleanupService implements OnModuleInit {
         take: BATCH,
         include: {
           attachments: { select: { url: true, thumbnailUrl: true, sizeBytes: true } },
-          linkPreviews: { select: { imageUrl: true } },
-        },
-      });
+          linkPreviews: { select: { imageUrl: true } }
+        }
+      })
 
-      if (batch.length === 0) break;
+      if (batch.length === 0) break
 
       for (const msg of batch) {
         for (const att of msg.attachments) {
-          this.uploads.deleteFile(att.url);
-          if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl);
-          freed += att.sizeBytes;
+          this.uploads.deleteFile(att.url)
+          if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl)
+          freed += att.sizeBytes
         }
         for (const lp of msg.linkPreviews) {
           if (lp.imageUrl?.startsWith('/api/uploads/')) {
-            this.uploads.deleteFile(lp.imageUrl);
+            this.uploads.deleteFile(lp.imageUrl)
           }
         }
       }
 
       await this.prisma.message.deleteMany({
-        where: { id: { in: batch.map((m) => m.id) } },
-      });
-      deleted += batch.length;
+        where: { id: { in: batch.map((m) => m.id) } }
+      })
+      deleted += batch.length
     }
 
     if (deleted > 0) {
-      this.logger.log(
-        `Phase 3: deleted ${deleted} old messages (${this.formatBytes(freed)})`,
-      );
+      this.logger.log(`Phase 3: deleted ${deleted} old messages (${this.formatBytes(freed)})`)
     }
 
-    return freed;
+    return freed
   }
 
   private async scanDiskOrphans(): Promise<{
-    count: number;
-    bytes: number;
+    count: number
+    bytes: number
   }> {
-    const { files } = await this.collectDiskOrphanFiles();
+    const { files } = await this.collectDiskOrphanFiles()
     return {
       count: files.length,
-      bytes: files.reduce((s, f) => s + f.size, 0),
-    };
+      bytes: files.reduce((s, f) => s + f.size, 0)
+    }
   }
 
   private async collectDiskOrphanFiles(): Promise<{
-    files: { path: string; size: number }[];
+    files: { path: string; size: number }[]
   }> {
-    const knownUrls = new Set<string>();
+    const knownUrls = new Set<string>()
 
     const [attachments, users, servers, emojis, webhooks] = await Promise.all([
       this.prisma.attachment.findMany({
-        select: { url: true, thumbnailUrl: true },
+        select: { url: true, thumbnailUrl: true }
       }),
       this.prisma.user.findMany({
         where: { avatarUrl: { not: null } },
-        select: { avatarUrl: true },
+        select: { avatarUrl: true }
       }),
       this.prisma.server.findMany({
         where: { iconUrl: { not: null } },
-        select: { iconUrl: true },
+        select: { iconUrl: true }
       }),
       this.prisma.customEmoji.findMany({ select: { imageUrl: true } }),
       this.prisma.webhook.findMany({
         where: { avatarUrl: { not: null } },
-        select: { avatarUrl: true },
-      }),
-    ]);
+        select: { avatarUrl: true }
+      })
+    ])
 
     for (const a of attachments) {
-      const rel = a.url.replace(/^\/api\/uploads\//, '');
-      knownUrls.add(rel);
+      const rel = a.url.replace(/^\/api\/uploads\//, '')
+      knownUrls.add(rel)
       if (a.thumbnailUrl) {
-        knownUrls.add(a.thumbnailUrl.replace(/^\/api\/uploads\//, ''));
+        knownUrls.add(a.thumbnailUrl.replace(/^\/api\/uploads\//, ''))
       }
     }
     for (const u of users) {
-      if (u.avatarUrl)
-        knownUrls.add(u.avatarUrl.replace(/^\/api\/uploads\//, ''));
+      if (u.avatarUrl) knownUrls.add(u.avatarUrl.replace(/^\/api\/uploads\//, ''))
     }
     for (const s of servers) {
-      if (s.iconUrl)
-        knownUrls.add(s.iconUrl.replace(/^\/api\/uploads\//, ''));
+      if (s.iconUrl) knownUrls.add(s.iconUrl.replace(/^\/api\/uploads\//, ''))
     }
     for (const e of emojis) {
-      knownUrls.add(e.imageUrl.replace(/^\/api\/uploads\//, ''));
+      knownUrls.add(e.imageUrl.replace(/^\/api\/uploads\//, ''))
     }
     for (const w of webhooks) {
-      if (w.avatarUrl)
-        knownUrls.add(w.avatarUrl.replace(/^\/api\/uploads\//, ''));
+      if (w.avatarUrl) knownUrls.add(w.avatarUrl.replace(/^\/api\/uploads\//, ''))
     }
 
-    const orphans: { path: string; size: number }[] = [];
+    const orphans: { path: string; size: number }[] = []
     for (const sub of ['avatars', 'attachments', 'thumbnails', 'emoji']) {
-      const dir = join(this.uploadDir, sub);
+      const dir = join(this.uploadDir, sub)
       try {
-        const entries = await readdir(dir);
+        const entries = await readdir(dir)
         for (const name of entries) {
-          const relPath = `${sub}/${name}`;
+          const relPath = `${sub}/${name}`
           if (!knownUrls.has(relPath)) {
-            const fullPath = join(dir, name);
+            const fullPath = join(dir, name)
             try {
-              const s = await stat(fullPath);
+              const s = await stat(fullPath)
               if (s.isFile()) {
-                orphans.push({ path: fullPath, size: s.size });
+                orphans.push({ path: fullPath, size: s.size })
               }
             } catch {
               // skip unreadable
@@ -512,25 +478,24 @@ export class CleanupService implements OnModuleInit {
       }
     }
 
-    return { files: orphans };
+    return { files: orphans }
   }
 
   async getAudits(limit = 10) {
     return this.prisma.storageAudit.findMany({
       orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+      take: limit
+    })
   }
 
   async deleteAudit(id: string) {
-    return this.prisma.storageAudit.delete({ where: { id } });
+    return this.prisma.storageAudit.delete({ where: { id } })
   }
 
   private formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024)
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 }

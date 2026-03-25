@@ -1,32 +1,23 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { IsString } from 'class-validator';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { PushService } from './push.service';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common'
+import { AuthGuard } from '@nestjs/passport'
+import { IsString } from 'class-validator'
+import { CurrentUser } from '../auth/current-user.decorator'
+import { PushService } from './push.service'
 
 class SubscribeDto {
   @IsString()
-  endpoint: string;
+  endpoint: string
 
   @IsString()
-  p256dh: string;
+  p256dh: string
 
   @IsString()
-  auth: string;
+  auth: string
 }
 
 class UnsubscribeDto {
   @IsString()
-  endpoint: string;
+  endpoint: string
 }
 
 @Controller('push')
@@ -35,28 +26,22 @@ export class PushController {
 
   @Get('vapid-key')
   getVapidKey() {
-    return { key: this.push.getVapidPublicKey() };
+    return { key: this.push.getVapidPublicKey() }
   }
 
   @Post('subscribe')
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async subscribe(
-    @CurrentUser() user: { id: string },
-    @Body() dto: SubscribeDto,
-  ) {
-    await this.push.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth);
-    return { ok: true };
+  async subscribe(@CurrentUser() user: { id: string }, @Body() dto: SubscribeDto) {
+    await this.push.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth)
+    return { ok: true }
   }
 
   @Delete('unsubscribe')
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(HttpStatus.OK)
-  async unsubscribe(
-    @CurrentUser() user: { id: string },
-    @Body() dto: UnsubscribeDto,
-  ) {
-    await this.push.unsubscribe(dto.endpoint, user.id);
-    return { ok: true };
+  async unsubscribe(@CurrentUser() user: { id: string }, @Body() dto: UnsubscribeDto) {
+    await this.push.unsubscribe(dto.endpoint, user.id)
+    return { ok: true }
   }
 }

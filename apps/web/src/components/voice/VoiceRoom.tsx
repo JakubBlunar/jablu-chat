@@ -1,122 +1,117 @@
-import { RoomEvent, Track, type Participant, type TrackPublication } from "livekit-client";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getSocket } from "@/lib/socket";
-import { playLeaveSound } from "@/lib/sounds";
-import type { CameraQuality } from "@/lib/deviceSettings";
-import { useVoiceConnectionStore } from "@/stores/voice-connection.store";
-import { CameraSettingsModal } from "./CameraSettingsModal";
-import { ParticipantTile } from "./ParticipantTile";
-import { ScreenShareTile } from "./ScreenShareTile";
+import { RoomEvent, Track, type Participant, type TrackPublication } from 'livekit-client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getSocket } from '@/lib/socket'
+import { playLeaveSound } from '@/lib/sounds'
+import type { CameraQuality } from '@/lib/deviceSettings'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { CameraSettingsModal } from './CameraSettingsModal'
+import { ParticipantTile } from './ParticipantTile'
+import { ScreenShareTile } from './ScreenShareTile'
 
 type TileEntry =
-  | { kind: "participant"; id: string; participant: Participant }
-  | { kind: "screen"; id: string; participant: Participant; publication: TrackPublication };
+  | { kind: 'participant'; id: string; participant: Participant }
+  | { kind: 'screen'; id: string; participant: Participant; publication: TrackPublication }
 
-const supportsScreenShare = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia;
+const supportsScreenShare = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia
 
 export function VoiceRoom() {
-  const room = useVoiceConnectionStore((s) => s.room);
-  const channelName = useVoiceConnectionStore((s) => s.currentChannelName);
-  const [tiles, setTiles] = useState<TileEntry[]>([]);
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [pendingFullscreen, setPendingFullscreen] = useState(false);
+  const room = useVoiceConnectionStore((s) => s.room)
+  const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
+  const [tiles, setTiles] = useState<TileEntry[]>([])
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+  const [pendingFullscreen, setPendingFullscreen] = useState(false)
 
   useEffect(() => {
-    if (!room) return;
+    if (!room) return
 
     const update = () => {
-      const allParticipants: Participant[] = [
-        room.localParticipant,
-        ...Array.from(room.remoteParticipants.values()),
-      ];
+      const allParticipants: Participant[] = [room.localParticipant, ...Array.from(room.remoteParticipants.values())]
 
-      const newTiles: TileEntry[] = [];
+      const newTiles: TileEntry[] = []
 
       for (const p of allParticipants) {
-        newTiles.push({ kind: "participant", id: p.identity, participant: p });
+        newTiles.push({ kind: 'participant', id: p.identity, participant: p })
 
-        const ssPub = p.getTrackPublication(Track.Source.ScreenShare);
+        const ssPub = p.getTrackPublication(Track.Source.ScreenShare)
         if (ssPub?.track) {
           newTiles.push({
-            kind: "screen",
+            kind: 'screen',
             id: `${p.identity}:screen`,
             participant: p,
-            publication: ssPub,
-          });
+            publication: ssPub
+          })
         }
       }
 
-      setTiles(newTiles);
-    };
+      setTiles(newTiles)
+    }
 
-    update();
+    update()
 
-    room.on(RoomEvent.ParticipantConnected, update);
-    room.on(RoomEvent.ParticipantDisconnected, update);
-    room.on(RoomEvent.TrackSubscribed, update);
-    room.on(RoomEvent.TrackUnsubscribed, update);
-    room.on(RoomEvent.TrackPublished, update);
-    room.on(RoomEvent.TrackUnpublished, update);
-    room.on(RoomEvent.LocalTrackPublished, update);
-    room.on(RoomEvent.LocalTrackUnpublished, update);
+    room.on(RoomEvent.ParticipantConnected, update)
+    room.on(RoomEvent.ParticipantDisconnected, update)
+    room.on(RoomEvent.TrackSubscribed, update)
+    room.on(RoomEvent.TrackUnsubscribed, update)
+    room.on(RoomEvent.TrackPublished, update)
+    room.on(RoomEvent.TrackUnpublished, update)
+    room.on(RoomEvent.LocalTrackPublished, update)
+    room.on(RoomEvent.LocalTrackUnpublished, update)
 
     return () => {
-      room.off(RoomEvent.ParticipantConnected, update);
-      room.off(RoomEvent.ParticipantDisconnected, update);
-      room.off(RoomEvent.TrackSubscribed, update);
-      room.off(RoomEvent.TrackUnsubscribed, update);
-      room.off(RoomEvent.TrackPublished, update);
-      room.off(RoomEvent.TrackUnpublished, update);
-      room.off(RoomEvent.LocalTrackPublished, update);
-      room.off(RoomEvent.LocalTrackUnpublished, update);
-    };
-  }, [room]);
+      room.off(RoomEvent.ParticipantConnected, update)
+      room.off(RoomEvent.ParticipantDisconnected, update)
+      room.off(RoomEvent.TrackSubscribed, update)
+      room.off(RoomEvent.TrackUnsubscribed, update)
+      room.off(RoomEvent.TrackPublished, update)
+      room.off(RoomEvent.TrackUnpublished, update)
+      room.off(RoomEvent.LocalTrackPublished, update)
+      room.off(RoomEvent.LocalTrackUnpublished, update)
+    }
+  }, [room])
 
   useEffect(() => {
     if (focusedId && !tiles.some((t) => t.id === focusedId)) {
-      setFocusedId(null);
+      setFocusedId(null)
     }
-  }, [tiles, focusedId]);
+  }, [tiles, focusedId])
 
   const handleTileClick = useCallback((id: string) => {
-    setFocusedId((prev) => (prev === id ? null : id));
-    setPendingFullscreen(false);
-  }, []);
+    setFocusedId((prev) => (prev === id ? null : id))
+    setPendingFullscreen(false)
+  }, [])
 
   const handleTileFullscreen = useCallback((id: string) => {
-    setFocusedId(id);
-    setPendingFullscreen(true);
-  }, []);
+    setFocusedId(id)
+    setPendingFullscreen(true)
+  }, [])
 
   // Orientation unlock for calls
   useEffect(() => {
-    const orient = screen?.orientation as ScreenOrientation & {
-      lock?: (o: string) => Promise<void>;
-      unlock?: () => void;
-    } | undefined;
-    if (!orient?.lock) return;
-    orient.unlock?.();
+    const orient = screen?.orientation as
+      | (ScreenOrientation & {
+          lock?: (o: string) => Promise<void>
+          unlock?: () => void
+        })
+      | undefined
+    if (!orient?.lock) return
+    orient.unlock?.()
     return () => {
-      orient.lock?.("portrait").catch(() => {});
-    };
-  }, []);
+      orient.lock?.('portrait').catch(() => {})
+    }
+  }, [])
 
   if (!room) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-gray-400">
-        Not connected to a voice channel
-      </div>
-    );
+    return <div className="flex flex-1 items-center justify-center text-gray-400">Not connected to a voice channel</div>
   }
 
-  const focusedTile = focusedId ? tiles.find((t) => t.id === focusedId) ?? null : null;
-  const otherTiles = focusedTile ? tiles.filter((t) => t.id !== focusedId) : tiles;
+  const focusedTile = focusedId ? (tiles.find((t) => t.id === focusedId) ?? null) : null
+  const otherTiles = focusedTile ? tiles.filter((t) => t.id !== focusedId) : tiles
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <VoiceRoomHeader
         channelName={channelName}
-        participantCount={tiles.filter((t) => t.kind === "participant").length}
+        participantCount={tiles.filter((t) => t.kind === 'participant').length}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden p-2 md:p-4">
@@ -133,43 +128,35 @@ export function VoiceRoom() {
           <div className="flex h-full flex-wrap content-center items-center justify-center gap-2 md:gap-3">
             {tiles.map((tile) => (
               <div key={tile.id} className={tileSize(tiles.length)}>
-                <ClickableTile
-                  tile={tile}
-                  onClick={handleTileClick}
-                  onFullscreen={handleTileFullscreen}
-                />
+                <ClickableTile tile={tile} onClick={handleTileClick} onFullscreen={handleTileFullscreen} />
               </div>
             ))}
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }
 
 function TileContent({ tile }: { tile: TileEntry }) {
-  if (tile.kind === "screen") {
-    return <ScreenShareTile participant={tile.participant} publication={tile.publication} />;
+  if (tile.kind === 'screen') {
+    return <ScreenShareTile participant={tile.participant} publication={tile.publication} />
   }
-  return <ParticipantTile participant={tile.participant} />;
+  return <ParticipantTile participant={tile.participant} />
 }
 
 function ClickableTile({
   tile,
   onClick,
-  onFullscreen,
+  onFullscreen
 }: {
-  tile: TileEntry;
-  onClick: (id: string) => void;
-  onFullscreen?: (id: string) => void;
+  tile: TileEntry
+  onClick: (id: string) => void
+  onFullscreen?: (id: string) => void
 }) {
   return (
     <div className="group/tile relative w-full">
-      <button
-        type="button"
-        className="w-full text-left transition"
-        onClick={() => onClick(tile.id)}
-      >
+      <button type="button" className="w-full text-left transition" onClick={() => onClick(tile.id)}>
         <TileContent tile={tile} />
       </button>
       <div className="absolute right-2 top-2 flex items-center gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover/tile:opacity-100">
@@ -177,8 +164,8 @@ function ClickableTile({
           type="button"
           title="Focus"
           onClick={(e) => {
-            e.stopPropagation();
-            onClick(tile.id);
+            e.stopPropagation()
+            onClick(tile.id)
           }}
           className="rounded-md bg-black/60 p-1.5 text-white backdrop-blur transition hover:bg-black/80"
         >
@@ -191,8 +178,8 @@ function ClickableTile({
             type="button"
             title="Fullscreen"
             onClick={(e) => {
-              e.stopPropagation();
-              onFullscreen(tile.id);
+              e.stopPropagation()
+              onFullscreen(tile.id)
             }}
             className="rounded-md bg-black/60 p-1.5 text-white backdrop-blur transition hover:bg-black/80"
           >
@@ -203,7 +190,7 @@ function ClickableTile({
         )}
       </div>
     </div>
-  );
+  )
 }
 
 function FocusedLayout({
@@ -212,48 +199,44 @@ function FocusedLayout({
   onTileClick,
   onUnfocus,
   autoFullscreen,
-  onFullscreenConsumed,
+  onFullscreenConsumed
 }: {
-  focused: TileEntry;
-  others: TileEntry[];
-  onTileClick: (id: string) => void;
-  onUnfocus: () => void;
-  autoFullscreen?: boolean;
-  onFullscreenConsumed?: () => void;
+  focused: TileEntry
+  others: TileEntry[]
+  onTileClick: (id: string) => void
+  onUnfocus: () => void
+  autoFullscreen?: boolean
+  onFullscreenConsumed?: () => void
 }) {
-  const fsRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fsRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
 
   useEffect(() => {
     if (autoFullscreen && fsRef.current && !document.fullscreenElement) {
-      fsRef.current.requestFullscreen().catch(() => {});
-      onFullscreenConsumed?.();
+      fsRef.current.requestFullscreen().catch(() => {})
+      onFullscreenConsumed?.()
     }
-  }, [autoFullscreen, onFullscreenConsumed]);
+  }, [autoFullscreen, onFullscreenConsumed])
 
   const toggleFullscreen = useCallback(() => {
-    if (!fsRef.current) return;
+    if (!fsRef.current) return
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => {})
     } else {
-      fsRef.current.requestFullscreen().catch(() => {});
+      fsRef.current.requestFullscreen().catch(() => {})
     }
-  }, []);
+  }, [])
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
       <div ref={fsRef} className="relative min-h-0 flex-1 bg-surface-darkest">
-        <button
-          type="button"
-          className="h-full w-full text-left"
-          onClick={onUnfocus}
-        >
+        <button type="button" className="h-full w-full text-left" onClick={onUnfocus}>
           <div className="h-full [&>div]:aspect-auto [&>div]:h-full [&>div]:w-full">
             <TileContent tile={focused} />
           </div>
@@ -307,83 +290,75 @@ function FocusedLayout({
         </div>
       )}
     </div>
-  );
+  )
 }
 
-function VoiceRoomHeader({
-  channelName,
-  participantCount,
-}: {
-  channelName: string | null;
-  participantCount: number;
-}) {
-  const isMuted = useVoiceConnectionStore((s) => s.isMuted);
-  const isDeafened = useVoiceConnectionStore((s) => s.isDeafened);
-  const isCameraOn = useVoiceConnectionStore((s) => s.isCameraOn);
-  const isScreenSharing = useVoiceConnectionStore((s) => s.isScreenSharing);
-  const toggleMute = useVoiceConnectionStore((s) => s.toggleMute);
-  const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen);
-  const startCamera = useVoiceConnectionStore((s) => s.startCamera);
-  const stopCamera = useVoiceConnectionStore((s) => s.stopCamera);
-  const applyCameraSettings = useVoiceConnectionStore((s) => s.applyCameraSettings);
-  const disconnect = useVoiceConnectionStore((s) => s.disconnect);
-  const connectedAt = useVoiceConnectionStore((s) => s.connectedAt);
+function VoiceRoomHeader({ channelName, participantCount }: { channelName: string | null; participantCount: number }) {
+  const isMuted = useVoiceConnectionStore((s) => s.isMuted)
+  const isDeafened = useVoiceConnectionStore((s) => s.isDeafened)
+  const isCameraOn = useVoiceConnectionStore((s) => s.isCameraOn)
+  const isScreenSharing = useVoiceConnectionStore((s) => s.isScreenSharing)
+  const toggleMute = useVoiceConnectionStore((s) => s.toggleMute)
+  const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen)
+  const startCamera = useVoiceConnectionStore((s) => s.startCamera)
+  const stopCamera = useVoiceConnectionStore((s) => s.stopCamera)
+  const applyCameraSettings = useVoiceConnectionStore((s) => s.applyCameraSettings)
+  const disconnect = useVoiceConnectionStore((s) => s.disconnect)
+  const connectedAt = useVoiceConnectionStore((s) => s.connectedAt)
 
-  const [elapsed, setElapsed] = useState(0);
-  const [cameraModalMode, setCameraModalMode] = useState<"start" | "edit" | null>(null);
+  const [elapsed, setElapsed] = useState(0)
+  const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
 
   useEffect(() => {
     if (!connectedAt) {
-      setElapsed(0);
-      return;
+      setElapsed(0)
+      return
     }
     const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - connectedAt) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [connectedAt]);
+      setElapsed(Math.floor((Date.now() - connectedAt) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [connectedAt])
 
   const handleDisconnect = useCallback(() => {
-    playLeaveSound();
-    getSocket()?.emit("voice:leave");
-    disconnect();
-  }, [disconnect]);
+    playLeaveSound()
+    getSocket()?.emit('voice:leave')
+    disconnect()
+  }, [disconnect])
 
   const handleCameraClick = useCallback(() => {
     if (isCameraOn) {
-      stopCamera();
+      stopCamera()
     } else {
-      setCameraModalMode("start");
+      setCameraModalMode('start')
     }
-  }, [isCameraOn, stopCamera]);
+  }, [isCameraOn, stopCamera])
 
   const handleCameraConfirm = useCallback(
     (quality: CameraQuality, blur: boolean) => {
-      if (cameraModalMode === "start") {
-        startCamera(quality, blur);
+      if (cameraModalMode === 'start') {
+        startCamera(quality, blur)
       } else {
-        applyCameraSettings(quality, blur);
+        applyCameraSettings(quality, blur)
       }
-      setCameraModalMode(null);
+      setCameraModalMode(null)
     },
-    [cameraModalMode, startCamera, applyCameraSettings],
-  );
+    [cameraModalMode, startCamera, applyCameraSettings]
+  )
 
   const handleScreenShare = useCallback(() => {
     if (isScreenSharing) {
-      const room = useVoiceConnectionStore.getState().room;
-      room?.localParticipant.setScreenShareEnabled(false).catch(() => {});
-      useVoiceConnectionStore.getState().setScreenSharing(false);
+      const room = useVoiceConnectionStore.getState().room
+      room?.localParticipant.setScreenShareEnabled(false).catch(() => {})
+      useVoiceConnectionStore.getState().setScreenSharing(false)
     } else {
-      import("@/components/voice/screenShareUtils").then(({ startScreenShare }) =>
-        startScreenShare(),
-      );
+      import('@/components/voice/screenShareUtils').then(({ startScreenShare }) => startScreenShare())
     }
-  }, [isScreenSharing]);
+  }, [isScreenSharing])
 
-  const mins = Math.floor(elapsed / 60);
-  const secs = elapsed % 60;
-  const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const mins = Math.floor(elapsed / 60)
+  const secs = elapsed % 60
+  const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 
   return (
     <>
@@ -391,11 +366,9 @@ function VoiceRoomHeader({
         <svg className="mr-2 h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
         </svg>
-        <span className="text-[15px] font-semibold text-white">
-          {channelName}
-        </span>
+        <span className="text-[15px] font-semibold text-white">{channelName}</span>
         <span className="ml-2 hidden text-sm text-gray-400 md:inline">
-          {participantCount} participant{participantCount !== 1 ? "s" : ""}
+          {participantCount} participant{participantCount !== 1 ? 's' : ''}
         </span>
         <span className="ml-2 text-xs tabular-nums text-gray-500">{timeStr}</span>
 
@@ -403,12 +376,10 @@ function VoiceRoomHeader({
           {/* Mute */}
           <button
             type="button"
-            title={isMuted ? "Unmute" : "Mute"}
+            title={isMuted ? 'Unmute' : 'Mute'}
             onClick={toggleMute}
             className={`rounded-md p-1.5 transition ${
-              isMuted
-                ? "bg-red-500/20 text-red-400"
-                : "text-gray-400 hover:bg-white/10 hover:text-white"
+              isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -423,12 +394,10 @@ function VoiceRoomHeader({
           {/* Deafen */}
           <button
             type="button"
-            title={isDeafened ? "Undeafen" : "Deafen"}
+            title={isDeafened ? 'Undeafen' : 'Deafen'}
             onClick={toggleDeafen}
             className={`rounded-md p-1.5 transition ${
-              isDeafened
-                ? "bg-red-500/20 text-red-400"
-                : "text-gray-400 hover:bg-white/10 hover:text-white"
+              isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -439,12 +408,10 @@ function VoiceRoomHeader({
           {/* Camera */}
           <button
             type="button"
-            title={isCameraOn ? "Turn off camera" : "Turn on camera"}
+            title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
             onClick={handleCameraClick}
             className={`rounded-md p-1.5 transition ${
-              isCameraOn
-                ? "bg-white/10 text-white"
-                : "text-gray-400 hover:bg-white/10 hover:text-white"
+              isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -461,7 +428,7 @@ function VoiceRoomHeader({
             <button
               type="button"
               title="Camera settings"
-              onClick={() => setCameraModalMode("edit")}
+              onClick={() => setCameraModalMode('edit')}
               className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -474,12 +441,10 @@ function VoiceRoomHeader({
           {supportsScreenShare && (
             <button
               type="button"
-              title={isScreenSharing ? "Stop sharing" : "Share screen"}
+              title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
               onClick={handleScreenShare}
               className={`rounded-md p-1.5 transition ${
-                isScreenSharing
-                  ? "bg-primary/20 text-primary"
-                  : "text-gray-400 hover:bg-white/10 hover:text-white"
+                isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
               }`}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -510,13 +475,13 @@ function VoiceRoomHeader({
         />
       )}
     </>
-  );
+  )
 }
 
 function tileSize(count: number): string {
-  if (count <= 1) return "w-full max-w-2xl";
-  if (count <= 2) return "w-[calc(50%-0.375rem)] max-w-xl";
-  if (count <= 4) return "w-[calc(50%-0.375rem)] max-w-lg";
-  if (count <= 6) return "w-[calc(33.333%-0.5rem)] max-w-md";
-  return "w-[calc(25%-0.5rem)] max-w-sm";
+  if (count <= 1) return 'w-full max-w-2xl'
+  if (count <= 2) return 'w-[calc(50%-0.375rem)] max-w-xl'
+  if (count <= 4) return 'w-[calc(50%-0.375rem)] max-w-lg'
+  if (count <= 6) return 'w-[calc(33.333%-0.5rem)] max-w-md'
+  return 'w-[calc(25%-0.5rem)] max-w-sm'
 }

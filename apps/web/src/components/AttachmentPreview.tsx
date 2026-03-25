@@ -1,31 +1,22 @@
-import type { Attachment } from "@chat/shared";
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import type { Attachment } from '@chat/shared'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 interface AttachmentPreviewProps {
-  attachment: Attachment;
+  attachment: Attachment
 }
 
-function LightboxOverlay({
-  onClose,
-  children,
-}: {
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
+function LightboxOverlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80" onClick={onClose}>
       <button
         type="button"
         onClick={onClose}
@@ -37,20 +28,20 @@ function LightboxOverlay({
       </button>
       <div onClick={(e) => e.stopPropagation()}>{children}</div>
     </div>,
-    document.body,
-  );
+    document.body
+  )
 }
 
 function aspectStyle(w: number | null, h: number | null) {
-  if (!w || !h) return undefined;
-  return { aspectRatio: `${w} / ${h}` } as const;
+  if (!w || !h) return undefined
+  return { aspectRatio: `${w} / ${h}` } as const
 }
 
 export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
-  const [lightbox, setLightbox] = useState(false);
-  const { width: aw, height: ah } = attachment;
+  const [lightbox, setLightbox] = useState(false)
+  const { width: aw, height: ah } = attachment
 
-  if (attachment.type === "image" || attachment.type === "gif") {
+  if (attachment.type === 'image' || attachment.type === 'gif') {
     return (
       <>
         <button
@@ -78,11 +69,11 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
           </LightboxOverlay>
         )}
       </>
-    );
+    )
   }
 
-  if (attachment.type === "video") {
-    const hasDims = aw && ah;
+  if (attachment.type === 'video') {
+    const hasDims = aw && ah
     return (
       <div className="mt-1 max-w-md">
         <video
@@ -91,7 +82,7 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
           preload="metadata"
           width={aw ?? undefined}
           height={ah ?? undefined}
-          style={hasDims ? aspectStyle(aw, ah) : { aspectRatio: "16 / 9" }}
+          style={hasDims ? aspectStyle(aw, ah) : { aspectRatio: '16 / 9' }}
           className="h-auto max-h-[300px] w-auto max-w-full rounded-lg"
         >
           <track kind="captions" />
@@ -101,7 +92,7 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
           <span className="shrink-0">({formatBytes(attachment.sizeBytes)})</span>
         </p>
       </div>
-    );
+    )
   }
 
   return (
@@ -113,39 +104,47 @@ export function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
     >
       <FileIcon />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-blue-400 hover:underline">
-          {attachment.filename}
-        </p>
-        <p className="text-xs text-gray-500">
-          {formatBytes(attachment.sizeBytes)}
-        </p>
+        <p className="truncate text-sm font-medium text-blue-400 hover:underline">{attachment.filename}</p>
+        <p className="text-xs text-gray-500">{formatBytes(attachment.sizeBytes)}</p>
       </div>
       <DownloadIcon />
     </a>
-  );
+  )
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function FileIcon() {
   return (
-    <svg className="h-8 w-8 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <svg
+      className="h-8 w-8 shrink-0 text-gray-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
     </svg>
-  );
+  )
 }
 
 function DownloadIcon() {
   return (
-    <svg className="h-5 w-5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className="h-5 w-5 shrink-0 text-gray-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
-  );
+  )
 }

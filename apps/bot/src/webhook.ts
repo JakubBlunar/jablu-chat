@@ -1,29 +1,24 @@
-import { config } from "./config.js";
+import { config } from './config.js'
 
-export async function postToWebhook(
-  webhookUrl: string,
-  content: string,
-): Promise<boolean> {
+export async function postToWebhook(webhookUrl: string, content: string): Promise<boolean> {
   try {
     const res = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content,
         username: config.botName,
-        avatarUrl: config.botAvatarUrl,
-      }),
-    });
+        avatarUrl: config.botAvatarUrl
+      })
+    })
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.error(
-        `[webhook] POST failed ${res.status}: ${text.slice(0, 200)}`,
-      );
-      return false;
+      const text = await res.text().catch(() => '')
+      console.error(`[webhook] POST failed ${res.status}: ${text.slice(0, 200)}`)
+      return false
     }
-    return true;
+    return true
   } catch (err) {
-    console.error("[webhook] Network error:", err);
-    return false;
+    console.error('[webhook] Network error:', err)
+    return false
   }
 }

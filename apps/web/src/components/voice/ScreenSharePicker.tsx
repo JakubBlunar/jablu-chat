@@ -1,60 +1,60 @@
-import { useCallback, useEffect, useState } from "react";
-import SimpleBar from "simplebar-react";
-import { type ScreenShareOptions, publishScreenShare } from "./screenShareUtils";
+import { useCallback, useEffect, useState } from 'react'
+import SimpleBar from 'simplebar-react'
+import { type ScreenShareOptions, publishScreenShare } from './screenShareUtils'
 
 type ScreenSource = {
-  id: string;
-  name: string;
-  thumbnail: string;
-  appIcon: string | null;
-};
-
-const RESOLUTION_OPTIONS = ["720p", "1080p", "native"] as const;
-const FPS_OPTIONS = [5, 15, 20, 30] as const;
-
-const SS_RES_KEY = "chat:voice:ss-resolution";
-const SS_FPS_KEY = "chat:voice:ss-fps";
-
-function getSavedRes(): ScreenShareOptions["resolution"] {
-  return (localStorage.getItem(SS_RES_KEY) as ScreenShareOptions["resolution"]) || "1080p";
+  id: string
+  name: string
+  thumbnail: string
+  appIcon: string | null
 }
-function getSavedFps(): ScreenShareOptions["fps"] {
-  const v = localStorage.getItem(SS_FPS_KEY);
-  return v ? (Number(v) as ScreenShareOptions["fps"]) : 15;
+
+const RESOLUTION_OPTIONS = ['720p', '1080p', 'native'] as const
+const FPS_OPTIONS = [5, 15, 20, 30] as const
+
+const SS_RES_KEY = 'chat:voice:ss-resolution'
+const SS_FPS_KEY = 'chat:voice:ss-fps'
+
+function getSavedRes(): ScreenShareOptions['resolution'] {
+  return (localStorage.getItem(SS_RES_KEY) as ScreenShareOptions['resolution']) || '1080p'
+}
+function getSavedFps(): ScreenShareOptions['fps'] {
+  const v = localStorage.getItem(SS_FPS_KEY)
+  return v ? (Number(v) as ScreenShareOptions['fps']) : 15
 }
 
 export function ScreenSharePicker() {
-  const [sources, setSources] = useState<ScreenSource[]>([]);
-  const [open, setOpen] = useState(false);
-  const [selectedSource, setSelectedSource] = useState<string | null>(null);
-  const [resolution, setResolution] = useState<ScreenShareOptions["resolution"]>(getSavedRes);
-  const [fps, setFps] = useState<ScreenShareOptions["fps"]>(getSavedFps);
+  const [sources, setSources] = useState<ScreenSource[]>([])
+  const [open, setOpen] = useState(false)
+  const [selectedSource, setSelectedSource] = useState<string | null>(null)
+  const [resolution, setResolution] = useState<ScreenShareOptions['resolution']>(getSavedRes)
+  const [fps, setFps] = useState<ScreenShareOptions['fps']>(getSavedFps)
 
   useEffect(() => {
     function handleEvent(e: Event) {
-      const detail = (e as CustomEvent<{ sources: ScreenSource[] }>).detail;
-      setSources(detail.sources);
-      setSelectedSource(null);
-      setResolution(getSavedRes());
-      setFps(getSavedFps());
-      setOpen(true);
+      const detail = (e as CustomEvent<{ sources: ScreenSource[] }>).detail
+      setSources(detail.sources)
+      setSelectedSource(null)
+      setResolution(getSavedRes())
+      setFps(getSavedFps())
+      setOpen(true)
     }
-    window.addEventListener("voice:pick-screen", handleEvent);
-    return () => window.removeEventListener("voice:pick-screen", handleEvent);
-  }, []);
+    window.addEventListener('voice:pick-screen', handleEvent)
+    return () => window.removeEventListener('voice:pick-screen', handleEvent)
+  }, [])
 
   const handleStart = useCallback(() => {
-    if (!selectedSource) return;
-    localStorage.setItem(SS_RES_KEY, resolution);
-    localStorage.setItem(SS_FPS_KEY, String(fps));
-    setOpen(false);
-    void publishScreenShare(selectedSource, { resolution, fps });
-  }, [selectedSource, resolution, fps]);
+    if (!selectedSource) return
+    localStorage.setItem(SS_RES_KEY, resolution)
+    localStorage.setItem(SS_FPS_KEY, String(fps))
+    setOpen(false)
+    void publishScreenShare(selectedSource, { resolution, fps })
+  }, [selectedSource, resolution, fps])
 
-  if (!open || sources.length === 0) return null;
+  if (!open || sources.length === 0) return null
 
-  const screens = sources.filter((s) => s.id.startsWith("screen:"));
-  const windows = sources.filter((s) => s.id.startsWith("window:"));
+  const screens = sources.filter((s) => s.id.startsWith('screen:'))
+  const windows = sources.filter((s) => s.id.startsWith('window:'))
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
@@ -77,17 +77,10 @@ export function ScreenSharePicker() {
         <SimpleBar className="max-h-[400px] px-6 py-4">
           {screens.length > 0 && (
             <>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                Screens
-              </h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Screens</h3>
               <div className="mb-4 grid grid-cols-3 gap-3">
                 {screens.map((s) => (
-                  <SourceCard
-                    key={s.id}
-                    source={s}
-                    selected={selectedSource === s.id}
-                    onSelect={setSelectedSource}
-                  />
+                  <SourceCard key={s.id} source={s} selected={selectedSource === s.id} onSelect={setSelectedSource} />
                 ))}
               </div>
             </>
@@ -95,17 +88,10 @@ export function ScreenSharePicker() {
 
           {windows.length > 0 && (
             <>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                Application Windows
-              </h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Application Windows</h3>
               <div className="grid grid-cols-3 gap-3">
                 {windows.map((s) => (
-                  <SourceCard
-                    key={s.id}
-                    source={s}
-                    selected={selectedSource === s.id}
-                    onSelect={setSelectedSource}
-                  />
+                  <SourceCard key={s.id} source={s} selected={selectedSource === s.id} onSelect={setSelectedSource} />
                 ))}
               </div>
             </>
@@ -122,16 +108,14 @@ export function ScreenSharePicker() {
                   key={r}
                   type="button"
                   onClick={() => {
-                    setResolution(r);
-                    localStorage.setItem(SS_RES_KEY, r);
+                    setResolution(r)
+                    localStorage.setItem(SS_RES_KEY, r)
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    resolution === r
-                      ? "bg-primary text-white"
-                      : "bg-surface-darkest text-gray-300 hover:bg-white/10"
+                    resolution === r ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
-                  {r === "native" ? "Native" : r}
+                  {r === 'native' ? 'Native' : r}
                 </button>
               ))}
             </div>
@@ -145,13 +129,11 @@ export function ScreenSharePicker() {
                   key={f}
                   type="button"
                   onClick={() => {
-                    setFps(f);
-                    localStorage.setItem(SS_FPS_KEY, String(f));
+                    setFps(f)
+                    localStorage.setItem(SS_FPS_KEY, String(f))
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    fps === f
-                      ? "bg-primary text-white"
-                      : "bg-surface-darkest text-gray-300 hover:bg-white/10"
+                    fps === f ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
                   {f}
@@ -173,41 +155,35 @@ export function ScreenSharePicker() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function SourceCard({
   source,
   selected,
-  onSelect,
+  onSelect
 }: {
-  source: ScreenSource;
-  selected: boolean;
-  onSelect: (id: string) => void;
+  source: ScreenSource
+  selected: boolean
+  onSelect: (id: string) => void
 }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(source.id)}
       className={`group overflow-hidden rounded-lg border-2 bg-surface-darkest transition ${
-        selected ? "border-primary" : "border-transparent hover:border-primary/50"
+        selected ? 'border-primary' : 'border-transparent hover:border-primary/50'
       }`}
     >
       <div className="aspect-video w-full overflow-hidden bg-black">
-        <img
-          src={source.thumbnail}
-          alt={source.name}
-          className="h-full w-full object-contain"
-        />
+        <img src={source.thumbnail} alt={source.name} className="h-full w-full object-contain" />
       </div>
       <div className="flex items-center gap-2 px-2 py-1.5">
-        {source.appIcon && (
-          <img src={source.appIcon} alt="" className="h-4 w-4" />
-        )}
-        <span className={`truncate text-xs ${selected ? "text-white" : "text-gray-300 group-hover:text-white"}`}>
+        {source.appIcon && <img src={source.appIcon} alt="" className="h-4 w-4" />}
+        <span className={`truncate text-xs ${selected ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>
           {source.name}
         </span>
       </div>
     </button>
-  );
+  )
 }
