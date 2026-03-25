@@ -302,8 +302,8 @@ function PasswordChangeForm() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to change password')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to change password')
     } finally {
       setLoading(false)
     }
@@ -352,8 +352,8 @@ function EmailChangeForm() {
       setSuccess('Email changed successfully')
       setEmail('')
       setPassword('')
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to change email')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to change email')
     } finally {
       setLoading(false)
     }
@@ -408,8 +408,8 @@ function ProfileSection() {
       if (!file) return
       try {
         await uploadAvatar(file)
-      } catch (err: any) {
-        setError(err?.message ?? 'Failed to upload avatar')
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to upload avatar')
       }
       if (fileInputRef.current) fileInputRef.current.value = ''
     },
@@ -419,8 +419,8 @@ function ProfileSection() {
   const handleDeleteAvatar = useCallback(async () => {
     try {
       await deleteAvatar()
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to remove avatar')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to remove avatar')
     }
   }, [deleteAvatar])
 
@@ -437,8 +437,8 @@ function ProfileSection() {
         await updateProfile(data)
       }
       setSuccess('Profile updated')
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to update profile')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile')
     } finally {
       setLoading(false)
     }

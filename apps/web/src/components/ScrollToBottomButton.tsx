@@ -42,7 +42,7 @@ export const ScrollToBottomButton = memo(function ScrollToBottomButton({
     <button
       type="button"
       onClick={onClick}
-      className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-lg transition hover:bg-primary/80"
+      className="absolute bottom-16 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-white shadow-lg transition hover:bg-primary/80 md:bottom-4"
     >
       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />

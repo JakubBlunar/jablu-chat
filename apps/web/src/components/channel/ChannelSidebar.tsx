@@ -2,10 +2,18 @@ import type { Channel, UserStatus } from '@chat/shared'
 import { RoomEvent, type Participant } from 'livekit-client'
 import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
-import { CreateChannelModal } from '@/components/channel/CreateChannelModal'
-import { EditChannelModal } from '@/components/channel/EditChannelModal'
-import { InviteModal } from '@/components/server/InviteModal'
-import { ServerSettingsModal } from '@/components/server/ServerSettingsModal'
+const CreateChannelModal = React.lazy(() =>
+  import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
+)
+const EditChannelModal = React.lazy(() =>
+  import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
+)
+const InviteModal = React.lazy(() =>
+  import('@/components/server/InviteModal').then((m) => ({ default: m.InviteModal }))
+)
+const ServerSettingsModal = React.lazy(() =>
+  import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
+)
 import { UserAvatar } from '@/components/UserAvatar'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -660,14 +668,26 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         </div>
       </aside>
 
-      <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />
+      {channelModalOpen && (
+        <Suspense fallback={null}>
+          <CreateChannelModal open onClose={() => setChannelModalOpen(false)} />
+        </Suspense>
+      )}
       {inviteOpen && currentServer && (
-        <InviteModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setInviteOpen(false)} />
+        <Suspense fallback={null}>
+          <InviteModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setInviteOpen(false)} />
+        </Suspense>
       )}
       {serverSettingsOpen && currentServer && (
-        <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
+        <Suspense fallback={null}>
+          <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
+        </Suspense>
       )}
-      {editingChannel && <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />}
+      {editingChannel && (
+        <Suspense fallback={null}>
+          <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />
+        </Suspense>
+      )}
       {reorderOpen && (
         <Suspense fallback={null}>
           <ReorderChannelsModal onClose={() => setReorderOpen(false)} />

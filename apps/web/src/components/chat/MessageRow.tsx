@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, memo, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
@@ -115,13 +115,13 @@ export const MessageRow = memo(function MessageRow({
   const reactions = message.reactions ?? []
   const linkPreviews = message.linkPreviews ?? []
 
-  const contentIsMediaLink = (() => {
+  const contentIsMediaLink = useMemo(() => {
     const text = message.content?.trim()
     if (!text || linkPreviews.length !== 1) return false
     const lp = linkPreviews[0]
     if (text !== lp.url) return false
     return isImageUrl(lp) || isGifUrl(lp)
-  })()
+  }, [message.content, linkPreviews])
 
   const isMobile = useIsMobile()
   const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId))?.role

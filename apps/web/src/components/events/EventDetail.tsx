@@ -95,8 +95,8 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
       const updated = await api.updateServerEvent(serverId, event.id, input)
       useEventStore.getState().updateEvent(updated)
       setIsEditing(false)
-    } catch (err: any) {
-      setEditError(err.message ?? 'Failed to update')
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : 'Failed to update')
     } finally {
       setSaving(false)
     }

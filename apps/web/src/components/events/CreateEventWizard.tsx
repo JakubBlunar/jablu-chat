@@ -80,8 +80,8 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
       const event = await api.createServerEvent(serverId, input)
       useEventStore.getState().addEvent(event)
       onClose()
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to create event')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create event')
     } finally {
       setSubmitting(false)
     }
