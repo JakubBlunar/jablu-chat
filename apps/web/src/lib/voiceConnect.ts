@@ -39,7 +39,11 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
-      audioCaptureDefaults: devices.audioInput ? { deviceId: { exact: devices.audioInput } } : undefined
+      audioCaptureDefaults: {
+        noiseSuppression: true,
+        echoCancellation: true,
+        ...(devices.audioInput ? { deviceId: { exact: devices.audioInput } } : {})
+      }
     })
 
     room.on(RoomEvent.Disconnected, () => {

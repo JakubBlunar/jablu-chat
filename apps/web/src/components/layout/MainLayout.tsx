@@ -8,6 +8,7 @@ import { MemberSidebar } from '@/components/member/MemberSidebar'
 import { MessageArea } from '@/components/chat/MessageArea'
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
+import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
 import { useIdleDetector } from '@/hooks/useIdleDetector'
 import { useIsMobile, useIsTablet } from '@/hooks/useMobile'
 import { useRouteSync } from '@/hooks/useRouteSync'
@@ -145,6 +146,7 @@ export function MainLayout() {
     const user = useAuthStore.getState().user
     if (user && user.status === 'online') {
       useAuthStore.getState().setUser({ ...user, status: 'idle' })
+      useMemberStore.getState().setUserStatus(user.id, 'idle')
     }
   }, [socket])
 
@@ -156,6 +158,7 @@ export function MainLayout() {
     const user = useAuthStore.getState().user
     if (user && user.status === 'idle') {
       useAuthStore.getState().setUser({ ...user, status: 'online' })
+      useMemberStore.getState().setUserStatus(user.id, 'online')
     }
   }, [socket])
 
@@ -272,6 +275,7 @@ export function MainLayout() {
   if (isMobile) {
     return (
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+        <VoiceAudioManager />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
         <MobileTopBar
@@ -319,6 +323,7 @@ export function MainLayout() {
   if (viewMode === 'dm') {
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+        <VoiceAudioManager />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
         <div className="flex min-h-0 flex-1">
@@ -338,6 +343,7 @@ export function MainLayout() {
   // ─── Server layout (desktop/tablet) ───
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+      <VoiceAudioManager />
       <ConnectionBanner isConnected={isConnected} />
       <PwaInstallBanner />
       <div className="flex min-h-0 flex-1">

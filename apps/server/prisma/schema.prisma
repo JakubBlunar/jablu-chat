@@ -399,6 +399,15 @@ model StorageAudit {
   @@map("storage_audits")
 }
 
+model UserVolumeSetting {
+  listenerId   String @map("listener_id")
+  targetUserId String @map("target_user_id")
+  volume       Int    @default(100)
+
+  @@id([listenerId, targetUserId])
+  @@map("user_volume_settings")
+}
+
 model AuditLog {
   id        String   @id @default(uuid())
   serverId  String   @map("server_id")

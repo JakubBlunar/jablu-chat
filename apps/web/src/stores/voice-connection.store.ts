@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Track, type Room } from 'livekit-client'
 import { isElectron } from '@/lib/electron'
+import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { type MicMode, getMicMode, startMicMode, stopMicMode, setRoomGetter } from '@/lib/micMode'
 import { type CameraQuality, CAMERA_PRESETS, getSavedCamera } from '@/lib/deviceSettings'
@@ -32,6 +33,7 @@ export type VoiceConnectionState = {
   isBlurEnabled: boolean
   _blurHandle: BlurHandle | null
   _originalCameraTrack: MediaStreamTrack | null
+  volumeOverrides: Record<string, number>
 
   setConnecting: (serverId: string, channelId: string, channelName: string) => void
   setConnected: (room: Room) => void
@@ -44,6 +46,8 @@ export type VoiceConnectionState = {
   setScreenSharing: (v: boolean) => void
   setViewingVoiceRoom: (v: boolean) => void
   setMicMode: (mode: MicMode) => void
+  setVolumeOverride: (key: string, volume: number) => void
+  fetchVolumeOverrides: () => void
 }
 
 type StoreGet = () => VoiceConnectionState
@@ -107,6 +111,8 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
   }
 }
 
+let _saveTimer: number | undefined
+
 export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) => ({
   currentServerId: null,
   currentChannelId: null,
@@ -123,6 +129,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   isBlurEnabled: false,
   _blurHandle: null,
   _originalCameraTrack: null,
+  volumeOverrides: {},
 
   setConnecting: (serverId, channelId, channelName) =>
     set({
@@ -139,6 +146,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     if (mode !== 'always') {
       setTimeout(() => startMicMode(mode), 500)
     }
+    get().fetchVolumeOverrides()
   },
 
   disconnect: () => {
@@ -166,7 +174,8 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       viewingVoiceRoom: false,
       isBlurEnabled: false,
       _blurHandle: null,
-      _originalCameraTrack: null
+      _originalCameraTrack: null,
+      volumeOverrides: {}
     })
   },
 
@@ -186,10 +195,25 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   },
 
   toggleDeafen: () => {
-    const { isDeafened } = get()
+    const { room, isDeafened, isMuted, micMode } = get()
     const next = !isDeafened
     set({ isDeafened: next })
     emitVoiceState({ deafened: next })
+    if (room) {
+      if (next && !isMuted) {
+        room.localParticipant.setMicrophoneEnabled(false).catch(() => {})
+        stopMicMode()
+        set({ isMuted: true })
+        emitVoiceState({ muted: true })
+      } else if (!next && isMuted) {
+        room.localParticipant.setMicrophoneEnabled(true).catch(() => {})
+        if (micMode !== 'always') {
+          setTimeout(() => startMicMode(micMode), 300)
+        }
+        set({ isMuted: false })
+        emitVoiceState({ muted: false })
+      }
+    }
   },
 
   startCamera: async (quality: CameraQuality, blur: boolean) => {
@@ -353,6 +377,28 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     if (!isMuted && mode !== 'always') {
       startMicMode(mode)
     }
+  },
+
+  fetchVolumeOverrides: () => {
+    api
+      .getVoiceVolumes()
+      .then((map) => set({ volumeOverrides: map }))
+      .catch(() => {})
+  },
+
+  setVolumeOverride: (key, volume) => {
+    set((s) => ({
+      volumeOverrides: { ...s.volumeOverrides, [key]: volume }
+    }))
+    if (_saveTimer) clearTimeout(_saveTimer)
+    _saveTimer = window.setTimeout(() => {
+      const overrides = get().volumeOverrides
+      for (const [k, v] of Object.entries(overrides)) {
+        if (v !== 100) {
+          api.setVoiceVolume(k, v).catch(() => {})
+        }
+      }
+    }, 1000)
   }
 }))
 

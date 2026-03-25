@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setTrayUnread: (count: number) => ipcRenderer.invoke('set-tray-unread', count),
   setServerUrl: (url: string) => ipcRenderer.invoke('set-server-url', url),
+  getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch') as Promise<boolean>,
+  setAutoLaunch: (enabled: boolean) => ipcRenderer.invoke('set-auto-launch', enabled) as Promise<boolean>,
+
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
 

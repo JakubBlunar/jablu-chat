@@ -20,7 +20,9 @@ import {
   setVadThreshold as saveVadThreshold,
   type VadMode,
   getVadMode,
-  setVadMode as saveVadMode
+  setVadMode as saveVadMode,
+  stopMicMode,
+  startMicMode
 } from '@/lib/micMode'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
@@ -327,6 +329,14 @@ export function VoiceSettings() {
             onChange={(v) => {
               setSelectedInput(v)
               setSavedAudioInput(v)
+              const { room, isMuted, micMode: currentMicMode } = useVoiceConnectionStore.getState()
+              if (room) {
+                room.switchActiveDevice('audioinput', v || '').catch(() => {})
+                if (!isMuted && currentMicMode !== 'always') {
+                  stopMicMode()
+                  setTimeout(() => startMicMode(currentMicMode), 500)
+                }
+              }
             }}
           />
 
@@ -338,6 +348,10 @@ export function VoiceSettings() {
               onChange={(v) => {
                 setSelectedOutput(v)
                 setSavedAudioOutput(v)
+                const { room } = useVoiceConnectionStore.getState()
+                if (room) {
+                  room.switchActiveDevice('audiooutput', v || '').catch(() => {})
+                }
               }}
             />
           )}

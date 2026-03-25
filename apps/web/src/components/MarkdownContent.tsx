@@ -1,7 +1,39 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { Member } from '@/stores/member.store'
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    'div',
+    'span',
+    'img',
+    'video',
+    'audio',
+    'source',
+    'br',
+    'hr',
+    'details',
+    'summary'
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'className', 'class'],
+    video: ['src', 'controls', 'autoPlay', 'muted', 'playsInline', 'className', 'class'],
+    audio: ['src', 'controls', 'autoPlay', 'className', 'class'],
+    source: ['src', 'type'],
+    a: ['href', 'target', 'rel', 'className', 'class'],
+    div: ['className', 'class'],
+    span: ['className', 'class', 'role', 'tabIndex'],
+    p: ['className', 'class'],
+    strong: ['className', 'class'],
+    em: ['className', 'class']
+  }
+}
 
 type HighlighterComponent = typeof import('react-syntax-highlighter').Prism
 type HighlighterStyle = Record<string, React.CSSProperties>
@@ -163,6 +195,7 @@ export function MarkdownContent({
     <div className={`markdown-body ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
         urlTransform={(url) =>
           url.startsWith('mention:') ||
           url.startsWith('channel:') ||

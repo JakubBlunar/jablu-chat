@@ -104,6 +104,15 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
   const voiceParticipants = useVoiceStore((s) => s.participants)
   const currentVoiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
+  const voiceServerId = useVoiceConnectionStore((s) => s.currentServerId)
+
+  const handleGoToVoiceRoom = useCallback(() => {
+    if (voiceServerId && currentVoiceChannelId) {
+      useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
+      void orchestratedGoToChannel(voiceServerId, currentVoiceChannelId)
+      close()
+    }
+  }, [voiceServerId, currentVoiceChannelId, orchestratedGoToChannel, close])
 
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -112,7 +121,8 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const [groupDmOpen, setGroupDmOpen] = useState(false)
 
   const currentServer = useMemo(() => servers.find((s) => s.id === currentServerId) ?? null, [servers, currentServerId])
-  const myMembership = useMemberStore((s) => s.members.find((m) => m.userId === user?.id))
+  const members = useMemberStore((s) => s.members)
+  const myMembership = members.find((m) => m.userId === user?.id)
   const isAdminOrOwner = myMembership?.role === 'owner' || myMembership?.role === 'admin'
   const isOwner = currentServer?.ownerId === user?.id
   const removeServer = useServerStore((s) => s.removeServer)
@@ -405,14 +415,23 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
                           )}
                         </div>
                         {participants.length > 0 && (
-                          <ul className="ml-6 space-y-0.5">
-                            {participants.map((p) => (
-                              <li key={p.userId} className="flex items-center gap-1.5 py-0.5 text-xs text-gray-400">
-                                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                                <span className="min-w-0 flex-1 truncate">{p.username}</span>
-                                <VoiceStatusIcons participant={p} />
-                              </li>
-                            ))}
+                          <ul className="ml-4 space-y-0.5">
+                            {participants.map((p) => {
+                              const member = members.find((m) => m.userId === p.userId)
+                              return (
+                                <li key={p.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
+                                  <UserAvatar
+                                    username={p.username}
+                                    avatarUrl={member?.user.avatarUrl}
+                                    size="sm"
+                                  />
+                                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-300">
+                                    {member?.user.displayName || p.username}
+                                  </span>
+                                  <VoiceStatusIcons participant={p} />
+                                </li>
+                              )
+                            })}
                           </ul>
                         )}
                       </li>
@@ -475,7 +494,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
           </SimpleBar>
 
           {/* Voice panel */}
-          <VoicePanel />
+          <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />
 
           {/* User footer */}
           <div className="flex shrink-0 items-center gap-2 border-t border-black/20 bg-surface-overlay px-3 py-2">

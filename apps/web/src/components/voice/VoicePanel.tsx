@@ -5,6 +5,7 @@ import type { CameraQuality } from '@/lib/deviceSettings'
 
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
+import { ScreenShareDialog, type ScreenShareSettings } from './ScreenShareDialog'
 import type { MicMode } from '@/lib/micMode'
 
 function MicIcon({ muted }: { muted: boolean }) {
@@ -77,7 +78,7 @@ function DisconnectIcon() {
   )
 }
 
-export function VoicePanel() {
+export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void } = {}) {
   const channelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
   const isMuted = useVoiceConnectionStore((s) => s.isMuted)
@@ -98,6 +99,7 @@ export function VoicePanel() {
   const [elapsed, setElapsed] = useState(0)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
+  const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -147,8 +149,12 @@ export function VoicePanel() {
   }, [disconnect])
 
   const handleShowVoiceRoom = useCallback(() => {
-    useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
-  }, [])
+    if (onGoToVoiceRoom) {
+      onGoToVoiceRoom()
+    } else {
+      useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
+    }
+  }, [onGoToVoiceRoom])
 
   const handleScreenShare = useCallback(() => {
     if (isScreenSharing) {
@@ -156,9 +162,16 @@ export function VoicePanel() {
       room?.localParticipant.setScreenShareEnabled(false).catch(() => {})
       useVoiceConnectionStore.getState().setScreenSharing(false)
     } else {
-      import('@/components/voice/screenShareUtils').then(({ startScreenShare }) => startScreenShare())
+      setShowScreenShareDialog(true)
     }
   }, [isScreenSharing])
+
+  const handleScreenShareConfirm = useCallback((settings: ScreenShareSettings) => {
+    setShowScreenShareDialog(false)
+    import('@/components/voice/screenShareUtils').then(({ startScreenShareWithSettings }) =>
+      startScreenShareWithSettings(settings)
+    )
+  }, [])
 
   if (!channelId) return null
 
@@ -259,6 +272,10 @@ export function VoicePanel() {
           onConfirm={handleCameraConfirm}
           onClose={() => setCameraModalMode(null)}
         />
+      )}
+
+      {showScreenShareDialog && (
+        <ScreenShareDialog onConfirm={handleScreenShareConfirm} onClose={() => setShowScreenShareDialog(false)} />
       )}
     </div>
   )

@@ -58,7 +58,7 @@ export function pttBindingLabel(binding: PttBinding): string {
 
 export function getVadThreshold(): number {
   const v = localStorage.getItem(VAD_THRESHOLD_KEY)
-  return v ? Number(v) : 15
+  return v ? Number(v) : 18
 }
 
 export function setVadThreshold(threshold: number) {
@@ -106,13 +106,13 @@ function startVAD(): () => void {
   const source = audioCtx.createMediaStreamSource(new MediaStream([analysisTrack]))
   const analyser = audioCtx.createAnalyser()
   analyser.fftSize = 512
-  analyser.smoothingTimeConstant = 0.2
+  analyser.smoothingTimeConstant = 0.45
   source.connect(analyser)
 
   const dataArray = new Uint8Array(analyser.frequencyBinCount)
   let speaking = false
   let silenceFrames = 0
-  const SILENCE_DELAY = 15
+  const SILENCE_DELAY = 35
 
   let running = true
   const isAuto = getVadMode() === 'auto'
@@ -139,7 +139,7 @@ function startVAD(): () => void {
       calibrationSamples.push(avg)
       if (performance.now() - calibrationStart >= CALIBRATION_MS) {
         const ambient = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length
-        const autoThreshold = Math.max(Math.round(ambient * 1.2 + 3), 5)
+        const autoThreshold = Math.max(Math.round(ambient * 1.8 + 5), 8)
         setVadThreshold(autoThreshold)
         calibrated = true
       }
