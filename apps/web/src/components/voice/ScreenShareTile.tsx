@@ -181,7 +181,7 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
           value={isMuted ? 0 : volume}
           onChange={handleVolumeChange}
           onClick={(e) => e.stopPropagation()}
-          className="h-1 w-20 cursor-pointer accent-primary"
+          className="h-2 w-20 cursor-pointer accent-primary"
           title={`${isMuted ? 0 : volume}%`}
         />
       )}

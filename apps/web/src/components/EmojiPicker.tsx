@@ -2,6 +2,7 @@ import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
 
 interface EmojiPickerProps {
@@ -14,29 +15,25 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   const isMobile = useIsMobile()
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    document.addEventListener('pointerdown', handleClick)
+    return () => document.removeEventListener('pointerdown', handleClick)
   }, [onClose])
 
   if (isMobile) {
     return createPortal(
-      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60" onClick={onClose}>
-        <div
-          ref={ref}
-          className="relative max-h-[80vh] w-[90vw] max-w-sm overflow-hidden rounded-xl bg-surface-dark shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
+      <ModalOverlay onClose={onClose} zIndex="z-[110]" noPadding className="flex max-h-[80vh] flex-col items-center overflow-hidden">
+        <div ref={ref} className="flex w-full flex-col items-center">
+          <div className="flex w-full items-center justify-between border-b border-white/10 px-4 py-2">
             <span className="text-sm font-semibold text-white">Emoji</span>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+              className="rounded-full p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M6 18 18 6M6 6l12 12" />
@@ -54,7 +51,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
             set="native"
           />
         </div>
-      </div>,
+      </ModalOverlay>,
       document.body
     )
   }

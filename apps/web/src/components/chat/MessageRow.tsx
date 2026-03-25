@@ -1,14 +1,17 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
-import { LinkPreviewCard } from '@/components/LinkPreviewCard'
+import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import { MessageActions } from '@/components/chat/MessageActions'
+import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { UserAvatar } from '@/components/UserAvatar'
+import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { getSocket } from '@/lib/socket'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
+import { useMemberStore } from '@/stores/member.store'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -112,12 +115,29 @@ export const MessageRow = memo(function MessageRow({
   const reactions = message.reactions ?? []
   const linkPreviews = message.linkPreviews ?? []
 
+  const contentIsMediaLink = (() => {
+    const text = message.content?.trim()
+    if (!text || linkPreviews.length !== 1) return false
+    const lp = linkPreviews[0]
+    if (text !== lp.url) return false
+    return isImageUrl(lp) || isGifUrl(lp)
+  })()
+
+  const isMobile = useIsMobile()
+  const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId))?.role
+  const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(message.content ?? '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [pickerAbove, setPickerAbove] = useState(true)
   const actionsRef = useRef<HTMLDivElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const deleteBtnRef = useRef<HTMLButtonElement>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const handleStartEdit = useCallback(() => {
     setEditValue(message.content ?? '')
@@ -144,6 +164,7 @@ export const MessageRow = memo(function MessageRow({
     } else {
       getSocket()?.emit('message:delete', { messageId: message.id })
     }
+    setShowDeleteConfirm(false)
   }, [message.id, isDm, contextId])
 
   useEffect(() => {
@@ -154,8 +175,44 @@ export const MessageRow = memo(function MessageRow({
     }
   }, [editing, editValue])
 
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const handleTouchStart = useCallback(() => {
+    if (!isMobile || editing) return
+    longPressFired.current = false
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
+      setDrawerOpen(true)
+    }, 500)
+  }, [isMobile, editing])
+
+  const handleTouchEnd = useCallback(() => {
+    cancelLongPress()
+  }, [cancelLongPress])
+
+  const handleTouchMove = useCallback(() => {
+    cancelLongPress()
+  }, [cancelLongPress])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (longPressTimer.current || longPressFired.current) e.preventDefault()
+  }, [])
+
+  const handleRowClick = useCallback((e: React.MouseEvent) => {
+    if (longPressFired.current) {
+      e.stopPropagation()
+      longPressFired.current = false
+    }
+  }, [])
+
   const handleAuthorClick = useCallback(
     (e: React.MouseEvent) => {
+      e.stopPropagation()
       if (!message.authorId || !onUserClick) return
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       onUserClick(message.authorId, rect)
@@ -165,12 +222,30 @@ export const MessageRow = memo(function MessageRow({
 
   return (
     <div
+      ref={rowRef}
       id={`msg-${message.id}`}
+      onClick={handleRowClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+      onContextMenu={handleContextMenu}
       className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition ${
         editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
       } ${showHead ? 'mt-3 first:mt-1' : '-mt-0.5'}`}
     >
-      {!editing &&
+      {drawerOpen && (
+        <MobileMessageDrawer
+          message={message}
+          contextId={contextId}
+          mode={mode}
+          isAuthor={isAuthor}
+          isAdminOrOwner={isAdminOrOwner}
+          onClose={() => setDrawerOpen(false)}
+          onEdit={isAuthor ? handleStartEdit : undefined}
+          onReply={() => onReply(message)}
+        />
+      )}
+      {!editing && !isMobile &&
         (!isDm ? (
           <MessageActions
             message={message}
@@ -201,12 +276,29 @@ export const MessageRow = memo(function MessageRow({
                   <ActionBtn title="Edit" onClick={handleStartEdit}>
                     <EditIcon />
                   </ActionBtn>
-                  <ActionBtn title="Delete" onClick={handleDelete} danger>
+                  <button
+                    ref={deleteBtnRef}
+                    type="button"
+                    title="Delete"
+                    aria-label="Delete"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowDeleteConfirm(true)
+                    }}
+                    className="p-1.5 text-gray-400 transition hover:text-red-400"
+                  >
                     <TrashIcon />
-                  </ActionBtn>
+                  </button>
                 </>
               )}
             </div>
+            {showDeleteConfirm && (
+              <DmDeleteConfirmPopover
+                anchorRef={deleteBtnRef}
+                onConfirm={handleDelete}
+                onCancel={() => setShowDeleteConfirm(false)}
+              />
+            )}
             {emojiOpen && (
               <div className={`absolute right-0 z-50 ${pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
                 <Suspense fallback={null}>
@@ -236,7 +328,7 @@ export const MessageRow = memo(function MessageRow({
       ) : (
         <div className={`flex ${isDm ? 'w-8' : 'w-10'} shrink-0 justify-center pt-1`}>
           {!isDm && (
-            <span className="text-[10px] text-gray-500 opacity-0 transition group-hover:opacity-100">
+            <span className="text-[10px] text-gray-500 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
               {formatSmartTimestamp(message.createdAt)}
             </span>
           )}
@@ -301,23 +393,42 @@ export const MessageRow = memo(function MessageRow({
               }}
               autoFocus
             />
-            <div className="mt-1 flex gap-2 text-xs text-gray-400">
-              <span>
-                escape to{' '}
-                <button type="button" className="text-link hover:underline" onClick={() => setEditing(false)}>
-                  cancel
+            {isMobile ? (
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="rounded-md px-3 py-1.5 text-sm text-gray-300 transition active:bg-white/10"
+                >
+                  Cancel
                 </button>
-              </span>
-              <span>•</span>
-              <span>
-                enter to{' '}
-                <button type="button" className="text-link hover:underline" onClick={handleSaveEdit}>
-                  save
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition active:bg-primary/80"
+                >
+                  Save
                 </button>
-              </span>
-            </div>
+              </div>
+            ) : (
+              <div className="mt-1 flex gap-2 text-xs text-gray-400">
+                <span>
+                  escape to{' '}
+                  <button type="button" className="text-link hover:underline" onClick={() => setEditing(false)}>
+                    cancel
+                  </button>
+                </span>
+                <span>•</span>
+                <span>
+                  enter to{' '}
+                  <button type="button" className="text-link hover:underline" onClick={handleSaveEdit}>
+                    save
+                  </button>
+                </span>
+              </div>
+            )}
           </div>
-        ) : message.content ? (
+        ) : message.content && !contentIsMediaLink ? (
           <div>
             <MarkdownContent
               content={message.content}
@@ -376,3 +487,58 @@ export const MessageRow = memo(function MessageRow({
     </div>
   )
 })
+
+function DmDeleteConfirmPopover({
+  anchorRef,
+  onConfirm,
+  onCancel
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [above, setAbove] = useState(true)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setAbove(rect.top > 200)
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    const onClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onCancel()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onClick)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onClick)
+    }
+  }, [onCancel])
+
+  return (
+    <div
+      ref={popoverRef}
+      className={`absolute right-0 z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10 ${above ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+    >
+      <p className="text-sm font-semibold text-white">Delete Message</p>
+      <p className="mt-1 text-xs text-gray-400">Are you sure? This cannot be undone.</p>
+      <div className="mt-3 flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10">
+          Cancel
+        </button>
+        <button type="button" onClick={onConfirm} className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700">
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}

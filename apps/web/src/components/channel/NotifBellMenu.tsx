@@ -41,7 +41,7 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
       if (left < 4) left = rect.left
       setMenuPos({ top: rect.bottom + 4, left })
     }
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent) => {
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target as Node) &&
@@ -51,8 +51,8 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
         setOpen(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => document.removeEventListener('pointerdown', handler)
   }, [open])
 
   const handleChange = useCallback(

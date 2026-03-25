@@ -14,7 +14,7 @@ function extractYouTubeId(url: string): string | null {
   return null
 }
 
-function isGifUrl(lp: LinkPreview): boolean {
+export function isGifUrl(lp: LinkPreview): boolean {
   if (lp.siteName === 'GIF') return true
   try {
     const u = new URL(lp.url)
@@ -29,7 +29,7 @@ function isGifUrl(lp: LinkPreview): boolean {
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.svg'])
 
-function isImageUrl(lp: LinkPreview): boolean {
+export function isImageUrl(lp: LinkPreview): boolean {
   if (lp.siteName === 'Image') return true
   try {
     const path = new URL(lp.url).pathname.toLowerCase()

@@ -17,6 +17,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -146,51 +147,49 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
   }, [serverId, textOrder, voiceOrder, onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-lg bg-surface-darkest shadow-xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h3 className="text-lg font-semibold text-white">Reorder Channels</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
-          >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <p className="text-sm text-gray-400">
-            Drag channels to reorder them. Text and voice channels are reordered separately.
-          </p>
-
-          <SortableList title="Text Channels" items={textOrder} onReorder={setTextOrder} />
-          <SortableList title="Voice Channels" items={voiceOrder} onReorder={setVoiceOrder} />
-        </div>
-
-        {error && <p className="px-5 text-sm text-red-400">{error}</p>}
-
-        <div className="flex items-center justify-end gap-2 border-t border-white/10 px-5 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-md px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || !hasChanges}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/80 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+    <ModalOverlay onClose={onClose} noPadding className="flex max-h-[80vh] flex-col">
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <h3 className="text-lg font-semibold text-white">Reorder Channels</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+          </svg>
+        </button>
       </div>
-    </div>
+
+      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <p className="text-sm text-gray-400">
+          Drag channels to reorder them. Text and voice channels are reordered separately.
+        </p>
+
+        <SortableList title="Text Channels" items={textOrder} onReorder={setTextOrder} />
+        <SortableList title="Voice Channels" items={voiceOrder} onReorder={setVoiceOrder} />
+      </div>
+
+      {error && <p className="px-5 text-sm text-red-400">{error}</p>}
+
+      <div className="flex items-center justify-end gap-2 border-t border-white/10 px-5 py-3">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={saving}
+          className="rounded-md px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !hasChanges}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/80 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </ModalOverlay>
   )
 }

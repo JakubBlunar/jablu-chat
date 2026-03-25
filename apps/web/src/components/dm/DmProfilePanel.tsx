@@ -66,7 +66,7 @@ export function DmProfilePanel({
   const { orchestratedGoToChannel } = useAppNavigate()
 
   return (
-    <div className="flex w-[280px] shrink-0 flex-col border-l border-white/5 bg-surface-dark">
+    <div className="flex w-full shrink-0 flex-col border-l border-white/5 bg-surface-dark md:w-[280px]">
       <SimpleBar className="flex-1">
         <div className="h-24 bg-primary" />
         <div className="px-4 pb-4">

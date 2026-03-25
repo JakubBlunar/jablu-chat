@@ -20,7 +20,9 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
   const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
   const canDelete = isAuthor || isAdminOrOwner
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const btnRef = useRef<HTMLDivElement>(null)
+  const deleteBtnRef = useRef<HTMLButtonElement>(null)
   const [pickerAbove, setPickerAbove] = useState(true)
 
   const handleReply = useCallback(() => {
@@ -29,6 +31,7 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
 
   const handleDelete = useCallback(() => {
     getSocket()?.emit('message:delete', { messageId: message.id })
+    setShowDeleteConfirm(false)
   }, [message.id])
 
   const handlePin = useCallback(() => {
@@ -93,11 +96,25 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
           </ActionBtn>
         )}
         {canDelete && (
-          <ActionBtn title="Delete" onClick={handleDelete} danger>
+          <button
+            ref={deleteBtnRef}
+            type="button"
+            title="Delete"
+            aria-label="Delete"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="p-1.5 text-gray-400 transition hover:text-red-400"
+          >
             <TrashIcon />
-          </ActionBtn>
+          </button>
         )}
       </div>
+      {showDeleteConfirm && (
+        <DeleteConfirmPopover
+          anchorRef={deleteBtnRef}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
       {showEmojiPicker && (
         <div className={`absolute right-0 z-50 ${pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
           <Suspense fallback={null}>
@@ -176,5 +193,60 @@ function TrashIcon() {
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
+  )
+}
+
+function DeleteConfirmPopover({
+  anchorRef,
+  onConfirm,
+  onCancel
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [above, setAbove] = useState(true)
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setAbove(rect.top > 200)
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    const onClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        onCancel()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onClick)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onClick)
+    }
+  }, [onCancel])
+
+  return (
+    <div
+      ref={popoverRef}
+      className={`absolute right-0 z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10 ${above ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+    >
+      <p className="text-sm font-semibold text-white">Delete Message</p>
+      <p className="mt-1 text-xs text-gray-400">Are you sure? This cannot be undone.</p>
+      <div className="mt-3 flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10">
+          Cancel
+        </button>
+        <button type="button" onClick={onConfirm} className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700">
+          Delete
+        </button>
+      </div>
+    </div>
   )
 }
