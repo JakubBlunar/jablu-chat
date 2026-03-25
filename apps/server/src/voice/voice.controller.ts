@@ -1,10 +1,13 @@
 import {
+  Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   ServiceUnavailableException,
   UseGuards
 } from '@nestjs/common'
@@ -56,5 +59,48 @@ export class VoiceController {
   @Get('status')
   status() {
     return { configured: this.voice.isConfigured }
+  }
+
+  @Get('volumes')
+  async getVolumes(@CurrentUser() user: { id: string }) {
+    const rows = await this.prisma.userVolumeSetting.findMany({
+      where: { listenerId: user.id }
+    })
+    const map: Record<string, number> = {}
+    for (const r of rows) {
+      map[r.targetUserId] = r.volume
+    }
+    return map
+  }
+
+  @Put('volumes/:targetUserId')
+  async setVolume(
+    @CurrentUser() user: { id: string },
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
+    @Body() body: { volume: number }
+  ) {
+    const vol = Math.round(Math.max(0, Math.min(200, body.volume ?? 100)))
+    await this.prisma.userVolumeSetting.upsert({
+      where: {
+        listenerId_targetUserId: {
+          listenerId: user.id,
+          targetUserId
+        }
+      },
+      create: { listenerId: user.id, targetUserId, volume: vol },
+      update: { volume: vol }
+    })
+    return { targetUserId, volume: vol }
+  }
+
+  @Delete('volumes/:targetUserId')
+  async resetVolume(
+    @CurrentUser() user: { id: string },
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string
+  ) {
+    await this.prisma.userVolumeSetting.deleteMany({
+      where: { listenerId: user.id, targetUserId }
+    })
+    return { targetUserId, volume: 100 }
   }
 }

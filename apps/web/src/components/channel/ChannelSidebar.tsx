@@ -1,4 +1,5 @@
-import type { Channel } from '@chat/shared'
+import type { Channel, UserStatus } from '@chat/shared'
+import { RoomEvent, type Participant } from 'livekit-client'
 import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
 import { CreateChannelModal } from '@/components/channel/CreateChannelModal'
@@ -17,7 +18,7 @@ const ReorderChannelsModal = React.lazy(() =>
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
-import { useMemberStore } from '@/stores/member.store'
+import { type Member, useMemberStore } from '@/stores/member.store'
 import { useServerStore } from '@/stores/server.store'
 import { type VoiceParticipant, useVoiceStore } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -25,13 +26,14 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { DownloadAppBanner } from '@/components/settings/DownloadApp'
 import { VoicePanel } from '@/components/voice/VoicePanel'
+import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 
 function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   const icons: React.ReactNode[] = []
 
   if (participant.muted) {
     icons.push(
-      <svg key="muted" className="h-3 w-3 text-red-400" viewBox="0 0 24 24" fill="currentColor" aria-label="Muted">
+      <svg key="muted" className="h-3.5 w-3.5 text-red-400" viewBox="0 0 24 24" fill="currentColor" aria-label="Muted">
         <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
       </svg>
     )
@@ -41,7 +43,7 @@ function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
     icons.push(
       <svg
         key="deafened"
-        className="h-3 w-3 text-red-400"
+        className="h-3.5 w-3.5 text-red-400"
         viewBox="0 0 24 24"
         fill="currentColor"
         aria-label="Deafened"
@@ -55,7 +57,7 @@ function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
     icons.push(
       <svg
         key="camera"
-        className="h-3 w-3 text-green-400"
+        className="h-3.5 w-3.5 text-emerald-400"
         viewBox="0 0 24 24"
         fill="currentColor"
         aria-label="Camera on"
@@ -69,7 +71,7 @@ function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
     icons.push(
       <svg
         key="screen"
-        className="h-3 w-3 text-green-400"
+        className="h-3.5 w-3.5 text-emerald-400"
         viewBox="0 0 24 24"
         fill="currentColor"
         aria-label="Sharing screen"
@@ -82,6 +84,62 @@ function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   if (icons.length === 0) return null
 
   return <span className="flex shrink-0 items-center gap-0.5">{icons}</span>
+}
+
+function useSpeakingUsers() {
+  const room = useVoiceConnectionStore((s) => s.room)
+  const [speaking, setSpeaking] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!room) return
+    const onSpeakers = (speakers: Participant[]) => {
+      setSpeaking(new Set(speakers.map((s) => s.identity)))
+    }
+    room.on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
+    return () => {
+      room.off(RoomEvent.ActiveSpeakersChanged, onSpeakers)
+    }
+  }, [room])
+
+  return speaking
+}
+
+function VoiceParticipantRow({
+  participant,
+  member,
+  isSpeaking,
+  onClick
+}: {
+  participant: VoiceParticipant
+  member?: Member
+  isSpeaking: boolean
+  onClick: (e: React.MouseEvent) => void
+}) {
+  return (
+    <li
+      className="group/vp flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition hover:bg-white/[.07]"
+      onClick={onClick}
+    >
+      <div className="relative shrink-0">
+        <UserAvatar
+          username={participant.username}
+          avatarUrl={member?.user.avatarUrl}
+          size="sm"
+        />
+        {isSpeaking && (
+          <div className="absolute -inset-[3px] rounded-full ring-2 ring-emerald-500/80" />
+        )}
+      </div>
+      <span
+        className={`min-w-0 flex-1 truncate text-[13px] font-medium transition-colors ${
+          isSpeaking ? 'text-emerald-400' : 'text-gray-300 group-hover/vp:text-gray-100'
+        }`}
+      >
+        {member?.user.displayName || participant.username}
+      </span>
+      <VoiceStatusIcons participant={participant} />
+    </li>
+  )
 }
 
 function HashIcon() {
@@ -176,6 +234,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const voiceParticipants = useVoiceStore((s) => s.participants)
   const currentVoiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
+  const speakingUsers = useSpeakingUsers()
 
   const channelReadStates = useReadStateStore((s) => s.channels)
   const ackChannel = useReadStateStore((s) => s.ackChannel)
@@ -187,6 +246,30 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const [inviteOpen, setInviteOpen] = useState(false)
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
+  const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
+  const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
+
+  const members = useMemberStore((s) => s.members)
+
+  const handleVoiceParticipantClick = useCallback(
+    (p: VoiceParticipant, e: React.MouseEvent) => {
+      if (p.userId === user?.id) return
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const member = members.find((m) => m.userId === p.userId)
+      setVoiceCardUser({
+        id: p.userId,
+        username: p.username,
+        displayName: member?.user.displayName,
+        avatarUrl: member?.user.avatarUrl,
+        bio: member?.user.bio ?? null,
+        status: (member?.user.status ?? 'online') as UserStatus,
+        joinedAt: member?.joinedAt,
+        role: member?.role
+      })
+      setVoiceCardRect(rect)
+    },
+    [user?.id, members]
+  )
 
   useEffect(() => {
     if (currentChannelId && !viewingVoiceRoom) {
@@ -458,17 +541,22 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                       )}
                     </button>
                     {participants.length > 0 ? (
-                      <ul className="mt-1 space-y-0.5 pl-7">
-                        {participants.map((p) => (
-                          <li key={p.userId} className="flex items-center gap-1.5 text-xs text-gray-400">
-                            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
-                            <span className="min-w-0 flex-1 truncate">{p.username}</span>
-                            <VoiceStatusIcons participant={p} />
-                          </li>
-                        ))}
+                      <ul className="mt-1 space-y-0.5">
+                        {participants.map((p) => {
+                          const member = members.find((m) => m.userId === p.userId)
+                          return (
+                            <VoiceParticipantRow
+                              key={p.userId}
+                              participant={p}
+                              member={member}
+                              isSpeaking={speakingUsers.has(p.userId)}
+                              onClick={(e) => handleVoiceParticipantClick(p, e)}
+                            />
+                          )
+                        })}
                       </ul>
                     ) : (
-                      <p className="mt-1 pl-7 text-xs text-gray-500">No one connected</p>
+                      <p className="mt-1 text-xs text-gray-500">No one connected</p>
                     )}
                     {isAdminOrOwner && (
                       <button
@@ -526,6 +614,9 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         <Suspense fallback={null}>
           <ReorderChannelsModal onClose={() => setReorderOpen(false)} />
         </Suspense>
+      )}
+      {voiceCardUser && (
+        <ProfileCard user={voiceCardUser} onClose={() => setVoiceCardUser(null)} anchorRect={voiceCardRect} />
       )}
     </>
   )

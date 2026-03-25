@@ -155,6 +155,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onUserOnline = (payload: OnlinePayload) => {
       useMemberStore.getState().setUserOnline(payload.userId)
+      useMemberStore.getState().setUserStatus(payload.userId, 'online')
       const currentUser = useAuthStore.getState().user
       if (currentUser && currentUser.id === payload.userId) {
         useAuthStore.getState().setUser({ ...currentUser, status: 'online' })

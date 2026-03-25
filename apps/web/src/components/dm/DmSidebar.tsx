@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
+import { VoicePanel } from '@/components/voice/VoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useReadStateStore } from '@/stores/readState.store'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { GroupDmModal } from './GroupDmModal'
 
 export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const user = useAuthStore((s) => s.user)
   const conversations = useDmStore((s) => s.conversations)
   const currentConvId = useDmStore((s) => s.currentConversationId)
-  const { goToDm, goToDms } = useAppNavigate()
+  const { goToDm, goToDms, goToChannel } = useAppNavigate()
   const fetchConversations = useDmStore((s) => s.fetchConversations)
   const closeConversation = useDmStore((s) => s.closeConversation)
   const isLoading = useDmStore((s) => s.isConversationsLoading)
@@ -55,6 +57,16 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
     },
     [user?.id, onlineIds]
   )
+
+  const voiceServerId = useVoiceConnectionStore((s) => s.currentServerId)
+  const voiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
+
+  const handleGoToVoiceRoom = useCallback(() => {
+    if (voiceServerId) {
+      useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
+      goToChannel(voiceServerId, voiceChannelId ?? '')
+    }
+  }, [voiceServerId, voiceChannelId, goToChannel])
 
   const [groupDmOpen, setGroupDmOpen] = useState(false)
   const [filter, setFilter] = useState('')
@@ -175,6 +187,8 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           })
         )}
       </SimpleBar>
+
+      {voiceChannelId && <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />}
 
       <div className="flex h-[52px] shrink-0 items-center gap-2 bg-surface-overlay px-2">
         <UserAvatar

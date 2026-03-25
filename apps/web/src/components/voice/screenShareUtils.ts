@@ -1,5 +1,6 @@
 import { electronAPI, isElectron } from '@/lib/electron'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import type { ScreenShareSettings } from './ScreenShareDialog'
 
 export type ScreenShareOptions = {
   resolution: '720p' | '1080p' | 'native'
@@ -18,15 +19,20 @@ const BITRATE_MAP: Record<string, Record<number, number>> = {
   native: { 5: 2_000_000, 15: 3_000_000, 20: 4_000_000, 30: 6_000_000 }
 }
 
-export async function startScreenShare() {
+export async function startScreenShareWithSettings(settings: ScreenShareSettings) {
   if (isElectron) {
-    startScreenShareElectron()
+    startScreenShareElectron(settings)
   } else {
-    startScreenShareWeb()
+    startScreenShareWeb(settings)
   }
 }
 
-async function startScreenShareElectron() {
+/** @deprecated Use startScreenShareWithSettings */
+export async function startScreenShare() {
+  startScreenShareWithSettings({ resolution: '1080p', fps: 30, audio: false })
+}
+
+async function startScreenShareElectron(settings: ScreenShareSettings) {
   const store = useVoiceConnectionStore.getState()
   const room = store.room
   if (!room || !electronAPI) return
@@ -35,34 +41,38 @@ async function startScreenShareElectron() {
     const sources = await electronAPI.getSources()
     if (sources.length === 0) return
 
-    window.dispatchEvent(new CustomEvent('voice:pick-screen', { detail: { sources } }))
+    window.dispatchEvent(
+      new CustomEvent('voice:pick-screen', {
+        detail: { sources, audio: settings.audio, resolution: settings.resolution, fps: settings.fps }
+      })
+    )
   } catch (err) {
     console.error('Failed to get screen sources:', err)
   }
 }
 
-async function startScreenShareWeb() {
+async function startScreenShareWeb(settings: ScreenShareSettings) {
   const store = useVoiceConnectionStore.getState()
   const room = store.room
   if (!room) return
 
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 30 } },
-      audio: false
+      video: { frameRate: { ideal: settings.fps } },
+      audio: settings.audio
     })
 
     const videoTrack = stream.getVideoTracks()[0]
     if (!videoTrack) return
 
-    const settings = videoTrack.getSettings()
-    const height = settings.height ?? 1080
-    const fps = settings.frameRate ?? 30
+    const videoSettings = videoTrack.getSettings()
+    const height = videoSettings.height ?? 1080
+    const fps = videoSettings.frameRate ?? 30
     let maxBitrate = 3_000_000
     if (height <= 720) maxBitrate = fps <= 15 ? 1_500_000 : 3_000_000
     else maxBitrate = fps <= 15 ? 2_500_000 : 5_000_000
 
-    const pub = await room.localParticipant.publishTrack(videoTrack, {
+    const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
       source: 'screen_share' as unknown as undefined,
       simulcast: false,
@@ -73,9 +83,22 @@ async function startScreenShareWeb() {
       degradationPreference: 'maintain-resolution'
     })
 
+    const audioTrack = stream.getAudioTracks()[0]
+    let audioPub: { track?: { stop?: () => void } | null } | null = null
+    if (audioTrack) {
+      audioPub = await room.localParticipant.publishTrack(audioTrack, {
+        name: 'screen-audio',
+        source: 'screen_share_audio' as unknown as undefined
+      })
+    }
+
     videoTrack.onended = () => {
-      if (pub.track) {
-        room.localParticipant.unpublishTrack(pub.track)
+      if (videoPub.track) {
+        room.localParticipant.unpublishTrack(videoPub.track)
+      }
+      if (audioPub?.track) {
+        room.localParticipant.unpublishTrack(audioPub.track as Parameters<typeof room.localParticipant.unpublishTrack>[0])
+        audioTrack?.stop()
       }
       useVoiceConnectionStore.getState().setScreenSharing(false)
     }
@@ -87,7 +110,10 @@ async function startScreenShareWeb() {
   }
 }
 
-export async function publishScreenShare(sourceId: string, options: ScreenShareOptions) {
+export async function publishScreenShare(
+  sourceId: string,
+  options: ScreenShareOptions & { audio?: boolean }
+) {
   const store = useVoiceConnectionStore.getState()
   const room = store.room
   if (!room) return
@@ -108,7 +134,7 @@ export async function publishScreenShare(sourceId: string, options: ScreenShareO
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
+      audio: options.audio ? { mandatory: { chromeMediaSource: 'desktop' } } as unknown as boolean : false,
       video: {
         // @ts-expect-error Electron's desktopCapturer requires these mandatory constraints
         mandatory
@@ -118,7 +144,7 @@ export async function publishScreenShare(sourceId: string, options: ScreenShareO
     const videoTrack = stream.getVideoTracks()[0]
     if (!videoTrack) return
 
-    const pub = await room.localParticipant.publishTrack(videoTrack, {
+    const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
       source: 'screen_share' as unknown as undefined,
       simulcast: false,
@@ -129,9 +155,22 @@ export async function publishScreenShare(sourceId: string, options: ScreenShareO
       degradationPreference: 'maintain-resolution'
     })
 
+    const audioTrack = stream.getAudioTracks()[0]
+    let audioPub: { track?: { stop?: () => void } | null } | null = null
+    if (audioTrack) {
+      audioPub = await room.localParticipant.publishTrack(audioTrack, {
+        name: 'screen-audio',
+        source: 'screen_share_audio' as unknown as undefined
+      })
+    }
+
     videoTrack.onended = () => {
-      if (pub.track) {
-        room.localParticipant.unpublishTrack(pub.track)
+      if (videoPub.track) {
+        room.localParticipant.unpublishTrack(videoPub.track)
+      }
+      if (audioPub?.track) {
+        room.localParticipant.unpublishTrack(audioPub.track as Parameters<typeof room.localParticipant.unpublishTrack>[0])
+        audioTrack?.stop()
       }
       useVoiceConnectionStore.getState().setScreenSharing(false)
     }

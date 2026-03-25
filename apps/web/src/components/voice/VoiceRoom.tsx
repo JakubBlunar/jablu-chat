@@ -7,6 +7,7 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
 import { ParticipantTile } from './ParticipantTile'
 import { ScreenShareTile } from './ScreenShareTile'
+import { ScreenShareDialog, type ScreenShareSettings } from './ScreenShareDialog'
 
 type TileEntry =
   | { kind: 'participant'; id: string; participant: Participant }
@@ -164,26 +165,28 @@ function gridCols(count: number): string {
   return 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
 }
 
-function TileContent({ tile }: { tile: TileEntry }) {
+function TileContent({ tile, compact, focused }: { tile: TileEntry; compact?: boolean; focused?: boolean }) {
   if (tile.kind === 'screen') {
-    return <ScreenShareTile participant={tile.participant} publication={tile.publication} />
+    return <ScreenShareTile participant={tile.participant} publication={tile.publication} focused={focused} />
   }
-  return <ParticipantTile participant={tile.participant} />
+  return <ParticipantTile participant={tile.participant} compact={compact} focused={focused} />
 }
 
 function ClickableTile({
   tile,
   onClick,
-  onFullscreen
+  onFullscreen,
+  compact
 }: {
   tile: TileEntry
   onClick: (id: string) => void
   onFullscreen?: (id: string) => void
+  compact?: boolean
 }) {
   return (
     <div className="group/tile relative w-full">
       <button type="button" className="w-full text-left transition" onClick={() => onClick(tile.id)}>
-        <TileContent tile={tile} />
+        <TileContent tile={tile} compact={compact} />
       </button>
       <div className="absolute right-2 top-2 flex items-center gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover/tile:opacity-100">
         <button
@@ -264,7 +267,7 @@ function FocusedLayout({
       <div ref={fsRef} className="relative min-h-0 flex-1 bg-surface-darkest">
         <button type="button" className="h-full w-full text-left" onClick={onUnfocus}>
           <div className="h-full [&>div]:aspect-auto [&>div]:h-full [&>div]:w-full">
-            <TileContent tile={focused} />
+            <TileContent tile={focused} focused />
           </div>
         </button>
 
@@ -380,11 +383,11 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
       {/* Scrollable strip */}
       <div
         ref={scrollRef}
-        className="flex h-32 gap-2 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory scrollbar-none md:h-28"
+        className="flex h-32 items-center gap-2 overflow-x-auto scroll-smooth pb-1 snap-x snap-mandatory scrollbar-none md:h-28"
       >
         {tiles.map((t) => (
           <div key={t.id} className="h-full w-48 shrink-0 snap-center md:w-44">
-            <ClickableTile tile={t} onClick={onTileClick} />
+            <ClickableTile tile={t} onClick={onTileClick} compact />
           </div>
         ))}
       </div>
@@ -407,6 +410,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
   const [elapsed, setElapsed] = useState(0)
   const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
+  const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
 
   useEffect(() => {
     if (!connectedAt) {
@@ -451,9 +455,16 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
       room?.localParticipant.setScreenShareEnabled(false).catch(() => {})
       useVoiceConnectionStore.getState().setScreenSharing(false)
     } else {
-      import('@/components/voice/screenShareUtils').then(({ startScreenShare }) => startScreenShare())
+      setShowScreenShareDialog(true)
     }
   }, [isScreenSharing])
+
+  const handleScreenShareConfirm = useCallback((settings: ScreenShareSettings) => {
+    setShowScreenShareDialog(false)
+    import('@/components/voice/screenShareUtils').then(({ startScreenShareWithSettings }) =>
+      startScreenShareWithSettings(settings)
+    )
+  }, [])
 
   const mins = Math.floor(elapsed / 60)
   const secs = elapsed % 60
@@ -566,6 +577,10 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           onConfirm={handleCameraConfirm}
           onClose={() => setCameraModalMode(null)}
         />
+      )}
+
+      {showScreenShareDialog && (
+        <ScreenShareDialog onConfirm={handleScreenShareConfirm} onClose={() => setShowScreenShareDialog(false)} />
       )}
     </>
   )

@@ -194,6 +194,10 @@ export class ApiClient {
     return this.request<T>('PATCH', path, body)
   }
 
+  put<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>('PUT', path, body)
+  }
+
   delete<T>(path: string): Promise<T> {
     return this.request<T>('DELETE', path)
   }
@@ -271,6 +275,18 @@ export class ApiClient {
 
   getVoiceToken(channelId: string): Promise<{ token: string; url: string; isAdmin: boolean }> {
     return this.post(`/api/voice/token/${channelId}`)
+  }
+
+  getVoiceVolumes(): Promise<Record<string, number>> {
+    return this.get('/api/voice/volumes')
+  }
+
+  setVoiceVolume(targetUserId: string, volume: number): Promise<{ targetUserId: string; volume: number }> {
+    return this.put(`/api/voice/volumes/${targetUserId}`, { volume })
+  }
+
+  resetVoiceVolume(targetUserId: string): Promise<{ targetUserId: string; volume: number }> {
+    return this.delete(`/api/voice/volumes/${targetUserId}`)
   }
 
   logout(refreshTokenValue: string): Promise<{ message: string }> {

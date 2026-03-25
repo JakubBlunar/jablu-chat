@@ -46,6 +46,20 @@ export interface BlurHandle {
   stop: () => void
 }
 
+const TARGET_FPS_BY_PIXELS = [
+  { maxPixels: 640 * 480, fps: 30 },
+  { maxPixels: 1280 * 720, fps: 24 },
+  { maxPixels: Infinity, fps: 15 }
+]
+
+function targetFps(w: number, h: number): number {
+  const px = w * h
+  for (const tier of TARGET_FPS_BY_PIXELS) {
+    if (px <= tier.maxPixels) return tier.fps
+  }
+  return 15
+}
+
 export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promise<BlurHandle> {
   const segmenter = await getSegmenter()
 
@@ -68,18 +82,25 @@ export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promis
   blurCanvas.height = h
   const blurCtx = blurCanvas.getContext('2d')!
 
+  // Separate foreground canvas for alpha-masked compositing
+  const fgCanvas = document.createElement('canvas')
+  fgCanvas.width = w
+  fgCanvas.height = h
+  const fgCtx = fgCanvas.getContext('2d')!
+
   let running = true
-  let lastTimestamp = -1
+  let lastRenderTime = 0
+  const frameInterval = 1000 / targetFps(w, h)
 
   function render() {
     if (!running) return
 
     const now = performance.now()
-    if (now === lastTimestamp) {
+    if (now - lastRenderTime < frameInterval) {
       requestAnimationFrame(render)
       return
     }
-    lastTimestamp = now
+    lastRenderTime = now
 
     if (video.readyState < 2) {
       requestAnimationFrame(render)
@@ -99,24 +120,20 @@ export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promis
       const mask = masks[0]
       const maskData = mask.getAsFloat32Array()
 
-      const imageData = ctx.getImageData(0, 0, w, h)
+      fgCtx.drawImage(video, 0, 0, w, h)
+
+      const imageData = fgCtx.getImageData(0, 0, w, h)
       const pixels = imageData.data
 
-      ctx.drawImage(video, 0, 0, w, h)
-      const fgData = ctx.getImageData(0, 0, w, h)
-      const fgPixels = fgData.data
-
       for (let i = 0; i < maskData.length; i++) {
-        const confidence = maskData[i]
-        const idx = i * 4
-        const alpha = confidence
-        pixels[idx] = Math.round(fgPixels[idx] * alpha + pixels[idx] * (1 - alpha))
-        pixels[idx + 1] = Math.round(fgPixels[idx + 1] * alpha + pixels[idx + 1] * (1 - alpha))
-        pixels[idx + 2] = Math.round(fgPixels[idx + 2] * alpha + pixels[idx + 2] * (1 - alpha))
-        pixels[idx + 3] = 255
+        pixels[i * 4 + 3] = (maskData[i] * 255) | 0
       }
 
-      ctx.putImageData(imageData, 0, 0)
+      fgCtx.putImageData(imageData, 0, 0)
+
+      // Composite masked foreground over blurred background (GPU-accelerated blend)
+      ctx.drawImage(fgCanvas, 0, 0)
+
       mask.close()
     }
 

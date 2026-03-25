@@ -8,6 +8,8 @@ import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useVoiceStore } from '@/stores/voice.store'
 
 export type ProfileCardUser = {
   id: string
@@ -215,6 +217,7 @@ function ProfileCardContent({
           </div>
         )}
 
+        <VoiceVolumeSlider userId={user.id} />
         <SendDmButton userId={user.id} onClose={onClose} />
       </div>
     </>
@@ -228,6 +231,48 @@ function ServerIcon({ name, iconUrl }: { name: string; iconUrl: string | null })
   return (
     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/30 text-[10px] font-bold text-white">
       {name.charAt(0).toUpperCase()}
+    </div>
+  )
+}
+
+function VoiceVolumeSlider({ userId }: { userId: string }) {
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const currentChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
+  const voiceParticipants = useVoiceStore((s) => s.participants)
+  const volume = useVoiceConnectionStore((s) => s.volumeOverrides[userId] ?? 100)
+  const setVolumeOverride = useVoiceConnectionStore((s) => s.setVolumeOverride)
+
+  if (!currentChannelId || userId === currentUserId) return null
+
+  const channelParticipants = voiceParticipants[currentChannelId]
+  if (!channelParticipants?.some((p) => p.userId === userId)) return null
+
+  return (
+    <div className="mb-3">
+      <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">VOICE VOLUME</p>
+      <div className="flex items-center gap-3 rounded-md bg-surface-darkest px-3 py-2">
+        <svg className="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+        </svg>
+        <input
+          type="range"
+          min={0}
+          max={200}
+          value={volume}
+          onChange={(e) => setVolumeOverride(userId, Number(e.target.value))}
+          className="h-1.5 flex-1 cursor-pointer accent-primary"
+        />
+        <span className="w-10 text-right text-xs tabular-nums text-gray-300">{volume}%</span>
+      </div>
+      {volume !== 100 && (
+        <button
+          type="button"
+          onClick={() => setVolumeOverride(userId, 100)}
+          className="mt-1 text-[11px] text-gray-500 transition hover:text-gray-300"
+        >
+          Reset to 100%
+        </button>
+      )}
     </div>
   )
 }

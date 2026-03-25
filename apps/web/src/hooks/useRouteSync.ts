@@ -51,7 +51,8 @@ export function useRouteSync() {
       if (channelId && prevChannelRef.current !== channelId) {
         prevChannelRef.current = channelId
         useChannelStore.getState().setCurrentChannel(channelId)
-        useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+        const voiceState = useVoiceConnectionStore.getState()
+        voiceState.setViewingVoiceRoom(channelId === voiceState.currentChannelId)
       }
     }
   }, [isDm, serverId, channelId, conversationId])

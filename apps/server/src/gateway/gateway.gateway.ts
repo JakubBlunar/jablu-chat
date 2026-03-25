@@ -183,8 +183,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     client.join(`user:${user.id}`)
 
     const isFirstConnection = this.addOnlineUser(user.id)
+    this.socketActivityStatus.set(client.id, 'online')
 
     if (isFirstConnection) {
+      this.lastBroadcastedStatus.set(user.id, 'online')
       await this.prisma.user.update({
         where: { id: user.id },
         data: { status: 'online', lastSeenAt: new Date() }

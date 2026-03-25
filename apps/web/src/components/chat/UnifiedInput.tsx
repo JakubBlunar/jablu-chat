@@ -10,7 +10,9 @@ import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
+import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
+import { useMessageStore } from '@/stores/message.store'
 
 function XIcon() {
   return (
@@ -140,6 +142,10 @@ export function UnifiedInput({
     if (!content && attachmentIds.length === 0) return
 
     if (isDm) {
+      if (useDmStore.getState().hasNewer) {
+        useDmStore.getState().clearMessages()
+        await useDmStore.getState().fetchMessages(contextId)
+      }
       getSocket()?.emit('dm:send', {
         conversationId: contextId,
         content: content || undefined,
@@ -147,6 +153,10 @@ export function UnifiedInput({
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
       })
     } else {
+      if (useMessageStore.getState().hasNewer) {
+        useMessageStore.getState().clearMessages()
+        await useMessageStore.getState().fetchMessages(contextId)
+      }
       getSocket()?.emit('message:send', {
         channelId: contextId,
         content: content || undefined,

@@ -13,6 +13,8 @@ type ElectronAPI = {
   showNotification: (title: string, body: string) => Promise<void>
   setTrayUnread: (count: number) => Promise<void>
   setServerUrl: (url: string) => Promise<void>
+  getAutoLaunch: () => Promise<boolean>
+  setAutoLaunch: (enabled: boolean) => Promise<boolean>
   checkForUpdates: () => Promise<void>
   installUpdate: () => Promise<void>
   onUpdateAvailable: (cb: (info: { version: string }) => void) => () => void
