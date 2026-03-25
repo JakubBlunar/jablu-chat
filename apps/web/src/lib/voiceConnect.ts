@@ -33,6 +33,7 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
     const [{ token, url }, devices] = await Promise.all([api.getVoiceToken(channelId), getValidatedDevices()])
 
     if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
+      useVoiceConnectionStore.getState().disconnect()
       return
     }
 
@@ -56,7 +57,9 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
     await room.connect(url, token)
 
     if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
+      room.removeAllListeners()
       room.disconnect().catch(() => {})
+      useVoiceConnectionStore.getState().disconnect()
       return
     }
 

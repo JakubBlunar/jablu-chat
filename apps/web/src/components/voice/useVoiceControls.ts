@@ -22,7 +22,7 @@ export function useVoiceControls() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
   const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     const handler = (e: Event) => {

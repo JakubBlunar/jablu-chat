@@ -112,38 +112,41 @@ export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promis
       return
     }
 
-    const result = segmenter.segmentForVideo(video, now)
-    const masks = result.confidenceMasks
+    try {
+      const result = segmenter.segmentForVideo(video, now)
+      const masks = result.confidenceMasks
 
-    blurCtx.filter = 'blur(30px)'
-    blurCtx.drawImage(video, 0, 0, w, h)
-    blurCtx.filter = 'none'
+      blurCtx.filter = 'blur(30px)'
+      blurCtx.drawImage(video, 0, 0, w, h)
+      blurCtx.filter = 'none'
 
-    ctx.drawImage(blurCanvas, 0, 0)
+      ctx.drawImage(blurCanvas, 0, 0)
 
-    if (masks && masks.length > 0) {
-      const mask = masks[0]
-      const maskData = mask.getAsFloat32Array()
+      if (masks && masks.length > 0) {
+        const mask = masks[0]
+        const maskData = mask.getAsFloat32Array()
 
-      // Pre-convert mask to uint8 in a tight loop (faster than per-pixel float math in imageData loop)
-      for (let i = 0; i < pixelCount; i++) {
-        alphaBuffer[i] = (maskData[i] * 255) | 0
+        for (let i = 0; i < pixelCount; i++) {
+          alphaBuffer[i] = (maskData[i] * 255) | 0
+        }
+
+        fgCtx.drawImage(video, 0, 0, w, h)
+
+        const imageData = fgCtx.getImageData(0, 0, w, h)
+        const pixels = imageData.data
+
+        for (let i = 0; i < pixelCount; i++) {
+          pixels[i * 4 + 3] = alphaBuffer[i]
+        }
+
+        fgCtx.putImageData(imageData, 0, 0)
+
+        ctx.drawImage(fgCanvas, 0, 0)
+
+        mask.close()
       }
-
-      fgCtx.drawImage(video, 0, 0, w, h)
-
-      const imageData = fgCtx.getImageData(0, 0, w, h)
-      const pixels = imageData.data
-
-      for (let i = 0; i < pixelCount; i++) {
-        pixels[i * 4 + 3] = alphaBuffer[i]
-      }
-
-      fgCtx.putImageData(imageData, 0, 0)
-
-      ctx.drawImage(fgCanvas, 0, 0)
-
-      mask.close()
+    } catch {
+      ctx.drawImage(video, 0, 0, w, h)
     }
 
     requestAnimationFrame(render)

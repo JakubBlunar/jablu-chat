@@ -118,6 +118,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         <button
           type="button"
           title={vc.isMuted ? 'Unmute' : 'Mute'}
+          aria-label={vc.isMuted ? 'Unmute' : 'Mute'}
+          aria-pressed={vc.isMuted}
           onClick={vc.toggleMute}
           className={`rounded-md p-1.5 transition ${
             vc.isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -129,6 +131,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         <button
           type="button"
           title={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+          aria-label={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+          aria-pressed={vc.isDeafened}
           onClick={vc.toggleDeafen}
           className={`rounded-md p-1.5 transition ${
             vc.isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -140,6 +144,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         <button
           type="button"
           title={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+          aria-label={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+          aria-pressed={vc.isCameraOn}
           onClick={vc.handleCameraClick}
           className={`rounded-md p-1.5 transition ${
             vc.isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -152,6 +158,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
           <button
             type="button"
             title="Camera settings"
+            aria-label="Camera settings"
             onClick={() => vc.setCameraModalMode('edit')}
             className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -163,6 +170,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
           <button
             type="button"
             title={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+            aria-label={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+            aria-pressed={vc.isScreenSharing}
             onClick={vc.handleScreenShare}
             className={`rounded-md p-1.5 transition ${
               vc.isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -175,6 +184,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         <button
           type="button"
           title="Disconnect"
+          aria-label="Disconnect from voice"
           onClick={vc.handleDisconnect}
           className="rounded-md p-1.5 text-red-400 transition hover:bg-red-500/20"
         >

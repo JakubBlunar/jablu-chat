@@ -17,8 +17,7 @@ export class VoiceService {
   async generateToken(
     userId: string,
     username: string,
-    channelId: string,
-    isAdmin = false
+    channelId: string
   ): Promise<{ token: string; url: string }> {
     const roomName = `voice:${channelId}`
 

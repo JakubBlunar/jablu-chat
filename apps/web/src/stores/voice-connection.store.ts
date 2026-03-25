@@ -241,12 +241,16 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
         const { createBlurredStream } = await import('@/lib/backgroundBlur')
         const handle = await createBlurredStream(rawTrack)
         const blurredTrack = handle.stream.getVideoTracks()[0]
-        if (blurredTrack) {
-          await room.localParticipant.publishTrack(blurredTrack, {
-            source: Track.Source.Camera,
-            name: 'camera'
-          })
+        if (!blurredTrack) {
+          handle.stop()
+          rawTrack.stop()
+          showVoiceError('Background blur produced no video. Camera was not started.')
+          return
         }
+        await room.localParticipant.publishTrack(blurredTrack, {
+          source: Track.Source.Camera,
+          name: 'camera'
+        })
         set({
           isCameraOn: true,
           isBlurEnabled: true,

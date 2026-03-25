@@ -489,7 +489,7 @@ function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: n
         />
       </div>
       <p className="text-[10px] text-gray-500">
-        The orange line is your threshold. Speak and adjust so green exceeds it.
+        The colored line is your threshold. Speak and adjust so green exceeds it.
       </p>
     </div>
   )

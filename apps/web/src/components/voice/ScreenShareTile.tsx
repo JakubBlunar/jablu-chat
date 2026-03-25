@@ -161,6 +161,11 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
 
   const isMuted = localMuted || volume === 0
 
+  const toggleSlider = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowSlider((v) => !v)
+  }, [])
+
   return (
     <div
       className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-black/60 px-1.5 py-1 opacity-100 transition-opacity md:opacity-0 md:group-hover/ss:opacity-100"
@@ -196,7 +201,11 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
           </svg>
         )}
       </button>
-      {!showSlider && <span className="text-[10px] tabular-nums text-white/70">{isMuted ? 0 : volume}%</span>}
+      {!showSlider && (
+        <span className="cursor-pointer text-[10px] tabular-nums text-white/70" onClick={toggleSlider}>
+          {isMuted ? 0 : volume}%
+        </span>
+      )}
     </div>
   )
 }

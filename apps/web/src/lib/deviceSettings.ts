@@ -51,7 +51,8 @@ export const CAMERA_PRESETS: Record<CameraQuality, { width: number; height: numb
 }
 
 export function getSavedCameraQuality(): CameraQuality {
-  return (localStorage.getItem(KEYS.cameraQuality) as CameraQuality) || '720p'
+  const v = localStorage.getItem(KEYS.cameraQuality)
+  return v && v in CAMERA_PRESETS ? (v as CameraQuality) : '720p'
 }
 
 export function setSavedCameraQuality(q: CameraQuality) {

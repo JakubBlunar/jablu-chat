@@ -18,8 +18,11 @@ const VAD_AUTO_KEY = 'chat:voice:vad-auto'
 
 export type VadMode = 'auto' | 'manual'
 
+const VALID_MIC_MODES: MicMode[] = ['always', 'activity', 'push-to-talk']
+
 export function getMicMode(): MicMode {
-  return (localStorage.getItem(MIC_MODE_KEY) as MicMode) || 'always'
+  const v = localStorage.getItem(MIC_MODE_KEY)
+  return v && VALID_MIC_MODES.includes(v as MicMode) ? (v as MicMode) : 'always'
 }
 
 export function setMicMode(mode: MicMode) {
@@ -58,7 +61,9 @@ export function pttBindingLabel(binding: PttBinding): string {
 
 export function getVadThreshold(): number {
   const v = localStorage.getItem(VAD_THRESHOLD_KEY)
-  return v ? Number(v) : 18
+  if (!v) return 18
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 18
 }
 
 export function setVadThreshold(threshold: number) {
@@ -66,7 +71,8 @@ export function setVadThreshold(threshold: number) {
 }
 
 export function getVadMode(): VadMode {
-  return (localStorage.getItem(VAD_AUTO_KEY) as VadMode) || 'auto'
+  const v = localStorage.getItem(VAD_AUTO_KEY)
+  return v === 'auto' || v === 'manual' ? v : 'auto'
 }
 
 export function setVadMode(mode: VadMode) {

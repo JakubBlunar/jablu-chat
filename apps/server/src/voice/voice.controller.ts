@@ -50,10 +50,8 @@ export class VoiceController {
       throw new ForbiddenException('Not a server member')
     }
 
-    const isAdmin = membership.role === 'admin' || membership.role === 'owner'
-
-    const result = await this.voice.generateToken(user.id, user.username, channelId, isAdmin)
-    return { ...result, isAdmin }
+    const result = await this.voice.generateToken(user.id, user.username, channelId)
+    return result
   }
 
   @Get('status')
@@ -79,7 +77,8 @@ export class VoiceController {
     @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
     @Body() body: { volume: number }
   ) {
-    const vol = Math.round(Math.max(0, Math.min(200, body.volume ?? 100)))
+    const raw = typeof body.volume === 'number' && Number.isFinite(body.volume) ? body.volume : 100
+    const vol = Math.round(Math.max(0, Math.min(200, raw)))
     if (vol === 100) {
       await this.prisma.userVolumeSetting.deleteMany({
         where: { listenerId: user.id, targetUserId }
