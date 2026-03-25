@@ -38,3 +38,6 @@ apps/server/prisma/generated/
 
 # TLS certs
 docker/nginx/certs/
+
+# Local scripts
+scripts/
