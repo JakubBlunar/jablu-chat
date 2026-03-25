@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { getSocket } from '@/lib/socket'
-import { playLeaveSound } from '@/lib/sounds'
-import type { CameraQuality } from '@/lib/deviceSettings'
-
+import { useCallback } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
-import { ScreenShareDialog, type ScreenShareSettings } from './ScreenShareDialog'
+import { ScreenShareDialog } from './ScreenShareDialog'
+import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
 import type { MicMode } from '@/lib/micMode'
 
 function MicIcon({ muted }: { muted: boolean }) {
@@ -81,72 +78,10 @@ function DisconnectIcon() {
 export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void } = {}) {
   const channelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
-  const isMuted = useVoiceConnectionStore((s) => s.isMuted)
-  const isDeafened = useVoiceConnectionStore((s) => s.isDeafened)
-  const isCameraOn = useVoiceConnectionStore((s) => s.isCameraOn)
-  const isScreenSharing = useVoiceConnectionStore((s) => s.isScreenSharing)
   const isConnecting = useVoiceConnectionStore((s) => s.isConnecting)
-
   const micMode = useVoiceConnectionStore((s) => s.micMode)
-  const toggleMute = useVoiceConnectionStore((s) => s.toggleMute)
-  const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen)
-  const startCamera = useVoiceConnectionStore((s) => s.startCamera)
-  const stopCamera = useVoiceConnectionStore((s) => s.stopCamera)
-  const applyCameraSettings = useVoiceConnectionStore((s) => s.applyCameraSettings)
-  const disconnect = useVoiceConnectionStore((s) => s.disconnect)
 
-  const connectedAt = useVoiceConnectionStore((s) => s.connectedAt)
-  const [elapsed, setElapsed] = useState(0)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
-  const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const msg = (e as CustomEvent<{ message: string }>).detail.message
-      setErrorMsg(msg)
-      setTimeout(() => setErrorMsg(null), 5000)
-    }
-    window.addEventListener('voice:error', handler)
-    return () => window.removeEventListener('voice:error', handler)
-  }, [])
-
-  useEffect(() => {
-    if (!channelId || !connectedAt) {
-      setElapsed(0)
-      return
-    }
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - connectedAt) / 1000))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [channelId, connectedAt])
-
-  const handleCameraClick = useCallback(() => {
-    if (isCameraOn) {
-      stopCamera()
-    } else {
-      setCameraModalMode('start')
-    }
-  }, [isCameraOn, stopCamera])
-
-  const handleCameraConfirm = useCallback(
-    (quality: CameraQuality, blur: boolean) => {
-      if (cameraModalMode === 'start') {
-        startCamera(quality, blur)
-      } else {
-        applyCameraSettings(quality, blur)
-      }
-      setCameraModalMode(null)
-    },
-    [cameraModalMode, startCamera, applyCameraSettings]
-  )
-
-  const handleDisconnect = useCallback(() => {
-    playLeaveSound()
-    getSocket()?.emit('voice:leave')
-    disconnect()
-  }, [disconnect])
+  const vc = useVoiceControls()
 
   const handleShowVoiceRoom = useCallback(() => {
     if (onGoToVoiceRoom) {
@@ -156,32 +91,11 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
     }
   }, [onGoToVoiceRoom])
 
-  const handleScreenShare = useCallback(() => {
-    if (isScreenSharing) {
-      const room = useVoiceConnectionStore.getState().room
-      room?.localParticipant.setScreenShareEnabled(false).catch(() => {})
-      useVoiceConnectionStore.getState().setScreenSharing(false)
-    } else {
-      setShowScreenShareDialog(true)
-    }
-  }, [isScreenSharing])
-
-  const handleScreenShareConfirm = useCallback((settings: ScreenShareSettings) => {
-    setShowScreenShareDialog(false)
-    import('@/components/voice/screenShareUtils').then(({ startScreenShareWithSettings }) =>
-      startScreenShareWithSettings(settings)
-    )
-  }, [])
-
   if (!channelId) return null
-
-  const mins = Math.floor(elapsed / 60)
-  const secs = elapsed % 60
-  const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 
   return (
     <div className="border-t border-black/20 bg-surface-overlay px-3 py-2">
-      {errorMsg && <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{errorMsg}</div>}
+      {vc.errorMsg && <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>}
       <button
         type="button"
         onClick={handleShowVoiceRoom}
@@ -195,7 +109,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
           </span>
         </div>
         <p className="mt-0.5 truncate text-xs text-gray-400">
-          {channelName} &middot; {timeStr}
+          {channelName} &middot; {vc.timeStr}
           {micMode !== 'always' && <span className="ml-1 text-[10px] text-gray-500">({micModeLabel(micMode)})</span>}
         </p>
       </button>
@@ -203,79 +117,81 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
       <div className="mt-2 flex items-center justify-center gap-1">
         <button
           type="button"
-          title={isMuted ? 'Unmute' : 'Mute'}
-          onClick={toggleMute}
+          title={vc.isMuted ? 'Unmute' : 'Mute'}
+          onClick={vc.toggleMute}
           className={`rounded-md p-1.5 transition ${
-            isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+            vc.isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
           }`}
         >
-          <MicIcon muted={isMuted} />
+          <MicIcon muted={vc.isMuted} />
         </button>
 
         <button
           type="button"
-          title={isDeafened ? 'Undeafen' : 'Deafen'}
-          onClick={toggleDeafen}
+          title={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+          onClick={vc.toggleDeafen}
           className={`rounded-md p-1.5 transition ${
-            isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+            vc.isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
           }`}
         >
-          <HeadphoneIcon deafened={isDeafened} />
+          <HeadphoneIcon deafened={vc.isDeafened} />
         </button>
 
         <button
           type="button"
-          title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
-          onClick={handleCameraClick}
+          title={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+          onClick={vc.handleCameraClick}
           className={`rounded-md p-1.5 transition ${
-            isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+            vc.isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
           }`}
         >
-          <CameraIcon on={isCameraOn} />
+          <CameraIcon on={vc.isCameraOn} />
         </button>
 
-        {isCameraOn && (
+        {vc.isCameraOn && (
           <button
             type="button"
             title="Camera settings"
-            onClick={() => setCameraModalMode('edit')}
+            onClick={() => vc.setCameraModalMode('edit')}
             className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <GearIcon />
           </button>
         )}
 
-        <button
-          type="button"
-          title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
-          onClick={handleScreenShare}
-          className={`rounded-md p-1.5 transition ${
-            isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
-          }`}
-        >
-          <ScreenShareIcon />
-        </button>
+        {supportsScreenShare && (
+          <button
+            type="button"
+            title={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+            onClick={vc.handleScreenShare}
+            className={`rounded-md p-1.5 transition ${
+              vc.isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <ScreenShareIcon />
+          </button>
+        )}
 
         <button
           type="button"
           title="Disconnect"
-          onClick={handleDisconnect}
+          onClick={vc.handleDisconnect}
           className="rounded-md p-1.5 text-red-400 transition hover:bg-red-500/20"
         >
           <DisconnectIcon />
         </button>
       </div>
 
-      {cameraModalMode && (
+      {vc.cameraModalMode && (
         <CameraSettingsModal
-          mode={cameraModalMode}
-          onConfirm={handleCameraConfirm}
-          onClose={() => setCameraModalMode(null)}
+          mode={vc.cameraModalMode}
+          onConfirm={vc.handleCameraConfirm}
+          onClose={() => vc.setCameraModalMode(null)}
         />
       )}
 
-      {showScreenShareDialog && (
-        <ScreenShareDialog onConfirm={handleScreenShareConfirm} onClose={() => setShowScreenShareDialog(false)} />
+      {vc.showScreenShareDialog && (
+        <ScreenShareDialog onConfirm={vc.handleScreenShareConfirm} onClose={() => vc.setShowScreenShareDialog(false)} />
       )}
     </div>
   )
