@@ -1,6 +1,9 @@
 import type { Message } from '@chat/shared'
 import { useCallback } from 'react'
 import SimpleBar from 'simplebar-react'
+import { AttachmentPreview } from '@/components/AttachmentPreview'
+import { LinkPreviewCard } from '@/components/LinkPreviewCard'
+import { MarkdownContent } from '@/components/MarkdownContent'
 import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { getSocket } from '@/lib/socket'
@@ -50,6 +53,8 @@ export function PinnedPanel({
           <div className="divide-y divide-white/5">
             {messages.map((m) => {
               const name = m.author?.displayName ?? m.author?.username ?? 'Deleted User'
+              const attachments = m.attachments ?? []
+              const linkPreviews = m.linkPreviews ?? []
               return (
                 <div key={m.id} className="group/pin px-4 py-3">
                   <div className="flex items-start gap-2.5">
@@ -59,11 +64,32 @@ export function PinnedPanel({
                         <span className="text-sm font-semibold text-white">{name}</span>
                         <time className="text-[11px] text-gray-500">{formatSmartTimestamp(m.createdAt)}</time>
                       </div>
-                      <button type="button" onClick={() => onJump(m.id)} className="mt-0.5 block w-full text-left">
-                        <p className="whitespace-pre-wrap break-words text-sm text-gray-300 transition hover:text-white">
-                          {m.content || '[attachment]'}
-                        </p>
-                      </button>
+
+                      {m.content && (
+                        <div className="mt-0.5 text-sm [&_p]:text-sm [&_p]:leading-relaxed [&_pre]:max-h-32 [&_pre]:overflow-auto">
+                          <MarkdownContent content={m.content} />
+                        </div>
+                      )}
+
+                      {attachments.length > 0 && (
+                        <div className="mt-1 flex flex-col gap-1 [&_img]:max-h-40 [&_video]:max-h-40">
+                          {attachments.map((att) => (
+                            <AttachmentPreview key={att.id} attachment={att} />
+                          ))}
+                        </div>
+                      )}
+
+                      {linkPreviews.length > 0 && (
+                        <div className="mt-1 flex flex-col gap-1">
+                          {linkPreviews.map((lp) => (
+                            <LinkPreviewCard key={lp.id} lp={lp} />
+                          ))}
+                        </div>
+                      )}
+
+                      {!m.content && attachments.length === 0 && (
+                        <p className="mt-0.5 text-sm italic text-gray-500">[empty message]</p>
+                      )}
                     </div>
                     {isAdminOrOwner && (
                       <button
