@@ -29,14 +29,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     })
   }
 
+  private async redisGet(key: string): Promise<string | null> {
+    if (this.redis.client.status !== 'ready') return null
+    try {
+      return await this.redis.client.get(key)
+    } catch {
+      return null
+    }
+  }
+
+  private redisSet(key: string, value: string, ttl: number) {
+    if (this.redis.client.status !== 'ready') return
+    this.redis.client.set(key, value, 'EX', ttl).catch(() => {})
+  }
+
   async validate(payload: JwtPayload) {
     const cacheKey = `user:jwt:${payload.sub}`
 
-    try {
-      const cached = await this.redis.client.get(cacheKey)
-      if (cached) return JSON.parse(cached)
-    } catch {
-      /* Redis unavailable — fall through to DB */
+    const cached = await this.redisGet(cacheKey)
+    if (cached) {
+      try {
+        return JSON.parse(cached)
+      } catch {
+        /* corrupted cache entry — fall through */
+      }
     }
 
     const user = await this.prisma.user.findUnique({
@@ -47,12 +63,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException()
     }
 
-    try {
-      await this.redis.client.set(cacheKey, JSON.stringify(user), 'EX', JWT_CACHE_TTL)
-    } catch {
-      /* best effort */
-    }
-
+    this.redisSet(cacheKey, JSON.stringify(user), JWT_CACHE_TTL)
     return user
   }
 }

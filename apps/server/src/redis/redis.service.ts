@@ -10,8 +10,10 @@ export class RedisService implements OnModuleDestroy {
   constructor(private readonly config: ConfigService) {
     const url = this.config.get<string>('REDIS_URL', 'redis://localhost:6379')
     this.client = new Redis(url, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: false
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      lazyConnect: false,
+      enableOfflineQueue: false
     })
     this.client.on('error', (err) => this.logger.error('Redis error', err.message))
     this.client.on('connect', () => this.logger.log('Redis connected'))
