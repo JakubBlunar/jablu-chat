@@ -35,8 +35,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> manually chosen status (dnd) that should not be overridden by idle detection */
   private readonly manualStatus = new Map<string, string>()
 
-  /** userId -> last broadcasted activity status (online/idle), avoids redundant DB writes */
-  private readonly lastActivityStatus = new Map<string, string>()
+  /** socketId -> activity status for that specific connection */
+  private readonly socketActivityStatus = new Map<string, 'online' | 'idle'>()
 
   /** channelId -> Set of participants in voice channel */
   private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
@@ -233,9 +233,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const isLastConnection = this.removeOnlineUser(user.id)
 
+    this.socketActivityStatus.delete(client.id)
+
     if (isLastConnection) {
       this.manualStatus.delete(user.id)
-      this.lastActivityStatus.delete(user.id)
+      this.lastBroadcastedStatus.delete(user.id)
       await this.prisma.user.update({
         where: { id: user.id },
         data: { status: 'offline', lastSeenAt: new Date() }
@@ -419,24 +421,41 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return this.setActivityStatus(client, 'online')
   }
 
+  /** userId -> last broadcasted effective status, avoids redundant DB writes */
+  private readonly lastBroadcastedStatus = new Map<string, string>()
+
   private async setActivityStatus(client: Socket, status: 'online' | 'idle') {
     const user = (client.data as { user: WsUser }).user
     if (this.manualStatus.get(user.id) === 'dnd') {
       return { ok: true }
     }
-    if (this.lastActivityStatus.get(user.id) === status) {
+
+    this.socketActivityStatus.set(client.id, status)
+
+    const effectiveStatus = this.getEffectiveStatus(user.id)
+    if (this.lastBroadcastedStatus.get(user.id) === effectiveStatus) {
       return { ok: true }
     }
-    this.lastActivityStatus.set(user.id, status)
+
+    this.lastBroadcastedStatus.set(user.id, effectiveStatus)
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { status }
+      data: { status: effectiveStatus }
     })
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
     for (const sid of serverIds) {
-      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status })
+      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: effectiveStatus })
     }
     return { ok: true }
+  }
+
+  private getEffectiveStatus(userId: string): 'online' | 'idle' {
+    const userRoom = this.server.sockets.adapter.rooms.get(`user:${userId}`)
+    if (!userRoom) return 'idle'
+    for (const socketId of userRoom) {
+      if (this.socketActivityStatus.get(socketId) === 'online') return 'online'
+    }
+    return 'idle'
   }
 
   @SubscribeMessage('typing:start')
