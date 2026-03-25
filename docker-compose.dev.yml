@@ -38,7 +38,7 @@ services:
       - '8025:8025'
 
   livekit:
-    image: livekit/livekit-server:v1.8.4
+    image: livekit/livekit-server:v1.10.0
     ports:
       - '7880:7880'
       - '7882:7882/udp'
