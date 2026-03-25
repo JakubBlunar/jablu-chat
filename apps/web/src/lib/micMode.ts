@@ -117,6 +117,7 @@ function startVAD(): () => void {
   let running = true
   const isAuto = getVadMode() === 'auto'
   let calibrated = !isAuto
+  let autoThreshold = 0
   const calibrationSamples: number[] = []
   const calibrationStart = performance.now()
   const CALIBRATION_MS = 1500
@@ -139,15 +140,14 @@ function startVAD(): () => void {
       calibrationSamples.push(avg)
       if (performance.now() - calibrationStart >= CALIBRATION_MS) {
         const ambient = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length
-        const autoThreshold = Math.max(Math.round(ambient * 1.8 + 5), 8)
-        setVadThreshold(autoThreshold)
+        autoThreshold = Math.max(Math.round(ambient * 1.8 + 5), 8)
         calibrated = true
       }
       requestAnimationFrame(tick)
       return
     }
 
-    const threshold = getVadThreshold()
+    const threshold = isAuto ? autoThreshold : getVadThreshold()
 
     if (avg > threshold) {
       silenceFrames = 0

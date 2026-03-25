@@ -1,19 +1,15 @@
 import { RoomEvent, Track, type Participant, type TrackPublication } from 'livekit-client'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { getSocket } from '@/lib/socket'
-import { playLeaveSound } from '@/lib/sounds'
-import type { CameraQuality } from '@/lib/deviceSettings'
+import { useEffect, useRef, useState } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
 import { ParticipantTile } from './ParticipantTile'
 import { ScreenShareTile } from './ScreenShareTile'
-import { ScreenShareDialog, type ScreenShareSettings } from './ScreenShareDialog'
+import { ScreenShareDialog } from './ScreenShareDialog'
+import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
 
 type TileEntry =
   | { kind: 'participant'; id: string; participant: Participant }
   | { kind: 'screen'; id: string; participant: Participant; publication: TrackPublication }
-
-const supportsScreenShare = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia
 
 export function VoiceRoom() {
   const room = useVoiceConnectionStore((s) => s.room)
@@ -396,79 +392,7 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
 }
 
 function VoiceRoomHeader({ channelName, participantCount }: { channelName: string | null; participantCount: number }) {
-  const isMuted = useVoiceConnectionStore((s) => s.isMuted)
-  const isDeafened = useVoiceConnectionStore((s) => s.isDeafened)
-  const isCameraOn = useVoiceConnectionStore((s) => s.isCameraOn)
-  const isScreenSharing = useVoiceConnectionStore((s) => s.isScreenSharing)
-  const toggleMute = useVoiceConnectionStore((s) => s.toggleMute)
-  const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen)
-  const startCamera = useVoiceConnectionStore((s) => s.startCamera)
-  const stopCamera = useVoiceConnectionStore((s) => s.stopCamera)
-  const applyCameraSettings = useVoiceConnectionStore((s) => s.applyCameraSettings)
-  const disconnect = useVoiceConnectionStore((s) => s.disconnect)
-  const connectedAt = useVoiceConnectionStore((s) => s.connectedAt)
-
-  const [elapsed, setElapsed] = useState(0)
-  const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
-  const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
-
-  useEffect(() => {
-    if (!connectedAt) {
-      setElapsed(0)
-      return
-    }
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - connectedAt) / 1000))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [connectedAt])
-
-  const handleDisconnect = useCallback(() => {
-    playLeaveSound()
-    getSocket()?.emit('voice:leave')
-    disconnect()
-  }, [disconnect])
-
-  const handleCameraClick = useCallback(() => {
-    if (isCameraOn) {
-      stopCamera()
-    } else {
-      setCameraModalMode('start')
-    }
-  }, [isCameraOn, stopCamera])
-
-  const handleCameraConfirm = useCallback(
-    (quality: CameraQuality, blur: boolean) => {
-      if (cameraModalMode === 'start') {
-        startCamera(quality, blur)
-      } else {
-        applyCameraSettings(quality, blur)
-      }
-      setCameraModalMode(null)
-    },
-    [cameraModalMode, startCamera, applyCameraSettings]
-  )
-
-  const handleScreenShare = useCallback(() => {
-    if (isScreenSharing) {
-      const room = useVoiceConnectionStore.getState().room
-      room?.localParticipant.setScreenShareEnabled(false).catch(() => {})
-      useVoiceConnectionStore.getState().setScreenSharing(false)
-    } else {
-      setShowScreenShareDialog(true)
-    }
-  }, [isScreenSharing])
-
-  const handleScreenShareConfirm = useCallback((settings: ScreenShareSettings) => {
-    setShowScreenShareDialog(false)
-    import('@/components/voice/screenShareUtils').then(({ startScreenShareWithSettings }) =>
-      startScreenShareWithSettings(settings)
-    )
-  }, [])
-
-  const mins = Math.floor(elapsed / 60)
-  const secs = elapsed % 60
-  const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  const vc = useVoiceControls()
 
   return (
     <>
@@ -480,19 +404,19 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
         <span className="ml-2 hidden text-sm text-gray-400 md:inline">
           {participantCount} participant{participantCount !== 1 ? 's' : ''}
         </span>
-        <span className="ml-2 text-xs tabular-nums text-gray-500">{timeStr}</span>
+        <span className="ml-2 text-xs tabular-nums text-gray-500">{vc.timeStr}</span>
 
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            title={isMuted ? 'Unmute' : 'Mute'}
-            onClick={toggleMute}
+            title={vc.isMuted ? 'Unmute' : 'Mute'}
+            onClick={vc.toggleMute}
             className={`rounded-md p-1.5 transition ${
-              isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+              vc.isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              {isMuted ? (
+              {vc.isMuted ? (
                 <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
               ) : (
                 <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
@@ -502,10 +426,10 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
           <button
             type="button"
-            title={isDeafened ? 'Undeafen' : 'Deafen'}
-            onClick={toggleDeafen}
+            title={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+            onClick={vc.toggleDeafen}
             className={`rounded-md p-1.5 transition ${
-              isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+              vc.isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -515,14 +439,14 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
           <button
             type="button"
-            title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
-            onClick={handleCameraClick}
+            title={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+            onClick={vc.handleCameraClick}
             className={`rounded-md p-1.5 transition ${
-              isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+              vc.isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-              {isCameraOn ? (
+              {vc.isCameraOn ? (
                 <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
               ) : (
                 <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z" />
@@ -530,11 +454,11 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </svg>
           </button>
 
-          {isCameraOn && (
+          {vc.isCameraOn && (
             <button
               type="button"
               title="Camera settings"
-              onClick={() => setCameraModalMode('edit')}
+              onClick={() => vc.setCameraModalMode('edit')}
               className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -546,10 +470,10 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           {supportsScreenShare && (
             <button
               type="button"
-              title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
-              onClick={handleScreenShare}
+              title={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+              onClick={vc.handleScreenShare}
               className={`rounded-md p-1.5 transition ${
-                isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                vc.isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
               }`}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -561,7 +485,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           <button
             type="button"
             title="Disconnect"
-            onClick={handleDisconnect}
+            onClick={vc.handleDisconnect}
             className="rounded-md p-1.5 text-red-400 transition hover:bg-red-500/20"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -571,16 +495,20 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
         </div>
       </div>
 
-      {cameraModalMode && (
+      {vc.errorMsg && (
+        <div className="bg-red-500/10 px-4 py-1.5 text-center text-xs font-medium text-red-400">{vc.errorMsg}</div>
+      )}
+
+      {vc.cameraModalMode && (
         <CameraSettingsModal
-          mode={cameraModalMode}
-          onConfirm={handleCameraConfirm}
-          onClose={() => setCameraModalMode(null)}
+          mode={vc.cameraModalMode}
+          onConfirm={vc.handleCameraConfirm}
+          onClose={() => vc.setCameraModalMode(null)}
         />
       )}
 
-      {showScreenShareDialog && (
-        <ScreenShareDialog onConfirm={handleScreenShareConfirm} onClose={() => setShowScreenShareDialog(false)} />
+      {vc.showScreenShareDialog && (
+        <ScreenShareDialog onConfirm={vc.handleScreenShareConfirm} onClose={() => vc.setShowScreenShareDialog(false)} />
       )}
     </>
   )

@@ -26,7 +26,7 @@ export function ParticipantTile({
   const checkMicMuted = useCallback((): boolean => {
     if (participant.isLocal) return storeMuted
     const micPub = participant.getTrackPublication(Track.Source.Microphone)
-    return !micPub || !micPub.track
+    return !micPub || !micPub.track || micPub.isMuted
   }, [participant, storeMuted])
 
   const [isMicMuted, setIsMicMuted] = useState(() => checkMicMuted())
@@ -148,18 +148,16 @@ export function ParticipantTile({
         </div>
       )}
 
-      {hasVideo && !compact && (
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded bg-black/60 px-2 py-1">
-          <span className="text-xs font-medium text-white">{displayName}</span>
-          {isMicMuted && <MutedIcon />}
-        </div>
-      )}
-
-      {!hasVideo && isMicMuted && !compact && (
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded bg-black/60 px-2 py-1">
-          <MutedIcon />
-        </div>
-      )}
+      <div
+        className={`absolute flex items-center gap-1 rounded bg-black/60 ${
+          compact ? 'bottom-1 left-1 px-1.5 py-0.5' : 'bottom-2 left-2 px-2 py-1'
+        }`}
+      >
+        <span className={`font-medium text-white ${compact ? 'max-w-[80px] truncate text-[10px]' : 'text-xs'}`}>
+          {displayName}
+        </span>
+        {isMicMuted && <MutedIcon />}
+      </div>
     </div>
   )
 }

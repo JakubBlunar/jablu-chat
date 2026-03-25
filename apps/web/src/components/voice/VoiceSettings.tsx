@@ -381,6 +381,10 @@ export function VoiceSettings() {
           onChange={(v) => {
             setSelectedCamera(v)
             setSavedCamera(v)
+            const { room, isCameraOn } = useVoiceConnectionStore.getState()
+            if (room && isCameraOn) {
+              room.switchActiveDevice('videoinput', v || '').catch(() => {})
+            }
           }}
         />
       )}

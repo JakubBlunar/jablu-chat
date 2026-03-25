@@ -49,7 +49,7 @@ export interface BlurHandle {
 const TARGET_FPS_BY_PIXELS = [
   { maxPixels: 640 * 480, fps: 30 },
   { maxPixels: 1280 * 720, fps: 24 },
-  { maxPixels: Infinity, fps: 15 }
+  { maxPixels: Infinity, fps: 20 }
 ]
 
 function targetFps(w: number, h: number): number {
@@ -90,7 +90,12 @@ export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promis
 
   let running = true
   let lastRenderTime = 0
-  const frameInterval = 1000 / targetFps(w, h)
+  const fps = targetFps(w, h)
+  const frameInterval = 1000 / fps
+
+  // Pre-allocate reusable buffer for alpha manipulation
+  const pixelCount = w * h
+  const alphaBuffer = new Uint8Array(pixelCount)
 
   function render() {
     if (!running) return
@@ -120,18 +125,22 @@ export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promis
       const mask = masks[0]
       const maskData = mask.getAsFloat32Array()
 
+      // Pre-convert mask to uint8 in a tight loop (faster than per-pixel float math in imageData loop)
+      for (let i = 0; i < pixelCount; i++) {
+        alphaBuffer[i] = (maskData[i] * 255) | 0
+      }
+
       fgCtx.drawImage(video, 0, 0, w, h)
 
       const imageData = fgCtx.getImageData(0, 0, w, h)
       const pixels = imageData.data
 
-      for (let i = 0; i < maskData.length; i++) {
-        pixels[i * 4 + 3] = (maskData[i] * 255) | 0
+      for (let i = 0; i < pixelCount; i++) {
+        pixels[i * 4 + 3] = alphaBuffer[i]
       }
 
       fgCtx.putImageData(imageData, 0, 0)
 
-      // Composite masked foreground over blurred background (GPU-accelerated blend)
       ctx.drawImage(fgCanvas, 0, 0)
 
       mask.close()
@@ -142,7 +151,7 @@ export async function createBlurredStream(sourceTrack: MediaStreamTrack): Promis
 
   requestAnimationFrame(render)
 
-  const stream = canvas.captureStream(30)
+  const stream = canvas.captureStream(fps)
 
   return {
     stream,
