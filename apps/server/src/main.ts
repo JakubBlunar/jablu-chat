@@ -2,19 +2,20 @@ import { ValidationPipe } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestFactory } from '@nestjs/core'
 import cookieParser from 'cookie-parser'
+import helmet from 'helmet'
 import { AppModule } from './app.module'
+import { buildAllowedOrigins, WsAdapter } from './gateway/ws-adapter'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   const configService = app.get(ConfigService)
 
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }))
   app.use(cookieParser())
 
-  const serverHost = configService.get<string>('SERVER_HOST', 'localhost')
-  const tlsMode = configService.get<string>('TLS_MODE', 'off')
-  const proto = tlsMode === 'off' ? 'http' : 'https'
-  const allowedOrigins = [`${proto}://${serverHost}`, 'http://localhost:5173', 'http://localhost:4173']
+  const allowedOrigins = buildAllowedOrigins(configService)
   app.enableCors({ origin: allowedOrigins, credentials: true })
+  app.useWebSocketAdapter(new WsAdapter(app))
 
   const httpAdapter = app.getHttpAdapter()
   httpAdapter.getInstance().set('trust proxy', 1)

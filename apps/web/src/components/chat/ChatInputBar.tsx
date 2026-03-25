@@ -9,6 +9,7 @@ import {
   useRef,
   useState
 } from 'react'
+import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 const GifPicker = lazy(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
@@ -16,7 +17,6 @@ import { UserAvatar } from '@/components/UserAvatar'
 
 const MAX_TEXTAREA_PX = 240
 const MIN_TEXTAREA_PX = 44
-const MAX_MESSAGE_LENGTH = 4000
 const CHAR_COUNTER_THRESHOLD = 3800
 
 export type MentionMember = {

@@ -23,6 +23,7 @@ import { MailService } from '../auth/mail.service'
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
+import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { AdminAuthGuard } from './admin-auth.guard'
 import { AdminRateLimiter } from './admin-rate-limiter'
@@ -57,7 +58,8 @@ export class AdminController {
     private readonly push: PushService,
     private readonly mail: MailService,
     private readonly rateLimiter: AdminRateLimiter,
-    private readonly tokenStore: AdminTokenStore
+    private readonly tokenStore: AdminTokenStore,
+    private readonly redis: RedisService
   ) {
     this.superadminUsername = config.get<string>('SUPERADMIN_USERNAME', '')
     this.superadminPassword = config.get<string>('SUPERADMIN_PASSWORD', '')
@@ -338,7 +340,7 @@ export class AdminController {
     if (dto.email !== undefined) data.email = dto.email
     if (dto.bio !== undefined) data.bio = dto.bio || null
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data,
       select: {
@@ -358,6 +360,16 @@ export class AdminController {
         }
       }
     })
+
+    if (dto.username !== undefined || dto.email !== undefined) {
+      try {
+        await this.redis.client.del(`user:jwt:${id}`)
+      } catch {
+        /* best effort */
+      }
+    }
+
+    return updated
   }
 
   @Delete('users/:id')

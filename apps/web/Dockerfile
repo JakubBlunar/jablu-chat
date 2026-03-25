@@ -12,7 +12,8 @@ RUN pnpm install --frozen-lockfile
 # ─── Build shared package ───────────────────────────────────────────
 FROM deps AS build-shared
 COPY packages/shared/src/ ./packages/shared/src/
-COPY packages/shared/tsconfig.json ./packages/shared/
+COPY packages/shared/tsconfig.json packages/shared/tsconfig.cjs.json ./packages/shared/
+COPY packages/shared/scripts/ ./packages/shared/scripts/
 RUN pnpm --filter @chat/shared build
 
 # ─── Build web app ──────────────────────────────────────────────────

@@ -1,8 +1,12 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, HttpException, HttpStatus, Query, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ConfigService } from '@nestjs/config'
+import { CurrentUser } from '../auth/current-user.decorator'
+import { RedisService } from '../redis/redis.service'
 
 const GIPHY_BASE = 'https://api.giphy.com/v1/gifs'
+const GIF_RATE_LIMIT = 30
+const GIF_RATE_WINDOW = 60
 
 interface GiphyImage {
   url: string
@@ -45,8 +49,24 @@ function mapResults(results: GiphyResult[]) {
 export class GifController {
   private readonly apiKey: string
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly redis: RedisService
+  ) {
     this.apiKey = this.config.get<string>('GIPHY_API_KEY') ?? ''
+  }
+
+  private async checkRateLimit(userId: string) {
+    const key = `rl:gif:${userId}`
+    try {
+      const count = await this.redis.client.incr(key)
+      if (count === 1) await this.redis.client.expire(key, GIF_RATE_WINDOW)
+      if (count > GIF_RATE_LIMIT) {
+        throw new HttpException('Rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS)
+      }
+    } catch (err) {
+      if (err instanceof HttpException) throw err
+    }
   }
 
   @Get('enabled')
@@ -55,9 +75,16 @@ export class GifController {
   }
 
   @Get('search')
-  async search(@Query('q') q: string, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+  async search(
+    @CurrentUser() user: { id: string },
+    @Query('q') q: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
+  ) {
     if (!this.apiKey) return { results: [], next: '' }
     if (!q?.trim()) return { results: [], next: '' }
+
+    await this.checkRateLimit(user.id)
 
     const lim = Math.min(Number(limit) || 20, 50)
     const off = Number(offset) || 0
@@ -82,8 +109,14 @@ export class GifController {
   }
 
   @Get('trending')
-  async trending(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+  async trending(
+    @CurrentUser() user: { id: string },
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string
+  ) {
     if (!this.apiKey) return { results: [], next: '' }
+
+    await this.checkRateLimit(user.id)
 
     const lim = Math.min(Number(limit) || 20, 50)
     const off = Number(offset) || 0

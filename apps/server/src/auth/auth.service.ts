@@ -12,6 +12,7 @@ import * as bcrypt from 'bcryptjs'
 import { CronJob } from 'cron'
 import { v4 as uuidv4 } from 'uuid'
 import { PrismaService } from '../prisma/prisma.service'
+import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { MailService } from './mail.service'
 
@@ -36,8 +37,17 @@ export class AuthService implements OnModuleInit {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly mail: MailService,
-    private readonly uploads: UploadsService
+    private readonly uploads: UploadsService,
+    private readonly redis: RedisService
   ) {}
+
+  private async invalidateJwtCache(userId: string) {
+    try {
+      await this.redis.client.del(`user:jwt:${userId}`)
+    } catch {
+      /* best effort */
+    }
+  }
 
   onModuleInit() {
     const job = new CronJob('0 4 * * *', async () => {
@@ -312,11 +322,13 @@ export class AuthService implements OnModuleInit {
       throw new ConflictException('Email already in use')
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { email },
       select: PROFILE_SELECT
     })
+    await this.invalidateJwtCache(userId)
+    return updated
   }
 
   async updateStatus(userId: string, status: 'online' | 'idle' | 'dnd' | 'offline') {

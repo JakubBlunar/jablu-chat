@@ -1,3 +1,4 @@
+import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
 
 export class CreateWebhookDto {
@@ -12,7 +13,7 @@ export class ExecuteWebhookDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
-  @MaxLength(4000)
+  @MaxLength(MAX_MESSAGE_LENGTH)
   content!: string
 
   @IsOptional()

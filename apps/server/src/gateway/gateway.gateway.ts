@@ -9,6 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer
 } from '@nestjs/websockets'
+import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
 import { DmService } from '../dm/dm.service'
 import { EventBusService } from '../events/event-bus.service'
@@ -20,9 +21,7 @@ import { ReadStateService } from '../read-state/read-state.service'
 import { RedisService } from '../redis/redis.service'
 import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 
-const MAX_MESSAGE_LENGTH = 4000
-
-@WebSocketGateway({ cors: { origin: true, credentials: true }, namespace: '/' })
+@WebSocketGateway({ namespace: '/' })
 @UseGuards(WsJwtGuard)
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   private readonly logger = new Logger(ChatGateway.name)
@@ -35,6 +34,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   /** userId -> manually chosen status (dnd) that should not be overridden by idle detection */
   private readonly manualStatus = new Map<string, string>()
+
+  /** userId -> last broadcasted activity status (online/idle), avoids redundant DB writes */
+  private readonly lastActivityStatus = new Map<string, string>()
 
   /** channelId -> Set of participants in voice channel */
   private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
@@ -233,6 +235,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     if (isLastConnection) {
       this.manualStatus.delete(user.id)
+      this.lastActivityStatus.delete(user.id)
       await this.prisma.user.update({
         where: { id: user.id },
         data: { status: 'offline', lastSeenAt: new Date() }
@@ -290,14 +293,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       body.attachmentIds
     )
 
-    const channel = await this.prisma.channel.findUnique({
-      where: { id: body.channelId },
-      select: { serverId: true }
-    })
+    const { serverId } = msg
 
     let mentionedUserIds: string[] = []
-    if (body.content && channel) {
-      mentionedUserIds = await this.readState.resolveMentions(body.content, channel.serverId, user.id)
+    if (body.content && serverId) {
+      mentionedUserIds = await this.readState.resolveMentions(body.content, serverId, user.id)
       if (mentionedUserIds.length > 0) {
         await this.readState.incrementMention(body.channelId, mentionedUserIds)
       }
@@ -305,8 +305,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     this.emitToChannel(body.channelId, 'message:new', {
       ...msg,
-      mentionedUserIds,
-      serverId: channel?.serverId ?? null
+      mentionedUserIds
     })
 
     if (body.content) {
@@ -323,9 +322,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         .catch((err) => this.logger.warn('Link preview fetch failed', err?.message))
     }
 
-    if (channel) {
+    if (serverId) {
       this.sendPushToOfflineMembers(
-        channel.serverId,
+        serverId,
         user.id,
         msg.author?.displayName ?? msg.author?.username ?? 'Someone',
         body.content,
@@ -412,34 +411,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @SubscribeMessage('activity:idle')
   async onActivityIdle(@ConnectedSocket() client: Socket) {
-    const user = (client.data as { user: WsUser }).user
-    if (this.manualStatus.get(user.id) === 'dnd') {
-      return { ok: true }
-    }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { status: 'idle' }
-    })
-    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
-    for (const sid of serverIds) {
-      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'idle' })
-    }
-    return { ok: true }
+    return this.setActivityStatus(client, 'idle')
   }
 
   @SubscribeMessage('activity:active')
   async onActivityActive(@ConnectedSocket() client: Socket) {
+    return this.setActivityStatus(client, 'online')
+  }
+
+  private async setActivityStatus(client: Socket, status: 'online' | 'idle') {
     const user = (client.data as { user: WsUser }).user
     if (this.manualStatus.get(user.id) === 'dnd') {
       return { ok: true }
     }
+    if (this.lastActivityStatus.get(user.id) === status) {
+      return { ok: true }
+    }
+    this.lastActivityStatus.set(user.id, status)
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { status: 'online' }
+      data: { status }
     })
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
     for (const sid of serverIds) {
-      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
+      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status })
     }
     return { ok: true }
   }
