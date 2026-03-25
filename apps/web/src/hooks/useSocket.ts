@@ -101,15 +101,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
     const onConnect = () => {
       setIsConnected(true)
-      if (hasConnectedBefore) {
-        const channelId = useChannelStore.getState().currentChannelId
-        if (channelId) {
-          socket.emit('channel:join', { channelId })
-        }
-        const convId = useDmStore.getState().currentConversationId
-        if (convId) {
-          socket.emit('dm:join', { conversationId: convId })
-        }
+      const channelId = useChannelStore.getState().currentChannelId
+      if (channelId) {
+        socket.emit('channel:join', { channelId })
+      }
+      const convId = useDmStore.getState().currentConversationId
+      if (convId) {
+        socket.emit('dm:join', { conversationId: convId })
       }
       hasConnectedBefore = true
     }

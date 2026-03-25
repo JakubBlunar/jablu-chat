@@ -196,6 +196,10 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     resize()
   }, [value, resize])
 
+  useEffect(() => {
+    detectTrigger()
+  }, [value, detectTrigger])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (popupOpen) {
@@ -292,6 +296,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
           onClick={detectTrigger}
+          onSelect={detectTrigger}
         />
 
         {gifEnabled && onGifSelect && (
