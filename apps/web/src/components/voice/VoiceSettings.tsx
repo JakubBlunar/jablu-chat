@@ -157,7 +157,15 @@ export function VoiceSettings() {
   const [vadThreshold, setVadThreshold] = useState(getVadThreshold)
   const [vadMode, setVadModeState] = useState<VadMode>(getVadMode)
   const [recordingPtt, setRecordingPtt] = useState(false)
+  const pttCleanupRef = useRef<(() => void) | null>(null)
   const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode)
+
+  useEffect(() => {
+    return () => {
+      pttCleanupRef.current?.()
+      pttCleanupRef.current = null
+    }
+  }, [])
 
   const handleMicModeChange = useCallback(
     (mode: MicMode) => {
@@ -204,7 +212,11 @@ export function VoiceSettings() {
       window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('mousedown', onMouse, true)
       window.removeEventListener('contextmenu', onContext, true)
+      pttCleanupRef.current = null
     }
+
+    pttCleanupRef.current?.()
+    pttCleanupRef.current = cleanup
 
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('mousedown', onMouse, true)

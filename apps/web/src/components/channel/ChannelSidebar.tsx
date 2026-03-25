@@ -91,7 +91,10 @@ function useSpeakingUsers() {
   const [speaking, setSpeaking] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (!room) return
+    if (!room) {
+      setSpeaking(new Set())
+      return
+    }
     const onSpeakers = (speakers: Participant[]) => {
       setSpeaking(new Set(speakers.map((s) => s.identity)))
     }

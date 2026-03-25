@@ -112,6 +112,7 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
 }
 
 let _saveTimer: number | undefined
+let _wasMutedBeforeDeafen = false
 
 export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) => ({
   currentServerId: null,
@@ -201,11 +202,14 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     emitVoiceState({ deafened: next })
     if (room) {
       if (next && !isMuted) {
+        _wasMutedBeforeDeafen = false
         room.localParticipant.setMicrophoneEnabled(false).catch(() => {})
         stopMicMode()
         set({ isMuted: true })
         emitVoiceState({ muted: true })
-      } else if (!next && isMuted) {
+      } else if (next && isMuted) {
+        _wasMutedBeforeDeafen = true
+      } else if (!next && isMuted && !_wasMutedBeforeDeafen) {
         room.localParticipant.setMicrophoneEnabled(true).catch(() => {})
         if (micMode !== 'always') {
           setTimeout(() => startMicMode(micMode), 300)
@@ -255,9 +259,13 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
         showVoiceError('Background blur failed to load. Camera was not started to protect your privacy.')
       }
     } else {
-      await room.localParticipant.setCameraEnabled(true).catch(() => {})
-      set({ isCameraOn: true, isBlurEnabled: false })
-      emitVoiceState({ camera: true })
+      try {
+        await room.localParticipant.setCameraEnabled(true)
+        set({ isCameraOn: true, isBlurEnabled: false })
+        emitVoiceState({ camera: true })
+      } catch {
+        showVoiceError('Could not access camera. Check your browser permissions.')
+      }
     }
   },
 
@@ -382,7 +390,14 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   fetchVolumeOverrides: () => {
     api
       .getVoiceVolumes()
-      .then((map) => set({ volumeOverrides: map }))
+      .then((map) => {
+        const existing = get().volumeOverrides
+        const localOnly: Record<string, number> = {}
+        for (const [k, v] of Object.entries(existing)) {
+          if (k.includes(':')) localOnly[k] = v
+        }
+        set({ volumeOverrides: { ...map, ...localOnly } })
+      })
       .catch(() => {})
   },
 

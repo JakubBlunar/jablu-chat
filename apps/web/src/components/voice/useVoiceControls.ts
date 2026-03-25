@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CameraQuality } from '@/lib/deviceSettings'
 import type { ScreenShareSettings } from './ScreenShareDialog'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -22,15 +22,20 @@ export function useVoiceControls() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
   const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     const handler = (e: Event) => {
       const msg = (e as CustomEvent<{ message: string }>).detail.message
       setErrorMsg(msg)
-      setTimeout(() => setErrorMsg(null), 5000)
+      clearTimeout(errorTimerRef.current)
+      errorTimerRef.current = setTimeout(() => setErrorMsg(null), 5000)
     }
     window.addEventListener('voice:error', handler)
-    return () => window.removeEventListener('voice:error', handler)
+    return () => {
+      window.removeEventListener('voice:error', handler)
+      clearTimeout(errorTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {

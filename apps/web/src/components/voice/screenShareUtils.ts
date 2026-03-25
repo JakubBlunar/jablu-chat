@@ -21,9 +21,9 @@ const BITRATE_MAP: Record<string, Record<number, number>> = {
 
 export async function startScreenShareWithSettings(settings: ScreenShareSettings) {
   if (isElectron) {
-    startScreenShareElectron(settings)
+    await startScreenShareElectron(settings)
   } else {
-    startScreenShareWeb(settings)
+    await startScreenShareWeb(settings)
   }
 }
 
@@ -56,28 +56,37 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
   const room = store.room
   if (!room) return
 
+  let stream: MediaStream | null = null
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: settings.fps } },
+    const videoConstraints: MediaTrackConstraints = {
+      frameRate: { ideal: settings.fps }
+    }
+    if (settings.resolution !== 'native') {
+      const res = RESOLUTION_MAP[settings.resolution]
+      videoConstraints.width = { max: res.width }
+      videoConstraints.height = { max: res.height }
+    }
+
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: videoConstraints,
       audio: settings.audio
     })
 
     const videoTrack = stream.getVideoTracks()[0]
     if (!videoTrack) return
 
-    const videoSettings = videoTrack.getSettings()
-    const height = videoSettings.height ?? 1080
-    const fps = videoSettings.frameRate ?? 30
-    let maxBitrate = 3_000_000
-    if (height <= 720) maxBitrate = fps <= 15 ? 1_500_000 : 3_000_000
-    else maxBitrate = fps <= 15 ? 2_500_000 : 5_000_000
+    const actualSettings = videoTrack.getSettings()
+    const height = actualSettings.height ?? 1080
+    const fps = actualSettings.frameRate ?? 30
+    const bitrate = BITRATE_MAP[settings.resolution]?.[settings.fps]
+      ?? (height <= 720 ? (fps <= 15 ? 1_500_000 : 3_000_000) : (fps <= 15 ? 2_500_000 : 5_000_000))
 
     const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
       source: 'screen_share' as unknown as undefined,
       simulcast: false,
       videoEncoding: {
-        maxBitrate,
+        maxBitrate: bitrate,
         maxFramerate: fps
       },
       degradationPreference: 'maintain-resolution'
@@ -106,6 +115,7 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
     store.setScreenSharing(true)
   } catch (err) {
     if ((err as DOMException).name === 'NotAllowedError') return
+    stream?.getTracks().forEach((t) => t.stop())
     console.error('Failed to start screen share:', err)
   }
 }
@@ -132,8 +142,9 @@ export async function publishScreenShare(
     mandatory.maxHeight = res.height
   }
 
+  let stream: MediaStream | null = null
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    stream = await navigator.mediaDevices.getUserMedia({
       audio: options.audio ? { mandatory: { chromeMediaSource: 'desktop' } } as unknown as boolean : false,
       video: {
         // @ts-expect-error Electron's desktopCapturer requires these mandatory constraints
@@ -177,6 +188,7 @@ export async function publishScreenShare(
 
     store.setScreenSharing(true)
   } catch (err) {
+    stream?.getTracks().forEach((t) => t.stop())
     console.error('Failed to start screen share:', err)
   }
 }

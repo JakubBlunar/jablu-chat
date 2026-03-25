@@ -23,6 +23,8 @@ export function ScreenShareTile({
   const [hasAudio, setHasAudio] = useState(false)
 
   useEffect(() => {
+    let changeTimer: ReturnType<typeof setTimeout>
+
     const attach = () => {
       if (publication.track && videoRef.current) {
         publication.track.attach(videoRef.current)
@@ -34,13 +36,17 @@ export function ScreenShareTile({
 
     attach()
 
-    const onChange = () => setTimeout(attach, 50)
+    const onChange = () => {
+      clearTimeout(changeTimer)
+      changeTimer = setTimeout(attach, 50)
+    }
     participant.on(ParticipantEvent.TrackSubscribed, onChange)
     participant.on(ParticipantEvent.TrackUnsubscribed, onChange)
     participant.on(ParticipantEvent.LocalTrackPublished, onChange)
     participant.on(ParticipantEvent.LocalTrackUnpublished, onChange)
 
     return () => {
+      clearTimeout(changeTimer)
       if (publication.track && videoRef.current) {
         publication.track.detach(videoRef.current)
       }
@@ -56,16 +62,21 @@ export function ScreenShareTile({
       setHasAudio(false)
       return
     }
+    let audioTimer: ReturnType<typeof setTimeout>
     const checkAudio = () => {
       const ssAudioPub = participant.getTrackPublication(Track.Source.ScreenShareAudio)
       setHasAudio(!!(ssAudioPub?.track))
     }
     checkAudio()
 
-    const onChange = () => setTimeout(checkAudio, 50)
+    const onChange = () => {
+      clearTimeout(audioTimer)
+      audioTimer = setTimeout(checkAudio, 50)
+    }
     participant.on(ParticipantEvent.TrackSubscribed, onChange)
     participant.on(ParticipantEvent.TrackUnsubscribed, onChange)
     return () => {
+      clearTimeout(audioTimer)
       participant.off(ParticipantEvent.TrackSubscribed, onChange)
       participant.off(ParticipantEvent.TrackUnsubscribed, onChange)
     }
