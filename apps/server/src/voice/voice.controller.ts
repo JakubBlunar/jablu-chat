@@ -80,16 +80,22 @@ export class VoiceController {
     @Body() body: { volume: number }
   ) {
     const vol = Math.round(Math.max(0, Math.min(200, body.volume ?? 100)))
-    await this.prisma.userVolumeSetting.upsert({
-      where: {
-        listenerId_targetUserId: {
-          listenerId: user.id,
-          targetUserId
-        }
-      },
-      create: { listenerId: user.id, targetUserId, volume: vol },
-      update: { volume: vol }
-    })
+    if (vol === 100) {
+      await this.prisma.userVolumeSetting.deleteMany({
+        where: { listenerId: user.id, targetUserId }
+      })
+    } else {
+      await this.prisma.userVolumeSetting.upsert({
+        where: {
+          listenerId_targetUserId: {
+            listenerId: user.id,
+            targetUserId
+          }
+        },
+        create: { listenerId: user.id, targetUserId, volume: vol },
+        update: { volume: vol }
+      })
+    }
     return { targetUserId, volume: vol }
   }
 
