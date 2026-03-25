@@ -236,7 +236,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       selectedIdx,
       insertMention,
       insertChannel,
-      onSend
+      onSend,
+      value
     ]
   )
 

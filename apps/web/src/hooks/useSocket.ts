@@ -134,7 +134,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
           const body = msg.content?.slice(0, 100) ?? '[attachment]'
           const url = msg.serverId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined
-          showNotification(`#${msg.channelId.slice(0, 8)}`, `${author}: ${body}`, url)
+          const ch = useChannelStore.getState().channels.find((c) => c.id === msg.channelId)
+          const channelTitle = ch ? `#${ch.name}` : `#${msg.channelId.slice(0, 8)}`
+          showNotification(channelTitle, `${author}: ${body}`, url)
         }
       }
     }

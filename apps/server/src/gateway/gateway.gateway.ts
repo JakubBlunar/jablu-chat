@@ -452,7 +452,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   private getEffectiveStatus(userId: string): 'online' | 'idle' {
-    const userRoom = this.server.sockets.adapter.rooms.get(`user:${userId}`)
+    const rooms = this.server?.sockets?.adapter?.rooms
+    if (!rooms) return 'idle'
+    const userRoom = rooms.get(`user:${userId}`)
     if (!userRoom) return 'idle'
     for (const socketId of userRoom) {
       if (this.socketActivityStatus.get(socketId) === 'online') return 'online'
@@ -538,7 +540,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         .sendToUsers(offlineDmMembers, {
           title: `DM from ${authorName}`,
           body: preview,
-          url: `/dm/${body.conversationId}`
+          url: `/channels/@me/${body.conversationId}`
         })
         .catch((err) => this.logger.warn('DM push notification failed', err?.message))
     }

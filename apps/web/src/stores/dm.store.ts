@@ -33,6 +33,8 @@ type DmState = {
   closeConversation: (conversationId: string) => Promise<void>
 }
 
+let _dmFetchId = 0
+
 export const useDmStore = create<DmState>((set, _get) => ({
   conversations: [],
   currentConversationId: null,
@@ -58,10 +60,11 @@ export const useDmStore = create<DmState>((set, _get) => ({
   setCurrentConversation: (id) => set({ currentConversationId: id }),
 
   fetchMessages: async (conversationId, cursor) => {
+    const fetchId = ++_dmFetchId
     set({ isLoading: true })
     try {
       const page = await api.getDmMessages(conversationId, cursor)
-      if (!cursor && _get().loadedForConvId !== null && _get().loadedForConvId !== conversationId) {
+      if (_dmFetchId !== fetchId) {
         set({ isLoading: false })
         return
       }
@@ -92,9 +95,14 @@ export const useDmStore = create<DmState>((set, _get) => ({
   },
 
   fetchMessagesAround: async (conversationId, messageId) => {
+    const fetchId = ++_dmFetchId
     set({ isLoading: true })
     try {
       const page = await api.getDmMessagesAround(conversationId, messageId)
+      if (_dmFetchId !== fetchId) {
+        set({ isLoading: false })
+        return
+      }
       const chronological = toChronological(page.messages)
       set({
         messages: chronological,

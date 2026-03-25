@@ -1,5 +1,5 @@
 import type { Invite } from '@chat/shared'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { api } from '@/lib/api'
 
@@ -62,9 +62,28 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    dialogRef.current?.focus()
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg rounded-lg bg-surface p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Invite to ${serverName}`}
+        tabIndex={-1}
+        className="w-full max-w-lg rounded-lg bg-surface p-6 shadow-xl outline-none"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Invite to {serverName}</h2>
           <button type="button" onClick={onClose} className="text-gray-400 transition hover:text-white">

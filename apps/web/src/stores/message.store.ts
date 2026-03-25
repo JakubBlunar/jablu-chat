@@ -38,6 +38,8 @@ type MessageState = {
   removeTypingUser: (userId: string) => void
 }
 
+let _msgFetchId = 0
+
 export const useMessageStore = create<MessageState>((set, get) => ({
   messages: [],
   isLoading: false,
@@ -49,6 +51,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   scrollRequestNonce: 0,
 
   fetchMessages: async (channelId, cursor) => {
+    const fetchId = ++_msgFetchId
     set({ isLoading: true })
     try {
       const params = new URLSearchParams()
@@ -57,7 +60,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const qs = params.toString()
       const path = `/api/channels/${channelId}/messages${qs ? `?${qs}` : ''}`
       const page = await api.get<MessagesPage>(path)
-      if (!cursor && get().loadedForChannelId !== null && get().loadedForChannelId !== channelId) {
+      if (_msgFetchId !== fetchId) {
         set({ isLoading: false })
         return
       }
@@ -89,10 +92,15 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   fetchMessagesAround: async (channelId, messageId) => {
+    const fetchId = ++_msgFetchId
     set({ isLoading: true })
     try {
       const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=50`
       const page = await api.get<MessagesPage>(path)
+      if (_msgFetchId !== fetchId) {
+        set({ isLoading: false })
+        return
+      }
       const chronological = toChronological(page.messages)
       set({
         messages: chronological,

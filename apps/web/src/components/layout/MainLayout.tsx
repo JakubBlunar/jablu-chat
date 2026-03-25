@@ -10,7 +10,7 @@ import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
 import { useIdleDetector } from '@/hooks/useIdleDetector'
-import { useIsMobile, useIsTablet } from '@/hooks/useMobile'
+import { useIsMobile } from '@/hooks/useMobile'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
@@ -57,7 +57,7 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
 
   if (!isConnected && hasConnected.current) {
     return (
-      <div className="shrink-0 bg-amber-600 px-4 py-1.5 text-center text-xs font-medium text-white">
+      <div className="shrink-0 bg-amber-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">
         Connection lost. Reconnecting...
       </div>
     )
@@ -65,7 +65,7 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
 
   if (showReconnected) {
     return (
-      <div className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white">Reconnected</div>
+      <div className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">Reconnected</div>
     )
   }
 
@@ -132,7 +132,6 @@ export function MainLayout() {
 
   const { socket, isConnected } = useSocket()
   const isMobile = useIsMobile()
-  const isTablet = useIsTablet()
 
   const openNavDrawer = useLayoutStore((s) => s.openNavDrawer)
   const openMemberDrawer = useLayoutStore((s) => s.openMemberDrawer)
@@ -269,7 +268,7 @@ export function MainLayout() {
     return 'Jablu'
   }, [viewMode, viewingVoiceRoom, voiceChannelName, currentServer])
 
-  const showMemberSidebar = !isMobile && (isTablet ? memberSidebarVisible : memberSidebarVisible)
+  const showMemberSidebar = !isMobile && memberSidebarVisible
 
   // ─── Mobile layout ───
   if (isMobile) {

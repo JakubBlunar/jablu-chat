@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getSocket } from '@/lib/socket'
 import { useMessageStore } from '@/stores/message.store'
 import { useShallow } from 'zustand/react/shallow'
@@ -15,26 +15,33 @@ export function useTypingIndicators(isDm: boolean, contextId: string | null, use
   )
 
   const [dmTypingUsers, setDmTypingUsers] = useState<string[]>([])
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   useEffect(() => {
     if (!isDm) return
     const socket = getSocket()
     if (!socket) return
+    const timers = timersRef.current
     const onTyping = (payload: { conversationId: string; username: string }) => {
       if (payload.conversationId !== contextId) return
       setDmTypingUsers((prev) => (prev.includes(payload.username) ? prev : [...prev, payload.username]))
-      setTimeout(() => {
-        setDmTypingUsers((prev) => prev.filter((u) => u !== payload.username))
-      }, 3000)
+      const prev = timers.get(payload.username)
+      if (prev) clearTimeout(prev)
+      timers.set(
+        payload.username,
+        setTimeout(() => {
+          timers.delete(payload.username)
+          setDmTypingUsers((prev) => prev.filter((u) => u !== payload.username))
+        }, 3000)
+      )
     }
     socket.on('dm:typing', onTyping)
     return () => {
       socket.off('dm:typing', onTyping)
+      for (const t of timers.values()) clearTimeout(t)
+      timers.clear()
+      setDmTypingUsers([])
     }
-  }, [isDm, contextId])
-
-  useEffect(() => {
-    if (isDm) setDmTypingUsers([])
   }, [isDm, contextId])
 
   return isDm ? dmTypingUsers : channelTypingNames
