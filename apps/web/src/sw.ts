@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
-import { CacheFirst, NetworkOnly } from 'workbox-strategies'
+import { CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 
 declare let self: ServiceWorkerGlobalScope
@@ -26,9 +26,6 @@ registerRoute(
   })
 )
 
-// API calls: always hit the network (never serve stale authenticated data)
-registerRoute(({ url }) => url.pathname.startsWith('/api/'), new NetworkOnly())
-
 // Uploaded files: cache first (content-addressed)
 registerRoute(
   ({ url }) => url.pathname.startsWith('/uploads/'),
@@ -50,7 +47,7 @@ self.addEventListener('push', (event) => {
 
     const title = payload.title ?? 'Jablu'
     const notifUrl = payload.url ?? '/'
-    const options: NotificationOptions = {
+    const options: NotificationOptions & { renotify?: boolean } = {
       body: payload.body ?? '',
       icon: '/pwa-192x192.png',
       badge: '/favicon-32x32.png',

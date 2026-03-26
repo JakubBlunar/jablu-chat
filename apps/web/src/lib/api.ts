@@ -87,6 +87,7 @@ export type GifSearchResult = {
 export class ApiClient {
   baseUrl = ''
   onAuthFailure: (() => void) | null = null
+  onTokenRefresh: ((accessToken: string, refreshToken: string) => void) | null = null
   private refreshPromise: Promise<AuthResponse> | null = null
 
   private async tryRefreshToken(): Promise<AuthResponse | null> {
@@ -102,12 +103,16 @@ export class ApiClient {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken })
         })
-        if (!res.ok) return null as unknown as AuthResponse
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) return null as unknown as AuthResponse
+          return { _networkError: true } as unknown as AuthResponse
+        }
         const data = (await res.json()) as AuthResponse
         writePersistedAuth(data.accessToken, data.refreshToken)
+        this.onTokenRefresh?.(data.accessToken, data.refreshToken)
         return data
       } catch {
-        return null as unknown as AuthResponse
+        return { _networkError: true } as unknown as AuthResponse
       } finally {
         this.refreshPromise = null
       }
@@ -140,10 +145,12 @@ export class ApiClient {
       !path.includes('/auth/refresh')
     ) {
       const refreshed = await this.tryRefreshToken()
-      if (refreshed) {
+      if (refreshed && !(refreshed as unknown as { _networkError?: boolean })._networkError) {
         return this.request<T>(method, path, body, true)
       }
-      this.onAuthFailure?.()
+      if (!refreshed) {
+        this.onAuthFailure?.()
+      }
     }
 
     const contentType = res.headers.get('content-type') ?? ''
@@ -399,14 +406,14 @@ export class ApiClient {
 
     if (res.status === 401) {
       const refreshed = await this.tryRefreshToken()
-      if (refreshed) {
+      if (refreshed && !(refreshed as unknown as { _networkError?: boolean })._networkError) {
         headers.Authorization = `Bearer ${refreshed.accessToken}`
         res = await fetch(`${this.baseUrl}${path}`, {
           method: 'POST',
           headers,
           body: formData
         })
-      } else {
+      } else if (!refreshed) {
         this.onAuthFailure?.()
       }
     }

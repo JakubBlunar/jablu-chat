@@ -72,6 +72,8 @@ export function DownloadAppSection() {
             key={d.filename}
             href={`${api.baseUrl}/api/downloads/${encodeURIComponent(d.filename)}`}
             download
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-3 rounded-lg bg-surface-darkest p-3 transition hover:bg-surface-raised"
           >
             <span className="text-xl">{PLATFORM_ICONS[d.platform] ?? '💻'}</span>

@@ -114,7 +114,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const onConnectError = async () => {
       if (handlingAuthError) return
       const store = useAuthStore.getState()
-      if (!store.isAuthenticated || !store.refreshToken) return
+      if (!store.isAuthenticated) return
       handlingAuthError = true
       try {
         await store.refreshSession()
