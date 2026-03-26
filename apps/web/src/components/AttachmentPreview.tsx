@@ -1,6 +1,7 @@
 import type { Attachment } from '@chat/shared'
 import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { resolveMediaUrl } from '@/lib/api'
 
 interface AttachmentPreviewProps {
   attachment: Attachment
@@ -55,7 +56,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
           onClick={() => setLightbox(true)}
         >
           <img
-            src={attachment.url}
+            src={resolveMediaUrl(attachment.url)}
             alt={attachment.filename}
             width={dims?.width}
             height={dims?.height}
@@ -66,7 +67,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
         {lightbox && (
           <LightboxOverlay onClose={() => setLightbox(false)}>
             <img
-              src={attachment.url}
+              src={resolveMediaUrl(attachment.url)}
               alt={attachment.filename}
               className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
             />
@@ -81,7 +82,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
     return (
       <div className="mt-1" style={vDims ? { width: vDims.width, maxWidth: '100%' } : { maxWidth: 448 }}>
         <video
-          src={attachment.url}
+          src={resolveMediaUrl(attachment.url)}
           controls
           preload="metadata"
           style={vDims ? { width: '100%', aspectRatio: `${vDims.width} / ${vDims.height}` } : { aspectRatio: '16 / 9', width: '100%' }}
@@ -99,7 +100,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
 
   return (
     <a
-      href={attachment.url}
+      href={resolveMediaUrl(attachment.url)}
       target="_blank"
       rel="noopener noreferrer"
       className="mt-1 flex items-center gap-3 rounded-lg bg-surface-dark px-3 py-2 ring-1 ring-white/10 transition hover:bg-surface-hover"

@@ -10,7 +10,7 @@ import { MobileDrawer } from '@/components/layout/MobileDrawer'
 import { ServerSettingsModal } from '@/components/server/ServerSettingsModal'
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoicePanel } from '@/components/voice/VoicePanel'
-import { api } from '@/lib/api'
+import { api, resolveMediaUrl } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useAuthStore } from '@/stores/auth.store'
@@ -330,7 +330,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
                   }`}
                 >
                   {s.iconUrl ? (
-                    <img src={s.iconUrl} alt="" className="h-full w-full object-cover" />
+                    <img src={resolveMediaUrl(s.iconUrl)} alt="" className="h-full w-full object-cover" />
                   ) : (
                     s.name.charAt(0).toUpperCase()
                   )}

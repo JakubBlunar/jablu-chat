@@ -25,9 +25,11 @@ Write-Host "  Publishing Jablu Desktop v$Version"       -ForegroundColor Cyan
 Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
-# Step 1: Build web app
-Write-Host "-> Building web app..." -ForegroundColor Yellow
+# Step 1: Build web app (with relative asset paths for file:// protocol)
+Write-Host "-> Building web app for Electron..." -ForegroundColor Yellow
+$env:ELECTRON = "1"
 pnpm --filter @chat/web build
+$env:ELECTRON = $null
 if ($LASTEXITCODE -ne 0) { throw "Web build failed" }
 
 # Step 2: Build desktop app

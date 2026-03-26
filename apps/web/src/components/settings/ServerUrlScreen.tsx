@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { api } from '@/lib/api'
 import { electronAPI } from '@/lib/electron'
 
 const STORAGE_KEY = 'chat:server-url'
@@ -30,13 +29,15 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
 
     setTesting(true)
     try {
-      const resp = await fetch(`${trimmed}/api/health`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      if (!resp.ok) throw new Error('Server returned an error')
+      if (electronAPI) {
+        const result = await electronAPI.testServerUrl(trimmed)
+        if (!result.ok) throw new Error('Server returned an error')
+      } else {
+        const resp = await fetch(`${trimmed}/api/health`, { signal: AbortSignal.timeout(5000) })
+        if (!resp.ok) throw new Error('Server returned an error')
+      }
 
       setStoredServerUrl(trimmed)
-      api.baseUrl = trimmed
       onConnect(trimmed)
     } catch {
       setError('Could not connect to the server. Check the URL and try again.')

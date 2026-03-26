@@ -5,7 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 import path from 'path'
 
+const isElectronBuild = process.env.ELECTRON === '1'
+
 export default defineConfig({
+  base: isElectronBuild ? './' : '/',
   plugins: [
     react(),
     tailwindcss(),

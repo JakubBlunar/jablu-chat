@@ -6,6 +6,7 @@ import { useNavigationStore } from '@/stores/navigation.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useServerStore } from '@/stores/server.store'
+import { resolveMediaUrl } from '@/lib/api'
 
 function DmIcon() {
   return (
@@ -111,7 +112,7 @@ export function ServerSidebar() {
                         }`}
                       >
                         {server.iconUrl ? (
-                          <img src={server.iconUrl} alt="" className="h-full w-full object-cover" />
+                          <img src={resolveMediaUrl(server.iconUrl)} alt="" className="h-full w-full object-cover" />
                         ) : (
                           initial
                         )}

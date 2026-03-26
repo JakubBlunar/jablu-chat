@@ -50,23 +50,21 @@ select {
   .h-\[80vh\] { height: 80dvh; }
 }
 
-/* Landscape lock overlay for mobile touch devices */
+/* Landscape lock overlay for mobile touch devices (shown/hidden via JS) */
 #landscape-lock {
   display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  background: #1e1f22;
+  color: #b5bac1;
 }
-@media (pointer: coarse) and (orientation: landscape) {
-  #landscape-lock:not(.hidden) {
-    display: flex;
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 1rem;
-    background: #1e1f22;
-    color: #b5bac1;
-  }
+#landscape-lock.active {
+  display: flex;
 }
 
 .simplebar-scrollbar::before {

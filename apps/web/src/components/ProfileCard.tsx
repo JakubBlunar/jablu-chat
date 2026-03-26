@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { UserAvatar } from '@/components/UserAvatar'
+import { resolveMediaUrl } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useIsMobile } from '@/hooks/useMobile'
 import { api } from '@/lib/api'
@@ -232,7 +233,7 @@ function ProfileCardContent({
 
 function ServerIcon({ name, iconUrl }: { name: string; iconUrl: string | null }) {
   if (iconUrl) {
-    return <img src={iconUrl} alt={name} className="h-5 w-5 shrink-0 rounded-full object-cover" />
+    return <img src={resolveMediaUrl(iconUrl)} alt={name} className="h-5 w-5 shrink-0 rounded-full object-cover" />
   }
   return (
     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/30 text-[10px] font-bold text-white">

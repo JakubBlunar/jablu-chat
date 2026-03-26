@@ -1,11 +1,14 @@
 import { io, type Socket } from 'socket.io-client'
 import { api } from './api'
+import { getStoredServerUrl } from '@/components/settings/ServerUrlScreen'
+import { isElectron } from './electron'
 
 let socket: Socket | null = null
 let cleanupVisibility: (() => void) | null = null
 
 function getSocketUrl(): string {
   if (api.baseUrl) return api.baseUrl
+  if (isElectron) return getStoredServerUrl() ?? ''
   if (import.meta.env.DEV) return 'http://localhost:3001'
   return ''
 }
