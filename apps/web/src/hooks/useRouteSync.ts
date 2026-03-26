@@ -25,14 +25,15 @@ export function useRouteSync() {
 
   useEffect(() => {
     if (isDm) {
-      if (prevIsDmRef.current !== true) {
+      const modeChanged = prevIsDmRef.current !== true
+      if (modeChanged) {
         useServerStore.getState().setViewMode('dm')
         prevIsDmRef.current = true
         prevServerRef.current = null
         prevChannelRef.current = null
       }
 
-      if (prevConvRef.current !== conversationId) {
+      if (modeChanged || prevConvRef.current !== conversationId) {
         prevConvRef.current = conversationId
         useDmStore.getState().setCurrentConversation(conversationId)
       }

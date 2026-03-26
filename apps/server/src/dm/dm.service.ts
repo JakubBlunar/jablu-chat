@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { FriendsService } from '../friends/friends.service'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   dmMessageInclude as messageInclude,
@@ -24,7 +25,10 @@ const memberSelect = {
 
 @Injectable()
 export class DmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly friendsService: FriendsService
+  ) {}
 
   mapToWire(m: MessageWithRelations) {
     return mapDmMessageToWire(m)
@@ -60,7 +64,8 @@ export class DmService {
     }
 
     const recipient = await this.prisma.user.findUnique({
-      where: { id: recipientId }
+      where: { id: recipientId },
+      select: { id: true, dmPrivacy: true }
     })
     if (!recipient) {
       throw new NotFoundException('User not found')
@@ -80,6 +85,13 @@ export class DmService {
         data: { closedAt: null }
       })
       return this.toConversationWire(existing)
+    }
+
+    if (recipient.dmPrivacy === 'friends_only') {
+      const friends = await this.friendsService.areFriends(currentUserId, recipientId)
+      if (!friends) {
+        throw new BadRequestException('This user only accepts DMs from friends')
+      }
     }
 
     const created = await this.prisma.directConversation.create({
@@ -106,10 +118,23 @@ export class DmService {
 
     const users = await this.prisma.user.findMany({
       where: { id: { in: uniqueIds } },
-      select: { id: true }
+      select: { id: true, dmPrivacy: true }
     })
     if (users.length !== uniqueIds.length) {
       throw new BadRequestException('One or more users not found')
+    }
+
+    const privacyUsers = users.filter((u) => u.dmPrivacy === 'friends_only')
+    for (const pu of privacyUsers) {
+      for (const other of uniqueIds) {
+        if (other === pu.id) continue
+        const friends = await this.friendsService.areFriends(pu.id, other)
+        if (!friends) {
+          throw new BadRequestException(
+            'All members must be friends with each other to create this group DM'
+          )
+        }
+      }
     }
 
     const created = await this.prisma.directConversation.create({
@@ -399,6 +424,21 @@ export class DmService {
       select: { userId: true }
     })
     return members.map((m) => m.userId)
+  }
+
+  async canDmUser(currentUserId: string, targetUserId: string): Promise<{ allowed: boolean }> {
+    if (currentUserId === targetUserId) return { allowed: true }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { dmPrivacy: true }
+    })
+
+    if (!targetUser) return { allowed: false }
+    if (targetUser.dmPrivacy !== 'friends_only') return { allowed: true }
+
+    const friends = await this.friendsService.areFriends(currentUserId, targetUserId)
+    return { allowed: friends }
   }
 
   private toConversationWire(

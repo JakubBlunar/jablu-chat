@@ -31,6 +31,7 @@ import {
   RefreshTokenDto,
   RegisterDto,
   ResetPasswordDto,
+  UpdateDmPrivacyDto,
   UpdateProfileDto,
   UpdateStatusDto
 } from './dto'
@@ -196,11 +197,17 @@ export class AuthController {
     return updated
   }
 
+  @Patch('privacy')
+  @UseGuards(AuthGuard('jwt'))
+  async updateDmPrivacy(@CurrentUser() user: { id: string }, @Body() dto: UpdateDmPrivacyDto) {
+    return this.auth.updateDmPrivacy(user.id, dto.dmPrivacy)
+  }
+
   @Get('users/search')
   @UseGuards(AuthGuard('jwt'))
-  async searchUsers(@Query('q') q: string, @Req() req: Request) {
+  async searchUsers(@Query('q') q: string, @CurrentUser() user: { id: string }, @Req() req: Request) {
     await this.checkRateLimit(req)
-    return this.auth.searchUsers(q ?? '')
+    return this.auth.searchUsers(q ?? '', user.id)
   }
 
   @Get('sessions')

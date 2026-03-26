@@ -14,6 +14,7 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useEventStore } from '@/stores/event.store'
+import { useFriendStore } from '@/stores/friend.store'
 import { playJoinSound, playLeaveSound } from '@/lib/sounds'
 
 type MessageDeletePayload = {
@@ -173,6 +174,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const onUserOnline = (payload: OnlinePayload) => {
       useMemberStore.getState().setUserOnline(payload.userId)
       useMemberStore.getState().setUserStatus(payload.userId, 'online')
+      useFriendStore.getState().updateFriendStatus(payload.userId, 'online')
       const currentUser = useAuthStore.getState().user
       if (currentUser && currentUser.id === payload.userId) {
         useAuthStore.getState().setUser({ ...currentUser, status: 'online' })
@@ -181,10 +183,12 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onUserOffline = (payload: OnlinePayload) => {
       useMemberStore.getState().setUserOffline(payload.userId)
+      useFriendStore.getState().updateFriendStatus(payload.userId, 'offline')
     }
 
     const onUserStatus = (payload: StatusPayload) => {
       useMemberStore.getState().setUserStatus(payload.userId, payload.status)
+      useFriendStore.getState().updateFriendStatus(payload.userId, payload.status as 'online' | 'idle' | 'dnd' | 'offline')
       const currentUser = useAuthStore.getState().user
       if (currentUser && currentUser.id === payload.userId) {
         useAuthStore
@@ -365,6 +369,23 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       useEventStore.getState().updateInterest(payload.eventId, payload.userId, payload.interested, payload.count)
     }
 
+    const onFriendRequest = (payload: { friendshipId: string; user: Record<string, unknown>; direction: string; createdAt: string }) => {
+      useFriendStore.getState().addPendingRequest(payload as unknown as import('@chat/shared').FriendRequest)
+    }
+    const onFriendAccepted = (payload: { friendshipId: string; user: Record<string, unknown> }) => {
+      useFriendStore.getState().removePending(payload.friendshipId)
+      useFriendStore.getState().fetchFriends()
+    }
+    const onFriendDeclined = (payload: { friendshipId: string }) => {
+      useFriendStore.getState().removePending(payload.friendshipId)
+    }
+    const onFriendCancelled = (payload: { friendshipId: string }) => {
+      useFriendStore.getState().removePending(payload.friendshipId)
+    }
+    const onFriendRemoved = (payload: { friendshipId: string }) => {
+      useFriendStore.getState().removeFriendByFriendshipId(payload.friendshipId)
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
@@ -397,6 +418,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('event:completed', onEventCompleted)
     socket.on('event:started', onEventStarted)
     socket.on('event:interest', onEventInterest)
+    socket.on('friend:request', onFriendRequest)
+    socket.on('friend:accepted', onFriendAccepted)
+    socket.on('friend:declined', onFriendDeclined)
+    socket.on('friend:cancelled', onFriendCancelled)
+    socket.on('friend:removed', onFriendRemoved)
 
     setIsConnected(socket.connected)
 
@@ -433,6 +459,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('event:completed', onEventCompleted)
       socket.off('event:started', onEventStarted)
       socket.off('event:interest', onEventInterest)
+      socket.off('friend:request', onFriendRequest)
+      socket.off('friend:accepted', onFriendAccepted)
+      socket.off('friend:declined', onFriendDeclined)
+      socket.off('friend:cancelled', onFriendCancelled)
+      socket.off('friend:removed', onFriendRemoved)
       disconnectSocket()
       setIsConnected(false)
     }

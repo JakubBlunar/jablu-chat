@@ -154,6 +154,62 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         })
       }
     )
+
+    this.events.on(
+      'friend:request',
+      (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
+        const { friendshipId, requester, addressee } = payload
+        this.server.to(`user:${(addressee as { id: string }).id}`).emit('friend:request', {
+          friendshipId,
+          user: requester,
+          direction: 'incoming',
+          createdAt: new Date().toISOString()
+        })
+      }
+    )
+
+    this.events.on(
+      'friend:accepted',
+      (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
+        const { friendshipId, requester, addressee } = payload
+        this.server.to(`user:${(requester as { id: string }).id}`).emit('friend:accepted', {
+          friendshipId,
+          user: addressee
+        })
+        this.server.to(`user:${(addressee as { id: string }).id}`).emit('friend:accepted', {
+          friendshipId,
+          user: requester
+        })
+      }
+    )
+
+    this.events.on(
+      'friend:declined',
+      (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
+        this.server.to(`user:${payload.requesterId}`).emit('friend:declined', {
+          friendshipId: payload.friendshipId
+        })
+      }
+    )
+
+    this.events.on(
+      'friend:cancelled',
+      (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
+        this.server.to(`user:${payload.addresseeId}`).emit('friend:cancelled', {
+          friendshipId: payload.friendshipId
+        })
+      }
+    )
+
+    this.events.on(
+      'friend:removed',
+      (payload: { friendshipId: string; userId: string; otherUserId: string }) => {
+        this.server.to(`user:${payload.otherUserId}`).emit('friend:removed', {
+          friendshipId: payload.friendshipId,
+          userId: payload.userId
+        })
+      }
+    )
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {

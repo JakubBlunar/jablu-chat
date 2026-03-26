@@ -1,4 +1,4 @@
-import type { ChangeEmailInput, ChangePasswordInput, UpdateProfileInput, User, UserStatus } from '@chat/shared'
+import type { ChangeEmailInput, ChangePasswordInput, DmPrivacy, UpdateProfileInput, User, UserStatus } from '@chat/shared'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api } from '../lib/api'
@@ -79,6 +79,7 @@ type AuthState = {
   changePassword: (data: ChangePasswordInput) => Promise<void>
   changeEmail: (data: ChangeEmailInput) => Promise<void>
   updateStatus: (status: UserStatus) => Promise<void>
+  updateDmPrivacy: (dmPrivacy: DmPrivacy) => Promise<void>
   setUser: (user: AuthUser) => void
 }
 
@@ -96,7 +97,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: { ...data.user, status: data.user.status as UserStatus },
+          user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
           isAuthenticated: true
         })
       },
@@ -106,7 +107,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: { ...data.user, status: data.user.status as UserStatus },
+          user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
           isAuthenticated: true
         })
       },
@@ -135,7 +136,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: { ...data.user, status: data.user.status as UserStatus },
+          user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
           isAuthenticated: true
         })
       },
@@ -175,6 +176,11 @@ export const useAuthStore = create<AuthState>()(
         set({ user })
       },
 
+      updateDmPrivacy: async (dmPrivacy) => {
+        const user = await api.updateDmPrivacy(dmPrivacy)
+        set({ user })
+      },
+
       setUser: (user) => set({ user }),
 
       checkAuth: async () => {
@@ -208,7 +214,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               accessToken: data.accessToken,
               refreshToken: data.refreshToken,
-              user: { ...data.user, status: data.user.status as UserStatus },
+              user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
               isAuthenticated: true,
               isLoading: false
             })

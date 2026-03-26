@@ -1,4 +1,4 @@
-import type { UserStatus } from '@chat/shared'
+import type { FriendshipStatusResponse, UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
@@ -133,6 +133,7 @@ function ProfileCardContent({
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id)
   const [mutualServers, setMutualServers] = useState<MutualServer[]>([])
+  const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatusResponse | null>(null)
   const { orchestratedGoToChannel } = useAppNavigate()
 
   useEffect(() => {
@@ -142,6 +143,12 @@ function ProfileCardContent({
       .getMutualServers(user.id)
       .then((res) => {
         if (!cancelled) setMutualServers(res.servers)
+      })
+      .catch(() => {})
+    api
+      .getFriendshipStatus(user.id)
+      .then((res) => {
+        if (!cancelled) setFriendshipStatus(res)
       })
       .catch(() => {})
     return () => {
@@ -215,7 +222,8 @@ function ProfileCardContent({
         )}
 
         <VoiceVolumeSlider userId={user.id} />
-        <SendDmButton userId={user.id} onClose={onClose} />
+        <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={setFriendshipStatus} />
+        <SendDmButton userId={user.id} onClose={onClose} friendshipStatus={friendshipStatus} />
       </div>
     </>
   )
@@ -274,12 +282,135 @@ function VoiceVolumeSlider({ userId }: { userId: string }) {
   )
 }
 
-function SendDmButton({ userId, onClose }: { userId: string; onClose: () => void }) {
+function FriendButton({
+  userId,
+  status,
+  onStatusChange
+}: {
+  userId: string
+  status: FriendshipStatusResponse | null
+  onStatusChange: (s: FriendshipStatusResponse) => void
+}) {
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const [loading, setLoading] = useState(false)
+
+  const handleSendRequest = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.sendFriendRequest(userId)
+      onStatusChange({ status: 'pending_outgoing', friendshipId: res.friendshipId })
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [userId, onStatusChange])
+
+  const handleAccept = useCallback(async () => {
+    if (!status?.friendshipId) return
+    setLoading(true)
+    try {
+      await api.acceptFriendRequest(status.friendshipId)
+      onStatusChange({ status: 'friends', friendshipId: status.friendshipId })
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [status, onStatusChange])
+
+  const handleCancel = useCallback(async () => {
+    if (!status?.friendshipId) return
+    setLoading(true)
+    try {
+      await api.cancelFriendRequest(status.friendshipId)
+      onStatusChange({ status: 'none', friendshipId: null })
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
+  }, [status, onStatusChange])
+
+  if (!status || userId === currentUserId) return null
+
+  if (status.status === 'friends') {
+    return (
+      <div className="mt-3">
+        <span className="block rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-green-400">
+          Friends
+        </span>
+      </div>
+    )
+  }
+
+  if (status.status === 'pending_outgoing') {
+    return (
+      <div className="mt-3 flex items-center gap-2">
+        <span className="flex-1 rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-gray-400">
+          Request Sent
+        </span>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={handleCancel}
+          className="rounded-md bg-white/5 px-3 py-1.5 text-sm text-gray-400 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  if (status.status === 'pending_incoming') {
+    return (
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={handleAccept}
+          className="flex-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+        >
+          Accept Request
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        disabled={loading}
+        onClick={handleSendRequest}
+        className="w-full rounded-md bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
+      >
+        Add Friend
+      </button>
+    </div>
+  )
+}
+
+function SendDmButton({
+  userId,
+  onClose,
+  friendshipStatus
+}: {
+  userId: string
+  onClose: () => void
+  friendshipStatus: FriendshipStatusResponse | null
+}) {
   const currentUserId = useAuthStore((s) => s.user?.id)
   const { goToDm } = useAppNavigate()
   const addOrUpdateConv = useDmStore((s) => s.addOrUpdateConversation)
   const [loading, setLoading] = useState(false)
   const [dmError, setDmError] = useState<string | null>(null)
+  const [canDm, setCanDm] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!userId || userId === currentUserId) return
+    api.canDmUser(userId).then((res) => setCanDm(res.allowed)).catch(() => setCanDm(true))
+  }, [userId, currentUserId, friendshipStatus])
 
   const handleClick = useCallback(async () => {
     if (!userId || userId === currentUserId) return
@@ -294,8 +425,9 @@ function SendDmButton({ userId, onClose }: { userId: string; onClose: () => void
       }
       goToDm(conv.id)
       onClose()
-    } catch {
-      setDmError('Failed to open conversation')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to open conversation'
+      setDmError(msg.includes('friends') ? msg : 'Failed to open conversation')
     } finally {
       setLoading(false)
     }
@@ -303,12 +435,20 @@ function SendDmButton({ userId, onClose }: { userId: string; onClose: () => void
 
   if (userId === currentUserId) return null
 
+  if (canDm === false) {
+    return (
+      <div className="mt-3">
+        <p className="text-xs text-gray-500">Become friends to send messages.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="mt-3">
       {dmError && <p className="mb-1.5 text-xs text-red-400">{dmError}</p>}
       <button
         type="button"
-        disabled={loading}
+        disabled={loading || canDm === null}
         onClick={handleClick}
         className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
       >

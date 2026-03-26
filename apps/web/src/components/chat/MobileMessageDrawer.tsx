@@ -2,7 +2,7 @@ import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getSocket } from '@/lib/socket'
-import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -155,30 +155,14 @@ export function MobileMessageDrawer({
   }
 
   if (confirmDelete) {
-    return createPortal(
-      <ModalOverlay onClose={() => setConfirmDelete(false)} maxWidth="max-w-sm" zIndex="z-[120]">
-        <p className="text-lg font-semibold text-white">Delete Message</p>
-        <p className="mt-2 text-sm text-gray-300">
-          Are you sure you want to delete this message? This cannot be undone.
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(false)}
-            className="rounded-lg bg-surface-light px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
-      </ModalOverlay>,
-      document.body
+    return (
+      <ConfirmDialog
+        title="Delete Message"
+        description="Are you sure you want to delete this message? This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     )
   }
 

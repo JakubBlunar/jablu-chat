@@ -8,6 +8,7 @@ import { MessageRow } from '@/components/chat/MessageRow'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
 import { DmProfilePanel, UserProfileIcon } from '@/components/dm/DmProfilePanel'
+import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
@@ -205,16 +206,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   /* ── Empty states ── */
   if (!contextId) {
     if (isDm) {
-      return (
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 bg-surface text-center">
-          <p className="text-lg font-semibold text-white">Select a conversation</p>
-          <p className="max-w-sm text-sm text-gray-400">
-            {isMobile
-              ? 'Open the menu and pick a conversation, or tap a user to start chatting.'
-              : 'Choose a DM from the sidebar or click on a user to start chatting.'}
-          </p>
-        </div>
-      )
+      return <FriendsPage />
     }
     return (
       <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
