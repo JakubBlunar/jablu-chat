@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { DelayedRender } from '@/components/DelayedRender'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
@@ -142,6 +142,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     return map
   }, [members])
 
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  const membersByUsernameRef = useRef(membersByUsername)
+  membersByUsernameRef.current = membersByUsername
+
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -173,10 +178,22 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const virtuosoComponents = useMemo(() => ({ Footer: VirtuosoFooter }), [])
 
+  const lastOwnMsgIdRef = useRef(lastOwnMsg?.id)
+  lastOwnMsgIdRef.current = lastOwnMsg?.id
+  const seenByLabelRef = useRef(seenByLabel)
+  seenByLabelRef.current = seenByLabel
+  const channelRefsRef = useRef(dm.channelRefs)
+  channelRefsRef.current = dm.channelRefs
+
+  const computeItemKey = useCallback(
+    (index: number) => messagesRef.current[index - scroll.firstItemIndex]?.id ?? index,
+    [scroll.firstItemIndex]
+  )
+
   const renderItem = useCallback(
     (index: number, msg: Message) => {
       const dataIndex = index - scroll.firstItemIndex
-      const prev = dataIndex > 0 ? messages[dataIndex - 1] : undefined
+      const prev = dataIndex > 0 ? messagesRef.current[dataIndex - 1] : undefined
       const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
       const showHead = newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
       return (
@@ -190,17 +207,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             onReply={handleReply}
             onUserClick={handleUserClick}
             onMentionClick={isDm ? undefined : handleMentionClick}
-            channels={dm.channelRefs}
+            channels={channelRefsRef.current}
             onChannelClick={dm.handleChannelClick}
-            membersByUsername={membersByUsername}
+            membersByUsername={membersByUsernameRef.current}
           />
-          {lastOwnMsg?.id === msg.id && seenByLabel && (
-            <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabel}</div>
+          {lastOwnMsgIdRef.current === msg.id && seenByLabelRef.current && (
+            <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabelRef.current}</div>
           )}
         </div>
       )
     },
-    [scroll.firstItemIndex, messages, mode, contextId, handleReply, handleUserClick, handleMentionClick, isDm, dm.channelRefs, dm.handleChannelClick, membersByUsername, lastOwnMsg?.id, seenByLabel]
+    [scroll.firstItemIndex, mode, contextId, handleReply, handleUserClick, handleMentionClick, isDm, dm.handleChannelClick]
   )
 
   /* ── Empty states ── */
@@ -279,7 +296,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               ref={scroll.virtuosoRef}
               customScrollParent={scroll.scrollParent}
               data={messages}
-              computeItemKey={(index) => messages[index - scroll.firstItemIndex]?.id ?? index}
+              computeItemKey={computeItemKey}
               firstItemIndex={scroll.firstItemIndex}
               initialTopMostItemIndex={scroll.scrollTargetIndexRef.current ?? messages.length - 1}
               alignToBottom

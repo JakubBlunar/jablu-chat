@@ -27,11 +27,13 @@ export function useProfileCard(
   membersRef.current = members
   const onlineIdsRef = useRef(onlineIds)
   onlineIdsRef.current = onlineIds
+  const currentConvRef = useRef(currentConv)
+  currentConvRef.current = currentConv
 
   const handleUserClick = useCallback(
     (authorId: string, rect: DOMRect) => {
       if (isDm) {
-        const convMember = currentConv?.members.find((m) => m.userId === authorId)
+        const convMember = currentConvRef.current?.members.find((m) => m.userId === authorId)
         if (!convMember) return
         setCardUser({
           id: convMember.userId,
@@ -59,7 +61,7 @@ export function useProfileCard(
       }
       setCardRect(rect)
     },
-    [isDm, currentConv]
+    [isDm]
   )
 
   const handleMentionClick = useCallback((username: string, rect: DOMRect) => {
