@@ -25,20 +25,24 @@ export function GroupDmModal({
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [searchError, setSearchError] = useState(false)
 
   useEffect(() => {
     const q = search.trim()
     if (!q) {
       setResults([])
+      setSearchError(false)
       return
     }
     const timer = setTimeout(async () => {
       setLoading(true)
+      setSearchError(false)
       try {
         const data = await api.searchUsers(q)
         setResults(data)
       } catch {
         setResults([])
+        setSearchError(true)
       }
       setLoading(false)
     }, 300)
@@ -118,6 +122,7 @@ export function GroupDmModal({
 
         <SimpleBar className="max-h-40 space-y-1">
           {loading && <p className="text-xs text-gray-400">Searching…</p>}
+          {searchError && !loading && <p className="text-xs text-red-400">Search failed. Try again.</p>}
           {results
             .filter((r) => !selected.includes(r.id))
             .map((r) => (

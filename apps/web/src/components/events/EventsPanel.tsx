@@ -12,7 +12,7 @@ function formatEventTime(iso: string): string {
   const diff = d.getTime() - now.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
 
-  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   if (days < 0) return `Started ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${time}`
   if (days === 0) return `Today at ${time}`

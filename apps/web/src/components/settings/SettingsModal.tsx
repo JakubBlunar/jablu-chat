@@ -182,6 +182,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
               onClick={onClose}
               className="rounded-full p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
               title="Close"
+              aria-label="Close settings"
             >
               <CloseIcon />
             </button>

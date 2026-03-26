@@ -48,7 +48,7 @@ export function FriendsPage() {
       <header className="flex shrink-0 items-center gap-3 border-b border-black/20 px-4 py-3">
         <FriendsIcon />
         <h1 className="text-base font-semibold text-white">Friends</h1>
-        <div className="ml-2 flex items-center gap-1">
+        <div className="ml-2 flex items-center gap-1" role="tablist">
           <TabBtn active={tab === 'online'} onClick={() => { setTab('online'); setAddFriendOpen(false) }}>
             Online
           </TabBtn>
@@ -118,6 +118,8 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button
       type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
       className={`rounded px-2.5 py-1 text-sm font-medium transition ${
         active ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'

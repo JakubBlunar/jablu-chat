@@ -5,6 +5,7 @@ import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api, type AuditLogEntry } from '@/lib/api'
+import { formatFullDateTime } from '@/lib/format-time'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import type { Member } from '@/stores/member.store'
@@ -598,7 +599,7 @@ function AuditLogTab({ server }: { server: Server }) {
                 </p>
                 {e.details && <p className="mt-0.5 text-xs text-gray-500">{e.details}</p>}
               </div>
-              <time className="shrink-0 text-xs text-gray-500">{new Date(e.createdAt).toLocaleString()}</time>
+              <time className="shrink-0 text-xs text-gray-500">{formatFullDateTime(e.createdAt)}</time>
             </div>
           ))}
         </div>

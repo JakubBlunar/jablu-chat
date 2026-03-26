@@ -31,7 +31,7 @@ export function ModalOverlay({
   return (
     <div
       className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 ${isMobile ? 'bg-black/70 backdrop-blur-sm' : 'bg-black/80'}`}
-      role="presentation"
+      role="none"
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchEnd={(e) => {
@@ -48,6 +48,7 @@ export function ModalOverlay({
     >
       <div
         role="dialog"
+        aria-modal="true"
         className={`w-full ${maxWidth} rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10 ${noPadding ? '' : 'p-6'} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >

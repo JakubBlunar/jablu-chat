@@ -101,6 +101,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         onClick={handleShowVoiceRoom}
         className="w-full text-left transition hover:opacity-80"
         title="Go to voice room"
+        aria-label="Go to voice room"
       >
         <div className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />

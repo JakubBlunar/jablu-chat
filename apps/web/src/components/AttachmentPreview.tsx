@@ -16,9 +16,10 @@ function LightboxOverlay({ onClose, children }: { onClose: () => void; children:
   }, [onClose])
 
   return createPortal(
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80" role="dialog" aria-modal="true" onClick={onClose}>
       <button
         type="button"
+        aria-label="Close"
         onClick={onClose}
         className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
         style={{ marginTop: 'env(safe-area-inset-top, 0px)', marginRight: 'env(safe-area-inset-right, 0px)' }}

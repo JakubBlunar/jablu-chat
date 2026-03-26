@@ -92,12 +92,14 @@ export function MobileMessageDrawer({
   }, [onReply, close])
 
   const handleCopy = useCallback(() => {
-    if (message.content) navigator.clipboard.writeText(message.content)
+    if (message.content) {
+      try { navigator.clipboard.writeText(message.content) } catch {}
+    }
     close()
   }, [message.content, close])
 
   const handleCopyLink = useCallback((url: string) => {
-    navigator.clipboard.writeText(url)
+    try { navigator.clipboard.writeText(url) } catch {}
     close()
   }, [close])
 
@@ -136,6 +138,8 @@ export function MobileMessageDrawer({
     return createPortal(
       <div
         className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => {
@@ -176,6 +180,8 @@ export function MobileMessageDrawer({
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchEnd={(e) => {

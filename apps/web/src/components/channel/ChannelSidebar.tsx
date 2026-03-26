@@ -135,8 +135,16 @@ function VoiceParticipantRow({
 }) {
   return (
     <li
+      role="button"
+      tabIndex={0}
       className="group/vp flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition hover:bg-white/[.07]"
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(e as unknown as React.MouseEvent)
+        }
+      }}
     >
       <div className="relative shrink-0">
         <UserAvatar
@@ -438,6 +446,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         <div ref={menuRef} className="relative">
           <button
             type="button"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
             onClick={() => currentServer && setMenuOpen((v) => !v)}
             className="flex h-12 w-full shrink-0 items-center justify-between border-b border-black/20 px-3 shadow-sm transition hover:bg-white/[0.04]"
           >
@@ -653,43 +663,44 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               return (
                 <li key={ch.id}>
                   <div className="group/ch rounded-md px-2 py-1.5 text-[15px] text-gray-300">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        if (longPressFired.current) {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          longPressFired.current = false
-                          return
-                        }
-                        handleVoiceChannelClick(ch)
-                      }}
-                      onTouchStart={() => handleChannelTouchStart(ch)}
-                      onTouchEnd={handleChannelTouchEnd}
-                      onTouchMove={handleChannelTouchMove}
-                      onContextMenu={handleChannelContextMenu}
-                      className={`flex w-full cursor-pointer items-center gap-2 text-left ${inThisChannel ? 'text-white' : ''}`}
-                    >
-                      <SpeakerIcon />
-                      <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                      {participants.length > 0 && (
-                        <span className="shrink-0 text-xs text-gray-400">{participants.length}</span>
-                      )}
+                    <div className="flex w-full items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          if (longPressFired.current) {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            longPressFired.current = false
+                            return
+                          }
+                          handleVoiceChannelClick(ch)
+                        }}
+                        onTouchStart={() => handleChannelTouchStart(ch)}
+                        onTouchEnd={handleChannelTouchEnd}
+                        onTouchMove={handleChannelTouchMove}
+                        onContextMenu={handleChannelContextMenu}
+                        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left ${inThisChannel ? 'text-white' : ''}`}
+                      >
+                        <SpeakerIcon />
+                        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                        {participants.length > 0 && (
+                          <span className="shrink-0 text-xs text-gray-400">{participants.length}</span>
+                        )}
+                      </button>
                       {isAdminOrOwner && !isMobile && (
-                        <span
+                        <button
+                          type="button"
+                          aria-label="Edit channel"
                           className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
                           onClick={(e) => {
                             e.stopPropagation()
                             setEditingChannel(ch)
                           }}
-                          role="button"
-                          tabIndex={-1}
-                          title="Edit channel"
                         >
                           <GearSmallIcon />
-                        </span>
+                        </button>
                       )}
-                    </button>
+                    </div>
                     {participants.length > 0 ? (
                       <ul className="mt-1 space-y-0.5">
                         {participants.map((p) => {

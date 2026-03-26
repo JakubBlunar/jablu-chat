@@ -34,6 +34,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
             <span className="text-sm font-semibold text-white">GIFs</span>
             <button
               type="button"
+              aria-label="Close"
               onClick={onClose}
               className="rounded-full p-1 text-gray-400 hover:bg-white/10 hover:text-white"
             >
