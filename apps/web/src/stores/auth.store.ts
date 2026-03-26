@@ -130,7 +130,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       refreshSession: async () => {
-        const rt = get().refreshToken
+        let rt = get().refreshToken
+        if (!rt) {
+          try {
+            const raw = localStorage.getItem('chat-auth')
+            if (raw) rt = (JSON.parse(raw) as { state?: { refreshToken?: string } }).state?.refreshToken ?? null
+          } catch { /* ignore */ }
+        }
         if (!rt) return
         const data = await api.refreshToken(rt)
         set({
@@ -184,7 +190,17 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
 
       checkAuth: async () => {
-        const { accessToken, refreshToken } = get()
+        let { accessToken, refreshToken } = get()
+        if (!accessToken || !refreshToken) {
+          try {
+            const raw = localStorage.getItem('chat-auth')
+            if (raw) {
+              const parsed = (JSON.parse(raw) as { state?: { accessToken?: string; refreshToken?: string } }).state
+              accessToken = accessToken || parsed?.accessToken || null
+              refreshToken = refreshToken || parsed?.refreshToken || null
+            }
+          } catch { /* ignore */ }
+        }
         set({ isLoading: true })
 
         if (!accessToken || !refreshToken) {

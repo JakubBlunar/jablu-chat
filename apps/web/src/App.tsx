@@ -50,8 +50,12 @@ function AuthBootstrap() {
         store.logout().catch(() => {})
       }
     }
+    api.onTokenRefresh = (accessToken, refreshToken) => {
+      useAuthStore.setState({ accessToken, refreshToken })
+    }
     return () => {
       api.onAuthFailure = null
+      api.onTokenRefresh = null
     }
   }, [])
 
