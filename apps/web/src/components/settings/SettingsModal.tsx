@@ -144,7 +144,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
             <LogOutButton onClose={onClose} />
           </div>
         </div>
-        <SimpleBar className="min-w-0 flex-1">
+        <SimpleBar className="min-h-0 flex-1">
           <div className="px-4 py-6">{settingsContent}</div>
         </SimpleBar>
       </div>
