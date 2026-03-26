@@ -236,6 +236,65 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   }
 
   /* ── Render ── */
+  const viewportBuffer = isMobile ? { top: 1500, bottom: 600 } : { top: 800, bottom: 200 }
+
+  const scrollContent = !isDm && !activeChannel ? (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+      <div className="rounded-full bg-surface-dark p-6 text-gray-400">
+        <HashChannelIcon />
+      </div>
+      <p className="max-w-sm text-lg font-semibold text-white">Welcome to your server</p>
+      <p className="max-w-sm text-sm text-gray-400">
+        {isMobile
+          ? 'Open the menu to pick a channel, or join a server using an invite link.'
+          : 'Pick a text channel on the left to start chatting, or join a server using an invite link.'}
+      </p>
+    </div>
+  ) : isLoading && messages.length === 0 ? (
+    <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+        <p className="text-sm text-gray-400">Loading messages...</p>
+      </div>
+    </DelayedRender>
+  ) : !isDm && activeChannel && messages.length === 0 ? (
+    <div className="flex flex-1 flex-col justify-end pb-6">
+      <div className="border-t border-white/10 pt-4">
+        <h2 className="text-2xl font-bold text-white">
+          This is the beginning of <span className="text-primary">#{activeChannel.name}</span>
+        </h2>
+        <p className="mt-2 text-[15px] text-gray-400">Send a message to spark the conversation.</p>
+      </div>
+    </div>
+  ) : isDm && messages.length === 0 ? (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12">
+      <svg className="h-10 w-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+      <h3 className="text-sm font-medium text-gray-400">No messages yet</h3>
+      <p className="text-xs text-gray-500">Say hello to start the conversation!</p>
+    </div>
+  ) : messages.length > 0 && scroll.scrollParent ? (
+    <Virtuoso
+      key={scroll.virtuosoKey}
+      ref={scroll.virtuosoRef}
+      customScrollParent={scroll.scrollParent}
+      data={messages}
+      computeItemKey={computeItemKey}
+      firstItemIndex={scroll.firstItemIndex}
+      initialTopMostItemIndex={scroll.scrollTargetIndexRef.current ?? messages.length - 1}
+      alignToBottom
+      atBottomThreshold={100}
+      followOutput={scroll.followOutput}
+      atBottomStateChange={scroll.handleAtBottomChange}
+      startReached={hasMore ? scroll.startReached : undefined}
+      endReached={hasNewer && fetchNewerMessages ? scroll.endReached : undefined}
+      increaseViewportBy={viewportBuffer}
+      components={virtuosoComponents}
+      itemContent={renderItem}
+    />
+  ) : null
+
   const messageList = (
     <>
       {!isDm && pinned.pinnedOpen && channelId && (
@@ -250,67 +309,22 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       )}
 
       <div className="relative min-h-0 flex-1">
-        <SimpleBar
-          className={`flex h-full flex-col px-4 py-2 ${scroll.settling ? 'opacity-0' : 'opacity-100 transition-opacity duration-150'}`}
-          scrollableNodeProps={{ ref: scroll.scrollParentRef }}
-        >
-          {!isDm && !activeChannel ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-              <div className="rounded-full bg-surface-dark p-6 text-gray-400">
-                <HashChannelIcon />
-              </div>
-              <p className="max-w-sm text-lg font-semibold text-white">Welcome to your server</p>
-              <p className="max-w-sm text-sm text-gray-400">
-                {isMobile
-                  ? 'Open the menu to pick a channel, or join a server using an invite link.'
-                  : 'Pick a text channel on the left to start chatting, or join a server using an invite link.'}
-              </p>
-            </div>
-          ) : isLoading && messages.length === 0 ? (
-            <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
-              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
-                <p className="text-sm text-gray-400">Loading messages...</p>
-              </div>
-            </DelayedRender>
-          ) : !isDm && activeChannel && messages.length === 0 ? (
-            <div className="flex flex-1 flex-col justify-end pb-6">
-              <div className="border-t border-white/10 pt-4">
-                <h2 className="text-2xl font-bold text-white">
-                  This is the beginning of <span className="text-primary">#{activeChannel.name}</span>
-                </h2>
-                <p className="mt-2 text-[15px] text-gray-400">Send a message to spark the conversation.</p>
-              </div>
-            </div>
-          ) : isDm && messages.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12">
-              <svg className="h-10 w-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <h3 className="text-sm font-medium text-gray-400">No messages yet</h3>
-              <p className="text-xs text-gray-500">Say hello to start the conversation!</p>
-            </div>
-          ) : messages.length > 0 && scroll.scrollParent ? (
-            <Virtuoso
-              key={scroll.virtuosoKey}
-              ref={scroll.virtuosoRef}
-              customScrollParent={scroll.scrollParent}
-              data={messages}
-              computeItemKey={computeItemKey}
-              firstItemIndex={scroll.firstItemIndex}
-              initialTopMostItemIndex={scroll.scrollTargetIndexRef.current ?? messages.length - 1}
-              alignToBottom
-              atBottomThreshold={100}
-              followOutput={scroll.followOutput}
-              atBottomStateChange={scroll.handleAtBottomChange}
-              startReached={hasMore ? scroll.startReached : undefined}
-              endReached={hasNewer && fetchNewerMessages ? scroll.endReached : undefined}
-              increaseViewportBy={400}
-              components={virtuosoComponents}
-              itemContent={renderItem}
-            />
-          ) : null}
-        </SimpleBar>
+        {isMobile ? (
+          <div
+            ref={scroll.scrollParentRef}
+            className={`flex h-full flex-col overflow-y-auto overscroll-contain px-4 py-2 ${scroll.settling ? 'opacity-0' : 'opacity-100 transition-opacity duration-150'}`}
+            style={{ overflowAnchor: 'none' }}
+          >
+            {scrollContent}
+          </div>
+        ) : (
+          <SimpleBar
+            className={`flex h-full flex-col px-4 py-2 ${scroll.settling ? 'opacity-0' : 'opacity-100 transition-opacity duration-150'}`}
+            scrollableNodeProps={{ ref: scroll.scrollParentRef, style: { overflowAnchor: 'none' } }}
+          >
+            {scrollContent}
+          </SimpleBar>
+        )}
 
         <ScrollToBottomButton
           atBottom={scroll.atBottom}

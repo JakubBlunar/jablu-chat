@@ -63,7 +63,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     const fetchId = ++_dmFetchId
     set({ isLoading: true })
     try {
-      const page = await api.getDmMessages(conversationId, cursor)
+      const page = await api.getDmMessages(conversationId, cursor, 100)
       if (_dmFetchId !== fetchId) {
         set({ isLoading: false })
         return
@@ -98,7 +98,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     const fetchId = ++_dmFetchId
     set({ isLoading: true })
     try {
-      const page = await api.getDmMessagesAround(conversationId, messageId)
+      const page = await api.getDmMessagesAround(conversationId, messageId, 100)
       if (_dmFetchId !== fetchId) {
         set({ isLoading: false })
         return

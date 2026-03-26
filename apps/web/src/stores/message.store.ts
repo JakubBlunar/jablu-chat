@@ -56,7 +56,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     try {
       const params = new URLSearchParams()
       if (cursor) params.set('cursor', cursor)
-      params.set('limit', '50')
+      params.set('limit', '100')
       const qs = params.toString()
       const path = `/api/channels/${channelId}/messages${qs ? `?${qs}` : ''}`
       const page = await api.get<MessagesPage>(path)
@@ -95,7 +95,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     const fetchId = ++_msgFetchId
     set({ isLoading: true })
     try {
-      const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=50`
+      const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=100`
       const page = await api.get<MessagesPage>(path)
       if (_msgFetchId !== fetchId) {
         set({ isLoading: false })
@@ -121,7 +121,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     const newestId = messages[messages.length - 1].id
     set({ isLoading: true })
     try {
-      const path = `/api/channels/${channelId}/messages?after=${newestId}&limit=50`
+      const path = `/api/channels/${channelId}/messages?after=${newestId}&limit=100`
       const page = await api.get<MessagesPage>(path)
       if (get().loadedForChannelId !== channelId) {
         set({ isLoading: false })

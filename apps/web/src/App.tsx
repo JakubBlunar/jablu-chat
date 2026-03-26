@@ -26,6 +26,10 @@ const ResetPasswordPage = lazy(() =>
 
 migrateSettings()
 
+// Best-effort portrait lock via Screen Orientation API (works on Android PWA, no-op on iOS)
+const _orient = screen?.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined
+_orient?.lock?.('portrait').catch(() => {})
+
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
 function AuthBootstrap() {

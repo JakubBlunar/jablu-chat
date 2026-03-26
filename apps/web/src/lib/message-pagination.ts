@@ -1,6 +1,6 @@
 import type { Message } from '@chat/shared'
 
-export const MAX_MESSAGES = 200
+export const MAX_MESSAGES = 300
 
 export function toChronological(messagesDesc: Message[]): Message[] {
   return messagesDesc.slice().reverse()
