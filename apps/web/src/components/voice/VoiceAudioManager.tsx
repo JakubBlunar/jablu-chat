@@ -18,6 +18,12 @@ function getAudioCtx(): AudioContext {
   return _audioCtx
 }
 
+function ensureCtxRunning() {
+  if (_audioCtx && _audioCtx.state === 'suspended') {
+    _audioCtx.resume().catch(() => {})
+  }
+}
+
 /**
  * Persistent audio manager that keeps remote participants' audio playing
  * even when VoiceRoom is unmounted (e.g. user navigated to DMs or another channel).
@@ -75,10 +81,7 @@ export function VoiceAudioManager() {
 
       document.body.appendChild(audio)
       audio.play().catch(() => {})
-
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {})
-      }
+      ensureCtxRunning()
 
       nodesRef.current.set(key, { audio, gain, source, trackId: mst.id })
     },
@@ -143,6 +146,57 @@ export function VoiceAudioManager() {
     }
   }, [room, attachTrack, detachEntry, detachAll])
 
+  // Keep AudioContext alive: periodic heartbeat + visibility/interaction recovery.
+  // Opera and some Chromium browsers aggressively suspend AudioContext when the tab
+  // loses focus or battery-saver kicks in, causing audio to cut out.
+  useEffect(() => {
+    if (!room) return
+
+    const heartbeat = setInterval(() => {
+      ensureCtxRunning()
+      for (const [, entry] of nodesRef.current) {
+        if (entry.audio.paused && entry.audio.srcObject) {
+          entry.audio.play().catch(() => {})
+        }
+      }
+    }, 4000)
+
+    const onVisibility = () => {
+      if (!document.hidden) {
+        ensureCtxRunning()
+        for (const [, entry] of nodesRef.current) {
+          if (entry.audio.paused && entry.audio.srcObject) {
+            entry.audio.play().catch(() => {})
+          }
+        }
+      }
+    }
+
+    const onInteraction = () => ensureCtxRunning()
+
+    document.addEventListener('visibilitychange', onVisibility)
+    document.addEventListener('click', onInteraction)
+    document.addEventListener('touchstart', onInteraction)
+    document.addEventListener('keydown', onInteraction)
+
+    const ctx = _audioCtx
+    const onStateChange = () => {
+      if (ctx?.state === 'suspended') {
+        ctx.resume().catch(() => {})
+      }
+    }
+    ctx?.addEventListener('statechange', onStateChange)
+
+    return () => {
+      clearInterval(heartbeat)
+      document.removeEventListener('visibilitychange', onVisibility)
+      document.removeEventListener('click', onInteraction)
+      document.removeEventListener('touchstart', onInteraction)
+      document.removeEventListener('keydown', onInteraction)
+      ctx?.removeEventListener('statechange', onStateChange)
+    }
+  }, [room])
+
   useEffect(() => {
     for (const [key, entry] of nodesRef.current) {
       if (isDeafened) {
@@ -165,19 +219,6 @@ export function VoiceAudioManager() {
       ;(ctx as any).setSinkId(audioOutputDeviceId || '').catch(() => {})
     }
   }, [audioOutputDeviceId])
-
-  useEffect(() => {
-    if (!room) return
-    const ctx = _audioCtx
-    if (!ctx || ctx.state !== 'suspended') return
-    const resume = () => ctx.resume().catch(() => {})
-    document.addEventListener('click', resume, { once: true })
-    document.addEventListener('touchstart', resume, { once: true })
-    return () => {
-      document.removeEventListener('click', resume)
-      document.removeEventListener('touchstart', resume)
-    }
-  }, [room])
 
   useEffect(() => {
     if (!room || !navigator.mediaDevices?.addEventListener) return

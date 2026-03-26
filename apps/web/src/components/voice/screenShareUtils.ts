@@ -14,9 +14,9 @@ const RESOLUTION_MAP = {
 }
 
 const BITRATE_MAP: Record<string, Record<number, number>> = {
-  '720p': { 5: 800_000, 15: 1_500_000, 20: 2_000_000, 30: 3_000_000 },
-  '1080p': { 5: 1_500_000, 15: 2_500_000, 20: 3_500_000, 30: 5_000_000 },
-  native: { 5: 2_000_000, 15: 3_000_000, 20: 4_000_000, 30: 6_000_000 }
+  '720p': { 5: 1_000_000, 15: 2_000_000, 20: 2_500_000, 30: 4_000_000 },
+  '1080p': { 5: 2_000_000, 15: 3_500_000, 20: 5_000_000, 30: 8_000_000 },
+  native: { 5: 3_000_000, 15: 6_000_000, 20: 8_000_000, 30: 14_000_000 }
 }
 
 export async function startScreenShareWithSettings(settings: ScreenShareSettings) {
@@ -75,11 +75,13 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
     const videoTrack = stream.getVideoTracks()[0]
     if (!videoTrack) return
 
+    videoTrack.contentHint = 'detail'
+
     const actualSettings = videoTrack.getSettings()
     const height = actualSettings.height ?? 1080
     const fps = actualSettings.frameRate ?? 30
     const bitrate = BITRATE_MAP[settings.resolution]?.[settings.fps]
-      ?? (height <= 720 ? (fps <= 15 ? 1_500_000 : 3_000_000) : (fps <= 15 ? 2_500_000 : 5_000_000))
+      ?? (height <= 720 ? (fps <= 15 ? 2_000_000 : 4_000_000) : (fps <= 15 ? 3_500_000 : 8_000_000))
 
     const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
@@ -156,6 +158,8 @@ export async function publishScreenShare(
 
     const videoTrack = stream.getVideoTracks()[0]
     if (!videoTrack) return
+
+    videoTrack.contentHint = 'detail'
 
     const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
