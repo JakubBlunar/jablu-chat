@@ -24,6 +24,13 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+@media (pointer: coarse) {
+  *:not(input):not(textarea):not([contenteditable='true']) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
 /* Prevent iOS Safari auto-zoom on input focus (triggers at <16px) */
 input:not([type='checkbox']):not([type='radio']):not([type='range']),
 textarea,

@@ -15,6 +15,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
   const isMobile = useIsMobile()
 
   useEffect(() => {
+    if (isMobile) return
     function handleClick(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         onClose()
@@ -22,7 +23,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     }
     document.addEventListener('pointerdown', handleClick)
     return () => document.removeEventListener('pointerdown', handleClick)
-  }, [onClose])
+  }, [onClose, isMobile])
 
   if (isMobile) {
     return createPortal(

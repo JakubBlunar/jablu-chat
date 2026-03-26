@@ -14,6 +14,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (isMobile) return
     function handleClick(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         onClose()
@@ -21,7 +22,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
     }
     document.addEventListener('pointerdown', handleClick)
     return () => document.removeEventListener('pointerdown', handleClick)
-  }, [onClose])
+  }, [onClose, isMobile])
 
   const content = <GifPickerContent onSelect={onSelect} onClose={onClose} />
 
