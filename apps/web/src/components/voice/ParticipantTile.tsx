@@ -137,7 +137,7 @@ export function ParticipantTile({
         autoPlay
         playsInline
         muted={participant.isLocal}
-        className={`h-full w-full object-cover ${hasVideo ? '' : 'hidden'}`}
+        className={`h-full w-full object-contain ${hasVideo ? '' : 'hidden'}`}
       />
 
       {!hasVideo && (
