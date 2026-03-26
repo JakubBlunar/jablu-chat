@@ -7,7 +7,7 @@ import { MessageActions } from '@/components/chat/MessageActions'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
-import { formatSmartTimestamp } from '@/lib/format-time'
+import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
 import { getSocket } from '@/lib/socket'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
@@ -329,7 +329,7 @@ export const MessageRow = memo(function MessageRow({
         <div className={`flex ${isDm ? 'w-8' : 'w-10'} shrink-0 justify-center pt-1`}>
           {!isDm && (
             <span className="text-[10px] text-gray-500 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
-              {formatSmartTimestamp(message.createdAt)}
+              {formatTimeOnly(message.createdAt)}
             </span>
           )}
         </div>

@@ -4,9 +4,16 @@ function isSameDay(a: Date, b: Date): boolean {
 
 function timeOnly(d: Date): string {
   return d.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit'
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
   })
+}
+
+export function formatTimeOnly(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return timeOnly(d)
 }
 
 export function formatSmartTimestamp(iso: string): string {
