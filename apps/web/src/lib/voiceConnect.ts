@@ -62,7 +62,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
         ...(devices.audioInput ? { deviceId: { exact: devices.audioInput } } : {})
       },
       publishDefaults: {
-        audioEncoding: { maxBitrate: 48_000 },
+        audioPreset: { maxBitrate: 48_000 },
         dtx: true,
         red: true
       }
