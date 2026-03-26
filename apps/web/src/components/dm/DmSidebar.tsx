@@ -96,7 +96,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           title="New Message"
           aria-label="New Message"
           onClick={() => setGroupDmOpen(true)}
-          className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
+          className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
           <PlusIcon />
         </button>
@@ -195,12 +195,13 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                 <button
                   type="button"
                   title="Close conversation"
+                  aria-label="Close conversation"
                   onClick={(e) => {
                     e.stopPropagation()
                     void closeConversation(conv.id)
                     if (active) goToDms()
                   }}
-                  className="shrink-0 rounded p-0.5 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                  className="shrink-0 rounded p-1 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
                 >
                   <CloseIcon />
                 </button>

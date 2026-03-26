@@ -1006,7 +1006,7 @@ function UsersTab({
                           </p>
                           <p className="text-xs text-gray-500">
                             IP: {s.ipAddress ?? 'Unknown'} &middot; Created {fmtDate(s.createdAt)}
-                            {s.lastUsedAt && ` · Last used ${new Date(s.lastUsedAt).toLocaleString()}`}
+                            {s.lastUsedAt && ` · Last used ${fmtDateTime(s.lastUsedAt)}`}
                           </p>
                         </div>
                         <button
@@ -1354,7 +1354,7 @@ function ModerationTab() {
                       </>
                     )}
                     <time className="ml-auto shrink-0 text-xs text-gray-500">
-                      {new Date(msg.createdAt).toLocaleString()}
+                      {fmtDateTime(msg.createdAt)}
                     </time>
                   </div>
                   <p className="mt-1 text-sm text-gray-300 whitespace-pre-wrap break-all">
@@ -1594,7 +1594,7 @@ function AuditLogTab({ servers }: { servers: AdminServer[] }) {
                 {log.details && <p className="mt-0.5 text-gray-500 break-all">{log.details}</p>}
               </div>
               <time className="shrink-0 text-xs text-gray-500 whitespace-nowrap">
-                {new Date(log.createdAt).toLocaleString()}
+                {fmtDateTime(log.createdAt)}
               </time>
             </div>
           ))}
@@ -2172,6 +2172,17 @@ function fmtDate(iso: string) {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
+  })
+}
+
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
   })
 }
 

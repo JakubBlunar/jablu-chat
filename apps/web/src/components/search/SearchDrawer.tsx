@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api, type SearchResult } from '@/lib/api'
+import { formatSmartTimestamp } from '@/lib/format-time'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -82,6 +83,11 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         setOffset(0)
         onQueryChange(value)
       }, 400)
+    } else {
+      setOffset(0)
+      onQueryChange('')
+      setResults([])
+      setTotal(0)
     }
   }
 
@@ -217,6 +223,8 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
           </div>
         ) : results.length === 0 && query.trim() ? (
           <p className="px-3 py-8 text-center text-sm text-gray-400">No results found</p>
+        ) : results.length === 0 && !query.trim() ? (
+          <p className="px-3 py-8 text-center text-sm text-gray-500">Type to search</p>
         ) : (
           <div className="py-1">
             {results.map((r) => (
@@ -245,7 +253,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                     ) : null}
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-300">{r.content}</p>
-                  <time className="mt-1 block text-[10px] text-gray-500">{new Date(r.createdAt).toLocaleString()}</time>
+                  <time className="mt-1 block text-[10px] text-gray-500">{formatSmartTimestamp(r.createdAt)}</time>
                 </div>
               </button>
             ))}

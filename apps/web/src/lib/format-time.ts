@@ -56,6 +56,19 @@ export function formatDateSeparator(iso: string): string {
   })
 }
 
+export function formatFullDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
 export function isDifferentDay(a: string, b: string): boolean {
   const da = new Date(a)
   const db = new Date(b)
