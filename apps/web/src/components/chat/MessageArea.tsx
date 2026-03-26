@@ -1,6 +1,5 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import SimpleBar from 'simplebar-react'
 import { DelayedRender } from '@/components/DelayedRender'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -13,7 +12,6 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
 import { formatDateSeparator, isDifferentDay } from '@/lib/format-time'
-import { Virtuoso } from 'react-virtuoso'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
@@ -97,8 +95,6 @@ function isGap(a: Message, b: Message): boolean {
   return tb - ta > GROUP_GAP_MS
 }
 
-const VirtuosoFooter = () => <div className="h-8" />
-
 /* ── MessageArea ── */
 
 export interface MessageAreaProps {
@@ -111,7 +107,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isMobile = useIsMobile()
   const isDm = mode === 'dm'
   const store = useMessageStoreAdapter(mode)
-  const { messages, isLoading, hasMore, hasNewer, fetchNewerMessages } = store
+  const { messages, isLoading, hasMore, hasNewer } = store
 
   const userId = useAuthStore((s) => s.user?.id)
 
@@ -149,9 +145,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     })
   }, [])
 
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
-
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -181,49 +174,21 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       .catch(() => {})
   }, [])
 
-  const virtuosoComponents = useMemo(() => ({ Footer: VirtuosoFooter }), [])
-
-  const lastOwnMsgIdRef = useRef(lastOwnMsg?.id)
-  lastOwnMsgIdRef.current = lastOwnMsg?.id
-  const seenByLabelRef = useRef(seenByLabel)
-  seenByLabelRef.current = seenByLabel
   const channelRefsRef = useRef(dm.channelRefs)
   channelRefsRef.current = dm.channelRefs
 
-  const computeItemKey = useCallback(
-    (index: number) => messagesRef.current[index - scroll.firstItemIndex]?.id ?? index,
-    [scroll.firstItemIndex]
-  )
-
-  const renderItem = useCallback(
-    (index: number, msg: Message) => {
-      const dataIndex = index - scroll.firstItemIndex
-      const prev = dataIndex > 0 ? messagesRef.current[dataIndex - 1] : undefined
+  const renderedItems = useMemo(() => {
+    const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      const prev = i > 0 ? messages[i - 1] : undefined
       const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
       const showHead = newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
-      return (
-        <div className="pb-0.5">
-          {newDay && <DateSeparator date={msg.createdAt} />}
-          <MessageRow
-            mode={mode}
-            message={msg}
-            showHead={showHead}
-            contextId={contextId!}
-            onReply={handleReply}
-            onUserClick={handleUserClick}
-            onMentionClick={isDm ? undefined : handleMentionClick}
-            channels={channelRefsRef.current}
-            onChannelClick={dm.handleChannelClick}
-            membersByUsername={membersByUsernameRef.current}
-          />
-          {lastOwnMsgIdRef.current === msg.id && seenByLabelRef.current && (
-            <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabelRef.current}</div>
-          )}
-        </div>
-      )
-    },
-    [scroll.firstItemIndex, mode, contextId, handleReply, handleUserClick, handleMentionClick, isDm, dm.handleChannelClick]
-  )
+      const isLastOwn = lastOwnMsg?.id === msg.id
+      items.push({ msg, showHead, newDay, isLastOwn })
+    }
+    return items
+  }, [messages, lastOwnMsg?.id])
 
   /* ── Empty states ── */
   if (!contextId) {
@@ -240,10 +205,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     )
   }
 
-  /* ── Render ── */
-  const viewportBuffer = isMobile ? { top: 1500, bottom: 600 } : { top: 800, bottom: 200 }
-
-  const scrollContent = !isDm && !activeChannel ? (
+  /* ── Scroll content ── */
+  const emptyState = !isDm && !activeChannel ? (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
       <div className="rounded-full bg-surface-dark p-6 text-gray-400">
         <HashChannelIcon />
@@ -279,26 +242,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       <h3 className="text-sm font-medium text-gray-400">No messages yet</h3>
       <p className="text-xs text-gray-500">Say hello to start the conversation!</p>
     </div>
-  ) : messages.length > 0 && scroll.scrollParent ? (
-    <Virtuoso
-      key={scroll.virtuosoKey}
-      ref={scroll.virtuosoRef}
-      customScrollParent={scroll.scrollParent}
-      data={messages}
-      computeItemKey={computeItemKey}
-      firstItemIndex={scroll.firstItemIndex}
-      initialTopMostItemIndex={scroll.scrollTargetIndexRef.current ?? messages.length - 1}
-      defaultItemHeight={64}
-      alignToBottom
-      atBottomThreshold={100}
-      followOutput={scroll.followOutput}
-      atBottomStateChange={scroll.handleAtBottomChange}
-      startReached={hasMore ? scroll.startReached : undefined}
-      endReached={hasNewer && fetchNewerMessages ? scroll.endReached : undefined}
-      increaseViewportBy={viewportBuffer}
-      components={virtuosoComponents}
-      itemContent={renderItem}
-    />
   ) : null
 
   const messageList = (
@@ -315,22 +258,50 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       )}
 
       <div className="relative min-h-0 flex-1">
-        {isMobile ? (
-          <div
-            ref={scroll.scrollParentRef}
-            className={`flex h-full flex-col overflow-y-auto overscroll-contain px-4 py-2 ${scroll.settling ? 'opacity-0' : 'opacity-100 transition-opacity duration-150'}`}
-            style={{ overflowAnchor: 'none' }}
-          >
-            {scrollContent}
-          </div>
-        ) : (
-          <SimpleBar
-            className={`flex h-full flex-col px-4 py-2 ${scroll.settling ? 'opacity-0' : 'opacity-100 transition-opacity duration-150'}`}
-            scrollableNodeProps={{ ref: scroll.scrollParentRef, style: { overflowAnchor: 'none' } }}
-          >
-            {scrollContent}
-          </SimpleBar>
-        )}
+        {(() => {
+          const scrollChildren = emptyState ?? (
+            <>
+              <div ref={scroll.bottomSentinelRef} className="h-1 shrink-0" />
+              {hasNewer && <div ref={scroll.newerSentinelRef} className="h-1 shrink-0" />}
+              <div className="h-6 shrink-0" />
+              {renderedItems.map(({ msg, showHead, newDay, isLastOwn }) => (
+                <div key={msg.id} className="pb-0.5">
+                  {newDay && <DateSeparator date={msg.createdAt} />}
+                  <MessageRow
+                    mode={mode}
+                    message={msg}
+                    showHead={showHead}
+                    contextId={contextId}
+                    onReply={handleReply}
+                    onUserClick={handleUserClick}
+                    onMentionClick={isDm ? undefined : handleMentionClick}
+                    channels={channelRefsRef.current}
+                    onChannelClick={dm.handleChannelClick}
+                    membersByUsername={membersByUsernameRef.current}
+                  />
+                  {isLastOwn && seenByLabel && (
+                    <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabel}</div>
+                  )}
+                </div>
+              ))}
+              {hasMore && <div ref={scroll.topSentinelRef} className="h-1 shrink-0" />}
+              {isLoading && (
+                <div className="flex justify-center py-3">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+                </div>
+              )}
+            </>
+          )
+
+          return (
+            <div
+              ref={scroll.scrollParentRef}
+              className="chat-scroll flex h-full flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2"
+            >
+              {scrollChildren}
+            </div>
+          )
+        })()}
 
         <ScrollToBottomButton
           atBottom={scroll.atBottom}

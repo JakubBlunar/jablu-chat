@@ -1,40 +1,8 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { VirtuosoHandle } from 'react-virtuoso'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getSocket } from '@/lib/socket'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
-
-const VIRTUAL_START = 100_000
-
-export { VIRTUAL_START }
-
-function waitForVisibleImages(container: HTMLElement, timeoutMs = 2000): Promise<void> {
-  return new Promise((resolve) => {
-    const imgs = Array.from(container.querySelectorAll('img'))
-    const pending = imgs.filter((img) => !img.complete && img.src)
-    if (!pending.length) {
-      resolve()
-      return
-    }
-    let done = false
-    const finish = () => {
-      if (!done) {
-        done = true
-        resolve()
-      }
-    }
-    let loaded = 0
-    for (const img of pending) {
-      const h = () => {
-        if (++loaded >= pending.length) finish()
-      }
-      img.addEventListener('load', h, { once: true })
-      img.addEventListener('error', h, { once: true })
-    }
-    setTimeout(finish, timeoutMs)
-  })
-}
 
 interface StoreAdapter {
   messages: Message[]
@@ -55,6 +23,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
   const isDm = mode === 'dm'
   const {
     messages,
+    hasMore,
     hasNewer,
     scrollToMessageId,
     scrollRequestNonce,
@@ -66,137 +35,87 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     getLoadedForId
   } = store
 
-  const virtuosoRef = useRef<VirtuosoHandle>(null)
-  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null)
-  const scrollParentRef = useCallback((node: HTMLElement | null) => {
-    setScrollParent(node)
-  }, [])
+  const scrollParentRef = useRef<HTMLDivElement | null>(null)
+  const topSentinelRef = useRef<HTMLDivElement | null>(null)
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
+  const newerSentinelRef = useRef<HTMLDivElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
-  const prependOffsetRef = useRef(0)
-  const firstItemIndex = VIRTUAL_START - prependOffsetRef.current
-  const [virtuosoKey, setVirtuosoKey] = useState(0)
-  const [settling, setSettling] = useState(false)
-  const settlingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handleAtBottomChange = useCallback(
-    (bottom: boolean) => {
-      if (scrollParent && scrollParent.scrollHeight <= scrollParent.clientHeight + 10) {
-        setAtBottom(true)
-        return
-      }
-      setAtBottom(bottom)
-    },
-    [scrollParent]
-  )
-
-  const hasNewerRef = useRef(hasNewer)
-  hasNewerRef.current = hasNewer
-
-  const followOutput = useCallback((isAtBottom: boolean) => {
-    if (hasNewerRef.current) return false
-    return isAtBottom ? ('smooth' as const) : false
+  const goToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const sp = scrollParentRef.current
+    if (!sp) return
+    if (behavior === 'smooth') {
+      sp.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      sp.scrollTop = 0
+    }
+    setAtBottom(true)
   }, [])
 
-  /* ── Scroll-to-message (polling-based) ── */
-  const scrollTargetIndexRef = useRef<number | null>(null)
-  const scrollParentNodeRef = useRef<HTMLElement | null>(null)
-  scrollParentNodeRef.current = scrollParent
+  const pendingGoToBottom = useRef(false)
+  const anchorMsgRef = useRef<string | null>(null)
+
+  const justSnappedRef = useRef(false)
+
+  useLayoutEffect(() => {
+    if (!pendingGoToBottom.current || messages.length === 0) return
+    pendingGoToBottom.current = false
+    justSnappedRef.current = true
+
+    const sp = scrollParentRef.current
+    if (!sp) return
+
+    sp.scrollTop = 0
+  }, [messages.length])
 
   useEffect(() => {
-    if (!scrollToMessageId || !contextId) {
-      scrollTargetIndexRef.current = null
-      return
+    if (!justSnappedRef.current) return
+    justSnappedRef.current = false
+
+    const sp = scrollParentRef.current
+    if (!sp) return
+
+    const snap = () => { if (sp) sp.scrollTop = 0 }
+    requestAnimationFrame(snap)
+    const t1 = setTimeout(snap, 100)
+    const t2 = setTimeout(snap, 300)
+
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [messages.length])
+
+  /* ── Keep at bottom while content settles (images loading, etc.) ── */
+  useEffect(() => {
+    const sp = scrollParentRef.current
+    if (!sp || !atBottom) return
+
+    let prevScrollHeight = sp.scrollHeight
+    let rafId: number
+
+    const snapIfNeeded = () => {
+      const h = sp.scrollHeight
+      if (h !== prevScrollHeight) {
+        prevScrollHeight = h
+        sp.scrollTop = 0
+      }
     }
 
-    setSettling(true)
-
-    const targetId = scrollToMessageId
-    let pollCancelled = false
-    let fetchAttempted = false
-    const startTime = Date.now()
-    const TIMEOUT = 8000
-
-    const getStore = () => (isDm ? useDmStore.getState() : useMessageStore.getState())
-
-    const poll = () => {
-      if (pollCancelled) return
-      if (Date.now() - startTime > TIMEOUT) {
-        setScrollToMessageId(null)
-        setSettling(false)
-        return
-      }
-
-      const sp = scrollParentNodeRef.current
-      const state = getStore()
-      const loadedId = isDm
-        ? (state as ReturnType<typeof useDmStore.getState>).loadedForConvId
-        : (state as ReturnType<typeof useMessageStore.getState>).loadedForChannelId
-
-      if (!sp || state.isLoading || state.messages.length === 0 || loadedId !== contextId) {
-        setTimeout(poll, 60)
-        return
-      }
-
-      const idx = state.messages.findIndex((m) => m.id === targetId)
-      if (idx < 0) {
-        if (!fetchAttempted) {
-          fetchAttempted = true
-          clearMessages()
-          prependOffsetRef.current = 0
-          void fetchMessagesAround(contextId, targetId)
-          setTimeout(poll, 200)
-        } else {
-          setScrollToMessageId(null)
-          setSettling(false)
-        }
-        return
-      }
-
-      pollCancelled = true
-      scrollTargetIndexRef.current = idx
-      setScrollToMessageId(null)
-      prependOffsetRef.current = 0
-      setAtBottom(false)
-      sp.scrollTop = 0
-      setVirtuosoKey((k) => k + 1)
-
-      const scrollToCenter = (el: HTMLElement, sp: HTMLElement) => {
-        const elRect = el.getBoundingClientRect()
-        const spRect = sp.getBoundingClientRect()
-        const offset = elRect.top - spRect.top + sp.scrollTop
-        sp.scrollTo({ top: offset - sp.clientHeight / 2 + elRect.height / 2, behavior: 'auto' })
-      }
-
-      const tryHighlight = (attempts = 0) => {
-        const currentSp = scrollParentNodeRef.current
-        const el = document.getElementById(`msg-${targetId}`)
-        if (el && currentSp) {
-          scrollToCenter(el, currentSp)
-          void waitForVisibleImages(currentSp).then(() => {
-            const sp2 = scrollParentNodeRef.current
-            const el2 = document.getElementById(`msg-${targetId}`)
-            if (el2 && sp2) scrollToCenter(el2, sp2)
-            if (el2) {
-              el2.classList.add('bg-primary/10')
-              setTimeout(() => el2.classList.remove('bg-primary/10'), 3000)
-            }
-            setSettling(false)
-          })
-        } else if (attempts < 40) {
-          setTimeout(() => tryHighlight(attempts + 1), 50)
-        } else {
-          setSettling(false)
-        }
-      }
-      setTimeout(() => tryHighlight(), 200)
+    const scheduleSnap = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(snapIfNeeded)
     }
 
-    const timer = setTimeout(poll, 30)
+    const mo = new MutationObserver(scheduleSnap)
+    mo.observe(sp, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'width', 'height'] })
+
+    const ro = new ResizeObserver(scheduleSnap)
+    for (const child of sp.children) ro.observe(child)
+
     return () => {
-      pollCancelled = true
-      clearTimeout(timer)
+      cancelAnimationFrame(rafId)
+      mo.disconnect()
+      ro.disconnect()
     }
-  }, [scrollToMessageId, scrollRequestNonce, contextId, isDm, clearMessages, fetchMessagesAround, setScrollToMessageId])
+  }, [atBottom, messages.length])
 
   /* ── Context switch ── */
   const prevIdRef = useRef<string | null>(null)
@@ -221,14 +140,17 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
       }
       prevIdRef.current = contextId
 
-      prependOffsetRef.current = 0
-      if (alreadyLoaded) {
+      if (!alreadyLoaded) {
         setAtBottom(true)
-      } else {
-        setSettling(true)
-        setAtBottom(true)
+        pendingGoToBottom.current = true
+        anchorMsgRef.current = null
         clearMessages()
-        void fetchMessages(contextId)
+        void fetchMessages(contextId).then(() => {
+          requestAnimationFrame(() => {
+            const sp = scrollParentRef.current
+            if (sp) sp.scrollTop = 0
+          })
+        })
       }
     } else {
       prevIdRef.current = null
@@ -242,126 +164,261 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextId, clearMessages, fetchMessages, isDm, getLoadedForId])
 
-  /* ── Clear settling after context switch loads ── */
-  useEffect(() => {
-    if (!settling || messages.length === 0) return
-    if (scrollToMessageId) return
-    if (settlingTimerRef.current) clearTimeout(settlingTimerRef.current)
-    settlingTimerRef.current = setTimeout(() => setSettling(false), 120)
-    return () => {
-      if (settlingTimerRef.current) clearTimeout(settlingTimerRef.current)
-    }
-  }, [settling, messages.length, scrollToMessageId])
-
-  /* ── Pagination ── */
+  /* ── Load older messages (top sentinel) ── */
+  const loadingOlderRef = useRef(false)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
-  const loadingRef = useRef(false)
-  const startReached = useCallback(async () => {
-    const msgs = messagesRef.current
-    if (!contextId || !msgs.length || loadingRef.current) return
-    loadingRef.current = true
-    const prevLen = msgs.length
-    await fetchMessages(contextId, msgs[0].id)
-    const currentStore = isDm ? useDmStore.getState() : useMessageStore.getState()
-    const newLen = currentStore.messages.length
-    const prepended = newLen - prevLen
-    if (prepended > 0) {
-      prependOffsetRef.current += prepended
-    }
-    loadingRef.current = false
-  }, [contextId, fetchMessages, isDm])
+  useEffect(() => {
+    const sentinel = topSentinelRef.current
+    const sp = scrollParentRef.current
+    if (!sentinel || !sp) return
 
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return
+        if (loadingOlderRef.current || !contextId || !messagesRef.current.length) return
+        const storeState = isDm ? useDmStore.getState() : useMessageStore.getState()
+        if (!storeState.hasMore || storeState.isLoading) return
+
+        loadingOlderRef.current = true
+        const prevScrollTop = sp.scrollTop
+        void fetchMessages(contextId, messagesRef.current[0].id).then(() => {
+          requestAnimationFrame(() => {
+            sp.scrollTop = prevScrollTop
+          })
+        }).finally(() => {
+          loadingOlderRef.current = false
+        })
+      },
+      { root: sp, rootMargin: '200px 0px 0px 0px' }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [contextId, fetchMessages, isDm, hasMore])
+
+  /* ── Load newer messages (bottom/newer sentinel) ── */
   const loadingNewerRef = useRef(false)
-  const endReached = useCallback(async () => {
-    if (!contextId || !messagesRef.current.length || loadingNewerRef.current || !fetchNewerMessages) return
-    loadingNewerRef.current = true
-    await fetchNewerMessages(contextId)
-    loadingNewerRef.current = false
-  }, [contextId, fetchNewerMessages])
-
-  const stickToBottom = useCallback(() => {
-    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
-  }, [])
-
-  const handleBottomButtonClick = useCallback(() => {
-    if (hasNewer && contextId) {
-      clearMessages()
-      prependOffsetRef.current = 0
-      void fetchMessages(contextId)
-    } else {
-      virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
-    }
-  }, [hasNewer, contextId, clearMessages, fetchMessages])
-
-  /* ── Jump to message (from pinned panel) ── */
-  const jumpTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => {
+    const sentinel = newerSentinelRef.current
+    const sp = scrollParentRef.current
+    if (!sentinel || !sp || !fetchNewerMessages) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return
+        if (loadingNewerRef.current || !contextId || !messagesRef.current.length) return
+        const storeState = isDm ? useDmStore.getState() : useMessageStore.getState()
+        if (!storeState.hasNewer || storeState.isLoading) return
+
+        loadingNewerRef.current = true
+        const msgs = messagesRef.current
+        const anchorId = msgs[msgs.length - 1]?.id
+        void fetchNewerMessages(contextId).then(() => {
+          if (!anchorId) return
+          requestAnimationFrame(() => {
+            document.getElementById(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
+          })
+        }).finally(() => {
+          loadingNewerRef.current = false
+        })
+      },
+      { root: sp, rootMargin: '0px 0px 200px 0px' }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [contextId, fetchNewerMessages, isDm, hasNewer])
+
+  /* ── Anchor message tracking + width-resize restore ── */
+  const atBottomRef = useRef(true)
+  atBottomRef.current = atBottom
+
+  useEffect(() => {
+    const sp = scrollParentRef.current
+    if (!sp) return
+
+    let ticking = false
+    const updateAnchor = () => {
+      ticking = false
+      if (atBottomRef.current || pendingGoToBottom.current) {
+        anchorMsgRef.current = null
+        return
+      }
+      const rect = sp.getBoundingClientRect()
+      const el = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 3)
+      const msgEl = el?.closest('[id^="msg-"]')
+      if (msgEl) anchorMsgRef.current = msgEl.id
+    }
+
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true
+        requestAnimationFrame(updateAnchor)
+      }
+    }
+
+    sp.addEventListener('scroll', onScroll, { passive: true })
+    updateAnchor()
+    return () => sp.removeEventListener('scroll', onScroll)
+  }, [messages.length])
+
+  useEffect(() => {
+    const sp = scrollParentRef.current
+    if (!sp) return
+
+    let prevWidth = sp.clientWidth
+    let rafId: number
+
+    const ro = new ResizeObserver(() => {
+      const w = sp.clientWidth
+      if (w === prevWidth) return
+      prevWidth = w
+
+      if (atBottomRef.current) {
+        cancelAnimationFrame(rafId)
+        rafId = requestAnimationFrame(() => { sp.scrollTop = 0 })
+        return
+      }
+
+      const id = anchorMsgRef.current
+      if (!id) return
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        document.getElementById(id)?.scrollIntoView({ block: 'center', behavior: 'auto' })
+      })
+    })
+
+    ro.observe(sp)
     return () => {
-      for (const t of jumpTimersRef.current) clearTimeout(t)
-      jumpTimersRef.current = []
+      cancelAnimationFrame(rafId)
+      ro.disconnect()
     }
   }, [])
 
-  const firstItemIndexRef = useRef(firstItemIndex)
-  firstItemIndexRef.current = firstItemIndex
+  /* ── At-bottom detection (scroll position) ── */
+  useEffect(() => {
+    const sp = scrollParentRef.current
+    if (!sp) return
 
-  const handleJumpToMessage = useCallback(
-    (messageId: string) => {
-      for (const t of jumpTimersRef.current) clearTimeout(t)
-      jumpTimersRef.current = []
+    const AT_BOTTOM_THRESHOLD = 30
 
-      const idx = messagesRef.current.findIndex((m) => m.id === messageId)
-      if (idx >= 0) {
-        const absIndex = firstItemIndexRef.current + idx
-        const centerEl = (el: HTMLElement, sp: HTMLElement) => {
-          const cRect = sp.getBoundingClientRect()
-          const eRect = el.getBoundingClientRect()
-          sp.scrollTop += eRect.top - cRect.top - cRect.height / 2 + eRect.height / 2
-        }
-        const tryFind = (attempts = 0) => {
-          const el = document.getElementById(`msg-${messageId}`)
-          const currentSp = scrollParentNodeRef.current
-          if (el && currentSp) {
-            centerEl(el, currentSp)
-            void waitForVisibleImages(currentSp).then(() => {
-              const el2 = document.getElementById(`msg-${messageId}`)
-              const sp2 = scrollParentNodeRef.current
-              if (el2 && sp2) centerEl(el2, sp2)
-              if (el2) {
-                el2.classList.add('bg-primary/10')
-                jumpTimersRef.current.push(setTimeout(() => el2.classList.remove('bg-primary/10'), 2000))
-              }
-            })
-          } else if (attempts < 20) {
-            virtuosoRef.current?.scrollToIndex({ index: absIndex, align: 'center' })
-            jumpTimersRef.current.push(setTimeout(() => tryFind(attempts + 1), 100))
+    const check = () => {
+      setAtBottom(Math.abs(sp.scrollTop) < AT_BOTTOM_THRESHOLD)
+    }
+
+    sp.addEventListener('scroll', check, { passive: true })
+    check()
+    return () => sp.removeEventListener('scroll', check)
+  }, [messages.length])
+
+  /* ── Scroll-to-message ── */
+  useEffect(() => {
+    if (!scrollToMessageId || !contextId) return
+
+    const targetId = scrollToMessageId
+    let cancelled = false
+    const startTime = Date.now()
+    const TIMEOUT = 8000
+
+    const getStore = () => (isDm ? useDmStore.getState() : useMessageStore.getState())
+
+    const attempt = () => {
+      if (cancelled) return
+      if (Date.now() - startTime > TIMEOUT) {
+        setScrollToMessageId(null)
+        return
+      }
+
+      const state = getStore()
+      const loadedId = isDm
+        ? (state as ReturnType<typeof useDmStore.getState>).loadedForConvId
+        : (state as ReturnType<typeof useMessageStore.getState>).loadedForChannelId
+
+      if (state.isLoading || state.messages.length === 0 || loadedId !== contextId) {
+        setTimeout(attempt, 60)
+        return
+      }
+
+      const idx = state.messages.findIndex((m) => m.id === targetId)
+      if (idx < 0) {
+        clearMessages()
+        void fetchMessagesAround(contextId, targetId)
+        const waitForLoad = () => {
+          if (cancelled) return
+          const s = getStore()
+          if (s.isLoading || s.messages.length === 0) {
+            setTimeout(waitForLoad, 60)
+            return
+          }
+          const newIdx = s.messages.findIndex((m) => m.id === targetId)
+          if (newIdx >= 0) {
+            setScrollToMessageId(null)
+            scrollToAndHighlight(targetId)
+          } else {
+            setScrollToMessageId(null)
           }
         }
-        virtuosoRef.current?.scrollToIndex({ index: absIndex, align: 'center' })
-        requestAnimationFrame(() => tryFind())
+        setTimeout(waitForLoad, 100)
+        return
       }
-    },
-    []
-  )
+
+      setScrollToMessageId(null)
+      scrollToAndHighlight(targetId)
+    }
+
+    setTimeout(attempt, 30)
+    return () => { cancelled = true }
+  }, [scrollToMessageId, scrollRequestNonce, contextId, isDm, clearMessages, fetchMessagesAround, setScrollToMessageId])
+
+  const scrollToAndHighlight = useCallback((messageId: string) => {
+    const tryFind = (attempts = 0) => {
+      const el = document.getElementById(`msg-${messageId}`)
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'auto' })
+        setAtBottom(false)
+        el.classList.add('bg-primary/10')
+        setTimeout(() => el.classList.remove('bg-primary/10'), 3000)
+      } else if (attempts < 30) {
+        setTimeout(() => tryFind(attempts + 1), 50)
+      }
+    }
+    requestAnimationFrame(() => tryFind())
+  }, [])
+
+  /* ── Stick to bottom ── */
+  const stickToBottom = useCallback(() => {
+    goToBottom()
+  }, [goToBottom])
+
+  const handleBottomButtonClick = useCallback(() => {
+    const storeHasNewer = isDm ? useDmStore.getState().hasNewer : useMessageStore.getState().hasNewer
+    if (storeHasNewer && contextId) {
+      pendingGoToBottom.current = true
+      anchorMsgRef.current = null
+      clearMessages()
+      void fetchMessages(contextId).then(() => {
+        requestAnimationFrame(() => {
+          const sp = scrollParentRef.current
+          if (sp) sp.scrollTop = 0
+          setAtBottom(true)
+        })
+      })
+    } else {
+      goToBottom('smooth')
+    }
+  }, [contextId, clearMessages, fetchMessages, goToBottom, isDm])
 
   return {
-    virtuosoRef,
     scrollParentRef,
-    scrollParent,
+    topSentinelRef,
+    bottomSentinelRef,
+    newerSentinelRef,
     atBottom,
-    firstItemIndex,
-    virtuosoKey,
-    followOutput,
-    handleAtBottomChange,
-    scrollTargetIndexRef,
-    startReached,
-    endReached,
     stickToBottom,
     handleBottomButtonClick,
-    handleJumpToMessage,
-    settling
+    handleJumpToMessage: scrollToAndHighlight
   }
 }
