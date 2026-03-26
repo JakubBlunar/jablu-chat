@@ -41,6 +41,10 @@ async function getSegmenter(): Promise<ImageSegmenter> {
   return segmenterPromise
 }
 
+export function supportsBackgroundBlur(): boolean {
+  return typeof HTMLCanvasElement.prototype.captureStream === 'function'
+}
+
 export interface BlurHandle {
   stream: MediaStream
   stop: () => void
