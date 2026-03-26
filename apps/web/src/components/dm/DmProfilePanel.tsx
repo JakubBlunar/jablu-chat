@@ -1,6 +1,7 @@
 import type { UserStatus } from '@chat/shared'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
+import { resolveMediaUrl } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useMemberStore } from '@/stores/member.store'
 
@@ -33,7 +34,7 @@ function dmFormatDate(iso?: string): string {
 
 function DmServerIcon({ name, iconUrl }: { name: string; iconUrl: string | null }) {
   if (iconUrl) {
-    return <img src={iconUrl} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover" />
+    return <img src={resolveMediaUrl(iconUrl)} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover" />
   }
   return (
     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/30 text-[11px] font-bold text-white">

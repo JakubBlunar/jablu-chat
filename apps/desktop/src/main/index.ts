@@ -1,7 +1,8 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, Tray, Menu, nativeImage, session } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, Tray, Menu, nativeImage, net, protocol, session } from 'electron'
 import { autoUpdater, UpdateInfo } from 'electron-updater'
-import { readFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { readFileSync, existsSync, statSync } from 'fs'
+import { join, extname } from 'path'
+import { pathToFileURL } from 'url'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -10,6 +11,20 @@ const DEV_URL = 'http://localhost:5173'
 const isDev = !app.isPackaged
 const MAX_RETRIES = 30
 const RETRY_DELAY_MS = 2000
+const CUSTOM_SCHEME = 'app'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: CUSTOM_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+])
 
 function loadDevUrl(win: BrowserWindow, attempt = 1) {
   win.loadURL(DEV_URL).catch(() => {
@@ -59,19 +74,18 @@ function createWindow() {
     }
   })
 
-  if (isDev) {
-    loadDevUrl(mainWindow)
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
-  } else {
-    const webDistPath = join(process.resourcesPath, 'web', 'index.html')
-    mainWindow.loadFile(webDistPath)
-  }
-
   // Allow getUserMedia with screen capture from the renderer
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
     // Allow all display media requests (the picker is handled in the renderer via IPC)
     callback({ video: undefined as unknown as Electron.DesktopCapturerSource })
   })
+
+  if (isDev) {
+    loadDevUrl(mainWindow)
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
+  } else {
+    mainWindow.loadURL(`${CUSTOM_SCHEME}://jablu/index.html`)
+  }
 }
 
 function createTray() {
@@ -157,6 +171,15 @@ function registerIpcHandlers() {
   ipcMain.handle('set-auto-launch', (_event, enabled: boolean) => {
     app.setLoginItemSettings({ openAtLogin: enabled })
     return app.getLoginItemSettings().openAtLogin
+  })
+
+  ipcMain.handle('test-server-url', async (_event, url: string) => {
+    try {
+      const resp = await net.fetch(`${url}/api/health`, { signal: AbortSignal.timeout(5000) })
+      return { ok: resp.ok }
+    } catch {
+      return { ok: false }
+    }
   })
 
   ipcMain.handle('check-for-updates', () => {
@@ -249,7 +272,69 @@ async function checkForUpdates() {
   }
 }
 
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.wasm': 'application/wasm',
+  '.tflite': 'application/octet-stream',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.webmanifest': 'application/manifest+json'
+}
+
+function registerAppProtocol() {
+  const webRoot = join(process.resourcesPath, 'web')
+
+  protocol.handle(CUSTOM_SCHEME, (request) => {
+    const url = new URL(request.url)
+    const pathname = decodeURIComponent(url.pathname)
+
+    // Proxy /api/ and /uploads/ to the actual server
+    if (pathname.startsWith('/api/') || pathname.startsWith('/uploads/')) {
+      const serverUrl = getStoredServerUrl()
+      if (serverUrl) {
+        const headers = new Headers(request.headers)
+        headers.set('Origin', serverUrl)
+        headers.delete('Referer')
+        const fetchOpts: Record<string, unknown> = {
+          method: request.method,
+          headers,
+          body: request.body,
+          duplex: 'half'
+        }
+        return net.fetch(`${serverUrl}${pathname}${url.search}`, fetchOpts as RequestInit)
+      }
+    }
+
+    // Serve local files
+    let filePath = join(webRoot, pathname === '/' ? 'index.html' : pathname)
+    if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+      filePath = join(webRoot, 'index.html')
+    }
+
+    const ext = extname(filePath).toLowerCase()
+    const mimeType = MIME_TYPES[ext] || 'application/octet-stream'
+    const body = readFileSync(filePath)
+
+    return new Response(body, {
+      headers: { 'Content-Type': mimeType }
+    })
+  })
+}
+
 app.whenReady().then(() => {
+  if (!isDev) registerAppProtocol()
   registerIpcHandlers()
   createWindow()
   createTray()

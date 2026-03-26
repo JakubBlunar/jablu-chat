@@ -23,9 +23,9 @@ echo "  Publishing Jablu Desktop v${VERSION}"
 echo "══════════════════════════════════════════"
 echo ""
 
-# Step 1: Build web app
-echo "→ Building web app..."
-pnpm --filter @chat/web build
+# Step 1: Build web app (with relative asset paths for file:// protocol)
+echo "→ Building web app for Electron..."
+ELECTRON=1 pnpm --filter @chat/web build
 
 # Step 2: Build desktop app
 echo "→ Compiling desktop app..."

@@ -4,6 +4,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { Member } from '@/stores/member.store'
+import { resolveMediaUrl } from '@/lib/api'
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -288,7 +289,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       ),
       img: ({ src, alt }: { src?: string; alt?: string }) => (
         <img
-          src={src}
+          src={resolveMediaUrl(src)}
           alt={alt ?? ''}
           className="my-1 max-h-72 max-w-full rounded-lg object-cover"
           loading="lazy"

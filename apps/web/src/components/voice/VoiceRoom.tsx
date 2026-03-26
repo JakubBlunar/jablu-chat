@@ -20,16 +20,16 @@ export function VoiceRoom() {
   const prevScreenIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    const lockOverlay = document.getElementById('landscape-lock')
     const orient = screen?.orientation as
       | (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void })
       | undefined
+    const lock = (window as unknown as { __landscapeLock?: { disable: () => void; enable: () => void } }).__landscapeLock
 
-    lockOverlay?.classList.add('hidden')
+    lock?.disable()
     orient?.unlock?.()
 
     return () => {
-      lockOverlay?.classList.remove('hidden')
+      lock?.enable()
       orient?.lock?.('portrait').catch(() => {})
     }
   }, [])

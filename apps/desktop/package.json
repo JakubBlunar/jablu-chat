@@ -7,6 +7,7 @@
     "start": "tsc -p tsconfig.json && electron dist/main/index.js",
     "build": "tsc -p tsconfig.json",
     "pack": "electron-builder --dir",
+    "predist": "tsc -p tsconfig.json",
     "dist": "electron-builder"
   },
   "dependencies": {
@@ -33,6 +34,14 @@
         "to": "web",
         "filter": [
           "**/*"
+        ]
+      },
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": [
+          "*.png",
+          "*.ico"
         ]
       }
     ],

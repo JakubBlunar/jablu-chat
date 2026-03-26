@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { UserStatus } from '@chat/shared'
 import { hashUsernameToHue } from '@/lib/username-color'
+import { resolveMediaUrl } from '@/lib/api'
 
 const sizeMap = {
   sm: 'h-6 w-6 min-h-6 min-w-6 text-xs',
@@ -41,7 +42,7 @@ export const UserAvatar = memo(function UserAvatar({
   return (
     <div className={`relative shrink-0 rounded-full ${sizeMap[size]}`} title={username}>
       {avatarUrl ? (
-        <img src={avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+        <img src={resolveMediaUrl(avatarUrl)} alt="" className="h-full w-full rounded-full object-cover" />
       ) : (
         <div
           className="flex h-full w-full items-center justify-center rounded-full font-semibold text-white"

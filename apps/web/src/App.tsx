@@ -90,22 +90,14 @@ function AuthBootstrap() {
 }
 
 function ElectronUrlGate({ children }: { children: React.ReactNode }) {
-  const [connected, setConnected] = useState(() => {
-    const saved = getStoredServerUrl()
-    if (saved) {
-      api.baseUrl = saved
-      return true
-    }
-    return false
-  })
+  const [connected, setConnected] = useState(() => !!getStoredServerUrl())
 
   if (!isElectron) return <>{children}</>
 
   if (!connected) {
     return (
       <ServerUrlScreen
-        onConnect={(url) => {
-          api.baseUrl = url
+        onConnect={() => {
           setConnected(true)
         }}
       />

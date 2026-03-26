@@ -4,7 +4,7 @@ import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
 import { UserAvatar } from '@/components/UserAvatar'
-import { api, type AuditLogEntry } from '@/lib/api'
+import { api, resolveMediaUrl, type AuditLogEntry } from '@/lib/api'
 import { formatFullDateTime } from '@/lib/format-time'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -113,7 +113,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
 function OverviewTab({ server }: { server: Server }) {
   const [name, setName] = useState(server.name)
   const [saving, setSaving] = useState(false)
-  const [iconPreview, setIconPreview] = useState<string | null>(server.iconUrl)
+  const [iconPreview, setIconPreview] = useState<string | null>(resolveMediaUrl(server.iconUrl) ?? null)
   const fileRef = useRef<HTMLInputElement>(null)
   const updateServerInList = useServerStore((s) => s.updateServerInList)
 

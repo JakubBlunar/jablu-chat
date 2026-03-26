@@ -1070,13 +1070,16 @@ function ServerConnectionSection() {
 
     setTesting(true)
     try {
-      const resp = await fetch(`${trimmed}/api/health`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      if (!resp.ok) throw new Error('Server error')
+      if (electronAPI) {
+        const result = await electronAPI.testServerUrl(trimmed)
+        if (!result.ok) throw new Error('Server error')
+      } else {
+        const resp = await fetch(`${trimmed}/api/health`, { signal: AbortSignal.timeout(5000) })
+        if (!resp.ok) throw new Error('Server error')
+      }
 
       setStoredServerUrl(trimmed)
-      api.baseUrl = trimmed
+      if (!isElectron) api.baseUrl = trimmed
       setMessage({ type: 'success', text: 'Server updated. Please log in again to apply the change.' })
     } catch {
       setMessage({ type: 'error', text: 'Could not connect. Check the URL and try again.' })
