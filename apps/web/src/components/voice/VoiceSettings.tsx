@@ -508,11 +508,13 @@ function DeviceSelect({
   onChange: (v: string) => void
 }) {
   const isMissing = value !== '' && devices.length > 0 && !devices.some((d) => d.deviceId === value)
+  const selectId = `voice-device-${label.toLowerCase().replace(/\s+/g, '-')}`
 
   return (
     <div>
-      <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{label}</h3>
+      <label htmlFor={selectId} className="mb-3 block text-sm font-semibold uppercase text-gray-400">{label}</label>
       <select
+        id={selectId}
         value={isMissing ? '__missing__' : value}
         onChange={(e) => {
           const v = e.target.value === '__missing__' ? '' : e.target.value

@@ -182,13 +182,20 @@ function ClickableTile({
 }) {
   return (
     <div className="group/tile relative w-full">
-      <button type="button" className="w-full text-left transition" onClick={() => onClick(tile.id)}>
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full cursor-pointer text-left transition"
+        onClick={() => onClick(tile.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(tile.id) } }}
+      >
         <TileContent tile={tile} compact={compact} />
-      </button>
+      </div>
       <div className="absolute right-2 top-2 flex items-center gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover/tile:opacity-100">
         <button
           type="button"
           title="Focus"
+          aria-label="Focus tile"
           onClick={(e) => {
             e.stopPropagation()
             onClick(tile.id)
@@ -203,6 +210,7 @@ function ClickableTile({
           <button
             type="button"
             title="Fullscreen"
+            aria-label="Fullscreen"
             onClick={(e) => {
               e.stopPropagation()
               onFullscreen(tile.id)

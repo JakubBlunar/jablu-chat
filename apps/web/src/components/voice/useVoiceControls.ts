@@ -78,8 +78,14 @@ export function useVoiceControls() {
   const handleScreenShare = useCallback(() => {
     if (isScreenSharing) {
       const room = useVoiceConnectionStore.getState().room
-      room?.localParticipant.setScreenShareEnabled(false).catch(() => {})
-      useVoiceConnectionStore.getState().setScreenSharing(false)
+      room?.localParticipant
+        .setScreenShareEnabled(false)
+        .catch(() => {
+          window.dispatchEvent(new CustomEvent('voice:error', { detail: { message: 'Failed to stop screen share.' } }))
+        })
+        .finally(() => {
+          useVoiceConnectionStore.getState().setScreenSharing(false)
+        })
     } else {
       setShowScreenShareDialog(true)
     }
@@ -87,9 +93,11 @@ export function useVoiceControls() {
 
   const handleScreenShareConfirm = useCallback((settings: ScreenShareSettings) => {
     setShowScreenShareDialog(false)
-    import('@/components/voice/screenShareUtils').then(({ startScreenShareWithSettings }) =>
-      startScreenShareWithSettings(settings)
-    )
+    import('@/components/voice/screenShareUtils')
+      .then(({ startScreenShareWithSettings }) => startScreenShareWithSettings(settings))
+      .catch(() => {
+        window.dispatchEvent(new CustomEvent('voice:error', { detail: { message: 'Failed to start screen share.' } }))
+      })
   }, [])
 
   const mins = Math.floor(elapsed / 60)

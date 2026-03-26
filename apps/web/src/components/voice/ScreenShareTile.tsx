@@ -21,6 +21,7 @@ export function ScreenShareTile({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasTrack, setHasTrack] = useState(false)
   const [hasAudio, setHasAudio] = useState(false)
+  const [loadTimeout, setLoadTimeout] = useState(false)
 
   useEffect(() => {
     let changeTimer: ReturnType<typeof setTimeout>
@@ -88,6 +89,12 @@ export function ScreenShareTile({
     pub.setVideoQuality(focused ? VideoQuality.HIGH : VideoQuality.LOW)
   }, [participant, publication, focused, hasTrack])
 
+  useEffect(() => {
+    if (hasTrack) { setLoadTimeout(false); return }
+    const t = setTimeout(() => setLoadTimeout(true), 10_000)
+    return () => clearTimeout(t)
+  }, [hasTrack])
+
   const displayName = participant.name || participant.identity
   const isLocal = participant.isLocal
 
@@ -106,7 +113,7 @@ export function ScreenShareTile({
           <svg className="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" />
           </svg>
-          <span className="text-xs">Loading...</span>
+          <span className="text-xs">{loadTimeout ? 'Failed to load screen share' : 'Loading...'}</span>
         </div>
       )}
 
@@ -183,6 +190,8 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
           onClick={(e) => e.stopPropagation()}
           className="h-2 w-20 cursor-pointer accent-primary"
           title={`${isMuted ? 0 : volume}%`}
+          aria-label="Screen share audio volume"
+          aria-valuetext={`${isMuted ? 0 : volume}%`}
         />
       )}
       <button
