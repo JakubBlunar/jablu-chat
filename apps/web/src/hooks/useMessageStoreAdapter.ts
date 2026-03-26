@@ -57,6 +57,7 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm'): MessageStoreData
             scrollRequestNonce: s.scrollRequestNonce,
             fetchMessages: s.fetchMessages,
             fetchMessagesAround: s.fetchMessagesAround,
+            fetchNewerMessages: s.fetchNewerMessages,
             clearMessages: s.clearMessages
           }
         : null
@@ -91,6 +92,7 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm'): MessageStoreData
       scrollRequestNonce: dm.scrollRequestNonce,
       fetchMessages: dm.fetchMessages,
       fetchMessagesAround: dm.fetchMessagesAround,
+      fetchNewerMessages: dm.fetchNewerMessages,
       clearMessages: dm.clearMessages,
       setScrollToMessageId,
       getLoadedForId

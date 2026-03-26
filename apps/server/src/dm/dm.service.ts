@@ -316,6 +316,40 @@ export class DmService {
     }
   }
 
+  async getMessagesAfter(conversationId: string, userId: string, afterId: string, limit = 50) {
+    await this.requireMembership(conversationId, userId)
+    const take = Math.min(Math.max(1, limit), 100)
+
+    const afterMsg = await this.prisma.message.findFirst({
+      where: { id: afterId, directConversationId: conversationId, deleted: false }
+    })
+    if (!afterMsg) {
+      throw new BadRequestException('Invalid after cursor')
+    }
+
+    const rows = await this.prisma.message.findMany({
+      where: {
+        directConversationId: conversationId,
+        deleted: false,
+        OR: [
+          { createdAt: { gt: afterMsg.createdAt } },
+          { AND: [{ createdAt: afterMsg.createdAt }, { id: { gt: afterMsg.id } }] }
+        ]
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: take + 1,
+      include: messageInclude
+    })
+
+    const hasNewer = rows.length > take
+    const page = hasNewer ? rows.slice(0, take) : rows
+    return {
+      messages: page.reverse().map((m) => this.mapToWire(m)),
+      hasMore: false,
+      hasNewer
+    }
+  }
+
   async createMessage(
     conversationId: string,
     userId: string,

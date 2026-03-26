@@ -20,6 +20,7 @@ type DmState = {
   setCurrentConversation: (id: string | null) => void
   fetchMessages: (conversationId: string, cursor?: string) => Promise<void>
   fetchMessagesAround: (conversationId: string, messageId: string) => Promise<void>
+  fetchNewerMessages: (conversationId: string) => Promise<void>
   setScrollToMessageId: (id: string | null) => void
   addMessage: (message: Message) => void
   updateMessage: (message: Message) => void
@@ -67,7 +68,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     const fetchId = ++_dmFetchId
     set({ isLoading: true, messagesError: null })
     try {
-      const page = await api.getDmMessages(conversationId, cursor, 100)
+      const page = await api.getDmMessages(conversationId, cursor, 50)
       if (_dmFetchId !== fetchId) {
         set({ isLoading: false })
         return
@@ -114,6 +115,33 @@ export const useDmStore = create<DmState>((set, _get) => ({
         hasNewer: page.hasNewer ?? false,
         isLoading: false,
         loadedForConvId: conversationId
+      })
+    } catch {
+      set({ isLoading: false, messagesError: 'Failed to load messages' })
+    }
+  },
+
+  fetchNewerMessages: async (conversationId) => {
+    const { messages } = _get()
+    if (!messages.length) return
+    const newestId = messages[messages.length - 1].id
+    set({ isLoading: true, messagesError: null })
+    try {
+      const page = await api.getDmMessagesAfter(conversationId, newestId, 50)
+      if (_get().loadedForConvId !== conversationId) {
+        set({ isLoading: false })
+        return
+      }
+      const chronological = toChronological(page.messages)
+      set((s) => {
+        const merged = [...s.messages, ...chronological]
+        const trimmed = trimOldest(merged)
+        return {
+          messages: trimmed,
+          hasMore: trimmed.length < merged.length ? true : s.hasMore,
+          hasNewer: page.hasNewer ?? false,
+          isLoading: false
+        }
       })
     } catch {
       set({ isLoading: false, messagesError: 'Failed to load messages' })

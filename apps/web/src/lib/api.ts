@@ -592,6 +592,14 @@ export class ApiClient {
     return this.get(`/api/dm/${conversationId}/messages${qs ? `?${qs}` : ''}`)
   }
 
+  getDmMessagesAfter(
+    conversationId: string,
+    afterId: string,
+    limit = 50
+  ): Promise<{ messages: Message[]; hasMore: boolean; hasNewer: boolean }> {
+    return this.get(`/api/dm/${conversationId}/messages?after=${afterId}&limit=${limit}`)
+  }
+
   getDmMessagesAround(
     conversationId: string,
     messageId: string,

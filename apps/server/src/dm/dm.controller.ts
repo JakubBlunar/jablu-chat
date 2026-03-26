@@ -50,13 +50,17 @@ export class DmController {
     @CurrentUser() user: { id: string },
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
-    @Query('around') around?: string
+    @Query('around') around?: string,
+    @Query('after') after?: string
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : undefined
     const safeLimit =
       parsedLimit != null && !Number.isNaN(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : undefined
     if (around) {
       return this.dm.getMessagesAround(id, user.id, around, safeLimit)
+    }
+    if (after) {
+      return this.dm.getMessagesAfter(id, user.id, after, safeLimit)
     }
     return this.dm.getMessages(id, user.id, cursor, safeLimit)
   }
