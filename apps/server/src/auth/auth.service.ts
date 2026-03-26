@@ -13,6 +13,7 @@ import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import { CronJob } from 'cron'
 import { v4 as uuidv4 } from 'uuid'
+import { EventBusService } from '../events/event-bus.service'
 import { FriendsService } from '../friends/friends.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
@@ -44,7 +45,8 @@ export class AuthService implements OnModuleInit {
     private readonly uploads: UploadsService,
     private readonly redis: RedisService,
     @Inject(forwardRef(() => FriendsService))
-    private readonly friendsService: FriendsService
+    private readonly friendsService: FriendsService,
+    private readonly events: EventBusService
   ) {}
 
   private async invalidateJwtCache(userId: string) {
@@ -131,11 +133,19 @@ export class AuthService implements OnModuleInit {
       })
 
       if (invite.serverId) {
-        await this.prisma.serverMember
-          .create({
-            data: { userId: user.id, serverId: invite.serverId }
+        try {
+          const member = await this.prisma.serverMember.create({
+            data: { userId: user.id, serverId: invite.serverId },
+            include: {
+              user: {
+                select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true }
+              }
+            }
           })
-          .catch(() => {})
+          this.events.emit('member:joined', { serverId: invite.serverId, member })
+        } catch {
+          /* already a member */
+        }
       }
     }
 
@@ -268,20 +278,25 @@ export class AuthService implements OnModuleInit {
   }
 
   async uploadAvatar(userId: string, file: Express.Multer.File) {
-    const current = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { avatarUrl: true }
-    })
-    if (current?.avatarUrl) {
-      this.uploads.deleteFile(current.avatarUrl)
-    }
+    try {
+      const current = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true }
+      })
+      if (current?.avatarUrl) {
+        this.uploads.deleteFile(current.avatarUrl)
+      }
 
-    const avatarUrl = await this.uploads.saveAvatar(file)
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { avatarUrl },
-      select: PROFILE_SELECT
-    })
+      const avatarUrl = await this.uploads.saveAvatar(file)
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl },
+        select: PROFILE_SELECT
+      })
+    } catch (err) {
+      this.logger.error(`Avatar upload failed for user ${userId}: ${err}`)
+      throw err
+    }
   }
 
   async deleteAvatar(userId: string) {

@@ -4,6 +4,7 @@ import { getValidatedDevices } from '@/lib/deviceSettings'
 import { getNotifSettings } from '@/lib/notifications'
 import { getSocket } from '@/lib/socket'
 import { playJoinSound } from '@/lib/sounds'
+import { warmVoiceAudioCtx } from '@/lib/voiceAudioCtx'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 function showVoiceError(message: string) {
@@ -42,6 +43,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
   }
 
   store.setConnecting(serverId, channelId, channelName)
+  warmVoiceAudioCtx()
 
   try {
     const [{ token, url }, devices] = await Promise.all([api.getVoiceToken(channelId), getValidatedDevices()])

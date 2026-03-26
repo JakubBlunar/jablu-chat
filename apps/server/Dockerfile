@@ -63,8 +63,9 @@ CMD ["prisma", "migrate", "deploy"]
 
 # ─── Production image ───────────────────────────────────────────────
 FROM node:22-alpine AS production
-RUN addgroup -S app && adduser -S app -G app && \
-    mkdir -p /data/uploads && chown app:app /data/uploads
+RUN apk add --no-cache su-exec && \
+    addgroup -S app && adduser -S app -G app && \
+    mkdir -p /data/uploads /data/updates /data/downloads
 
 WORKDIR /app
 
@@ -72,6 +73,5 @@ COPY --from=prod-bundle --chown=app:app /prod/node_modules ./node_modules
 COPY --from=prod-bundle --chown=app:app /prod/package.json ./
 COPY --from=build --chown=app:app /app/apps/server/dist ./dist
 
-USER app
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD chown -R app:app /data && exec su-exec app node dist/main.js

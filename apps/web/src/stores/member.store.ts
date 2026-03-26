@@ -23,6 +23,7 @@ type MemberState = {
   onlineUserIds: Set<string>
   isLoading: boolean
   fetchMembers: (serverId: string) => Promise<void>
+  addMember: (member: Member) => void
   initOnlineUsers: (userIds: string[]) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string) => void
@@ -45,6 +46,12 @@ export const useMemberStore = create<MemberState>((set) => ({
       throw e
     }
   },
+
+  addMember: (member) =>
+    set((s) => {
+      if (s.members.some((m) => m.userId === member.userId && m.serverId === member.serverId)) return s
+      return { members: [...s.members, member] }
+    }),
 
   initOnlineUsers: (userIds) => set(() => ({ onlineUserIds: new Set(userIds) })),
 

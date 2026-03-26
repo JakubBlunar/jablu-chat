@@ -264,13 +264,16 @@ export class ServersService {
     if (existing) {
       return existing
     }
-    return this.prisma.serverMember.create({
+    const member = await this.prisma.serverMember.create({
       data: {
         userId,
         serverId,
         role: ServerRole.member
-      }
+      },
+      include: { user: { select: memberUserSelect } }
     })
+    this.events.emit('member:joined', { serverId, member })
+    return member
   }
 
   async leaveServer(serverId: string, userId: string) {

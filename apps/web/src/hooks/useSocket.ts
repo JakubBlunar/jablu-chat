@@ -104,10 +104,18 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       const channelId = useChannelStore.getState().currentChannelId
       if (channelId) {
         socket.emit('channel:join', { channelId })
+        const msgStore = useMessageStore.getState()
+        if (msgStore.loadedForChannelId === channelId && !msgStore.hasNewer) {
+          msgStore.fetchNewerMessages(channelId).catch(() => {})
+        }
       }
       const convId = useDmStore.getState().currentConversationId
       if (convId) {
         socket.emit('dm:join', { conversationId: convId })
+        const dmStore = useDmStore.getState()
+        if (dmStore.loadedForConvId === convId && !dmStore.hasNewer) {
+          dmStore.fetchNewerMessages(convId).catch(() => {})
+        }
       }
       if (!document.hidden) {
         socket.emit('activity:active')
@@ -174,7 +182,14 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
+    const pendingOffline = new Map<string, ReturnType<typeof setTimeout>>()
+
     const onUserOnline = (payload: OnlinePayload) => {
+      const pending = pendingOffline.get(payload.userId)
+      if (pending) {
+        clearTimeout(pending)
+        pendingOffline.delete(payload.userId)
+      }
       useMemberStore.getState().setUserOnline(payload.userId)
       useMemberStore.getState().setUserStatus(payload.userId, 'online')
       useFriendStore.getState().updateFriendStatus(payload.userId, 'online')
@@ -185,8 +200,16 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
 
     const onUserOffline = (payload: OnlinePayload) => {
-      useMemberStore.getState().setUserOffline(payload.userId)
-      useFriendStore.getState().updateFriendStatus(payload.userId, 'offline')
+      const existing = pendingOffline.get(payload.userId)
+      if (existing) clearTimeout(existing)
+      pendingOffline.set(
+        payload.userId,
+        setTimeout(() => {
+          pendingOffline.delete(payload.userId)
+          useMemberStore.getState().setUserOffline(payload.userId)
+          useFriendStore.getState().updateFriendStatus(payload.userId, 'offline')
+        }, 5000)
+      )
     }
 
     const onUserStatus = (payload: StatusPayload) => {
@@ -198,6 +221,14 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           .getState()
           .setUser({ ...currentUser, status: payload.status as 'online' | 'idle' | 'dnd' | 'offline' })
       }
+    }
+
+    const onMemberJoined = (payload: { serverId: string; member: import('@/stores/member.store').Member }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useMemberStore.getState().addMember(payload.member)
+      }
+      useMemberStore.getState().setUserOnline(payload.member.userId)
     }
 
     const onUserTyping = (payload: TypingPayload) => {
@@ -401,6 +432,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('user:online', onUserOnline)
     socket.on('user:offline', onUserOffline)
     socket.on('user:status', onUserStatus)
+    socket.on('member:joined', onMemberJoined)
     socket.on('user:typing', onUserTyping)
     socket.on('reaction:add', onReactionAdd)
     socket.on('reaction:remove', onReactionRemove)
@@ -442,6 +474,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('user:online', onUserOnline)
       socket.off('user:offline', onUserOffline)
       socket.off('user:status', onUserStatus)
+      socket.off('member:joined', onMemberJoined)
       socket.off('user:typing', onUserTyping)
       socket.off('reaction:add', onReactionAdd)
       socket.off('reaction:remove', onReactionRemove)
@@ -470,6 +503,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:declined', onFriendDeclined)
       socket.off('friend:cancelled', onFriendCancelled)
       socket.off('friend:removed', onFriendRemoved)
+      for (const timer of pendingOffline.values()) clearTimeout(timer)
+      pendingOffline.clear()
       disconnectSocket()
       setIsConnected(false)
     }
