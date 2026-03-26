@@ -97,7 +97,9 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
     if (audioTrack) {
       audioPub = await room.localParticipant.publishTrack(audioTrack, {
         name: 'screen-audio',
-        source: 'screen_share_audio' as unknown as undefined
+        source: 'screen_share_audio' as unknown as undefined,
+        audioEncoding: { maxBitrate: 128_000 },
+        dtx: false
       })
     }
 
@@ -171,7 +173,9 @@ export async function publishScreenShare(
     if (audioTrack) {
       audioPub = await room.localParticipant.publishTrack(audioTrack, {
         name: 'screen-audio',
-        source: 'screen_share_audio' as unknown as undefined
+        source: 'screen_share_audio' as unknown as undefined,
+        audioEncoding: { maxBitrate: 128_000 },
+        dtx: false
       })
     }
 

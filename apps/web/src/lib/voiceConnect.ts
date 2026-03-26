@@ -45,7 +45,14 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
       audioCaptureDefaults: {
         noiseSuppression: true,
         echoCancellation: true,
+        autoGainControl: true,
+        channelCount: 1,
         ...(devices.audioInput ? { deviceId: { exact: devices.audioInput } } : {})
+      },
+      publishDefaults: {
+        audioEncoding: { maxBitrate: 48_000 },
+        dtx: true,
+        red: true
       }
     })
 
@@ -67,6 +74,7 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
 
     if (devices.audioOutput) {
       room.switchActiveDevice('audiooutput', devices.audioOutput).catch(() => {})
+      useVoiceConnectionStore.getState().setAudioOutputDeviceId(devices.audioOutput)
     }
 
     getSocket()?.emit('voice:join', { channelId })
