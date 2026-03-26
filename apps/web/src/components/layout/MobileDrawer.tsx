@@ -65,7 +65,7 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children }: 
   const translate = animating ? 'translate-x-0' : side === 'left' ? '-translate-x-full' : 'translate-x-full'
 
   return createPortal(
-    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" onContextMenu={(e) => e.preventDefault()}>
       <div
         className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${
           animating ? 'opacity-100' : 'opacity-0'
@@ -76,6 +76,7 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children }: 
       <div
         ref={drawerRef}
         className={`absolute top-0 ${side === 'left' ? 'left-0' : 'right-0'} h-full ${width} transform transition-transform duration-200 ease-out ${translate}`}
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

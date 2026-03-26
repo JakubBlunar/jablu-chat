@@ -24,6 +24,8 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
     void api.getNotifPref(channelId).then((r) => {
       setLevel(r.level as NotifLevel)
       setLoaded(true)
+    }).catch(() => {
+      setLoaded(true)
     })
   }, [open, loaded, channelId])
 
@@ -57,17 +59,22 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
 
   const handleChange = useCallback(
     async (newLevel: NotifLevel) => {
+      const prevLevel = level
       setLevel(newLevel)
       setOpen(false)
-      if (newLevel === 'all') {
-        await api.resetNotifPref(channelId)
-        useNotifPrefStore.getState().remove(channelId)
-      } else {
-        await api.setNotifPref(channelId, newLevel)
-        useNotifPrefStore.getState().set(channelId, newLevel)
+      try {
+        if (newLevel === 'all') {
+          await api.resetNotifPref(channelId)
+          useNotifPrefStore.getState().remove(channelId)
+        } else {
+          await api.setNotifPref(channelId, newLevel)
+          useNotifPrefStore.getState().set(channelId, newLevel)
+        }
+      } catch {
+        setLevel(prevLevel)
       }
     },
-    [channelId]
+    [channelId, level]
   )
 
   const isMuted = level === 'none'

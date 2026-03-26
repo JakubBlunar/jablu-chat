@@ -28,6 +28,7 @@ html {
   *:not(input):not(textarea):not([contenteditable='true']) {
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
   }
 }
 
@@ -42,6 +43,11 @@ select {
   .h-screen-safe {
     height: 100dvh;
   }
+  .max-h-\[70vh\] { max-height: 70dvh; }
+  .max-h-\[80vh\] { max-height: 80dvh; }
+  .max-h-\[85vh\] { max-height: 85dvh; }
+  .max-h-\[90vh\] { max-height: 90dvh; }
+  .h-\[80vh\] { height: 80dvh; }
 }
 
 /* Landscape lock overlay for mobile touch devices */

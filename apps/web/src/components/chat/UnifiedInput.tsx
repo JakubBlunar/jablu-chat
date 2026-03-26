@@ -1,5 +1,5 @@
 import type { Attachment } from '@chat/shared'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChatInputBar,
   type ChatInputBarHandle,
@@ -63,30 +63,36 @@ export function UnifiedInput({
     if (replyTarget) inputRef.current?.focus()
   }, [replyTarget])
 
-  const rawMembers = useMemberStore((s) => s.members)
-  const mentionMembers: MentionMember[] = useMemo(
-    () =>
-      isDm
-        ? []
-        : rawMembers
-            .filter((m) => m.userId !== userId)
-            .map((m) => ({
-              userId: m.userId,
-              username: m.user.username,
-              displayName: m.user.displayName,
-              avatarUrl: m.user.avatarUrl
-            })),
-    [rawMembers, userId, isDm]
-  )
-
-  const allChannels = useChannelStore((s) => s.channels)
-  const mentionChannels: MentionChannel[] = useMemo(
-    () =>
-      isDm
-        ? (channels ?? [])
-        : allChannels.filter((c) => c.type === 'text').map((c) => ({ id: c.id, serverId: c.serverId, name: c.name })),
-    [allChannels, isDm, channels]
-  )
+  const mentionMembersRef = useRef<MentionMember[]>([])
+  const mentionChannelsRef = useRef<MentionChannel[]>(channels ?? [])
+  useEffect(() => {
+    const buildMembers = () => {
+      if (isDm) return []
+      return useMemberStore.getState().members
+        .filter((m) => m.userId !== userId)
+        .map((m) => ({
+          userId: m.userId,
+          username: m.user.username,
+          displayName: m.user.displayName,
+          avatarUrl: m.user.avatarUrl
+        }))
+    }
+    const buildChannels = () => {
+      if (isDm) return channels ?? []
+      return useChannelStore.getState().channels
+        .filter((c) => c.type === 'text')
+        .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name }))
+    }
+    mentionMembersRef.current = buildMembers()
+    mentionChannelsRef.current = buildChannels()
+    const unsubs = [
+      useMemberStore.subscribe(() => { mentionMembersRef.current = buildMembers() }),
+      useChannelStore.subscribe(() => { mentionChannelsRef.current = buildChannels() })
+    ]
+    return () => unsubs.forEach((fn) => fn())
+  }, [isDm, userId, channels])
+  const mentionMembers = mentionMembersRef.current
+  const mentionChannels = mentionChannelsRef.current
 
   const handleGifSelect = useCallback(
     (url: string) => {

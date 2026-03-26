@@ -1,5 +1,5 @@
 import type { UserStatus } from '@chat/shared'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ProfileCardUser } from '@/components/ProfileCard'
 import { useMemberStore } from '@/stores/member.store'
 
@@ -17,16 +17,18 @@ export function useProfileCard(
     }[]
   } | null
 ) {
-  const members = useMemberStore((s) => s.members)
-  const onlineIds = useMemberStore((s) => s.onlineUserIds)
   const [cardUser, setCardUser] = useState<ProfileCardUser | null>(null)
   const [cardRect, setCardRect] = useState<DOMRect | null>(null)
   const closeCard = useCallback(() => setCardUser(null), [])
 
-  const membersRef = useRef(members)
-  membersRef.current = members
-  const onlineIdsRef = useRef(onlineIds)
-  onlineIdsRef.current = onlineIds
+  const membersRef = useRef(useMemberStore.getState().members)
+  const onlineIdsRef = useRef(useMemberStore.getState().onlineUserIds)
+  useEffect(() => {
+    return useMemberStore.subscribe((s) => {
+      membersRef.current = s.members
+      onlineIdsRef.current = s.onlineUserIds
+    })
+  }, [])
   const currentConvRef = useRef(currentConv)
   currentConvRef.current = currentConv
 

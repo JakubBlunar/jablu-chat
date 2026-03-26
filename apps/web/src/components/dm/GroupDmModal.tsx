@@ -24,6 +24,7 @@ export function GroupDmModal({
   >([])
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const q = search.trim()
@@ -66,11 +67,12 @@ export function GroupDmModal({
       return
     }
     setCreating(true)
+    setError('')
     try {
       const conv = selected.length === 1 ? await api.createDm(selected[0]) : await api.createGroupDm(selected)
       onCreated(conv)
     } catch {
-      /* ignore */
+      setError('Failed to create conversation. Please try again.')
     }
     setCreating(false)
   }
@@ -131,6 +133,7 @@ export function GroupDmModal({
             ))}
         </SimpleBar>
 
+        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
         <button
           type="button"
           disabled={selected.length === 0 || creating}

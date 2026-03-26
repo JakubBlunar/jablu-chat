@@ -11,6 +11,8 @@ type DmState = {
   hasNewer: boolean
   isLoading: boolean
   isConversationsLoading: boolean
+  conversationsError: string | null
+  messagesError: string | null
   loadedForConvId: string | null
   scrollToMessageId: string | null
   scrollRequestNonce: number
@@ -43,17 +45,19 @@ export const useDmStore = create<DmState>((set, _get) => ({
   hasNewer: false,
   isLoading: false,
   isConversationsLoading: false,
+  conversationsError: null,
+  messagesError: null,
   loadedForConvId: null,
   scrollToMessageId: null,
   scrollRequestNonce: 0,
 
   fetchConversations: async () => {
-    set({ isConversationsLoading: true })
+    set({ isConversationsLoading: true, conversationsError: null })
     try {
       const list = await api.getDmConversations()
       set({ conversations: list, isConversationsLoading: false })
     } catch {
-      set({ isConversationsLoading: false })
+      set({ isConversationsLoading: false, conversationsError: 'Failed to load conversations' })
     }
   },
 
@@ -61,7 +65,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   fetchMessages: async (conversationId, cursor) => {
     const fetchId = ++_dmFetchId
-    set({ isLoading: true })
+    set({ isLoading: true, messagesError: null })
     try {
       const page = await api.getDmMessages(conversationId, cursor, 100)
       if (_dmFetchId !== fetchId) {
@@ -90,13 +94,13 @@ export const useDmStore = create<DmState>((set, _get) => ({
         })
       }
     } catch {
-      set({ isLoading: false })
+      set({ isLoading: false, messagesError: 'Failed to load messages' })
     }
   },
 
   fetchMessagesAround: async (conversationId, messageId) => {
     const fetchId = ++_dmFetchId
-    set({ isLoading: true })
+    set({ isLoading: true, messagesError: null })
     try {
       const page = await api.getDmMessagesAround(conversationId, messageId, 100)
       if (_dmFetchId !== fetchId) {
@@ -112,7 +116,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
         loadedForConvId: conversationId
       })
     } catch {
-      set({ isLoading: false })
+      set({ isLoading: false, messagesError: 'Failed to load messages' })
     }
   },
 
