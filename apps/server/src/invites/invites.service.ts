@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma, ServerRole } from '@prisma/client'
 import crypto from 'node:crypto'
+import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../servers/audit-log.service'
 
@@ -19,7 +20,8 @@ function generateInviteCode(): string {
 export class InvitesService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly auditLog: AuditLogService
+    private readonly auditLog: AuditLogService,
+    private readonly events: EventBusService
   ) {}
 
   private async getServerOrThrow(serverId: string) {
@@ -143,6 +145,18 @@ export class InvitesService {
         data: { useCount: { increment: 1 } }
       })
     ])
+
+    const newMember = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId: invite.serverId } },
+      include: {
+        user: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true }
+        }
+      }
+    })
+    if (newMember) {
+      this.events.emit('member:joined', { serverId: invite.serverId, member: newMember })
+    }
 
     const server = await this.prisma.server.findUnique({
       where: { id: invite.serverId },

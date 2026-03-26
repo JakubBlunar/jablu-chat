@@ -1,10 +1,12 @@
 import { RoomEvent, Track, type RemoteTrack } from 'livekit-client'
 import { useEffect, useRef, useCallback } from 'react'
+import { getVoiceAudioCtx, warmVoiceAudioCtx, closeVoiceAudioCtx } from '@/lib/voiceAudioCtx'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 type AudioNode = {
   source: MediaStreamAudioSourceNode
   gain: GainNode
+  trackId: string
 }
 
 /**
@@ -19,40 +21,50 @@ export function VoiceAudioManager() {
   const volumeOverrides = useVoiceConnectionStore((s) => s.volumeOverrides)
   const audioOutputDeviceId = useVoiceConnectionStore((s) => s.audioOutputDeviceId)
 
-  const audioCtxRef = useRef<AudioContext | null>(null)
   const nodesRef = useRef<Map<string, AudioNode>>(new Map())
 
-  const getAudioCtx = useCallback(() => {
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext()
-    }
-    if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume().catch(() => {})
-    }
-    return audioCtxRef.current
+  const getCtx = useCallback((): AudioContext => {
+    const existing = getVoiceAudioCtx()
+    if (existing && existing.state !== 'closed') return existing
+    return warmVoiceAudioCtx()
   }, [])
 
   const attachTrack = useCallback(
     (key: string, track: RemoteTrack) => {
+      const mst = track.mediaStreamTrack
+      if (!mst) return
+
       const existing = nodesRef.current.get(key)
+      if (existing && existing.trackId === mst.id) return
+
       if (existing) {
         existing.source.disconnect()
         existing.gain.disconnect()
         nodesRef.current.delete(key)
       }
 
-      const ms = track.mediaStream
-      if (!ms) return
+      const ctx = getCtx()
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {})
+      }
 
-      const ctx = getAudioCtx()
+      const ms = new MediaStream([mst])
       const source = ctx.createMediaStreamSource(ms)
       const gain = ctx.createGain()
       source.connect(gain)
       gain.connect(ctx.destination)
 
-      nodesRef.current.set(key, { source, gain })
+      const state = useVoiceConnectionStore.getState()
+      if (state.isDeafened) {
+        gain.gain.value = 0
+      } else {
+        const vol = state.volumeOverrides[key] ?? 100
+        gain.gain.value = vol / 100
+      }
+
+      nodesRef.current.set(key, { source, gain, trackId: mst.id })
     },
-    [getAudioCtx]
+    [getCtx]
   )
 
   const detachTrack = useCallback((key: string) => {
@@ -75,11 +87,7 @@ export function VoiceAudioManager() {
   useEffect(() => {
     if (!room) {
       detachAll()
-      const ctx = audioCtxRef.current
-      if (ctx && ctx.state !== 'closed') {
-        ctx.close().catch(() => {})
-      }
-      audioCtxRef.current = null
+      closeVoiceAudioCtx()
       return
     }
 
@@ -90,18 +98,14 @@ export function VoiceAudioManager() {
         if (micPub?.track) {
           const key = p.identity
           activeKeys.add(key)
-          if (!nodesRef.current.has(key)) {
-            attachTrack(key, micPub.track as RemoteTrack)
-          }
+          attachTrack(key, micPub.track as RemoteTrack)
         }
 
         const ssAudioPub = p.getTrackPublication(Track.Source.ScreenShareAudio)
         if (ssAudioPub?.track) {
           const key = `${p.identity}:screenAudio`
           activeKeys.add(key)
-          if (!nodesRef.current.has(key)) {
-            attachTrack(key, ssAudioPub.track as RemoteTrack)
-          }
+          attachTrack(key, ssAudioPub.track as RemoteTrack)
         }
       }
 
@@ -142,7 +146,7 @@ export function VoiceAudioManager() {
   }, [isDeafened, volumeOverrides])
 
   useEffect(() => {
-    const ctx = audioCtxRef.current
+    const ctx = getVoiceAudioCtx()
     if (!ctx || ctx.state === 'closed') return
     const target = audioOutputDeviceId || ''
     if ('setSinkId' in ctx && typeof (ctx as any).setSinkId === 'function') {
@@ -152,12 +156,10 @@ export function VoiceAudioManager() {
 
   useEffect(() => {
     if (!room) return
-    const ctx = audioCtxRef.current
+    const ctx = getVoiceAudioCtx()
     if (!ctx || ctx.state !== 'suspended') return
     const resume = () => {
       ctx.resume().catch(() => {})
-      document.removeEventListener('click', resume)
-      document.removeEventListener('touchstart', resume)
     }
     document.addEventListener('click', resume, { once: true })
     document.addEventListener('touchstart', resume, { once: true })

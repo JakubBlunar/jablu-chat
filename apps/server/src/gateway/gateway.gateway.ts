@@ -1,4 +1,4 @@
-import { BadRequestException, Logger, UseGuards } from '@nestjs/common'
+import { BadRequestException, Logger, OnModuleDestroy, UseGuards } from '@nestjs/common'
 import {
   ConnectedSocket,
   MessageBody,
@@ -23,7 +23,7 @@ import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 
 @WebSocketGateway({ namespace: '/' })
 @UseGuards(WsJwtGuard)
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatGateway.name)
 
   @WebSocketServer()
@@ -44,6 +44,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** socketId -> channelId the socket is in (for cleanup on disconnect) */
   private readonly socketVoiceChannel = new Map<string, string>()
 
+  /** userId -> pending offline timer + captured serverIds (grace period before marking offline) */
+  private readonly disconnectGrace = new Map<string, { timer: NodeJS.Timeout; serverIds: string[] }>()
+
+  private static readonly DISCONNECT_GRACE_MS = 2 * 60 * 1000
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
@@ -55,6 +60,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     private readonly push: PushService,
     private readonly redis: RedisService
   ) {}
+
+  onModuleDestroy() {
+    for (const { timer } of this.disconnectGrace.values()) {
+      clearTimeout(timer)
+    }
+    this.disconnectGrace.clear()
+  }
 
   private addOnlineUser(userId: string): boolean {
     const count = this.onlineUsers.get(userId) ?? 0
@@ -72,8 +84,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return false
   }
 
+  private isUserOnline(userId: string): boolean {
+    return this.onlineUsers.has(userId) || this.disconnectGrace.has(userId)
+  }
+
   getOnlineUserIds(): string[] {
-    return [...this.onlineUsers.keys()]
+    const ids = [...this.onlineUsers.keys()]
+    for (const userId of this.disconnectGrace.keys()) {
+      if (!this.onlineUsers.has(userId)) {
+        ids.push(userId)
+      }
+    }
+    return ids
   }
 
   afterInit() {
@@ -116,6 +138,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     this.events.on('channel:reorder', (payload: { serverId: string; channelIds: string[] }) => {
       this.server.to(`server:${payload.serverId}`).emit('channel:reorder', { channelIds: payload.channelIds })
+    })
+
+    this.events.on('member:joined', async (payload: { serverId: string; member: unknown }) => {
+      const { serverId, member } = payload as { serverId: string; member: { userId: string } }
+      this.server.to(`server:${serverId}`).emit('member:joined', { serverId, member })
+
+      const channels = await this.prisma.channel.findMany({
+        where: { serverId },
+        select: { id: true }
+      })
+      const userSockets = await this.server.in(`user:${member.userId}`).fetchSockets()
+      for (const s of userSockets) {
+        s.join(`server:${serverId}`)
+        for (const ch of channels) {
+          s.join(`channel:${ch.id}`)
+        }
+        const sids = (s.data as { serverIds?: string[] }).serverIds
+        if (sids && !sids.includes(serverId)) {
+          sids.push(serverId)
+        }
+      }
     })
 
     this.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {
@@ -256,10 +299,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     ;(client.data as { serverIds?: string[] }).serverIds = serverIds
     client.join(`user:${user.id}`)
 
+    const pendingGrace = this.disconnectGrace.get(user.id)
+    if (pendingGrace) {
+      clearTimeout(pendingGrace.timer)
+      this.disconnectGrace.delete(user.id)
+    }
+
     const isFirstConnection = this.addOnlineUser(user.id)
     this.socketActivityStatus.set(client.id, 'online')
 
-    if (isFirstConnection) {
+    if (pendingGrace) {
+      const effectiveStatus = this.getEffectiveStatus(user.id)
+      if (this.lastBroadcastedStatus.get(user.id) !== effectiveStatus) {
+        this.lastBroadcastedStatus.set(user.id, effectiveStatus)
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { status: effectiveStatus }
+        })
+        for (const sid of serverIds) {
+          this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: effectiveStatus })
+        }
+      }
+    } else if (isFirstConnection) {
       this.lastBroadcastedStatus.set(user.id, 'online')
       await this.prisma.user.update({
         where: { id: user.id },
@@ -312,15 +373,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     this.socketActivityStatus.delete(client.id)
 
     if (isLastConnection) {
-      this.manualStatus.delete(user.id)
-      this.lastBroadcastedStatus.delete(user.id)
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { status: 'offline', lastSeenAt: new Date() }
-      })
-      for (const sid of serverIds) {
-        this.server.to(`server:${sid}`).emit('user:offline', { userId: user.id })
-      }
+      const capturedServerIds = [...serverIds]
+      const userId = user.id
+      const timer = setTimeout(async () => {
+        this.disconnectGrace.delete(userId)
+        if (this.onlineUsers.has(userId)) return
+        this.manualStatus.delete(userId)
+        this.lastBroadcastedStatus.delete(userId)
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { status: 'offline', lastSeenAt: new Date() }
+        })
+        for (const sid of capturedServerIds) {
+          this.server.to(`server:${sid}`).emit('user:offline', { userId })
+        }
+      }, ChatGateway.DISCONNECT_GRACE_MS)
+      this.disconnectGrace.set(userId, { timer, serverIds: capturedServerIds })
     }
   }
 
@@ -607,7 +675,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         .catch((err) => this.logger.warn('DM link preview fetch failed', err?.message))
     }
 
-    const offlineDmMembers = otherMemberIds.filter((id) => !this.onlineUsers.has(id))
+    const offlineDmMembers = otherMemberIds.filter((id) => !this.isUserOnline(id))
     if (offlineDmMembers.length > 0) {
       const authorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
       const preview = this.describePushPreview(body.content, msg.attachments)
@@ -827,7 +895,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       select: { userId: true }
     })
 
-    const offlineIds = members.map((m) => m.userId).filter((id) => !this.onlineUsers.has(id))
+    const offlineIds = members.map((m) => m.userId).filter((id) => !this.isUserOnline(id))
 
     if (offlineIds.length === 0) return
 
