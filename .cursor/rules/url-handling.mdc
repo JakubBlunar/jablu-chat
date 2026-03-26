@@ -1,0 +1,61 @@
+---
+description: URL handling conventions across Web, PWA, and Electron platforms
+alwaysApply: false
+globs: apps/web/**/*.{ts,tsx}, apps/desktop/**/*.ts
+---
+
+# URL Handling: Web, PWA & Electron
+
+The app runs on three platforms with different URL behaviors:
+
+| Platform | Origin | API calls | Static assets | Server media |
+|----------|--------|-----------|---------------|--------------|
+| **Web/PWA** | Same as server | Relative (`/api/...`) | Absolute (`/assets/...`) | Relative (`/api/uploads/...`) |
+| **Electron** | `app://jablu` | Proxied by protocol handler | Served locally by protocol handler | Proxied by protocol handler |
+
+## Key Rules
+
+### 1. Never hardcode absolute paths for public assets in components
+Use `import.meta.env.BASE_URL` to prefix public directory assets:
+
+```tsx
+// ❌ BAD — breaks in Electron (file:// or app:// origin)
+<img src="/favicon.svg" />
+
+// ✅ GOOD — resolves to "/" on web, "./" on Electron build
+<img src={`${import.meta.env.BASE_URL}favicon.svg`} />
+```
+
+### 2. Keep `api.baseUrl` empty in Electron
+The `app://` protocol handler proxies `/api/` and `/uploads/` to the server. Never set `api.baseUrl` in Electron — all API paths stay relative.
+
+### 3. Use `resolveMediaUrl()` for server-provided media URLs
+Avatars, attachments, and icons from the API are paths like `/api/uploads/...`. Wrap them with `resolveMediaUrl()` from `@/lib/api`:
+
+```tsx
+// ❌ BAD — won't resolve to server in Electron if baseUrl fallback needed
+<img src={user.avatarUrl} />
+
+// ✅ GOOD
+<img src={resolveMediaUrl(user.avatarUrl)} />
+```
+
+### 4. WebSocket connects directly to the server
+The protocol handler cannot proxy WebSockets. Socket.io reads the server URL from `getStoredServerUrl()` in Electron, and uses same-origin on web.
+
+### 5. Electron builds require `ELECTRON=1` env var
+This sets `base: "./"` in Vite so asset paths are relative. Without it, paths like `/assets/index.js` break on `file://` or `app://`.
+
+```bash
+# Web build (default base: "/")
+pnpm --filter @chat/web build
+
+# Electron build (base: "./")
+ELECTRON=1 pnpm --filter @chat/web build
+```
+
+### 6. MIME types in protocol handler
+When adding new static asset types to the web app, also add their MIME type to `MIME_TYPES` in `apps/desktop/src/main/index.ts`. Missing entries cause silent load failures (e.g., `.mjs`, `.wasm`).
+
+### 7. External links in PWA
+Always use `target="_blank" rel="noopener noreferrer"` on links to external URLs. Without this, iOS PWA navigates away from the app entirely.
