@@ -33,9 +33,10 @@ function LightboxOverlay({ onClose, children }: { onClose: () => void; children:
   )
 }
 
-function aspectStyle(w: number | null, h: number | null) {
-  if (!w || !h) return undefined
-  return { aspectRatio: `${w} / ${h}` } as const
+function constrainedDims(w: number | null, h: number | null, maxW = 448, maxH = 300) {
+  if (!w || !h) return null
+  const scale = Math.min(maxW / w, maxH / h, 1)
+  return { width: Math.round(w * scale), height: Math.round(h * scale) }
 }
 
 export const AttachmentPreview = memo(function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
@@ -43,20 +44,21 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
   const { width: aw, height: ah } = attachment
 
   if (attachment.type === 'image' || attachment.type === 'gif') {
+    const dims = constrainedDims(aw, ah)
     return (
       <>
         <button
           type="button"
-          className="mt-1 block max-w-md overflow-hidden rounded-lg"
+          className="mt-1 block overflow-hidden rounded-lg"
+          style={dims ? { width: dims.width, height: dims.height } : undefined}
           onClick={() => setLightbox(true)}
         >
           <img
             src={attachment.url}
             alt={attachment.filename}
-            width={aw ?? undefined}
-            height={ah ?? undefined}
-            style={aspectStyle(aw, ah)}
-            className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
+            width={dims?.width}
+            height={dims?.height}
+            className="h-full w-full rounded-lg object-contain"
             loading="lazy"
           />
         </button>
@@ -74,17 +76,17 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
   }
 
   if (attachment.type === 'video') {
-    const hasDims = aw && ah
+    const vDims = constrainedDims(aw, ah)
     return (
-      <div className="mt-1 max-w-md">
+      <div className="mt-1" style={vDims ? { width: vDims.width } : { maxWidth: 448 }}>
         <video
           src={attachment.url}
           controls
           preload="metadata"
-          width={aw ?? undefined}
-          height={ah ?? undefined}
-          style={hasDims ? aspectStyle(aw, ah) : { aspectRatio: '16 / 9' }}
-          className="h-auto max-h-[300px] w-auto max-w-full rounded-lg"
+          width={vDims?.width}
+          height={vDims?.height}
+          style={vDims ? { width: vDims.width, height: vDims.height } : { aspectRatio: '16 / 9', width: '100%' }}
+          className="rounded-lg"
         >
           <track kind="captions" />
         </video>

@@ -68,13 +68,15 @@ function LightboxOverlay({ onClose, children }: { onClose: () => void; children:
 
 function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
   const [lightbox, setLightbox] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const imgUrl = lp.imageUrl ?? lp.url
 
   return (
     <>
       <button
         type="button"
-        className="mt-1 block min-h-[120px] max-w-md overflow-hidden rounded-lg"
+        className="mt-1 block max-w-md overflow-hidden rounded-lg"
+        style={!loaded ? { aspectRatio: '4 / 3', width: 300, maxWidth: '100%' } : undefined}
         onClick={() => setLightbox(true)}
       >
         <img
@@ -82,6 +84,7 @@ function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
           alt={lp.title ?? label}
           className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
           loading="lazy"
+          onLoad={() => setLoaded(true)}
         />
       </button>
       {lightbox && (
