@@ -288,6 +288,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       computeItemKey={computeItemKey}
       firstItemIndex={scroll.firstItemIndex}
       initialTopMostItemIndex={scroll.scrollTargetIndexRef.current ?? messages.length - 1}
+      defaultItemHeight={64}
       alignToBottom
       atBottomThreshold={100}
       followOutput={scroll.followOutput}
