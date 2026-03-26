@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 const ACTIVITY_EVENTS: (keyof DocumentEventMap)[] = [
   'mousemove',
@@ -11,11 +12,22 @@ const ACTIVITY_EVENTS: (keyof DocumentEventMap)[] = [
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
+function isInVoiceChannel(): boolean {
+  return !!useVoiceConnectionStore.getState().room
+}
+
 export function useIdleDetector(onIdle: () => void, onActive: () => void) {
   const isIdle = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    const goIdle = () => {
+      if (!isIdle.current && !isInVoiceChannel()) {
+        isIdle.current = true
+        onIdle()
+      }
+    }
+
     const resetTimer = () => {
       if (timer.current) clearTimeout(timer.current)
 
@@ -24,12 +36,7 @@ export function useIdleDetector(onIdle: () => void, onActive: () => void) {
         onActive()
       }
 
-      timer.current = setTimeout(() => {
-        if (!isIdle.current) {
-          isIdle.current = true
-          onIdle()
-        }
-      }, IDLE_TIMEOUT_MS)
+      timer.current = setTimeout(goIdle, IDLE_TIMEOUT_MS)
     }
 
     resetTimer()
@@ -39,13 +46,7 @@ export function useIdleDetector(onIdle: () => void, onActive: () => void) {
     }
 
     const onVisibilityChange = () => {
-      if (document.hidden) {
-        if (timer.current) clearTimeout(timer.current)
-        if (!isIdle.current) {
-          isIdle.current = true
-          onIdle()
-        }
-      } else {
+      if (!document.hidden && isIdle.current) {
         resetTimer()
       }
     }

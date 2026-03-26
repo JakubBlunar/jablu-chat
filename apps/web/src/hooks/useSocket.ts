@@ -109,6 +109,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (convId) {
         socket.emit('dm:join', { conversationId: convId })
       }
+      if (!document.hidden) {
+        socket.emit('activity:active')
+      }
     }
     const onDisconnect = () => setIsConnected(false)
     const onConnectError = async () => {
