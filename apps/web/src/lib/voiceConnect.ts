@@ -14,7 +14,19 @@ function showVoiceError(message: string) {
   window.dispatchEvent(new CustomEvent('voice:error', { detail: { message } }))
 }
 
+let _joinPromise: Promise<void> | null = null
+
 export async function joinVoiceChannel(serverId: string, channelId: string, channelName: string) {
+  if (_joinPromise) await _joinPromise.catch(() => {})
+  _joinPromise = _joinVoiceChannelImpl(serverId, channelId, channelName)
+  try {
+    await _joinPromise
+  } finally {
+    _joinPromise = null
+  }
+}
+
+async function _joinVoiceChannelImpl(serverId: string, channelId: string, channelName: string) {
   const store = useVoiceConnectionStore.getState()
 
   if (store.currentChannelId) {
@@ -63,6 +75,16 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
       current.disconnect()
     })
 
+    room.on(RoomEvent.Reconnecting, () => {
+      const current = useVoiceConnectionStore.getState()
+      if (current.room === room) current.setReconnecting(true)
+    })
+
+    room.on(RoomEvent.Reconnected, () => {
+      const current = useVoiceConnectionStore.getState()
+      if (current.room === room) current.setReconnecting(false)
+    })
+
     await room.connect(url, token)
 
     if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
@@ -85,7 +107,7 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
         showVoiceError('Microphone access denied. Check your browser permissions.')
       } else {
-        console.warn('Could not enable microphone:', err.message)
+        showVoiceError('Could not access microphone. Check device connections.')
       }
     })
   } catch (err) {

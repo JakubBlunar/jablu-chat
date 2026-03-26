@@ -27,6 +27,7 @@ export type VoiceConnectionState = {
   isCameraOn: boolean
   isScreenSharing: boolean
   isConnecting: boolean
+  isReconnecting: boolean
   connectedAt: number | null
   viewingVoiceRoom: boolean
   micMode: MicMode
@@ -45,6 +46,7 @@ export type VoiceConnectionState = {
   stopCamera: () => void
   applyCameraSettings: (quality: CameraQuality, blur: boolean) => void
   setScreenSharing: (v: boolean) => void
+  setReconnecting: (v: boolean) => void
   setViewingVoiceRoom: (v: boolean) => void
   setMicMode: (mode: MicMode) => void
   setVolumeOverride: (key: string, volume: number) => void
@@ -126,6 +128,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   isCameraOn: false,
   isScreenSharing: false,
   isConnecting: false,
+  isReconnecting: false,
   connectedAt: null,
   viewingVoiceRoom: false,
   micMode: normalizedMicMode(),
@@ -148,17 +151,26 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     set({ room, isConnecting: false, connectedAt: Date.now() })
     const mode = get().micMode
     if (mode !== 'always') {
-      setTimeout(() => startMicMode(mode), 500)
+      let attempts = 0
+      const poll = setInterval(() => {
+        const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+        if (pub?.track || ++attempts > 20) {
+          clearInterval(poll)
+          if (pub?.track) startMicMode(mode)
+        }
+      }, 100)
     }
     get().fetchVolumeOverrides()
   },
 
   disconnect: () => {
     const { room, _blurHandle, _originalCameraTrack } = get()
+    if (_saveTimer) clearTimeout(_saveTimer)
     stopMicMode()
     _blurHandle?.stop()
     _originalCameraTrack?.stop()
     if (room) {
+      room.removeAllListeners()
       room.localParticipant.getTrackPublications().forEach((pub) => {
         pub.track?.mediaStreamTrack?.stop()
       })
@@ -174,6 +186,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       isCameraOn: false,
       isScreenSharing: false,
       isConnecting: false,
+      isReconnecting: false,
       connectedAt: null,
       viewingVoiceRoom: false,
       isBlurEnabled: false,
@@ -335,12 +348,18 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
           const { createBlurredStream } = await import('@/lib/backgroundBlur')
           const handle = await createBlurredStream(rawTrack)
           const blurredTrack = handle.stream.getVideoTracks()[0]
-          if (blurredTrack) {
-            await room.localParticipant.publishTrack(blurredTrack, {
-              source: Track.Source.Camera,
-              name: 'camera'
-            })
+          if (!blurredTrack) {
+            handle.stop()
+            rawTrack?.stop()
+            set({ isCameraOn: false, isBlurEnabled: false })
+            emitVoiceState({ camera: false })
+            showVoiceError('Background blur produced no video. Camera was stopped.')
+            return
           }
+          await room.localParticipant.publishTrack(blurredTrack, {
+            source: Track.Source.Camera,
+            name: 'camera'
+          })
           set({
             isBlurEnabled: true,
             _blurHandle: handle,
@@ -382,6 +401,8 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     set({ isScreenSharing: v })
     emitVoiceState({ screenShare: v })
   },
+
+  setReconnecting: (v) => set({ isReconnecting: v }),
 
   setViewingVoiceRoom: (v) => set({ viewingVoiceRoom: v }),
 

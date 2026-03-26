@@ -75,6 +75,11 @@ export function VoiceAudioManager() {
   useEffect(() => {
     if (!room) {
       detachAll()
+      const ctx = audioCtxRef.current
+      if (ctx && ctx.state !== 'closed') {
+        ctx.close().catch(() => {})
+      }
+      audioCtxRef.current = null
       return
     }
 
@@ -144,6 +149,40 @@ export function VoiceAudioManager() {
       ;(ctx as any).setSinkId(target).catch(() => {})
     }
   }, [audioOutputDeviceId])
+
+  useEffect(() => {
+    if (!room) return
+    const ctx = audioCtxRef.current
+    if (!ctx || ctx.state !== 'suspended') return
+    const resume = () => {
+      ctx.resume().catch(() => {})
+      document.removeEventListener('click', resume)
+      document.removeEventListener('touchstart', resume)
+    }
+    document.addEventListener('click', resume, { once: true })
+    document.addEventListener('touchstart', resume, { once: true })
+    return () => {
+      document.removeEventListener('click', resume)
+      document.removeEventListener('touchstart', resume)
+    }
+  }, [room])
+
+  useEffect(() => {
+    if (!room || !navigator.mediaDevices?.addEventListener) return
+    const onChange = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const outputs = devices.filter((d) => d.kind === 'audiooutput')
+        const currentId = useVoiceConnectionStore.getState().audioOutputDeviceId
+        if (currentId && !outputs.some((d) => d.deviceId === currentId)) {
+          useVoiceConnectionStore.getState().setAudioOutputDeviceId('')
+          room.switchActiveDevice('audiooutput', '').catch(() => {})
+        }
+      } catch { /* ignored */ }
+    }
+    navigator.mediaDevices.addEventListener('devicechange', onChange)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', onChange)
+  }, [room])
 
   return null
 }

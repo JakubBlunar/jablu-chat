@@ -79,6 +79,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
   const channelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
   const isConnecting = useVoiceConnectionStore((s) => s.isConnecting)
+  const isReconnecting = useVoiceConnectionStore((s) => s.isReconnecting)
   const micMode = useVoiceConnectionStore((s) => s.micMode)
 
   const vc = useVoiceControls()
@@ -104,9 +105,9 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         aria-label="Go to voice room"
       >
         <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-green-500" />
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-green-400">
-            {isConnecting ? 'Connecting...' : 'Voice Connected'}
+          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isConnecting || isReconnecting ? 'bg-amber-500' : 'bg-green-500'}`} />
+          <span className={`min-w-0 flex-1 truncate text-xs font-medium ${isConnecting || isReconnecting ? 'text-amber-400' : 'text-green-400'}`}>
+            {isConnecting ? 'Connecting...' : isReconnecting ? 'Reconnecting...' : 'Voice Connected'}
           </span>
         </div>
         <p className="mt-0.5 truncate text-xs text-gray-400">

@@ -24,7 +24,10 @@ export function ParticipantTile({
   const storeMuted = useVoiceConnectionStore((s) => s.isMuted)
 
   const checkMicMuted = useCallback((): boolean => {
-    if (participant.isLocal) return storeMuted
+    if (participant.isLocal) {
+      const micPub = participant.getTrackPublication(Track.Source.Microphone)
+      return storeMuted || !micPub?.track || micPub.isMuted
+    }
     const micPub = participant.getTrackPublication(Track.Source.Microphone)
     return !micPub || !micPub.track || micPub.isMuted
   }, [participant, storeMuted])
@@ -87,11 +90,17 @@ export function ParticipantTile({
       if (pub.source === Track.Source.Camera) {
         setHasVideo(false)
       }
+      if (pub.source === Track.Source.Microphone) {
+        setIsMicMuted(true)
+      }
     }
 
     const onTrackUnmuted = (pub: TrackPublication) => {
       if (pub.source === Track.Source.Camera) {
         setHasVideo(true)
+      }
+      if (pub.source === Track.Source.Microphone) {
+        setIsMicMuted(checkMicMuted())
       }
     }
 
@@ -120,7 +129,7 @@ export function ParticipantTile({
       participant.off(ParticipantEvent.TrackMuted, onTrackMuted)
       participant.off(ParticipantEvent.TrackUnmuted, onTrackUnmuted)
     }
-  }, [participant, updateVideoState])
+  }, [participant, updateVideoState, checkMicMuted])
 
   const displayName = participant.name || participant.identity
 

@@ -38,6 +38,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -76,6 +77,8 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
             {canBlur ? (
               <button
                 type="button"
+                role="switch"
+                aria-checked={blur}
                 onClick={() => setBlur(!blur)}
                 className="flex w-full items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
               >
