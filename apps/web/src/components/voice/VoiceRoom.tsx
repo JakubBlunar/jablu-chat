@@ -20,6 +20,21 @@ export function VoiceRoom() {
   const prevScreenIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
+    const lockOverlay = document.getElementById('landscape-lock')
+    const orient = screen?.orientation as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void })
+      | undefined
+
+    lockOverlay?.classList.add('hidden')
+    orient?.unlock?.()
+
+    return () => {
+      lockOverlay?.classList.remove('hidden')
+      orient?.lock?.('portrait').catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
     if (!room) return
 
     const update = () => {
@@ -221,46 +236,49 @@ function FocusedLayout({
 }) {
   const fsRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const isCoarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
-  useEffect(() => {
-    const lockOverlay = document.getElementById('landscape-lock')
-    const orient = screen?.orientation as
-      | (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void })
-      | undefined
-    const onChange = () => {
-      const fs = !!document.fullscreenElement
-      setIsFullscreen(fs)
-      lockOverlay?.classList.toggle('hidden', fs)
-      if (fs) orient?.unlock?.()
-      else orient?.lock?.('portrait').catch(() => {})
+  const enterFullscreen = useCallback(() => {
+    if (!isCoarse && fsRef.current?.requestFullscreen) {
+      fsRef.current.requestFullscreen().catch(() => setIsFullscreen(true))
+    } else {
+      setIsFullscreen(true)
     }
-    document.addEventListener('fullscreenchange', onChange)
-    return () => {
-      document.removeEventListener('fullscreenchange', onChange)
-      lockOverlay?.classList.remove('hidden')
-      orient?.lock?.('portrait').catch(() => {})
-    }
-  }, [])
+  }, [isCoarse])
 
-  useEffect(() => {
-    if (autoFullscreen && fsRef.current && !document.fullscreenElement) {
-      fsRef.current.requestFullscreen().catch(() => {})
-      onFullscreenConsumed?.()
-    }
-  }, [autoFullscreen, onFullscreenConsumed])
-
-  const toggleFullscreen = useCallback(() => {
-    if (!fsRef.current) return
+  const exitFullscreen = useCallback(() => {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {})
-    } else {
-      fsRef.current.requestFullscreen().catch(() => {})
     }
+    setIsFullscreen(false)
   }, [])
+
+  useEffect(() => {
+    const onChange = () => {
+      if (!document.fullscreenElement) setIsFullscreen(false)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  useEffect(() => {
+    if (autoFullscreen) {
+      enterFullscreen()
+      onFullscreenConsumed?.()
+    }
+  }, [autoFullscreen, onFullscreenConsumed, enterFullscreen])
+
+  const toggleFullscreen = useCallback(() => {
+    if (isFullscreen || document.fullscreenElement) exitFullscreen()
+    else enterFullscreen()
+  }, [isFullscreen, enterFullscreen, exitFullscreen])
+
+  const nativeFs = !!document.fullscreenElement
+  const cssFs = isFullscreen && !nativeFs
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
-      <div ref={fsRef} className="relative min-h-0 flex-1 bg-surface-darkest">
+      <div ref={fsRef} className={cssFs ? 'fixed inset-0 z-[9999] bg-black' : 'relative min-h-0 flex-1 bg-surface-darkest'}>
         <div
           className="h-full w-full cursor-pointer"
           onClick={onUnfocus}
@@ -280,7 +298,7 @@ function FocusedLayout({
             onClick={toggleFullscreen}
             className="flex items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-black/80"
           >
-            {isFullscreen ? (
+            {isFullscreen || nativeFs ? (
               <>
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
@@ -297,7 +315,7 @@ function FocusedLayout({
             )}
           </button>
 
-          {!isFullscreen && (
+          {!isFullscreen && !nativeFs && (
             <button
               type="button"
               onClick={onUnfocus}
@@ -312,7 +330,7 @@ function FocusedLayout({
         </div>
       </div>
 
-      {others.length > 0 && !isFullscreen && <CarouselStrip tiles={others} onTileClick={onTileClick} />}
+      {others.length > 0 && !isFullscreen && !nativeFs && <CarouselStrip tiles={others} onTileClick={onTileClick} />}
     </div>
   )
 }
