@@ -19,6 +19,7 @@ type MessageState = {
   isLoading: boolean
   hasMore: boolean
   hasNewer: boolean
+  messagesError: string | null
   loadedForChannelId: string | null
   typingUsers: Map<string, TypingEntry>
   scrollToMessageId: string | null
@@ -45,6 +46,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   isLoading: false,
   hasMore: false,
   hasNewer: false,
+  messagesError: null,
   loadedForChannelId: null,
   typingUsers: new Map(),
   scrollToMessageId: null,
@@ -52,7 +54,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
   fetchMessages: async (channelId, cursor) => {
     const fetchId = ++_msgFetchId
-    set({ isLoading: true })
+    set({ isLoading: true, messagesError: null })
     try {
       const params = new URLSearchParams()
       if (cursor) params.set('cursor', cursor)
@@ -86,14 +88,14 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         })
       }
     } catch (e) {
-      set({ isLoading: false })
+      set({ isLoading: false, messagesError: 'Failed to load messages' })
       throw e
     }
   },
 
   fetchMessagesAround: async (channelId, messageId) => {
     const fetchId = ++_msgFetchId
-    set({ isLoading: true })
+    set({ isLoading: true, messagesError: null })
     try {
       const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=100`
       const page = await api.get<MessagesPage>(path)
@@ -110,7 +112,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         loadedForChannelId: channelId
       })
     } catch (e) {
-      set({ isLoading: false })
+      set({ isLoading: false, messagesError: 'Failed to load messages' })
       throw e
     }
   },
@@ -139,7 +141,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         }
       })
     } catch (e) {
-      set({ isLoading: false })
+      set({ isLoading: false, messagesError: 'Failed to load messages' })
       throw e
     }
   },
@@ -178,6 +180,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       messages: [],
       hasMore: false,
       hasNewer: false,
+      messagesError: null,
       loadedForChannelId: null,
       typingUsers: new Map()
     })

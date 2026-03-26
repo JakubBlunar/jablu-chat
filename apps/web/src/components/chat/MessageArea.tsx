@@ -16,6 +16,8 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
+import { useDmStore } from '@/stores/dm.store'
+import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
 
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
@@ -42,7 +44,7 @@ function HashChannelIcon() {
 
 function MembersToggleIcon() {
   return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
       <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
       <circle cx="8.5" cy="7" r="4" />
       <path d="M20 8v6M23 11h-6" />
@@ -60,7 +62,7 @@ function ChannelSettingsIcon() {
 
 function PinHeaderIcon() {
   return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
       <path d="M12 2v8m0 0-3-3m3 3 3-3M9 17h6m-6 0v4m6-4v4M5 12h14" />
     </svg>
   )
@@ -68,7 +70,7 @@ function PinHeaderIcon() {
 
 function AtIcon() {
   return (
-    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M12 2a10 10 0 1 0 4.4 19 1 1 0 0 0-.8-1.8A8 8 0 1 1 20 12v1.5a2.5 2.5 0 0 1-5 0V8h-2v.3A5 5 0 1 0 15 17a4.5 4.5 0 0 0 7-3.5V12A10 10 0 0 0 12 2zm0 13a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
     </svg>
   )
@@ -108,6 +110,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isDm = mode === 'dm'
   const store = useMessageStoreAdapter(mode)
   const { messages, isLoading, hasMore, hasNewer } = store
+  const messagesError = isDm
+    ? useDmStore((s) => s.messagesError)
+    : useMessageStore((s) => s.messagesError)
 
   const userId = useAuthStore((s) => s.user?.id)
 
@@ -225,6 +230,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         <p className="text-sm text-gray-400">Loading messages...</p>
       </div>
     </DelayedRender>
+  ) : messagesError && messages.length === 0 ? (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
+      <p className="text-sm text-red-400">{messagesError}</p>
+      <button
+        type="button"
+        onClick={() => contextId && store.fetchMessages(contextId)}
+        className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary/80"
+      >
+        Retry
+      </button>
+    </div>
   ) : !isDm && activeChannel && messages.length === 0 ? (
     <div className="flex flex-1 flex-col justify-end pb-6">
       <div className="border-t border-white/10 pt-4">
@@ -353,7 +369,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             title="Pinned messages"
             aria-label="Pinned messages"
             onClick={() => void pinned.handleOpenPinned()}
-            className="relative rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            className="relative rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <PinHeaderIcon />
             {(activeChannel.pinnedCount ?? 0) > 0 && (
@@ -369,7 +385,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               title="Channel settings"
               aria-label="Channel settings"
               onClick={() => setEditingChannel(true)}
-              className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+              className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <ChannelSettingsIcon />
             </button>
@@ -379,7 +395,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             title="Toggle member list"
             aria-label="Toggle member list"
             onClick={useLayoutStore.getState().toggleMemberSidebar}
-            className="hidden rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white md:block"
+            className="hidden rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white md:block"
           >
             <MembersToggleIcon />
           </button>
