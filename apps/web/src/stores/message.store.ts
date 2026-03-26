@@ -83,6 +83,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         set({
           messages: chronological,
           hasMore: page.hasMore,
+          hasNewer: false,
           isLoading: false,
           loadedForChannelId: channelId
         })

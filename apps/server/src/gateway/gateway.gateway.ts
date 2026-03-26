@@ -136,6 +136,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.emitToDm(payload.conversationId, 'dm:read', payload)
     })
 
+    this.events.on('admin:message:delete', (payload: { messageId: string; channelId: string }) => {
+      this.emitToChannel(payload.channelId, 'message:delete', payload)
+    })
+
+    this.events.on('admin:dm:delete', (payload: { messageId: string; conversationId: string }) => {
+      this.emitToDm(payload.conversationId, 'dm:delete', payload)
+    })
+
     this.events.on('channel:reorder', (payload: { serverId: string; channelIds: string[] }) => {
       this.server.to(`server:${payload.serverId}`).emit('channel:reorder', { channelIds: payload.channelIds })
     })

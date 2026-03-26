@@ -90,6 +90,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
         set({
           messages: chronological,
           hasMore: page.hasMore,
+          hasNewer: false,
           isLoading: false,
           loadedForConvId: conversationId
         })

@@ -21,6 +21,7 @@ import { ChannelType, ServerRole } from '@prisma/client'
 import * as crypto from 'crypto'
 import { MailService } from '../auth/mail.service'
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service'
+import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
@@ -59,7 +60,8 @@ export class AdminController {
     private readonly mail: MailService,
     private readonly rateLimiter: AdminRateLimiter,
     private readonly tokenStore: AdminTokenStore,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    private readonly events: EventBusService
   ) {
     this.superadminUsername = config.get<string>('SUPERADMIN_USERNAME', '')
     this.superadminPassword = config.get<string>('SUPERADMIN_PASSWORD', '')
@@ -706,6 +708,11 @@ export class AdminController {
       where: { id },
       data: { deleted: true, content: null }
     })
+    if (msg.channelId) {
+      this.events.emit('admin:message:delete', { messageId: id, channelId: msg.channelId })
+    } else if (msg.directConversationId) {
+      this.events.emit('admin:dm:delete', { messageId: id, conversationId: msg.directConversationId })
+    }
   }
 
   // ─── Deleted Messages ───────────────────────────────────

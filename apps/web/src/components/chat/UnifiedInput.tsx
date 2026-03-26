@@ -1,4 +1,4 @@
-import type { Attachment } from '@chat/shared'
+import type { Attachment, Message } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChatInputBar,
@@ -157,6 +157,8 @@ export function UnifiedInput({
         content: content || undefined,
         replyToId: replyTarget?.id,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
+      }, (res: { ok?: boolean; message?: Message }) => {
+        if (res?.ok && res.message) useDmStore.getState().addMessage(res.message)
       })
     } else {
       if (useMessageStore.getState().hasNewer) {
@@ -168,6 +170,8 @@ export function UnifiedInput({
         content: content || undefined,
         replyToId: replyTarget?.id,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
+      }, (res: { ok?: boolean; message?: Message }) => {
+        if (res?.ok && res.message) useMessageStore.getState().addMessage(res.message)
       })
     }
 
