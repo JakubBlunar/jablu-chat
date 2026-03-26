@@ -34,7 +34,13 @@ export function ModalOverlay({
       role="presentation"
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => {
+        e.stopPropagation()
+        if (e.target === e.currentTarget) {
+          e.preventDefault()
+          onClose()
+        }
+      }}
       onClick={(e) => {
         e.stopPropagation()
         if (e.target === e.currentTarget) onClose()

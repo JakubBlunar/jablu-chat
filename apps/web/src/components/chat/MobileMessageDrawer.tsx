@@ -138,6 +138,13 @@ export function MobileMessageDrawer({
         className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 backdrop-blur-sm"
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => {
+          e.stopPropagation()
+          if (e.target === e.currentTarget) {
+            e.preventDefault()
+            setShowFullPicker(false)
+          }
+        }}
         onClick={(e) => {
           e.stopPropagation()
           if (e.target === e.currentTarget) setShowFullPicker(false)
@@ -171,7 +178,13 @@ export function MobileMessageDrawer({
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 backdrop-blur-sm"
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => {
+        e.stopPropagation()
+        if (e.target === e.currentTarget) {
+          e.preventDefault()
+          close()
+        }
+      }}
       onClick={(e) => {
         e.stopPropagation()
         if (e.target === e.currentTarget) close()

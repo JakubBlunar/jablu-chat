@@ -60,6 +60,7 @@ export function ProfileCard({
   const isMobile = useIsMobile()
 
   useEffect(() => {
+    if (isMobile) return
     const handler = (e: PointerEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
         onClose()
@@ -67,7 +68,7 @@ export function ProfileCard({
     }
     document.addEventListener('pointerdown', handler)
     return () => document.removeEventListener('pointerdown', handler)
-  }, [onClose])
+  }, [onClose, isMobile])
 
   const badge = roleLabel(user.role)
 
