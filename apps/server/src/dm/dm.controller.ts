@@ -29,6 +29,11 @@ export class DmController {
     return this.dm.closeConversation(id, user.id)
   }
 
+  @Get('can-dm/:userId')
+  canDmUser(@Param('userId', ParseUUIDPipe) targetId: string, @CurrentUser() user: { id: string }) {
+    return this.dm.canDmUser(user.id, targetId)
+  }
+
   @Get(':id/read-states')
   getReadStates(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }) {
     return this.dm.getConversationReadStates(id, user.id)

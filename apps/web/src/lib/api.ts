@@ -260,6 +260,46 @@ export class ApiClient {
     return this.get(`/api/users/${userId}/mutual-servers`)
   }
 
+  getFriends(): Promise<import('@chat/shared').Friend[]> {
+    return this.get('/api/friends')
+  }
+
+  getPendingFriendRequests(): Promise<import('@chat/shared').FriendRequest[]> {
+    return this.get('/api/friends/pending')
+  }
+
+  getFriendshipStatus(userId: string): Promise<import('@chat/shared').FriendshipStatusResponse> {
+    return this.get(`/api/friends/status/${userId}`)
+  }
+
+  sendFriendRequest(userId: string): Promise<{ ok: boolean; friendshipId: string }> {
+    return this.post('/api/friends/request', { userId })
+  }
+
+  acceptFriendRequest(id: string): Promise<{ ok: boolean }> {
+    return this.post(`/api/friends/${id}/accept`, {})
+  }
+
+  declineFriendRequest(id: string): Promise<{ ok: boolean }> {
+    return this.delete(`/api/friends/${id}/decline`)
+  }
+
+  cancelFriendRequest(id: string): Promise<{ ok: boolean }> {
+    return this.delete(`/api/friends/${id}/cancel`)
+  }
+
+  removeFriend(id: string): Promise<{ ok: boolean }> {
+    return this.delete(`/api/friends/${id}`)
+  }
+
+  updateDmPrivacy(dmPrivacy: 'everyone' | 'friends_only'): Promise<import('@chat/shared').User> {
+    return this.patch('/api/auth/privacy', { dmPrivacy })
+  }
+
+  canDmUser(userId: string): Promise<{ allowed: boolean }> {
+    return this.get(`/api/dm/can-dm/${userId}`)
+  }
+
   getGifEnabled(): Promise<{ enabled: boolean }> {
     return this.get('/api/gif/enabled')
   }

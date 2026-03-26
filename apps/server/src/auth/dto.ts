@@ -90,3 +90,8 @@ export class UpdateStatusDto {
   @IsEnum(['online', 'idle', 'dnd', 'offline'])
   status: 'online' | 'idle' | 'dnd' | 'offline'
 }
+
+export class UpdateDmPrivacyDto {
+  @IsEnum(['everyone', 'friends_only'])
+  dmPrivacy: 'everyone' | 'friends_only'
+}

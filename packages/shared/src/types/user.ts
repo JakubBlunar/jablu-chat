@@ -1,3 +1,5 @@
+export type DmPrivacy = 'everyone' | 'friends_only'
+
 export interface User {
   id: string
   username: string
@@ -6,6 +8,7 @@ export interface User {
   avatarUrl: string | null
   bio: string | null
   status: UserStatus
+  dmPrivacy: DmPrivacy
   lastSeenAt: string | null
   createdAt: string
 }

@@ -2,6 +2,7 @@ import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -109,7 +110,10 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
         )}
       </div>
       {showDeleteConfirm && (
-        <DeleteConfirmPopover
+        <ConfirmDialog
+          title="Delete Message"
+          description="Are you sure? This cannot be undone."
+          confirmLabel="Delete"
           anchorRef={deleteBtnRef}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
@@ -196,57 +200,3 @@ function TrashIcon() {
   )
 }
 
-function DeleteConfirmPopover({
-  anchorRef,
-  onConfirm,
-  onCancel
-}: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [above, setAbove] = useState(true)
-
-  useEffect(() => {
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect()
-      setAbove(rect.top > 200)
-    }
-  }, [anchorRef])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    const onClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onCancel()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('mousedown', onClick)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('mousedown', onClick)
-    }
-  }, [onCancel])
-
-  return (
-    <div
-      ref={popoverRef}
-      className={`absolute right-0 z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10 ${above ? 'bottom-full mb-2' : 'top-full mt-2'}`}
-    >
-      <p className="text-sm font-semibold text-white">Delete Message</p>
-      <p className="mt-1 text-xs text-gray-400">Are you sure? This cannot be undone.</p>
-      <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10">
-          Cancel
-        </button>
-        <button type="button" onClick={onConfirm} className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700">
-          Delete
-        </button>
-      </div>
-    </div>
-  )
-}

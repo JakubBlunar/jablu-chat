@@ -16,6 +16,7 @@ model User {
   avatarUrl    String?  @map("avatar_url")
   bio          String?
   status       UserStatus @default(offline)
+  dmPrivacy    DmPrivacy  @default(everyone) @map("dm_privacy")
   lastSeenAt   DateTime?  @map("last_seen_at")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -35,6 +36,8 @@ model User {
   usedInvites       RegistrationInvite[]   @relation("UsedInvites")
   createdEvents     ServerEvent[]          @relation("EventCreator")
   eventInterests    EventInterest[]
+  friendRequestsSent     Friendship[]     @relation("FriendRequestsSent")
+  friendRequestsReceived Friendship[]     @relation("FriendRequestsReceived")
 
   @@map("users")
 }
@@ -44,6 +47,11 @@ enum UserStatus {
   idle
   dnd
   offline
+}
+
+enum DmPrivacy {
+  everyone
+  friends_only
 }
 
 model RefreshToken {
@@ -484,4 +492,25 @@ enum RecurrenceRule {
   weekly
   biweekly
   monthly
+}
+
+enum FriendshipStatus {
+  pending
+  accepted
+}
+
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String           @map("requester_id")
+  addresseeId String           @map("addressee_id")
+  status      FriendshipStatus @default(pending)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  requester User @relation("FriendRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId])
+  @@map("friendships")
 }

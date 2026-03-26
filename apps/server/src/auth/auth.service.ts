@@ -1,16 +1,19 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   OnModuleInit,
-  UnauthorizedException
+  UnauthorizedException,
+  forwardRef
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import { CronJob } from 'cron'
 import { v4 as uuidv4 } from 'uuid'
+import { FriendsService } from '../friends/friends.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
@@ -24,6 +27,7 @@ const PROFILE_SELECT = {
   avatarUrl: true,
   bio: true,
   status: true,
+  dmPrivacy: true,
   lastSeenAt: true,
   createdAt: true
 } as const
@@ -38,7 +42,9 @@ export class AuthService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly mail: MailService,
     private readonly uploads: UploadsService,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    @Inject(forwardRef(() => FriendsService))
+    private readonly friendsService: FriendsService
   ) {}
 
   private async invalidateJwtCache(userId: string) {
@@ -333,6 +339,14 @@ export class AuthService implements OnModuleInit {
     return updated
   }
 
+  async updateDmPrivacy(userId: string, dmPrivacy: 'everyone' | 'friends_only') {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { dmPrivacy: dmPrivacy as any },
+      select: PROFILE_SELECT
+    })
+  }
+
   async updateStatus(userId: string, status: 'online' | 'idle' | 'dnd' | 'offline') {
     return this.prisma.user.update({
       where: { id: userId },
@@ -341,16 +355,31 @@ export class AuthService implements OnModuleInit {
     })
   }
 
-  async searchUsers(query: string) {
+  async searchUsers(query: string, currentUserId?: string) {
     const q = query.trim()
     if (!q || q.length < 2) return []
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: {
         username: { contains: q, mode: 'insensitive' }
       },
-      select: { id: true, username: true, displayName: true, avatarUrl: true },
-      take: 20
+      select: { id: true, username: true, displayName: true, avatarUrl: true, dmPrivacy: true },
+      take: 40
     })
+
+    if (!currentUserId) {
+      return users.map(({ dmPrivacy: _dp, ...rest }) => rest)
+    }
+
+    const friendIds = await this.friendsService.getFriendIds(currentUserId)
+
+    return users
+      .filter((u) => {
+        if (u.id === currentUserId) return false
+        if (u.dmPrivacy === 'friends_only' && !friendIds.has(u.id)) return false
+        return true
+      })
+      .slice(0, 20)
+      .map(({ dmPrivacy: _dp, ...rest }) => rest)
   }
 
   async getSessions(userId: string) {

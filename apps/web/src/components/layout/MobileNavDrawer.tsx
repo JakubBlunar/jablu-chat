@@ -23,6 +23,7 @@ import { type Server, useServerStore } from '@/stores/server.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { type VoiceParticipant, useVoiceStore } from '@/stores/voice.store'
 import { useEventStore } from '@/stores/event.store'
+import { useFriendStore } from '@/stores/friend.store'
 
 const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
@@ -108,6 +109,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const user = useAuthStore((s) => s.user)
   const onlineIds = useMemberStore((s) => s.onlineUserIds)
   const dmReadStates = useReadStateStore((s) => s.dms)
+  const pendingFriendCount = useFriendStore((s) => s.pending.length)
   const channelReadStates = useReadStateStore((s) => s.channels)
   const notifPrefs = useNotifPrefStore((s) => s.prefs)
   const getNotifLevel = useCallback(
@@ -448,6 +450,21 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  onClick={() => { goToDms(); close() }}
+                  className="mb-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                  </svg>
+                  Friends
+                  {pendingFriendCount > 0 && (
+                    <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {pendingFriendCount}
+                    </span>
+                  )}
+                </button>
                 <div className="mb-1 flex items-center justify-between px-2">
                   <p className="text-[11px] font-semibold tracking-wide text-gray-400">DIRECT MESSAGES</p>
                   <button
