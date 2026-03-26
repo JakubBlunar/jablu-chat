@@ -371,6 +371,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onFriendRequest = (payload: { friendshipId: string; user: Record<string, unknown>; direction: string; createdAt: string }) => {
       useFriendStore.getState().addPendingRequest(payload as unknown as import('@chat/shared').FriendRequest)
+      if (payload.direction === 'incoming') {
+        const sender = payload.user as { displayName?: string; username?: string }
+        const name = sender.displayName ?? sender.username ?? 'Someone'
+        showNotification('Friend Request', `${name} sent you a friend request`, '/channels/@me')
+      }
     }
     const onFriendAccepted = (payload: { friendshipId: string; user: Record<string, unknown> }) => {
       useFriendStore.getState().removePending(payload.friendshipId)

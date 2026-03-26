@@ -53,5 +53,13 @@ export function usePinnedMessages(channelId: string | null) {
     }
   }, [pinnedOpen, channelId])
 
+  useEffect(() => {
+    const handler = () => {
+      if (channelId && !pinnedOpen) void handleOpenPinned()
+    }
+    window.addEventListener('open-pinned', handler)
+    return () => window.removeEventListener('open-pinned', handler)
+  }, [channelId, pinnedOpen, handleOpenPinned])
+
   return { pinnedOpen, pinnedMessages, pinnedLoading, handleOpenPinned, setPinnedOpen }
 }

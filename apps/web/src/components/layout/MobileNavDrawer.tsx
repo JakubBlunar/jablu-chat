@@ -1,6 +1,7 @@
 import type { Channel } from '@chat/shared'
-import React, { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
+import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 import { CreateChannelModal } from '@/components/channel/CreateChannelModal'
 import { GroupDmModal } from '@/components/dm/GroupDmModal'
 import { EditChannelModal } from '@/components/channel/EditChannelModal'
@@ -140,6 +141,61 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const [dmFilter, setDmFilter] = useState('')
   const closeConv = useDmStore((s) => s.closeConversation)
 
+  const members = useMemberStore((s) => s.members)
+  const myMembership = members.find((m) => m.userId === user?.id)
+  const isAdminOrOwner = myMembership?.role === 'owner' || myMembership?.role === 'admin'
+
+  const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const handleChannelTouchStart = useCallback(
+    (ch: Channel) => {
+      const hasOptions = ch.type === 'text' || isAdminOrOwner
+      if (!hasOptions) return
+      longPressFired.current = false
+      longPressTimer.current = setTimeout(() => {
+        longPressFired.current = true
+        setDrawerChannel(ch)
+      }, 500)
+    },
+    [isAdminOrOwner]
+  )
+
+  const handleChannelTouchEnd = useCallback(() => {
+    cancelLongPress()
+  }, [cancelLongPress])
+
+  const handleChannelTouchMove = useCallback(() => {
+    cancelLongPress()
+  }, [cancelLongPress])
+
+  const handleChannelContextMenu = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault()
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const block = (e: Event) => e.preventDefault()
+    document.addEventListener('contextmenu', block, { capture: true })
+    return () => document.removeEventListener('contextmenu', block, { capture: true })
+  }, [open])
+
+  const handleDrawerOpenPinned = useCallback(() => {
+    if (!drawerChannel || !currentServerId) return
+    void orchestratedGoToChannel(currentServerId, drawerChannel.id)
+    useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+    close()
+    setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
+  }, [drawerChannel, currentServerId, orchestratedGoToChannel, close])
+
   const filteredConversations = useMemo(() => {
     if (!dmFilter.trim()) return conversations
     const q = dmFilter.toLowerCase()
@@ -154,9 +210,6 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   }, [conversations, dmFilter])
 
   const currentServer = useMemo(() => servers.find((s) => s.id === currentServerId) ?? null, [servers, currentServerId])
-  const members = useMemberStore((s) => s.members)
-  const myMembership = members.find((m) => m.userId === user?.id)
-  const isAdminOrOwner = myMembership?.role === 'owner' || myMembership?.role === 'admin'
   const isOwner = currentServer?.ownerId === user?.id
   const removeServer = useServerStore((s) => s.removeServer)
   const eventCount = useEventStore((s) =>
@@ -244,7 +297,7 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   return (
     <>
       <MobileDrawer open={open} onClose={close} side="left" width="w-72">
-        <div className="flex h-full flex-col bg-surface-dark">
+        <div className="flex h-full flex-col bg-surface-dark" onContextMenu={(e) => e.preventDefault()}>
           {/* Server row */}
           <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-black/20 px-3 py-2">
             <div className="relative shrink-0">
@@ -331,43 +384,40 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
                     const hasIndicator = showUnreadDot || showMentions
                     return (
                       <li key={ch.id}>
-                        <div className="relative flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => handleChannelClick(ch)}
-                            className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                              active
-                                ? 'bg-surface-selected text-white'
-                                : hasIndicator
-                                  ? 'font-semibold text-white hover:bg-white/[0.06]'
-                                  : 'text-gray-300 hover:bg-white/[0.06]'
-                            }`}
-                          >
-                            <HashIcon />
-                            <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                            {mentionCount > 0 && (
-                              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                                {mentionCount}
-                              </span>
-                            )}
-                            {showUnreadDot && mentionCount === 0 && (
-                              <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
-                            )}
-                          </button>
-                          {isAdminOrOwner && (
-                            <button
-                              type="button"
-                              title="Edit channel"
-                              onClick={() => {
-                                close()
-                                setEditingChannel(ch)
-                              }}
-                              className="shrink-0 rounded p-1.5 text-gray-400 transition hover:text-white"
-                            >
-                              <GearSmallIcon />
-                            </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (longPressFired.current) {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              longPressFired.current = false
+                              return
+                            }
+                            handleChannelClick(ch)
+                          }}
+                          onTouchStart={() => handleChannelTouchStart(ch)}
+                          onTouchEnd={handleChannelTouchEnd}
+                          onTouchMove={handleChannelTouchMove}
+                          onContextMenu={handleChannelContextMenu}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                            active
+                              ? 'bg-surface-selected text-white'
+                              : hasIndicator
+                                ? 'font-semibold text-white hover:bg-white/[0.06]'
+                                : 'text-gray-300 hover:bg-white/[0.06]'
+                          }`}
+                        >
+                          <HashIcon />
+                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                          {mentionCount > 0 && (
+                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                              {mentionCount}
+                            </span>
                           )}
-                        </div>
+                          {showUnreadDot && mentionCount === 0 && (
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
+                          )}
+                        </button>
                       </li>
                     )
                   })}
@@ -395,34 +445,31 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
                     const inThis = currentVoiceChannelId === ch.id
                     return (
                       <li key={ch.id}>
-                        <div className="flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => handleVoiceChannelClick(ch)}
-                            className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                              inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'
-                            }`}
-                          >
-                            <SpeakerIcon />
-                            <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                            {participants.length > 0 && (
-                              <span className="text-xs text-gray-400">{participants.length}</span>
-                            )}
-                          </button>
-                          {isAdminOrOwner && (
-                            <button
-                              type="button"
-                              title="Edit channel"
-                              onClick={() => {
-                                close()
-                                setEditingChannel(ch)
-                              }}
-                              className="shrink-0 rounded p-1.5 text-gray-400 transition hover:text-white"
-                            >
-                              <GearSmallIcon />
-                            </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (longPressFired.current) {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              longPressFired.current = false
+                              return
+                            }
+                            handleVoiceChannelClick(ch)
+                          }}
+                          onTouchStart={() => handleChannelTouchStart(ch)}
+                          onTouchEnd={handleChannelTouchEnd}
+                          onTouchMove={handleChannelTouchMove}
+                          onContextMenu={handleChannelContextMenu}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                            inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'
+                          }`}
+                        >
+                          <SpeakerIcon />
+                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                          {participants.length > 0 && (
+                            <span className="text-xs text-gray-400">{participants.length}</span>
                           )}
-                        </div>
+                        </button>
                         {participants.length > 0 && (
                           <ul className="ml-4 space-y-0.5">
                             {participants.map((p) => {
@@ -692,6 +739,18 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
       )}
       <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />
       {editingChannel && <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />}
+      {drawerChannel && (
+        <ChannelOptionsDrawer
+          channel={drawerChannel}
+          isAdminOrOwner={isAdminOrOwner}
+          onClose={() => setDrawerChannel(null)}
+          onEditChannel={() => {
+            close()
+            setEditingChannel(drawerChannel)
+          }}
+          onOpenPinned={handleDrawerOpenPinned}
+        />
+      )}
       {groupDmOpen && (
         <GroupDmModal
           conversations={conversations}
@@ -720,10 +779,3 @@ function PlusSmallIcon() {
   )
 }
 
-function GearSmallIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.61 3.61 0 0112 15.6z" />
-    </svg>
-  )
-}

@@ -2,6 +2,8 @@ import type { Channel, UserStatus } from '@chat/shared'
 import { RoomEvent, type Participant } from 'livekit-client'
 import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
+import { useIsMobile } from '@/hooks/useMobile'
+import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
 )
@@ -257,6 +259,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const notifPrefs = useNotifPrefStore((s) => s.prefs)
   const getNotifLevel = useCallback((channelId: string) => notifPrefs[channelId] ?? 'all', [notifPrefs])
 
+  const isMobile = useIsMobile()
   const [channelModalOpen, setChannelModalOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -265,6 +268,51 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
   const [eventsOpen, setEventsOpen] = useState(false)
+
+  const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const handleChannelTouchStart = useCallback(
+    (ch: Channel) => {
+      if (!isMobile) return
+      longPressFired.current = false
+      longPressTimer.current = setTimeout(() => {
+        longPressFired.current = true
+        setDrawerChannel(ch)
+      }, 500)
+    },
+    [isMobile]
+  )
+
+  const handleChannelTouchEnd = useCallback(() => {
+    cancelLongPress()
+  }, [cancelLongPress])
+
+  const handleChannelTouchMove = useCallback(() => {
+    cancelLongPress()
+  }, [cancelLongPress])
+
+  const handleChannelContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (isMobile) e.preventDefault()
+    },
+    [isMobile]
+  )
+
+  const handleDrawerOpenPinned = useCallback(() => {
+    if (!drawerChannel) return
+    if (currentServer) void orchestratedGoToChannel(currentServer.id, drawerChannel.id)
+    useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+    setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
+  }, [drawerChannel, currentServer, orchestratedGoToChannel])
 
   const eventCount = useEventStore((s) =>
     currentServer && s.loadedServerId === currentServer.id ? s.events.length : 0
@@ -544,10 +592,20 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                 <li key={ch.id}>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      if (longPressFired.current) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        longPressFired.current = false
+                        return
+                      }
                       if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
                       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
                     }}
+                    onTouchStart={() => handleChannelTouchStart(ch)}
+                    onTouchEnd={handleChannelTouchEnd}
+                    onTouchMove={handleChannelTouchMove}
+                    onContextMenu={handleChannelContextMenu}
                     className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
                       active
                         ? 'bg-surface-selected text-white'
@@ -594,16 +652,42 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               const inThisChannel = currentVoiceChannelId === ch.id && viewingVoiceRoom
               return (
                 <li key={ch.id}>
-                  <div className="group/ch relative rounded-md px-2 py-1.5 text-[15px] text-gray-300">
+                  <div className="group/ch rounded-md px-2 py-1.5 text-[15px] text-gray-300">
                     <button
                       type="button"
-                      onClick={() => handleVoiceChannelClick(ch)}
+                      onClick={(e) => {
+                        if (longPressFired.current) {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          longPressFired.current = false
+                          return
+                        }
+                        handleVoiceChannelClick(ch)
+                      }}
+                      onTouchStart={() => handleChannelTouchStart(ch)}
+                      onTouchEnd={handleChannelTouchEnd}
+                      onTouchMove={handleChannelTouchMove}
+                      onContextMenu={handleChannelContextMenu}
                       className={`flex w-full cursor-pointer items-center gap-2 text-left ${inThisChannel ? 'text-white' : ''}`}
                     >
                       <SpeakerIcon />
                       <span className="min-w-0 flex-1 truncate">{ch.name}</span>
                       {participants.length > 0 && (
                         <span className="shrink-0 text-xs text-gray-400">{participants.length}</span>
+                      )}
+                      {isAdminOrOwner && !isMobile && (
+                        <span
+                          className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingChannel(ch)
+                          }}
+                          role="button"
+                          tabIndex={-1}
+                          title="Edit channel"
+                        >
+                          <GearSmallIcon />
+                        </span>
                       )}
                     </button>
                     {participants.length > 0 ? (
@@ -623,16 +707,6 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                       </ul>
                     ) : (
                       <p className="mt-1 text-xs text-gray-500">No one connected</p>
-                    )}
-                    {isAdminOrOwner && (
-                      <button
-                        type="button"
-                        title="Edit channel"
-                        onClick={() => setEditingChannel(ch)}
-                        className="absolute right-1 top-2 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
-                      >
-                        <GearSmallIcon />
-                      </button>
                     )}
                   </div>
                 </li>
@@ -700,6 +774,15 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         <Suspense fallback={null}>
           <EventsPanel serverId={currentServer.id} onClose={() => setEventsOpen(false)} />
         </Suspense>
+      )}
+      {drawerChannel && (
+        <ChannelOptionsDrawer
+          channel={drawerChannel}
+          isAdminOrOwner={isAdminOrOwner}
+          onClose={() => setDrawerChannel(null)}
+          onEditChannel={() => setEditingChannel(drawerChannel)}
+          onOpenPinned={handleDrawerOpenPinned}
+        />
       )}
     </>
   )

@@ -88,7 +88,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     { key: 'sessions', label: 'Sessions' },
     { key: 'server', label: 'Server Connection', show: isElectron },
     { key: 'desktop', label: 'Desktop App', show: isElectron },
-    { key: 'downloads', label: 'Desktop App', show: !isElectron },
+    { key: 'downloads', label: 'Desktop App', show: !isElectron && !isMobile },
     { key: 'install', label: 'Install App', show: !isElectron && !getIsStandalone() }
   ]
 
@@ -113,7 +113,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
   if (isMobile) {
     return (
-      <div ref={modalRef} className="fixed inset-0 z-[100] flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label="Settings">
+      <div ref={modalRef} className="fixed inset-0 z-[100] flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" role="dialog" aria-modal="true" aria-label="Settings">
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
@@ -141,7 +141,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
                 {t.label}
               </button>
             ))}
-            <LogOutButton onClose={onClose} />
+            <LogOutButton onClose={onClose} mobile />
           </div>
         </div>
         <SimpleBar className="min-h-0 flex-1">
@@ -216,7 +216,7 @@ function SidebarButton({
   )
 }
 
-function LogOutButton({ onClose }: { onClose: () => void }) {
+function LogOutButton({ onClose, mobile }: { onClose: () => void; mobile?: boolean }) {
   const logout = useAuthStore((s) => s.logout)
   return (
     <button
@@ -225,7 +225,11 @@ function LogOutButton({ onClose }: { onClose: () => void }) {
         onClose()
         void logout()
       }}
-      className="block w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+      className={
+        mobile
+          ? 'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300'
+          : 'block w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300'
+      }
     >
       Log Out
     </button>

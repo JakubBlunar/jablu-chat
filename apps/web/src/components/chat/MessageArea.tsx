@@ -132,20 +132,25 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   })
 
   const [editingChannel, setEditingChannel] = useState(false)
-  const members = useMemberStore((s) => s.members)
-  const myRole = members.find((m) => m.userId === userId)?.role
+  const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId)?.role)
   const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
 
-  const membersByUsername = useMemo(() => {
-    const map = new Map<string, (typeof members)[0]>()
-    for (const m of members) map.set(m.user.username.toLowerCase(), m)
-    return map
-  }, [members])
+  type MemberMap = Map<string, ReturnType<typeof useMemberStore.getState>['members'][0]>
+  const membersByUsernameRef = useRef<MemberMap>(new Map())
+  useEffect(() => {
+    const build = (members: ReturnType<typeof useMemberStore.getState>['members']) => {
+      const map: MemberMap = new Map()
+      for (const m of members) map.set(m.user.username.toLowerCase(), m)
+      return map
+    }
+    membersByUsernameRef.current = build(useMemberStore.getState().members)
+    return useMemberStore.subscribe((s) => {
+      membersByUsernameRef.current = build(s.members)
+    })
+  }, [])
 
   const messagesRef = useRef(messages)
   messagesRef.current = messages
-  const membersByUsernameRef = useRef(membersByUsername)
-  membersByUsernameRef.current = membersByUsername
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')

@@ -89,7 +89,17 @@ export function FriendsPage() {
               {tab === 'online' ? `Online — ${onlineFriends.length}` : `All Friends — ${friends.length}`}
             </div>
             {isLoading && friends.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-500">Loading...</div>
+              <div className="space-y-2 px-4 py-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-white/10" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-28 animate-pulse rounded bg-white/10" />
+                      <div className="h-2.5 w-16 animate-pulse rounded bg-white/5" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : displayedFriends.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-gray-500">
                 {tab === 'online' ? 'No friends are online right now.' : 'No friends yet. Add someone to get started!'}
@@ -265,11 +275,14 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
   const [statuses, setStatuses] = useState<Map<string, FriendshipStatusResponse>>(new Map())
   const [searching, setSearching] = useState(false)
   const [sent, setSent] = useState<Set<string>>(new Set())
+  const [searchError, setSearchError] = useState('')
+  const [sendError, setSendError] = useState('')
 
   useEffect(() => {
-    if (query.trim().length < 2) { setResults([]); return }
+    if (query.trim().length < 2) { setResults([]); setSearchError(''); return }
     const timeout = setTimeout(async () => {
       setSearching(true)
+      setSearchError('')
       try {
         const res = await api.searchUsers(query.trim())
         setResults(res)
@@ -280,13 +293,14 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
               const s = await api.getFriendshipStatus(u.id)
               statusMap.set(u.id, s)
             } catch {
-              /* ignore */
+              /* individual status check failures are non-critical */
             }
           })
         )
         setStatuses(statusMap)
       } catch {
         setResults([])
+        setSearchError('Search failed. Please try again.')
       } finally {
         setSearching(false)
       }
@@ -295,11 +309,12 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
   }, [query])
 
   const handleSend = useCallback(async (userId: string) => {
+    setSendError('')
     try {
       await useFriendStore.getState().sendRequest(userId)
       setSent((prev) => new Set(prev).add(userId))
     } catch {
-      /* ignore */
+      setSendError('Failed to send request. Please try again.')
     }
   }, [])
 
@@ -327,6 +342,8 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
         className="w-full rounded-lg bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-primary"
       />
       {searching && <p className="mt-2 text-xs text-gray-500">Searching...</p>}
+      {searchError && <p className="mt-2 text-xs text-red-400">{searchError}</p>}
+      {sendError && <p className="mt-2 text-xs text-red-400">{sendError}</p>}
       {results.length > 0 && (
         <div className="mt-2 max-h-52 space-y-1 overflow-y-auto scrollbar-thin">
           {results.map((u) => {

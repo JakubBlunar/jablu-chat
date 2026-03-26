@@ -39,7 +39,25 @@ export function DownloadAppSection() {
   }, [])
 
   if (isElectron) return null
-  if (loading) return null
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        <div className="h-4 w-24 animate-pulse rounded bg-white/10" />
+        <div className="h-3 w-56 animate-pulse rounded bg-white/5" />
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-lg bg-surface-darkest p-3">
+              <div className="h-6 w-6 animate-pulse rounded bg-white/10" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 w-20 animate-pulse rounded bg-white/10" />
+                <div className="h-2.5 w-32 animate-pulse rounded bg-white/5" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (downloads.length === 0) return null
 
   return (
