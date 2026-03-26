@@ -296,9 +296,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
-    const onDmTyping = (_payload: DmTypingPayload) => {
-      // Could add DM typing indicators in the future
-    }
+    const onDmTyping = (_payload: DmTypingPayload) => {}
 
     const onVoiceParticipants = (state: Record<string, VoiceParticipant[]>) => {
       useVoiceStore.getState().setAll(state)

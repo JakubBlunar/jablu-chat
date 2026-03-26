@@ -150,7 +150,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
             const sp = scrollParentRef.current
             if (sp) sp.scrollTop = 0
           })
-        })
+        }).catch(() => {})
       }
     } else {
       prevIdRef.current = null
@@ -187,7 +187,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
           requestAnimationFrame(() => {
             sp.scrollTop = prevScrollTop
           })
-        }).finally(() => {
+        }).catch(() => {}).finally(() => {
           loadingOlderRef.current = false
         })
       },
@@ -221,7 +221,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
           requestAnimationFrame(() => {
             document.getElementById(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
           })
-        }).finally(() => {
+        }).catch(() => {}).finally(() => {
           loadingNewerRef.current = false
         })
       },
@@ -405,7 +405,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
           if (sp) sp.scrollTop = 0
           setAtBottom(true)
         })
-      })
+      }).catch(() => {})
     } else {
       goToBottom('smooth')
     }

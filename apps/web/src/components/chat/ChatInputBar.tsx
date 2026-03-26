@@ -328,16 +328,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           <SmileIcon />
         </button>
 
-        {isMobile && value.trim().length > 0 && (
+        {value.trim().length > 0 && (
           <button
             type="button"
             onClick={() => {
               if (value.length <= MAX_MESSAGE_LENGTH) onSend()
             }}
-            className="shrink-0 px-2.5 py-3 text-primary transition hover:text-primary-hover"
+            className={`shrink-0 text-primary transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'px-2 py-2'}`}
             aria-label="Send message"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+            <svg className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
             </svg>
           </button>

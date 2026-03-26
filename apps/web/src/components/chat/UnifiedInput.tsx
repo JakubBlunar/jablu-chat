@@ -278,7 +278,7 @@ export function UnifiedInput({
               <button
                 type="button"
                 onClick={() => removeFile(i)}
-                className="absolute -right-1.5 -top-1.5 rounded-full bg-red-600 p-0.5 text-white shadow transition hover:bg-red-500"
+                className="absolute -right-1.5 -top-1.5 rounded-full bg-red-600 p-1 text-white shadow transition hover:bg-red-500"
               >
                 <XIcon />
               </button>

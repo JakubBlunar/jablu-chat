@@ -47,6 +47,7 @@ export const ScrollToBottomButton = memo(function ScrollToBottomButton({
     <button
       type="button"
       onClick={onClick}
+      aria-label="Jump to latest messages"
       className={`absolute bottom-3 right-3 z-10 flex items-center justify-center rounded-full bg-primary text-white shadow-lg transition active:scale-95 active:bg-primary/80 ${isMobile ? '' : 'hover:bg-primary/80'} ${size}`}
     >
       <svg className={icon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

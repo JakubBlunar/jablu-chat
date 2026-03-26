@@ -375,6 +375,7 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
           <div className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 bg-gradient-to-r from-surface to-transparent" />
           <button
             type="button"
+            aria-label="Scroll left"
             onClick={() => scroll('left')}
             className="absolute bottom-0 left-0 top-0 z-20 flex w-8 items-center justify-center text-white/70 opacity-100 transition hover:text-white md:opacity-0 md:group-hover/carousel:opacity-100"
           >
@@ -391,6 +392,7 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
           <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-10 bg-gradient-to-l from-surface to-transparent" />
           <button
             type="button"
+            aria-label="Scroll right"
             onClick={() => scroll('right')}
             className="absolute bottom-0 right-0 top-0 z-20 flex w-8 items-center justify-center text-white/70 opacity-100 transition hover:text-white md:opacity-0 md:group-hover/carousel:opacity-100"
           >

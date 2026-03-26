@@ -89,7 +89,7 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
           }`}
         />
         {searchOpen && (
-          <button type="button" onClick={onClose} className="ml-1 rounded p-0.5 text-gray-400 hover:text-white">
+          <button type="button" onClick={onClose} aria-label="Close search" className="ml-1 rounded p-0.5 text-gray-400 hover:text-white">
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" />
             </svg>
