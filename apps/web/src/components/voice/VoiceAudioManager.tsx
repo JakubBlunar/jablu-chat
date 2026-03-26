@@ -17,6 +17,7 @@ export function VoiceAudioManager() {
   const room = useVoiceConnectionStore((s) => s.room)
   const isDeafened = useVoiceConnectionStore((s) => s.isDeafened)
   const volumeOverrides = useVoiceConnectionStore((s) => s.volumeOverrides)
+  const audioOutputDeviceId = useVoiceConnectionStore((s) => s.audioOutputDeviceId)
 
   const audioCtxRef = useRef<AudioContext | null>(null)
   const nodesRef = useRef<Map<string, AudioNode>>(new Map())
@@ -134,6 +135,15 @@ export function VoiceAudioManager() {
       }
     }
   }, [isDeafened, volumeOverrides])
+
+  useEffect(() => {
+    const ctx = audioCtxRef.current
+    if (!ctx || ctx.state === 'closed') return
+    const target = audioOutputDeviceId || ''
+    if ('setSinkId' in ctx && typeof (ctx as any).setSinkId === 'function') {
+      ;(ctx as any).setSinkId(target).catch(() => {})
+    }
+  }, [audioOutputDeviceId])
 
   return null
 }

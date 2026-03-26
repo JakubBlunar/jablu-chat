@@ -360,9 +360,10 @@ export function VoiceSettings() {
               onChange={(v) => {
                 setSelectedOutput(v)
                 setSavedAudioOutput(v)
-                const { room } = useVoiceConnectionStore.getState()
-                if (room) {
-                  room.switchActiveDevice('audiooutput', v || '').catch(() => {})
+                const store = useVoiceConnectionStore.getState()
+                store.setAudioOutputDeviceId(v)
+                if (store.room) {
+                  store.room.switchActiveDevice('audiooutput', v || '').catch(() => {})
                 }
               }}
             />

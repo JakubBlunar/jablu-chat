@@ -34,6 +34,7 @@ export type VoiceConnectionState = {
   _blurHandle: BlurHandle | null
   _originalCameraTrack: MediaStreamTrack | null
   volumeOverrides: Record<string, number>
+  audioOutputDeviceId: string
 
   setConnecting: (serverId: string, channelId: string, channelName: string) => void
   setConnected: (room: Room) => void
@@ -48,6 +49,7 @@ export type VoiceConnectionState = {
   setMicMode: (mode: MicMode) => void
   setVolumeOverride: (key: string, volume: number) => void
   fetchVolumeOverrides: () => void
+  setAudioOutputDeviceId: (deviceId: string) => void
 }
 
 type StoreGet = () => VoiceConnectionState
@@ -131,6 +133,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   _blurHandle: null,
   _originalCameraTrack: null,
   volumeOverrides: {},
+  audioOutputDeviceId: '',
 
   setConnecting: (serverId, channelId, channelName) =>
     set({
@@ -417,7 +420,9 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
         api.setVoiceVolume(k, v).catch(() => {})
       }
     }, 1000)
-  }
+  },
+
+  setAudioOutputDeviceId: (deviceId) => set({ audioOutputDeviceId: deviceId })
 }))
 
 setRoomGetter(() => useVoiceConnectionStore.getState().room)
