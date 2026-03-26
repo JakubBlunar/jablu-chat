@@ -50,7 +50,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
         <button
           type="button"
           className="mt-1 block overflow-hidden rounded-lg"
-          style={dims ? { width: dims.width, height: dims.height } : undefined}
+          style={dims ? { width: dims.width, maxWidth: '100%', aspectRatio: `${dims.width} / ${dims.height}` } : undefined}
           onClick={() => setLightbox(true)}
         >
           <img
@@ -78,14 +78,12 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
   if (attachment.type === 'video') {
     const vDims = constrainedDims(aw, ah)
     return (
-      <div className="mt-1" style={vDims ? { width: vDims.width } : { maxWidth: 448 }}>
+      <div className="mt-1" style={vDims ? { width: vDims.width, maxWidth: '100%' } : { maxWidth: 448 }}>
         <video
           src={attachment.url}
           controls
           preload="metadata"
-          width={vDims?.width}
-          height={vDims?.height}
-          style={vDims ? { width: vDims.width, height: vDims.height } : { aspectRatio: '16 / 9', width: '100%' }}
+          style={vDims ? { width: '100%', aspectRatio: `${vDims.width} / ${vDims.height}` } : { aspectRatio: '16 / 9', width: '100%' }}
           className="rounded-lg"
         >
           <track kind="captions" />
