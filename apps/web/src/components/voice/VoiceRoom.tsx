@@ -100,20 +100,6 @@ export function VoiceRoom() {
     setPendingFullscreen(true)
   }, [])
 
-  useEffect(() => {
-    const orient = screen?.orientation as
-      | (ScreenOrientation & {
-          lock?: (o: string) => Promise<void>
-          unlock?: () => void
-        })
-      | undefined
-    if (!orient?.lock) return
-    orient.unlock?.()
-    return () => {
-      orient.lock?.('portrait').catch(() => {})
-    }
-  }, [])
-
   if (!room) {
     return <div className="flex flex-1 items-center justify-center text-gray-400">Not connected to a voice channel</div>
   }
@@ -237,9 +223,23 @@ function FocusedLayout({
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    const lockOverlay = document.getElementById('landscape-lock')
+    const orient = screen?.orientation as
+      | (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void })
+      | undefined
+    const onChange = () => {
+      const fs = !!document.fullscreenElement
+      setIsFullscreen(fs)
+      lockOverlay?.classList.toggle('hidden', fs)
+      if (fs) orient?.unlock?.()
+      else orient?.lock?.('portrait').catch(() => {})
+    }
     document.addEventListener('fullscreenchange', onChange)
-    return () => document.removeEventListener('fullscreenchange', onChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      lockOverlay?.classList.remove('hidden')
+      orient?.lock?.('portrait').catch(() => {})
+    }
   }, [])
 
   useEffect(() => {

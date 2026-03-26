@@ -55,7 +55,6 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
   const isDm = mode === 'dm'
   const {
     messages,
-    hasMore,
     hasNewer,
     scrollToMessageId,
     scrollRequestNonce,
@@ -73,7 +72,8 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     setScrollParent(node)
   }, [])
   const [atBottom, setAtBottom] = useState(true)
-  const [firstItemIndex, setFirstItemIndex] = useState(VIRTUAL_START)
+  const prependOffsetRef = useRef(0)
+  const firstItemIndex = VIRTUAL_START - prependOffsetRef.current
   const [virtuosoKey, setVirtuosoKey] = useState(0)
   const [settling, setSettling] = useState(false)
   const settlingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -142,7 +142,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
         if (!fetchAttempted) {
           fetchAttempted = true
           clearMessages()
-          setFirstItemIndex(VIRTUAL_START)
+          prependOffsetRef.current = 0
           void fetchMessagesAround(contextId, targetId)
           setTimeout(poll, 200)
         } else {
@@ -155,7 +155,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
       pollCancelled = true
       scrollTargetIndexRef.current = idx
       setScrollToMessageId(null)
-      setFirstItemIndex(VIRTUAL_START)
+      prependOffsetRef.current = 0
       setAtBottom(false)
       sp.scrollTop = 0
       setVirtuosoKey((k) => k + 1)
@@ -221,12 +221,11 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
       }
       prevIdRef.current = contextId
 
+      prependOffsetRef.current = 0
       if (alreadyLoaded) {
-        setFirstItemIndex(VIRTUAL_START)
         setAtBottom(true)
       } else {
         setSettling(true)
-        setFirstItemIndex(VIRTUAL_START)
         setAtBottom(true)
         clearMessages()
         void fetchMessages(contextId)
@@ -255,28 +254,32 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
   }, [settling, messages.length, scrollToMessageId])
 
   /* ── Pagination ── */
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
   const loadingRef = useRef(false)
   const startReached = useCallback(async () => {
-    if (!contextId || !messages.length || loadingRef.current || !hasMore) return
+    const msgs = messagesRef.current
+    if (!contextId || !msgs.length || loadingRef.current) return
     loadingRef.current = true
-    const prevLen = messages.length
-    await fetchMessages(contextId, messages[0].id)
+    const prevLen = msgs.length
+    await fetchMessages(contextId, msgs[0].id)
     const currentStore = isDm ? useDmStore.getState() : useMessageStore.getState()
     const newLen = currentStore.messages.length
     const prepended = newLen - prevLen
     if (prepended > 0) {
-      setFirstItemIndex((prev) => prev - prepended)
+      prependOffsetRef.current += prepended
     }
     loadingRef.current = false
-  }, [contextId, messages, hasMore, fetchMessages, isDm])
+  }, [contextId, fetchMessages, isDm])
 
   const loadingNewerRef = useRef(false)
   const endReached = useCallback(async () => {
-    if (!contextId || !messages.length || loadingNewerRef.current || !hasNewer || !fetchNewerMessages) return
+    if (!contextId || !messagesRef.current.length || loadingNewerRef.current || !fetchNewerMessages) return
     loadingNewerRef.current = true
     await fetchNewerMessages(contextId)
     loadingNewerRef.current = false
-  }, [contextId, messages, hasNewer, fetchNewerMessages])
+  }, [contextId, fetchNewerMessages])
 
   const stickToBottom = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
@@ -285,7 +288,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
   const handleBottomButtonClick = useCallback(() => {
     if (hasNewer && contextId) {
       clearMessages()
-      setFirstItemIndex(VIRTUAL_START)
+      prependOffsetRef.current = 0
       void fetchMessages(contextId)
     } else {
       virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
@@ -302,14 +305,17 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     }
   }, [])
 
+  const firstItemIndexRef = useRef(firstItemIndex)
+  firstItemIndexRef.current = firstItemIndex
+
   const handleJumpToMessage = useCallback(
     (messageId: string) => {
       for (const t of jumpTimersRef.current) clearTimeout(t)
       jumpTimersRef.current = []
 
-      const idx = messages.findIndex((m) => m.id === messageId)
+      const idx = messagesRef.current.findIndex((m) => m.id === messageId)
       if (idx >= 0) {
-        const absIndex = firstItemIndex + idx
+        const absIndex = firstItemIndexRef.current + idx
         const centerEl = (el: HTMLElement, sp: HTMLElement) => {
           const cRect = sp.getBoundingClientRect()
           const eRect = el.getBoundingClientRect()
@@ -317,11 +323,13 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
         }
         const tryFind = (attempts = 0) => {
           const el = document.getElementById(`msg-${messageId}`)
-          if (el && scrollParent) {
-            centerEl(el, scrollParent)
-            void waitForVisibleImages(scrollParent).then(() => {
+          const currentSp = scrollParentNodeRef.current
+          if (el && currentSp) {
+            centerEl(el, currentSp)
+            void waitForVisibleImages(currentSp).then(() => {
               const el2 = document.getElementById(`msg-${messageId}`)
-              if (el2 && scrollParent) centerEl(el2, scrollParent)
+              const sp2 = scrollParentNodeRef.current
+              if (el2 && sp2) centerEl(el2, sp2)
               if (el2) {
                 el2.classList.add('bg-primary/10')
                 jumpTimersRef.current.push(setTimeout(() => el2.classList.remove('bg-primary/10'), 2000))
@@ -336,7 +344,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
         requestAnimationFrame(() => tryFind())
       }
     },
-    [messages, firstItemIndex, scrollParent]
+    []
   )
 
   return {
