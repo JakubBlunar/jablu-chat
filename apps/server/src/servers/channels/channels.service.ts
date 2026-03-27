@@ -78,6 +78,7 @@ export class ChannelsService {
         }
       })
       await this.auditLog.log(serverId, userId, 'channel.create', 'channel', channel.id, `#${name} (${type})`)
+      this.events.emit('channel:created', { serverId, channel })
       return channel
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -128,6 +129,7 @@ export class ChannelsService {
         channelId,
         data.name ? `Renamed to #${data.name}` : 'Position changed'
       )
+      this.events.emit('channel:updated', { serverId, channel: updated })
       return updated
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -157,6 +159,7 @@ export class ChannelsService {
 
     await this.prisma.channel.delete({ where: { id: channelId } })
     await this.auditLog.log(serverId, userId, 'channel.delete', 'channel', channelId, `#${channel.name}`)
+    this.events.emit('channel:deleted', { serverId, channelId })
   }
 
   async reorderChannels(serverId: string, userId: string, channelIds: string[]) {

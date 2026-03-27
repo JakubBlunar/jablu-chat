@@ -144,6 +144,7 @@ export class ServersService {
       }
     })
     await this.auditLog.log(serverId, userId, 'server.update', 'server', serverId, `Renamed to "${data.name}"`)
+    this.events.emit('server:updated', { serverId, name: data.name })
     return result
   }
 
@@ -158,6 +159,7 @@ export class ServersService {
       data: { iconUrl }
     })
     await this.auditLog.log(serverId, userId, 'server.icon.update', 'server', serverId)
+    this.events.emit('server:updated', { serverId, iconUrl })
     return result
   }
 
@@ -166,10 +168,12 @@ export class ServersService {
     if (server.iconUrl) {
       this.uploads.deleteFile(server.iconUrl)
     }
-    return this.prisma.server.update({
+    const result = await this.prisma.server.update({
       where: { id: serverId },
       data: { iconUrl: null }
     })
+    this.events.emit('server:updated', { serverId, iconUrl: null })
+    return result
   }
 
   async updateMemberRole(serverId: string, actorId: string, targetUserId: string, newRole: ServerRole) {
@@ -195,6 +199,7 @@ export class ServersService {
       include: { user: { select: memberUserSelect } }
     })
     await this.auditLog.log(serverId, actorId, 'member.role.update', 'user', targetUserId, `Role changed to ${newRole}`)
+    this.events.emit('member:updated', { serverId, userId: targetUserId, role: newRole })
     return result
   }
 

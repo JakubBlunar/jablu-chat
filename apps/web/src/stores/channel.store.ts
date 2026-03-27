@@ -12,6 +12,9 @@ type ChannelState = {
   getCurrentChannel: () => Channel | null
   textChannels: () => Channel[]
   voiceChannels: () => Channel[]
+  addChannel: (channel: Channel) => void
+  updateChannel: (channel: Channel) => void
+  removeChannel: (channelId: string) => void
   adjustPinnedCount: (channelId: string, delta: number) => void
   applyReorder: (channelIds: string[]) => void
 }
@@ -61,6 +64,23 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       .channels.filter((c) => c.type === 'voice')
       .slice()
       .sort(byPosition),
+
+  addChannel: (channel) =>
+    set((s) => {
+      if (s.channels.some((c) => c.id === channel.id)) return s
+      return { channels: [...s.channels, channel] }
+    }),
+
+  updateChannel: (channel) =>
+    set((s) => ({
+      channels: s.channels.map((c) => (c.id === channel.id ? { ...c, ...channel } : c))
+    })),
+
+  removeChannel: (channelId) =>
+    set((s) => ({
+      channels: s.channels.filter((c) => c.id !== channelId),
+      currentChannelId: s.currentChannelId === channelId ? null : s.currentChannelId
+    })),
 
   adjustPinnedCount: (channelId, delta) =>
     set((state) => ({

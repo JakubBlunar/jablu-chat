@@ -1,4 +1,4 @@
-import type { LinkPreview, Message, ServerEvent } from '@chat/shared'
+import type { Channel, LinkPreview, Message, ServerEvent, ServerRole } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { showNotification } from '@/lib/notifications'
@@ -91,6 +91,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const socket = connectSocket(accessToken)
 
     let handlingAuthError = false
+    let hasConnectedBefore = false
     let lastAckTs = 0
     const throttledAck = (fn: () => void) => {
       const now = Date.now()
@@ -117,6 +118,22 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           dmStore.fetchNewerMessages(convId).catch(() => {})
         }
       }
+
+      if (hasConnectedBefore) {
+        useServerStore.getState().fetchServers().catch(() => {})
+
+        const currentServerId = useServerStore.getState().currentServerId
+        if (currentServerId) {
+          useChannelStore.getState().fetchChannels(currentServerId).catch(() => {})
+          useMemberStore.getState().fetchMembers(currentServerId).catch(() => {})
+        }
+
+        if (useServerStore.getState().viewMode === 'dm') {
+          useDmStore.getState().fetchConversations().catch(() => {})
+        }
+      }
+      hasConnectedBefore = true
+
       if (!document.hidden) {
         socket.emit('activity:active')
       }
@@ -401,6 +418,55 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       useEventStore.getState().updateInterest(payload.eventId, payload.userId, payload.interested, payload.count)
     }
 
+    const onMemberLeft = (payload: { serverId: string; userId: string }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useMemberStore.getState().removeMember(payload.serverId, payload.userId)
+      }
+      const myId = useAuthStore.getState().user?.id
+      if (payload.userId === myId) {
+        useServerStore.getState().removeServer(payload.serverId)
+      }
+    }
+
+    const onMemberUpdated = (payload: { serverId: string; userId: string; role: string }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useMemberStore.getState().updateMemberRole(payload.serverId, payload.userId, payload.role as ServerRole)
+      }
+    }
+
+    const onChannelCreated = (payload: { serverId: string; channel: Channel }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useChannelStore.getState().addChannel(payload.channel)
+      }
+    }
+
+    const onChannelUpdated = (payload: { serverId: string; channel: Channel }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useChannelStore.getState().updateChannel(payload.channel)
+      }
+    }
+
+    const onChannelDeleted = (payload: { serverId: string; channelId: string }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useChannelStore.getState().removeChannel(payload.channelId)
+      }
+    }
+
+    const onServerUpdated = (payload: { serverId: string; name?: string; iconUrl?: string | null }) => {
+      const { serverId, ...patch } = payload
+      useServerStore.getState().updateServerInList(serverId, patch)
+    }
+
+    const onUserProfile = (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
+      const { userId, ...data } = payload
+      useMemberStore.getState().updateUserProfile(userId, data)
+    }
+
     const onFriendRequest = (payload: { friendshipId: string; user: Record<string, unknown>; direction: string; createdAt: string }) => {
       useFriendStore.getState().addPendingRequest(payload as unknown as import('@chat/shared').FriendRequest)
       if (payload.direction === 'incoming') {
@@ -456,6 +522,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('event:completed', onEventCompleted)
     socket.on('event:started', onEventStarted)
     socket.on('event:interest', onEventInterest)
+    socket.on('member:left', onMemberLeft)
+    socket.on('member:updated', onMemberUpdated)
+    socket.on('channel:created', onChannelCreated)
+    socket.on('channel:updated', onChannelUpdated)
+    socket.on('channel:deleted', onChannelDeleted)
+    socket.on('server:updated', onServerUpdated)
+    socket.on('user:profile', onUserProfile)
     socket.on('friend:request', onFriendRequest)
     socket.on('friend:accepted', onFriendAccepted)
     socket.on('friend:declined', onFriendDeclined)
@@ -498,6 +571,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('event:completed', onEventCompleted)
       socket.off('event:started', onEventStarted)
       socket.off('event:interest', onEventInterest)
+      socket.off('member:left', onMemberLeft)
+      socket.off('member:updated', onMemberUpdated)
+      socket.off('channel:created', onChannelCreated)
+      socket.off('channel:updated', onChannelUpdated)
+      socket.off('channel:deleted', onChannelDeleted)
+      socket.off('server:updated', onServerUpdated)
+      socket.off('user:profile', onUserProfile)
       socket.off('friend:request', onFriendRequest)
       socket.off('friend:accepted', onFriendAccepted)
       socket.off('friend:declined', onFriendDeclined)
