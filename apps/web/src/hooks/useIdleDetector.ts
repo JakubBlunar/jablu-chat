@@ -46,7 +46,9 @@ export function useIdleDetector(onIdle: () => void, onActive: () => void) {
     }
 
     const onVisibilityChange = () => {
-      if (!document.hidden && isIdle.current) {
+      if (document.hidden) {
+        if (timer.current) clearTimeout(timer.current)
+      } else {
         resetTimer()
       }
     }
