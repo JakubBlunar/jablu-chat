@@ -8,6 +8,7 @@ import {
 } from 'livekit-client'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useVoiceStore } from '@/stores/voice.store'
 
 export function ParticipantTile({
   participant,
@@ -22,15 +23,17 @@ export function ParticipantTile({
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [hasVideo, setHasVideo] = useState(false)
   const storeMuted = useVoiceConnectionStore((s) => s.isMuted)
+  const currentChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
+  const remoteExplicitMuted = useVoiceStore((s) => {
+    if (participant.isLocal || !currentChannelId) return false
+    const list = s.participants[currentChannelId]
+    return list?.find((p) => p.userId === participant.identity)?.muted ?? false
+  })
 
   const checkMicMuted = useCallback((): boolean => {
-    if (participant.isLocal) {
-      const micPub = participant.getTrackPublication(Track.Source.Microphone)
-      return storeMuted || !micPub?.track || micPub.isMuted
-    }
-    const micPub = participant.getTrackPublication(Track.Source.Microphone)
-    return !micPub || !micPub.track || micPub.isMuted
-  }, [participant, storeMuted])
+    if (participant.isLocal) return storeMuted
+    return remoteExplicitMuted
+  }, [participant, storeMuted, remoteExplicitMuted])
 
   const [isMicMuted, setIsMicMuted] = useState(() => checkMicMuted())
 
@@ -90,17 +93,11 @@ export function ParticipantTile({
       if (pub.source === Track.Source.Camera) {
         setHasVideo(false)
       }
-      if (pub.source === Track.Source.Microphone) {
-        setIsMicMuted(true)
-      }
     }
 
     const onTrackUnmuted = (pub: TrackPublication) => {
       if (pub.source === Track.Source.Camera) {
         setHasVideo(true)
-      }
-      if (pub.source === Track.Source.Microphone) {
-        setIsMicMuted(checkMicMuted())
       }
     }
 
