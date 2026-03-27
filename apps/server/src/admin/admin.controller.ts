@@ -192,14 +192,16 @@ export class AdminController {
     })
     if (existing) throw new BadRequestException('User is already a member')
 
-    return this.prisma.serverMember.create({
+    const member = await this.prisma.serverMember.create({
       data: { userId: dto.userId, serverId: id, role: ServerRole.member },
       include: {
         user: {
-          select: { id: true, username: true, email: true, avatarUrl: true }
+          select: { id: true, username: true, displayName: true, email: true, avatarUrl: true, bio: true, status: true }
         }
       }
     })
+    this.events.emit('member:joined', { serverId: id, member })
+    return member
   }
 
   @Delete('servers/:id/members/:userId')
@@ -221,6 +223,7 @@ export class AdminController {
     await this.prisma.serverMember.delete({
       where: { userId_serverId: { userId, serverId: id } }
     })
+    this.events.emit('member:removed', { serverId: id, userId })
   }
 
   @Patch('servers/:id/members/:userId/role')
@@ -286,6 +289,11 @@ export class AdminController {
       where: { id },
       select: { ownerId: true, owner: { select: { id: true, username: true } } }
     })
+
+    if (newRole === ServerRole.owner) {
+      this.events.emit('member:updated', { serverId: id, userId: server.ownerId, role: ServerRole.admin })
+    }
+    this.events.emit('member:updated', { serverId: id, userId, role: newRole })
 
     return { members, owner: updatedServer?.owner, ownerId: updatedServer?.ownerId }
   }

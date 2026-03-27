@@ -270,11 +270,13 @@ export class AuthService implements OnModuleInit {
   }
 
   async updateProfile(userId: string, data: { displayName?: string; bio?: string }) {
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data,
       select: PROFILE_SELECT
     })
+    this.events.emit('user:profile', { userId, ...data })
+    return user
   }
 
   async uploadAvatar(userId: string, file: Express.Multer.File) {
@@ -288,11 +290,13 @@ export class AuthService implements OnModuleInit {
       }
 
       const avatarUrl = await this.uploads.saveAvatar(file)
-      return await this.prisma.user.update({
+      const user = await this.prisma.user.update({
         where: { id: userId },
         data: { avatarUrl },
         select: PROFILE_SELECT
       })
+      this.events.emit('user:profile', { userId, avatarUrl })
+      return user
     } catch (err) {
       this.logger.error(`Avatar upload failed for user ${userId}: ${err}`)
       throw err
@@ -308,11 +312,13 @@ export class AuthService implements OnModuleInit {
       this.uploads.deleteFile(current.avatarUrl)
     }
 
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: { avatarUrl: null },
       select: PROFILE_SELECT
     })
+    this.events.emit('user:profile', { userId, avatarUrl: null })
+    return user
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

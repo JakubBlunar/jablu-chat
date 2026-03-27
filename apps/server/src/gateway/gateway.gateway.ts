@@ -148,6 +148,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.server.to(`server:${payload.serverId}`).emit('channel:reorder', { channelIds: payload.channelIds })
     })
 
+    this.events.on('channel:created', async (payload: { serverId: string; channel: { id: string } }) => {
+      this.server.to(`server:${payload.serverId}`).emit('channel:created', payload)
+      const sockets = await this.server.in(`server:${payload.serverId}`).fetchSockets()
+      for (const s of sockets) s.join(`channel:${payload.channel.id}`)
+    })
+
+    this.events.on('channel:updated', (payload: { serverId: string; channel: unknown }) => {
+      this.server.to(`server:${payload.serverId}`).emit('channel:updated', payload)
+    })
+
+    this.events.on('channel:deleted', (payload: { serverId: string; channelId: string }) => {
+      this.server.to(`server:${payload.serverId}`).emit('channel:deleted', payload)
+    })
+
     this.events.on('member:joined', async (payload: { serverId: string; member: unknown }) => {
       const { serverId, member } = payload as { serverId: string; member: { userId: string } }
       this.server.to(`server:${serverId}`).emit('member:joined', { serverId, member })
@@ -169,7 +183,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
     })
 
+    this.events.on('user:profile', async (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
+      const memberships = await this.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      })
+      for (const m of memberships) {
+        this.server.to(`server:${m.serverId}`).emit('user:profile', payload)
+      }
+    })
+
+    this.events.on('server:updated', (payload: { serverId: string; name?: string; iconUrl?: string | null }) => {
+      this.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
+    })
+
+    this.events.on('member:updated', (payload: { serverId: string; userId: string; role: string }) => {
+      this.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
+    })
+
     this.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {
+      this.server.to(`server:${payload.serverId}`).emit('member:left', {
+        serverId: payload.serverId,
+        userId: payload.userId
+      })
+
       const channels = await this.prisma.channel.findMany({
         where: { serverId: payload.serverId },
         select: { id: true }
