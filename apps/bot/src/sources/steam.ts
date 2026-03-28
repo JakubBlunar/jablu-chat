@@ -1,11 +1,11 @@
 import type { Deal } from '../types.js'
 
-const STEAM_FEATURED = 'https://store.steampowered.com/api/featuredcategories?cc=sk&l=en'
+const STEAM_FEATURED = 'https://store.steampowered.com/api/featuredcategories?cc=us&l=en'
 
 interface SteamFeatured {
-  specials?: {
-    items: SteamItem[]
-  }
+  specials?: { items: SteamItem[] }
+  coming_soon?: { items: SteamItem[] }
+  top_sellers?: { items: SteamItem[] }
 }
 
 interface SteamItem {
@@ -16,6 +16,14 @@ interface SteamItem {
   original_price: number
   final_price: number
   header_image: string
+  currency: string
+}
+
+function formatSteamPrice(cents: number, currency?: string): string | undefined {
+  if (cents <= 0) return undefined
+  const dollars = (cents / 100).toFixed(2)
+  if (currency === 'EUR') return `€${dollars}`
+  return `$${dollars}`
 }
 
 export async function fetchSteamDeals(): Promise<Deal[]> {
@@ -29,7 +37,7 @@ export async function fetchSteamDeals(): Promise<Deal[]> {
     const data = (await res.json()) as SteamFeatured
     const items = data.specials?.items ?? []
 
-    return items
+    const deals = items
       .filter((item) => item.discount_percent === 100 && item.final_price === 0)
       .map((item) => ({
         id: `steam:${item.id}`,
@@ -38,8 +46,12 @@ export async function fetchSteamDeals(): Promise<Deal[]> {
         description: 'Free on Steam — 100% off!',
         url: `https://store.steampowered.com/app/${item.id}`,
         clientUrl: `steam://store/${item.id}`,
-        imageUrl: item.header_image || undefined
+        imageUrl: item.header_image || undefined,
+        originalPrice: formatSteamPrice(item.original_price, item.currency)
       }))
+
+    console.log(`[steam] ${deals.length} free game(s) found`)
+    return deals
   } catch (err) {
     console.error('[steam] Fetch error:', err)
     return []

@@ -373,6 +373,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       })
       for (const sid of serverIds) {
         this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
+        this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
       }
     }
 
@@ -640,6 +641,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   private getEffectiveStatus(userId: string): 'online' | 'idle' {
+    for (const [, participants] of this.voiceParticipants) {
+      for (const [, p] of participants) {
+        if (p.userId === userId) return 'online'
+      }
+    }
     const rooms = this.server?.sockets?.adapter?.rooms
     if (!rooms) return 'idle'
     const userRoom = rooms.get(`user:${userId}`)

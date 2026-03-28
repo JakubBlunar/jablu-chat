@@ -134,7 +134,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
       hasConnectedBefore = true
 
-      if (!document.hidden) {
+      if (!document.hidden || useVoiceConnectionStore.getState().room) {
         socket.emit('activity:active')
       }
     }

@@ -1,6 +1,7 @@
 import { RoomEvent, Track, type RemoteTrack } from 'livekit-client'
 import { useEffect, useRef, useCallback } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { getSavedCameraQuality } from '@/lib/deviceSettings'
 
 type AudioEntry = {
   audio: HTMLAudioElement
@@ -167,6 +168,16 @@ export function VoiceAudioManager() {
         for (const [, entry] of nodesRef.current) {
           if (entry.audio.paused && entry.audio.srcObject) {
             entry.audio.play().catch(() => {})
+          }
+        }
+
+        const vs = useVoiceConnectionStore.getState()
+        if (vs.isCameraOn && vs.room) {
+          const camPub = vs.room.localParticipant.getTrackPublication(Track.Source.Camera)
+          const mst = camPub?.track?.mediaStreamTrack
+          if (!mst || mst.readyState === 'ended') {
+            vs.stopCamera()
+            vs.startCamera(getSavedCameraQuality(), vs.isBlurEnabled)
           }
         }
       }
