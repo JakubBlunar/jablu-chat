@@ -40,8 +40,7 @@ export function ParticipantTile({
   const updateVideoState = useCallback(() => {
     const cameraPub = participant.getTrackPublication(Track.Source.Camera)
     setHasVideo(!!(cameraPub?.track && !cameraPub.isMuted))
-    setIsMicMuted(checkMicMuted())
-  }, [participant, checkMicMuted])
+  }, [participant])
 
   const cameraTrackSid = participant.getTrackPublication(Track.Source.Camera)?.track?.sid
 
@@ -126,7 +125,7 @@ export function ParticipantTile({
       participant.off(ParticipantEvent.TrackMuted, onTrackMuted)
       participant.off(ParticipantEvent.TrackUnmuted, onTrackUnmuted)
     }
-  }, [participant, updateVideoState, checkMicMuted])
+  }, [participant, updateVideoState])
 
   const displayName = participant.name || participant.identity
 

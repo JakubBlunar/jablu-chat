@@ -79,8 +79,8 @@ export function setVadMode(mode: VadMode) {
   localStorage.setItem(VAD_AUTO_KEY, mode)
 }
 
-let vadCleanup: (() => void) | null = null
-let pttCleanup: (() => void) | null = null
+let vadCleanup: ((skipUnmute?: boolean) => void) | null = null
+let pttCleanup: ((skipUnmute?: boolean) => void) | null = null
 
 export function startMicMode(mode: MicMode) {
   stopMicMode()
@@ -92,10 +92,10 @@ export function startMicMode(mode: MicMode) {
   }
 }
 
-export function stopMicMode() {
-  vadCleanup?.()
+export function stopMicMode(skipUnmute = false) {
+  vadCleanup?.(skipUnmute)
   vadCleanup = null
-  pttCleanup?.()
+  pttCleanup?.(skipUnmute)
   pttCleanup = null
 }
 
@@ -175,12 +175,24 @@ function startVAD(): () => void {
   setTrackMuted(true)
   requestAnimationFrame(tick)
 
-  return () => {
+  const onVisibility = () => {
+    if (document.hidden) {
+      setTrackMuted(false)
+    } else {
+      speaking = false
+      silenceFrames = SILENCE_DELAY + 1
+      setTrackMuted(true)
+    }
+  }
+  document.addEventListener('visibilitychange', onVisibility)
+
+  return (skipUnmute?: boolean) => {
     running = false
+    document.removeEventListener('visibilitychange', onVisibility)
     source.disconnect()
     analysisTrack.stop()
     audioCtx.close().catch(() => {})
-    setTrackMuted(false)
+    if (!skipUnmute) setTrackMuted(false)
   }
 }
 
@@ -212,11 +224,11 @@ function startPTT(): () => void {
     }
     window.addEventListener('contextmenu', onContext)
 
-    return () => {
+    return (skipUnmute?: boolean) => {
       window.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('mouseup', onMouseUp)
       window.removeEventListener('contextmenu', onContext)
-      setTrackMuted(false)
+      if (!skipUnmute) setTrackMuted(false)
     }
   }
 
@@ -241,10 +253,10 @@ function startPTT(): () => void {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
 
-  return () => {
+  return (skipUnmute?: boolean) => {
     window.removeEventListener('keydown', onKeyDown)
     window.removeEventListener('keyup', onKeyUp)
-    setTrackMuted(false)
+    if (!skipUnmute) setTrackMuted(false)
   }
 }
 

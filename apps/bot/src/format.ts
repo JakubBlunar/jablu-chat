@@ -2,25 +2,52 @@ import type { Deal } from './types.js'
 
 const SOURCE_EMOJI: Record<string, string> = {
   'Epic Games': '🎮',
-  Steam: '🎯'
+  Steam: '🎯',
+  GOG: '🏴‍☠️',
+  'Humble Bundle': '📦',
+  'itch.io': '🕹️',
+  PC: '💻'
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+}
+
+function buildPriceLine(deal: Deal): string {
+  const parts: string[] = []
+  if (deal.originalPrice) {
+    parts.push(`${deal.originalPrice} **Free**`)
+  } else {
+    parts.push('**Free**')
+  }
+  if (deal.freeUntil) {
+    parts.push(`until ${formatDate(deal.freeUntil)}`)
+  }
+  return parts.join(' ')
 }
 
 function buildLinks(deal: Deal): string {
-  const parts = [`[Open in browser](${deal.url})`]
+  const parts = [`[Open in browser ↗](${deal.url})`]
   if (deal.clientUrl) {
-    const label = deal.source === 'Steam' ? 'Open in Steam' : 'Open in Epic Launcher'
-    parts.push(`[${label}](${deal.clientUrl})`)
+    if (deal.source === 'Steam') {
+      parts.push(`[Open in Steam ↗](${deal.clientUrl})`)
+    } else if (deal.source === 'Epic Games') {
+      parts.push(`[Open in Epic Games Launcher ↗](${deal.clientUrl})`)
+    }
   }
-  return parts.join(' · ')
+  return parts.join('    ')
 }
 
 export function formatDeal(deal: Deal): string {
   const emoji = SOURCE_EMOJI[deal.source] ?? '🎁'
-  const lines = [`${emoji} **FREE on ${deal.source}**`, '', `**${deal.title}**`, deal.description]
+
+  const lines = [`${emoji} **${deal.source}**`, '', `**${deal.title}**`, buildPriceLine(deal), '', buildLinks(deal)]
+
   if (deal.imageUrl) {
     lines.push('', `![${deal.title}](${deal.imageUrl})`)
   }
-  lines.push('', buildLinks(deal))
+
   return lines.join('\n')
 }
 

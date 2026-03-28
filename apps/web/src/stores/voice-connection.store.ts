@@ -199,12 +199,13 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   toggleMute: () => {
     const { room, isMuted, micMode } = get()
     const next = !isMuted
+    if (next) {
+      stopMicMode(true)
+    }
     if (room) {
       room.localParticipant.setMicrophoneEnabled(!next).catch(() => {})
     }
-    if (next) {
-      stopMicMode()
-    } else if (micMode !== 'always') {
+    if (!next && micMode !== 'always') {
       setTimeout(() => startMicMode(micMode), 300)
     }
     set({ isMuted: next })
@@ -219,8 +220,8 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     if (room) {
       if (next && !isMuted) {
         _wasMutedBeforeDeafen = false
+        stopMicMode(true)
         room.localParticipant.setMicrophoneEnabled(false).catch(() => {})
-        stopMicMode()
         set({ isMuted: true })
         emitVoiceState({ muted: true })
       } else if (next && isMuted) {
