@@ -148,10 +148,16 @@ export class ReadStateService {
    * Parse @mentions from message content and return matching user IDs
    * that are members of the given server.
    *
-   * Supports: @username, @DisplayName (single word), @"Display Name" (quoted, multi-word).
-   * Matches against both username and displayName (case-insensitive).
+   * Supports: @username, @DisplayName (single word), @"Display Name" (quoted, multi-word),
+   * @everyone (all members), @here (online members only).
+   * @everyone and @here are restricted to admin/owner roles.
    */
-  async resolveMentions(content: string, serverId: string, excludeUserId: string): Promise<string[]> {
+  async resolveMentions(
+    content: string,
+    serverId: string,
+    excludeUserId: string,
+    onlineUserIds?: string[]
+  ): Promise<{ userIds: string[]; everyone: boolean; here: boolean }> {
     const mentions = new Set<string>()
 
     const quotedPattern = /@"([^"]+)"/g
@@ -165,20 +171,50 @@ export class ReadStateService {
       mentions.add(match[1].toLowerCase())
     }
 
-    if (mentions.size === 0) return []
+    const hasEveryone = mentions.has('everyone')
+    const hasHere = mentions.has('here')
+    mentions.delete('everyone')
+    mentions.delete('here')
+
+    if (mentions.size === 0 && !hasEveryone && !hasHere) {
+      return { userIds: [], everyone: false, here: false }
+    }
 
     const members = await this.prisma.serverMember.findMany({
       where: { serverId },
       include: { user: { select: { id: true, username: true, displayName: true } } }
     })
 
-    return members
-      .filter(
-        (m) =>
-          m.userId !== excludeUserId &&
-          (mentions.has(m.user.username.toLowerCase()) ||
-            (m.user.displayName && mentions.has(m.user.displayName.toLowerCase())))
-      )
-      .map((m) => m.userId)
+    const sender = members.find((m) => m.userId === excludeUserId)
+    const senderIsPrivileged = sender?.role === 'owner' || sender?.role === 'admin'
+
+    const resolvedEveryone = hasEveryone && senderIsPrivileged
+    const resolvedHere = hasHere && senderIsPrivileged
+
+    const onlineSet = onlineUserIds ? new Set(onlineUserIds) : null
+    const userIdSet = new Set<string>()
+
+    for (const m of members) {
+      if (m.userId === excludeUserId) continue
+
+      if (resolvedEveryone) {
+        userIdSet.add(m.userId)
+        continue
+      }
+
+      if (resolvedHere && onlineSet?.has(m.userId)) {
+        userIdSet.add(m.userId)
+        continue
+      }
+
+      if (
+        mentions.has(m.user.username.toLowerCase()) ||
+        (m.user.displayName && mentions.has(m.user.displayName.toLowerCase()))
+      ) {
+        userIdSet.add(m.userId)
+      }
+    }
+
+    return { userIds: Array.from(userIdSet), everyone: resolvedEveryone, here: resolvedHere }
   }
 }

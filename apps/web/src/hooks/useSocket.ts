@@ -161,7 +161,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
-    const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string }) => {
+    const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
       const channelId = useChannelStore.getState().currentChannelId
       const viewMode = useServerStore.getState().viewMode
       const myId = useAuthStore.getState().user?.id
@@ -170,7 +170,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         useMessageStore.getState().addMessage(msg)
         throttledAck(() => useReadStateStore.getState().ackChannel(channelId!))
       } else if (msg.channelId && msg.authorId !== myId) {
-        const isMentioned = myId ? (msg.mentionedUserIds ?? []).includes(myId) : false
+        const isMentioned = myId
+          ? (msg.mentionedUserIds ?? []).includes(myId) || !!msg.mentionEveryone || !!msg.mentionHere
+          : false
         useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned, msg.serverId)
 
         const level = useNotifPrefStore.getState().getEffective(msg.channelId, msg.serverId)
