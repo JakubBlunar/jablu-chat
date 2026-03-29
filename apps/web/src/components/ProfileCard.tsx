@@ -20,6 +20,7 @@ export type ProfileCardUser = {
   avatarUrl?: string | null
   bio?: string | null
   status: UserStatus
+  customStatus?: string | null
   joinedAt?: string
   role?: string
 }
@@ -182,6 +183,9 @@ function ProfileCardContent({
           <p className="text-xs text-gray-400">@{user.username}</p>
         )}
         <p className="text-xs text-gray-400">{statusLabel[user.status]}</p>
+        {user.customStatus && (
+          <p className="mt-0.5 text-xs text-gray-300 italic">{user.customStatus}</p>
+        )}
 
         <div className="my-3 border-t border-white/10" />
 

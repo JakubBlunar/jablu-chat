@@ -95,3 +95,10 @@ export class UpdateDmPrivacyDto {
   @IsEnum(['everyone', 'friends_only'])
   dmPrivacy: 'everyone' | 'friends_only'
 }
+
+export class UpdateCustomStatusDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  customStatus: string | null
+}

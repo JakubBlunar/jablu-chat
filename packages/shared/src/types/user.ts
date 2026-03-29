@@ -8,6 +8,7 @@ export interface User {
   avatarUrl: string | null
   bio: string | null
   status: UserStatus
+  customStatus: string | null
   dmPrivacy: DmPrivacy
   lastSeenAt: string | null
   createdAt: string

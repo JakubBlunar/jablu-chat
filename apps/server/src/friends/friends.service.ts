@@ -8,7 +8,8 @@ const userSelect = {
   displayName: true,
   avatarUrl: true,
   bio: true,
-  status: true
+  status: true,
+  customStatus: true
 } as const
 
 @Injectable()
