@@ -1,9 +1,25 @@
-import type { Channel } from '@chat/shared'
+import type { Channel, ChannelCategory } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 
+const COLLAPSED_KEY = 'chat:collapsed-categories'
+
+function loadCollapsed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY)
+    if (raw) return new Set(JSON.parse(raw))
+  } catch { /* ignore */ }
+  return new Set()
+}
+
+function saveCollapsed(ids: Set<string>) {
+  localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...ids]))
+}
+
 type ChannelState = {
   channels: Channel[]
+  categories: ChannelCategory[]
+  collapsedCategories: Set<string>
   currentChannelId: string | null
   isLoading: boolean
   loadedServerId: string | null
@@ -17,14 +33,23 @@ type ChannelState = {
   removeChannel: (channelId: string) => void
   adjustPinnedCount: (channelId: string, delta: number) => void
   applyReorder: (channelIds: string[]) => void
+  setCategories: (categories: ChannelCategory[]) => void
+  addCategory: (category: ChannelCategory) => void
+  updateCategory: (category: ChannelCategory) => void
+  removeCategory: (categoryId: string) => void
+  applyCategoryReorder: (categoryIds: string[]) => void
+  toggleCategoryCollapsed: (categoryId: string) => void
+  isCategoryCollapsed: (categoryId: string) => boolean
 }
 
-function byPosition(a: Channel, b: Channel): number {
+function byPosition(a: { position: number }, b: { position: number }): number {
   return a.position - b.position
 }
 
 export const useChannelStore = create<ChannelState>((set, get) => ({
   channels: [],
+  categories: [],
+  collapsedCategories: loadCollapsed(),
   currentChannelId: null,
   isLoading: false,
   loadedServerId: null,
@@ -32,13 +57,16 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   fetchChannels: async (serverId) => {
     const prev = get().loadedServerId
     if (prev !== serverId) {
-      set({ channels: [], isLoading: true, loadedServerId: serverId })
+      set({ channels: [], categories: [], isLoading: true, loadedServerId: serverId })
     } else {
       set({ isLoading: true })
     }
     try {
-      const list = await api.get<Channel[]>(`/api/servers/${serverId}/channels`)
-      set({ channels: list, isLoading: false, loadedServerId: serverId })
+      const [channels, categories] = await Promise.all([
+        api.get<Channel[]>(`/api/servers/${serverId}/channels`),
+        api.get<ChannelCategory[]>(`/api/servers/${serverId}/categories`)
+      ])
+      set({ channels, categories, isLoading: false, loadedServerId: serverId })
     } catch (e) {
       set({ isLoading: false })
       throw e
@@ -95,5 +123,42 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
         const idx = channelIds.indexOf(c.id)
         return idx >= 0 ? { ...c, position: idx } : c
       })
-    }))
+    })),
+
+  setCategories: (categories) => set({ categories }),
+
+  addCategory: (category) =>
+    set((s) => {
+      if (s.categories.some((c) => c.id === category.id)) return s
+      return { categories: [...s.categories, category] }
+    }),
+
+  updateCategory: (category) =>
+    set((s) => ({
+      categories: s.categories.map((c) => (c.id === category.id ? { ...c, ...category } : c))
+    })),
+
+  removeCategory: (categoryId) =>
+    set((s) => ({
+      categories: s.categories.filter((c) => c.id !== categoryId),
+      channels: s.channels.map((c) => (c.categoryId === categoryId ? { ...c, categoryId: null } : c))
+    })),
+
+  applyCategoryReorder: (categoryIds) =>
+    set((state) => ({
+      categories: state.categories.map((c) => {
+        const idx = categoryIds.indexOf(c.id)
+        return idx >= 0 ? { ...c, position: idx } : c
+      })
+    })),
+
+  toggleCategoryCollapsed: (categoryId) => {
+    const next = new Set(get().collapsedCategories)
+    if (next.has(categoryId)) next.delete(categoryId)
+    else next.add(categoryId)
+    saveCollapsed(next)
+    set({ collapsedCategories: next })
+  },
+
+  isCategoryCollapsed: (categoryId) => get().collapsedCategories.has(categoryId)
 }))

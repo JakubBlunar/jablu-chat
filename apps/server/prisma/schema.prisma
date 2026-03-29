@@ -108,6 +108,7 @@ model Server {
 
   owner               User                 @relation("ServerOwner", fields: [ownerId], references: [id])
   channels            Channel[]
+  categories          ChannelCategory[]
   members             ServerMember[]
   invites             Invite[]
   customEmojis        CustomEmoji[]
@@ -139,16 +140,31 @@ enum ServerRole {
   member
 }
 
-model Channel {
-  id        String      @id @default(uuid())
-  serverId  String      @map("server_id")
+model ChannelCategory {
+  id        String   @id @default(uuid())
+  serverId  String   @map("server_id")
   name      String
-  type      ChannelType @default(text)
-  position  Int         @default(0)
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  server   Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  channels Channel[]
+
+  @@map("channel_categories")
+}
+
+model Channel {
+  id         String      @id @default(uuid())
+  serverId   String      @map("server_id")
+  categoryId String?     @map("category_id")
+  name       String
+  type       ChannelType @default(text)
+  position   Int         @default(0)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
 
   server           Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  category         ChannelCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   messages         Message[]
   webhooks         Webhook[]
   notifPreferences ChannelNotifPref[]

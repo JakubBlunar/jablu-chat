@@ -19,10 +19,12 @@ function normalizeChannelName(raw: string): string {
 export function EditChannelModal({ channel, onClose }: { channel: Channel; onClose: () => void }) {
   const currentServerId = useServerStore((s) => s.currentServerId)
   const fetchChannels = useChannelStore((s) => s.fetchChannels)
+  const categories = useChannelStore((s) => s.categories)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
   const { goToServer } = useAppNavigate()
 
   const [rawName, setRawName] = useState(channel.name)
+  const [categoryId, setCategoryId] = useState<string | null>(channel.categoryId ?? null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,16 +33,23 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
 
   const name = normalizeChannelName(rawName)
 
+  const nameChanged = name !== channel.name
+  const categoryChanged = categoryId !== (channel.categoryId ?? null)
+  const hasChanges = nameChanged || categoryChanged
+
   const handleSave = useCallback(async () => {
     if (!currentServerId || !name) return
-    if (name === channel.name) {
+    if (!hasChanges) {
       onClose()
       return
     }
     setSaving(true)
     setError(null)
     try {
-      await api.updateChannel(currentServerId, channel.id, { name })
+      const patch: { name?: string; categoryId?: string | null } = {}
+      if (nameChanged) patch.name = name
+      if (categoryChanged) patch.categoryId = categoryId
+      await api.updateChannel(currentServerId, channel.id, patch)
       await fetchChannels(currentServerId)
       onClose()
     } catch (e) {
@@ -48,7 +57,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     } finally {
       setSaving(false)
     }
-  }, [currentServerId, channel, name, fetchChannels, onClose])
+  }, [currentServerId, channel, name, categoryId, nameChanged, categoryChanged, hasChanges, fetchChannels, onClose])
 
   const handleDelete = useCallback(async () => {
     if (!currentServerId) return
@@ -90,6 +99,22 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             Will be renamed to <span className="text-gray-300">#{name}</span>
           </p>
         ) : null}
+
+        {categories.length > 0 && (
+          <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Category
+            <select
+              value={categoryId ?? ''}
+              onChange={(e) => setCategoryId(e.target.value || null)}
+              className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
+            >
+              <option value="">No category</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {error && (
           <p className="mt-3 text-sm text-red-400" role="alert">
@@ -140,7 +165,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             <button
               type="button"
               onClick={() => void handleSave()}
-              disabled={saving || !name || name === channel.name}
+              disabled={saving || !name || !hasChanges}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save'}

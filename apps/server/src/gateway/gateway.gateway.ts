@@ -191,6 +191,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.server.to(`server:${payload.serverId}`).emit('channel:deleted', payload)
     })
 
+    this.events.on('category:created', (payload: { serverId: string; category: unknown }) => {
+      this.server.to(`server:${payload.serverId}`).emit('category:created', payload)
+    })
+
+    this.events.on('category:updated', (payload: { serverId: string; category: unknown }) => {
+      this.server.to(`server:${payload.serverId}`).emit('category:updated', payload)
+    })
+
+    this.events.on('category:deleted', (payload: { serverId: string; categoryId: string }) => {
+      this.server.to(`server:${payload.serverId}`).emit('category:deleted', payload)
+    })
+
+    this.events.on('category:reorder', (payload: { serverId: string; categoryIds: string[] }) => {
+      this.server.to(`server:${payload.serverId}`).emit('category:reorder', { categoryIds: payload.categoryIds })
+    })
+
     this.events.on('member:joined', async (payload: { serverId: string; member: unknown }) => {
       const { serverId, member } = payload as { serverId: string; member: { userId: string } }
       this.server.to(`server:${serverId}`).emit('member:joined', { serverId, member })

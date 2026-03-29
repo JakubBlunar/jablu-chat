@@ -27,7 +27,7 @@ export class ChannelsController {
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: CreateChannelDto
   ) {
-    return this.channels.createChannel(serverId, user.id, dto.name, dto.type)
+    return this.channels.createChannel(serverId, user.id, dto.name, dto.type, dto.categoryId)
   }
 
   @Get()

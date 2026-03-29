@@ -61,7 +61,7 @@ export class ChannelsService {
     }
   }
 
-  async createChannel(serverId: string, userId: string, name: string, type: ChannelType) {
+  async createChannel(serverId: string, userId: string, name: string, type: ChannelType, categoryId?: string | null) {
     await this.requireAdminOrOwner(serverId, userId)
     const maxPos = await this.prisma.channel.aggregate({
       where: { serverId },
@@ -74,7 +74,8 @@ export class ChannelsService {
           serverId,
           name,
           type,
-          position
+          position,
+          categoryId: categoryId || null
         }
       })
       await this.auditLog.log(serverId, userId, 'channel.create', 'channel', channel.id, `#${name} (${type})`)
@@ -105,7 +106,7 @@ export class ChannelsService {
     }))
   }
 
-  async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number }) {
+  async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number; categoryId?: string | null }) {
     await this.requireAdminOrOwner(serverId, userId)
     const channel = await this.prisma.channel.findFirst({
       where: { id: channelId, serverId }
@@ -113,7 +114,7 @@ export class ChannelsService {
     if (!channel) {
       throw new NotFoundException('Channel not found')
     }
-    if (data.name === undefined && data.position === undefined) {
+    if (data.name === undefined && data.position === undefined && data.categoryId === undefined) {
       return channel
     }
     try {

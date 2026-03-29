@@ -1,4 +1,4 @@
-import type { Channel, UserStatus } from '@chat/shared'
+import type { Channel, ChannelCategory, UserStatus } from '@chat/shared'
 import { RoomEvent, type Participant } from 'livekit-client'
 import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
@@ -26,6 +26,12 @@ const ReorderChannelsModal = React.lazy(() =>
 )
 const ServerNotifModal = React.lazy(() =>
   import('@/components/server/ServerNotifModal').then((m) => ({ default: m.ServerNotifModal }))
+)
+const CreateCategoryModal = React.lazy(() =>
+  import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
+)
+const EditCategoryModal = React.lazy(() =>
+  import('@/components/channel/EditCategoryModal').then((m) => ({ default: m.EditCategoryModal }))
 )
 
 import { useAuthStore } from '@/stores/auth.store'
@@ -232,11 +238,199 @@ function ReorderIcon() {
   )
 }
 
+function ChevronDownIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+    </svg>
+  )
+}
+
 function GearSmallIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 00-.49-.42h-3.84a.5.5 0 00-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.74 8.87c-.17.29-.11.67.19.86l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.17.29.49.38.78.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54a.5.5 0 00.49.42h3.84c.24 0 .45-.17.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.29.15.62.06.78-.22l1.92-3.32c.17-.29.11-.67-.19-.86l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
     </svg>
+  )
+}
+
+type ReadStateMap = Map<string, { unreadCount: number; mentionCount: number }>
+
+function TextChannelItem({
+  ch,
+  active,
+  channelReadStates,
+  getNotifLevel,
+  longPressFired,
+  currentServer,
+  orchestratedGoToChannel,
+  handleChannelTouchStart,
+  handleChannelTouchEnd,
+  handleChannelTouchMove,
+  handleChannelContextMenu
+}: {
+  ch: Channel
+  active: boolean
+  channelReadStates: ReadStateMap
+  getNotifLevel: (channelId: string) => string
+  longPressFired: React.MutableRefObject<boolean>
+  currentServer: { id: string } | null
+  orchestratedGoToChannel: (serverId: string, channelId: string) => Promise<unknown>
+  handleChannelTouchStart: (ch: Channel) => void
+  handleChannelTouchEnd: () => void
+  handleChannelTouchMove: () => void
+  handleChannelContextMenu: (e: React.MouseEvent) => void
+}) {
+  const rs = channelReadStates.get(ch.id)
+  const level = getNotifLevel(ch.id)
+  const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
+  const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
+  const mentionCount = showMentions ? rs!.mentionCount : 0
+  const hasIndicator = showUnreadDot || showMentions
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={(e) => {
+          if (longPressFired.current) {
+            e.preventDefault()
+            e.stopPropagation()
+            longPressFired.current = false
+            return
+          }
+          if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
+          useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+        }}
+        onTouchStart={() => handleChannelTouchStart(ch)}
+        onTouchEnd={handleChannelTouchEnd}
+        onTouchMove={handleChannelTouchMove}
+        onContextMenu={handleChannelContextMenu}
+        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
+          active
+            ? 'bg-surface-selected text-white'
+            : hasIndicator
+              ? 'font-semibold text-white hover:bg-white/[0.06]'
+              : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
+        }`}
+      >
+        <HashIcon />
+        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+        {mentionCount > 0 && (
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {mentionCount > 10 ? '10+' : mentionCount}
+          </span>
+        )}
+        {showUnreadDot && mentionCount === 0 && (
+          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+        )}
+      </button>
+    </li>
+  )
+}
+
+function VoiceChannelItem({
+  ch,
+  voiceParticipants,
+  currentVoiceChannelId,
+  viewingVoiceRoom,
+  isAdminOrOwner,
+  isMobile,
+  speakingUsers,
+  members,
+  longPressFired,
+  handleVoiceChannelClick,
+  handleChannelTouchStart,
+  handleChannelTouchEnd,
+  handleChannelTouchMove,
+  handleChannelContextMenu,
+  handleVoiceParticipantClick,
+  setEditingChannel
+}: {
+  ch: Channel
+  voiceParticipants: Record<string, VoiceParticipant[]>
+  currentVoiceChannelId: string | null
+  viewingVoiceRoom: boolean
+  isAdminOrOwner: boolean
+  isMobile: boolean
+  speakingUsers: Set<string>
+  members: Member[]
+  longPressFired: React.MutableRefObject<boolean>
+  handleVoiceChannelClick: (ch: Channel) => void
+  handleChannelTouchStart: (ch: Channel) => void
+  handleChannelTouchEnd: () => void
+  handleChannelTouchMove: () => void
+  handleChannelContextMenu: (e: React.MouseEvent) => void
+  handleVoiceParticipantClick: (p: VoiceParticipant, e: React.MouseEvent) => void
+  setEditingChannel: (ch: Channel) => void
+}) {
+  const participants = voiceParticipants[ch.id] ?? []
+  const inThisChannel = currentVoiceChannelId === ch.id && viewingVoiceRoom
+  return (
+    <li>
+      <div className="group/ch rounded-md px-2 py-1.5 text-[15px] text-gray-300">
+        <div className="flex w-full items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              if (longPressFired.current) {
+                e.preventDefault()
+                e.stopPropagation()
+                longPressFired.current = false
+                return
+              }
+              handleVoiceChannelClick(ch)
+            }}
+            onTouchStart={() => handleChannelTouchStart(ch)}
+            onTouchEnd={handleChannelTouchEnd}
+            onTouchMove={handleChannelTouchMove}
+            onContextMenu={handleChannelContextMenu}
+            className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left ${inThisChannel ? 'text-white' : ''}`}
+          >
+            <SpeakerIcon />
+            <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+            {participants.length > 0 && (
+              <span className="shrink-0 text-xs text-gray-400">{participants.length}</span>
+            )}
+          </button>
+          {isAdminOrOwner && !isMobile && (
+            <button
+              type="button"
+              aria-label="Edit channel"
+              className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditingChannel(ch)
+              }}
+            >
+              <GearSmallIcon />
+            </button>
+          )}
+        </div>
+        {participants.length > 0 ? (
+          <ul className="mt-1 space-y-0.5">
+            {participants.map((p) => {
+              const member = members.find((m) => m.userId === p.userId)
+              return (
+                <VoiceParticipantRow
+                  key={p.userId}
+                  participant={p}
+                  member={member}
+                  isSpeaking={speakingUsers.has(p.userId)}
+                  onClick={(e) => handleVoiceParticipantClick(p, e)}
+                />
+              )
+            })}
+          </ul>
+        ) : (
+          <p className="mt-1 text-xs text-gray-500">No one connected</p>
+        )}
+      </div>
+    </li>
   )
 }
 
@@ -251,9 +445,12 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const { orchestratedGoToChannel } = useAppNavigate()
   const channelsLoading = useChannelStore((s) => s.isLoading)
   const channels = useChannelStore((s) => s.channels)
+  const categories = useChannelStore((s) => s.categories)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
+  const collapsedCategories = useChannelStore((s) => s.collapsedCategories)
+  const toggleCategoryCollapsed = useChannelStore((s) => s.toggleCategoryCollapsed)
 
-  const { textChannels, voiceChannels } = useSortedChannels(channels)
+  const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, categories)
 
   const myMembership = useMemberStore((s) => s.members.find((m) => m.userId === user?.id))
   const isAdminOrOwner = myMembership?.role === 'owner' || myMembership?.role === 'admin'
@@ -287,6 +484,9 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
   const [eventsOpen, setEventsOpen] = useState(false)
   const [serverNotifOpen, setServerNotifOpen] = useState(false)
+  const [createCategoryId, setCreateCategoryId] = useState<string | null>(null)
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<ChannelCategory | null>(null)
 
   const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -507,6 +707,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                   Reorder Channels
                 </button>
               )}
+              {isAdminOrOwner && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setCreateCategoryOpen(true)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
+                >
+                  <PlusSmallIcon />
+                  Create Category
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -612,157 +825,185 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
             </button>
           )}
 
-          <div className="group/header flex items-center justify-between px-2 pt-1">
-            <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
-            {isAdminOrOwner && (
-              <button
-                type="button"
-                title="Create channel"
-                aria-label="Create text channel"
-                disabled={!currentServer}
-                onClick={() => setChannelModalOpen(true)}
-                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
-              >
-                <PlusSmallIcon />
-              </button>
-            )}
-          </div>
-
-          <ul className="space-y-0.5">
-            {textChannels.map((ch) => {
-              const active = ch.id === currentChannelId && !viewingVoiceRoom
-              const rs = channelReadStates.get(ch.id)
-              const level = getNotifLevel(ch.id)
-              const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
-              const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
-              const mentionCount = showMentions ? rs!.mentionCount : 0
-              const hasIndicator = showUnreadDot || showMentions
-              return (
-                <li key={ch.id}>
+          {/* Uncategorized text channels */}
+          {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
+            <>
+              <div className="group/header flex items-center justify-between px-2 pt-1">
+                <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
+                {isAdminOrOwner && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      if (longPressFired.current) {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        longPressFired.current = false
-                        return
-                      }
-                      if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
-                      useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
-                    }}
-                    onTouchStart={() => handleChannelTouchStart(ch)}
-                    onTouchEnd={handleChannelTouchEnd}
-                    onTouchMove={handleChannelTouchMove}
-                    onContextMenu={handleChannelContextMenu}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${
-                      active
-                        ? 'bg-surface-selected text-white'
-                        : hasIndicator
-                          ? 'font-semibold text-white hover:bg-white/[0.06]'
-                          : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
-                    }`}
+                    title="Create channel"
+                    aria-label="Create text channel"
+                    disabled={!currentServer}
+                    onClick={() => setChannelModalOpen(true)}
+                    className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
                   >
-                    <HashIcon />
-                    <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                    {mentionCount > 0 && (
-                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                        {mentionCount > 10 ? '10+' : mentionCount}
-                      </span>
-                    )}
-                    {showUnreadDot && mentionCount === 0 && (
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                    )}
+                    <PlusSmallIcon />
                   </button>
-                </li>
-              )
-            })}
-          </ul>
+                )}
+              </div>
+              <ul className="space-y-0.5">
+                {uncategorizedText.map((ch) => (
+                  <TextChannelItem
+                    key={ch.id}
+                    ch={ch}
+                    active={ch.id === currentChannelId && !viewingVoiceRoom}
+                    channelReadStates={channelReadStates}
+                    getNotifLevel={getNotifLevel}
+                    longPressFired={longPressFired}
+                    currentServer={currentServer}
+                    orchestratedGoToChannel={orchestratedGoToChannel}
+                    handleChannelTouchStart={handleChannelTouchStart}
+                    handleChannelTouchEnd={handleChannelTouchEnd}
+                    handleChannelTouchMove={handleChannelTouchMove}
+                    handleChannelContextMenu={handleChannelContextMenu}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
 
-          <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
-            <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
-            {isAdminOrOwner && (
-              <button
-                type="button"
-                title="Create channel"
-                aria-label="Create voice channel"
-                disabled={!currentServer}
-                onClick={() => setChannelModalOpen(true)}
-                className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
-              >
-                <PlusSmallIcon />
-              </button>
-            )}
-          </div>
-
-          <ul className="space-y-1">
-            {voiceChannels.map((ch) => {
-              const participants = voiceParticipants[ch.id] ?? []
-              const inThisChannel = currentVoiceChannelId === ch.id && viewingVoiceRoom
-              return (
-                <li key={ch.id}>
-                  <div className="group/ch rounded-md px-2 py-1.5 text-[15px] text-gray-300">
-                    <div className="flex w-full items-center gap-2">
+          {/* Category groups */}
+          {categoryGroups.map((group) => {
+            const isCollapsed = collapsedCategories.has(group.category.id)
+            const hasChannels = group.textChannels.length > 0 || group.voiceChannels.length > 0
+            return (
+              <div key={group.category.id} className="mt-1">
+                <div className="group/header flex items-center justify-between px-1 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleCategoryCollapsed(group.category.id)}
+                    className="flex min-w-0 flex-1 items-center gap-0.5 text-left"
+                  >
+                    <ChevronDownIcon collapsed={isCollapsed} />
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      {group.category.name}
+                    </span>
+                  </button>
+                  {isAdminOrOwner && (
+                    <span className="flex items-center gap-0.5">
                       <button
                         type="button"
-                        onClick={(e) => {
-                          if (longPressFired.current) {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            longPressFired.current = false
-                            return
-                          }
-                          handleVoiceChannelClick(ch)
-                        }}
-                        onTouchStart={() => handleChannelTouchStart(ch)}
-                        onTouchEnd={handleChannelTouchEnd}
-                        onTouchMove={handleChannelTouchMove}
-                        onContextMenu={handleChannelContextMenu}
-                        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left ${inThisChannel ? 'text-white' : ''}`}
+                        title="Edit category"
+                        aria-label={`Edit ${group.category.name}`}
+                        onClick={() => setEditingCategory(group.category)}
+                        className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100"
                       >
-                        <SpeakerIcon />
-                        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                        {participants.length > 0 && (
-                          <span className="shrink-0 text-xs text-gray-400">{participants.length}</span>
-                        )}
+                        <GearSmallIcon />
                       </button>
-                      {isAdminOrOwner && !isMobile && (
-                        <button
-                          type="button"
-                          aria-label="Edit channel"
-                          className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingChannel(ch)
-                          }}
-                        >
-                          <GearSmallIcon />
-                        </button>
-                      )}
-                    </div>
-                    {participants.length > 0 ? (
-                      <ul className="mt-1 space-y-0.5">
-                        {participants.map((p) => {
-                          const member = members.find((m) => m.userId === p.userId)
-                          return (
-                            <VoiceParticipantRow
-                              key={p.userId}
-                              participant={p}
-                              member={member}
-                              isSpeaking={speakingUsers.has(p.userId)}
-                              onClick={(e) => handleVoiceParticipantClick(p, e)}
-                            />
-                          )
-                        })}
+                      <button
+                        type="button"
+                        title="Create channel"
+                        aria-label={`Create channel in ${group.category.name}`}
+                        disabled={!currentServer}
+                        onClick={() => {
+                          setCreateCategoryId(group.category.id)
+                          setChannelModalOpen(true)
+                        }}
+                        className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+                      >
+                        <PlusSmallIcon />
+                      </button>
+                    </span>
+                  )}
+                </div>
+                {!isCollapsed && hasChannels && (
+                  <>
+                    {group.textChannels.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {group.textChannels.map((ch) => (
+                          <TextChannelItem
+                            key={ch.id}
+                            ch={ch}
+                            active={ch.id === currentChannelId && !viewingVoiceRoom}
+                            channelReadStates={channelReadStates}
+                            getNotifLevel={getNotifLevel}
+                            longPressFired={longPressFired}
+                            currentServer={currentServer}
+                            orchestratedGoToChannel={orchestratedGoToChannel}
+                            handleChannelTouchStart={handleChannelTouchStart}
+                            handleChannelTouchEnd={handleChannelTouchEnd}
+                            handleChannelTouchMove={handleChannelTouchMove}
+                            handleChannelContextMenu={handleChannelContextMenu}
+                          />
+                        ))}
                       </ul>
-                    ) : (
-                      <p className="mt-1 text-xs text-gray-500">No one connected</p>
                     )}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                    {group.voiceChannels.length > 0 && (
+                      <ul className="space-y-1">
+                        {group.voiceChannels.map((ch) => (
+                          <VoiceChannelItem
+                            key={ch.id}
+                            ch={ch}
+                            voiceParticipants={voiceParticipants}
+                            currentVoiceChannelId={currentVoiceChannelId}
+                            viewingVoiceRoom={viewingVoiceRoom}
+                            isAdminOrOwner={isAdminOrOwner}
+                            isMobile={isMobile}
+                            speakingUsers={speakingUsers}
+                            members={members}
+                            longPressFired={longPressFired}
+                            handleVoiceChannelClick={handleVoiceChannelClick}
+                            handleChannelTouchStart={handleChannelTouchStart}
+                            handleChannelTouchEnd={handleChannelTouchEnd}
+                            handleChannelTouchMove={handleChannelTouchMove}
+                            handleChannelContextMenu={handleChannelContextMenu}
+                            handleVoiceParticipantClick={handleVoiceParticipantClick}
+                            setEditingChannel={setEditingChannel}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Uncategorized voice channels */}
+          {uncategorizedVoice.length > 0 && (
+            <>
+              <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
+                <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
+                {isAdminOrOwner && (
+                  <button
+                    type="button"
+                    title="Create channel"
+                    aria-label="Create voice channel"
+                    disabled={!currentServer}
+                    onClick={() => setChannelModalOpen(true)}
+                    className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+                  >
+                    <PlusSmallIcon />
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-1">
+                {uncategorizedVoice.map((ch) => (
+                  <VoiceChannelItem
+                    key={ch.id}
+                    ch={ch}
+                    voiceParticipants={voiceParticipants}
+                    currentVoiceChannelId={currentVoiceChannelId}
+                    viewingVoiceRoom={viewingVoiceRoom}
+                    isAdminOrOwner={isAdminOrOwner}
+                    isMobile={isMobile}
+                    speakingUsers={speakingUsers}
+                    members={members}
+                    longPressFired={longPressFired}
+                    handleVoiceChannelClick={handleVoiceChannelClick}
+                    handleChannelTouchStart={handleChannelTouchStart}
+                    handleChannelTouchEnd={handleChannelTouchEnd}
+                    handleChannelTouchMove={handleChannelTouchMove}
+                    handleChannelContextMenu={handleChannelContextMenu}
+                    handleVoiceParticipantClick={handleVoiceParticipantClick}
+                    setEditingChannel={setEditingChannel}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
         </SimpleBar>
 
         <VoicePanel />
@@ -794,7 +1035,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
 
       {channelModalOpen && (
         <Suspense fallback={null}>
-          <CreateChannelModal open onClose={() => setChannelModalOpen(false)} />
+          <CreateChannelModal open onClose={() => { setChannelModalOpen(false); setCreateCategoryId(null) }} defaultCategoryId={createCategoryId} />
         </Suspense>
       )}
       {inviteOpen && currentServer && (
@@ -828,6 +1069,16 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
       {serverNotifOpen && currentServer && (
         <Suspense fallback={null}>
           <ServerNotifModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setServerNotifOpen(false)} />
+        </Suspense>
+      )}
+      {createCategoryOpen && (
+        <Suspense fallback={null}>
+          <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />
+        </Suspense>
+      )}
+      {editingCategory && (
+        <Suspense fallback={null}>
+          <EditCategoryModal category={editingCategory} onClose={() => setEditingCategory(null)} />
         </Suspense>
       )}
       {drawerChannel && (

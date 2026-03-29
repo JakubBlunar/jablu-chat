@@ -12,6 +12,7 @@ import {
   Min,
   MinLength
 } from 'class-validator'
+import { Transform } from 'class-transformer'
 
 export class CreateChannelDto {
   @IsString()
@@ -24,6 +25,11 @@ export class CreateChannelDto {
 
   @IsEnum(ChannelType)
   type: ChannelType
+
+  @IsOptional()
+  @IsUUID('4')
+  @Transform(({ value }) => (value === '' ? null : value))
+  categoryId?: string | null
 }
 
 export class UpdateChannelDto {
@@ -40,6 +46,11 @@ export class UpdateChannelDto {
   @IsInt()
   @Min(0)
   position?: number
+
+  @IsOptional()
+  @IsUUID('4')
+  @Transform(({ value }) => (value === '' ? null : value))
+  categoryId?: string | null
 }
 
 export class ReorderChannelsDto {
@@ -47,4 +58,31 @@ export class ReorderChannelsDto {
   @ArrayMinSize(1)
   @IsUUID('4', { each: true })
   channelIds!: string[]
+}
+
+export class CreateCategoryDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name: string
+}
+
+export class UpdateCategoryDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name?: string
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  position?: number
+}
+
+export class ReorderCategoriesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  categoryIds!: string[]
 }
