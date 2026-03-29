@@ -146,3 +146,12 @@ select {
   --color-link: #00aff4;
   --color-code: #e8912d;
 }
+
+@keyframes toast-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-toast-in {
+  animation: toast-slide-in 0.2s ease-out;
+}

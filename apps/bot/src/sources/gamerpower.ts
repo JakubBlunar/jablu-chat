@@ -2,6 +2,8 @@ import type { Deal, DealSource } from '../types.js'
 
 const GAMERPOWER_API = 'https://www.gamerpower.com/api/giveaways?type=game&sort-by=date'
 
+const ALLOWED_SOURCES: Set<DealSource> = new Set(['Epic Games', 'Steam', 'GOG', 'Humble Bundle'])
+
 interface GamerPowerGiveaway {
   id: number
   title: string
@@ -26,23 +28,23 @@ const PLATFORM_SOURCE_MAP: Record<string, DealSource> = {
   gog: 'GOG',
   'gog.com': 'GOG',
   'humble bundle': 'Humble Bundle',
-  'humble store': 'Humble Bundle',
-  'itch.io': 'itch.io'
+  'humble store': 'Humble Bundle'
 }
 
-function detectSource(platforms: string): DealSource {
+function detectSource(platforms: string): DealSource | null {
   const lower = platforms.toLowerCase()
   for (const [key, source] of Object.entries(PLATFORM_SOURCE_MAP)) {
     if (lower.includes(key)) return source
   }
-  if (lower.includes('pc') || lower.includes('drm-free')) return 'PC'
-  return platforms.split(',')[0]?.trim() || 'PC'
+  return null
 }
 
-function parseTitle(rawTitle: string): { title: string; storeSuffix: string | null } {
-  const match = rawTitle.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
-  if (match) return { title: match[1].trim(), storeSuffix: match[2].trim() }
-  return { title: rawTitle.trim(), storeSuffix: null }
+function parseTitle(rawTitle: string): string {
+  let title = rawTitle.trim()
+  const parenMatch = title.match(/^(.+?)\s*\([^)]+\)\s*$/)
+  if (parenMatch) title = parenMatch[1].trim()
+  title = title.replace(/\s+Giveaway$/i, '').trim()
+  return title
 }
 
 function parseWorth(worth: string): string | undefined {
@@ -74,29 +76,32 @@ export async function fetchGamerPowerDeals(): Promise<Deal[]> {
     const data = (await res.json()) as GamerPowerGiveaway[] | { status: number; status_message: string }
 
     if (!Array.isArray(data)) {
-      console.log(`[gamerpower] API returned non-array: ${(data as { status_message?: string }).status_message ?? 'unknown'}`)
+      console.log(
+        `[gamerpower] API returned non-array: ${(data as { status_message?: string }).status_message ?? 'unknown'}`
+      )
       return []
     }
 
-    const deals = data
-      .filter((g) => g.status === 'Active' && g.type === 'Game')
-      .map((g) => {
-        const { title } = parseTitle(g.title)
-        const source = detectSource(g.platforms)
+    const deals: Deal[] = []
 
-        return {
-          id: `gp:${g.id}`,
-          source,
-          title,
-          description: g.description?.slice(0, 200) || `Free on ${source}!`,
-          url: g.open_giveaway_url,
-          imageUrl: g.image || g.thumbnail || undefined,
-          originalPrice: parseWorth(g.worth),
-          freeUntil: parseEndDate(g.end_date)
-        }
+    for (const g of data) {
+      if (g.status !== 'Active' || g.type !== 'Game') continue
+
+      const source = detectSource(g.platforms)
+      if (!source || !ALLOWED_SOURCES.has(source)) continue
+
+      deals.push({
+        id: `gp:${g.id}`,
+        source,
+        title: parseTitle(g.title),
+        description: g.description?.slice(0, 200) || `Free on ${source}!`,
+        url: g.open_giveaway_url,
+        originalPrice: parseWorth(g.worth),
+        freeUntil: parseEndDate(g.end_date)
       })
+    }
 
-    console.log(`[gamerpower] ${deals.length} active giveaway(s) found`)
+    console.log(`[gamerpower] ${deals.length} deal(s) from major stores (filtered from ${data.length} total)`)
     return deals
   } catch (err) {
     console.error('[gamerpower] Fetch error:', err)

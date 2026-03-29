@@ -69,6 +69,24 @@ export class ReadStateService {
     return { channels, dms }
   }
 
+  async ackServer(userId: string, serverId: string) {
+    const channels = await this.prisma.channel.findMany({
+      where: { serverId },
+      select: { id: true }
+    })
+    if (channels.length === 0) return
+    const now = new Date()
+    await Promise.all(
+      channels.map((ch) =>
+        this.prisma.channelReadState.upsert({
+          where: { userId_channelId: { userId, channelId: ch.id } },
+          update: { lastReadAt: now, mentionCount: 0 },
+          create: { userId, channelId: ch.id, lastReadAt: now, mentionCount: 0 }
+        })
+      )
+    )
+  }
+
   async ackChannel(userId: string, channelId: string) {
     await this.prisma.channelReadState.upsert({
       where: { userId_channelId: { userId, channelId } },

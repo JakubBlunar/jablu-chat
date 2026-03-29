@@ -8,7 +8,9 @@ import { MemberSidebar } from '@/components/member/MemberSidebar'
 import { MessageArea } from '@/components/chat/MessageArea'
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
+import { ToastContainer } from '@/components/ToastContainer'
 import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
+import { useAppBadge } from '@/hooks/useAppBadge'
 import { useIdleDetector } from '@/hooks/useIdleDetector'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useRouteSync } from '@/hooks/useRouteSync'
@@ -162,6 +164,7 @@ export function MainLayout() {
   }, [socket])
 
   useIdleDetector(onIdle, onActive)
+  useAppBadge()
 
   const viewMode = useServerStore((s) => s.viewMode)
   const fetchServers = useServerStore((s) => s.fetchServers)
@@ -280,6 +283,7 @@ export function MainLayout() {
     return (
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <VoiceAudioManager />
+        <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
         <MobileTopBar
@@ -328,6 +332,7 @@ export function MainLayout() {
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <VoiceAudioManager />
+        <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
         <div className="flex min-h-0 flex-1">
@@ -348,6 +353,7 @@ export function MainLayout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <VoiceAudioManager />
+      <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
       <PwaInstallBanner />
       <div className="flex min-h-0 flex-1">

@@ -14,6 +14,7 @@ type ReadStateState = {
   dms: Map<string, ChannelUnread>
   channelToServer: Map<string, string>
   fetchAll: () => Promise<void>
+  ackServer: (serverId: string) => void
   ackChannel: (channelId: string) => void
   ackDm: (conversationId: string) => void
   incrementChannel: (channelId: string, isMention: boolean, serverId?: string) => void
@@ -56,6 +57,17 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     } catch {
       // ignore
     }
+  },
+
+  ackServer: (serverId) => {
+    const { channels, channelToServer } = get()
+    const updated = new Map(channels)
+    for (const [chId, sid] of channelToServer) {
+      if (sid !== serverId) continue
+      updated.set(chId, { unreadCount: 0, mentionCount: 0, lastReadAt: new Date().toISOString() })
+    }
+    set({ channels: updated })
+    api.ackServer(serverId).catch(() => {})
   },
 
   ackChannel: (channelId) => {

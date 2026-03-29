@@ -16,6 +16,12 @@ export class ReadStateController {
     return this.readState.getAllForUser(req.user.id)
   }
 
+  @Put('servers/:id/ack')
+  async ackServer(@Request() req: { user: { id: string } }, @Param('id', ParseUUIDPipe) serverId: string) {
+    await this.readState.ackServer(req.user.id, serverId)
+    return { ok: true }
+  }
+
   @Put('channels/:id/ack')
   async ackChannel(@Request() req: { user: { id: string } }, @Param('id', ParseUUIDPipe) channelId: string) {
     await this.readState.ackChannel(req.user.id, channelId)

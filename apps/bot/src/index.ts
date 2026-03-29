@@ -74,7 +74,7 @@ async function postDeals(deals: Deal[], skipDuplicateCheck: boolean): Promise<vo
       } else {
         console.error(`[poll] ✗ Failed "${deal.title}"`)
       }
-      await new Promise((r) => setTimeout(r, 1500))
+      await new Promise((r) => setTimeout(r, 3000))
     }
   }
 }
