@@ -72,7 +72,7 @@ export class ChannelsService {
     }))
   }
 
-  async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number; categoryId?: string | null }) {
+  async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number; categoryId?: string | null; isArchived?: boolean }) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const channel = await this.prisma.channel.findFirst({
       where: { id: channelId, serverId }
@@ -80,7 +80,7 @@ export class ChannelsService {
     if (!channel) {
       throw new NotFoundException('Channel not found')
     }
-    if (data.name === undefined && data.position === undefined && data.categoryId === undefined) {
+    if (data.name === undefined && data.position === undefined && data.categoryId === undefined && data.isArchived === undefined) {
       return channel
     }
     try {
@@ -88,14 +88,10 @@ export class ChannelsService {
         where: { id: channelId },
         data
       })
-      await this.auditLog.log(
-        serverId,
-        userId,
-        'channel.update',
-        'channel',
-        channelId,
-        data.name ? `Renamed to #${data.name}` : 'Position changed'
-      )
+      const detail = data.isArchived !== undefined
+        ? (data.isArchived ? `Archived #${channel.name}` : `Unarchived #${channel.name}`)
+        : data.name ? `Renamed to #${data.name}` : 'Position changed'
+      await this.auditLog.log(serverId, userId, 'channel.update', 'channel', channelId, detail)
       this.events.emit('channel:updated', { serverId, channel: updated })
       return updated
     } catch (e) {

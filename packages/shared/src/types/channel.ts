@@ -7,6 +7,7 @@ export interface Channel {
   name: string
   type: ChannelType
   position: number
+  isArchived?: boolean
   createdAt: string
   pinnedCount?: number
 }

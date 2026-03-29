@@ -54,6 +54,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> pending offline timer + captured serverIds (grace period before marking offline) */
   private readonly disconnectGrace = new Map<string, { timer: NodeJS.Timeout; serverIds: string[] }>()
 
+  /** socketId -> last voice activity timestamp (for AFK detection) */
+  private readonly voiceActivity = new Map<string, number>()
+
+  private afkInterval: NodeJS.Timeout | null = null
+
   private static readonly DISCONNECT_GRACE_MS = 2 * 60 * 1000
 
   constructor(
@@ -75,6 +80,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       clearTimeout(timer)
     }
     this.disconnectGrace.clear()
+    if (this.afkInterval) {
+      clearInterval(this.afkInterval)
+      this.afkInterval = null
+    }
   }
 
   private addOnlineUser(userId: string): boolean {
@@ -109,6 +118,72 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   afterInit() {
     registerEventListeners(this)
+    this.afkInterval = setInterval(() => void this.checkAfkParticipants(), 30_000)
+  }
+
+  private async checkAfkParticipants() {
+    const now = Date.now()
+    const serversCache = new Map<string, { afkChannelId: string | null; afkTimeout: number }>()
+
+    for (const [channelId, participants] of this.voiceParticipants) {
+      for (const [socketId, participant] of participants) {
+        const lastActivity = this.voiceActivity.get(socketId)
+        if (!lastActivity) continue
+
+        const channel = await this.prisma.channel.findUnique({
+          where: { id: channelId },
+          select: { serverId: true }
+        })
+        if (!channel) continue
+
+        let serverConfig = serversCache.get(channel.serverId)
+        if (!serverConfig) {
+          const server = await this.prisma.server.findUnique({
+            where: { id: channel.serverId },
+            select: { afkChannelId: true, afkTimeout: true }
+          })
+          serverConfig = { afkChannelId: server?.afkChannelId ?? null, afkTimeout: server?.afkTimeout ?? 300 }
+          serversCache.set(channel.serverId, serverConfig)
+        }
+
+        if (!serverConfig.afkChannelId || channelId === serverConfig.afkChannelId) continue
+        if (now - lastActivity < serverConfig.afkTimeout * 1000) continue
+
+        // Move user to AFK channel
+        const afkChannelId = serverConfig.afkChannelId
+        participants.delete(socketId)
+        if (participants.size === 0) this.voiceParticipants.delete(channelId)
+
+        let afkParticipants = this.voiceParticipants.get(afkChannelId)
+        if (!afkParticipants) {
+          afkParticipants = new Map()
+          this.voiceParticipants.set(afkChannelId, afkParticipants)
+        }
+        afkParticipants.set(socketId, participant)
+        this.socketVoiceChannel.set(socketId, afkChannelId)
+        this.voiceActivity.set(socketId, now)
+
+        const serverIds = (await this.server.in(`user:${participant.userId}`).fetchSockets())
+          .map((s) => (s.data as { serverIds?: string[] }).serverIds ?? [])
+          .flat()
+        const uniqueServerIds = [...new Set(serverIds)]
+
+        for (const sid of uniqueServerIds) {
+          this.server.to(`server:${sid}`).emit('voice:participant-left', { channelId, userId: participant.userId })
+          this.server.to(`server:${sid}`).emit('voice:participant-joined', {
+            channelId: afkChannelId,
+            userId: participant.userId,
+            username: participant.username
+          })
+        }
+
+        this.server.to(`user:${participant.userId}`).emit('voice:moved', {
+          userId: participant.userId,
+          fromChannelId: channelId,
+          toChannelId: afkChannelId
+        })
+      }
+    }
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
@@ -254,6 +329,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (!channelId) return
 
     this.socketVoiceChannel.delete(socketId)
+    this.voiceActivity.delete(socketId)
     const participants = this.voiceParticipants.get(channelId)
     if (!participants) return
 
@@ -273,6 +349,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
   }
 
+  private async assertNotArchived(channelId: string) {
+    const ch = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { isArchived: true }
+    })
+    if (ch?.isArchived) {
+      return { archived: true as const }
+    }
+    return { archived: false as const }
+  }
+
   @SubscribeMessage('message:send')
   async onMessageSend(
     @ConnectedSocket() client: Socket,
@@ -289,6 +376,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
     const user = (client.data as { user: WsUser }).user
+
+    if (this.socketVoiceChannel.has(client.id)) this.voiceActivity.set(client.id, Date.now())
+
+    const archiveCheck = await this.assertNotArchived(body.channelId)
+    if (archiveCheck.archived) {
+      return { ok: false, error: 'This channel is archived' }
+    }
 
     if (body.content) {
       const channel = await this.prisma.channel.findUnique({
@@ -414,6 +508,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     @MessageBody() body: { messageId: string; emoji: string; isCustom?: boolean }
   ) {
     const user = (client.data as { user: WsUser }).user
+    const msg = await this.prisma.message.findUnique({ where: { id: body.messageId }, select: { channelId: true } })
+    if (msg?.channelId) {
+      const archiveCheck = await this.assertNotArchived(msg.channelId)
+      if (archiveCheck.archived) return { ok: false, error: 'This channel is archived' }
+    }
     const result = await this.messages.toggleReaction(body.messageId, user.id, body.emoji, body.isCustom ?? false)
     const event = result.action === 'added' ? 'reaction:add' : 'reaction:remove'
     const payload = {
@@ -436,6 +535,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('message:pin')
   async onMessagePin(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string; channelId: string }) {
     const user = (client.data as { user: WsUser }).user
+    const archiveCheck = await this.assertNotArchived(body.channelId)
+    if (archiveCheck.archived) return { ok: false, error: 'This channel is archived' }
     const msg = await this.messages.pinMessage(body.messageId, user.id, body.channelId)
     this.emitToChannel(body.channelId, 'message:pin', msg)
     return { ok: true, message: msg }
@@ -522,6 +623,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('typing:start')
   async onTypingStart(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
     const user = (client.data as { user: WsUser }).user
+    const archiveCheck = await this.assertNotArchived(body.channelId)
+    if (archiveCheck.archived) return { ok: false }
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     this.emitToChannel(body.channelId, 'user:typing', {
       userId: user.id,
@@ -723,6 +826,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       username: user.displayName ?? user.username
     })
     this.socketVoiceChannel.set(client.id, body.channelId)
+    this.voiceActivity.set(client.id, Date.now())
 
     for (const sid of serverIds) {
       this.server.to(`server:${sid}`).emit('voice:participant-joined', {
@@ -762,6 +866,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     for (const key of ['muted', 'deafened', 'camera', 'screenShare'] as const) {
       if (typeof body[key] === 'boolean') sanitized[key] = body[key]
     }
+
+    if (!sanitized.muted) this.voiceActivity.set(client.id, Date.now())
 
     for (const sid of serverIds) {
       this.server.to(`server:${sid}`).emit('voice:participant-state', {

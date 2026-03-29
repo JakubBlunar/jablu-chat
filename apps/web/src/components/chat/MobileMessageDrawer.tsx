@@ -3,6 +3,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import { createPortal } from 'react-dom'
 import { getSocket } from '@/lib/socket'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { useBookmarkStore } from '@/stores/bookmark.store'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -258,6 +259,7 @@ export function MobileMessageDrawer({
           {isAuthor && onEdit && (
             <DrawerBtn icon={<EditIcon />} label="Edit Message" onClick={handleEdit} />
           )}
+          <BookmarkDrawerBtn messageId={message.id} onClose={close} />
           {(isDm || isAdminOrOwner) && (
             <DrawerBtn
               icon={<PinIcon />}
@@ -376,5 +378,21 @@ function TrashIcon() {
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
+  )
+}
+
+function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const isBookmarked = useBookmarkStore((s) => s.bookmarkedIds.has(messageId))
+  const toggleBookmark = useBookmarkStore((s) => s.toggleBookmark)
+  return (
+    <DrawerBtn
+      icon={
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        </svg>
+      }
+      label={isBookmarked ? 'Remove Bookmark' : 'Save Message'}
+      onClick={() => { void toggleBookmark(messageId); onClose() }}
+    />
   )
 }

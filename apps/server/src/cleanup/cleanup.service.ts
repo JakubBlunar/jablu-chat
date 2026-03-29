@@ -32,6 +32,7 @@ export class CleanupService implements OnModuleInit {
   private readonly minAgeDays: number
   private readonly orphanHours: number
   private readonly deleteMessages: boolean
+  private readonly skipArchived: boolean
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,6 +47,7 @@ export class CleanupService implements OnModuleInit {
     this.minAgeDays = this.config.get<number>('CLEANUP_MIN_AGE_DAYS', 30)
     this.orphanHours = this.config.get<number>('CLEANUP_ORPHAN_HOURS', 24)
     this.deleteMessages = this.config.get<string>('CLEANUP_DELETE_MESSAGES', 'false') === 'true'
+    this.skipArchived = this.config.get<string>('CLEANUP_SKIP_ARCHIVED', 'true') === 'true'
   }
 
   onModuleInit() {
@@ -142,10 +144,14 @@ export class CleanupService implements OnModuleInit {
     const { count: diskOrphanCount, bytes: diskOrphanBytes } = await this.scanDiskOrphans()
 
     // Phase 2: old attachments (file-only deletion)
+    const archivedFilter = this.skipArchived
+      ? { message: { channel: { isArchived: { not: true } } } }
+      : {}
     const oldAttachments = await this.prisma.attachment.findMany({
       where: {
         messageId: { not: null },
-        createdAt: { lt: ageCutoff }
+        createdAt: { lt: ageCutoff },
+        ...archivedFilter
       },
       select: { sizeBytes: true }
     })
@@ -153,11 +159,14 @@ export class CleanupService implements OnModuleInit {
     const attachmentBytes = oldAttachments.reduce((s, a) => s + a.sizeBytes, 0)
 
     // Phase 3: old messages with attachments
+    const archivedMsgFilter = this.skipArchived
+      ? { channel: { isArchived: { not: true } } }
+      : {}
     let messageCount = 0
     let messageBytes = 0
     if (this.deleteMessages) {
       const oldMessages = await this.prisma.message.findMany({
-        where: { createdAt: { lt: ageCutoff } },
+        where: { createdAt: { lt: ageCutoff }, ...archivedMsgFilter },
         select: {
           id: true,
           attachments: { select: { sizeBytes: true } }
@@ -301,13 +310,16 @@ export class CleanupService implements OnModuleInit {
     const BATCH = 100
     let freed = 0
     let deleted = 0
+    const archivedFilter = this.skipArchived
+      ? { message: { channel: { isArchived: { not: true } } } }
+      : {}
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if ((await this.currentSize()) <= this.watermarkBytes) break
 
       const batch = await this.prisma.attachment.findMany({
-        where: { messageId: { not: null }, createdAt: { lt: cutoff } },
+        where: { messageId: { not: null }, createdAt: { lt: cutoff }, ...archivedFilter },
         orderBy: { createdAt: 'asc' },
         take: BATCH,
         include: { message: { select: { id: true, content: true } } }
@@ -356,13 +368,16 @@ export class CleanupService implements OnModuleInit {
     const BATCH = 100
     let freed = 0
     let deleted = 0
+    const archivedFilter = this.skipArchived
+      ? { channel: { isArchived: { not: true } } }
+      : {}
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if ((await this.currentSize()) <= this.watermarkBytes) break
 
       const batch = await this.prisma.message.findMany({
-        where: { createdAt: { lt: cutoff } },
+        where: { createdAt: { lt: cutoff }, ...archivedFilter },
         orderBy: { createdAt: 'asc' },
         take: BATCH,
         include: {

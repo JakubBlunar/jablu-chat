@@ -7,16 +7,18 @@ import { api } from '@/lib/api'
 interface InviteModalProps {
   serverId: string
   serverName: string
+  vanityCode?: string | null
   onClose: () => void
 }
 
-export function InviteModal({ serverId, serverName, onClose }: InviteModalProps) {
+export function InviteModal({ serverId, serverName, vanityCode, onClose }: InviteModalProps) {
   const [invites, setInvites] = useState<Invite[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [maxUses, setMaxUses] = useState<string>('')
   const [expiresIn, setExpiresIn] = useState<string>('1440')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [vanityCopied, setVanityCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchInvites = useCallback(async () => {
@@ -82,6 +84,28 @@ export function InviteModal({ serverId, serverName, onClose }: InviteModalProps)
             <XIcon />
           </button>
         </div>
+
+        {vanityCode && (
+          <div className="mb-4 rounded-lg bg-primary/10 px-3 py-2.5">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-primary">Vanity URL</div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate text-sm font-medium text-white">
+                {window.location.origin}/invite/{vanityCode}
+              </code>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(`${window.location.origin}/invite/${vanityCode}`)
+                  setVanityCopied(true)
+                  setTimeout(() => setVanityCopied(false), 2000)
+                }}
+                className="rounded bg-primary/20 px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary/30"
+              >
+                {vanityCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mb-4 flex flex-wrap gap-2">
           <select

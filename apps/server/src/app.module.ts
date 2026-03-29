@@ -24,6 +24,7 @@ import { ServerEventsModule } from './server-events/server-events.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
 import { AutoModModule } from './automod/automod.module'
 import { FriendsModule } from './friends/friends.module'
+import { BookmarksModule } from './bookmarks/bookmarks.module'
 import { RolesModule } from './roles/roles.module'
 
 @Module({
@@ -58,6 +59,7 @@ import { RolesModule } from './roles/roles.module'
     GatewayModule,
     ServerEventsModule,
     FriendsModule,
+    BookmarksModule,
     AutoModModule,
     RolesModule
   ]

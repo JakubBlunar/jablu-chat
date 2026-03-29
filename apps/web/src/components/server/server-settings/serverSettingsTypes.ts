@@ -1,7 +1,9 @@
-export type Tab = 'overview' | 'roles' | 'members' | 'webhooks' | 'emoji-stats' | 'automod' | 'audit' | 'danger'
+export type Tab = 'overview' | 'welcome' | 'afk' | 'roles' | 'members' | 'webhooks' | 'emoji-stats' | 'automod' | 'audit' | 'danger'
 
 export const SERVER_TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
+  { key: 'welcome', label: 'Welcome' },
+  { key: 'afk', label: 'AFK Channel' },
   { key: 'roles', label: 'Roles' },
   { key: 'members', label: 'Members' },
   { key: 'webhooks', label: 'Webhooks' },

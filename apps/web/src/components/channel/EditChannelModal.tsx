@@ -25,6 +25,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
 
   const [rawName, setRawName] = useState(channel.name)
   const [categoryId, setCategoryId] = useState<string | null>(channel.categoryId ?? null)
+  const [isArchived, setIsArchived] = useState(channel.isArchived ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,7 +36,8 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
 
   const nameChanged = name !== channel.name
   const categoryChanged = categoryId !== (channel.categoryId ?? null)
-  const hasChanges = nameChanged || categoryChanged
+  const archivedChanged = isArchived !== (channel.isArchived ?? false)
+  const hasChanges = nameChanged || categoryChanged || archivedChanged
 
   const handleSave = useCallback(async () => {
     if (!currentServerId || !name) return
@@ -46,9 +48,10 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     setSaving(true)
     setError(null)
     try {
-      const patch: { name?: string; categoryId?: string | null } = {}
+      const patch: { name?: string; categoryId?: string | null; isArchived?: boolean } = {}
       if (nameChanged) patch.name = name
       if (categoryChanged) patch.categoryId = categoryId
+      if (archivedChanged) patch.isArchived = isArchived
       await api.updateChannel(currentServerId, channel.id, patch)
       await fetchChannels(currentServerId)
       onClose()
@@ -57,7 +60,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     } finally {
       setSaving(false)
     }
-  }, [currentServerId, channel, name, categoryId, nameChanged, categoryChanged, hasChanges, fetchChannels, onClose])
+  }, [currentServerId, channel, name, categoryId, isArchived, nameChanged, categoryChanged, archivedChanged, hasChanges, fetchChannels, onClose])
 
   const handleDelete = useCallback(async () => {
     if (!currentServerId) return
@@ -115,6 +118,21 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             </select>
           </label>
         )}
+
+        <label className="mt-5 flex cursor-pointer items-center justify-between text-sm text-gray-300">
+          <span>
+            Archive channel
+            <span className="ml-1 text-xs text-gray-500">
+              (read-only, hidden from default view)
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={isArchived}
+            onChange={(e) => setIsArchived(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-600 bg-surface-darkest text-primary accent-primary"
+          />
+        </label>
 
         {error && (
           <p className="mt-3 text-sm text-red-400" role="alert">

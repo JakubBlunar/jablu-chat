@@ -40,6 +40,7 @@ model User {
   pollVotes         PollVote[]
   friendRequestsSent     Friendship[]     @relation("FriendRequestsSent")
   friendRequestsReceived Friendship[]     @relation("FriendRequestsReceived")
+  bookmarks              MessageBookmark[]
 
   @@map("users")
 }
@@ -100,12 +101,17 @@ model PasswordReset {
 }
 
 model Server {
-  id        String   @id @default(uuid())
-  name      String
-  iconUrl   String?  @map("icon_url")
-  ownerId   String   @map("owner_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  name        String
+  iconUrl     String?  @map("icon_url")
+  ownerId     String   @map("owner_id")
+  vanityCode  String?  @unique @map("vanity_code")
+  welcomeChannelId String? @map("welcome_channel_id")
+  welcomeMessage   String? @map("welcome_message")
+  afkChannelId     String? @map("afk_channel_id")
+  afkTimeout       Int     @default(300) @map("afk_timeout")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   owner               User                 @relation("ServerOwner", fields: [ownerId], references: [id])
   channels            Channel[]
@@ -118,6 +124,8 @@ model Server {
   registrationInvites RegistrationInvite[]
   events              ServerEvent[]
   autoModRules        AutoModRule[]
+  welcomeChannel      Channel?             @relation("WelcomeChannel", fields: [welcomeChannelId], references: [id], onDelete: SetNull)
+  afkChannel          Channel?             @relation("AfkChannel", fields: [afkChannelId], references: [id], onDelete: SetNull)
 
   @@map("servers")
 }
@@ -191,6 +199,7 @@ model Channel {
   name       String
   type       ChannelType @default(text)
   position   Int         @default(0)
+  isArchived Boolean     @default(false) @map("is_archived")
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
@@ -202,6 +211,8 @@ model Channel {
   readStates          ChannelReadState[]
   events              ServerEvent[]
   permissionOverrides ChannelPermissionOverride[]
+  welcomeForServers   Server[]                  @relation("WelcomeChannel")
+  afkForServers       Server[]                  @relation("AfkChannel")
 
   @@unique([serverId, name])
   @@map("channels")
@@ -267,6 +278,7 @@ model Message {
   reactions          Reaction[]
   linkPreviews       LinkPreview[]
   poll               Poll?
+  bookmarks          MessageBookmark[]
 
   @@index([channelId, createdAt])
   @@index([channelId, pinned])
@@ -604,6 +616,21 @@ enum AutoModType {
   word_filter
   link_filter
   spam_detection
+}
+
+model MessageBookmark {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  messageId String   @map("message_id")
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId, createdAt])
+  @@map("message_bookmarks")
 }
 
 model AutoModRule {

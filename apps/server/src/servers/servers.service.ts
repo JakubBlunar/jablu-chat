@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChannelType } from '@prisma/client'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { ChannelType, Prisma } from '@prisma/client'
 import { Permission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -121,24 +121,91 @@ export class ServersService {
     return server
   }
 
-  async updateServer(serverId: string, userId: string, data: { name?: string }) {
+  async updateServer(serverId: string, userId: string, data: {
+    name?: string
+    vanityCode?: string | null
+    welcomeChannelId?: string | null
+    welcomeMessage?: string | null
+    afkChannelId?: string | null
+    afkTimeout?: number
+  }) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
-    if (data.name === undefined) {
+
+    const updateData: Record<string, unknown> = {}
+    const details: string[] = []
+
+    if (data.name !== undefined) {
+      updateData.name = data.name
+      details.push(`Renamed to "${data.name}"`)
+    }
+
+    if (data.vanityCode !== undefined) {
+      if (data.vanityCode !== null) {
+        if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(data.vanityCode) || data.vanityCode.length < 3 || data.vanityCode.length > 32) {
+          throw new BadRequestException('Vanity code must be 3-32 lowercase alphanumeric characters and hyphens')
+        }
+      }
+      updateData.vanityCode = data.vanityCode
+      details.push(data.vanityCode ? `Vanity URL set to "${data.vanityCode}"` : 'Vanity URL removed')
+    }
+
+    if (data.welcomeChannelId !== undefined) {
+      if (data.welcomeChannelId) {
+        const ch = await this.prisma.channel.findFirst({ where: { id: data.welcomeChannelId, serverId, type: 'text' } })
+        if (!ch) throw new BadRequestException('Welcome channel must be a text channel in this server')
+      }
+      updateData.welcomeChannelId = data.welcomeChannelId
+    }
+    if (data.welcomeMessage !== undefined) {
+      updateData.welcomeMessage = data.welcomeMessage
+    }
+
+    if (data.afkChannelId !== undefined) {
+      if (data.afkChannelId) {
+        const ch = await this.prisma.channel.findFirst({ where: { id: data.afkChannelId, serverId, type: 'voice' } })
+        if (!ch) throw new BadRequestException('AFK channel must be a voice channel in this server')
+      }
+      updateData.afkChannelId = data.afkChannelId
+    }
+    if (data.afkTimeout !== undefined) {
+      updateData.afkTimeout = data.afkTimeout
+    }
+
+    if (Object.keys(updateData).length === 0) {
       return this.getServer(serverId, userId)
     }
-    const result = await this.prisma.server.update({
-      where: { id: serverId },
-      data: { name: data.name },
-      include: {
-        channels: { orderBy: { position: 'asc' } },
-        categories: { orderBy: { position: 'asc' } },
-        roles: { orderBy: { position: 'desc' } },
-        members: { include: memberInclude }
+
+    try {
+      const result = await this.prisma.server.update({
+        where: { id: serverId },
+        data: updateData,
+        include: {
+          channels: { orderBy: { position: 'asc' } },
+          categories: { orderBy: { position: 'asc' } },
+          roles: { orderBy: { position: 'desc' } },
+          members: { include: memberInclude }
+        }
+      })
+      if (details.length > 0) {
+        await this.auditLog.log(serverId, userId, 'server.update', 'server', serverId, details.join('; '))
       }
-    })
-    await this.auditLog.log(serverId, userId, 'server.update', 'server', serverId, `Renamed to "${data.name}"`)
-    this.events.emit('server:updated', { serverId, name: data.name })
-    return result
+      const patch: Record<string, unknown> = { serverId }
+      if (data.name) patch.name = data.name
+      if (data.vanityCode !== undefined) patch.vanityCode = result.vanityCode
+      if (data.welcomeChannelId !== undefined) patch.welcomeChannelId = result.welcomeChannelId
+      if (data.welcomeMessage !== undefined) patch.welcomeMessage = result.welcomeMessage
+      if (data.afkChannelId !== undefined) patch.afkChannelId = result.afkChannelId
+      if (data.afkTimeout !== undefined) patch.afkTimeout = result.afkTimeout
+      if (Object.keys(patch).length > 1) {
+        this.events.emit('server:updated', patch)
+      }
+      return result
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('This vanity URL is already taken')
+      }
+      throw e
+    }
   }
 
   async uploadIcon(serverId: string, userId: string, file: Express.Multer.File) {
@@ -209,6 +276,9 @@ export class ServersService {
     if (!target) {
       throw new NotFoundException('Member not found')
     }
+    await this.prisma.messageBookmark.deleteMany({
+      where: { userId: targetUserId, message: { channel: { serverId } } }
+    })
     await this.prisma.serverMember.delete({
       where: { userId_serverId: { userId: targetUserId, serverId } }
     })
@@ -286,6 +356,9 @@ export class ServersService {
     if (server.ownerId === userId) {
       throw new ForbiddenException('The server owner cannot leave the server')
     }
+    await this.prisma.messageBookmark.deleteMany({
+      where: { userId, message: { channel: { serverId } } }
+    })
     await this.prisma.serverMember.delete({
       where: {
         userId_serverId: { userId, serverId }

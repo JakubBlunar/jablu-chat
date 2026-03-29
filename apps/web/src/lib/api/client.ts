@@ -515,6 +515,31 @@ export class ApiClient {
     return this.post(`/api/invites/${code}/join`)
   }
 
+  resolveVanity(code: string): Promise<{ id: string; name: string; iconUrl: string | null; memberCount: number }> {
+    return this.get(`/api/invites/vanity/${code}`)
+  }
+
+  joinViaVanity(code: string): Promise<unknown> {
+    return this.post(`/api/invites/vanity/${code}/join`)
+  }
+
+  toggleBookmark(messageId: string, note?: string): Promise<{ action: 'added' | 'removed'; messageId: string }> {
+    return this.post('/api/bookmarks', { messageId, note })
+  }
+
+  getBookmarks(cursor?: string): Promise<{ bookmarks: unknown[]; hasMore: boolean }> {
+    const params = cursor ? `?cursor=${cursor}` : ''
+    return this.get(`/api/bookmarks${params}`)
+  }
+
+  getBookmarkIds(): Promise<string[]> {
+    return this.get('/api/bookmarks/ids')
+  }
+
+  removeBookmark(messageId: string): Promise<void> {
+    return this.delete(`/api/bookmarks/${messageId}`)
+  }
+
   searchMessages(
     query: string,
     opts?: {
@@ -590,7 +615,7 @@ export class ApiClient {
     return this.delete(`/api/webhooks/${webhookId}`)
   }
 
-  updateServer(serverId: string, data: { name?: string }): Promise<unknown> {
+  updateServer(serverId: string, data: { name?: string; vanityCode?: string | null; welcomeChannelId?: string | null; welcomeMessage?: string | null; afkChannelId?: string | null; afkTimeout?: number }): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}`, data)
   }
 
@@ -620,7 +645,7 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/members/${userId}`)
   }
 
-  updateChannel(serverId: string, channelId: string, data: { name?: string; position?: number; categoryId?: string | null }): Promise<unknown> {
+  updateChannel(serverId: string, channelId: string, data: { name?: string; position?: number; categoryId?: string | null; isArchived?: boolean }): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/channels/${channelId}`, data)
   }
 

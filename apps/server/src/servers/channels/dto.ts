@@ -2,6 +2,7 @@ import { ChannelType } from '@prisma/client'
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -51,6 +52,10 @@ export class UpdateChannelDto {
   @IsUUID('4')
   @Transform(({ value }) => (value === '' ? null : value))
   categoryId?: string | null
+
+  @IsOptional()
+  @IsBoolean()
+  isArchived?: boolean
 }
 
 export class ReorderChannelsDto {
