@@ -25,6 +25,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
+import { QuickSwitcher } from '@/components/QuickSwitcher'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 const SettingsModal = lazy(() =>
@@ -194,6 +195,7 @@ export function MainLayout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
   const openSettings = useCallback(() => setSettingsOpen(true), [])
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -212,10 +214,14 @@ export function MainLayout() {
         setSettingsInitialTab('shortcuts')
         setSettingsOpen(true)
       }
+      if (e.key === 'k' && (e.ctrlKey || e.metaKey) && !isMobile) {
+        e.preventDefault()
+        setQuickSwitcherOpen((prev) => !prev)
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [isMobile])
 
   const prevServerRef = useRef<string | null>(null)
 
@@ -352,6 +358,7 @@ export function MainLayout() {
           <DmSidebar onOpenSettings={openSettings} />
           <MessageArea mode="dm" contextId={currentConvId} />
         </div>
+        <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
@@ -400,6 +407,7 @@ export function MainLayout() {
           <ScreenSharePicker />
         </Suspense>
       </div>
+      <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
       {settingsOpen && (
         <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
           <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
