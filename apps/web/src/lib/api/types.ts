@@ -1,0 +1,94 @@
+export type GifResult = {
+  id: string
+  title: string
+  url: string
+  preview: string
+  width: number
+  height: number
+}
+
+export type GifSearchResult = {
+  results: GifResult[]
+  next: string
+}
+
+export type SearchResult = {
+  id: string
+  content: string | null
+  authorId: string | null
+  author: {
+    id: string
+    username: string
+    displayName: string | null
+    avatarUrl: string | null
+  } | null
+  channelId: string | null
+  channel: { id: string; name: string; serverId: string } | null
+  dmConversationId: string | null
+  createdAt: string
+}
+
+export type AuditLogEntry = {
+  id: string
+  serverId: string
+  actorId: string
+  action: string
+  targetType: string | null
+  targetId: string | null
+  details: string | null
+  createdAt: string
+  actor: { id: string; username: string; displayName: string | null; avatarUrl: string | null } | null
+}
+
+export type AutoModRule = {
+  id: string | null
+  type: 'word_filter' | 'link_filter' | 'spam_detection'
+  enabled: boolean
+  config: Record<string, unknown>
+}
+
+export type CustomEmoji = {
+  id: string
+  serverId: string
+  name: string
+  imageUrl: string
+  uploadedById: string | null
+  createdAt: string
+}
+
+export type EmojiStat = {
+  emoji: string
+  usageCount: number
+  lastUsed: string | null
+  imageUrl: string | null
+  createdAt: string | null
+}
+
+export type DmConversation = {
+  id: string
+  isGroup: boolean
+  groupName: string | null
+  createdAt: string
+  members: {
+    userId: string
+    username: string
+    displayName: string | null
+    avatarUrl: string | null
+    bio: string | null
+    status: string
+    createdAt: string
+  }[]
+  lastMessage?: {
+    content: string | null
+    authorId: string
+    createdAt: string
+  } | null
+}
+
+export type ActiveSession = {
+  id: string
+  userAgent: string | null
+  ipAddress: string | null
+  lastUsedAt: string | null
+  createdAt: string
+}
