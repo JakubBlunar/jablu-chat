@@ -6,6 +6,11 @@ import helmet from 'helmet'
 import { AppModule } from './app.module'
 import { buildAllowedOrigins, WsAdapter } from './gateway/ws-adapter'
 
+// BigInt cannot be serialized by JSON.stringify by default
+;(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString()
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
   const configService = app.get(ConfigService)
