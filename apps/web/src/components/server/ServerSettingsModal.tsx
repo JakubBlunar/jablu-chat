@@ -13,6 +13,8 @@ import { EmojiStatsTab } from './server-settings/tabs/EmojiStatsTab'
 import { AutoModTab } from './server-settings/tabs/AutoModTab'
 import { AuditLogTab } from './server-settings/tabs/AuditLogTab'
 import { DangerTab } from './server-settings/tabs/DangerTab'
+import { WelcomeTab } from './server-settings/tabs/WelcomeTab'
+import { AfkTab } from './server-settings/tabs/AfkTab'
 
 export function ServerSettingsModal({ server, onClose }: { server: Server; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('overview')
@@ -23,6 +25,8 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   const tabContent = (
     <>
       {tab === 'overview' && <OverviewTab server={server} />}
+      {tab === 'welcome' && <WelcomeTab server={server} />}
+      {tab === 'afk' && <AfkTab server={server} />}
       {tab === 'roles' && <RolesTab server={server} />}
       {tab === 'members' && <MembersTab server={server} />}
       {tab === 'webhooks' && <WebhooksTab server={server} />}

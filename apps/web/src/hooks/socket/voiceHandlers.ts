@@ -1,5 +1,7 @@
 import { playJoinSound, playLeaveSound } from '@/lib/sounds'
+import { joinVoiceChannel } from '@/lib/voiceConnect'
 import { useAuthStore } from '@/stores/auth.store'
+import { useChannelStore } from '@/stores/channel.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store'
 
@@ -46,10 +48,22 @@ export function createVoiceHandlers() {
     useVoiceStore.getState().updateParticipantState(payload.channelId, payload.userId, update)
   }
 
+  const onVoiceMoved = (payload: { userId: string; fromChannelId: string; toChannelId: string }) => {
+    const myId = useAuthStore.getState().user?.id
+    if (payload.userId !== myId) return
+
+    const vc = useVoiceConnectionStore.getState()
+    if (!vc.currentServerId) return
+
+    const ch = useChannelStore.getState().channels.find((c) => c.id === payload.toChannelId)
+    joinVoiceChannel(vc.currentServerId, payload.toChannelId, ch?.name ?? 'AFK')
+  }
+
   return {
     onVoiceParticipants,
     onVoiceParticipantJoined,
     onVoiceParticipantLeft,
-    onVoiceParticipantState
+    onVoiceParticipantState,
+    onVoiceMoved
   }
 }

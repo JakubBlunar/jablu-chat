@@ -5,6 +5,7 @@ const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
+import { useBookmarkStore } from '@/stores/bookmark.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -23,6 +24,8 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
   const isAuthor = message.authorId === userId
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const canDelete = isAuthor || isAdminOrOwner
+  const isBookmarked = useBookmarkStore((s) => s.bookmarkedIds.has(message.id))
+  const toggleBookmark = useBookmarkStore((s) => s.toggleBookmark)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const btnRef = useRef<HTMLDivElement>(null)
@@ -107,6 +110,9 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
             <PinIcon />
           </ActionBtn>
         )}
+        <ActionBtn title={isBookmarked ? 'Remove Bookmark' : 'Bookmark'} onClick={() => void toggleBookmark(message.id)}>
+          <BookmarkIcon filled={isBookmarked} />
+        </ActionBtn>
         {canDelete && (
           <button
             ref={deleteBtnRef}
@@ -215,6 +221,14 @@ function TrashIcon() {
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+function BookmarkIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
     </svg>
   )
 }

@@ -14,12 +14,21 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
   const fetchServers = useServerStore((s) => s.fetchServers)
 
   async function handleJoin() {
-    const trimmed = code.trim()
+    let trimmed = code.trim()
     if (!trimmed) return
+    // Extract code from a full URL like https://host/invite/my-code
+    const urlMatch = trimmed.match(/\/invite\/([a-z0-9-]+)\/?$/i)
+    if (urlMatch) trimmed = urlMatch[1]
+
     setLoading(true)
     setError(null)
     try {
-      await api.joinViaInvite(trimmed)
+      // Try vanity first, fall back to regular invite
+      try {
+        await api.joinViaVanity(trimmed)
+      } catch {
+        await api.joinViaInvite(trimmed)
+      }
       await fetchServers()
       onClose()
     } catch (e) {

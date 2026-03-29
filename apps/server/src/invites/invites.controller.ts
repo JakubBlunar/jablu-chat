@@ -50,4 +50,14 @@ export class InvitesController {
   join(@Param('code') code: string, @CurrentUser() user: { id: string; username: string; email: string }) {
     return this.invites.useInvite(code, user.id)
   }
+
+  @Get('invites/vanity/:code')
+  resolveVanity(@Param('code') code: string) {
+    return this.invites.resolveVanity(code)
+  }
+
+  @Post('invites/vanity/:code/join')
+  joinVanity(@Param('code') code: string, @CurrentUser() user: { id: string; username: string; email: string }) {
+    return this.invites.joinVanity(code, user.id)
+  }
 }

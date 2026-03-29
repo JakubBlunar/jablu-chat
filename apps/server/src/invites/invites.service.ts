@@ -92,6 +92,54 @@ export class InvitesService {
     await this.auditLog.log(invite.serverId, userId, 'invite.delete', 'invite', inviteId, `Code: ${invite.code}`)
   }
 
+  async resolveVanity(code: string) {
+    const server = await this.prisma.server.findUnique({
+      where: { vanityCode: code },
+      select: {
+        id: true,
+        name: true,
+        iconUrl: true,
+        _count: { select: { members: true } }
+      }
+    })
+    if (!server) throw new NotFoundException('Server not found')
+    const { _count, ...rest } = server
+    return { ...rest, memberCount: _count.members }
+  }
+
+  async joinVanity(code: string, userId: string) {
+    const server = await this.prisma.server.findUnique({
+      where: { vanityCode: code },
+      select: { id: true }
+    })
+    if (!server) throw new NotFoundException('Server not found')
+
+    const existing = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId: server.id } }
+    })
+    if (existing) throw new ConflictException('You are already a member of this server')
+
+    const defaultRoleId = await this.roles.getDefaultRoleId(server.id)
+    const member = await this.prisma.serverMember.create({
+      data: { userId, serverId: server.id, roleId: defaultRoleId },
+      include: {
+        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true } }
+      }
+    })
+    this.events.emit('member:joined', { serverId: server.id, member })
+
+    return this.prisma.server.findUnique({
+      where: { id: server.id },
+      include: {
+        channels: { orderBy: { position: 'asc' } },
+        members: {
+          include: { user: { select: { id: true, username: true, email: true, avatarUrl: true } } },
+          orderBy: { joinedAt: 'asc' }
+        }
+      }
+    })
+  }
+
   async useInvite(code: string, userId: string) {
     const invite = await this.prisma.invite.findUnique({
       where: { code },

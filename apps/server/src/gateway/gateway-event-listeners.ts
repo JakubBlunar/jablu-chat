@@ -116,7 +116,10 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on('member:joined', async (payload: { serverId: string; member: unknown }) => {
-    const { serverId, member } = payload as { serverId: string; member: { userId: string } }
+    const { serverId, member } = payload as {
+      serverId: string
+      member: { userId: string; user?: { username?: string; displayName?: string } }
+    }
     gw.server.to(`server:${serverId}`).emit('member:joined', { serverId, member })
 
     const channels = await gw.prisma.channel.findMany({
@@ -134,6 +137,36 @@ export function registerEventListeners(gw: ChatGateway) {
         sids.push(serverId)
       }
     }
+
+    // Welcome message
+    try {
+      const server = await gw.prisma.server.findUnique({
+        where: { id: serverId },
+        select: { name: true, welcomeChannelId: true, welcomeMessage: true }
+      })
+      if (server?.welcomeChannelId && server.welcomeMessage) {
+        const username = member.user?.displayName ?? member.user?.username ?? 'a new member'
+        const content = server.welcomeMessage
+          .replace(/\{user\}/g, username)
+          .replace(/\{server\}/g, server.name)
+
+        const welcomeMsg = await gw.prisma.message.create({
+          data: {
+            channelId: server.welcomeChannelId,
+            content
+          },
+          include: {
+            author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+            attachments: true,
+            reactions: true,
+            linkPreviews: true
+          }
+        })
+        gw.emitToChannel(server.welcomeChannelId, 'message:new', welcomeMsg)
+      }
+    } catch {
+      // Don't break join flow for welcome message failures
+    }
   })
 
   gw.events.on('user:profile', async (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
@@ -146,7 +179,7 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   })
 
-  gw.events.on('server:updated', (payload: { serverId: string; name?: string; iconUrl?: string | null }) => {
+  gw.events.on('server:updated', (payload: { serverId: string; [key: string]: unknown }) => {
     gw.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
   })
 

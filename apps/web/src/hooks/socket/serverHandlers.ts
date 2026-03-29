@@ -81,7 +81,7 @@ export function createServerHandlers() {
     useChannelStore.getState().applyCategoryReorder(payload.categoryIds)
   }
 
-  const onServerUpdated = (payload: { serverId: string; name?: string; iconUrl?: string | null }) => {
+  const onServerUpdated = (payload: { serverId: string; [key: string]: unknown }) => {
     const { serverId, ...patch } = payload
     useServerStore.getState().updateServerInList(serverId, patch)
   }

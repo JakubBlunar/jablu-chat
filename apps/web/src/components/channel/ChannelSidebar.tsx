@@ -80,7 +80,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const collapsedCategories = useChannelStore((s) => s.collapsedCategories)
   const toggleCategoryCollapsed = useChannelStore((s) => s.toggleCategoryCollapsed)
 
-  const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, categories)
+  const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups, archivedChannels } = useSortedChannels(channels, categories)
+  const [showArchived, setShowArchived] = useState(false)
 
   const { has: hasPerm } = usePermissions(currentServer?.id)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
@@ -635,6 +636,42 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
               </ul>
             </>
           )}
+
+          {/* Archived channels */}
+          {archivedChannels.length > 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex w-full items-center gap-1 px-2 pt-1 text-left"
+              >
+                <ChevronDownIcon collapsed={!showArchived} />
+                <span className="text-[11px] font-semibold tracking-wide text-gray-500">
+                  ARCHIVED ({archivedChannels.length})
+                </span>
+              </button>
+              {showArchived && (
+                <ul className="mt-0.5 space-y-0.5">
+                  {archivedChannels.map((ch) => (
+                    <TextChannelItem
+                      key={ch.id}
+                      ch={ch}
+                      active={ch.id === currentChannelId && !viewingVoiceRoom}
+                      channelReadStates={channelReadStates}
+                      getNotifLevel={getNotifLevel}
+                      longPressFired={longPressFired}
+                      currentServer={currentServer}
+                      orchestratedGoToChannel={orchestratedGoToChannel}
+                      handleChannelTouchStart={handleChannelTouchStart}
+                      handleChannelTouchEnd={handleChannelTouchEnd}
+                      handleChannelTouchMove={handleChannelTouchMove}
+                      handleChannelContextMenu={handleChannelContextMenu}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </SimpleBar>
 
         <VoicePanel />
@@ -671,7 +708,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
       )}
       {inviteOpen && currentServer && (
         <Suspense fallback={null}>
-          <InviteModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setInviteOpen(false)} />
+          <InviteModal serverId={currentServer.id} serverName={currentServer.name} vanityCode={currentServer.vanityCode} onClose={() => setInviteOpen(false)} />
         </Suspense>
       )}
       {serverSettingsOpen && currentServer && (

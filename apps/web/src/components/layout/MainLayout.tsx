@@ -227,6 +227,9 @@ export function MainLayout() {
 
   useEffect(() => {
     void fetchServers()
+    import('@/stores/bookmark.store').then(({ useBookmarkStore }) => {
+      if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
+    })
   }, [fetchServers])
 
   // Auto-redirect: server view with no server → navigate to first server

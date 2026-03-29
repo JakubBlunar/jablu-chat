@@ -11,6 +11,10 @@ export function OverviewTab({ server }: { server: Server }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const updateServerInList = useServerStore((s) => s.updateServerInList)
 
+  const [vanityCode, setVanityCode] = useState(server.vanityCode ?? '')
+  const [savingVanity, setSavingVanity] = useState(false)
+  const [vanityError, setVanityError] = useState<string | null>(null)
+
   const [error, setError] = useState<string | null>(null)
 
   const saveName = useCallback(async () => {
@@ -118,6 +122,43 @@ export function OverviewTab({ server }: { server: Server }) {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Vanity URL</label>
+        <p className="text-xs text-gray-500">A custom invite link for your server. 3-32 lowercase characters, numbers, and hyphens.</p>
+        <div className="flex gap-2">
+          <div className="flex flex-1 items-center rounded-md border border-white/10 bg-surface-darkest text-sm">
+            <span className="shrink-0 pl-3 text-gray-500">{window.location.origin}/invite/</span>
+            <input
+              value={vanityCode}
+              onChange={(e) => setVanityCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              maxLength={32}
+              placeholder="my-server"
+              className="min-w-0 flex-1 bg-transparent px-1 py-2 text-white outline-none placeholder:text-gray-600"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={savingVanity || vanityCode === (server.vanityCode ?? '')}
+            onClick={async () => {
+              setSavingVanity(true)
+              setVanityError(null)
+              try {
+                await api.updateServer(server.id, { vanityCode: vanityCode || null })
+                updateServerInList(server.id, { vanityCode: vanityCode || null })
+              } catch (e) {
+                setVanityError(e instanceof Error ? e.message : 'Failed to update vanity URL')
+              } finally {
+                setSavingVanity(false)
+              }
+            }}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+          >
+            {savingVanity ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {vanityError && <p className="text-xs text-red-400">{vanityError}</p>}
       </div>
     </div>
   )

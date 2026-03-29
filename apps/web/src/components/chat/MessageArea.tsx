@@ -7,6 +7,7 @@ import { MessageRow } from '@/components/chat/MessageRow'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PollCreator } from '@/components/chat/PollCreator'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
+import { SavedMessagesPanel } from '@/components/chat/SavedMessagesPanel'
 import { ThreadPanel } from '@/components/chat/ThreadPanel'
 import { DmProfilePanel, UserProfileIcon } from '@/components/dm/DmProfilePanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
@@ -67,6 +68,14 @@ function PinHeaderIcon() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
       <path d="M12 2v8m0 0-3-3m3 3 3-3M9 17h6m-6 0v4m6-4v4M5 12h14" />
+    </svg>
+  )
+}
+
+function BookmarkHeaderIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
@@ -157,6 +166,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showPollCreator, setShowPollCreator] = useState(false)
+  const [savedOpen, setSavedOpen] = useState(false)
 
   const [replyTarget, setReplyTarget] = useState<{
     id: string
@@ -278,6 +288,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           onJump={scroll.handleJumpToMessage}
         />
       )}
+      {savedOpen && (
+        <SavedMessagesPanel
+          onClose={() => setSavedOpen(false)}
+          onJump={(messageId, chId) => {
+            if (chId && chId === channelId) {
+              scroll.handleJumpToMessage(messageId)
+            }
+            setSavedOpen(false)
+          }}
+        />
+      )}
 
       <div className="relative min-h-0 flex-1">
         {(() => {
@@ -339,47 +360,62 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         {typingNames.length > 0 ? formatTyping(typingNames) : ''}
       </div>
 
-      {!isDm && showPollCreator && contextId && (
-        <div className="px-4 pb-2">
-          <PollCreator channelId={contextId} onClose={() => setShowPollCreator(false)} />
+      {activeChannel?.isArchived ? (
+        <div className="shrink-0 border-t border-black/20 bg-surface px-4 py-3">
+          <div className="flex items-center gap-2 rounded-lg bg-surface-dark px-4 py-2.5 text-sm text-gray-400">
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <rect x="2" y="3" width="20" height="5" rx="1" />
+              <path d="M4 8v11a2 2 0 002 2h12a2 2 0 002-2V8" />
+              <line x1="10" y1="12" x2="14" y2="12" />
+            </svg>
+            This channel is archived. You can read messages but cannot send new ones.
+          </div>
         </div>
-      )}
+      ) : (
+        <>
+          {!isDm && showPollCreator && contextId && (
+            <div className="px-4 pb-2">
+              <PollCreator channelId={contextId} onClose={() => setShowPollCreator(false)} />
+            </div>
+          )}
 
-      <UnifiedInput
-        mode={mode}
-        contextId={contextId}
-        replyTarget={replyTarget}
-        onCancelReply={() => setReplyTarget(null)}
-        onSent={scroll.stickToBottom}
-        channels={isDm ? dmMentionChannels(dm.mutualServers) : undefined}
-        gifEnabled={gifEnabled}
-        placeholder={
-          isDm
-            ? `Message ${dm.otherMember?.displayName ?? dm.otherMember?.username ?? ''}`
-            : activeChannel
-              ? replyTarget
-                ? `Reply to ${replyTarget.authorName}...`
-                : `Message #${activeChannel.name}`
-              : 'Message'
-        }
-        pollButton={
-          !isDm ? (
-            <button
-              type="button"
-              title="Create a poll"
-              onClick={() => setShowPollCreator((p) => !p)}
-              className={`rounded p-1.5 transition ${showPollCreator ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M3 3v18h18" />
-                <rect x="7" y="13" width="3" height="5" rx="0.5" />
-                <rect x="12" y="9" width="3" height="9" rx="0.5" />
-                <rect x="17" y="5" width="3" height="13" rx="0.5" />
-              </svg>
-            </button>
-          ) : undefined
-        }
-      />
+          <UnifiedInput
+            mode={mode}
+            contextId={contextId}
+            replyTarget={replyTarget}
+            onCancelReply={() => setReplyTarget(null)}
+            onSent={scroll.stickToBottom}
+            channels={isDm ? dmMentionChannels(dm.mutualServers) : undefined}
+            gifEnabled={gifEnabled}
+            placeholder={
+              isDm
+                ? `Message ${dm.otherMember?.displayName ?? dm.otherMember?.username ?? ''}`
+                : activeChannel
+                  ? replyTarget
+                    ? `Reply to ${replyTarget.authorName}...`
+                    : `Message #${activeChannel.name}`
+                  : 'Message'
+            }
+            pollButton={
+              !isDm ? (
+                <button
+                  type="button"
+                  title="Create a poll"
+                  onClick={() => setShowPollCreator((p) => !p)}
+                  className={`rounded p-1.5 transition ${showPollCreator ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M3 3v18h18" />
+                    <rect x="7" y="13" width="3" height="5" rx="0.5" />
+                    <rect x="12" y="9" width="3" height="9" rx="0.5" />
+                    <rect x="17" y="5" width="3" height="13" rx="0.5" />
+                  </svg>
+                </button>
+              ) : undefined
+            }
+          />
+        </>
+      )}
 
       {cardUser && <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />}
     </>
@@ -406,6 +442,15 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 {activeChannel.pinnedCount}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            title="Saved messages"
+            aria-label="Saved messages"
+            onClick={() => setSavedOpen((v) => !v)}
+            className={`rounded p-2 transition ${savedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+          >
+            <BookmarkHeaderIcon />
           </button>
           <NotifBellMenu channelId={activeChannel.id} />
           {isAdminOrOwner && (

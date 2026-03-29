@@ -5,6 +5,11 @@ export interface Server {
   name: string
   iconUrl: string | null
   ownerId: string
+  vanityCode?: string | null
+  welcomeChannelId?: string | null
+  welcomeMessage?: string | null
+  afkChannelId?: string | null
+  afkTimeout?: number
   createdAt: string
   roles?: Role[]
 }
