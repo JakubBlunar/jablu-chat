@@ -495,6 +495,22 @@ export class ApiClient {
     return this.patch(`/api/servers/${serverId}/roles/reorder`, { roleIds })
   }
 
+  getChannelOverrides(channelId: string): Promise<(import('@chat/shared').ChannelPermissionOverride & { roleName: string })[]> {
+    return this.get(`/api/channels/${channelId}/overrides`)
+  }
+
+  upsertChannelOverride(serverId: string, channelId: string, roleId: string, allow: string, deny: string): Promise<import('@chat/shared').ChannelPermissionOverride> {
+    return this.put(`/api/servers/${serverId}/channels/${channelId}/overrides/${roleId}`, { allow, deny })
+  }
+
+  deleteChannelOverride(serverId: string, channelId: string, roleId: string): Promise<void> {
+    return this.delete(`/api/servers/${serverId}/channels/${channelId}/overrides/${roleId}`)
+  }
+
+  getMyChannelPermissions(serverId: string, channelId: string): Promise<{ permissions: string }> {
+    return this.get(`/api/servers/${serverId}/channels/${channelId}/permissions/me`)
+  }
+
   assignRole(serverId: string, userId: string, roleId: string): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/members/${userId}/assign-role`, { roleId })
   }

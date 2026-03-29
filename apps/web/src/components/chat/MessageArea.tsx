@@ -20,6 +20,7 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
+import { Permission as SharedPermission, permsToBigInt, hasPermission as hasPermFlag } from '@chat/shared'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
@@ -162,6 +163,25 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       membersByUsernameRef.current = build(s.members)
     })
   }, [])
+
+  const [canSend, setCanSend] = useState(true)
+  const currentServerId = useServerStore((s) => s.currentServerId)
+  useEffect(() => {
+    if (isDm || !contextId || !currentServerId) {
+      setCanSend(true)
+      return
+    }
+    let cancelled = false
+    api.getMyChannelPermissions(currentServerId, contextId).then((res) => {
+      if (!cancelled) {
+        const perms = permsToBigInt(res.permissions)
+        setCanSend(hasPermFlag(perms, SharedPermission.SEND_MESSAGES))
+      }
+    }).catch(() => {
+      if (!cancelled) setCanSend(true)
+    })
+    return () => { cancelled = true }
+  }, [isDm, contextId, currentServerId])
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -369,6 +389,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               <line x1="10" y1="12" x2="14" y2="12" />
             </svg>
             This channel is archived. You can read messages but cannot send new ones.
+          </div>
+        </div>
+      ) : !isDm && !canSend ? (
+        <div className="shrink-0 border-t border-black/20 bg-surface px-4 py-3">
+          <div className="flex items-center gap-2 rounded-lg bg-surface-dark px-4 py-2.5 text-sm text-gray-400">
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+            You do not have permission to send messages in this channel.
           </div>
         </div>
       ) : (

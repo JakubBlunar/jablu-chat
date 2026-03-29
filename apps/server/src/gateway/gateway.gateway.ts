@@ -9,7 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer
 } from '@nestjs/websockets'
-import { MAX_MESSAGE_LENGTH } from '@chat/shared'
+import { MAX_MESSAGE_LENGTH, Permission } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
 import { AutoModService } from '../automod/automod.service'
 import { DmService } from '../dm/dm.service'
@@ -21,6 +21,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { ReadStateService } from '../read-state/read-state.service'
 import { RedisService } from '../redis/redis.service'
+import { RolesService } from '../roles/roles.service'
 import { registerEventListeners } from './gateway-event-listeners'
 import {
   describePushPreview as describePushPreviewText,
@@ -72,7 +73,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     readonly events: EventBusService,
     private readonly readState: ReadStateService,
     readonly push: PushService,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    private readonly roles: RolesService
   ) {}
 
   onModuleDestroy() {
@@ -360,6 +362,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { archived: false as const }
   }
 
+  private async assertCanSendInChannel(channelId: string, userId: string): Promise<{ denied: boolean; serverId?: string }> {
+    const ch = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { serverId: true }
+    })
+    if (!ch) return { denied: false }
+    try {
+      await this.roles.requireChannelPermission(ch.serverId, channelId, userId, Permission.SEND_MESSAGES)
+      return { denied: false, serverId: ch.serverId }
+    } catch {
+      return { denied: true, serverId: ch.serverId }
+    }
+  }
+
   @SubscribeMessage('message:send')
   async onMessageSend(
     @ConnectedSocket() client: Socket,
@@ -384,16 +400,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       return { ok: false, error: 'This channel is archived' }
     }
 
-    if (body.content) {
-      const channel = await this.prisma.channel.findUnique({
-        where: { id: body.channelId },
-        select: { serverId: true }
-      })
-      if (channel) {
-        const check = await this.automod.checkMessage(channel.serverId, user.id, body.content)
-        if (!check.allowed) {
-          return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
-        }
+    const sendCheck = await this.assertCanSendInChannel(body.channelId, user.id)
+    if (sendCheck.denied) {
+      return { ok: false, error: 'You do not have permission to send messages in this channel' }
+    }
+
+    if (body.content && sendCheck.serverId) {
+      const check = await this.automod.checkMessage(sendCheck.serverId, user.id, body.content)
+      if (!check.allowed) {
+        return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
       }
     }
 
@@ -512,6 +527,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (msg?.channelId) {
       const archiveCheck = await this.assertNotArchived(msg.channelId)
       if (archiveCheck.archived) return { ok: false, error: 'This channel is archived' }
+      const sendCheck = await this.assertCanSendInChannel(msg.channelId, user.id)
+      if (sendCheck.denied) return { ok: false, error: 'You do not have permission to interact in this channel' }
     }
     const result = await this.messages.toggleReaction(body.messageId, user.id, body.emoji, body.isCustom ?? false)
     const event = result.action === 'added' ? 'reaction:add' : 'reaction:remove'
@@ -625,6 +642,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const user = (client.data as { user: WsUser }).user
     const archiveCheck = await this.assertNotArchived(body.channelId)
     if (archiveCheck.archived) return { ok: false }
+    const sendCheck = await this.assertCanSendInChannel(body.channelId, user.id)
+    if (sendCheck.denied) return { ok: false }
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     this.emitToChannel(body.channelId, 'user:typing', {
       userId: user.id,
