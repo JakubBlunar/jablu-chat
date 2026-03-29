@@ -11,12 +11,11 @@ import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { ToastContainer } from '@/components/ToastContainer'
 import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
 import { useAppBadge } from '@/hooks/useAppBadge'
-import { useIdleDetector } from '@/hooks/useIdleDetector'
+import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
-import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -140,31 +139,7 @@ export function MainLayout() {
   const openMemberDrawer = useLayoutStore((s) => s.openMemberDrawer)
   const memberSidebarVisible = useLayoutStore((s) => s.memberSidebarVisible)
 
-  const onIdle = useCallback(() => {
-    const s = socket
-    if (s?.connected) {
-      s.emit('activity:idle')
-    }
-    const user = useAuthStore.getState().user
-    if (user && user.status === 'online') {
-      useAuthStore.getState().setUser({ ...user, status: 'idle' })
-      useMemberStore.getState().setUserStatus(user.id, 'idle')
-    }
-  }, [socket])
-
-  const onActive = useCallback(() => {
-    const s = socket
-    if (s?.connected) {
-      s.emit('activity:active')
-    }
-    const user = useAuthStore.getState().user
-    if (user && user.status === 'idle') {
-      useAuthStore.getState().setUser({ ...user, status: 'online' })
-      useMemberStore.getState().setUserStatus(user.id, 'online')
-    }
-  }, [socket])
-
-  useIdleDetector(onIdle, onActive)
+  useActivityReporter(socket)
   useAppBadge()
 
   const viewMode = useServerStore((s) => s.viewMode)

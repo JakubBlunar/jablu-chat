@@ -72,7 +72,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       hasConnectedBefore = true
 
       if (!document.hidden || useVoiceConnectionStore.getState().room) {
-        socket.emit('activity:active')
+        socket.emit('activity:heartbeat')
       }
     }
     const onDisconnect = () => setIsConnected(false)

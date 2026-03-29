@@ -40,11 +40,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> number of active socket connections */
   private readonly onlineUsers = new Map<string, number>()
 
-  /** userId -> manually chosen status (dnd) that should not be overridden by idle detection */
+  /** userId -> manually chosen status (idle/dnd/offline) that should not be overridden by auto-detection */
   readonly manualStatus = new Map<string, string>()
 
-  /** socketId -> activity status for that specific connection */
-  private readonly socketActivityStatus = new Map<string, 'online' | 'idle'>()
+  /** userId -> last activity timestamp (ms) from any of their sockets */
+  private readonly userLastActivity = new Map<string, number>()
 
   /** channelId -> Set of participants in voice channel */
   private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
@@ -59,8 +59,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   private readonly voiceActivity = new Map<string, number>()
 
   private afkInterval: NodeJS.Timeout | null = null
+  private idleCheckInterval: NodeJS.Timeout | null = null
 
   private static readonly DISCONNECT_GRACE_MS = 2 * 60 * 1000
+  private static readonly IDLE_THRESHOLD_MS = 5 * 60 * 1000
 
   constructor(
     readonly prisma: PrismaService,
@@ -86,6 +88,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       clearInterval(this.afkInterval)
       this.afkInterval = null
     }
+    if (this.idleCheckInterval) {
+      clearInterval(this.idleCheckInterval)
+      this.idleCheckInterval = null
+    }
   }
 
   private addOnlineUser(userId: string): boolean {
@@ -105,13 +111,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   isUserOnline(userId: string): boolean {
+    if (this.manualStatus.get(userId) === 'offline') return false
     return this.onlineUsers.has(userId) || this.disconnectGrace.has(userId)
   }
 
   getOnlineUserIds(): string[] {
-    const ids = [...this.onlineUsers.keys()]
+    const ids: string[] = []
+    for (const userId of this.onlineUsers.keys()) {
+      if (this.manualStatus.get(userId) !== 'offline') ids.push(userId)
+    }
     for (const userId of this.disconnectGrace.keys()) {
-      if (!this.onlineUsers.has(userId)) {
+      if (!this.onlineUsers.has(userId) && this.manualStatus.get(userId) !== 'offline') {
         ids.push(userId)
       }
     }
@@ -121,6 +131,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   afterInit() {
     registerEventListeners(this)
     this.afkInterval = setInterval(() => void this.checkAfkParticipants(), 30_000)
+    this.idleCheckInterval = setInterval(() => void this.checkIdleUsers(), 60_000)
   }
 
   private async checkAfkParticipants() {
@@ -239,18 +250,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     const isFirstConnection = this.addOnlineUser(user.id)
-    this.socketActivityStatus.set(client.id, 'online')
+    this.userLastActivity.set(user.id, Date.now())
+
+    const isInvisible = this.manualStatus.get(user.id) === 'offline'
 
     if (pendingGrace) {
-      const effectiveStatus = this.getEffectiveStatus(user.id)
-      if (this.lastBroadcastedStatus.get(user.id) !== effectiveStatus) {
-        this.lastBroadcastedStatus.set(user.id, effectiveStatus)
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { status: effectiveStatus }
-        })
-        for (const sid of serverIds) {
-          this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: effectiveStatus })
+      if (isInvisible) {
+        // Reconnecting during grace while invisible -- stay invisible, no broadcast
+      } else {
+        const manualSt = this.manualStatus.get(user.id)
+        const status = (manualSt ?? 'online') as 'online' | 'idle' | 'dnd' | 'offline'
+        if (this.lastBroadcastedStatus.get(user.id) !== status) {
+          this.lastBroadcastedStatus.set(user.id, status)
+          await this.prisma.user.update({
+            where: { id: user.id },
+            data: { status }
+          })
+          for (const sid of serverIds) {
+            this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status })
+          }
         }
       }
     } else if (isFirstConnection) {
@@ -304,14 +322,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const isLastConnection = this.removeOnlineUser(user.id)
 
-    this.socketActivityStatus.delete(client.id)
-
     if (isLastConnection) {
       const capturedServerIds = [...serverIds]
       const userId = user.id
       const timer = setTimeout(async () => {
         this.disconnectGrace.delete(userId)
         if (this.onlineUsers.has(userId)) return
+        this.userLastActivity.delete(userId)
         this.manualStatus.delete(userId)
         this.lastBroadcastedStatus.delete(userId)
         await this.prisma.user.update({
@@ -583,58 +600,58 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, poll: result.poll }
   }
 
-  @SubscribeMessage('activity:idle')
-  async onActivityIdle(@ConnectedSocket() client: Socket) {
-    return this.setActivityStatus(client, 'idle')
-  }
-
-  @SubscribeMessage('activity:active')
-  async onActivityActive(@ConnectedSocket() client: Socket) {
-    return this.setActivityStatus(client, 'online')
-  }
-
   /** userId -> last broadcasted effective status, avoids redundant DB writes */
   private readonly lastBroadcastedStatus = new Map<string, string>()
 
-  private async setActivityStatus(client: Socket, status: 'online' | 'idle') {
+  @SubscribeMessage('activity:heartbeat')
+  async onActivityHeartbeat(@ConnectedSocket() client: Socket) {
     const user = (client.data as { user: WsUser }).user
-    if (this.manualStatus.get(user.id) === 'dnd') {
-      return { ok: true }
-    }
+    if (this.manualStatus.has(user.id)) return { ok: true }
 
-    this.socketActivityStatus.set(client.id, status)
+    this.userLastActivity.set(user.id, Date.now())
 
-    const effectiveStatus = this.getEffectiveStatus(user.id)
-    if (this.lastBroadcastedStatus.get(user.id) === effectiveStatus) {
-      return { ok: true }
-    }
-
-    this.lastBroadcastedStatus.set(user.id, effectiveStatus)
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { status: effectiveStatus }
-    })
-    const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
-    for (const sid of serverIds) {
-      this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: effectiveStatus })
+    if (this.lastBroadcastedStatus.get(user.id) === 'idle') {
+      this.lastBroadcastedStatus.set(user.id, 'online')
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { status: 'online' }
+      })
+      const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
+      for (const sid of serverIds) {
+        this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
+      }
     }
     return { ok: true }
   }
 
-  private getEffectiveStatus(userId: string): 'online' | 'idle' {
-    for (const [, participants] of this.voiceParticipants) {
-      for (const [, p] of participants) {
-        if (p.userId === userId) return 'online'
+  private async checkIdleUsers() {
+    const now = Date.now()
+
+    for (const [userId] of this.onlineUsers) {
+      if (this.manualStatus.has(userId)) continue
+
+      const lastActivity = this.userLastActivity.get(userId)
+      if (!lastActivity) continue
+
+      if (now - lastActivity > ChatGateway.IDLE_THRESHOLD_MS && this.lastBroadcastedStatus.get(userId) !== 'idle') {
+        this.lastBroadcastedStatus.set(userId, 'idle')
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { status: 'idle' }
+        }).catch((err) => this.logger.warn(`Failed to set idle status for ${userId}`, err?.message))
+
+        const sockets = await this.server.in(`user:${userId}`).fetchSockets()
+        const serverIds = new Set<string>()
+        for (const s of sockets) {
+          for (const sid of ((s.data as { serverIds?: string[] }).serverIds ?? [])) {
+            serverIds.add(sid)
+          }
+        }
+        for (const sid of serverIds) {
+          this.server.to(`server:${sid}`).emit('user:status', { userId, status: 'idle' })
+        }
       }
     }
-    const rooms = this.server?.sockets?.adapter?.rooms
-    if (!rooms) return 'idle'
-    const userRoom = rooms.get(`user:${userId}`)
-    if (!userRoom) return 'idle'
-    for (const socketId of userRoom) {
-      if (this.socketActivityStatus.get(socketId) === 'online') return 'online'
-    }
-    return 'idle'
   }
 
   @SubscribeMessage('typing:start')
