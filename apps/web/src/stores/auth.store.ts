@@ -50,7 +50,7 @@ function resetAllStores() {
         scrollRequestNonce: 0
       })
       useReadStateStore.setState({ channels: new Map(), dms: new Map(), channelToServer: new Map() })
-      useNotifPrefStore.setState({ prefs: {} })
+      useNotifPrefStore.setState({ prefs: {}, serverPrefs: {} })
       useVoiceStore.getState().reset()
       useVoiceConnectionStore.getState().disconnect()
       useLayoutStore.setState({ navDrawerOpen: false, memberDrawerOpen: false })

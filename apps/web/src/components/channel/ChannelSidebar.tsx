@@ -24,6 +24,9 @@ import { useSortedChannels } from '@/hooks/useSortedChannels'
 const ReorderChannelsModal = React.lazy(() =>
   import('@/components/server/ReorderChannelsModal').then((m) => ({ default: m.ReorderChannelsModal }))
 )
+const ServerNotifModal = React.lazy(() =>
+  import('@/components/server/ServerNotifModal').then((m) => ({ default: m.ServerNotifModal }))
+)
 
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -266,7 +269,13 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const ackChannel = useReadStateStore((s) => s.ackChannel)
   const ackServer = useReadStateStore((s) => s.ackServer)
   const notifPrefs = useNotifPrefStore((s) => s.prefs)
-  const getNotifLevel = useCallback((channelId: string) => notifPrefs[channelId] ?? 'all', [notifPrefs])
+  const serverPrefs = useNotifPrefStore((s) => s.serverPrefs)
+  const getEffective = useNotifPrefStore((s) => s.getEffective)
+  const getNotifLevel = useCallback(
+    (channelId: string) => getEffective(channelId, currentServer?.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notifPrefs, serverPrefs, currentServer?.id, getEffective]
+  )
 
   const isMobile = useIsMobile()
   const [channelModalOpen, setChannelModalOpen] = useState(false)
@@ -277,6 +286,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
   const [eventsOpen, setEventsOpen] = useState(false)
+  const [serverNotifOpen, setServerNotifOpen] = useState(false)
 
   const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -508,6 +518,20 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Mark All as Read
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setServerNotifOpen(true)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                Notification Settings
               </button>
               <button
                 type="button"
@@ -798,6 +822,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
       {eventsOpen && currentServer && (
         <Suspense fallback={null}>
           <EventsPanel serverId={currentServer.id} onClose={() => setEventsOpen(false)} />
+        </Suspense>
+      )}
+      {serverNotifOpen && currentServer && (
+        <Suspense fallback={null}>
+          <ServerNotifModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setServerNotifOpen(false)} />
         </Suspense>
       )}
       {drawerChannel && (

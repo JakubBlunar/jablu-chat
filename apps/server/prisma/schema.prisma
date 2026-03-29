@@ -118,10 +118,11 @@ model Server {
 }
 
 model ServerMember {
-  userId   String     @map("user_id")
-  serverId String     @map("server_id")
-  role     ServerRole @default(member)
-  joinedAt DateTime   @default(now()) @map("joined_at")
+  userId     String      @map("user_id")
+  serverId   String      @map("server_id")
+  role       ServerRole  @default(member)
+  notifLevel NotifLevel? @map("notif_level")
+  joinedAt   DateTime    @default(now()) @map("joined_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
