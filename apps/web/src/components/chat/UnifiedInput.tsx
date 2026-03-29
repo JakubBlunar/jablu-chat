@@ -41,7 +41,7 @@ export function UnifiedInput({
   channels,
   gifEnabled,
   placeholder,
-  pollButton,
+  onCommand,
   threadParentId
 }: {
   mode: 'channel' | 'dm'
@@ -52,7 +52,7 @@ export function UnifiedInput({
   channels?: MentionChannel[]
   gifEnabled?: boolean
   placeholder: string
-  pollButton?: React.ReactNode
+  onCommand?: (command: string) => void
   threadParentId?: string
 }) {
   const isDm = mode === 'dm'
@@ -149,6 +149,15 @@ export function UnifiedInput({
 
   async function send() {
     const content = value.trim()
+
+    if (content.startsWith('/') && onCommand) {
+      const cmd = content.slice(1).split(/\s/)[0]
+      if (cmd) {
+        setValue('')
+        onCommand(cmd)
+        return
+      }
+    }
 
     let finalFiles = files
     const pending = files.filter((f) => !f.uploaded && !f.error)
@@ -327,9 +336,9 @@ export function UnifiedInput({
             channels={mentionChannels}
             gifEnabled={gifEnabled}
             onGifSelect={handleGifSelect}
+            onCommand={onCommand}
           />
         </div>
-        {pollButton}
       </div>
     </div>
   )

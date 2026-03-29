@@ -47,9 +47,16 @@ export type ChatInputBarProps = {
   channels?: MentionChannel[]
   gifEnabled?: boolean
   onGifSelect?: (url: string) => void
+  onCommand?: (command: string) => void
 }
 
-type PopupMode = 'none' | 'mention' | 'channel'
+type PopupMode = 'none' | 'mention' | 'channel' | 'command'
+
+type SlashCommand = { name: string; description: string }
+
+const COMMANDS: SlashCommand[] = [
+  { name: 'poll', description: 'Create a poll' }
+]
 
 export type ChatInputBarHandle = {
   focus: () => void
@@ -68,7 +75,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     members,
     channels,
     gifEnabled,
-    onGifSelect
+    onGifSelect,
+    onCommand
   },
   ref
 ) {
@@ -109,10 +117,23 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return channels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 10)
   }, [popupMode, query, channels])
 
-  const popupOpen =
-    (popupMode === 'mention' && filteredMembers.length > 0) || (popupMode === 'channel' && filteredChannels.length > 0)
+  const filteredCommands = useMemo(() => {
+    if (popupMode !== 'command') return []
+    const q = query.toLowerCase()
+    return COMMANDS.filter((c) => c.name.startsWith(q))
+  }, [popupMode, query])
 
-  const popupLength = popupMode === 'mention' ? filteredMembers.length : filteredChannels.length
+  const popupOpen =
+    (popupMode === 'mention' && filteredMembers.length > 0) ||
+    (popupMode === 'channel' && filteredChannels.length > 0) ||
+    (popupMode === 'command' && filteredCommands.length > 0)
+
+  const popupLength =
+    popupMode === 'mention'
+      ? filteredMembers.length
+      : popupMode === 'channel'
+        ? filteredChannels.length
+        : filteredCommands.length
 
   const detectTrigger = useCallback(() => {
     const el = taRef.current
@@ -125,8 +146,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
     const atIdx = text.lastIndexOf('@')
     const hashIdx = text.lastIndexOf('#')
+    const slashIdx = text.lastIndexOf('/')
 
-    const bestIdx = Math.max(atIdx, hashIdx)
+    const bestIdx = Math.max(atIdx, hashIdx, slashIdx)
     if (bestIdx === -1 || (bestIdx > 0 && /\S/.test(text[bestIdx - 1]))) {
       setPopupMode('none')
       return
@@ -139,7 +161,12 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     }
 
     const trigger = text[bestIdx]
-    if (trigger === '@' && members?.length) {
+    if (trigger === '/' && onCommand) {
+      setPopupMode('command')
+      setQuery(fragment)
+      setTriggerStart(bestIdx)
+      setSelectedIdx(0)
+    } else if (trigger === '@' && members?.length) {
       setPopupMode('mention')
       setQuery(fragment)
       setTriggerStart(bestIdx)
@@ -152,7 +179,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     } else {
       setPopupMode('none')
     }
-  }, [members, channels])
+  }, [members, channels, onCommand])
 
   const insertMention = useCallback(
     (member: MentionMember) => {
@@ -208,6 +235,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     detectTrigger()
   }, [value, detectTrigger])
 
+  const executeCommand = useCallback(
+    (cmd: SlashCommand) => {
+      onChange('')
+      setPopupMode('none')
+      onCommand?.(cmd.name)
+      requestAnimationFrame(() => taRef.current?.focus())
+    },
+    [onChange, onCommand]
+  )
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (popupOpen) {
@@ -227,6 +264,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             insertMention(filteredMembers[selectedIdx])
           } else if (popupMode === 'channel' && filteredChannels[selectedIdx]) {
             insertChannel(filteredChannels[selectedIdx])
+          } else if (popupMode === 'command' && filteredCommands[selectedIdx]) {
+            executeCommand(filteredCommands[selectedIdx])
           }
           return
         }
@@ -247,9 +286,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       popupLength,
       filteredMembers,
       filteredChannels,
+      filteredCommands,
       selectedIdx,
       insertMention,
       insertChannel,
+      executeCommand,
       onSend,
       value
     ]
@@ -262,6 +303,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       )}
       {popupOpen && popupMode === 'channel' && (
         <ChannelPopup channels={filteredChannels} selectedIdx={selectedIdx} onSelect={insertChannel} />
+      )}
+      {popupOpen && popupMode === 'command' && (
+        <CommandPopup commands={filteredCommands} selectedIdx={selectedIdx} onSelect={executeCommand} />
       )}
 
       <div className="flex items-end">
@@ -499,6 +543,60 @@ function ChannelPopup({
         </button>
       ))}
     </div>
+  )
+}
+
+function CommandPopup({
+  commands,
+  selectedIdx,
+  onSelect
+}: {
+  commands: SlashCommand[]
+  selectedIdx: number
+  onSelect: (c: SlashCommand) => void
+}) {
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = listRef.current?.children[selectedIdx] as HTMLElement | undefined
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIdx])
+
+  return (
+    <div
+      ref={listRef}
+      className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
+    >
+      {commands.map((c, i) => (
+        <button
+          key={c.name}
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            onSelect(c)
+          }}
+          className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition ${
+            i === selectedIdx ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'
+          }`}
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center text-gray-400">
+            <SlashIcon />
+          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">/{c.name}</span>
+            <span className="block truncate text-xs text-gray-500">{c.description}</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SlashIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <line x1="7" y1="20" x2="17" y2="4" />
+    </svg>
   )
 }
 

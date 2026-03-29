@@ -428,23 +428,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                     : `Message #${activeChannel.name}`
                   : 'Message'
             }
-            pollButton={
-              !isDm ? (
-                <button
-                  type="button"
-                  title="Create a poll"
-                  onClick={() => setShowPollCreator((p) => !p)}
-                  className={`rounded p-1.5 transition ${showPollCreator ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M3 3v18h18" />
-                    <rect x="7" y="13" width="3" height="5" rx="0.5" />
-                    <rect x="12" y="9" width="3" height="9" rx="0.5" />
-                    <rect x="17" y="5" width="3" height="13" rx="0.5" />
-                  </svg>
-                </button>
-              ) : undefined
-            }
+            onCommand={!isDm ? (cmd) => {
+              if (cmd === 'poll') setShowPollCreator(true)
+            } : undefined}
           />
         </>
       )}
