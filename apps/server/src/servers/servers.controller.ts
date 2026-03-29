@@ -111,7 +111,7 @@ export class ServersController {
     @CurrentUser() user: { id: string },
     @Body() dto: UpdateMemberRoleDto
   ) {
-    return this.servers.updateMemberRole(id, user.id, targetUserId, dto.role)
+    return this.servers.updateMemberRole(id, user.id, targetUserId, dto.roleId)
   }
 
   @Delete(':id/members/:userId')
@@ -122,5 +122,66 @@ export class ServersController {
     @CurrentUser() user: { id: string }
   ) {
     await this.servers.kickMember(id, user.id, targetUserId)
+  }
+
+  @Get(':id/emojis/stats')
+  emojiStats(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.servers.getEmojiStats(id, user.id)
+  }
+
+  @Get(':id/emojis')
+  listEmojis(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.servers.getEmojis(id, user.id)
+  }
+
+  @Post(':id/emojis')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 200 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (IMAGE_MIMETYPES.includes(file.mimetype)) {
+          cb(null, true)
+        } else {
+          cb(new BadRequestException('Only JPEG, PNG, GIF, and WebP images are allowed'), false)
+        }
+      }
+    })
+  )
+  uploadEmoji(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @UploadedFile() file: Express.Multer.File,
+    @Body('name') name: string
+  ) {
+    if (!file) throw new BadRequestException('No file provided')
+    if (!name) throw new BadRequestException('Emoji name is required')
+    return this.servers.uploadEmoji(id, user.id, file, name)
+  }
+
+  @Patch(':id/emojis/:emojiId')
+  renameEmoji(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('emojiId', ParseUUIDPipe) emojiId: string,
+    @CurrentUser() user: { id: string },
+    @Body('name') name: string
+  ) {
+    if (!name) throw new BadRequestException('Emoji name is required')
+    return this.servers.renameEmoji(id, user.id, emojiId, name)
+  }
+
+  @Delete(':id/emojis/:emojiId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteEmoji(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('emojiId', ParseUUIDPipe) emojiId: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    await this.servers.deleteEmoji(id, user.id, emojiId)
   }
 }

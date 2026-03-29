@@ -5,7 +5,9 @@ const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
-import { useMemberStore } from '@/stores/member.store'
+import { usePermissions, Permission } from '@/hooks/usePermissions'
+import { useServerStore } from '@/stores/server.store'
+import { useThreadStore } from '@/stores/thread.store'
 
 interface MessageActionsProps {
   message: Message
@@ -16,9 +18,10 @@ interface MessageActionsProps {
 
 export function MessageActions({ message, channelId, onEdit, onReply }: MessageActionsProps) {
   const userId = useAuthStore((s) => s.user?.id)
-  const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId))?.role
+  const serverId = useServerStore((s) => s.currentServerId)
+  const { has: hasPerm } = usePermissions(serverId)
   const isAuthor = message.authorId === userId
-  const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
+  const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const canDelete = isAuthor || isAdminOrOwner
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -86,6 +89,14 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
         <ActionBtn title="Reply" onClick={handleReply}>
           <ReplyIcon />
         </ActionBtn>
+        {!message.threadParentId && (
+          <ActionBtn
+            title={message.threadCount ? 'View Thread' : 'Reply in Thread'}
+            onClick={() => useThreadStore.getState().openThread(channelId, message)}
+          >
+            <ThreadIcon />
+          </ActionBtn>
+        )}
         {isAuthor && onEdit && (
           <ActionBtn title="Edit" onClick={onEdit}>
             <EditIcon />
@@ -187,6 +198,14 @@ function PinIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4H7v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1v3.76z" />
+    </svg>
+  )
+}
+
+function ThreadIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   )
 }

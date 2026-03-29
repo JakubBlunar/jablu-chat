@@ -3,18 +3,21 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 
-export function usePinnedMessages(channelId: string | null) {
+export function usePinnedMessages(channelId: string | null, conversationId?: string | null) {
   const [pinnedOpen, setPinnedOpen] = useState(false)
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([])
   const [pinnedLoading, setPinnedLoading] = useState(false)
 
+  const activeId = channelId ?? conversationId ?? null
+  const isDm = !channelId && !!conversationId
+
   useEffect(() => {
     setPinnedOpen(false)
     setPinnedMessages([])
-  }, [channelId])
+  }, [activeId])
 
   const handleOpenPinned = useCallback(async () => {
-    if (!channelId) return
+    if (!activeId) return
     if (pinnedOpen) {
       setPinnedOpen(false)
       return
@@ -22,26 +25,48 @@ export function usePinnedMessages(channelId: string | null) {
     setPinnedOpen(true)
     setPinnedLoading(true)
     try {
-      const msgs = await api.getPinnedMessages(channelId)
+      const msgs = isDm
+        ? await api.getPinnedDmMessages(activeId)
+        : await api.getPinnedMessages(activeId)
       setPinnedMessages(msgs)
     } catch {
       setPinnedMessages([])
     } finally {
       setPinnedLoading(false)
     }
-  }, [channelId, pinnedOpen])
+  }, [activeId, pinnedOpen, isDm])
 
   useEffect(() => {
-    if (!pinnedOpen || !channelId) return
+    if (!pinnedOpen || !activeId) return
     const socket = getSocket()
     if (!socket) return
+
+    if (isDm) {
+      const onPin = (msg: Message & { conversationId?: string }) => {
+        if (msg.directConversationId === activeId || msg.conversationId === activeId) {
+          setPinnedMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev]))
+        }
+      }
+      const onUnpin = (msg: Message & { conversationId?: string }) => {
+        if (msg.directConversationId === activeId || msg.conversationId === activeId) {
+          setPinnedMessages((prev) => prev.filter((m) => m.id !== msg.id))
+        }
+      }
+      socket.on('dm:pin', onPin)
+      socket.on('dm:unpin', onUnpin)
+      return () => {
+        socket.off('dm:pin', onPin)
+        socket.off('dm:unpin', onUnpin)
+      }
+    }
+
     const onPin = (msg: Message) => {
-      if (msg.channelId === channelId) {
+      if (msg.channelId === activeId) {
         setPinnedMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [msg, ...prev]))
       }
     }
     const onUnpin = (msg: Message) => {
-      if (msg.channelId === channelId) {
+      if (msg.channelId === activeId) {
         setPinnedMessages((prev) => prev.filter((m) => m.id !== msg.id))
       }
     }
@@ -51,15 +76,15 @@ export function usePinnedMessages(channelId: string | null) {
       socket.off('message:pin', onPin)
       socket.off('message:unpin', onUnpin)
     }
-  }, [pinnedOpen, channelId])
+  }, [pinnedOpen, activeId, isDm])
 
   useEffect(() => {
     const handler = () => {
-      if (channelId && !pinnedOpen) void handleOpenPinned()
+      if (activeId && !pinnedOpen) void handleOpenPinned()
     }
     window.addEventListener('open-pinned', handler)
     return () => window.removeEventListener('open-pinned', handler)
-  }, [channelId, pinnedOpen, handleOpenPinned])
+  }, [activeId, pinnedOpen, handleOpenPinned])
 
-  return { pinnedOpen, pinnedMessages, pinnedLoading, handleOpenPinned, setPinnedOpen }
+  return { pinnedOpen, pinnedMessages, pinnedLoading, handleOpenPinned, setPinnedOpen, isDm }
 }

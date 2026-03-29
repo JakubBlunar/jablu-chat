@@ -182,11 +182,17 @@ export class ReadStateService {
 
     const members = await this.prisma.serverMember.findMany({
       where: { serverId },
-      include: { user: { select: { id: true, username: true, displayName: true } } }
+      include: {
+        user: { select: { id: true, username: true, displayName: true } },
+        role: { select: { permissions: true } }
+      }
     })
 
     const sender = members.find((m) => m.userId === excludeUserId)
-    const senderIsPrivileged = sender?.role === 'owner' || sender?.role === 'admin'
+    const senderPerms = sender?.role?.permissions ?? 0n
+    const MENTION_EVERYONE_FLAG = 1n << 7n
+    const ADMINISTRATOR_FLAG = 1n << 11n
+    const senderIsPrivileged = (senderPerms & ADMINISTRATOR_FLAG) !== 0n || (senderPerms & MENTION_EVERYONE_FLAG) !== 0n
 
     const resolvedEveryone = hasEveryone && senderIsPrivileged
     const resolvedHere = hasHere && senderIsPrivileged

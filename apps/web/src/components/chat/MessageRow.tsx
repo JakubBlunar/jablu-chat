@@ -5,6 +5,7 @@ import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewC
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import { MessageActions } from '@/components/chat/MessageActions'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
+import { PollDisplay } from '@/components/chat/PollDisplay'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
@@ -12,6 +13,8 @@ import { getSocket } from '@/lib/socket'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMemberStore } from '@/stores/member.store'
+import { usePermissions, Permission } from '@/hooks/usePermissions'
+import { useServerStore } from '@/stores/server.store'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -80,6 +83,14 @@ function TrashIcon() {
   )
 }
 
+function PinIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4H7v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1v3.76z" />
+    </svg>
+  )
+}
+
 export const MessageRow = memo(function MessageRow({
   mode,
   message,
@@ -111,6 +122,9 @@ export const MessageRow = memo(function MessageRow({
     ? message.webhook!.name
     : (message.author?.displayName ?? message.author?.username ?? 'Deleted User')
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
+  const authorRoleColor = useMemberStore((s) =>
+    s.members.find((m) => m.userId === message.authorId)?.role?.color ?? null
+  )
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
   const linkPreviews = message.linkPreviews ?? []
@@ -124,8 +138,9 @@ export const MessageRow = memo(function MessageRow({
   }, [message.content, linkPreviews])
 
   const isMobile = useIsMobile()
-  const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId))?.role
-  const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
+  const serverId = useServerStore((s) => s.currentServerId)
+  const { has: hasPerm } = usePermissions(isDm ? null : serverId)
+  const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(message.content ?? '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -271,6 +286,15 @@ export const MessageRow = memo(function MessageRow({
               <ActionBtn title="Reply" onClick={() => onReply(message)}>
                 <ReplyArrowIcon />
               </ActionBtn>
+              <ActionBtn
+                title={message.pinned ? 'Unpin' : 'Pin'}
+                onClick={() => {
+                  const event = message.pinned ? 'dm:unpin' : 'dm:pin'
+                  getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
+                }}
+              >
+                <PinIcon />
+              </ActionBtn>
               {isAuthor && (
                 <>
                   <ActionBtn title="Edit" onClick={handleStartEdit}>
@@ -349,7 +373,7 @@ export const MessageRow = memo(function MessageRow({
         {showHead && (
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
             {isWebhook ? (
-              <span className="text-[15px] font-semibold" style={usernameAccentStyle(name)}>
+              <span className="text-[15px] font-semibold" style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(name)}>
                 {name}
               </span>
             ) : (
@@ -357,7 +381,7 @@ export const MessageRow = memo(function MessageRow({
                 type="button"
                 onClick={handleAuthorClick}
                 className="text-[15px] font-semibold hover:underline"
-                style={usernameAccentStyle(name)}
+                style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(name)}
               >
                 {name}
               </button>
@@ -368,7 +392,7 @@ export const MessageRow = memo(function MessageRow({
             <time className="text-xs text-gray-500" dateTime={message.createdAt}>
               {formatSmartTimestamp(message.createdAt)}
             </time>
-            {!isDm && message.pinned && (
+            {message.pinned && (
               <span className="rounded bg-yellow-600/20 px-1.5 py-0.5 text-[10px] font-medium text-yellow-400">
                 PINNED
               </span>
@@ -455,6 +479,25 @@ export const MessageRow = memo(function MessageRow({
               <LinkPreviewCard key={lp.id} lp={lp} />
             ))}
           </div>
+        )}
+
+        {message.poll && <PollDisplay poll={message.poll} />}
+
+        {!isDm && !message.threadParentId && (message.threadCount ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              import('@/stores/thread.store').then(({ useThreadStore }) => {
+                useThreadStore.getState().openThread(contextId, message)
+              })
+            }}
+            className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-primary/70 transition hover:text-primary"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            {message.threadCount} {message.threadCount === 1 ? 'reply' : 'replies'}
+          </button>
         )}
 
         {reactions.length > 0 && (

@@ -53,6 +53,6 @@ export class AdminAddServerMemberDto {
 }
 
 export class AdminUpdateMemberRoleDto {
-  @IsString()
-  role: string
+  @IsUUID()
+  roleId: string
 }

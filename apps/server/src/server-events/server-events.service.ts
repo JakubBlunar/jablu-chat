@@ -8,12 +8,13 @@ import {
   OnModuleInit
 } from '@nestjs/common'
 import { SchedulerRegistry } from '@nestjs/schedule'
-import { ServerRole } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { CronJob } from 'cron'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
+import { RolesService } from '../roles/roles.service'
 import type { CreateEventInput, UpdateEventInput } from '@chat/shared'
 
 const REMINDER_KEY = 'event:reminders'
@@ -30,7 +31,8 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     private readonly redis: RedisService,
     private readonly push: PushService,
     private readonly eventBus: EventBusService,
-    private readonly schedulerRegistry: SchedulerRegistry
+    private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly roles: RolesService
   ) {}
 
   onModuleInit() {
@@ -542,15 +544,8 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     if (!membership) throw new ForbiddenException('Not a member of this server')
   }
 
-  private async assertCanManage(serverId: string, userId: string, creatorId: string, ownerId: string) {
-    if (userId === creatorId || userId === ownerId) return
-
-    const membership = await this.prisma.serverMember.findUnique({
-      where: { userId_serverId: { userId, serverId } }
-    })
-    if (!membership) throw new ForbiddenException('Not a member of this server')
-    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
-      throw new ForbiddenException('Only event creator, server owner, or admins can manage events')
-    }
+  private async assertCanManage(serverId: string, userId: string, creatorId: string, _ownerId: string) {
+    if (userId === creatorId) return
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_EVENTS)
   }
 }

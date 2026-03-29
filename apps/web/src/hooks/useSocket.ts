@@ -1,4 +1,5 @@
-import type { Channel, ChannelCategory, LinkPreview, Message, ServerEvent, ServerRole } from '@chat/shared'
+import type { Channel, ChannelCategory, LinkPreview, Message, Poll, ServerEvent } from '@chat/shared'
+import { useThreadStore } from '@/stores/thread.store'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { showNotification } from '@/lib/notifications'
@@ -162,6 +163,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
 
     const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
+      if (msg.threadParentId) {
+        useThreadStore.getState().addMessage(msg)
+      }
       const channelId = useChannelStore.getState().currentChannelId
       const viewMode = useServerStore.getState().viewMode
       const myId = useAuthStore.getState().user?.id
@@ -188,6 +192,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
 
     const onMessageEdit = (msg: Message) => {
+      useThreadStore.getState().updateMessage(msg)
       const channelId = useChannelStore.getState().currentChannelId
       if (msg.channelId != null && msg.channelId === channelId) {
         useMessageStore.getState().updateMessage(msg)
@@ -195,6 +200,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
 
     const onMessageDelete = (payload: MessageDeletePayload) => {
+      useThreadStore.getState().deleteMessage(payload.messageId)
       const channelId = useChannelStore.getState().currentChannelId
       if (payload.channelId === channelId) {
         useMessageStore.getState().removeMessage(payload.messageId)
@@ -292,6 +298,28 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       useMessageStore.getState().updateMessage(msg)
       if (msg.channelId) {
         useChannelStore.getState().adjustPinnedCount(msg.channelId, -1)
+      }
+    }
+
+    const onDmPin = (msg: Message) => {
+      useDmStore.getState().updateMessage(msg)
+    }
+
+    const onDmUnpin = (msg: Message) => {
+      useDmStore.getState().updateMessage(msg)
+    }
+
+    const onPollVote = (poll: Poll) => {
+      useMessageStore.getState().updatePoll(poll)
+    }
+
+    const onThreadUpdate = (payload: { parentId: string; threadCount: number; lastThreadMessage?: { authorId: string; createdAt: string } }) => {
+      useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount)
+    }
+
+    const onNewMessageForThread = (msg: Message) => {
+      if (msg.threadParentId) {
+        useThreadStore.getState().addMessage(msg)
       }
     }
 
@@ -439,10 +467,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
-    const onMemberUpdated = (payload: { serverId: string; userId: string; role: string }) => {
+    const onMemberUpdated = (payload: { serverId: string; userId: string; roleId?: string }) => {
       const currentServerId = useServerStore.getState().currentServerId
-      if (payload.serverId === currentServerId) {
-        useMemberStore.getState().updateMemberRole(payload.serverId, payload.userId, payload.role as ServerRole)
+      if (payload.serverId === currentServerId && payload.roleId) {
+        useMemberStore.getState().updateMemberRole(payload.serverId, payload.userId, payload.roleId)
       }
     }
 
@@ -545,6 +573,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('dm:new', onDmNew)
     socket.on('dm:edit', onDmEdit)
     socket.on('dm:delete', onDmDelete)
+    socket.on('dm:pin', onDmPin)
+    socket.on('dm:unpin', onDmUnpin)
+    socket.on('poll:vote', onPollVote)
+    socket.on('message:thread-update', onThreadUpdate)
+    socket.on('message:new', onNewMessageForThread)
     socket.on('dm:typing', onDmTyping)
     socket.on('dm:link-previews', onDmLinkPreviews)
     socket.on('voice:participants', onVoiceParticipants)
@@ -599,6 +632,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('dm:new', onDmNew)
       socket.off('dm:edit', onDmEdit)
       socket.off('dm:delete', onDmDelete)
+      socket.off('dm:pin', onDmPin)
+      socket.off('dm:unpin', onDmUnpin)
+      socket.off('poll:vote', onPollVote)
+      socket.off('message:thread-update', onThreadUpdate)
+      socket.off('message:new', onNewMessageForThread)
       socket.off('dm:typing', onDmTyping)
       socket.off('dm:link-previews', onDmLinkPreviews)
       socket.off('voice:participants', onVoiceParticipants)

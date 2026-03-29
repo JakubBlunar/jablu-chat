@@ -1,5 +1,4 @@
-import { IsEnum, IsOptional, IsString, Length } from 'class-validator'
-import { ServerRole } from '@prisma/client'
+import { IsOptional, IsString, IsUUID, Length } from 'class-validator'
 
 export class CreateServerDto {
   @IsString()
@@ -15,6 +14,6 @@ export class UpdateServerDto {
 }
 
 export class UpdateMemberRoleDto {
-  @IsEnum(ServerRole)
-  role: ServerRole
+  @IsUUID()
+  roleId: string
 }

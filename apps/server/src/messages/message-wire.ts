@@ -28,7 +28,16 @@ export const messageInclude = {
       siteName: true
     }
   },
-  webhook: { select: { name: true, avatarUrl: true } }
+  webhook: { select: { name: true, avatarUrl: true } },
+  poll: {
+    include: {
+      options: {
+        orderBy: { position: 'asc' },
+        include: { votes: { select: { userId: true } } }
+      }
+    }
+  },
+  _count: { select: { threadMessages: true } }
 } satisfies Prisma.MessageInclude
 
 export const dmMessageInclude = {
@@ -70,15 +79,33 @@ export function groupReactions(
   return [...map.values()]
 }
 
-export function mapMessageToWire(m: MessageWithRelations) {
-  const { reactions, webhookName, webhookAvatarUrl, ...rest } = m
+export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: string) {
+  const { reactions, webhookName, webhookAvatarUrl, poll, _count, ...rest } = m
   return {
     ...rest,
+    threadCount: _count?.threadMessages ?? 0,
     reactions: groupReactions(reactions),
     webhook: m.webhookId
       ? {
           name: webhookName || m.webhook?.name || 'Webhook',
           avatarUrl: webhookAvatarUrl || m.webhook?.avatarUrl || null
+        }
+      : null,
+    poll: poll
+      ? {
+          id: poll.id,
+          messageId: poll.messageId,
+          question: poll.question,
+          multiSelect: poll.multiSelect,
+          expiresAt: poll.expiresAt?.toISOString() ?? null,
+          createdAt: poll.createdAt.toISOString(),
+          options: poll.options.map((o) => ({
+            id: o.id,
+            label: o.label,
+            position: o.position,
+            voteCount: o.votes.length,
+            voted: requestingUserId ? o.votes.some((v) => v.userId === requestingUserId) : false
+          }))
         }
       : null
   }

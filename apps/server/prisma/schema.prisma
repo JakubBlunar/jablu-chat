@@ -37,6 +37,7 @@ model User {
   usedInvites       RegistrationInvite[]   @relation("UsedInvites")
   createdEvents     ServerEvent[]          @relation("EventCreator")
   eventInterests    EventInterest[]
+  pollVotes         PollVote[]
   friendRequestsSent     Friendship[]     @relation("FriendRequestsSent")
   friendRequestsReceived Friendship[]     @relation("FriendRequestsReceived")
 
@@ -110,11 +111,13 @@ model Server {
   channels            Channel[]
   categories          ChannelCategory[]
   members             ServerMember[]
+  roles               Role[]
   invites             Invite[]
   customEmojis        CustomEmoji[]
   auditLogs           AuditLog[]
   registrationInvites RegistrationInvite[]
   events              ServerEvent[]
+  autoModRules        AutoModRule[]
 
   @@map("servers")
 }
@@ -122,22 +125,50 @@ model Server {
 model ServerMember {
   userId     String      @map("user_id")
   serverId   String      @map("server_id")
-  role       ServerRole  @default(member)
+  roleId     String      @map("role_id")
   notifLevel NotifLevel? @map("notif_level")
   joinedAt   DateTime    @default(now()) @map("joined_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
 
   @@id([userId, serverId])
   @@index([serverId])
+  @@index([roleId])
   @@map("server_members")
 }
 
-enum ServerRole {
-  owner
-  admin
-  member
+model Role {
+  id          String   @id @default(uuid())
+  serverId    String   @map("server_id")
+  name        String
+  color       String?
+  position    Int      @default(0)
+  permissions BigInt   @default(0)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  server           Server                    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  members          ServerMember[]
+  channelOverrides ChannelPermissionOverride[]
+
+  @@unique([serverId, name])
+  @@map("server_roles")
+}
+
+model ChannelPermissionOverride {
+  id        String @id @default(uuid())
+  channelId String @map("channel_id")
+  roleId    String @map("role_id")
+  allow     BigInt @default(0)
+  deny      BigInt @default(0)
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, roleId])
+  @@map("channel_permission_overrides")
 }
 
 model ChannelCategory {
@@ -163,13 +194,14 @@ model Channel {
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
-  server           Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  category         ChannelCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  messages         Message[]
-  webhooks         Webhook[]
-  notifPreferences ChannelNotifPref[]
-  readStates       ChannelReadState[]
-  events           ServerEvent[]
+  server              Server                    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  category            ChannelCategory?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  messages            Message[]
+  webhooks            Webhook[]
+  notifPreferences    ChannelNotifPref[]
+  readStates          ChannelReadState[]
+  events              ServerEvent[]
+  permissionOverrides ChannelPermissionOverride[]
 
   @@unique([serverId, name])
   @@map("channels")
@@ -234,12 +266,47 @@ model Message {
   attachments        Attachment[]
   reactions          Reaction[]
   linkPreviews       LinkPreview[]
+  poll               Poll?
 
   @@index([channelId, createdAt])
   @@index([channelId, pinned])
   @@index([directConversationId, createdAt])
   @@index([threadParentId])
   @@map("messages")
+}
+
+model Poll {
+  id          String       @id @default(uuid())
+  messageId   String       @unique @map("message_id")
+  question    String
+  multiSelect Boolean      @default(false) @map("multi_select")
+  expiresAt   DateTime?    @map("expires_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  message Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  @@map("polls")
+}
+
+model PollOption {
+  id       String @id @default(uuid())
+  pollId   String @map("poll_id")
+  label    String
+  position Int    @default(0)
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+  @@map("poll_options")
+}
+
+model PollVote {
+  optionId String @map("option_id")
+  userId   String @map("user_id")
+
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([optionId, userId])
+  @@map("poll_votes")
 }
 
 model Attachment {
@@ -531,4 +598,23 @@ model Friendship {
   @@unique([requesterId, addresseeId])
   @@index([addresseeId])
   @@map("friendships")
+}
+
+enum AutoModType {
+  word_filter
+  link_filter
+  spam_detection
+}
+
+model AutoModRule {
+  id        String      @id @default(uuid())
+  serverId  String      @map("server_id")
+  type      AutoModType
+  enabled   Boolean     @default(true)
+  config    Json        @default("{}")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  @@unique([serverId, type])
+  @@map("automod_rules")
 }

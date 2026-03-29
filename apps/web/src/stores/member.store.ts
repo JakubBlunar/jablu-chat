@@ -1,17 +1,18 @@
-import type { ServerRole } from '@chat/shared'
+import type { Role } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 
 export type Member = {
   userId: string
   serverId: string
-  role: ServerRole
+  roleId: string
   joinedAt: string
+  role?: Role
   user: {
     id: string
     username: string
     displayName: string | null
-    email: string
+    email?: string
     avatarUrl: string | null
     bio: string | null
     status?: string
@@ -26,7 +27,7 @@ type MemberState = {
   fetchMembers: (serverId: string) => Promise<void>
   addMember: (member: Member) => void
   removeMember: (serverId: string, userId: string) => void
-  updateMemberRole: (serverId: string, userId: string, role: ServerRole) => void
+  updateMemberRole: (serverId: string, userId: string, roleId: string) => void
   initOnlineUsers: (userIds: string[]) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string) => void
@@ -62,10 +63,10 @@ export const useMemberStore = create<MemberState>((set) => ({
       members: s.members.filter((m) => !(m.serverId === serverId && m.userId === userId))
     })),
 
-  updateMemberRole: (serverId, userId, role) =>
+  updateMemberRole: (serverId, userId, roleId) =>
     set((s) => ({
       members: s.members.map((m) =>
-        m.serverId === serverId && m.userId === userId ? { ...m, role } : m
+        m.serverId === serverId && m.userId === userId ? { ...m, roleId } : m
       )
     })),
 

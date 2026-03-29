@@ -1,14 +1,19 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChannelType, Prisma, ServerRole } from '@prisma/client'
+import { ChannelType, Prisma } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { messageInclude, mapMessageToWire, type MessageWithRelations } from './message-wire'
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roles: RolesService
+  ) {}
 
-  mapToWire(m: MessageWithRelations) {
-    return mapMessageToWire(m)
+  mapToWire(m: MessageWithRelations, requestingUserId?: string) {
+    return mapMessageToWire(m, requestingUserId)
   }
 
   private async requireTextChannelMember(channelId: string, userId: string) {
@@ -30,30 +35,6 @@ export class MessagesService {
       throw new ForbiddenException('You are not a member of this server')
     }
     return channel
-  }
-
-  private async requireAdminOrOwnerForServer(serverId: string, userId: string) {
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId }
-    })
-    if (!server) {
-      throw new NotFoundException('Server not found')
-    }
-    if (server.ownerId === userId) {
-      return server
-    }
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
-      throw new ForbiddenException('Insufficient permissions')
-    }
-    return server
   }
 
   async getMessages(channelId: string, userId: string, cursor?: string, limit = 50) {
@@ -98,7 +79,7 @@ export class MessagesService {
     const hasMore = rows.length > take
     const page = hasMore ? rows.slice(0, take) : rows
     return {
-      messages: page.map((m) => this.mapToWire(m)),
+      messages: page.map((m) => this.mapToWire(m, userId)),
       hasMore
     }
   }
@@ -151,7 +132,7 @@ export class MessagesService {
     const allDesc = [...after.reverse(), ...(anchorRow ? [anchorRow] : []), ...before]
 
     return {
-      messages: allDesc.map((m) => this.mapToWire(m)),
+      messages: allDesc.map((m) => this.mapToWire(m, userId)),
       hasMore: before.length >= half,
       hasNewer: after.length >= half
     }
@@ -188,7 +169,7 @@ export class MessagesService {
     const page = hasNewer ? rows.slice(0, take) : rows
     // Return in desc order for consistency with other endpoints
     return {
-      messages: page.reverse().map((m) => this.mapToWire(m)),
+      messages: page.reverse().map((m) => this.mapToWire(m, userId)),
       hasMore: false,
       hasNewer
     }
@@ -199,7 +180,8 @@ export class MessagesService {
     userId: string,
     content?: string,
     replyToId?: string,
-    attachmentIds?: string[]
+    attachmentIds?: string[],
+    threadParentId?: string
   ) {
     await this.requireTextChannelMember(channelId, userId)
 
@@ -215,6 +197,15 @@ export class MessagesService {
       })
       if (!parent) {
         throw new BadRequestException('Invalid replyToId')
+      }
+    }
+
+    if (threadParentId) {
+      const parent = await this.prisma.message.findFirst({
+        where: { id: threadParentId, channelId, threadParentId: null }
+      })
+      if (!parent) {
+        throw new BadRequestException('Invalid threadParentId')
       }
     }
 
@@ -239,6 +230,7 @@ export class MessagesService {
           authorId: userId,
           content: trimmed ?? null,
           replyToId: replyToId ?? undefined,
+          threadParentId: threadParentId ?? undefined,
           attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
         },
         include: { ...messageInclude, channel: { select: { serverId: true } } }
@@ -246,7 +238,67 @@ export class MessagesService {
     })
 
     const { channel, ...rest } = created
-    return { ...this.mapToWire(rest as any), serverId: channel!.serverId }
+    const wire = this.mapToWire(rest as any, userId)
+
+    let threadUpdate: { parentId: string; threadCount: number } | undefined
+    if (threadParentId) {
+      const threadCount = await this.prisma.message.count({
+        where: { threadParentId, deleted: false }
+      })
+      threadUpdate = { parentId: threadParentId, threadCount }
+    }
+
+    return { ...wire, serverId: channel!.serverId, threadUpdate }
+  }
+
+  async getThreadMessages(parentId: string, userId: string, cursor?: string, limit = 50) {
+    const parent = await this.prisma.message.findUnique({
+      where: { id: parentId },
+      select: { channelId: true }
+    })
+    if (!parent?.channelId) throw new NotFoundException('Parent message not found')
+    await this.requireTextChannelMember(parent.channelId, userId)
+
+    const take = Math.min(Math.max(1, limit), 100)
+
+    const baseWhere: Prisma.MessageWhereInput = {
+      threadParentId: parentId,
+      deleted: false
+    }
+
+    let where: Prisma.MessageWhereInput = baseWhere
+    if (cursor) {
+      const cursorMsg = await this.prisma.message.findFirst({
+        where: { id: cursor, threadParentId: parentId, deleted: false }
+      })
+      if (!cursorMsg) throw new BadRequestException('Invalid cursor')
+      where = {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { createdAt: { gt: cursorMsg.createdAt } },
+              { AND: [{ createdAt: cursorMsg.createdAt }, { id: { gt: cursorMsg.id } }] }
+            ]
+          }
+        ]
+      }
+    }
+
+    const rows = await this.prisma.message.findMany({
+      where,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: take + 1,
+      include: messageInclude
+    })
+
+    const hasMore = rows.length > take
+    const page = hasMore ? rows.slice(0, take) : rows
+
+    return {
+      messages: page.map((m) => this.mapToWire(m, userId)),
+      hasMore
+    }
   }
 
   async editMessageInChannel(messageId: string, channelId: string, userId: string, content: string) {
@@ -313,7 +365,7 @@ export class MessagesService {
 
     const isAuthor = message.authorId === userId
     if (!isAuthor) {
-      await this.requireAdminOrOwnerForServer(message.channel.serverId, userId)
+      await this.roles.requirePermission(message.channel.serverId, userId, Permission.MANAGE_MESSAGES)
     }
 
     await this.prisma.message.update({
@@ -326,7 +378,7 @@ export class MessagesService {
 
   async pinMessage(messageId: string, userId: string, channelId: string) {
     const channel = await this.requireTextChannelMember(channelId, userId)
-    await this.requireAdminOrOwnerForServer(channel.serverId, userId)
+    await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_MESSAGES)
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId }
@@ -349,7 +401,7 @@ export class MessagesService {
 
   async unpinMessage(messageId: string, userId: string, channelId: string) {
     const channel = await this.requireTextChannelMember(channelId, userId)
-    await this.requireAdminOrOwnerForServer(channel.serverId, userId)
+    await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_MESSAGES)
 
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId }
@@ -448,7 +500,7 @@ export class MessagesService {
       include: messageInclude
     })
 
-    return rows.map((m) => this.mapToWire(m))
+    return rows.map((m) => this.mapToWire(m, userId))
   }
 
   /** For gateway: ensure user can access channel (any channel type for room join). */

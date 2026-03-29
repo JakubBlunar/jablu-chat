@@ -135,8 +135,12 @@ export class AuthService implements OnModuleInit {
 
       if (invite.serverId) {
         try {
+          const defaultRole = await this.prisma.role.findFirst({
+            where: { serverId: invite.serverId, isDefault: true },
+            select: { id: true }
+          })
           const member = await this.prisma.serverMember.create({
-            data: { userId: user.id, serverId: invite.serverId },
+            data: { userId: user.id, serverId: invite.serverId, roleId: defaultRole?.id ?? '' },
             include: {
               user: {
                 select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true }

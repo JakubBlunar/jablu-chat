@@ -3,15 +3,8 @@ import { useCallback, useMemo, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { UserAvatar } from '@/components/UserAvatar'
-import { usernameAccentStyle } from '@/lib/username-color'
 import type { Member } from '@/stores/member.store'
 import { useMemberStore } from '@/stores/member.store'
-
-function roleLabel(role: Member['role']): string | null {
-  if (role === 'owner') return 'Owner'
-  if (role === 'admin') return 'Admin'
-  return null
-}
 
 function resolvePresence(m: Member, onlineIds: Set<string>): UserStatus {
   if (!onlineIds.has(m.userId)) return 'offline'
@@ -40,7 +33,8 @@ export function MemberSidebar() {
       status: presence,
       customStatus: member.user.customStatus ?? null,
       joinedAt: member.joinedAt,
-      role: member.role
+      roleName: member.role && !member.role.isDefault ? member.role.name : null,
+      roleColor: member.role?.color ?? null
     })
     setCardRect(rect)
   }, [])
@@ -120,7 +114,8 @@ function MemberRow({
   onClick: (member: Member, presence: UserStatus, rect: DOMRect) => void
 }) {
   const name = member.user.displayName ?? member.user.username
-  const badge = roleLabel(member.role)
+  const roleColor = member.role?.color
+  const roleName = member.role && !member.role.isDefault ? member.role.name : null
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -141,13 +136,19 @@ function MemberRow({
           <div className="flex items-center gap-2">
             <span
               className={`truncate text-[15px] font-medium ${dimmed ? 'text-gray-200' : ''}`}
-              style={dimmed ? undefined : usernameAccentStyle(name)}
+              style={dimmed ? undefined : roleColor ? { color: roleColor } : undefined}
             >
               {name}
             </span>
-            {badge ? (
-              <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
-                {badge}
+            {roleName ? (
+              <span
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
+                style={roleColor
+                  ? { color: roleColor, borderColor: `${roleColor}66` }
+                  : { color: 'var(--color-primary)', borderColor: 'var(--color-primary-40, rgba(99,102,241,0.4))' }
+                }
+              >
+                {roleName}
               </span>
             ) : null}
           </div>

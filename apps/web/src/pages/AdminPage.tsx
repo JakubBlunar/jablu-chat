@@ -417,7 +417,8 @@ function AdminDashboard() {
 type ServerMemberRow = {
   userId: string
   serverId: string
-  role: string
+  roleId: string
+  role?: { id: string; name: string; color: string | null; isDefault: boolean; permissions: string }
   joinedAt: string
   user: { id: string; username: string; email: string; avatarUrl: string | null }
 }
@@ -606,6 +607,7 @@ function ServerMembersPanel({
   onServerUpdate: (patch: Partial<AdminServer>) => void
 }) {
   const [members, setMembers] = useState<ServerMemberRow[]>([])
+  const [roles, setRoles] = useState<{ id: string; name: string; color: string | null; isDefault: boolean }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [addUserId, setAddUserId] = useState('')
@@ -619,6 +621,13 @@ function ServerMembersPanel({
     try {
       const data = await adminFetch<ServerMemberRow[]>(`/api/admin/servers/${server.id}/members`)
       setMembers(data)
+      const uniqueRoles = new Map<string, { id: string; name: string; color: string | null; isDefault: boolean }>()
+      for (const m of data) {
+        if (m.role && !uniqueRoles.has(m.role.id)) {
+          uniqueRoles.set(m.role.id, { id: m.role.id, name: m.role.name, color: m.role.color, isDefault: m.role.isDefault })
+        }
+      }
+      setRoles(Array.from(uniqueRoles.values()))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load members')
     } finally {
@@ -668,13 +677,7 @@ function ServerMembersPanel({
     }
   }
 
-  const handleRoleChange = async (userId: string, newRole: string) => {
-    if (
-      newRole === 'owner' &&
-      !window.confirm('Transfer server ownership to this user? The current owner will be demoted to admin.')
-    )
-      return
-
+  const handleRoleChange = async (userId: string, roleId: string) => {
     setUpdatingRoleId(userId)
     setError('')
     try {
@@ -682,9 +685,9 @@ function ServerMembersPanel({
         members: ServerMemberRow[]
         owner: { id: string; username: string }
         ownerId: string
-      }>(`/api/admin/servers/${server.id}/members/${userId}/role`, { method: 'PATCH', body: { role: newRole } })
+      }>(`/api/admin/servers/${server.id}/members/${userId}/role`, { method: 'PATCH', body: { roleId } })
       setMembers(result.members)
-      onServerUpdate({ ownerId: result.ownerId, owner: result.owner })
+      if (result.owner) onServerUpdate({ ownerId: result.ownerId, owner: result.owner })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update role')
     } finally {
@@ -746,22 +749,17 @@ function ServerMembersPanel({
                 <span className="ml-2 text-xs text-gray-500">{m.user.email}</span>
               </div>
               <select
-                value={m.role}
+                value={m.roleId}
                 onChange={(e) => void handleRoleChange(m.userId, e.target.value)}
                 disabled={updatingRoleId === m.userId}
-                className={`rounded-md px-2 py-1 text-xs font-semibold uppercase outline-none disabled:opacity-50 ${
-                  m.role === 'owner'
-                    ? 'bg-yellow-500/20 text-yellow-400'
-                    : m.role === 'admin'
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'bg-white/5 text-gray-400'
-                }`}
+                className="rounded-md bg-white/5 px-2 py-1 text-xs font-semibold outline-none disabled:opacity-50"
+                style={m.role?.color ? { color: m.role.color } : { color: '#9ca3af' }}
               >
-                <option value="owner">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="member">Member</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
               </select>
-              {m.role !== 'owner' && (
+              {m.userId !== server.ownerId && (
                 <button
                   type="button"
                   onClick={() => void handleRemove(m.userId)}

@@ -5,7 +5,9 @@ import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MessageRow } from '@/components/chat/MessageRow'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
+import { PollCreator } from '@/components/chat/PollCreator'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
+import { ThreadPanel } from '@/components/chat/ThreadPanel'
 import { DmProfilePanel, UserProfileIcon } from '@/components/dm/DmProfilePanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -16,6 +18,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
+import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
@@ -123,7 +126,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const { lastOwnMsg, seenByLabel } = useReadReceipts(isDm, contextId, dm.currentConv, userId, messages)
 
   const channelId = isDm ? null : contextId
-  const pinned = usePinnedMessages(channelId)
+  const dmConversationId = isDm ? contextId : null
+  const pinned = usePinnedMessages(channelId, dmConversationId)
 
   const activeChannel = useChannelStore((s) => {
     if (isDm || !s.currentChannelId) return null
@@ -133,8 +137,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   })
 
   const [editingChannel, setEditingChannel] = useState(false)
-  const myRole = useMemberStore((s) => s.members.find((m) => m.userId === userId)?.role)
-  const isAdminOrOwner = myRole === 'admin' || myRole === 'owner'
+  const { has: hasPerm } = usePermissions(isDm ? null : useServerStore.getState().currentServerId)
+  const isAdminOrOwner = hasPerm(Permission.MANAGE_SERVER)
 
   type MemberMap = Map<string, ReturnType<typeof useMemberStore.getState>['members'][0]>
   const membersByUsernameRef = useRef<MemberMap>(new Map())
@@ -152,6 +156,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showPollCreator, setShowPollCreator] = useState(false)
 
   const [replyTarget, setReplyTarget] = useState<{
     id: string
@@ -262,13 +267,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const messageList = (
     <>
-      {!isDm && pinned.pinnedOpen && channelId && (
+      {pinned.pinnedOpen && (channelId || dmConversationId) && (
         <PinnedPanel
           messages={pinned.pinnedMessages}
           loading={pinned.pinnedLoading}
           onClose={() => pinned.setPinnedOpen(false)}
-          isAdminOrOwner={isAdminOrOwner}
-          channelId={channelId}
+          canUnpin={isDm || isAdminOrOwner}
+          channelId={channelId ?? undefined}
+          conversationId={dmConversationId ?? undefined}
           onJump={scroll.handleJumpToMessage}
         />
       )}
@@ -333,6 +339,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         {typingNames.length > 0 ? formatTyping(typingNames) : ''}
       </div>
 
+      {!isDm && showPollCreator && contextId && (
+        <div className="px-4 pb-2">
+          <PollCreator channelId={contextId} onClose={() => setShowPollCreator(false)} />
+        </div>
+      )}
+
       <UnifiedInput
         mode={mode}
         contextId={contextId}
@@ -349,6 +361,23 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 ? `Reply to ${replyTarget.authorName}...`
                 : `Message #${activeChannel.name}`
               : 'Message'
+        }
+        pollButton={
+          !isDm ? (
+            <button
+              type="button"
+              title="Create a poll"
+              onClick={() => setShowPollCreator((p) => !p)}
+              className={`rounded p-1.5 transition ${showPollCreator ? 'text-primary' : 'text-gray-400 hover:text-white'}`}
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M3 3v18h18" />
+                <rect x="7" y="13" width="3" height="5" rx="0.5" />
+                <rect x="12" y="9" width="3" height="9" rx="0.5" />
+                <rect x="17" y="5" width="3" height="13" rx="0.5" />
+              </svg>
+            </button>
+          ) : undefined
         }
       />
 
@@ -437,6 +466,15 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 <UserProfileIcon />
               </button>
             )}
+            <button
+              type="button"
+              title="Pinned messages"
+              aria-label="Pinned messages"
+              onClick={() => void pinned.handleOpenPinned()}
+              className={`shrink-0 rounded p-1.5 transition ${pinned.pinnedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              <PinHeaderIcon />
+            </button>
             <div className="shrink-0">
               <SearchBar
                 searchOpen={searchOpen}
@@ -516,7 +554,10 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             </Suspense>
           </div>
         ) : (
-          memberSidebar
+          <>
+            <ThreadPanel />
+            {memberSidebar}
+          </>
         )}
       </div>
 

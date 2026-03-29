@@ -13,6 +13,7 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
+import { useThreadStore } from '@/stores/thread.store'
 
 function XIcon() {
   return (
@@ -39,7 +40,9 @@ export function UnifiedInput({
   onSent,
   channels,
   gifEnabled,
-  placeholder
+  placeholder,
+  pollButton,
+  threadParentId
 }: {
   mode: 'channel' | 'dm'
   contextId: string
@@ -49,6 +52,8 @@ export function UnifiedInput({
   channels?: MentionChannel[]
   gifEnabled?: boolean
   placeholder: string
+  pollButton?: React.ReactNode
+  threadParentId?: string
 }) {
   const isDm = mode === 'dm'
   const inputRef = useRef<ChatInputBarHandle>(null)
@@ -99,10 +104,18 @@ export function UnifiedInput({
       if (isDm) {
         getSocket()?.emit('dm:send', { conversationId: contextId, content: url })
       } else {
-        getSocket()?.emit('message:send', { channelId: contextId, content: url })
+        const payload: Record<string, unknown> = { channelId: contextId, content: url }
+        if (threadParentId) payload.threadParentId = threadParentId
+        getSocket()?.emit('message:send', payload, (res: { ok?: boolean; message?: Message }) => {
+          if (res?.ok && res.message) {
+            if (threadParentId) useThreadStore.getState().addMessage(res.message)
+            else useMessageStore.getState().addMessage(res.message)
+          }
+        })
+        return
       }
     },
-    [isDm, contextId]
+    [isDm, contextId, threadParentId]
   )
 
   function emitTypingThrottled() {
@@ -161,17 +174,24 @@ export function UnifiedInput({
         if (res?.ok && res.message) useDmStore.getState().addMessage(res.message)
       })
     } else {
-      if (useMessageStore.getState().hasNewer) {
+      if (!threadParentId && useMessageStore.getState().hasNewer) {
         useMessageStore.getState().clearMessages()
         await useMessageStore.getState().fetchMessages(contextId)
       }
       getSocket()?.emit('message:send', {
         channelId: contextId,
         content: content || undefined,
-        replyToId: replyTarget?.id,
+        replyToId: threadParentId ? undefined : replyTarget?.id,
+        threadParentId,
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
-      }, (res: { ok?: boolean; message?: Message }) => {
-        if (res?.ok && res.message) useMessageStore.getState().addMessage(res.message)
+      }, (res: { ok?: boolean; message?: Message; error?: string }) => {
+        if (res?.ok && res.message) {
+          if (threadParentId) useThreadStore.getState().addMessage(res.message)
+          else useMessageStore.getState().addMessage(res.message)
+        } else if (res?.error) {
+          setSizeError(res.error)
+          setTimeout(() => setSizeError(null), 5000)
+        }
       })
     }
 
@@ -291,21 +311,26 @@ export function UnifiedInput({
         </div>
       )}
 
-      <ChatInputBar
-        ref={inputRef}
-        value={value}
-        onChange={setValue}
-        onSend={() => void send()}
-        onTyping={emitTypingThrottled}
-        onFilesPicked={(fl) => addFiles(fl)}
-        onPaste={handlePaste}
-        placeholder={placeholder}
-        disabled={!contextId}
-        members={mentionMembers.length > 0 ? mentionMembers : undefined}
-        channels={mentionChannels}
-        gifEnabled={gifEnabled}
-        onGifSelect={handleGifSelect}
-      />
+      <div className="flex items-end gap-1">
+        <div className="min-w-0 flex-1">
+          <ChatInputBar
+            ref={inputRef}
+            value={value}
+            onChange={setValue}
+            onSend={() => void send()}
+            onTyping={emitTypingThrottled}
+            onFilesPicked={(fl) => addFiles(fl)}
+            onPaste={handlePaste}
+            placeholder={placeholder}
+            disabled={!contextId}
+            members={mentionMembers.length > 0 ? mentionMembers : undefined}
+            channels={mentionChannels}
+            gifEnabled={gifEnabled}
+            onGifSelect={handleGifSelect}
+          />
+        </div>
+        {pollButton}
+      </div>
     </div>
   )
 }

@@ -23,6 +23,8 @@ export type ProfileCardUser = {
   customStatus?: string | null
   joinedAt?: string
   role?: string
+  roleName?: string | null
+  roleColor?: string | null
 }
 
 const statusLabel: Record<UserStatus, string> = {
@@ -30,12 +32,6 @@ const statusLabel: Record<UserStatus, string> = {
   idle: 'Idle',
   dnd: 'Do Not Disturb',
   offline: 'Offline'
-}
-
-function roleLabel(role?: string): string | null {
-  if (role === 'owner') return 'Owner'
-  if (role === 'admin') return 'Admin'
-  return null
 }
 
 function formatDate(iso?: string): string {
@@ -72,7 +68,7 @@ export function ProfileCard({
     return () => document.removeEventListener('pointerdown', handler)
   }, [onClose, isMobile])
 
-  const badge = roleLabel(user.role)
+  const badge = user.roleName ?? null
 
   if (isMobile) {
     return createPortal(
@@ -173,7 +169,13 @@ function ProfileCardContent({
         <div className="mt-1 flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{user.displayName ?? user.username}</h3>
           {badge && (
-            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary ring-1 ring-primary/40">
+            <span
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
+              style={user.roleColor
+                ? { color: user.roleColor, borderColor: `${user.roleColor}66` }
+                : { color: 'var(--color-primary)', borderColor: 'var(--color-primary-40, rgba(99,102,241,0.4))' }
+              }
+            >
               {badge}
             </span>
           )}

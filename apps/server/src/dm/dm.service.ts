@@ -475,6 +475,53 @@ export class DmService {
     return { allowed: friends }
   }
 
+  async pinMessage(conversationId: string, messageId: string, userId: string) {
+    await this.requireMembership(conversationId, userId)
+
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, directConversationId: conversationId }
+    })
+    if (!message) throw new NotFoundException('Message not found')
+    if (message.deleted) throw new BadRequestException('Cannot pin a deleted message')
+
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: { pinned: true },
+      include: messageInclude
+    })
+
+    return this.mapToWire(updated)
+  }
+
+  async unpinMessage(conversationId: string, messageId: string, userId: string) {
+    await this.requireMembership(conversationId, userId)
+
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, directConversationId: conversationId }
+    })
+    if (!message) throw new NotFoundException('Message not found')
+
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: { pinned: false },
+      include: messageInclude
+    })
+
+    return this.mapToWire(updated)
+  }
+
+  async getPinnedMessages(conversationId: string, userId: string) {
+    await this.requireMembership(conversationId, userId)
+
+    const rows = await this.prisma.message.findMany({
+      where: { directConversationId: conversationId, pinned: true, deleted: false },
+      orderBy: { createdAt: 'desc' },
+      include: messageInclude
+    })
+
+    return rows.map((m) => this.mapToWire(m))
+  }
+
   private toConversationWire(
     c: Prisma.DirectConversationGetPayload<{
       include: { members: { select: typeof memberSelect } }

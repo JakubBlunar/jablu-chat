@@ -1,11 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChannelType, ServerRole } from '@prisma/client'
+import { ChannelType } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { randomUUID } from 'node:crypto'
 import { EventBusService } from '../events/event-bus.service'
 import { LinkPreviewService } from '../messages/link-preview.service'
 import { messageInclude as webhookMessageInclude } from '../messages/message-wire'
 import { MessagesService } from '../messages/messages.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { AuditLogService } from '../servers/audit-log.service'
 
 @Injectable()
@@ -15,7 +17,8 @@ export class WebhooksService {
     private readonly messages: MessagesService,
     private readonly events: EventBusService,
     private readonly auditLog: AuditLogService,
-    private readonly linkPreviews: LinkPreviewService
+    private readonly linkPreviews: LinkPreviewService,
+    private readonly roles: RolesService
   ) {}
 
   private async requireTextChannel(channelId: string) {
@@ -31,46 +34,9 @@ export class WebhooksService {
     return channel
   }
 
-  private async requireServerMember(channelId: string, userId: string) {
-    const channel = await this.requireTextChannel(channelId)
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId: channel.serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    return channel
-  }
-
-  private async requireAdminOrOwnerForServer(serverId: string, userId: string) {
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId }
-    })
-    if (!server) {
-      throw new NotFoundException('Server not found')
-    }
-    if (server.ownerId === userId) {
-      return server
-    }
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
-      throw new ForbiddenException('Insufficient permissions')
-    }
-    return server
-  }
-
   async createWebhook(channelId: string, userId: string, name: string) {
     const channel = await this.requireTextChannel(channelId)
-    await this.requireAdminOrOwnerForServer(channel.serverId, userId)
+    await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_WEBHOOKS)
     const trimmed = name.trim()
     if (!trimmed) {
       throw new BadRequestException('Name is required')
@@ -88,8 +54,8 @@ export class WebhooksService {
   }
 
   async getWebhooks(channelId: string, userId: string) {
-    const channel = await this.requireServerMember(channelId, userId)
-    await this.requireAdminOrOwnerForServer(channel.serverId, userId)
+    const channel = await this.requireTextChannel(channelId)
+    await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_WEBHOOKS)
     return this.prisma.webhook.findMany({
       where: { channelId },
       select: {
@@ -113,7 +79,7 @@ export class WebhooksService {
       throw new NotFoundException('Webhook not found')
     }
     const channel = await this.requireTextChannel(webhook.channelId)
-    await this.requireAdminOrOwnerForServer(channel.serverId, userId)
+    await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_WEBHOOKS)
     await this.prisma.webhook.delete({ where: { id: webhookId } })
     await this.auditLog.log(channel.serverId, userId, 'webhook.delete', 'webhook', webhookId, webhook.name)
   }

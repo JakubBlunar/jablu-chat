@@ -187,6 +187,19 @@ export class UploadsService {
     return map[mime] ?? '.bin';
   }
 
+  async saveEmoji(file: Express.Multer.File): Promise<string> {
+    const ext = 'webp';
+    const filename = `${uuidv4()}.${ext}`;
+    const dest = join(this.uploadDir, 'emoji', filename);
+
+    await sharp(file.buffer)
+      .resize(128, 128, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality: 90 })
+      .toFile(dest);
+
+    return `/api/uploads/emoji/${filename}`;
+  }
+
   deleteFile(urlPath: string) {
     const relativePath = urlPath.replace(/^\/api\/uploads\//, '');
     const fullPath = resolve(this.uploadDir, relativePath);

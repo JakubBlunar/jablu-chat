@@ -5,9 +5,11 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common'
-import { ChannelType, Prisma, ServerRole } from '@prisma/client'
+import { ChannelType, Prisma } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { EventBusService } from '../../events/event-bus.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { RolesService } from '../../roles/roles.service'
 import { UploadsService } from '../../uploads/uploads.service'
 import { AuditLogService } from '../audit-log.service'
 
@@ -17,52 +19,16 @@ export class ChannelsService {
     private readonly events: EventBusService,
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
-    private readonly auditLog: AuditLogService
+    private readonly auditLog: AuditLogService,
+    private readonly roles: RolesService
   ) {}
 
-  private async getServerOrThrow(serverId: string) {
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId }
-    })
-    if (!server) {
-      throw new NotFoundException('Server not found')
-    }
-    return server
-  }
-
   private async requireMembership(serverId: string, userId: string) {
-    await this.getServerOrThrow(serverId)
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    return membership
-  }
-
-  private async requireAdminOrOwner(serverId: string, userId: string) {
-    const server = await this.getServerOrThrow(serverId)
-    if (server.ownerId === userId) {
-      return
-    }
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
-      throw new ForbiddenException('Insufficient permissions')
-    }
+    return this.roles.requireMembership(serverId, userId)
   }
 
   async createChannel(serverId: string, userId: string, name: string, type: ChannelType, categoryId?: string | null) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const maxPos = await this.prisma.channel.aggregate({
       where: { serverId },
       _max: { position: true }
@@ -107,7 +73,7 @@ export class ChannelsService {
   }
 
   async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number; categoryId?: string | null }) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const channel = await this.prisma.channel.findFirst({
       where: { id: channelId, serverId }
     })
@@ -141,7 +107,7 @@ export class ChannelsService {
   }
 
   async deleteChannel(serverId: string, channelId: string, userId: string) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const channel = await this.prisma.channel.findFirst({
       where: { id: channelId, serverId }
     })
@@ -164,7 +130,7 @@ export class ChannelsService {
   }
 
   async reorderChannels(serverId: string, userId: string, channelIds: string[]) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
 
     const channels = await this.prisma.channel.findMany({
       where: { id: { in: channelIds }, serverId },

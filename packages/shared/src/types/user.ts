@@ -19,6 +19,8 @@ export type UserStatus = 'online' | 'idle' | 'dnd' | 'offline'
 export interface UserProfile extends User {
   memberSince?: string
   role?: ServerRole
+  roleColor?: string | null
 }
 
+/** @deprecated Use Role from permissions.ts instead */
 export type ServerRole = 'owner' | 'admin' | 'member'

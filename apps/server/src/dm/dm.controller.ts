@@ -39,6 +39,11 @@ export class DmController {
     return this.dm.getConversationReadStates(id, user.id)
   }
 
+  @Get(':id/messages/pinned')
+  getPinnedMessages(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }) {
+    return this.dm.getPinnedMessages(id, user.id)
+  }
+
   @Get(':id')
   getConversation(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }) {
     return this.dm.getConversation(id, user.id)

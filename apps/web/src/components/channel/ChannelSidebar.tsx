@@ -38,6 +38,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { type Member, useMemberStore } from '@/stores/member.store'
+import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { type VoiceParticipant, useVoiceStore } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -452,8 +453,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
 
   const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, categories)
 
-  const myMembership = useMemberStore((s) => s.members.find((m) => m.userId === user?.id))
-  const isAdminOrOwner = myMembership?.role === 'owner' || myMembership?.role === 'admin'
+  const { has: hasPerm } = usePermissions(currentServer?.id)
+  const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
 
   const isOwner = currentServer?.ownerId === user?.id
   const removeServer = useServerStore((s) => s.removeServer)
@@ -558,7 +559,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         status: (member?.user.status ?? 'online') as UserStatus,
         customStatus: member?.user.customStatus ?? null,
         joinedAt: member?.joinedAt,
-        role: member?.role
+        roleName: member?.role && !member.role.isDefault ? member.role.name : null,
+        roleColor: member?.role?.color ?? null
       })
       setVoiceCardRect(rect)
     },
