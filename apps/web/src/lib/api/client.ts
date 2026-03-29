@@ -21,70 +21,18 @@ import type {
   Webhook
 } from '@chat/shared'
 
-const AUTH_STORAGE_KEY = 'chat-auth'
-
-function readPersistedAuth(): {
-  accessToken: string | null
-  refreshToken: string | null
-} {
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
-    if (!raw) return { accessToken: null, refreshToken: null }
-    const parsed = JSON.parse(raw) as {
-      state?: {
-        accessToken?: string | null
-        refreshToken?: string | null
-      }
-    }
-    return {
-      accessToken: parsed.state?.accessToken ?? null,
-      refreshToken: parsed.state?.refreshToken ?? null
-    }
-  } catch {
-    return { accessToken: null, refreshToken: null }
-  }
-}
-
-function writePersistedAuth(accessToken: string, refreshToken: string) {
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
-    const existing = raw ? JSON.parse(raw) : {}
-    existing.state = {
-      ...existing.state,
-      accessToken,
-      refreshToken
-    }
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(existing))
-  } catch {
-    /* ignore */
-  }
-}
-
-export class ApiError extends Error {
-  readonly status: number
-  readonly body: unknown
-
-  constructor(message: string, status: number, body: unknown) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.body = body
-  }
-}
-
-export type GifResult = {
-  id: string
-  title: string
-  url: string
-  preview: string
-  width: number
-  height: number
-}
-
-export type GifSearchResult = {
-  results: GifResult[]
-  next: string
-}
+import { readPersistedAuth, writePersistedAuth } from './auth-storage'
+import { ApiError } from './errors'
+import type {
+  ActiveSession,
+  AuditLogEntry,
+  AutoModRule,
+  CustomEmoji,
+  DmConversation,
+  EmojiStat,
+  GifSearchResult,
+  SearchResult
+} from './types'
 
 export class ApiClient {
   baseUrl = ''
@@ -826,93 +774,4 @@ export class ApiClient {
   ): Promise<{ userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]> {
     return this.get(`/api/servers/${serverId}/events/${eventId}/interested`)
   }
-}
-
-export type SearchResult = {
-  id: string
-  content: string | null
-  authorId: string | null
-  author: {
-    id: string
-    username: string
-    displayName: string | null
-    avatarUrl: string | null
-  } | null
-  channelId: string | null
-  channel: { id: string; name: string; serverId: string } | null
-  dmConversationId: string | null
-  createdAt: string
-}
-
-export type AuditLogEntry = {
-  id: string
-  serverId: string
-  actorId: string
-  action: string
-  targetType: string | null
-  targetId: string | null
-  details: string | null
-  createdAt: string
-  actor: { id: string; username: string; displayName: string | null; avatarUrl: string | null } | null
-}
-
-export type AutoModRule = {
-  id: string | null
-  type: 'word_filter' | 'link_filter' | 'spam_detection'
-  enabled: boolean
-  config: Record<string, unknown>
-}
-
-export type CustomEmoji = {
-  id: string
-  serverId: string
-  name: string
-  imageUrl: string
-  uploadedById: string | null
-  createdAt: string
-}
-
-export type EmojiStat = {
-  emoji: string
-  usageCount: number
-  lastUsed: string | null
-  imageUrl: string | null
-  createdAt: string | null
-}
-
-export type DmConversation = {
-  id: string
-  isGroup: boolean
-  groupName: string | null
-  createdAt: string
-  members: {
-    userId: string
-    username: string
-    displayName: string | null
-    avatarUrl: string | null
-    bio: string | null
-    status: string
-    createdAt: string
-  }[]
-  lastMessage?: {
-    content: string | null
-    authorId: string
-    createdAt: string
-  } | null
-}
-
-export type ActiveSession = {
-  id: string
-  userAgent: string | null
-  ipAddress: string | null
-  lastUsedAt: string | null
-  createdAt: string
-}
-
-export const api = new ApiClient()
-
-export function resolveMediaUrl(path: string | null | undefined): string | undefined {
-  if (!path) return undefined
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) return path
-  return api.baseUrl ? `${api.baseUrl}${path}` : path
 }

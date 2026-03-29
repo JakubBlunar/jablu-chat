@@ -21,6 +21,11 @@ import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { ReadStateService } from '../read-state/read-state.service'
 import { RedisService } from '../redis/redis.service'
+import { registerEventListeners } from './gateway-event-listeners'
+import {
+  describePushPreview as describePushPreviewText,
+  sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx
+} from './gateway-push-helpers'
 import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 
 @WebSocketGateway({ namespace: '/' })
@@ -35,7 +40,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   private readonly onlineUsers = new Map<string, number>()
 
   /** userId -> manually chosen status (dnd) that should not be overridden by idle detection */
-  private readonly manualStatus = new Map<string, string>()
+  readonly manualStatus = new Map<string, string>()
 
   /** socketId -> activity status for that specific connection */
   private readonly socketActivityStatus = new Map<string, 'online' | 'idle'>()
@@ -52,16 +57,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   private static readonly DISCONNECT_GRACE_MS = 2 * 60 * 1000
 
   constructor(
-    private readonly prisma: PrismaService,
+    readonly prisma: PrismaService,
     private readonly messages: MessagesService,
     private readonly polls: PollsService,
     private readonly automod: AutoModService,
     private readonly dm: DmService,
     private readonly linkPreviews: LinkPreviewService,
     private readonly wsJwtGuard: WsJwtGuard,
-    private readonly events: EventBusService,
+    readonly events: EventBusService,
     private readonly readState: ReadStateService,
-    private readonly push: PushService,
+    readonly push: PushService,
     private readonly redis: RedisService
   ) {}
 
@@ -88,7 +93,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return false
   }
 
-  private isUserOnline(userId: string): boolean {
+  isUserOnline(userId: string): boolean {
     return this.onlineUsers.has(userId) || this.disconnectGrace.has(userId)
   }
 
@@ -103,266 +108,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   afterInit() {
-    this.events.on('user:status', async (payload: { userId: string; status: string }) => {
-      if (payload.status === 'dnd') {
-        this.manualStatus.set(payload.userId, 'dnd')
-      } else {
-        this.manualStatus.delete(payload.userId)
-      }
-
-      const memberships = await this.prisma.serverMember.findMany({
-        where: { userId: payload.userId },
-        select: { serverId: true }
-      })
-      for (const m of memberships) {
-        this.server.to(`server:${m.serverId}`).emit('user:status', {
-          userId: payload.userId,
-          status: payload.status
-        })
-      }
-    })
-
-    this.events.on('user:custom-status', async (payload: { userId: string; customStatus: string | null }) => {
-      const memberships = await this.prisma.serverMember.findMany({
-        where: { userId: payload.userId },
-        select: { serverId: true }
-      })
-      for (const m of memberships) {
-        this.server.to(`server:${m.serverId}`).emit('user:custom-status', {
-          userId: payload.userId,
-          customStatus: payload.customStatus
-        })
-      }
-    })
-
-    this.events.on(
-      'webhook:message',
-      (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
-        this.emitToChannel(payload.channelId, 'message:new', payload.message)
-
-        if (payload.serverId && payload.webhookName) {
-          const content = (payload.message as { content?: string })?.content
-          this.sendPushToOfflineMembers(
-            payload.serverId,
-            '',
-            payload.webhookName,
-            content,
-            `/channels/${payload.serverId}/${payload.channelId}`,
-            payload.channelId,
-            []
-          ).catch(() => {})
-        }
-      }
-    )
-
-    this.events.on(
-      'webhook:link-previews',
-      (payload: { channelId: string; messageId: string; linkPreviews: unknown }) => {
-        this.emitToChannel(payload.channelId, 'message:link-previews', {
-          messageId: payload.messageId,
-          linkPreviews: payload.linkPreviews
-        })
-      }
-    )
-
-    this.events.on('dm:read', (payload: { conversationId: string; userId: string; lastReadAt: string }) => {
-      this.emitToDm(payload.conversationId, 'dm:read', payload)
-    })
-
-    this.events.on('admin:message:delete', (payload: { messageId: string; channelId: string }) => {
-      this.emitToChannel(payload.channelId, 'message:delete', payload)
-    })
-
-    this.events.on('admin:dm:delete', (payload: { messageId: string; conversationId: string }) => {
-      this.emitToDm(payload.conversationId, 'dm:delete', payload)
-    })
-
-    this.events.on('channel:reorder', (payload: { serverId: string; channelIds: string[] }) => {
-      this.server.to(`server:${payload.serverId}`).emit('channel:reorder', { channelIds: payload.channelIds })
-    })
-
-    this.events.on('channel:created', async (payload: { serverId: string; channel: { id: string } }) => {
-      this.server.to(`server:${payload.serverId}`).emit('channel:created', payload)
-      const sockets = await this.server.in(`server:${payload.serverId}`).fetchSockets()
-      for (const s of sockets) s.join(`channel:${payload.channel.id}`)
-    })
-
-    this.events.on('channel:updated', (payload: { serverId: string; channel: unknown }) => {
-      this.server.to(`server:${payload.serverId}`).emit('channel:updated', payload)
-    })
-
-    this.events.on('channel:deleted', (payload: { serverId: string; channelId: string }) => {
-      this.server.to(`server:${payload.serverId}`).emit('channel:deleted', payload)
-    })
-
-    this.events.on('category:created', (payload: { serverId: string; category: unknown }) => {
-      this.server.to(`server:${payload.serverId}`).emit('category:created', payload)
-    })
-
-    this.events.on('category:updated', (payload: { serverId: string; category: unknown }) => {
-      this.server.to(`server:${payload.serverId}`).emit('category:updated', payload)
-    })
-
-    this.events.on('category:deleted', (payload: { serverId: string; categoryId: string }) => {
-      this.server.to(`server:${payload.serverId}`).emit('category:deleted', payload)
-    })
-
-    this.events.on('category:reorder', (payload: { serverId: string; categoryIds: string[] }) => {
-      this.server.to(`server:${payload.serverId}`).emit('category:reorder', { categoryIds: payload.categoryIds })
-    })
-
-    this.events.on('member:joined', async (payload: { serverId: string; member: unknown }) => {
-      const { serverId, member } = payload as { serverId: string; member: { userId: string } }
-      this.server.to(`server:${serverId}`).emit('member:joined', { serverId, member })
-
-      const channels = await this.prisma.channel.findMany({
-        where: { serverId },
-        select: { id: true }
-      })
-      const userSockets = await this.server.in(`user:${member.userId}`).fetchSockets()
-      for (const s of userSockets) {
-        s.join(`server:${serverId}`)
-        for (const ch of channels) {
-          s.join(`channel:${ch.id}`)
-        }
-        const sids = (s.data as { serverIds?: string[] }).serverIds
-        if (sids && !sids.includes(serverId)) {
-          sids.push(serverId)
-        }
-      }
-    })
-
-    this.events.on('user:profile', async (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
-      const memberships = await this.prisma.serverMember.findMany({
-        where: { userId: payload.userId },
-        select: { serverId: true }
-      })
-      for (const m of memberships) {
-        this.server.to(`server:${m.serverId}`).emit('user:profile', payload)
-      }
-    })
-
-    this.events.on('server:updated', (payload: { serverId: string; name?: string; iconUrl?: string | null }) => {
-      this.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
-    })
-
-    this.events.on('member:updated', (payload: { serverId: string; userId: string; roleId?: string }) => {
-      this.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
-    })
-
-    this.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {
-      this.server.to(`server:${payload.serverId}`).emit('member:left', {
-        serverId: payload.serverId,
-        userId: payload.userId
-      })
-
-      const channels = await this.prisma.channel.findMany({
-        where: { serverId: payload.serverId },
-        select: { id: true }
-      })
-      const userSockets = await this.server.in(`user:${payload.userId}`).fetchSockets()
-      for (const s of userSockets) {
-        s.leave(`server:${payload.serverId}`)
-        for (const ch of channels) {
-          s.leave(`channel:${ch.id}`)
-        }
-        const serverIds = (s.data as { serverIds?: string[] }).serverIds
-        if (serverIds) {
-          const idx = serverIds.indexOf(payload.serverId)
-          if (idx !== -1) serverIds.splice(idx, 1)
-        }
-      }
-    })
-
-    for (const ev of ['event:created', 'event:updated', 'event:cancelled', 'event:started', 'event:completed'] as const) {
-      this.events.on(ev, (payload: { serverId: string; event: unknown }) => {
-        this.server.to(`server:${payload.serverId}`).emit(ev, payload.event)
-      })
-    }
-
-    this.events.on(
-      'event:interest',
-      (payload: { serverId: string; eventId: string; userId: string; interested: boolean; count: number }) => {
-        this.server.to(`server:${payload.serverId}`).emit('event:interest', {
-          eventId: payload.eventId,
-          userId: payload.userId,
-          interested: payload.interested,
-          count: payload.count
-        })
-      }
-    )
-
-    this.events.on(
-      'friend:request',
-      (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
-        const { friendshipId, requester, addressee } = payload
-        const addresseeId = (addressee as { id: string }).id
-        const requesterName =
-          (requester as { displayName?: string }).displayName ??
-          (requester as { username?: string }).username ??
-          'Someone'
-
-        this.server.to(`user:${addresseeId}`).emit('friend:request', {
-          friendshipId,
-          user: requester,
-          direction: 'incoming',
-          createdAt: new Date().toISOString()
-        })
-
-        if (!this.isUserOnline(addresseeId)) {
-          this.push
-            .sendToUsers([addresseeId], {
-              title: 'Friend Request',
-              body: `${requesterName} sent you a friend request`,
-              url: '/channels/@me'
-            })
-            .catch(() => {})
-        }
-      }
-    )
-
-    this.events.on(
-      'friend:accepted',
-      (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
-        const { friendshipId, requester, addressee } = payload
-        this.server.to(`user:${(requester as { id: string }).id}`).emit('friend:accepted', {
-          friendshipId,
-          user: addressee
-        })
-        this.server.to(`user:${(addressee as { id: string }).id}`).emit('friend:accepted', {
-          friendshipId,
-          user: requester
-        })
-      }
-    )
-
-    this.events.on(
-      'friend:declined',
-      (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
-        this.server.to(`user:${payload.requesterId}`).emit('friend:declined', {
-          friendshipId: payload.friendshipId
-        })
-      }
-    )
-
-    this.events.on(
-      'friend:cancelled',
-      (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
-        this.server.to(`user:${payload.addresseeId}`).emit('friend:cancelled', {
-          friendshipId: payload.friendshipId
-        })
-      }
-    )
-
-    this.events.on(
-      'friend:removed',
-      (payload: { friendshipId: string; userId: string; otherUserId: string }) => {
-        this.server.to(`user:${payload.otherUserId}`).emit('friend:removed', {
-          friendshipId: payload.friendshipId,
-          userId: payload.userId
-        })
-      }
-    )
+    registerEventListeners(this)
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
@@ -1027,56 +773,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
-  /**
-   * Sends web-push notifications to server members who have no active
-   * Socket.IO connection ("offline"). Called fire-and-forget from message
-   * handlers so it never blocks the message response.
-   *
-   * Respects per-channel ChannelNotifPref:
-   *   - "all" (default) → always push
-   *   - "mentions"       → push only if user was @mentioned
-   *   - "none"           → skip
-   *
-   * Current cost per message: 2 indexed DB queries (serverMember + channelNotifPref)
-   * plus one web-push HTTP call per eligible subscription.
-   *
-   * --- Possible future improvements ---
-   *
-   * 1. Redis pref cache: store prefs in Redis (hash per channel or per user),
-   *    invalidate on PUT/DELETE in NotifPrefsController. Eliminates the
-   *    channelNotifPref DB query and reduces latency to a single Redis HMGET.
-   *
-   * 2. Bull/BullMQ job queue: instead of doing web-push calls inline,
-   *    enqueue a "send-push" job. A dedicated worker processes the queue,
-   *    retries on transient failures, and keeps the gateway event loop free.
-   *    Pairs well with Redis since Bull already requires it.
-   *
-   * 3. Batch DB query: combine the serverMember + channelNotifPref lookups
-   *    into a single raw SQL join to halve the DB round-trips.
-   *
-   * 4. User-level DND / quiet hours: check a global user preference before
-   *    sending, so users can silence all push during certain time windows.
-   *
-   * At current scale (<20 concurrent users) the indexed queries are
-   * sub-millisecond and the simple approach is appropriate.
-   */
-  private describePushPreview(
-    content: string | undefined,
-    attachments?: { type: string }[]
-  ): string {
-    if (content?.trim()) return content.slice(0, 100)
-    if (!attachments || attachments.length === 0) return '[attachment]'
-    const first = attachments[0]
-    const label =
-      first.type === 'image' ? 'an image'
-      : first.type === 'video' ? 'a video'
-      : first.type === 'gif' ? 'a GIF'
-      : 'a file'
-    if (attachments.length === 1) return `sent ${label}`
-    return `sent ${attachments.length} files`
+  describePushPreview(content: string | undefined, attachments?: { type: string }[]): string {
+    return describePushPreviewText(content, attachments)
   }
 
-  private async sendPushToOfflineMembers(
+  async sendPushToOfflineMembers(
     serverId: string,
     senderId: string,
     senderName: string,
@@ -1086,75 +787,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     mentionedUserIds: string[],
     attachments?: { type: string }[]
   ) {
-    const members = await this.prisma.serverMember.findMany({
-      where: { serverId, NOT: { userId: senderId } },
-      select: { userId: true, notifLevel: true }
-    })
-
-    const offlineIds = members.filter((m) => !this.isUserOnline(m.userId))
-
-    if (offlineIds.length === 0) return
-
-    const serverPrefMap = new Map<string, string>()
-    for (const m of offlineIds) {
-      if (m.notifLevel) serverPrefMap.set(m.userId, m.notifLevel)
-    }
-
-    const offlineUserIds = offlineIds.map((m) => m.userId)
-    const channelPrefMap = await this.getChannelNotifPrefs(channelId, offlineUserIds)
-    const mentionSet = new Set(mentionedUserIds)
-
-    const eligibleIds = offlineUserIds.filter((id) => {
-      const channelLevel = channelPrefMap.get(id)
-      const serverLevel = serverPrefMap.get(id)
-      const effective = channelLevel ?? serverLevel ?? 'all'
-      if (effective === 'none') return false
-      if (effective === 'mentions') return mentionSet.has(id)
-      return true
-    })
-
-    if (eligibleIds.length === 0) return
-
-    const preview = this.describePushPreview(content, attachments)
-    await this.push.sendToUsers(eligibleIds, {
-      title: senderName,
-      body: preview,
-      url
-    })
-  }
-
-  private async getChannelNotifPrefs(channelId: string, userIds: string[]): Promise<Map<string, string>> {
-    const cacheKey = `notifprefs:${channelId}`
-    try {
-      const cached = await this.redis.client.hgetall(cacheKey)
-      if (Object.keys(cached).length > 0) {
-        const map = new Map<string, string>()
-        for (const uid of userIds) {
-          if (cached[uid]) map.set(uid, cached[uid])
-        }
-        return map
-      }
-    } catch {
-      /* fall through to DB */
-    }
-
-    const prefs = await this.prisma.channelNotifPref.findMany({
-      where: { channelId }
-    })
-    const map = new Map<string, string>()
-    if (prefs.length > 0) {
-      const hash: Record<string, string> = {}
-      for (const p of prefs) {
-        hash[p.userId] = p.level
-        if (userIds.includes(p.userId)) map.set(p.userId, p.level)
-      }
-      try {
-        await this.redis.client.hmset(cacheKey, hash)
-        await this.redis.client.expire(cacheKey, 300)
-      } catch {
-        /* best-effort cache */
-      }
-    }
-    return map
+    return sendPushToOfflineMembersWithCtx(
+      {
+        prisma: this.prisma,
+        push: this.push,
+        redis: this.redis,
+        isUserOnline: this.isUserOnline.bind(this)
+      },
+      serverId,
+      senderId,
+      senderName,
+      content,
+      url,
+      channelId,
+      mentionedUserIds,
+      attachments
+    )
   }
 }
