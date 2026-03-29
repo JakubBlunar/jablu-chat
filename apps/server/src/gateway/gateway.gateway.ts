@@ -61,8 +61,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   private afkInterval: NodeJS.Timeout | null = null
   private idleCheckInterval: NodeJS.Timeout | null = null
 
-  private static readonly DISCONNECT_GRACE_MS = 2 * 60 * 1000
-  private static readonly IDLE_THRESHOLD_MS = 5 * 60 * 1000
+  private static readonly DISCONNECT_GRACE_MS = 5 * 60 * 1000
+  private static readonly IDLE_THRESHOLD_MS = 3 * 60 * 1000
 
   constructor(
     readonly prisma: PrismaService,
