@@ -95,6 +95,8 @@ function buildChannelLookup(channels: ChannelRef[]) {
 
 function processMentions(text: string, byUsername: Map<string, Member>): string {
   return text.replace(/@(\w+)/g, (full, name: string) => {
+    if (name.toLowerCase() === 'everyone') return `[@everyone](mention:everyone)`
+    if (name.toLowerCase() === 'here') return `[@here](mention:here)`
     const member = byUsername.get(name.toLowerCase())
     if (!member) return full
     const display = member.user.displayName ?? member.user.username
@@ -220,23 +222,36 @@ export const MarkdownContent = memo(function MarkdownContent({
       a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
         if (href?.startsWith('mention:')) {
           const username = href.slice('mention:'.length)
+          const isBroadcast = username === 'everyone' || username === 'here'
           return (
             <span
-              role="button"
-              tabIndex={0}
-              className="cursor-pointer rounded bg-primary/20 px-1 text-primary hover:underline"
-              onClick={(e: React.MouseEvent) => {
-                if (onMentionClick) {
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  onMentionClick(username, rect)
-                }
-              }}
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (e.key === 'Enter' && onMentionClick) {
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  onMentionClick(username, rect)
-                }
-              }}
+              role={isBroadcast ? undefined : 'button'}
+              tabIndex={isBroadcast ? undefined : 0}
+              className={
+                isBroadcast
+                  ? 'rounded bg-yellow-500/20 px-1 font-medium text-yellow-300'
+                  : 'cursor-pointer rounded bg-primary/20 px-1 text-primary hover:underline'
+              }
+              onClick={
+                isBroadcast
+                  ? undefined
+                  : (e: React.MouseEvent) => {
+                      if (onMentionClick) {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        onMentionClick(username, rect)
+                      }
+                    }
+              }
+              onKeyDown={
+                isBroadcast
+                  ? undefined
+                  : (e: React.KeyboardEvent) => {
+                      if (e.key === 'Enter' && onMentionClick) {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        onMentionClick(username, rect)
+                      }
+                    }
+              }
             >
               {children}
             </span>

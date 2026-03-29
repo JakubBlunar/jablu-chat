@@ -90,9 +90,17 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const filteredMembers = useMemo(() => {
     if (popupMode !== 'mention' || !members) return []
     const q = query.toLowerCase()
-    return members
+    const broadcastEntries: MentionMember[] = []
+    if ('everyone'.startsWith(q)) {
+      broadcastEntries.push({ userId: '__everyone__', username: 'everyone', displayName: 'everyone', avatarUrl: null })
+    }
+    if ('here'.startsWith(q)) {
+      broadcastEntries.push({ userId: '__here__', username: 'here', displayName: 'here', avatarUrl: null })
+    }
+    const memberResults = members
       .filter((m) => m.username.toLowerCase().includes(q) || (m.displayName && m.displayName.toLowerCase().includes(q)))
-      .slice(0, 10)
+      .slice(0, 10 - broadcastEntries.length)
+    return [...broadcastEntries, ...memberResults]
   }, [popupMode, query, members])
 
   const filteredChannels = useMemo(() => {
@@ -407,27 +415,43 @@ function MentionPopup({
       ref={listRef}
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
-      {members.map((m, i) => (
-        <button
-          key={m.userId}
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            onSelect(m)
-          }}
-          className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition ${
-            i === selectedIdx ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'
-          }`}
-        >
-          <UserAvatar username={m.username} avatarUrl={m.avatarUrl} size="sm" />
-          <div className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">{m.displayName ?? m.username}</span>
-            {m.displayName && m.displayName !== m.username && (
-              <span className="block truncate text-xs text-gray-500">@{m.username}</span>
+      {members.map((m, i) => {
+        const isBroadcast = m.userId === '__everyone__' || m.userId === '__here__'
+        return (
+          <button
+            key={m.userId}
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              onSelect(m)
+            }}
+            className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition ${
+              i === selectedIdx ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'
+            }`}
+          >
+            {isBroadcast ? (
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-500/20">
+                <span className="text-xs text-yellow-300">@</span>
+              </div>
+            ) : (
+              <UserAvatar username={m.username} avatarUrl={m.avatarUrl} size="sm" />
             )}
-          </div>
-        </button>
-      ))}
+            <div className="min-w-0 flex-1">
+              <span className={`block truncate text-sm font-medium ${isBroadcast ? 'text-yellow-300' : ''}`}>
+                @{m.username}
+              </span>
+              {isBroadcast && (
+                <span className="block truncate text-xs text-gray-500">
+                  {m.userId === '__everyone__' ? 'Notify all members' : 'Notify online members'}
+                </span>
+              )}
+              {!isBroadcast && m.displayName && m.displayName !== m.username && (
+                <span className="block truncate text-xs text-gray-500">@{m.username}</span>
+              )}
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }

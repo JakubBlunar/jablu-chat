@@ -520,8 +520,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const { serverId } = msg
 
     let mentionedUserIds: string[] = []
+    let mentionEveryone = false
+    let mentionHere = false
     if (body.content && serverId) {
-      mentionedUserIds = await this.readState.resolveMentions(body.content, serverId, user.id)
+      const result = await this.readState.resolveMentions(
+        body.content,
+        serverId,
+        user.id,
+        this.getOnlineUserIds()
+      )
+      mentionedUserIds = result.userIds
+      mentionEveryone = result.everyone
+      mentionHere = result.here
       if (mentionedUserIds.length > 0) {
         await this.readState.incrementMention(body.channelId, mentionedUserIds)
       }
@@ -529,7 +539,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     this.emitToChannel(body.channelId, 'message:new', {
       ...msg,
-      mentionedUserIds
+      mentionedUserIds,
+      mentionEveryone,
+      mentionHere
     })
 
     if (body.content) {
