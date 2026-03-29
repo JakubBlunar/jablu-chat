@@ -118,6 +118,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
     })
 
+    this.events.on('user:custom-status', async (payload: { userId: string; customStatus: string | null }) => {
+      const memberships = await this.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      })
+      for (const m of memberships) {
+        this.server.to(`server:${m.serverId}`).emit('user:custom-status', {
+          userId: payload.userId,
+          customStatus: payload.customStatus
+        })
+      }
+    })
+
     this.events.on(
       'webhook:message',
       (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {

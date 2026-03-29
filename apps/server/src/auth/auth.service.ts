@@ -28,6 +28,7 @@ const PROFILE_SELECT = {
   avatarUrl: true,
   bio: true,
   status: true,
+  customStatus: true,
   dmPrivacy: true,
   lastSeenAt: true,
   createdAt: true
@@ -372,6 +373,14 @@ export class AuthService implements OnModuleInit {
     return this.prisma.user.update({
       where: { id: userId },
       data: { status: status as any },
+      select: PROFILE_SELECT
+    })
+  }
+
+  async updateCustomStatus(userId: string, customStatus: string | null) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { customStatus },
       select: PROFILE_SELECT
     })
   }

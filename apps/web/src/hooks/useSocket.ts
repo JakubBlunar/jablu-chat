@@ -242,6 +242,14 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
+    const onUserCustomStatus = (payload: { userId: string; customStatus: string | null }) => {
+      useMemberStore.getState().setUserCustomStatus(payload.userId, payload.customStatus)
+      const currentUser = useAuthStore.getState().user
+      if (currentUser && currentUser.id === payload.userId) {
+        useAuthStore.getState().setUser({ ...currentUser, customStatus: payload.customStatus })
+      }
+    }
+
     const onMemberJoined = (payload: { serverId: string; member: import('@/stores/member.store').Member }) => {
       const currentServerId = useServerStore.getState().currentServerId
       if (payload.serverId === currentServerId) {
@@ -500,6 +508,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('user:online', onUserOnline)
     socket.on('user:offline', onUserOffline)
     socket.on('user:status', onUserStatus)
+    socket.on('user:custom-status', onUserCustomStatus)
     socket.on('member:joined', onMemberJoined)
     socket.on('user:typing', onUserTyping)
     socket.on('reaction:add', onReactionAdd)
@@ -549,6 +558,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('user:online', onUserOnline)
       socket.off('user:offline', onUserOffline)
       socket.off('user:status', onUserStatus)
+      socket.off('user:custom-status', onUserCustomStatus)
       socket.off('member:joined', onMemberJoined)
       socket.off('user:typing', onUserTyping)
       socket.off('reaction:add', onReactionAdd)

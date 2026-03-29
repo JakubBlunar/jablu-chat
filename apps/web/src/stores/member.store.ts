@@ -15,6 +15,7 @@ export type Member = {
     avatarUrl: string | null
     bio: string | null
     status?: string
+    customStatus?: string | null
   }
 }
 
@@ -30,6 +31,7 @@ type MemberState = {
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string) => void
   setUserStatus: (userId: string, status: string) => void
+  setUserCustomStatus: (userId: string, customStatus: string | null) => void
   updateUserProfile: (userId: string, data: Partial<Member['user']>) => void
 }
 
@@ -86,6 +88,11 @@ export const useMemberStore = create<MemberState>((set) => ({
   setUserStatus: (userId, status) =>
     set((s) => ({
       members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, status } } : m))
+    })),
+
+  setUserCustomStatus: (userId: string, customStatus: string | null) =>
+    set((s) => ({
+      members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, customStatus } } : m))
     })),
 
   updateUserProfile: (userId, data) =>

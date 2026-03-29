@@ -356,6 +356,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         avatarUrl: member?.user.avatarUrl,
         bio: member?.user.bio ?? null,
         status: (member?.user.status ?? 'online') as UserStatus,
+        customStatus: member?.user.customStatus ?? null,
         joinedAt: member?.joinedAt,
         role: member?.role
       })
@@ -777,7 +778,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
           />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">{user?.displayName ?? user?.username ?? '…'}</p>
-            <p className="truncate text-xs text-gray-400 capitalize">{user?.status ?? 'online'}</p>
+            <p className="truncate text-xs text-gray-400">{user?.customStatus || <span className="capitalize">{user?.status ?? 'online'}</span>}</p>
           </div>
           <button
             type="button"

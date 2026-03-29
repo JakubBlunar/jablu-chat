@@ -16,6 +16,7 @@ model User {
   avatarUrl    String?  @map("avatar_url")
   bio          String?
   status       UserStatus @default(offline)
+  customStatus String?    @map("custom_status")
   dmPrivacy    DmPrivacy  @default(everyone) @map("dm_privacy")
   lastSeenAt   DateTime?  @map("last_seen_at")
   createdAt    DateTime   @default(now()) @map("created_at")

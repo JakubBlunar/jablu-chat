@@ -31,6 +31,7 @@ import {
   RefreshTokenDto,
   RegisterDto,
   ResetPasswordDto,
+  UpdateCustomStatusDto,
   UpdateDmPrivacyDto,
   UpdateProfileDto,
   UpdateStatusDto
@@ -193,6 +194,17 @@ export class AuthController {
     this.events.emit('user:status', {
       userId: user.id,
       status: dto.status
+    })
+    return updated
+  }
+
+  @Patch('custom-status')
+  @UseGuards(AuthGuard('jwt'))
+  async updateCustomStatus(@CurrentUser() user: { id: string }, @Body() dto: UpdateCustomStatusDto) {
+    const updated = await this.auth.updateCustomStatus(user.id, dto.customStatus || null)
+    this.events.emit('user:custom-status', {
+      userId: user.id,
+      customStatus: dto.customStatus || null
     })
     return updated
   }

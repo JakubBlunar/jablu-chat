@@ -38,6 +38,7 @@ export function MemberSidebar() {
       avatarUrl: member.user.avatarUrl,
       bio: member.user.bio ?? null,
       status: presence,
+      customStatus: member.user.customStatus ?? null,
       joinedAt: member.joinedAt,
       role: member.role
     })
@@ -150,6 +151,9 @@ function MemberRow({
               </span>
             ) : null}
           </div>
+          {member.user.customStatus && (
+            <p className="truncate text-xs text-gray-500">{member.user.customStatus}</p>
+          )}
         </div>
       </button>
     </li>

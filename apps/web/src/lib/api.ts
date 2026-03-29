@@ -368,6 +368,10 @@ export class ApiClient {
     return this.patch<User>('/api/auth/status', { status })
   }
 
+  updateCustomStatus(customStatus: string | null): Promise<User> {
+    return this.patch<User>('/api/auth/custom-status', { customStatus })
+  }
+
   getUploadConfig(): Promise<{ maxSizeMb: number }> {
     return this.get('/api/uploads/config')
   }
