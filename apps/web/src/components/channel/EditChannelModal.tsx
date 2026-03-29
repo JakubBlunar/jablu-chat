@@ -1,5 +1,6 @@
-import type { Channel } from '@chat/shared'
-import { useCallback, useState } from 'react'
+import type { Channel, Role } from '@chat/shared'
+import { Permission, permsToBigInt, hasPermission } from '@chat/shared'
+import { useCallback, useEffect, useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -14,6 +15,25 @@ function normalizeChannelName(raw: string): string {
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+type OverrideState = 'inherit' | 'allow' | 'deny'
+
+type RoleOverride = {
+  roleId: string
+  roleName: string
+  state: OverrideState
+  original: OverrideState
+}
+
+const SEND_MESSAGES = Permission.SEND_MESSAGES
+
+function parseOverrideState(allow: string, deny: string): OverrideState {
+  const a = permsToBigInt(allow)
+  const d = permsToBigInt(deny)
+  if (hasPermission(d, SEND_MESSAGES)) return 'deny'
+  if (hasPermission(a, SEND_MESSAGES)) return 'allow'
+  return 'inherit'
 }
 
 export function EditChannelModal({ channel, onClose }: { channel: Channel; onClose: () => void }) {
@@ -32,12 +52,71 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  const [roleOverrides, setRoleOverrides] = useState<RoleOverride[]>([])
+  const [permissionsLoading, setPermissionsLoading] = useState(false)
+  const [permissionsSaving, setPermissionsSaving] = useState(false)
+  const [showPermissions, setShowPermissions] = useState(false)
+
   const name = normalizeChannelName(rawName)
 
   const nameChanged = name !== channel.name
   const categoryChanged = categoryId !== (channel.categoryId ?? null)
   const archivedChanged = isArchived !== (channel.isArchived ?? false)
   const hasChanges = nameChanged || categoryChanged || archivedChanged
+
+  useEffect(() => {
+    if (!showPermissions || !currentServerId) return
+    let cancelled = false
+    setPermissionsLoading(true)
+
+    Promise.all([
+      api.getRoles(currentServerId),
+      api.getChannelOverrides(channel.id)
+    ]).then(([roles, overrides]) => {
+      if (cancelled) return
+      const overrideMap = new Map(
+        (overrides as Array<{ roleId: string; allow: string; deny: string }>).map(
+          (o) => [o.roleId, o] as const
+        )
+      )
+      const items: RoleOverride[] = roles.map((r: Role) => {
+        const o = overrideMap.get(r.id)
+        const state = o ? parseOverrideState(o.allow, o.deny) : 'inherit'
+        return { roleId: r.id, roleName: r.name, state, original: state }
+      })
+      setRoleOverrides(items)
+      setPermissionsLoading(false)
+    }).catch(() => {
+      if (!cancelled) setPermissionsLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [showPermissions, currentServerId, channel.id])
+
+  const permissionsChanged = roleOverrides.some((r) => r.state !== r.original)
+
+  const handleSavePermissions = useCallback(async () => {
+    if (!currentServerId || !permissionsChanged) return
+    setPermissionsSaving(true)
+    setError(null)
+    try {
+      const changed = roleOverrides.filter((r) => r.state !== r.original)
+      for (const r of changed) {
+        if (r.state === 'inherit') {
+          await api.deleteChannelOverride(currentServerId, channel.id, r.roleId)
+        } else {
+          const allow = r.state === 'allow' ? SEND_MESSAGES.toString() : '0'
+          const deny = r.state === 'deny' ? SEND_MESSAGES.toString() : '0'
+          await api.upsertChannelOverride(currentServerId, channel.id, r.roleId, allow, deny)
+        }
+      }
+      setRoleOverrides((prev) => prev.map((r) => ({ ...r, original: r.state })))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update permissions.')
+    } finally {
+      setPermissionsSaving(false)
+    }
+  }, [currentServerId, channel.id, roleOverrides, permissionsChanged])
 
   const handleSave = useCallback(async () => {
     if (!currentServerId || !name) return
@@ -79,6 +158,12 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     }
   }, [currentServerId, channel.id, currentChannelId, goToServer, fetchChannels, onClose])
 
+  const setRoleState = (roleId: string, state: OverrideState) => {
+    setRoleOverrides((prev) =>
+      prev.map((r) => (r.roleId === roleId ? { ...r, state } : r))
+    )
+  }
+
   return (
     <ModalOverlay onClose={onClose}>
       <h2 className="text-xl font-semibold text-white">Edit Channel</h2>
@@ -119,20 +204,107 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
           </label>
         )}
 
-        <label className="mt-5 flex cursor-pointer items-center justify-between text-sm text-gray-300">
-          <span>
-            Archive channel
-            <span className="ml-1 text-xs text-gray-500">
-              (read-only, hidden from default view)
+        {channel.type === 'text' && (
+          <label className="mt-5 flex cursor-pointer items-center justify-between text-sm text-gray-300">
+            <span>
+              Archive channel
+              <span className="ml-1 text-xs text-gray-500">
+                (read-only, hidden from default view)
+              </span>
             </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={isArchived}
-            onChange={(e) => setIsArchived(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-600 bg-surface-darkest text-primary accent-primary"
-          />
-        </label>
+            <input
+              type="checkbox"
+              checked={isArchived}
+              onChange={(e) => setIsArchived(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-600 bg-surface-darkest text-primary accent-primary"
+            />
+          </label>
+        )}
+
+        {channel.type === 'text' && (
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={() => setShowPermissions((v) => !v)}
+              className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-400 transition hover:text-gray-300"
+            >
+              <span>Channel Permissions</span>
+              <svg
+                className={`h-4 w-4 transition-transform ${showPermissions ? 'rotate-180' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+
+            {showPermissions && (
+              <div className="mt-3 rounded-lg bg-surface-darkest p-3">
+                <p className="mb-3 text-xs text-gray-500">
+                  Control which roles can send messages in this channel. Deny @everyone and allow
+                  specific roles to create a read-only channel.
+                </p>
+
+                {permissionsLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-xs text-gray-500">
+                    <div className="h-3 w-3 animate-spin rounded-full border border-gray-600 border-t-primary" />
+                    Loading roles...
+                  </div>
+                ) : roleOverrides.length === 0 ? (
+                  <p className="py-2 text-xs text-gray-500">No roles found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                      <span>Role</span>
+                      <span className="w-[180px] text-center">Send Messages</span>
+                    </div>
+                    {roleOverrides.map((r) => (
+                      <div
+                        key={r.roleId}
+                        className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-md px-1 py-1.5 transition hover:bg-white/[0.03]"
+                      >
+                        <span className="truncate text-sm text-gray-300">{r.roleName}</span>
+                        <div className="flex w-[180px] rounded-md bg-surface p-0.5">
+                          {(['inherit', 'allow', 'deny'] as const).map((opt) => (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setRoleState(r.roleId, opt)}
+                              className={`flex-1 rounded px-2 py-1 text-[11px] font-medium capitalize transition ${
+                                r.state === opt
+                                  ? opt === 'allow'
+                                    ? 'bg-emerald-600 text-white'
+                                    : opt === 'deny'
+                                      ? 'bg-red-600 text-white'
+                                      : 'bg-white/10 text-white'
+                                  : 'text-gray-500 hover:text-gray-300'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {permissionsChanged && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSavePermissions()}
+                    disabled={permissionsSaving}
+                    className="mt-3 w-full rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    {permissionsSaving ? 'Saving permissions…' : 'Save Permissions'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <p className="mt-3 text-sm text-red-400" role="alert">

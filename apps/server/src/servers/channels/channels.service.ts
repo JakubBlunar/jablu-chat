@@ -80,6 +80,9 @@ export class ChannelsService {
     if (!channel) {
       throw new NotFoundException('Channel not found')
     }
+    if (data.isArchived && channel.type === 'voice') {
+      throw new BadRequestException('Voice channels cannot be archived')
+    }
     if (data.name === undefined && data.position === undefined && data.categoryId === undefined && data.isArchived === undefined) {
       return channel
     }

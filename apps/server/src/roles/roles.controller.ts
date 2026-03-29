@@ -77,6 +77,16 @@ export class RolesController {
     return this.roles.assignRole(serverId, targetUserId, body.roleId, user.id)
   }
 
+  @Get('servers/:serverId/channels/:channelId/permissions/me')
+  async getMyChannelPermissions(
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    const perms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
+    return { permissions: perms.toString() }
+  }
+
   @Get('channels/:channelId/overrides')
   getOverrides(
     @Param('channelId', ParseUUIDPipe) channelId: string,
