@@ -1,4 +1,4 @@
-import type { LinkPreview, Message } from '@chat/shared'
+import type { LinkPreview, Message, Poll } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 import { toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
@@ -34,6 +34,8 @@ type MessageState = {
   addReaction: (messageId: string, emoji: string, userId: string) => void
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   setLinkPreviews: (messageId: string, linkPreviews: LinkPreview[]) => void
+  updatePoll: (poll: Poll) => void
+  updateThreadCount: (messageId: string, threadCount: number) => void
   setScrollToMessageId: (id: string | null) => void
   setTypingUser: (channelId: string, userId: string, username: string) => void
   removeTypingUser: (userId: string) => void
@@ -243,6 +245,18 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   setLinkPreviews: (messageId, linkPreviews) => {
     set((s) => ({
       messages: s.messages.map((m) => (m.id === messageId ? { ...m, linkPreviews } : m))
+    }))
+  },
+
+  updatePoll: (poll) => {
+    set((s) => ({
+      messages: s.messages.map((m) => (m.id === poll.messageId ? { ...m, poll } : m))
+    }))
+  },
+
+  updateThreadCount: (messageId, threadCount) => {
+    set((s) => ({
+      messages: s.messages.map((m) => (m.id === messageId ? { ...m, threadCount } : m))
     }))
   },
 

@@ -22,6 +22,7 @@ export interface Message {
   linkPreviews?: LinkPreview[]
   threadCount?: number
   webhook?: { name: string; avatarUrl: string | null } | null
+  poll?: import('./poll.js').Poll | null
 }
 
 export interface MessagePreview {

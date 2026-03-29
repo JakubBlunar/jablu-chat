@@ -33,6 +33,19 @@ export class MessagesController {
     return this.messages.getPinnedMessages(channelId, user.id)
   }
 
+  @Get(':id/thread')
+  thread(
+    @Param('channelId', ParseUUIDPipe) _channelId: string,
+    @Param('id', ParseUUIDPipe) parentId: string,
+    @CurrentUser() user: { id: string; username: string; email: string },
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined
+    const safeLimit = parsedLimit != null && !Number.isNaN(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : undefined
+    return this.messages.getThreadMessages(parentId, user.id, cursor, safeLimit)
+  }
+
   @Post()
   send(
     @Param('channelId', ParseUUIDPipe) channelId: string,

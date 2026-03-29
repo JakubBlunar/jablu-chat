@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common'
 import { ScheduleModule } from '@nestjs/schedule'
 import { PushModule } from '../push/push.module'
+import { RolesModule } from '../roles/roles.module'
 import { ServerEventsController } from './server-events.controller'
 import { ServerEventsService } from './server-events.service'
 
 @Module({
-  imports: [ScheduleModule.forRoot(), PushModule],
+  imports: [ScheduleModule.forRoot(), PushModule, RolesModule],
   controllers: [ServerEventsController],
   providers: [ServerEventsService],
   exports: [ServerEventsService]

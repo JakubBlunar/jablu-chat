@@ -58,7 +58,8 @@ export function useProfileCard(
           bio: member.user.bio,
           status,
           joinedAt: member.joinedAt,
-          role: member.role
+          roleName: member.role && !member.role.isDefault ? member.role.name : null,
+          roleColor: member.role?.color ?? null
         })
       }
       setCardRect(rect)
@@ -79,7 +80,8 @@ export function useProfileCard(
       bio: member.user.bio,
       status,
       joinedAt: member.joinedAt,
-      role: member.role
+      roleName: member.role && !member.role.isDefault ? member.role.name : null,
+      roleColor: member.role?.color ?? null
     })
     setCardRect(rect)
   }, [])

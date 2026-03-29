@@ -11,10 +11,12 @@ import {
 } from '@nestjs/websockets'
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
+import { AutoModService } from '../automod/automod.service'
 import { DmService } from '../dm/dm.service'
 import { EventBusService } from '../events/event-bus.service'
 import { LinkPreviewService } from '../messages/link-preview.service'
 import { MessagesService } from '../messages/messages.service'
+import { PollsService } from '../messages/polls.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { ReadStateService } from '../read-state/read-state.service'
@@ -52,6 +54,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   constructor(
     private readonly prisma: PrismaService,
     private readonly messages: MessagesService,
+    private readonly polls: PollsService,
+    private readonly automod: AutoModService,
     private readonly dm: DmService,
     private readonly linkPreviews: LinkPreviewService,
     private readonly wsJwtGuard: WsJwtGuard,
@@ -242,7 +246,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
     })
 
-    this.events.on('member:updated', (payload: { serverId: string; userId: string; role: string }) => {
+    this.events.on('member:updated', (payload: { serverId: string; userId: string; roleId?: string }) => {
       this.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
     })
 
@@ -532,21 +536,37 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       content?: string
       replyToId?: string
       attachmentIds?: string[]
+      threadParentId?: string
     }
   ) {
     if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
       throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
     const user = (client.data as { user: WsUser }).user
+
+    if (body.content) {
+      const channel = await this.prisma.channel.findUnique({
+        where: { id: body.channelId },
+        select: { serverId: true }
+      })
+      if (channel) {
+        const check = await this.automod.checkMessage(channel.serverId, user.id, body.content)
+        if (!check.allowed) {
+          return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
+        }
+      }
+    }
+
     const msg = await this.messages.createMessage(
       body.channelId,
       user.id,
       body.content,
       body.replyToId,
-      body.attachmentIds
+      body.attachmentIds,
+      body.threadParentId
     )
 
-    const { serverId } = msg
+    const { serverId, threadUpdate, ...msgRest } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
 
     let mentionedUserIds: string[] = []
     let mentionEveryone = false
@@ -567,19 +587,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     this.emitToChannel(body.channelId, 'message:new', {
-      ...msg,
+      ...msgRest,
       mentionedUserIds,
       mentionEveryone,
       mentionHere
     })
 
+    if (threadUpdate) {
+      this.emitToChannel(body.channelId, 'message:thread-update', {
+        parentId: threadUpdate.parentId,
+        threadCount: threadUpdate.threadCount,
+        lastThreadMessage: {
+          authorId: user.id,
+          createdAt: msgRest.createdAt
+        }
+      })
+    }
+
     if (body.content) {
       this.linkPreviews
-        .generatePreviews(msg.id, body.content)
+        .generatePreviews(msgRest.id, body.content)
         .then((previews) => {
           if (previews.length > 0) {
             this.emitToChannel(body.channelId, 'message:link-previews', {
-              messageId: msg.id,
+              messageId: msgRest.id,
               linkPreviews: previews
             })
           }
@@ -591,16 +622,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.sendPushToOfflineMembers(
         serverId,
         user.id,
-        msg.author?.displayName ?? msg.author?.username ?? 'Someone',
+        msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone',
         body.content,
         `/channels/${serverId}/${body.channelId}`,
         body.channelId,
         mentionedUserIds,
-        msg.attachments
+        msgRest.attachments
       ).catch((err) => this.logger.warn('Push notification failed', err?.message))
     }
 
-    return { ok: true, message: msg }
+    return { ok: true, message: msgRest }
   }
 
   @SubscribeMessage('message:edit')
@@ -673,6 +704,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const msg = await this.messages.unpinMessage(body.messageId, user.id, body.channelId)
     this.emitToChannel(body.channelId, 'message:unpin', msg)
     return { ok: true, message: msg }
+  }
+
+  @SubscribeMessage('poll:vote')
+  async onPollVote(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { pollId: string; optionId: string }
+  ) {
+    const user = (client.data as { user: WsUser }).user
+    const result = await this.polls.votePoll(body.pollId, body.optionId, user.id)
+    if (result.channelId) {
+      this.emitToChannel(result.channelId, 'poll:vote', result.poll)
+    }
+    return { ok: true, poll: result.poll }
   }
 
   @SubscribeMessage('activity:idle')
@@ -845,6 +889,34 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       conversationId: body.conversationId
     })
     return { ok: true }
+  }
+
+  @SubscribeMessage('dm:pin')
+  async onDmPin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { conversationId: string; messageId: string }
+  ) {
+    const user = (client.data as { user: WsUser }).user
+    const msg = await this.dm.pinMessage(body.conversationId, body.messageId, user.id)
+    this.emitToDm(body.conversationId, 'dm:pin', {
+      ...msg,
+      conversationId: body.conversationId
+    })
+    return { ok: true, message: msg }
+  }
+
+  @SubscribeMessage('dm:unpin')
+  async onDmUnpin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { conversationId: string; messageId: string }
+  ) {
+    const user = (client.data as { user: WsUser }).user
+    const msg = await this.dm.unpinMessage(body.conversationId, body.messageId, user.id)
+    this.emitToDm(body.conversationId, 'dm:unpin', {
+      ...msg,
+      conversationId: body.conversationId
+    })
+    return { ok: true, message: msg }
   }
 
   @SubscribeMessage('dm:typing')

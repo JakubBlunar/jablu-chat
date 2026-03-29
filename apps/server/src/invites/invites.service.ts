@@ -1,8 +1,10 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, ServerRole } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import crypto from 'node:crypto'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { AuditLogService } from '../servers/audit-log.service'
 
 const createdByUserSelect = {
@@ -21,7 +23,8 @@ export class InvitesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
-    private readonly events: EventBusService
+    private readonly events: EventBusService,
+    private readonly roles: RolesService
   ) {}
 
   private async getServerOrThrow(serverId: string) {
@@ -34,27 +37,8 @@ export class InvitesService {
     return server
   }
 
-  private async requireAdminOrOwner(serverId: string, userId: string) {
-    const server = await this.getServerOrThrow(serverId)
-    if (server.ownerId === userId) {
-      return server
-    }
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
-      throw new ForbiddenException('Insufficient permissions')
-    }
-    return server
-  }
-
   async createInvite(serverId: string, userId: string, maxUses?: number, expiresInMinutes?: number) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
 
     const expiresAt = expiresInMinutes !== undefined ? new Date(Date.now() + expiresInMinutes * 60 * 1000) : undefined
 
@@ -86,7 +70,7 @@ export class InvitesService {
   }
 
   async getInvites(serverId: string, userId: string) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
     return this.prisma.invite.findMany({
       where: { serverId },
       include: {
@@ -103,7 +87,7 @@ export class InvitesService {
     if (!invite) {
       throw new NotFoundException('Invite not found')
     }
-    await this.requireAdminOrOwner(invite.serverId, userId)
+    await this.roles.requirePermission(invite.serverId, userId, Permission.MANAGE_SERVER)
     await this.prisma.invite.delete({ where: { id: inviteId } })
     await this.auditLog.log(invite.serverId, userId, 'invite.delete', 'invite', inviteId, `Code: ${invite.code}`)
   }
@@ -132,12 +116,14 @@ export class InvitesService {
       throw new ConflictException('You are already a member of this server')
     }
 
+    const defaultRoleId = await this.roles.getDefaultRoleId(invite.serverId)
+
     await this.prisma.$transaction([
       this.prisma.serverMember.create({
         data: {
           userId,
           serverId: invite.serverId,
-          role: ServerRole.member
+          roleId: defaultRoleId
         }
       }),
       this.prisma.invite.update({

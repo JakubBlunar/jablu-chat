@@ -18,6 +18,7 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
+import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { type Server, useServerStore } from '@/stores/server.store'
@@ -142,8 +143,8 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const closeConv = useDmStore((s) => s.closeConversation)
 
   const members = useMemberStore((s) => s.members)
-  const myMembership = members.find((m) => m.userId === user?.id)
-  const isAdminOrOwner = myMembership?.role === 'owner' || myMembership?.role === 'admin'
+  const { has: hasPerm } = usePermissions(currentServerId)
+  const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
 
   const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

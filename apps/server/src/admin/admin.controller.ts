@@ -17,7 +17,7 @@ import {
   UseGuards
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ChannelType, ServerRole } from '@prisma/client'
+import { ChannelType } from '@prisma/client'
 import * as crypto from 'crypto'
 import { MailService } from '../auth/mail.service'
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service'
@@ -25,6 +25,7 @@ import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
+import { RolesService } from '../roles/roles.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { AdminAuthGuard } from './admin-auth.guard'
 import { AdminRateLimiter } from './admin-rate-limiter'
@@ -61,7 +62,8 @@ export class AdminController {
     private readonly rateLimiter: AdminRateLimiter,
     private readonly tokenStore: AdminTokenStore,
     private readonly redis: RedisService,
-    private readonly events: EventBusService
+    private readonly events: EventBusService,
+    private readonly roles: RolesService
   ) {
     this.superadminUsername = config.get<string>('SUPERADMIN_USERNAME', '')
     this.superadminPassword = config.get<string>('SUPERADMIN_PASSWORD', '')
@@ -131,20 +133,24 @@ export class AdminController {
       throw new BadRequestException('User not found')
     }
 
-    return this.prisma.server.create({
+    const server = await this.prisma.server.create({
       data: {
         name: dto.name,
         ownerId: dto.ownerUserId,
-        members: {
-          create: { userId: dto.ownerUserId, role: ServerRole.owner }
-        },
         channels: {
           create: [
             { name: 'general', type: ChannelType.text, position: 0 },
             { name: 'General', type: ChannelType.voice, position: 1 }
           ]
         }
-      },
+      }
+    })
+    const { ownerRoleId } = await this.roles.createDefaultRoles(server.id, dto.ownerUserId)
+    await this.prisma.serverMember.create({
+      data: { userId: dto.ownerUserId, serverId: server.id, roleId: ownerRoleId }
+    })
+    return this.prisma.server.findUnique({
+      where: { id: server.id },
       include: {
         _count: { select: { members: true, channels: true } },
         owner: { select: { id: true, username: true } }
@@ -170,7 +176,8 @@ export class AdminController {
       include: {
         user: {
           select: { id: true, username: true, email: true, avatarUrl: true }
-        }
+        },
+        role: true
       },
       orderBy: { joinedAt: 'asc' }
     })
@@ -192,12 +199,14 @@ export class AdminController {
     })
     if (existing) throw new BadRequestException('User is already a member')
 
+    const defaultRoleId = await this.roles.getDefaultRoleId(id)
     const member = await this.prisma.serverMember.create({
-      data: { userId: dto.userId, serverId: id, role: ServerRole.member },
+      data: { userId: dto.userId, serverId: id, roleId: defaultRoleId },
       include: {
         user: {
           select: { id: true, username: true, displayName: true, email: true, avatarUrl: true, bio: true, status: true }
-        }
+        },
+        role: true
       }
     })
     this.events.emit('member:joined', { serverId: id, member })
@@ -233,11 +242,6 @@ export class AdminController {
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: AdminUpdateMemberRoleDto
   ) {
-    const validRoles = [ServerRole.owner, ServerRole.admin, ServerRole.member]
-    if (!validRoles.includes(dto.role as ServerRole)) {
-      throw new BadRequestException('Invalid role')
-    }
-
     const server = await this.prisma.server.findUnique({ where: { id } })
     if (!server) throw new NotFoundException('Server not found')
 
@@ -246,56 +250,30 @@ export class AdminController {
     })
     if (!member) throw new NotFoundException('Member not found')
 
-    const newRole = dto.role as ServerRole
+    const role = await this.prisma.role.findFirst({
+      where: { id: dto.roleId, serverId: id }
+    })
+    if (!role) throw new BadRequestException('Role not found in this server')
 
-    if (newRole === ServerRole.owner) {
-      await this.prisma.$transaction([
-        this.prisma.serverMember.update({
-          where: { userId_serverId: { userId: server.ownerId, serverId: id } },
-          data: { role: ServerRole.admin }
-        }),
-        this.prisma.serverMember.update({
-          where: { userId_serverId: { userId, serverId: id } },
-          data: { role: ServerRole.owner }
-        }),
-        this.prisma.server.update({
-          where: { id },
-          data: { ownerId: userId }
-        })
-      ])
-    } else {
-      if (server.ownerId === userId) {
-        throw new BadRequestException(
-          'Cannot demote the owner. Transfer ownership first by promoting another member to owner.'
-        )
-      }
-      await this.prisma.serverMember.update({
-        where: { userId_serverId: { userId, serverId: id } },
-        data: { role: newRole }
-      })
-    }
+    await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId, serverId: id } },
+      data: { roleId: dto.roleId }
+    })
 
     const members = await this.prisma.serverMember.findMany({
       where: { serverId: id },
       include: {
         user: {
           select: { id: true, username: true, email: true, avatarUrl: true }
-        }
+        },
+        role: true
       },
       orderBy: { joinedAt: 'asc' }
     })
 
-    const updatedServer = await this.prisma.server.findUnique({
-      where: { id },
-      select: { ownerId: true, owner: { select: { id: true, username: true } } }
-    })
+    this.events.emit('member:updated', { serverId: id, userId, roleId: dto.roleId })
 
-    if (newRole === ServerRole.owner) {
-      this.events.emit('member:updated', { serverId: id, userId: server.ownerId, role: ServerRole.admin })
-    }
-    this.events.emit('member:updated', { serverId: id, userId, role: newRole })
-
-    return { members, owner: updatedServer?.owner, ownerId: updatedServer?.ownerId }
+    return { members, owner: server }
   }
 
   // ─── Users ─────────────────────────────────────────────────

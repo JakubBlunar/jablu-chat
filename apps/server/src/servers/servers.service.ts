@@ -1,7 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChannelType, ServerRole } from '@prisma/client'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { ChannelType } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { AuditLogService } from './audit-log.service'
 
@@ -15,13 +17,19 @@ const memberUserSelect = {
   customStatus: true
 } as const
 
+const memberInclude = {
+  user: { select: memberUserSelect },
+  role: true
+} as const
+
 @Injectable()
 export class ServersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
     private readonly auditLog: AuditLogService,
-    private readonly events: EventBusService
+    private readonly events: EventBusService,
+    private readonly roles: RolesService
   ) {}
 
   private async getServerOrThrow(serverId: string) {
@@ -47,48 +55,33 @@ export class ServersService {
     return membership
   }
 
-  private async requireAdminOrOwner(serverId: string, userId: string) {
-    const server = await this.getServerOrThrow(serverId)
-    if (server.ownerId === userId) {
-      return server
-    }
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId, serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server')
-    }
-    if (membership.role !== ServerRole.admin && membership.role !== ServerRole.owner) {
-      throw new ForbiddenException('Insufficient permissions')
-    }
-    return server
-  }
-
   async createServer(userId: string, name: string) {
-    return this.prisma.server.create({
+    const server = await this.prisma.server.create({
       data: {
         name,
         ownerId: userId,
-        members: {
-          create: { userId, role: ServerRole.owner }
-        },
         channels: {
           create: [
             { name: 'general', type: ChannelType.text, position: 0 },
             { name: 'General', type: ChannelType.voice, position: 1 }
           ]
         }
-      },
+      }
+    })
+
+    const { ownerRoleId } = await this.roles.createDefaultRoles(server.id, userId)
+
+    await this.prisma.serverMember.create({
+      data: { userId, serverId: server.id, roleId: ownerRoleId }
+    })
+
+    return this.prisma.server.findUnique({
+      where: { id: server.id },
       include: {
         channels: { orderBy: { position: 'asc' } },
         categories: { orderBy: { position: 'asc' } },
-        members: {
-          include: {
-            user: { select: memberUserSelect }
-          }
-        }
+        roles: { orderBy: { position: 'desc' } },
+        members: { include: memberInclude }
       }
     })
   }
@@ -115,10 +108,9 @@ export class ServersService {
       include: {
         channels: { orderBy: { position: 'asc' } },
         categories: { orderBy: { position: 'asc' } },
+        roles: { orderBy: { position: 'desc' } },
         members: {
-          include: {
-            user: { select: memberUserSelect }
-          },
+          include: memberInclude,
           orderBy: { joinedAt: 'asc' }
         }
       }
@@ -130,7 +122,7 @@ export class ServersService {
   }
 
   async updateServer(serverId: string, userId: string, data: { name?: string }) {
-    await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
     if (data.name === undefined) {
       return this.getServer(serverId, userId)
     }
@@ -140,11 +132,8 @@ export class ServersService {
       include: {
         channels: { orderBy: { position: 'asc' } },
         categories: { orderBy: { position: 'asc' } },
-        members: {
-          include: {
-            user: { select: memberUserSelect }
-          }
-        }
+        roles: { orderBy: { position: 'desc' } },
+        members: { include: memberInclude }
       }
     })
     await this.auditLog.log(serverId, userId, 'server.update', 'server', serverId, `Renamed to "${data.name}"`)
@@ -153,7 +142,8 @@ export class ServersService {
   }
 
   async uploadIcon(serverId: string, userId: string, file: Express.Multer.File) {
-    const server = await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
+    const server = await this.getServerOrThrow(serverId)
     if (server.iconUrl) {
       this.uploads.deleteFile(server.iconUrl)
     }
@@ -168,7 +158,8 @@ export class ServersService {
   }
 
   async deleteIcon(serverId: string, userId: string) {
-    const server = await this.requireAdminOrOwner(serverId, userId)
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
+    const server = await this.getServerOrThrow(serverId)
     if (server.iconUrl) {
       this.uploads.deleteFile(server.iconUrl)
     }
@@ -180,35 +171,31 @@ export class ServersService {
     return result
   }
 
-  async updateMemberRole(serverId: string, actorId: string, targetUserId: string, newRole: ServerRole) {
-    const server = await this.getServerOrThrow(serverId)
-    if (server.ownerId !== actorId) {
-      throw new ForbiddenException('Only the server owner can change member roles')
-    }
+  async updateMemberRole(serverId: string, actorId: string, targetUserId: string, roleId: string) {
+    await this.roles.requirePermission(serverId, actorId, Permission.MANAGE_ROLES)
     if (targetUserId === actorId) {
       throw new ForbiddenException('You cannot change your own role')
     }
-    if (newRole === ServerRole.owner) {
-      throw new ForbiddenException('Cannot assign the owner role')
-    }
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, serverId } })
+    if (!role) throw new NotFoundException('Role not found')
+
     const target = await this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId: targetUserId, serverId } }
     })
-    if (!target) {
-      throw new NotFoundException('Member not found')
-    }
+    if (!target) throw new NotFoundException('Member not found')
+
     const result = await this.prisma.serverMember.update({
       where: { userId_serverId: { userId: targetUserId, serverId } },
-      data: { role: newRole },
-      include: { user: { select: memberUserSelect } }
+      data: { roleId },
+      include: { ...memberInclude }
     })
-    await this.auditLog.log(serverId, actorId, 'member.role.update', 'user', targetUserId, `Role changed to ${newRole}`)
-    this.events.emit('member:updated', { serverId, userId: targetUserId, role: newRole })
+    await this.auditLog.log(serverId, actorId, 'member.role.update', 'user', targetUserId, `Role changed to ${role.name}`)
+    this.events.emit('member:updated', { serverId, userId: targetUserId, roleId })
     return result
   }
 
   async kickMember(serverId: string, actorId: string, targetUserId: string) {
-    await this.requireAdminOrOwner(serverId, actorId)
+    await this.roles.requirePermission(serverId, actorId, Permission.KICK_MEMBERS)
     const server = await this.getServerOrThrow(serverId)
     if (targetUserId === server.ownerId) {
       throw new ForbiddenException('Cannot kick the server owner')
@@ -273,13 +260,14 @@ export class ServersService {
     if (existing) {
       return existing
     }
+    const defaultRoleId = await this.roles.getDefaultRoleId(serverId)
     const member = await this.prisma.serverMember.create({
       data: {
         userId,
         serverId,
-        role: ServerRole.member
+        roleId: defaultRoleId
       },
-      include: { user: { select: memberUserSelect } }
+      include: memberInclude
     })
     this.events.emit('member:joined', { serverId, member })
     return member
@@ -295,7 +283,7 @@ export class ServersService {
     if (!membership) {
       throw new NotFoundException('You are not a member of this server')
     }
-    if (server.ownerId === userId || membership.role === ServerRole.owner) {
+    if (server.ownerId === userId) {
       throw new ForbiddenException('The server owner cannot leave the server')
     }
     await this.prisma.serverMember.delete({
@@ -310,10 +298,128 @@ export class ServersService {
     await this.requireMembership(serverId, userId)
     return this.prisma.serverMember.findMany({
       where: { serverId },
-      include: {
-        user: { select: memberUserSelect }
-      },
+      include: memberInclude,
       orderBy: { joinedAt: 'asc' }
     })
+  }
+
+  async getEmojiStats(serverId: string, userId: string) {
+    await this.requireMembership(serverId, userId)
+
+    const channelIds = await this.prisma.channel.findMany({
+      where: { serverId },
+      select: { id: true }
+    })
+    const ids = channelIds.map((c) => c.id)
+
+    if (ids.length === 0) return []
+
+    const stats = await this.prisma.reaction.groupBy({
+      by: ['emoji'],
+      where: {
+        isCustom: true,
+        message: {
+          channelId: { in: ids },
+          deleted: false
+        }
+      },
+      _count: { emoji: true },
+      _max: { createdAt: true },
+      orderBy: { _count: { emoji: 'desc' } },
+      take: 50
+    })
+
+    const emojis = await this.prisma.customEmoji.findMany({
+      where: { serverId },
+      select: { name: true, imageUrl: true, createdAt: true }
+    })
+    const emojiMap = new Map(emojis.map((e) => [e.name, e]))
+
+    return stats.map((s) => {
+      const emoji = emojiMap.get(s.emoji)
+      return {
+        emoji: s.emoji,
+        usageCount: s._count.emoji,
+        lastUsed: s._max.createdAt?.toISOString() ?? null,
+        imageUrl: emoji?.imageUrl ?? null,
+        createdAt: emoji?.createdAt?.toISOString() ?? null
+      }
+    })
+  }
+
+  async getEmojis(serverId: string, userId: string) {
+    await this.requireMembership(serverId, userId)
+    return this.prisma.customEmoji.findMany({
+      where: { serverId },
+      orderBy: { createdAt: 'asc' }
+    })
+  }
+
+  async uploadEmoji(serverId: string, userId: string, file: Express.Multer.File, name: string) {
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_EMOJIS)
+
+    const sanitized = name.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase()
+    if (!sanitized || sanitized.length < 2 || sanitized.length > 32) {
+      throw new BadRequestException('Emoji name must be 2-32 alphanumeric/underscore characters')
+    }
+
+    const existing = await this.prisma.customEmoji.findUnique({
+      where: { serverId_name: { serverId, name: sanitized } }
+    })
+    if (existing) throw new BadRequestException(`Emoji :${sanitized}: already exists`)
+
+    const count = await this.prisma.customEmoji.count({ where: { serverId } })
+    if (count >= 50) throw new BadRequestException('Server emoji limit reached (50)')
+
+    const imageUrl = await this.uploads.saveEmoji(file)
+    const emoji = await this.prisma.customEmoji.create({
+      data: { serverId, name: sanitized, imageUrl, uploadedById: userId }
+    })
+
+    await this.auditLog.log(serverId, userId, 'emoji.create', 'emoji', emoji.id, `:${sanitized}:`)
+    this.events.emit('server:updated', { serverId })
+    return emoji
+  }
+
+  async renameEmoji(serverId: string, userId: string, emojiId: string, newName: string) {
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_EMOJIS)
+
+    const emoji = await this.prisma.customEmoji.findFirst({
+      where: { id: emojiId, serverId }
+    })
+    if (!emoji) throw new NotFoundException('Emoji not found')
+
+    const sanitized = newName.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase()
+    if (!sanitized || sanitized.length < 2 || sanitized.length > 32) {
+      throw new BadRequestException('Emoji name must be 2-32 alphanumeric/underscore characters')
+    }
+
+    const conflict = await this.prisma.customEmoji.findFirst({
+      where: { serverId, name: sanitized, NOT: { id: emojiId } }
+    })
+    if (conflict) throw new BadRequestException(`Emoji :${sanitized}: already exists`)
+
+    const updated = await this.prisma.customEmoji.update({
+      where: { id: emojiId },
+      data: { name: sanitized }
+    })
+
+    await this.auditLog.log(serverId, userId, 'emoji.update', 'emoji', emojiId, `Renamed :${emoji.name}: to :${sanitized}:`)
+    return updated
+  }
+
+  async deleteEmoji(serverId: string, userId: string, emojiId: string) {
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_EMOJIS)
+
+    const emoji = await this.prisma.customEmoji.findFirst({
+      where: { id: emojiId, serverId }
+    })
+    if (!emoji) throw new NotFoundException('Emoji not found')
+
+    this.uploads.deleteFile(emoji.imageUrl)
+    await this.prisma.customEmoji.delete({ where: { id: emojiId } })
+
+    await this.auditLog.log(serverId, userId, 'emoji.delete', 'emoji', emojiId, `:${emoji.name}:`)
+    this.events.emit('server:updated', { serverId })
   }
 }

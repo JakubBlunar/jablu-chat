@@ -22,7 +22,9 @@ import { RedisModule } from './redis/redis.module'
 import { VoiceModule } from './voice/voice.module'
 import { ServerEventsModule } from './server-events/server-events.module'
 import { WebhooksModule } from './webhooks/webhooks.module'
+import { AutoModModule } from './automod/automod.module'
 import { FriendsModule } from './friends/friends.module'
+import { RolesModule } from './roles/roles.module'
 
 @Module({
   imports: [
@@ -55,7 +57,9 @@ import { FriendsModule } from './friends/friends.module'
     GifModule,
     GatewayModule,
     ServerEventsModule,
-    FriendsModule
+    FriendsModule,
+    AutoModModule,
+    RolesModule
   ]
 })
 export class AppModule {}

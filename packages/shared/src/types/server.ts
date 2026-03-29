@@ -1,4 +1,4 @@
-import type { ServerRole } from './user.js'
+import type { Role } from './permissions.js'
 
 export interface Server {
   id: string
@@ -6,13 +6,15 @@ export interface Server {
   iconUrl: string | null
   ownerId: string
   createdAt: string
+  roles?: Role[]
 }
 
 export interface ServerMember {
   userId: string
   serverId: string
-  role: ServerRole
+  roleId: string
   joinedAt: string
+  role?: Role
   user?: {
     id: string
     username: string

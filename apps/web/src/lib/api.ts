@@ -9,6 +9,7 @@ import type {
   Invite,
   LoginRequest,
   Message,
+  Poll,
   RefreshTokenRequest,
   RegisterRequest,
   ResetPasswordRequest,
@@ -445,6 +446,111 @@ export class ApiClient {
     return this.get(`/api/channels/${channelId}/messages/pinned`)
   }
 
+  getPinnedDmMessages(conversationId: string): Promise<Message[]> {
+    return this.get(`/api/dm/${conversationId}/messages/pinned`)
+  }
+
+  getEmojiStats(serverId: string): Promise<EmojiStat[]> {
+    return this.get(`/api/servers/${serverId}/emojis/stats`)
+  }
+
+  getEmojis(serverId: string): Promise<CustomEmoji[]> {
+    return this.get(`/api/servers/${serverId}/emojis`)
+  }
+
+  async uploadEmoji(serverId: string, name: string, file: File): Promise<CustomEmoji> {
+    const form = new FormData()
+    form.append('name', name)
+    form.append('image', file)
+    const headers: Record<string, string> = {}
+    const { accessToken } = readPersistedAuth()
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+    const res = await fetch(`${this.baseUrl}/api/servers/${serverId}/emojis`, {
+      method: 'POST',
+      headers,
+      body: form
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.message ?? 'Upload failed')
+    }
+    return res.json()
+  }
+
+  renameEmoji(serverId: string, emojiId: string, name: string): Promise<CustomEmoji> {
+    return this.patch(`/api/servers/${serverId}/emojis/${emojiId}`, { name })
+  }
+
+  async deleteEmoji(serverId: string, emojiId: string): Promise<void> {
+    await this.delete(`/api/servers/${serverId}/emojis/${emojiId}`)
+  }
+
+  createPoll(
+    channelId: string,
+    question: string,
+    options: string[],
+    multiSelect = false,
+    expiresAt?: string
+  ): Promise<Message> {
+    return this.post(`/api/channels/${channelId}/polls`, { question, options, multiSelect, expiresAt })
+  }
+
+  votePoll(pollId: string, optionId: string): Promise<{ poll: Poll }> {
+    return this.post(`/api/polls/${pollId}/vote`, { optionId })
+  }
+
+  getPoll(pollId: string): Promise<Poll> {
+    return this.get(`/api/polls/${pollId}`)
+  }
+
+  getThreadMessages(
+    channelId: string,
+    parentId: string,
+    cursor?: string
+  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const params = new URLSearchParams()
+    if (cursor) params.set('cursor', cursor)
+    const qs = params.toString()
+    return this.get(`/api/channels/${channelId}/messages/${parentId}/thread${qs ? `?${qs}` : ''}`)
+  }
+
+  getAutoModRules(serverId: string): Promise<AutoModRule[]> {
+    return this.get(`/api/servers/${serverId}/automod`)
+  }
+
+  updateAutoModRule(
+    serverId: string,
+    type: string,
+    enabled: boolean,
+    config: Record<string, unknown>
+  ): Promise<AutoModRule> {
+    return this.put(`/api/servers/${serverId}/automod/${type}`, { enabled, config })
+  }
+
+  getRoles(serverId: string): Promise<import('@chat/shared').Role[]> {
+    return this.get(`/api/servers/${serverId}/roles`)
+  }
+
+  createRole(serverId: string, data: { name: string; color?: string; permissions?: string }): Promise<import('@chat/shared').Role> {
+    return this.post(`/api/servers/${serverId}/roles`, data)
+  }
+
+  updateRole(serverId: string, roleId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number }): Promise<import('@chat/shared').Role> {
+    return this.patch(`/api/servers/${serverId}/roles/${roleId}`, data)
+  }
+
+  deleteRole(serverId: string, roleId: string): Promise<void> {
+    return this.delete(`/api/servers/${serverId}/roles/${roleId}`)
+  }
+
+  reorderRoles(serverId: string, roleIds: string[]): Promise<void> {
+    return this.patch(`/api/servers/${serverId}/roles/reorder`, { roleIds })
+  }
+
+  assignRole(serverId: string, userId: string, roleId: string): Promise<unknown> {
+    return this.patch(`/api/servers/${serverId}/members/${userId}/assign-role`, { roleId })
+  }
+
   createInvite(serverId: string, opts?: { maxUses?: number; expiresInMinutes?: number }): Promise<Invite> {
     return this.post(`/api/servers/${serverId}/invites`, opts)
   }
@@ -556,9 +662,9 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/leave`)
   }
 
-  updateMemberRole(serverId: string, userId: string, role: string): Promise<unknown> {
+  updateMemberRole(serverId: string, userId: string, roleId: string): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/members/${userId}/role`, {
-      role
+      roleId
     })
   }
 
@@ -748,6 +854,30 @@ export type AuditLogEntry = {
   details: string | null
   createdAt: string
   actor: { id: string; username: string; displayName: string | null; avatarUrl: string | null } | null
+}
+
+export type AutoModRule = {
+  id: string | null
+  type: 'word_filter' | 'link_filter' | 'spam_detection'
+  enabled: boolean
+  config: Record<string, unknown>
+}
+
+export type CustomEmoji = {
+  id: string
+  serverId: string
+  name: string
+  imageUrl: string
+  uploadedById: string | null
+  createdAt: string
+}
+
+export type EmojiStat = {
+  emoji: string
+  usageCount: number
+  lastUsed: string | null
+  imageUrl: string | null
+  createdAt: string | null
 }
 
 export type DmConversation = {

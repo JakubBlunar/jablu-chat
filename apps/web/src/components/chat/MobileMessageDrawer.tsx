@@ -117,13 +117,15 @@ export function MobileMessageDrawer({
   }, [onEdit, close])
 
   const handlePin = useCallback(() => {
-    if (message.pinned) {
-      getSocket()?.emit('message:unpin', { messageId: message.id, channelId: contextId })
+    if (isDm) {
+      const event = message.pinned ? 'dm:unpin' : 'dm:pin'
+      getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
     } else {
-      getSocket()?.emit('message:pin', { messageId: message.id, channelId: contextId })
+      const event = message.pinned ? 'message:unpin' : 'message:pin'
+      getSocket()?.emit(event, { messageId: message.id, channelId: contextId })
     }
     close()
-  }, [message.id, message.pinned, contextId, close])
+  }, [message.id, message.pinned, isDm, contextId, close])
 
   const handleDelete = useCallback(() => {
     if (isDm) {
@@ -256,7 +258,7 @@ export function MobileMessageDrawer({
           {isAuthor && onEdit && (
             <DrawerBtn icon={<EditIcon />} label="Edit Message" onClick={handleEdit} />
           )}
-          {!isDm && isAdminOrOwner && (
+          {(isDm || isAdminOrOwner) && (
             <DrawerBtn
               icon={<PinIcon />}
               label={message.pinned ? 'Unpin Message' : 'Pin Message'}

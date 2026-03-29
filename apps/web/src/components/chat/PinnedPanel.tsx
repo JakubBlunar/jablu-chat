@@ -12,23 +12,33 @@ export function PinnedPanel({
   messages,
   loading,
   onClose,
-  isAdminOrOwner,
+  canUnpin,
   channelId,
+  conversationId,
   onJump
 }: {
   messages: Message[]
   loading: boolean
   onClose: () => void
-  isAdminOrOwner: boolean
-  channelId: string
+  canUnpin: boolean
+  channelId?: string
+  conversationId?: string
   onJump: (messageId: string) => void
 }) {
   const handleUnpin = useCallback(
     (messageId: string) => {
-      getSocket()?.emit('message:unpin', { messageId, channelId })
+      if (conversationId) {
+        getSocket()?.emit('dm:unpin', { messageId, conversationId })
+      } else if (channelId) {
+        getSocket()?.emit('message:unpin', { messageId, channelId })
+      }
     },
-    [channelId]
+    [channelId, conversationId]
   )
+
+  const emptyLabel = conversationId
+    ? 'No pinned messages in this conversation.'
+    : 'No pinned messages in this channel.'
 
   return (
     <div className="absolute right-2 top-14 z-30 flex max-h-[28rem] w-96 max-w-[calc(100vw-1rem)] flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10 sm:right-4">
@@ -48,7 +58,7 @@ export function PinnedPanel({
         {loading ? (
           <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
         ) : messages.length === 0 ? (
-          <p className="p-6 text-center text-sm text-gray-400">No pinned messages in this channel.</p>
+          <p className="p-6 text-center text-sm text-gray-400">{emptyLabel}</p>
         ) : (
           <div className="divide-y divide-white/5">
             {messages.map((m) => {
@@ -91,7 +101,7 @@ export function PinnedPanel({
                         <p className="mt-0.5 text-sm italic text-gray-500">[empty message]</p>
                       )}
                     </div>
-                    {isAdminOrOwner && (
+                    {canUnpin && (
                       <button
                         type="button"
                         title="Unpin message"

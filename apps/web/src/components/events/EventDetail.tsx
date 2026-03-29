@@ -1,11 +1,11 @@
 import type { ServerEvent, UpdateEventInput } from '@chat/shared'
+import { Permission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useEventStore } from '@/stores/event.store'
-import { useMemberStore } from '@/stores/member.store'
-import { useServerStore } from '@/stores/server.store'
 import { UserAvatar } from '@/components/UserAvatar'
 
 function formatFullTime(iso: string): string {
@@ -29,8 +29,6 @@ type Props = {
 
 export function EventDetail({ event, serverId, onBack, onClose }: Props) {
   const userId = useAuthStore((s) => s.user?.id)
-  const server = useServerStore((s) => s.servers.find((srv) => srv.id === serverId))
-  const members = useMemberStore((s) => s.members)
 
   const [interestedUsers, setInterestedUsers] = useState<
     { userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]
@@ -45,10 +43,8 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
   const [cancelling, setCancelling] = useState(false)
 
   const isCreator = userId === event.creatorId
-  const isOwner = userId === server?.ownerId
-  const memberData = members.find((m) => m.userId === userId)
-  const isAdmin = memberData?.role === 'admin' || memberData?.role === 'owner'
-  const canManage = isCreator || isOwner || isAdmin
+  const { has: hasPerm } = usePermissions(serverId)
+  const canManage = isCreator || hasPerm(Permission.MANAGE_EVENTS)
 
   const fetchInterestedUsers = useCallback(async () => {
     setLoadingUsers(true)

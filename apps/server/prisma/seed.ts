@@ -1,4 +1,5 @@
-import { PrismaClient, ChannelType, ServerRole, AttachmentType } from '@prisma/client'
+import { PrismaClient, ChannelType, AttachmentType } from '@prisma/client'
+import { DEFAULT_OWNER_PERMISSIONS, DEFAULT_EVERYONE_PERMISSIONS } from '@chat/shared'
 import { faker } from '@faker-js/faker'
 import * as bcrypt from 'bcryptjs'
 import sharp from 'sharp'
@@ -166,12 +167,6 @@ async function main() {
       data: {
         name: SEED_SERVER_NAME,
         ownerId: owner.id,
-        members: {
-          create: users.map((u, i) => ({
-            userId: u.id,
-            role: i === 0 ? ServerRole.owner : ServerRole.member
-          }))
-        },
         channels: {
           create: [
             { name: 'general', type: ChannelType.text, position: 0 },
@@ -184,6 +179,20 @@ async function main() {
           ]
         }
       }
+    })
+
+    const ownerRole = await prisma.role.create({
+      data: { serverId: server.id, name: 'Owner', color: '#f59e0b', position: 100, permissions: DEFAULT_OWNER_PERMISSIONS }
+    })
+    const everyoneRole = await prisma.role.create({
+      data: { serverId: server.id, name: '@everyone', position: 0, permissions: DEFAULT_EVERYONE_PERMISSIONS, isDefault: true }
+    })
+    await prisma.serverMember.createMany({
+      data: users.map((u, i) => ({
+        userId: u.id,
+        serverId: server!.id,
+        roleId: i === 0 ? ownerRole.id : everyoneRole.id
+      }))
     })
 
     textChannels = await prisma.channel.findMany({
