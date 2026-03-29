@@ -19,15 +19,18 @@ function normalizeChannelName(raw: string): string {
 type CreateChannelModalProps = {
   open: boolean
   onClose: () => void
+  defaultCategoryId?: string | null
 }
 
-export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
+export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateChannelModalProps) {
   const currentServerId = useServerStore((s) => s.currentServerId)
   const fetchChannels = useChannelStore((s) => s.fetchChannels)
+  const categories = useChannelStore((s) => s.categories)
   const { goToChannel } = useAppNavigate()
 
   const [rawName, setRawName] = useState('')
   const [type, setType] = useState<ChannelType>('text')
+  const [categoryId, setCategoryId] = useState<string | null>(defaultCategoryId ?? null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -54,13 +57,14 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
         type: ChannelType
         position: number
         createdAt: string
-      }>(`/api/servers/${currentServerId}/channels`, { name, type })
+      }>(`/api/servers/${currentServerId}/channels`, { name, type, categoryId: categoryId || undefined })
       await fetchChannels(currentServerId)
       if (type === 'text' && currentServerId) {
         goToChannel(currentServerId, created.id)
       }
       setRawName('')
       setType('text')
+      setCategoryId(null)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create channel.')
@@ -127,6 +131,22 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
           ))}
         </div>
 
+        {categories.length > 0 && (
+          <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Category
+            <select
+              value={categoryId ?? ''}
+              onChange={(e) => setCategoryId(e.target.value || null)}
+              className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
+            >
+              <option value="">No category</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {error ? (
           <p className="mt-3 text-sm text-red-400" role="alert">
             {error}
@@ -140,6 +160,7 @@ export function CreateChannelModal({ open, onClose }: CreateChannelModalProps) {
               setRawName('')
               setError(null)
               setType('text')
+              setCategoryId(null)
               onClose()
             }}
             disabled={busy}

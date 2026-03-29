@@ -230,7 +230,10 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
-  const { textChannels, voiceChannels } = useSortedChannels(channels)
+  const storeCategories = useChannelStore((s) => s.categories)
+  const collapsedCategories = useChannelStore((s) => s.collapsedCategories)
+  const toggleCategoryCollapsed = useChannelStore((s) => s.toggleCategoryCollapsed)
+  const { uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, storeCategories)
 
   const handleServerClick = useCallback(
     (server: Server) => {
@@ -357,143 +360,205 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
           <SimpleBar className="min-h-0 flex-1 px-2 py-2">
             {viewMode === 'server' ? (
               <>
-                <div className="mb-1 flex items-center justify-between px-2">
-                  <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
-                  {isAdminOrOwner && (
-                    <button
-                      type="button"
-                      title="Create channel"
-                      onClick={() => {
-                        close()
-                        setChannelModalOpen(true)
-                      }}
-                      className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-                    >
-                      <PlusSmallIcon />
-                    </button>
-                  )}
-                </div>
-                <ul className="space-y-0.5">
-                  {textChannels.map((ch) => {
-                    const active = ch.id === currentChannelId && !viewingVoiceRoom
-                    const rs = channelReadStates.get(ch.id)
-                    const level = getNotifLevel(ch.id)
-                    const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
-                    const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
-                    const mentionCount = showMentions ? rs!.mentionCount : 0
-                    const hasIndicator = showUnreadDot || showMentions
-                    return (
-                      <li key={ch.id}>
+                {/* Uncategorized text channels */}
+                {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
+                  <>
+                    <div className="mb-1 flex items-center justify-between px-2">
+                      <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
+                      {isAdminOrOwner && (
                         <button
                           type="button"
-                          onClick={(e) => {
-                            if (longPressFired.current) {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              longPressFired.current = false
-                              return
-                            }
-                            handleChannelClick(ch)
+                          title="Create channel"
+                          onClick={() => {
+                            close()
+                            setChannelModalOpen(true)
                           }}
-                          onTouchStart={() => handleChannelTouchStart(ch)}
-                          onTouchEnd={handleChannelTouchEnd}
-                          onTouchMove={handleChannelTouchMove}
-                          onContextMenu={handleChannelContextMenu}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                            active
-                              ? 'bg-surface-selected text-white'
-                              : hasIndicator
-                                ? 'font-semibold text-white hover:bg-white/[0.06]'
-                                : 'text-gray-300 hover:bg-white/[0.06]'
-                          }`}
+                          className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                         >
-                          <HashIcon />
-                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                          {mentionCount > 0 && (
-                            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                              {mentionCount}
-                            </span>
-                          )}
-                          {showUnreadDot && mentionCount === 0 && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-white" />
-                          )}
+                          <PlusSmallIcon />
                         </button>
-                      </li>
-                    )
-                  })}
-                </ul>
+                      )}
+                    </div>
+                    <ul className="space-y-0.5">
+                      {uncategorizedText.map((ch) => {
+                        const active = ch.id === currentChannelId && !viewingVoiceRoom
+                        const rs = channelReadStates.get(ch.id)
+                        const level = getNotifLevel(ch.id)
+                        const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
+                        const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
+                        const mentionCount = showMentions ? rs!.mentionCount : 0
+                        const hasIndicator = showUnreadDot || showMentions
+                        return (
+                          <li key={ch.id}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (longPressFired.current) { e.preventDefault(); e.stopPropagation(); longPressFired.current = false; return }
+                                handleChannelClick(ch)
+                              }}
+                              onTouchStart={() => handleChannelTouchStart(ch)}
+                              onTouchEnd={handleChannelTouchEnd}
+                              onTouchMove={handleChannelTouchMove}
+                              onContextMenu={handleChannelContextMenu}
+                              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                                active ? 'bg-surface-selected text-white' : hasIndicator ? 'font-semibold text-white hover:bg-white/[0.06]' : 'text-gray-300 hover:bg-white/[0.06]'
+                              }`}
+                            >
+                              <HashIcon />
+                              <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                              {mentionCount > 0 && (<span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{mentionCount}</span>)}
+                              {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-white" />)}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
+                )}
 
-                <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                  <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
-                  {isAdminOrOwner && (
-                    <button
-                      type="button"
-                      title="Create channel"
-                      onClick={() => {
-                        close()
-                        setChannelModalOpen(true)
-                      }}
-                      className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-                    >
-                      <PlusSmallIcon />
-                    </button>
-                  )}
-                </div>
-                <ul className="space-y-0.5">
-                  {voiceChannels.map((ch) => {
-                    const participants = voiceParticipants[ch.id] ?? []
-                    const inThis = currentVoiceChannelId === ch.id
-                    return (
-                      <li key={ch.id}>
+                {/* Category groups */}
+                {categoryGroups.map((group) => {
+                  const isCollapsed = collapsedCategories.has(group.category.id)
+                  return (
+                    <div key={group.category.id} className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleCategoryCollapsed(group.category.id)}
+                        className="mb-1 flex w-full items-center gap-1 px-2 text-left"
+                      >
+                        <svg className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{group.category.name}</span>
+                      </button>
+                      {!isCollapsed && (
+                        <>
+                          {group.textChannels.length > 0 && (
+                            <ul className="space-y-0.5">
+                              {group.textChannels.map((ch) => {
+                                const active = ch.id === currentChannelId && !viewingVoiceRoom
+                                const rs = channelReadStates.get(ch.id)
+                                const level = getNotifLevel(ch.id)
+                                const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
+                                const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
+                                const mentionCount = showMentions ? rs!.mentionCount : 0
+                                const hasIndicator = showUnreadDot || showMentions
+                                return (
+                                  <li key={ch.id}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        if (longPressFired.current) { e.preventDefault(); e.stopPropagation(); longPressFired.current = false; return }
+                                        handleChannelClick(ch)
+                                      }}
+                                      onTouchStart={() => handleChannelTouchStart(ch)}
+                                      onTouchEnd={handleChannelTouchEnd}
+                                      onTouchMove={handleChannelTouchMove}
+                                      onContextMenu={handleChannelContextMenu}
+                                      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                                        active ? 'bg-surface-selected text-white' : hasIndicator ? 'font-semibold text-white hover:bg-white/[0.06]' : 'text-gray-300 hover:bg-white/[0.06]'
+                                      }`}
+                                    >
+                                      <HashIcon />
+                                      <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                                      {mentionCount > 0 && (<span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{mentionCount}</span>)}
+                                      {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-white" />)}
+                                    </button>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
+                          {group.voiceChannels.length > 0 && (
+                            <ul className="space-y-0.5">
+                              {group.voiceChannels.map((ch) => {
+                                const participants = voiceParticipants[ch.id] ?? []
+                                const inThis = currentVoiceChannelId === ch.id
+                                return (
+                                  <li key={ch.id}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        if (longPressFired.current) { e.preventDefault(); e.stopPropagation(); longPressFired.current = false; return }
+                                        handleVoiceChannelClick(ch)
+                                      }}
+                                      onTouchStart={() => handleChannelTouchStart(ch)}
+                                      onTouchEnd={handleChannelTouchEnd}
+                                      onTouchMove={handleChannelTouchMove}
+                                      onContextMenu={handleChannelContextMenu}
+                                      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'}`}
+                                    >
+                                      <SpeakerIcon />
+                                      <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                                      {participants.length > 0 && (<span className="text-xs text-gray-400">{participants.length}</span>)}
+                                    </button>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* Uncategorized voice channels */}
+                {uncategorizedVoice.length > 0 && (
+                  <>
+                    <div className="mb-1 mt-3 flex items-center justify-between px-2">
+                      <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
+                      {isAdminOrOwner && (
                         <button
                           type="button"
-                          onClick={(e) => {
-                            if (longPressFired.current) {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              longPressFired.current = false
-                              return
-                            }
-                            handleVoiceChannelClick(ch)
-                          }}
-                          onTouchStart={() => handleChannelTouchStart(ch)}
-                          onTouchEnd={handleChannelTouchEnd}
-                          onTouchMove={handleChannelTouchMove}
-                          onContextMenu={handleChannelContextMenu}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                            inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'
-                          }`}
+                          title="Create channel"
+                          onClick={() => { close(); setChannelModalOpen(true) }}
+                          className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                         >
-                          <SpeakerIcon />
-                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                          {participants.length > 0 && (
-                            <span className="text-xs text-gray-400">{participants.length}</span>
-                          )}
+                          <PlusSmallIcon />
                         </button>
-                        {participants.length > 0 && (
-                          <ul className="ml-4 space-y-0.5">
-                            {participants.map((p) => {
-                              const member = members.find((m) => m.userId === p.userId)
-                              return (
-                                <li key={p.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
-                                  <UserAvatar
-                                    username={p.username}
-                                    avatarUrl={member?.user.avatarUrl}
-                                    size="sm"
-                                  />
-                                  <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-300">
-                                    {member?.user.displayName || p.username}
-                                  </span>
-                                  <VoiceStatusIcons participant={p} />
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
+                      )}
+                    </div>
+                    <ul className="space-y-0.5">
+                      {uncategorizedVoice.map((ch) => {
+                        const participants = voiceParticipants[ch.id] ?? []
+                        const inThis = currentVoiceChannelId === ch.id
+                        return (
+                          <li key={ch.id}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (longPressFired.current) { e.preventDefault(); e.stopPropagation(); longPressFired.current = false; return }
+                                handleVoiceChannelClick(ch)
+                              }}
+                              onTouchStart={() => handleChannelTouchStart(ch)}
+                              onTouchEnd={handleChannelTouchEnd}
+                              onTouchMove={handleChannelTouchMove}
+                              onContextMenu={handleChannelContextMenu}
+                              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'}`}
+                            >
+                              <SpeakerIcon />
+                              <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                              {participants.length > 0 && (<span className="text-xs text-gray-400">{participants.length}</span>)}
+                            </button>
+                            {participants.length > 0 && (
+                              <ul className="ml-4 space-y-0.5">
+                                {participants.map((p) => {
+                                  const member = members.find((m) => m.userId === p.userId)
+                                  return (
+                                    <li key={p.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
+                                      <UserAvatar username={p.username} avatarUrl={member?.user.avatarUrl} size="sm" />
+                                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-300">{member?.user.displayName || p.username}</span>
+                                      <VoiceStatusIcons participant={p} />
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
+                )}
               </>
             ) : (
               <>

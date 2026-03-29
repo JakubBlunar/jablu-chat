@@ -83,6 +83,7 @@ export class ServersService {
       },
       include: {
         channels: { orderBy: { position: 'asc' } },
+        categories: { orderBy: { position: 'asc' } },
         members: {
           include: {
             user: { select: memberUserSelect }
@@ -113,6 +114,7 @@ export class ServersService {
       where: { id: serverId, members: { some: { userId } } },
       include: {
         channels: { orderBy: { position: 'asc' } },
+        categories: { orderBy: { position: 'asc' } },
         members: {
           include: {
             user: { select: memberUserSelect }
@@ -137,6 +139,7 @@ export class ServersService {
       data: { name: data.name },
       include: {
         channels: { orderBy: { position: 'asc' } },
+        categories: { orderBy: { position: 'asc' } },
         members: {
           include: {
             user: { select: memberUserSelect }

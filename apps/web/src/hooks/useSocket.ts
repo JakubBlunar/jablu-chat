@@ -1,4 +1,4 @@
-import type { Channel, LinkPreview, Message, ServerEvent, ServerRole } from '@chat/shared'
+import type { Channel, ChannelCategory, LinkPreview, Message, ServerEvent, ServerRole } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { showNotification } from '@/lib/notifications'
@@ -467,6 +467,31 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
+    const onCategoryCreated = (payload: { serverId: string; category: ChannelCategory }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useChannelStore.getState().addCategory(payload.category)
+      }
+    }
+
+    const onCategoryUpdated = (payload: { serverId: string; category: ChannelCategory }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useChannelStore.getState().updateCategory(payload.category)
+      }
+    }
+
+    const onCategoryDeleted = (payload: { serverId: string; categoryId: string }) => {
+      const currentServerId = useServerStore.getState().currentServerId
+      if (payload.serverId === currentServerId) {
+        useChannelStore.getState().removeCategory(payload.categoryId)
+      }
+    }
+
+    const onCategoryReorder = (payload: { categoryIds: string[] }) => {
+      useChannelStore.getState().applyCategoryReorder(payload.categoryIds)
+    }
+
     const onServerUpdated = (payload: { serverId: string; name?: string; iconUrl?: string | null }) => {
       const { serverId, ...patch } = payload
       useServerStore.getState().updateServerInList(serverId, patch)
@@ -538,6 +563,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('channel:created', onChannelCreated)
     socket.on('channel:updated', onChannelUpdated)
     socket.on('channel:deleted', onChannelDeleted)
+    socket.on('category:created', onCategoryCreated)
+    socket.on('category:updated', onCategoryUpdated)
+    socket.on('category:deleted', onCategoryDeleted)
+    socket.on('category:reorder', onCategoryReorder)
     socket.on('server:updated', onServerUpdated)
     socket.on('user:profile', onUserProfile)
     socket.on('friend:request', onFriendRequest)
@@ -588,6 +617,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('channel:created', onChannelCreated)
       socket.off('channel:updated', onChannelUpdated)
       socket.off('channel:deleted', onChannelDeleted)
+      socket.off('category:created', onCategoryCreated)
+      socket.off('category:updated', onCategoryUpdated)
+      socket.off('category:deleted', onCategoryDeleted)
+      socket.off('category:reorder', onCategoryReorder)
       socket.off('server:updated', onServerUpdated)
       socket.off('user:profile', onUserProfile)
       socket.off('friend:request', onFriendRequest)

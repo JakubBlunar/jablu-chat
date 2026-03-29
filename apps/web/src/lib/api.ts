@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   ChangeEmailInput,
   ChangePasswordInput,
+  ChannelCategory,
   CreateEventInput,
   ForgotPasswordRequest,
   Invite,
@@ -565,7 +566,7 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/members/${userId}`)
   }
 
-  updateChannel(serverId: string, channelId: string, data: { name?: string; position?: number }): Promise<unknown> {
+  updateChannel(serverId: string, channelId: string, data: { name?: string; position?: number; categoryId?: string | null }): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/channels/${channelId}`, data)
   }
 
@@ -577,6 +578,22 @@ export class ApiClient {
     return this.patch(`/api/servers/${serverId}/channels/reorder`, {
       channelIds
     })
+  }
+
+  createCategory(serverId: string, name: string): Promise<ChannelCategory> {
+    return this.post(`/api/servers/${serverId}/categories`, { name })
+  }
+
+  updateCategory(serverId: string, categoryId: string, data: { name?: string; position?: number }): Promise<ChannelCategory> {
+    return this.patch(`/api/servers/${serverId}/categories/${categoryId}`, data)
+  }
+
+  deleteCategory(serverId: string, categoryId: string): Promise<void> {
+    return this.request<void>('DELETE', `/api/servers/${serverId}/categories/${categoryId}`)
+  }
+
+  reorderCategories(serverId: string, categoryIds: string[]): Promise<void> {
+    return this.patch(`/api/servers/${serverId}/categories/reorder`, { categoryIds })
   }
 
   getDmConversations(): Promise<DmConversation[]> {
