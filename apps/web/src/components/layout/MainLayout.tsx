@@ -205,6 +205,18 @@ export function MainLayout() {
     return () => window.removeEventListener('open-settings', handler)
   }, [])
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        setSettingsInitialTab('shortcuts')
+        setSettingsOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   const prevServerRef = useRef<string | null>(null)
 
   useEffect(() => {

@@ -18,6 +18,7 @@ import {
   unsubscribeFromPush
 } from '@/lib/notifications'
 import { getStoredServerUrl, setStoredServerUrl } from '@/components/settings/ServerUrlScreen'
+import { KeyboardShortcutsSection } from '@/components/settings/KeyboardShortcuts'
 import { useAuthStore } from '@/stores/auth.store'
 
 type Tab =
@@ -28,6 +29,7 @@ type Tab =
   | 'voice'
   | 'notifications'
   | 'sessions'
+  | 'shortcuts'
   | 'server'
   | 'desktop'
   | 'downloads'
@@ -86,6 +88,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     { key: 'voice', label: 'Voice & Video' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'sessions', label: 'Sessions' },
+    { key: 'shortcuts', label: 'Keyboard Shortcuts' },
     { key: 'server', label: 'Server Connection', show: isElectron },
     { key: 'desktop', label: 'Desktop App', show: isElectron },
     { key: 'downloads', label: 'Desktop App', show: !isElectron && !isMobile },
@@ -104,6 +107,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       {tab === 'voice' && <VoiceSettings />}
       {tab === 'notifications' && <NotificationsSection />}
       {tab === 'sessions' && <ActiveSessionsSection />}
+      {tab === 'shortcuts' && <KeyboardShortcutsSection />}
       {tab === 'server' && <ServerConnectionSection />}
       {tab === 'desktop' && <DesktopAppSection />}
       {tab === 'downloads' && <DownloadAppSection />}
