@@ -622,6 +622,10 @@ export class ApiClient {
     return this.get('/api/read-states')
   }
 
+  ackServer(serverId: string): Promise<{ ok: boolean }> {
+    return this.request('PUT', `/api/servers/${serverId}/ack`)
+  }
+
   ackChannel(channelId: string): Promise<{ ok: boolean }> {
     return this.request('PUT', `/api/channels/${channelId}/ack`)
   }

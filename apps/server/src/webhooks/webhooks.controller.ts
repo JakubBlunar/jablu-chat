@@ -16,7 +16,7 @@ import { RedisService } from '../redis/redis.service'
 import { CreateWebhookDto, ExecuteWebhookDto } from './dto'
 import { WebhooksService } from './webhooks.service'
 
-const WEBHOOK_RATE_LIMIT = 10
+const WEBHOOK_RATE_LIMIT = 30
 const WEBHOOK_RATE_WINDOW = 60
 
 @Controller()

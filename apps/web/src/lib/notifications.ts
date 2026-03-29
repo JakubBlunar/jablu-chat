@@ -31,10 +31,14 @@ export async function requestPermission(): Promise<boolean> {
 }
 
 export function showNotification(title: string, body: string, url?: string, onClick?: () => void) {
-  if (document.hasFocus()) return
-
   const settings = getNotifSettings()
   if (!settings.enabled) return
+
+  if (document.hasFocus()) {
+    import('@/stores/toast.store').then(({ showToast }) => showToast(title, body, url))
+    if (settings.soundEnabled) playSound()
+    return
+  }
 
   const { electronAPI } = window as unknown as {
     electronAPI?: { showNotification: (t: string, b: string, u?: string) => void }

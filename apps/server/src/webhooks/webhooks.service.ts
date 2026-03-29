@@ -125,7 +125,7 @@ export class WebhooksService {
     if (!webhook) {
       throw new NotFoundException('Webhook not found')
     }
-    await this.requireTextChannel(webhook.channelId)
+    const channel = await this.requireTextChannel(webhook.channelId)
 
     const trimmed = content.trim()
     if (!trimmed) {
@@ -157,6 +157,8 @@ export class WebhooksService {
     }
     this.events.emit('webhook:message', {
       channelId: webhook.channelId,
+      serverId: channel.serverId,
+      webhookName: resolvedName,
       message: wireWithWebhook
     })
 

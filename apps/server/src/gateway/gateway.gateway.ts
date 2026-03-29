@@ -118,9 +118,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
     })
 
-    this.events.on('webhook:message', (payload: { channelId: string; message: unknown }) => {
-      this.emitToChannel(payload.channelId, 'message:new', payload.message)
-    })
+    this.events.on(
+      'webhook:message',
+      (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
+        this.emitToChannel(payload.channelId, 'message:new', payload.message)
+
+        if (payload.serverId && payload.webhookName) {
+          const content = (payload.message as { content?: string })?.content
+          this.sendPushToOfflineMembers(
+            payload.serverId,
+            '',
+            payload.webhookName,
+            content,
+            `/channels/${payload.serverId}/${payload.channelId}`,
+            payload.channelId,
+            []
+          ).catch(() => {})
+        }
+      }
+    )
 
     this.events.on(
       'webhook:link-previews',
@@ -247,12 +263,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       'friend:request',
       (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
         const { friendshipId, requester, addressee } = payload
-        this.server.to(`user:${(addressee as { id: string }).id}`).emit('friend:request', {
+        const addresseeId = (addressee as { id: string }).id
+        const requesterName =
+          (requester as { displayName?: string }).displayName ??
+          (requester as { username?: string }).username ??
+          'Someone'
+
+        this.server.to(`user:${addresseeId}`).emit('friend:request', {
           friendshipId,
           user: requester,
           direction: 'incoming',
           createdAt: new Date().toISOString()
         })
+
+        if (!this.isUserOnline(addresseeId)) {
+          this.push
+            .sendToUsers([addresseeId], {
+              title: 'Friend Request',
+              body: `${requesterName} sent you a friend request`,
+              url: '/channels/@me'
+            })
+            .catch(() => {})
+        }
       }
     )
 

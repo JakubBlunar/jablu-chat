@@ -264,6 +264,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
 
   const channelReadStates = useReadStateStore((s) => s.channels)
   const ackChannel = useReadStateStore((s) => s.ackChannel)
+  const ackServer = useReadStateStore((s) => s.ackServer)
   const notifPrefs = useNotifPrefStore((s) => s.prefs)
   const getNotifLevel = useCallback((channelId: string) => notifPrefs[channelId] ?? 'all', [notifPrefs])
 
@@ -495,6 +496,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                   Reorder Channels
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  if (currentServer) ackServer(currentServer.id)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-white"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Mark All as Read
+              </button>
               <button
                 type="button"
                 onClick={() => {
