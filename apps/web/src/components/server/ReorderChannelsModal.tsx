@@ -1,4 +1,4 @@
-import type { Channel } from '@chat/shared'
+import type { Channel, ChannelCategory } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
 import {
   DndContext,
@@ -21,6 +21,7 @@ import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
+import { useSortedChannels } from '@/hooks/useSortedChannels'
 
 function GripIcon() {
   return (
@@ -35,13 +36,9 @@ function GripIcon() {
   )
 }
 
-function SortableItem({ channel }: { channel: Channel }) {
+function SortableChannel({ channel }: { channel: Channel }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: channel.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition
-  }
+  const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
     <div
@@ -58,20 +55,39 @@ function SortableItem({ channel }: { channel: Channel }) {
   )
 }
 
-function SortableList({
-  title,
+function SortableCategory({ category, children }: { category: ChannelCategory; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `cat-${category.id}`
+  })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-lg border border-white/5 bg-white/[0.02] ${isDragging ? 'z-50 opacity-75 shadow-lg' : ''}`}
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button type="button" className="cursor-grab touch-none active:cursor-grabbing" {...attributes} {...listeners}>
+          <GripIcon />
+        </button>
+        <span className="text-xs font-semibold tracking-wide text-gray-400 uppercase">{category.name}</span>
+      </div>
+      <div className="space-y-1 px-3 pb-3">{children}</div>
+    </div>
+  )
+}
+
+function ChannelSortableList({
   items,
   onReorder
 }: {
-  title: string
   items: Channel[]
   onReorder: (items: Channel[]) => void
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates
-    })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const ids = useMemo(() => items.map((c) => c.id), [items])
@@ -91,60 +107,121 @@ function SortableList({
   if (items.length === 0) return null
 
   return (
-    <div>
-      <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">{title}</h4>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          <div className="space-y-1">
-            {items.map((ch) => (
-              <SortableItem key={ch.id} channel={ch} />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-    </div>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div className="space-y-1">
+          {items.map((ch) => (
+            <SortableChannel key={ch.id} channel={ch} />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   )
+}
+
+type CategoryState = {
+  category: ChannelCategory
+  channels: Channel[]
 }
 
 export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
   const channels = useChannelStore((s) => s.channels)
+  const categories = useChannelStore((s) => s.categories)
   const serverId = useServerStore((s) => s.currentServerId)
 
-  const initialText = useMemo(
-    () => channels.filter((c) => c.type === 'text').sort((a, b) => a.position - b.position),
-    [channels]
-  )
-  const initialVoice = useMemo(
-    () => channels.filter((c) => c.type === 'voice').sort((a, b) => a.position - b.position),
-    [channels]
-  )
+  const { uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, categories)
 
-  const [textOrder, setTextOrder] = useState<Channel[]>(initialText)
-  const [voiceOrder, setVoiceOrder] = useState<Channel[]>(initialVoice)
+  const [uncatChannels, setUncatChannels] = useState<Channel[]>(() => [...uncategorizedText, ...uncategorizedVoice])
+  const [catOrder, setCatOrder] = useState<CategoryState[]>(() =>
+    categoryGroups.map((g) => ({
+      category: g.category,
+      channels: [...g.textChannels, ...g.voiceChannels]
+    }))
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const initialUncatIds = useMemo(
+    () => [...uncategorizedText, ...uncategorizedVoice].map((c) => c.id),
+    [uncategorizedText, uncategorizedVoice]
+  )
+  const initialCatIds = useMemo(
+    () => categoryGroups.map((g) => g.category.id),
+    [categoryGroups]
+  )
+  const initialCatChannelIds = useMemo(
+    () =>
+      Object.fromEntries(
+        categoryGroups.map((g) => [g.category.id, [...g.textChannels, ...g.voiceChannels].map((c) => c.id)])
+      ),
+    [categoryGroups]
+  )
+
   const hasChanges = useMemo(() => {
-    const textChanged = textOrder.some((c, i) => c.id !== initialText[i]?.id)
-    const voiceChanged = voiceOrder.some((c, i) => c.id !== initialVoice[i]?.id)
-    return textChanged || voiceChanged
-  }, [textOrder, voiceOrder, initialText, initialVoice])
+    const uncatChanged = uncatChannels.some((c, i) => c.id !== initialUncatIds[i])
+    const catOrderChanged = catOrder.some((c, i) => c.category.id !== initialCatIds[i])
+    const catChannelsChanged = catOrder.some((cs) => {
+      const initial = initialCatChannelIds[cs.category.id]
+      if (!initial) return true
+      return cs.channels.some((c, i) => c.id !== initial[i])
+    })
+    return uncatChanged || catOrderChanged || catChannelsChanged
+  }, [uncatChannels, catOrder, initialUncatIds, initialCatIds, initialCatChannelIds])
+
+  const catSortSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  const catSortIds = useMemo(() => catOrder.map((c) => `cat-${c.category.id}`), [catOrder])
+
+  const handleCatDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (over && active.id !== over.id) {
+        const oldIdx = catOrder.findIndex((c) => `cat-${c.category.id}` === active.id)
+        const newIdx = catOrder.findIndex((c) => `cat-${c.category.id}` === over.id)
+        setCatOrder(arrayMove(catOrder, oldIdx, newIdx))
+      }
+    },
+    [catOrder]
+  )
+
+  const updateCatChannels = useCallback((catId: string, newChannels: Channel[]) => {
+    setCatOrder((prev) => prev.map((cs) => (cs.category.id === catId ? { ...cs, channels: newChannels } : cs)))
+  }, [])
 
   const handleSave = useCallback(async () => {
     if (!serverId) return
     setSaving(true)
     setError(null)
     try {
-      const allIds = [...textOrder.map((c) => c.id), ...voiceOrder.map((c) => c.id)]
-      await api.reorderChannels(serverId, allIds)
-      useChannelStore.getState().applyReorder(allIds)
+      const newCatIds = catOrder.map((c) => c.category.id)
+      const catOrderChanged = newCatIds.some((id, i) => id !== initialCatIds[i])
+
+      const allChannelIds = [
+        ...uncatChannels.map((c) => c.id),
+        ...catOrder.flatMap((cs) => cs.channels.map((c) => c.id))
+      ]
+
+      const promises: Promise<void>[] = []
+      if (catOrderChanged) {
+        promises.push(api.reorderCategories(serverId, newCatIds))
+      }
+      promises.push(api.reorderChannels(serverId, allChannelIds))
+
+      await Promise.all(promises)
+
+      useChannelStore.getState().applyReorder(allChannelIds)
+      if (catOrderChanged) {
+        useChannelStore.getState().applyCategoryReorder(newCatIds)
+      }
       onClose()
     } catch {
-      setError('Failed to save channel order. Please try again.')
+      setError('Failed to save order. Please try again.')
     } finally {
       setSaving(false)
     }
-  }, [serverId, textOrder, voiceOrder, onClose])
+  }, [serverId, catOrder, uncatChannels, initialCatIds, onClose])
 
   return (
     <ModalOverlay onClose={onClose} noPadding className="flex max-h-[80vh] flex-col">
@@ -163,11 +240,32 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
 
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         <p className="text-sm text-gray-400">
-          Drag channels to reorder them. Text and voice channels are reordered separately.
+          Drag channels to reorder within their group. Drag categories to reorder them relative to each other.
         </p>
 
-        <SortableList title="Text Channels" items={textOrder} onReorder={setTextOrder} />
-        <SortableList title="Voice Channels" items={voiceOrder} onReorder={setVoiceOrder} />
+        {uncatChannels.length > 0 && (
+          <div>
+            <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">Uncategorized</h4>
+            <ChannelSortableList items={uncatChannels} onReorder={setUncatChannels} />
+          </div>
+        )}
+
+        {catOrder.length > 0 && (
+          <DndContext sensors={catSortSensors} collisionDetection={closestCenter} onDragEnd={handleCatDragEnd}>
+            <SortableContext items={catSortIds} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {catOrder.map((cs) => (
+                  <SortableCategory key={cs.category.id} category={cs.category}>
+                    <ChannelSortableList
+                      items={cs.channels}
+                      onReorder={(newChannels) => updateCatChannels(cs.category.id, newChannels)}
+                    />
+                  </SortableCategory>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
 
       {error && <p className="px-5 text-sm text-red-400">{error}</p>}

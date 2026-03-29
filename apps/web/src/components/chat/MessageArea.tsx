@@ -24,6 +24,7 @@ import { Permission as SharedPermission, permsToBigInt, hasPermission as hasPerm
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
+import { useThreadStore } from '@/stores/thread.store'
 
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
 import { useProfileCard } from '@/components/chat/hooks/useProfileCard'
@@ -120,6 +121,7 @@ export interface MessageAreaProps {
 
 export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps) {
   const isMobile = useIsMobile()
+  const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
   const store = useMessageStoreAdapter(mode)
   const { messages, isLoading, hasMore, hasNewer } = store
@@ -631,7 +633,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         ) : (
           <>
             <ThreadPanel />
-            {memberSidebar}
+            {!threadOpen && memberSidebar}
           </>
         )}
       </div>

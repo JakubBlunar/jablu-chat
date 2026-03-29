@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { Toggle } from '@/components/ui/Toggle'
 import { supportsBackgroundBlur } from '@/lib/backgroundBlur'
 import {
   type CameraQuality,
@@ -75,29 +76,18 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Background Blur</h3>
             {canBlur ? (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={blur}
+              <div
                 onClick={() => setBlur(!blur)}
-                className="flex w-full items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
+                className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
               >
-                <div
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition ${blur ? 'bg-primary' : 'bg-white/10'}`}
-                >
-                  <div
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                      blur ? 'translate-x-5' : ''
-                    }`}
-                  />
-                </div>
+                <Toggle checked={blur} onChange={setBlur} />
                 <div className="text-left">
                   <span className="block text-sm text-gray-200">Blur background</span>
                   <span className="block text-[11px] text-gray-500">
                     Uses AI segmentation. May impact performance on older devices.
                   </span>
                 </div>
-              </button>
+              </div>
             ) : (
               <p className="rounded-md bg-surface-darkest px-4 py-3 text-[11px] text-gray-500">
                 Background blur is not supported on this browser.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Toggle } from '@/components/ui/Toggle'
 import { api, type AutoModRule } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 
@@ -24,16 +25,7 @@ function AutoModCard({
           <h3 className="text-sm font-semibold text-white">{title}</h3>
           <p className="mt-0.5 text-xs text-gray-500">{description}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => onToggle(!enabled)}
-          disabled={saving}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition ${enabled ? 'bg-primary' : 'bg-gray-600'}`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`}
-          />
-        </button>
+        <Toggle checked={enabled} onChange={onToggle} disabled={saving} />
       </div>
       {enabled && <div className="mt-4 border-t border-white/5 pt-4">{children}</div>}
     </div>

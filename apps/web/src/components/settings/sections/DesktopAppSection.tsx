@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Toggle } from '@/components/ui/Toggle'
 import { electronAPI } from '@/lib/electron'
 
 export function DesktopAppSection() {
@@ -28,28 +29,18 @@ export function DesktopAppSection() {
     <div className="space-y-6">
       <div>
         <h3 className="mb-3 text-sm font-semibold text-gray-200">Startup</h3>
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => void handleToggle()}
-          className="flex w-full items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
+        <div
+          onClick={() => { if (!loading) void handleToggle() }}
+          className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
         >
-          <div
-            className={`relative h-6 w-11 shrink-0 rounded-full transition ${autoLaunch ? 'bg-primary' : 'bg-white/10'}`}
-          >
-            <div
-              className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                autoLaunch ? 'translate-x-5' : ''
-              }`}
-            />
-          </div>
+          <Toggle checked={autoLaunch} onChange={() => void handleToggle()} disabled={loading} />
           <div className="text-left">
             <span className="block text-sm text-gray-200">Start at login</span>
             <span className="block text-[11px] text-gray-500">
               Automatically start Jablu when you log in to your computer
             </span>
           </div>
-        </button>
+        </div>
       </div>
 
       <div>
