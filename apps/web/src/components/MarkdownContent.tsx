@@ -309,7 +309,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           className="my-1 max-h-72 max-w-full rounded-lg object-cover"
           loading="lazy"
           referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
       ),
       hr: () => <hr className="my-2 border-white/10" />,
