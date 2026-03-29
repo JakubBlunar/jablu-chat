@@ -6,10 +6,10 @@ import type { ChatGateway } from './gateway.gateway'
  */
 export function registerEventListeners(gw: ChatGateway) {
   gw.events.on('user:status', async (payload: { userId: string; status: string }) => {
-    if (payload.status === 'dnd') {
-      gw.manualStatus.set(payload.userId, 'dnd')
-    } else {
+    if (payload.status === 'online') {
       gw.manualStatus.delete(payload.userId)
+    } else {
+      gw.manualStatus.set(payload.userId, payload.status)
     }
 
     const memberships = await gw.prisma.serverMember.findMany({

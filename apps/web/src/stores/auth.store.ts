@@ -82,6 +82,7 @@ type AuthState = {
   updateCustomStatus: (customStatus: string | null) => Promise<void>
   updateDmPrivacy: (dmPrivacy: DmPrivacy) => Promise<void>
   setUser: (user: AuthUser) => void
+  isManualStatus: boolean
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -92,6 +93,7 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: true,
+      isManualStatus: false,
 
       login: async (email, password) => {
         const data = await api.login(email, password)
@@ -180,7 +182,7 @@ export const useAuthStore = create<AuthState>()(
 
       updateStatus: async (status) => {
         const user = await api.updateStatus(status)
-        set({ user })
+        set({ user, isManualStatus: status !== 'online' })
       },
 
       updateCustomStatus: async (customStatus: string | null) => {

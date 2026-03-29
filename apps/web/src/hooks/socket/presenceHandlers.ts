@@ -58,11 +58,6 @@ export function createPresenceHandlers() {
 
   const onPresenceInit = (payload: { onlineUserIds: string[] }) => {
     useMemberStore.getState().initOnlineUsers(payload.onlineUserIds)
-    const currentUser = useAuthStore.getState().user
-    if (currentUser && payload.onlineUserIds.includes(currentUser.id)) {
-      useAuthStore.getState().setUser({ ...currentUser, status: 'online' })
-      useMemberStore.getState().setUserStatus(currentUser.id, 'online')
-    }
     useReadStateStore.getState().fetchAll()
     useNotifPrefStore.getState().fetchAll()
   }
