@@ -30,13 +30,23 @@ export async function requestPermission(): Promise<boolean> {
   return result === 'granted'
 }
 
-export function showNotification(title: string, body: string, url?: string, onClick?: () => void) {
+import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
+
+export type { NotifSoundKind }
+
+export function showNotification(
+  title: string,
+  body: string,
+  url?: string,
+  onClick?: () => void,
+  soundKind: NotifSoundKind = 'message'
+) {
   const settings = getNotifSettings()
   if (!settings.enabled) return
 
   if (document.hasFocus()) {
     import('@/stores/toast.store').then(({ showToast }) => showToast(title, body, url))
-    if (settings.soundEnabled) playSound()
+    if (settings.soundEnabled) playNotifSound(soundKind)
     return
   }
 
@@ -45,7 +55,7 @@ export function showNotification(title: string, body: string, url?: string, onCl
   }
   if (electronAPI?.showNotification) {
     electronAPI.showNotification(title, body, url)
-    if (settings.soundEnabled) playSound()
+    if (settings.soundEnabled) playNotifSound(soundKind)
     return
   }
 
@@ -55,7 +65,7 @@ export function showNotification(title: string, body: string, url?: string, onCl
   const n = new Notification(title, {
     body,
     icon: '/favicon-32x32.png',
-    silent: !settings.soundEnabled
+    silent: true
   })
 
   n.onclick = () => {
@@ -69,22 +79,14 @@ export function showNotification(title: string, body: string, url?: string, onCl
   }
 
   if (settings.soundEnabled) {
-    playSound()
+    playNotifSound(soundKind)
   }
 }
 
-let audioEl: HTMLAudioElement | null = null
-
-export function playSound() {
+export function playSound(kind: NotifSoundKind = 'message') {
   const settings = getNotifSettings()
   if (!settings.soundEnabled) return
-
-  if (!audioEl) {
-    audioEl = new Audio('/sounds/notification.mp3')
-    audioEl.volume = 0.5
-  }
-  audioEl.currentTime = 0
-  audioEl.play().catch(() => {})
+  playNotifSound(kind)
 }
 
 // ─── Web Push Subscription ─────────────────────────────────────
