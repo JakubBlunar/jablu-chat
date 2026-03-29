@@ -23,6 +23,7 @@ export type Member = {
 type MemberState = {
   members: Member[]
   onlineUserIds: Set<string>
+  realtimeStatuses: Map<string, string>
   isLoading: boolean
   fetchMembers: (serverId: string) => Promise<void>
   addMember: (member: Member) => void
@@ -36,16 +37,24 @@ type MemberState = {
   updateUserProfile: (userId: string, data: Partial<Member['user']>) => void
 }
 
-export const useMemberStore = create<MemberState>((set) => ({
+export const useMemberStore = create<MemberState>((set, get) => ({
   members: [],
   onlineUserIds: new Set(),
+  realtimeStatuses: new Map(),
   isLoading: false,
 
   fetchMembers: async (serverId) => {
     set({ isLoading: true })
     try {
       const list = await api.get<Member[]>(`/api/servers/${serverId}/members`)
-      set({ members: list, isLoading: false })
+      const rt = get().realtimeStatuses
+      const patched = rt.size > 0
+        ? list.map((m) => {
+            const live = rt.get(m.userId)
+            return live ? { ...m, user: { ...m.user, status: live } } : m
+          })
+        : list
+      set({ members: patched, isLoading: false })
     } catch (e) {
       set({ isLoading: false })
       throw e
@@ -76,20 +85,29 @@ export const useMemberStore = create<MemberState>((set) => ({
     set((s) => {
       const next = new Set(s.onlineUserIds)
       next.add(userId)
-      return { onlineUserIds: next }
+      const rt = new Map(s.realtimeStatuses)
+      rt.set(userId, 'online')
+      return { onlineUserIds: next, realtimeStatuses: rt }
     }),
 
   setUserOffline: (userId) =>
     set((s) => {
       const next = new Set(s.onlineUserIds)
       next.delete(userId)
-      return { onlineUserIds: next }
+      const rt = new Map(s.realtimeStatuses)
+      rt.delete(userId)
+      return { onlineUserIds: next, realtimeStatuses: rt }
     }),
 
   setUserStatus: (userId, status) =>
-    set((s) => ({
-      members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, status } } : m))
-    })),
+    set((s) => {
+      const rt = new Map(s.realtimeStatuses)
+      rt.set(userId, status)
+      return {
+        realtimeStatuses: rt,
+        members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, status } } : m))
+      }
+    }),
 
   setUserCustomStatus: (userId: string, customStatus: string | null) =>
     set((s) => ({
