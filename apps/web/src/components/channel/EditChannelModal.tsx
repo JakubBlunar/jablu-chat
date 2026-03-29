@@ -2,6 +2,7 @@ import type { Channel, Role } from '@chat/shared'
 import { Permission, permsToBigInt, hasPermission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { Toggle } from '@/components/ui/Toggle'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
@@ -205,20 +206,15 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
         )}
 
         {channel.type === 'text' && (
-          <label className="mt-5 flex cursor-pointer items-center justify-between text-sm text-gray-300">
+          <div className="mt-5 flex items-center justify-between text-sm text-gray-300">
             <span>
               Archive channel
               <span className="ml-1 text-xs text-gray-500">
                 (read-only, hidden from default view)
               </span>
             </span>
-            <input
-              type="checkbox"
-              checked={isArchived}
-              onChange={(e) => setIsArchived(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-600 bg-surface-darkest text-primary accent-primary"
-            />
-          </label>
+            <Toggle checked={isArchived} onChange={setIsArchived} />
+          </div>
         )}
 
         {channel.type === 'text' && (
