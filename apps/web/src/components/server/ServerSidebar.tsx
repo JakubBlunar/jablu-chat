@@ -39,14 +39,16 @@ export function ServerSidebar() {
   const channelToServer = useReadStateStore((s) => s.channelToServer)
   const getServerUnread = useReadStateStore((s) => s.getServerUnread)
   const notifPrefs = useNotifPrefStore((s) => s.prefs)
+  const serverPrefs = useNotifPrefStore((s) => s.serverPrefs)
   const getNotifLevel = useNotifPrefStore((s) => s.get)
+  const getServerLevel = useNotifPrefStore((s) => s.getServerLevel)
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
   const computeServerBadge = useCallback(
-    (serverId: string) => getServerUnread(serverId, getNotifLevel),
+    (serverId: string) => getServerUnread(serverId, getNotifLevel, getServerLevel),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getServerUnread, getNotifLevel, channelReadStates, channelToServer, notifPrefs]
+    [getServerUnread, getNotifLevel, getServerLevel, channelReadStates, channelToServer, notifPrefs, serverPrefs]
   )
 
   const [joinOpen, setJoinOpen] = useState(false)

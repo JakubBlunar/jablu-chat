@@ -21,7 +21,8 @@ type ReadStateState = {
   incrementDm: (conversationId: string) => void
   getServerUnread: (
     serverId: string,
-    getNotifLevel: (channelId: string) => NotifLevel
+    getNotifLevel: (channelId: string) => NotifLevel,
+    getServerLevel?: (serverId: string) => NotifLevel
   ) => { unread: boolean; mentions: number }
 }
 
@@ -128,17 +129,19 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     set({ dms })
   },
 
-  getServerUnread: (serverId, getNotifLevel) => {
+  getServerUnread: (serverId, getNotifLevel, getServerLevel) => {
     const { channels, channelToServer } = get()
     let mentions = 0
     let unread = false
+    const serverLevel = getServerLevel?.(serverId) ?? 'all'
     for (const [channelId, sid] of channelToServer) {
       if (sid !== serverId) continue
       const rs = channels.get(channelId)
       if (!rs) continue
-      const level = getNotifLevel(channelId)
-      if (level === 'none') continue
-      if (level === 'mentions') {
+      const channelLevel = getNotifLevel(channelId)
+      const effective = channelLevel !== 'all' ? channelLevel : serverLevel
+      if (effective === 'none') continue
+      if (effective === 'mentions') {
         if (rs.mentionCount > 0) {
           unread = true
           mentions += rs.mentionCount

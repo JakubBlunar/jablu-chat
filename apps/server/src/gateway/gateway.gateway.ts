@@ -975,20 +975,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   ) {
     const members = await this.prisma.serverMember.findMany({
       where: { serverId, NOT: { userId: senderId } },
-      select: { userId: true }
+      select: { userId: true, notifLevel: true }
     })
 
-    const offlineIds = members.map((m) => m.userId).filter((id) => !this.isUserOnline(id))
+    const offlineIds = members.filter((m) => !this.isUserOnline(m.userId))
 
     if (offlineIds.length === 0) return
 
-    const prefMap = await this.getChannelNotifPrefs(channelId, offlineIds)
+    const serverPrefMap = new Map<string, string>()
+    for (const m of offlineIds) {
+      if (m.notifLevel) serverPrefMap.set(m.userId, m.notifLevel)
+    }
+
+    const offlineUserIds = offlineIds.map((m) => m.userId)
+    const channelPrefMap = await this.getChannelNotifPrefs(channelId, offlineUserIds)
     const mentionSet = new Set(mentionedUserIds)
 
-    const eligibleIds = offlineIds.filter((id) => {
-      const level = prefMap.get(id) ?? 'all'
-      if (level === 'none') return false
-      if (level === 'mentions') return mentionSet.has(id)
+    const eligibleIds = offlineUserIds.filter((id) => {
+      const channelLevel = channelPrefMap.get(id)
+      const serverLevel = serverPrefMap.get(id)
+      const effective = channelLevel ?? serverLevel ?? 'all'
+      if (effective === 'none') return false
+      if (effective === 'mentions') return mentionSet.has(id)
       return true
     })
 

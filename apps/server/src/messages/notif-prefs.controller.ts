@@ -18,12 +18,57 @@ export class BulkNotifPrefsController {
 
   @Get('mine')
   async getAll(@CurrentUser() user: { id: string }) {
-    const prefs = await this.prisma.channelNotifPref.findMany({
-      where: { userId: user.id }
+    const [channelPrefs, memberships] = await Promise.all([
+      this.prisma.channelNotifPref.findMany({ where: { userId: user.id } }),
+      this.prisma.serverMember.findMany({
+        where: { userId: user.id, notifLevel: { not: null } },
+        select: { serverId: true, notifLevel: true }
+      })
+    ])
+    const prefs: Record<string, string> = {}
+    for (const p of channelPrefs) prefs[p.channelId] = p.level
+    const serverPrefs: Record<string, string> = {}
+    for (const m of memberships) {
+      if (m.notifLevel) serverPrefs[m.serverId] = m.notifLevel
+    }
+    return { prefs, serverPrefs }
+  }
+}
+
+@Controller('servers/:serverId/notifications')
+@UseGuards(AuthGuard('jwt'))
+export class ServerNotifPrefsController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Get()
+  async get(@Param('serverId', ParseUUIDPipe) serverId: string, @CurrentUser() user: { id: string }) {
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: user.id, serverId } },
+      select: { notifLevel: true }
     })
-    const map: Record<string, string> = {}
-    for (const p of prefs) map[p.channelId] = p.level
-    return { prefs: map }
+    return { level: member?.notifLevel ?? 'all' }
+  }
+
+  @Put()
+  async set(
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: SetNotifPrefDto
+  ) {
+    await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId: user.id, serverId } },
+      data: { notifLevel: dto.level }
+    })
+    return { level: dto.level }
+  }
+
+  @Delete()
+  async reset(@Param('serverId', ParseUUIDPipe) serverId: string, @CurrentUser() user: { id: string }) {
+    await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId: user.id, serverId } },
+      data: { notifLevel: null }
+    })
+    return { level: 'all' }
   }
 }
 

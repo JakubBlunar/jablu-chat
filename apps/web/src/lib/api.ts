@@ -477,7 +477,7 @@ export class ApiClient {
     return this.get(`/api/search/messages?${params}`)
   }
 
-  getAllNotifPrefs(): Promise<{ prefs: Record<string, string> }> {
+  getAllNotifPrefs(): Promise<{ prefs: Record<string, string>; serverPrefs: Record<string, string> }> {
     return this.get('/api/notif-prefs/mine')
   }
 
@@ -493,6 +493,18 @@ export class ApiClient {
 
   resetNotifPref(channelId: string): Promise<{ level: string }> {
     return this.request('DELETE', `/api/channels/${channelId}/notifications`)
+  }
+
+  getServerNotifPref(serverId: string): Promise<{ level: string }> {
+    return this.get(`/api/servers/${serverId}/notifications`)
+  }
+
+  setServerNotifPref(serverId: string, level: string): Promise<{ level: string }> {
+    return this.request('PUT', `/api/servers/${serverId}/notifications`, { level })
+  }
+
+  resetServerNotifPref(serverId: string): Promise<{ level: string }> {
+    return this.request('DELETE', `/api/servers/${serverId}/notifications`)
   }
 
   getAuditLog(
