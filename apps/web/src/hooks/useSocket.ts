@@ -180,7 +180,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           const url = msg.serverId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined
           const ch = useChannelStore.getState().channels.find((c) => c.id === msg.channelId)
           const channelTitle = ch ? `#${ch.name}` : `#${msg.channelId.slice(0, 8)}`
-          showNotification(channelTitle, `${author}: ${preview}`, url)
+          showNotification(channelTitle, `${author}: ${preview}`, url, undefined, isMentioned ? 'mention' : 'message')
         }
       }
     }
@@ -313,7 +313,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
         const preview = notifBody(payload)
         const url = `/channels/@me/${payload.conversationId}`
-        showNotification(`DM from ${author}`, preview, url)
+        showNotification(`DM from ${author}`, preview, url, undefined, 'mention')
       }
 
       const inList = dmState.conversations.some((c) => c.id === payload.conversationId)
@@ -472,7 +472,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (payload.direction === 'incoming') {
         const sender = payload.user as { displayName?: string; username?: string }
         const name = sender.displayName ?? sender.username ?? 'Someone'
-        showNotification('Friend Request', `${name} sent you a friend request`, '/channels/@me')
+        showNotification('Friend Request', `${name} sent you a friend request`, '/channels/@me', undefined, 'friend')
       }
     }
     const onFriendAccepted = (payload: { friendshipId: string; user: Record<string, unknown> }) => {
