@@ -12,12 +12,21 @@ export function registerEventListeners(gw: ChatGateway) {
       gw.manualStatus.set(payload.userId, payload.status)
     }
 
-    const memberships = await gw.prisma.serverMember.findMany({
-      where: { userId: payload.userId },
-      select: { serverId: true }
-    })
+    const [memberships, friendIds] = await Promise.all([
+      gw.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      }),
+      gw.getFriendUserIds(payload.userId)
+    ])
     for (const m of memberships) {
       gw.server.to(`server:${m.serverId}`).emit('user:status', {
+        userId: payload.userId,
+        status: payload.status
+      })
+    }
+    for (const fid of friendIds) {
+      gw.server.to(`user:${fid}`).emit('user:status', {
         userId: payload.userId,
         status: payload.status
       })
@@ -25,12 +34,21 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on('user:custom-status', async (payload: { userId: string; customStatus: string | null }) => {
-    const memberships = await gw.prisma.serverMember.findMany({
-      where: { userId: payload.userId },
-      select: { serverId: true }
-    })
+    const [memberships, friendIds] = await Promise.all([
+      gw.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      }),
+      gw.getFriendUserIds(payload.userId)
+    ])
     for (const m of memberships) {
       gw.server.to(`server:${m.serverId}`).emit('user:custom-status', {
+        userId: payload.userId,
+        customStatus: payload.customStatus
+      })
+    }
+    for (const fid of friendIds) {
+      gw.server.to(`user:${fid}`).emit('user:custom-status', {
         userId: payload.userId,
         customStatus: payload.customStatus
       })

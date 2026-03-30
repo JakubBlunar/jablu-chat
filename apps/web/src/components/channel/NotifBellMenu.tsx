@@ -11,27 +11,17 @@ const LEVELS: { value: NotifLevel; label: string; desc: string }[] = [
   { value: 'none', label: 'Muted', desc: 'No notifications' }
 ]
 
-export function NotifBellMenu({ channelId }: { channelId: string }) {
+export function NotifBellMenu({ channelId, serverId }: { channelId: string; serverId?: string }) {
   const [open, setOpen] = useState(false)
-  const [level, setLevel] = useState<NotifLevel>('all')
-  const [loaded, setLoaded] = useState(false)
+  const storeLevel = useNotifPrefStore((s) => s.getEffective(channelId, serverId))
+  const [optimistic, setOptimistic] = useState<NotifLevel | null>(null)
+  const level = optimistic ?? storeLevel
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
 
   useEffect(() => {
-    if (!open || loaded) return
-    void api.getNotifPref(channelId).then((r) => {
-      setLevel(r.level as NotifLevel)
-      setLoaded(true)
-    }).catch(() => {
-      setLoaded(true)
-    })
-  }, [open, loaded, channelId])
-
-  useEffect(() => {
-    setLoaded(false)
-    setLevel('all')
+    setOptimistic(null)
   }, [channelId])
 
   useEffect(() => {
@@ -59,8 +49,7 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
 
   const handleChange = useCallback(
     async (newLevel: NotifLevel) => {
-      const prevLevel = level
-      setLevel(newLevel)
+      setOptimistic(newLevel)
       setOpen(false)
       try {
         if (newLevel === 'all') {
@@ -70,11 +59,12 @@ export function NotifBellMenu({ channelId }: { channelId: string }) {
           await api.setNotifPref(channelId, newLevel)
           useNotifPrefStore.getState().set(channelId, newLevel)
         }
+        setOptimistic(null)
       } catch {
-        setLevel(prevLevel)
+        setOptimistic(null)
       }
     },
-    [channelId, level]
+    [channelId]
   )
 
   const isMuted = level === 'none'

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api } from '@/lib/api'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { SheetBtn } from '@/components/ui/SheetBtn'
@@ -12,19 +12,14 @@ const LEVELS: { value: NotifLevel; label: string; icon: React.ReactNode }[] = [
   { value: 'none', label: 'Muted', icon: <BellMutedIcon /> }
 ]
 
-export function NotifBellSheetBtn({ channelId, onClose }: { channelId: string; onClose: () => void }) {
+export function NotifBellSheetBtn({ channelId, serverId, onClose }: { channelId: string; serverId?: string; onClose: () => void }) {
   const [subOpen, setSubOpen] = useState(false)
-  const [level, setLevel] = useState<NotifLevel>('all')
-
-  useEffect(() => {
-    void api.getNotifPref(channelId).then((r) => {
-      setLevel(r.level as NotifLevel)
-    }).catch(() => {})
-  }, [channelId])
+  const storeLevel = useNotifPrefStore((s) => s.getEffective(channelId, serverId))
+  const [optimistic, setOptimistic] = useState<NotifLevel | null>(null)
+  const level = optimistic ?? storeLevel
 
   const handleChange = useCallback(async (newLevel: NotifLevel) => {
-    const prev = level
-    setLevel(newLevel)
+    setOptimistic(newLevel)
     setSubOpen(false)
     onClose()
     try {
@@ -35,10 +30,11 @@ export function NotifBellSheetBtn({ channelId, onClose }: { channelId: string; o
         await api.setNotifPref(channelId, newLevel)
         useNotifPrefStore.getState().set(channelId, newLevel)
       }
+      setOptimistic(null)
     } catch {
-      setLevel(prev)
+      setOptimistic(null)
     }
-  }, [channelId, level, onClose])
+  }, [channelId, onClose])
 
   const currentLabel = LEVELS.find((l) => l.value === level)?.label ?? 'Notifications'
 

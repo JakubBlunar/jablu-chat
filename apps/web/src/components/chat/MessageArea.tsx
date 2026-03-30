@@ -513,7 +513,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               >
                 <BookmarkHeaderIcon />
               </IconButton>
-              <NotifBellMenu channelId={activeChannel.id} />
+              <NotifBellMenu channelId={activeChannel.id} serverId={activeChannel.serverId} />
               {isAdminOrOwner && (
                 <IconButton
                   label="Channel settings"

@@ -21,6 +21,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const closeConversation = useDmStore((s) => s.closeConversation)
   const isLoading = useDmStore((s) => s.isConversationsLoading)
   const onlineIds = useMemberStore((s) => s.onlineUserIds)
+  const friends = useFriendStore((s) => s.friends)
   const dmReadStates = useReadStateStore((s) => s.dms)
   const ackDm = useReadStateStore((s) => s.ackDm)
   const pendingCount = useFriendStore((s) => s.pending.length)
@@ -51,14 +52,17 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         }
       }
       const other = conv.members.find((m) => m.userId !== user?.id)
+      const friend = friends.find((f) => f.id === other?.userId)
+      const status = friend?.status
+        ?? (onlineIds.has(other?.userId ?? '') ? 'online' : 'offline')
       return {
         name: other?.displayName ?? other?.username ?? 'Unknown',
         avatarUrl: other?.avatarUrl ?? null,
-        status: (onlineIds.has(other?.userId ?? '') ? 'online' : 'offline') as 'online' | 'offline',
+        status: status as 'online' | 'offline' | 'idle' | 'dnd',
         isGroup: false
       }
     },
-    [user?.id, onlineIds]
+    [user?.id, onlineIds, friends]
   )
 
   const voiceServerId = useVoiceConnectionStore((s) => s.currentServerId)
