@@ -424,7 +424,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     if (body.content && sendCheck.serverId) {
-      const check = await this.automod.checkMessage(sendCheck.serverId, user.id, body.content)
+      const check = await this.automod.checkMessage(sendCheck.serverId, user.id, body.content, { channelId: body.channelId })
       if (!check.allowed) {
         return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
       }
@@ -526,6 +526,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
     }
     const user = (client.data as { user: WsUser }).user
+
+    if (body.content) {
+      const channelId = await this.messages.getMessageChannelId(body.messageId)
+      if (channelId) {
+        const channel = await this.prisma.channel.findUnique({
+          where: { id: channelId },
+          select: { serverId: true }
+        })
+        if (channel?.serverId) {
+          const check = await this.automod.checkMessage(channel.serverId, user.id, body.content, { channelId, messageId: body.messageId })
+          if (!check.allowed) {
+            return { ok: false, error: check.reason ?? 'Edit blocked by auto-moderation' }
+          }
+        }
+      }
+    }
+
     const updated = await this.messages.editMessage(body.messageId, user.id, body.content)
     const channelId = updated.channelId
     if (channelId) {

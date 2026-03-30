@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { AutoModType } from '@prisma/client'
 import { Permission } from '@chat/shared'
+import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
@@ -25,16 +26,20 @@ type AutoModConfig = WordFilterConfig | LinkFilterConfig | SpamDetectionConfig
 
 @Injectable()
 export class AutoModService {
+  private readonly logger = new Logger(AutoModService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly roles: RolesService
+    private readonly roles: RolesService,
+    private readonly events: EventBusService
   ) {}
 
   async checkMessage(
     serverId: string,
     userId: string,
-    content: string
+    content: string,
+    context: { channelId?: string; messageId?: string } = {}
   ): Promise<{ allowed: boolean; reason?: string }> {
     const rules = await this.prisma.autoModRule.findMany({
       where: { serverId, enabled: true }
@@ -46,6 +51,17 @@ export class AutoModService {
       if (rule.type === 'word_filter') {
         const result = this.checkWordFilter(content, config as unknown as WordFilterConfig)
         if (!result.allowed) return result
+        if (result.flagged) {
+          this.logger.log(`Flagged message from ${userId} in ${serverId}: ${result.flagReason}`)
+          this.events.emit('automod:flagged', {
+            serverId,
+            userId,
+            channelId: context.channelId,
+            messageId: context.messageId,
+            reason: result.flagReason,
+            content: content.slice(0, 200)
+          })
+        }
       }
 
       if (rule.type === 'link_filter') {
@@ -70,13 +86,16 @@ export class AutoModService {
   private checkWordFilter(
     content: string,
     config: WordFilterConfig
-  ): { allowed: boolean; reason?: string } {
+  ): { allowed: boolean; reason?: string; flagged?: boolean; flagReason?: string } {
     if (!config.words?.length) return { allowed: true }
     const lower = content.toLowerCase()
     for (const word of config.words) {
       if (lower.includes(word.toLowerCase())) {
         if (config.action === 'block') {
           return { allowed: false, reason: 'Message contains a blocked word' }
+        }
+        if (config.action === 'flag') {
+          return { allowed: true, flagged: true, flagReason: `Contains flagged word: "${word}"` }
         }
       }
     }

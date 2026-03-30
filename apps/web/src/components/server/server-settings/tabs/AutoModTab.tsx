@@ -57,6 +57,17 @@ function WordFilterConfig({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center gap-3 mb-1">
+        <label className="text-xs text-gray-400">Action:</label>
+        <select
+          value={action}
+          onChange={(e) => onSave({ words, action: e.target.value })}
+          className="rounded-md border border-white/10 bg-surface px-2 py-1 text-xs text-white outline-none"
+        >
+          <option value="block">Block message</option>
+          <option value="flag">Flag for review</option>
+        </select>
+      </div>
       <div className="flex gap-2">
         <input
           type="text"
