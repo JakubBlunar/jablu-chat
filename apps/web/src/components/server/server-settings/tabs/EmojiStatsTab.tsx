@@ -123,7 +123,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/gif,image/webp"
+                accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                 onChange={handleFileSelect}
                 className="hidden"
               />

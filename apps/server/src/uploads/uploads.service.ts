@@ -19,6 +19,8 @@ const IMAGE_MIMES = new Set([
   'image/png',
   'image/webp',
   'image/avif',
+  'image/heic',
+  'image/heif',
 ]);
 const GIF_MIME = 'image/gif';
 const VIDEO_MIMES = new Set([
@@ -103,58 +105,71 @@ export class UploadsService {
     }
 
     const attachType = this.classifyMime(mime);
-    const ext = extname(file.originalname).toLowerCase() || this.mimeToExt(mime);
+    let savedExt = extname(file.originalname).toLowerCase() || this.mimeToExt(mime);
+    let savedMime = mime;
     const id = uuidv4();
-    const savedName = `${id}${ext}`;
-    const dest = join(this.uploadDir, 'attachments', savedName);
 
     let width: number | null = null;
     let height: number | null = null;
     let thumbnailUrl: string | null = null;
 
     if (attachType === AttachmentType.image) {
-      const meta = await sharp(file.buffer).metadata();
+      const isHeic = mime === 'image/heic' || mime === 'image/heif';
+      let imageBuffer = file.buffer;
+
+      if (isHeic) {
+        imageBuffer = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer();
+        savedExt = '.jpg';
+        savedMime = 'image/jpeg';
+      }
+
+      const meta = await sharp(imageBuffer).metadata();
       width = meta.width ?? null;
       height = meta.height ?? null;
-      writeFileSync(dest, file.buffer);
+
+      const savedName = `${id}${savedExt}`;
+      const dest = join(this.uploadDir, 'attachments', savedName);
+      writeFileSync(dest, imageBuffer);
 
       const thumbName = `${id}_thumb.webp`;
       const thumbDest = join(this.uploadDir, 'thumbnails', thumbName);
-      await sharp(file.buffer)
+      await sharp(imageBuffer)
         .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 80 })
         .toFile(thumbDest);
       thumbnailUrl = `/api/uploads/thumbnails/${thumbName}`;
-    } else if (attachType === AttachmentType.gif) {
-      writeFileSync(dest, file.buffer);
-      try {
-        const meta = await sharp(file.buffer, { animated: false }).metadata();
-        width = meta.width ?? null;
-        height = meta.height ?? null;
-      } catch {
-        /* can't read gif metadata */
-      }
-    } else if (attachType === AttachmentType.video) {
-      writeFileSync(dest, file.buffer);
-      try {
-        const info = await ffprobe(dest, { path: ffprobePath });
-        const videoStream = info.streams?.find((s) => s.codec_type === 'video');
-        if (videoStream) {
-          width = videoStream.width ?? null;
-          height = videoStream.height ?? null;
-        }
-      } catch {
-        /* ffprobe unavailable or failed – leave dimensions null */
-      }
     } else {
+      const savedName = `${id}${savedExt}`;
+      const dest = join(this.uploadDir, 'attachments', savedName);
       writeFileSync(dest, file.buffer);
+
+      if (attachType === AttachmentType.gif) {
+        try {
+          const meta = await sharp(file.buffer, { animated: false }).metadata();
+          width = meta.width ?? null;
+          height = meta.height ?? null;
+        } catch {
+          /* can't read gif metadata */
+        }
+      } else if (attachType === AttachmentType.video) {
+        try {
+          const info = await ffprobe(dest, { path: ffprobePath });
+          const videoStream = info.streams?.find((s) => s.codec_type === 'video');
+          if (videoStream) {
+            width = videoStream.width ?? null;
+            height = videoStream.height ?? null;
+          }
+        } catch {
+          /* ffprobe unavailable or failed – leave dimensions null */
+        }
+      }
     }
 
     return {
-      url: `/api/uploads/attachments/${savedName}`,
+      url: `/api/uploads/attachments/${id}${savedExt}`,
       thumbnailUrl,
       type: attachType,
-      mimeType: mime,
+      mimeType: savedMime,
       sizeBytes: file.size,
       width,
       height,
@@ -176,6 +191,8 @@ export class UploadsService {
       'image/webp': '.webp',
       'image/gif': '.gif',
       'image/avif': '.avif',
+      'image/heic': '.heic',
+      'image/heif': '.heif',
       'video/mp4': '.mp4',
       'video/webm': '.webm',
       'video/quicktime': '.mov',

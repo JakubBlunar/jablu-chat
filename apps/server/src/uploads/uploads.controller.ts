@@ -24,6 +24,8 @@ const ALLOWED_MIMETYPES = [
   'image/png',
   'image/gif',
   'image/webp',
+  'image/heic',
+  'image/heif',
   'image/svg+xml',
   'video/mp4',
   'video/webm',
