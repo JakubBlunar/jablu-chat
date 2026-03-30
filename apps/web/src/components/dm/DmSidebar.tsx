@@ -9,6 +9,7 @@ import { useMemberStore } from '@/stores/member.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useFriendStore } from '@/stores/friend.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { CountBadge } from '@/components/ui'
 import { GroupDmModal } from './GroupDmModal'
 
 export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -114,11 +115,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           <FriendsNavIcon />
           Friends
-          {pendingCount > 0 && (
-            <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {pendingCount}
-            </span>
-          )}
+          <CountBadge count={pendingCount} variant="danger" className="ml-auto" />
         </button>
       </div>
 
@@ -187,11 +184,15 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                     )}
                   </div>
                 </button>
-                {hasUnread && (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                    {rs!.mentionCount > 10 ? '10+' : rs!.mentionCount > 0 ? rs!.mentionCount : ''}
-                  </span>
-                )}
+                {hasUnread &&
+                  (rs!.mentionCount > 0 ? (
+                    <CountBadge count={rs!.mentionCount} variant="danger" max={10} />
+                  ) : (
+                    <span
+                      className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-red-500 px-1"
+                      aria-hidden
+                    />
+                  ))}
                 <button
                   type="button"
                   title="Close conversation"

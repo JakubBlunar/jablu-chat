@@ -3,6 +3,7 @@ import type { AdminInvite, AdminServer } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDate } from '../adminFormatters'
 import { ConfirmDeleteBtn, Empty } from '../AdminShared'
+import { Button, Input } from '@/components/ui'
 
 export function InvitesTab({
   invites,
@@ -91,13 +92,9 @@ export function InvitesTab({
       )}
 
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setShowCreate(!showCreate)}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover"
-        >
+        <Button type="button" variant="primary" onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : 'Create Invite'}
-        </button>
+        </Button>
       </div>
 
       {showCreate && (
@@ -106,14 +103,16 @@ export function InvitesTab({
           <p className="mt-1 text-sm text-gray-400">
             The invite code will be tied to the email address. The user must register with this exact email.
           </p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
-            />
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <Input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="user@example.com"
+                className="py-2"
+              />
+            </div>
             <select
               value={newServerId}
               onChange={(e) => setNewServerId(e.target.value)}
@@ -126,14 +125,15 @@ export function InvitesTab({
                 </option>
               ))}
             </select>
-            <button
+            <Button
               type="button"
-              onClick={() => void handleCreate()}
+              variant="primary"
+              className="shrink-0 bg-success text-white hover:bg-success-hover"
               disabled={creating || !newEmail.trim()}
-              className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white transition hover:bg-success-hover disabled:opacity-50"
+              onClick={() => void handleCreate()}
             >
               {creating ? 'Creating…' : 'Create'}
-            </button>
+            </Button>
           </div>
           {createError && <p className="mt-2 text-sm text-red-400">{createError}</p>}
         </div>

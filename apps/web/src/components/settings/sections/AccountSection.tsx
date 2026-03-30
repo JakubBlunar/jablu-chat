@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { UserAvatar } from '@/components/UserAvatar'
-import { SettingsInput } from '@/components/settings/SettingsInput'
+import { Button, Input } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -52,23 +52,19 @@ function PasswordChangeForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <h3 className="text-sm font-semibold text-white">Change Password</h3>
-      <SettingsInput label="Current Password" type="password" value={currentPassword} onChange={setCurrentPassword} />
-      <SettingsInput label="New Password" type="password" value={newPassword} onChange={setNewPassword} />
-      <SettingsInput
+      <Input label="Current Password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+      <Input label="New Password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+      <Input
         label="Confirm New Password"
         type="password"
         value={confirmPassword}
-        onChange={setConfirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
       />
       {error && <p className="text-sm text-red-400">{error}</p>}
       {success && <p className="text-sm text-emerald-400">{success}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" disabled={loading}>
         {loading ? 'Saving...' : 'Change Password'}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -105,23 +101,19 @@ function EmailChangeForm() {
       <p className="text-xs text-gray-400">
         Current: <span className="text-gray-200">{user?.email}</span>
       </p>
-      <SettingsInput label="New Email" type="email" value={email} onChange={setEmail} />
-      <SettingsInput
+      <Input label="New Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Input
         label="Password"
         type="password"
         value={password}
-        onChange={setPassword}
+        onChange={(e) => setPassword(e.target.value)}
         placeholder="Confirm your password"
       />
       {error && <p className="text-sm text-red-400">{error}</p>}
       {success && <p className="text-sm text-emerald-400">{success}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" disabled={loading}>
         {loading ? 'Saving...' : 'Change Email'}
-      </button>
+      </Button>
     </form>
   )
 }

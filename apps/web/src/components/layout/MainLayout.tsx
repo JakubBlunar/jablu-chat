@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
-import { Spinner } from '@/components/Spinner'
+import { Spinner } from '@/components/ui'
 import { DmSidebar } from '@/components/dm/DmSidebar'
 import { MemberDrawer } from '@/components/member/MemberDrawer'
 import { MemberSidebar } from '@/components/member/MemberSidebar'
@@ -235,7 +235,7 @@ export function MainLayout() {
                 </button>
               </header>
               <div className="flex flex-1 flex-col items-center justify-center gap-3">
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+                <Spinner size="xl" />
                 <p className="text-sm text-gray-400">Loading servers...</p>
               </div>
             </div>
@@ -252,7 +252,7 @@ export function MainLayout() {
               </div>
             </div>
           ) : viewingVoiceRoom ? (
-            <Suspense fallback={<Spinner className="flex-1" />}>
+            <Suspense fallback={<Spinner size="lg" className="flex-1" />}>
               <VoiceRoom />
             </Suspense>
           ) : (
@@ -266,7 +266,7 @@ export function MainLayout() {
         </Suspense>
         <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
         {settingsOpen && (
-          <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
+          <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
           </Suspense>
         )}
@@ -289,7 +289,7 @@ export function MainLayout() {
         </div>
         <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
         {settingsOpen && (
-          <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
+          <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
           </Suspense>
         )}
@@ -310,7 +310,7 @@ export function MainLayout() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+              <Spinner size="xl" />
               <p className="text-sm text-gray-400">Loading servers...</p>
             </div>
           ) : servers.length === 0 ? (
@@ -321,7 +321,7 @@ export function MainLayout() {
               </p>
             </div>
           ) : viewingVoiceRoom ? (
-            <Suspense fallback={<Spinner className="flex-1" />}>
+            <Suspense fallback={<Spinner size="lg" className="flex-1" />}>
               <VoiceRoom />
             </Suspense>
           ) : (
@@ -337,8 +337,8 @@ export function MainLayout() {
         </Suspense>
       </div>
       <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
-      {settingsOpen && (
-        <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
+        {settingsOpen && (
+        <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
           <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
         </Suspense>
       )}

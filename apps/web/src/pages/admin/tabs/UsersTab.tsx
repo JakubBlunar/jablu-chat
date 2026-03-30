@@ -3,6 +3,7 @@ import type { AdminUser, UserSession } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDate, fmtDateTime } from '../adminFormatters'
 import { ConfirmDeleteBtn, Empty } from '../AdminShared'
+import { Button, Input, Spinner, Textarea } from '@/components/ui'
 
 export function UsersTab({
   users,
@@ -194,17 +195,21 @@ export function UsersTab({
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-gray-300">Active Sessions ({sessions.length})</h4>
                   {sessions.length > 0 && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
+                      className="text-red-400 hover:bg-red-900/30 hover:text-red-300"
                       onClick={() => void revokeAllSessions(user.id)}
-                      className="rounded-md px-3 py-1 text-xs font-medium text-red-400 transition hover:bg-red-900/30 hover:text-red-300"
                     >
                       Revoke All
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {sessionsLoading ? (
-                  <p className="text-sm text-gray-400">Loading…</p>
+                  <div className="flex justify-center py-2">
+                    <Spinner size="md" />
+                  </div>
                 ) : sessionsError ? (
                   <p className="text-sm text-red-400">{sessionsError}</p>
                 ) : sessions.length === 0 ? (
@@ -229,13 +234,15 @@ export function UsersTab({
                             {s.lastUsedAt && ` · Last used ${fmtDateTime(s.lastUsedAt)}`}
                           </p>
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="shrink-0 text-red-400 hover:bg-red-900/30 hover:text-red-300"
                           onClick={() => void revokeSession(user.id, s.id)}
-                          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-red-400 transition hover:bg-red-900/30 hover:text-red-300"
                         >
                           Revoke
-                        </button>
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -246,63 +253,57 @@ export function UsersTab({
             {editingId === user.id && (
               <div className="border-t border-white/5 p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Username</span>
-                    <input
-                      type="text"
-                      value={editForm.username}
-                      onChange={(e) =>
-                        setEditForm((f) => ({
-                          ...f,
-                          username: e.target.value
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Display Name</span>
-                    <input
-                      type="text"
-                      value={editForm.displayName}
-                      onChange={(e) =>
-                        setEditForm((f) => ({
-                          ...f,
-                          displayName: e.target.value
-                        }))
-                      }
-                      className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Email</span>
-                    <input
-                      type="email"
-                      value={editForm.email}
-                      onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                      className="mt-1 w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
-                    />
-                  </label>
+                  <Input
+                    id={`admin-user-edit-${user.id}-username`}
+                    label="Username"
+                    type="text"
+                    value={editForm.username}
+                    onChange={(e) =>
+                      setEditForm((f) => ({
+                        ...f,
+                        username: e.target.value
+                      }))
+                    }
+                  />
+                  <Input
+                    id={`admin-user-edit-${user.id}-displayName`}
+                    label="Display Name"
+                    type="text"
+                    value={editForm.displayName}
+                    onChange={(e) =>
+                      setEditForm((f) => ({
+                        ...f,
+                        displayName: e.target.value
+                      }))
+                    }
+                  />
+                  <Input
+                    id={`admin-user-edit-${user.id}-email`}
+                    label="Email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                  />
                 </div>
-                <label className="mt-3 block">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Bio</span>
-                  <textarea
+                <div className="mt-3">
+                  <Textarea
+                    id={`admin-user-edit-${user.id}-bio`}
+                    label="Bio"
                     value={editForm.bio}
                     onChange={(e) => setEditForm((f) => ({ ...f, bio: e.target.value }))}
                     rows={2}
-                    className="mt-1 w-full resize-none rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
                   />
-                </label>
+                </div>
                 {editError && <p className="mt-2 text-sm text-red-400">{editError}</p>}
                 <div className="mt-3 flex justify-end">
-                  <button
+                  <Button
                     type="button"
-                    onClick={() => void handleSave()}
+                    variant="primary"
                     disabled={saving || !editForm.username.trim() || !editForm.email.trim()}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
+                    onClick={() => void handleSave()}
                   >
                     {saving ? 'Saving…' : 'Save Changes'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

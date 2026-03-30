@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Input, ModalFooter } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useServerStore } from '@/stores/server.store'
@@ -41,48 +42,37 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
     <ModalOverlay onClose={onClose}>
       <h2 className="text-xl font-semibold text-white">Create a Server</h2>
         <p className="mt-2 text-sm text-gray-400">Give your new server a name. You can change it later.</p>
-        <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Server name
-          <input
+        <div className="mt-5">
+          <Input
+            id="create-server-name"
+            label="Server name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="My cool server"
-            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
             maxLength={100}
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleCreate()
             }}
           />
-        </label>
+        </div>
         {error ? (
           <p className="mt-2 text-sm text-red-400" role="alert">
             {error}
           </p>
         ) : null}
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setName('')
-              setError(null)
-              onClose()
-            }}
-            disabled={busy}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCreate()}
-            disabled={busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-          >
-            {busy ? 'Creating…' : 'Create'}
-          </button>
-        </div>
+        <ModalFooter
+          onCancel={() => {
+            setName('')
+            setError(null)
+            onClose()
+          }}
+          onConfirm={() => void handleCreate()}
+          cancelLabel="Cancel"
+          confirmLabel="Create"
+          loading={busy}
+        />
     </ModalOverlay>
   )
 }

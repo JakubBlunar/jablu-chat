@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Button, Textarea } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -90,17 +91,15 @@ export function WelcomeTab({ server }: { server: Server }) {
           </select>
         </label>
 
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Welcome Message
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Welcome {user} to {server}! 🎉"
-            rows={3}
-            maxLength={2000}
-            className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
-          />
-        </label>
+        <Textarea
+          id="welcome-message"
+          label="Welcome Message"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Welcome {user} to {server}! 🎉"
+          rows={3}
+          maxLength={2000}
+        />
 
         {previewText && (
           <div>
@@ -113,23 +112,23 @@ export function WelcomeTab({ server }: { server: Server }) {
       </div>
 
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
-          disabled={saving || !hasChanges}
+          disabled={!hasChanges}
+          loading={saving}
           onClick={() => void handleSave()}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+          Save
+        </Button>
         {(server.welcomeChannelId || server.welcomeMessage) && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
             disabled={saving}
             onClick={() => void handleDisable()}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
           >
             Disable
-          </button>
+          </Button>
         )}
       </div>
     </div>

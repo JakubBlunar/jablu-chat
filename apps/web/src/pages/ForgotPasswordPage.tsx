@@ -1,6 +1,7 @@
 import { forgotPasswordSchema } from '@chat/shared'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Button, Input } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { ApiError, api } from '../lib/api'
 
@@ -63,30 +64,29 @@ export function ForgotPasswordPage() {
           </div>
         ) : null}
 
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="you@example.com"
-            required
-          />
-        </div>
+        <Input
+          id="email"
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          required
+        />
 
-        <button
+        <Button
+          variant="primary"
+          size="lg"
           type="submit"
+          fullWidth
+          className="mt-2"
           disabled={isSubmitting}
-          className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
+          loading={isSubmitting}
         >
           {isSubmitting ? 'Sending…' : 'Send Reset Link'}
-        </button>
+        </Button>
       </form>
 
       <p className="mt-6 text-center text-sm">

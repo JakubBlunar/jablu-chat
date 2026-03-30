@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { UserAvatar } from '@/components/UserAvatar'
-import { SettingsInput } from '@/components/settings/SettingsInput'
 import { CameraIcon } from '@/components/settings/SettingsModal'
+import { Button, Input, Textarea } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function ProfileSection() {
@@ -110,27 +110,22 @@ export function ProfileSection() {
             {user?.username}
           </div>
         </div>
-        <SettingsInput label="Display Name" value={displayName} onChange={setDisplayName} maxLength={20} />
+        <Input label="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={20} />
         <div>
-          <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">BIO</label>
-          <textarea
+          <Textarea
+            label="Bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             maxLength={190}
             rows={3}
-            className="w-full resize-none rounded-md border border-surface-darkest bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none transition focus:border-primary"
           />
           <p className="mt-0.5 text-right text-xs text-gray-500">{bio.length}/190</p>
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         {success && <p className="text-sm text-emerald-400">{success}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={loading}>
           {loading ? 'Saving...' : 'Save Changes'}
-        </button>
+        </Button>
       </form>
     </div>
   )

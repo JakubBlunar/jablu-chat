@@ -7,6 +7,7 @@ import {
   unsubscribeFromPush
 } from '@/lib/notifications'
 import { ToggleRow } from '@/components/settings/ToggleRow'
+import { Button } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function NotificationsSection() {
@@ -99,13 +100,9 @@ export function NotificationsSection() {
             Browser notifications are {permStatus === 'denied' ? 'blocked' : 'not enabled'}.
           </p>
           {permStatus !== 'denied' && (
-            <button
-              type="button"
-              onClick={() => void handleRequestPermission()}
-              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
-            >
+            <Button type="button" variant="primary" className="mt-2" onClick={() => void handleRequestPermission()}>
               Enable Notifications
-            </button>
+            </Button>
           )}
           {permStatus === 'denied' && (
             <p className="mt-1 text-xs text-gray-500">
@@ -142,13 +139,9 @@ export function NotificationsSection() {
           )}
           {(pushStatus === 'inactive' || pushStatus === 'error') && (
             <>
-              <button
-                type="button"
-                onClick={() => void handleEnablePush()}
-                className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
-              >
+              <Button type="button" variant="primary" className="mt-2" onClick={() => void handleEnablePush()}>
                 Enable Push Notifications
-              </button>
+              </Button>
               {pushError && <p className="mt-2 text-xs text-red-400">{pushError}</p>}
             </>
           )}

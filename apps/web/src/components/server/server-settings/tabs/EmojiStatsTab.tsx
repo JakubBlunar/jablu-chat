@@ -1,5 +1,6 @@
 import { Permission } from '@chat/shared'
 import { useEffect, useRef, useState } from 'react'
+import { Spinner } from '@/components/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api, resolveMediaUrl, type CustomEmoji, type EmojiStat } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -91,7 +92,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+        <Spinner size="md" />
       </div>
     )
   }

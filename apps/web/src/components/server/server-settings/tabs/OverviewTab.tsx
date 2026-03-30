@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, Input } from '@/components/ui'
 import { api, resolveMediaUrl } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
 import type { Server } from '@/stores/server.store'
@@ -97,29 +98,39 @@ export function OverviewTab({ server }: { server: Server }) {
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleIconChange} />
           {iconPreview && (
-            <button type="button" onClick={removeIcon} className="text-xs text-red-400 hover:underline">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={removeIcon}
+              className="text-xs text-red-400 hover:underline"
+            >
               Remove
-            </button>
+            </Button>
           )}
         </div>
 
-        <div className="flex-1 space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Server Name</label>
+        <div className="min-w-0 flex-1">
           <div className="flex gap-2">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={100}
-              className="flex-1 rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-primary"
-            />
-            <button
-              type="button"
-              disabled={saving || !name.trim() || name === server.name}
-              onClick={saveName}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+            <div className="min-w-0 flex-1">
+              <Input
+                id="overview-server-name"
+                label="Server Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+            <div className="flex shrink-0 items-end">
+              <Button
+                type="button"
+                disabled={!name.trim() || name === server.name}
+                loading={saving}
+                onClick={saveName}
+              >
+                Save
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -138,9 +149,9 @@ export function OverviewTab({ server }: { server: Server }) {
               className="min-w-0 flex-1 bg-transparent px-1 py-2 text-white outline-none placeholder:text-gray-600"
             />
           </div>
-          <button
-            type="button"
+          <Button
             disabled={savingVanity || vanityCode === (server.vanityCode ?? '')}
+            loading={savingVanity}
             onClick={async () => {
               setSavingVanity(true)
               setVanityError(null)
@@ -153,10 +164,9 @@ export function OverviewTab({ server }: { server: Server }) {
                 setSavingVanity(false)
               }
             }}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
           >
             {savingVanity ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
         {vanityError && <p className="text-xs text-red-400">{vanityError}</p>}
       </div>

@@ -3,6 +3,7 @@ import type { AdminMessage } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDateTime } from '../adminFormatters'
 import { Empty } from '../AdminShared'
+import { Button } from '@/components/ui'
 
 export function ModerationTab() {
   const [messages, setMessages] = useState<AdminMessage[]>([])
@@ -121,30 +122,36 @@ export function ModerationTab() {
                 <div className="shrink-0">
                   {confirmDeleteId === msg.id ? (
                     <div className="flex items-center gap-1">
-                      <button
+                      <Button
                         type="button"
-                        onClick={() => void handleDelete(msg.id)}
+                        variant="ghost"
+                        size="xs"
+                        className="text-red-400 ring-1 ring-red-500/30 hover:bg-red-900/30"
                         disabled={deletingId === msg.id}
-                        className="rounded px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-red-500/30 hover:bg-red-900/30 disabled:opacity-50"
+                        onClick={() => void handleDelete(msg.id)}
                       >
                         {deletingId === msg.id ? '…' : 'Confirm'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="xs"
+                        className="text-gray-400 hover:text-white"
                         onClick={() => setConfirmDeleteId(null)}
-                        className="rounded px-2 py-1 text-xs text-gray-400 hover:text-white"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   ) : (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="xs"
+                      className="text-red-400 hover:bg-red-900/30"
                       onClick={() => setConfirmDeleteId(msg.id)}
-                      className="rounded px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-900/30"
                     >
                       Delete
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -155,14 +162,14 @@ export function ModerationTab() {
 
       {nextCursor && (
         <div className="flex justify-center">
-          <button
+          <Button
             type="button"
-            onClick={() => void doSearch(nextCursor)}
+            variant="secondary"
             disabled={loadingMore}
-            className="rounded-md bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
+            onClick={() => void doSearch(nextCursor)}
           >
             {loadingMore ? 'Loading…' : 'Load More'}
-          </button>
+          </Button>
         </div>
       )}
     </div>

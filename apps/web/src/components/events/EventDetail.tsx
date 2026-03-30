@@ -1,6 +1,7 @@
 import type { ServerEvent, UpdateEventInput } from '@chat/shared'
 import { Permission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { Badge, Button, IconButton, Input, Textarea } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
@@ -127,28 +128,24 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
     <ModalOverlay onClose={onClose} maxWidth="max-w-lg" noPadding className="flex max-h-[85vh] flex-col">
       <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div className="flex items-center gap-2">
-            <button
+            <IconButton
               type="button"
+              label="Back to events"
               onClick={onBack}
-              className="rounded-lg p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
-              aria-label="Back to events"
+              size="lg"
+              className="rounded-lg p-1"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M15 19l-7-7 7-7" />
               </svg>
-            </button>
+            </IconButton>
             <h2 className="text-base font-bold text-white">Event Details</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label="Close"
-          >
+          <IconButton type="button" label="Close" onClick={onClose} size="lg" className="rounded-lg">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
+          </IconButton>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -164,42 +161,44 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
 
           {isEditing ? (
             <div className="space-y-3">
-              <input
+              <Input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 maxLength={100}
-                className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm font-semibold text-white outline-none focus:border-primary"
+                className="rounded-lg font-semibold ring-white/10 focus:ring-primary"
               />
-              <textarea
+              <Textarea
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 maxLength={1000}
                 rows={3}
-                className="w-full resize-none rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
                 placeholder="Description..."
+                className="rounded-lg ring-white/10 focus:ring-primary"
               />
               {editError && <div className="rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400">{editError}</div>}
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={handleSaveEdit}
                   disabled={saving || !editName.trim()}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : 'Save'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => {
                     setIsEditing(false)
                     setEditName(event.name)
                     setEditDescription(event.description ?? '')
                   }}
-                  className="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/10"
+                  className="rounded-lg bg-white/5 hover:bg-white/10"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -243,7 +242,9 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 <svg className="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span className="capitalize">{event.recurrenceRule}</span>
+                <Badge variant="primary" className="capitalize">
+                  {event.recurrenceRule}
+                </Badge>
               </div>
             )}
 
@@ -258,53 +259,55 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant={event.isInterested ? 'primary' : 'secondary'}
               onClick={handleToggleInterest}
               aria-pressed={!!event.isInterested}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                event.isInterested
-                  ? 'bg-primary text-primary-text'
-                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 ${
+                event.isInterested ? '' : 'bg-white/5 hover:bg-white/10 hover:text-white'
               }`}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
               </svg>
               {event.isInterested ? 'Interested' : 'Mark Interested'}
-            </button>
+            </Button>
 
             {isActive && event.locationType === 'voice_channel' && event.channelId && (
-              <button
+              <Button
                 type="button"
+                variant="primary"
                 onClick={handleJoinVoice}
-                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 hover:text-white"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                   <path d="M17 12a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V22h2v-3.07A7 7 0 0 0 19 12h-2z" />
                 </svg>
                 Join Voice
-              </button>
+              </Button>
             )}
 
             {canManage && !isEditing && (
               <>
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => setIsEditing(true)}
-                  className="rounded-lg bg-white/5 px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10"
+                  className="rounded-lg bg-white/5 hover:bg-white/10"
                 >
                   Edit
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={handleCancel}
                   disabled={cancelling}
-                  className="rounded-lg bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+                  className="rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300"
                 >
                   {cancelling ? 'Cancelling...' : 'Cancel Event'}
-                </button>
+                </Button>
               </>
             )}
           </div>

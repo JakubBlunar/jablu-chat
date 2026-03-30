@@ -1,5 +1,6 @@
 import type { ChannelType } from '@chat/shared'
 import { useState } from 'react'
+import { Input, Label, ModalFooter } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -77,25 +78,25 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
     <ModalOverlay onClose={onClose}>
       <h2 className="text-xl font-semibold text-white">Create Channel</h2>
         <p className="mt-2 text-sm text-gray-400">Names are saved in lowercase with hyphens instead of spaces.</p>
-        <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Channel name
-          <input
+        <div className="mt-5">
+          <Input
+            id="create-channel-name"
+            label="Channel name"
             type="text"
             value={rawName}
             onChange={(e) => setRawName(e.target.value)}
             placeholder="new-channel"
-            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
             maxLength={100}
             autoFocus
           />
-        </label>
+        </div>
         {name ? (
           <p className="mt-1.5 text-xs text-gray-500">
             Will be created as <span className="text-gray-300">#{name}</span>
           </p>
         ) : null}
 
-        <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-400">Channel type</p>
+        <Label className="mt-5 block">Channel type</Label>
         <div className="mt-2 flex flex-col gap-2">
           {(
             [
@@ -132,9 +133,10 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
         </div>
 
         {categories.length > 0 && (
-          <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Category
+          <div className="mt-5">
+            <Label htmlFor="create-channel-category">Category</Label>
             <select
+              id="create-channel-category"
               value={categoryId ?? ''}
               onChange={(e) => setCategoryId(e.target.value || null)}
               className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
@@ -144,7 +146,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
-          </label>
+          </div>
         )}
 
         {error ? (
@@ -153,30 +155,19 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
           </p>
         ) : null}
 
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setRawName('')
-              setError(null)
-              setType('text')
-              setCategoryId(null)
-              onClose()
-            }}
-            disabled={busy}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCreate()}
-            disabled={busy}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-          >
-            {busy ? 'Creating…' : 'Create'}
-          </button>
-        </div>
+        <ModalFooter
+          onCancel={() => {
+            setRawName('')
+            setError(null)
+            setType('text')
+            setCategoryId(null)
+            onClose()
+          }}
+          onConfirm={() => void handleCreate()}
+          cancelLabel="Cancel"
+          confirmLabel="Create"
+          loading={busy}
+        />
     </ModalOverlay>
   )
 }

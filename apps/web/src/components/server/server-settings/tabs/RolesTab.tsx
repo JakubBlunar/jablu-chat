@@ -1,6 +1,7 @@
 import type { Role } from '@chat/shared'
 import { Permission, PERMISSION_LABELS, permsToBigInt } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { Button, Input } from '@/components/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -131,13 +132,13 @@ export function RolesTab({ server }: { server: Server }) {
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-gray-400">Role Name</label>
-                <input
+                <Input
+                  id="role-edit-name"
+                  label="Role Name"
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   disabled={!canManage || selected.isDefault}
-                  className="w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-primary disabled:opacity-50"
                 />
               </div>
               <div>
@@ -177,22 +178,13 @@ export function RolesTab({ server }: { server: Server }) {
 
             {canManage && (
               <div className="flex items-center gap-2 border-t border-white/5 pt-4">
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-                >
-                  {saving ? 'Saving…' : 'Save Changes'}
-                </button>
+                <Button type="button" onClick={() => void handleSave()} loading={saving}>
+                  Save Changes
+                </Button>
                 {!selected.isDefault && (
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete()}
-                    className="rounded-md px-4 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/10"
-                  >
+                  <Button type="button" variant="danger" onClick={() => void handleDelete()}>
                     Delete Role
-                  </button>
+                  </Button>
                 )}
               </div>
             )}

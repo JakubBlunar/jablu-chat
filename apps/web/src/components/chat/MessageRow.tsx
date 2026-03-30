@@ -1,6 +1,5 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
@@ -16,6 +15,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
+import { ConfirmDialog, IconButton } from '@/components/ui'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -25,33 +25,6 @@ function ReplyArrowIcon() {
       <polyline points="9 17 4 12 9 7" />
       <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
     </svg>
-  )
-}
-
-function ActionBtn({
-  title,
-  onClick,
-  danger,
-  children
-}: {
-  title: string
-  onClick: () => void
-  danger?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick()
-      }}
-      className={`p-1.5 transition ${danger ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-white'}`}
-    >
-      {children}
-    </button>
   )
 }
 
@@ -280,9 +253,10 @@ export const MessageRow = memo(function MessageRow({
         ) : (
           <div ref={actionsRef} className="absolute -top-3 right-2 z-10 flex items-start">
             <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              <ActionBtn
-                title="React"
-                onClick={() => {
+              <IconButton
+                label="React"
+                onClick={(e) => {
+                  e.stopPropagation()
                   if (actionsRef.current) {
                     const rect = actionsRef.current.getBoundingClientRect()
                     setPickerAbove(rect.top > 460)
@@ -291,42 +265,56 @@ export const MessageRow = memo(function MessageRow({
                 }}
               >
                 <SmileIcon />
-              </ActionBtn>
-              <ActionBtn title="Reply" onClick={() => onReply(message)}>
+              </IconButton>
+              <IconButton
+                label="Reply"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onReply(message)
+                }}
+              >
                 <ReplyArrowIcon />
-              </ActionBtn>
-              <ActionBtn
-                title={message.pinned ? 'Unpin' : 'Pin'}
-                onClick={() => {
+              </IconButton>
+              <IconButton
+                label={message.pinned ? 'Unpin' : 'Pin'}
+                onClick={(e) => {
+                  e.stopPropagation()
                   const event = message.pinned ? 'dm:unpin' : 'dm:pin'
                   getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
                 }}
               >
                 <PinIcon />
-              </ActionBtn>
+              </IconButton>
               {isAuthor && (
                 <>
-                  <ActionBtn title="Edit" onClick={handleStartEdit}>
+                  <IconButton
+                    label="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleStartEdit()
+                    }}
+                  >
                     <EditIcon />
-                  </ActionBtn>
-                  <button
+                  </IconButton>
+                  <IconButton
                     ref={deleteBtnRef}
-                    type="button"
-                    title="Delete"
-                    aria-label="Delete"
+                    label="Delete"
+                    variant="danger"
                     onClick={(e) => {
                       e.stopPropagation()
                       setShowDeleteConfirm(true)
                     }}
-                    className="p-1.5 text-gray-400 transition hover:text-red-400"
                   >
                     <TrashIcon />
-                  </button>
+                  </IconButton>
                 </>
               )}
             </div>
             {showDeleteConfirm && (
-              <DmDeleteConfirmPopover
+              <ConfirmDialog
+                title="Delete Message"
+                description="Are you sure? This cannot be undone."
+                confirmLabel="Delete"
                 anchorRef={deleteBtnRef}
                 onConfirm={handleDelete}
                 onCancel={() => setShowDeleteConfirm(false)}
@@ -550,68 +538,6 @@ export const MessageRow = memo(function MessageRow({
   )
 })
 
-function DmDeleteConfirmPopover({
-  anchorRef,
-  onConfirm,
-  onCancel
-}: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
-
-  useEffect(() => {
-    if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect()
-      const above = rect.top > 200
-      setPos({
-        right: window.innerWidth - rect.right,
-        ...(above ? { bottom: window.innerHeight - rect.top + 8 } : { top: rect.bottom + 8 })
-      })
-    }
-  }, [anchorRef])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    const onClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onCancel()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('mousedown', onClick)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('mousedown', onClick)
-    }
-  }, [onCancel])
-
-  if (!pos) return null
-
-  return createPortal(
-    <div
-      ref={popoverRef}
-      className="fixed z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10"
-      style={pos}
-    >
-      <p className="text-sm font-semibold text-white">Delete Message</p>
-      <p className="mt-1 text-xs text-gray-400">Are you sure? This cannot be undone.</p>
-      <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10">
-          Cancel
-        </button>
-        <button type="button" onClick={onConfirm} className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700">
-          Delete
-        </button>
-      </div>
-    </div>,
-    document.body
-  )
-}
 
 function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const handleReaction = useCallback(

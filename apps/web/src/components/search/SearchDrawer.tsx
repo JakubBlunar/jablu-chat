@@ -6,6 +6,7 @@ import { formatSmartTimestamp } from '@/lib/format-time'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
+import { IconButton, Spinner } from '@/components/ui'
 
 type Scope = 'server' | 'channel' | 'conversation' | 'dm' | 'all'
 const PAGE_SIZE = 25
@@ -127,16 +128,11 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4">
         <h2 className="text-sm font-semibold text-white">Search Results</h2>
-        <button
-          type="button"
-          aria-label="Close search"
-          onClick={onClose}
-          className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
-        >
+        <IconButton label="Close search" variant="ghost" size="md" onClick={onClose}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18L18 6M6 6l12 12" />
           </svg>
-        </button>
+        </IconButton>
       </div>
 
       {/* Search input */}
@@ -231,7 +227,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       <SimpleBar className="min-h-0 flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+            <Spinner size="lg" />
           </div>
         ) : error ? (
           <div className="px-3 py-8 text-center text-sm text-gray-400">

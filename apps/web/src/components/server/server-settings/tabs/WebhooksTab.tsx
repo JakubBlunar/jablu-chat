@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Button, Input } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import type { Server } from '@/stores/server.store'
@@ -79,14 +80,14 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
       <div className="rounded-md bg-surface-dark p-4">
         <h3 className="mb-3 text-sm font-semibold text-white">Create Webhook</h3>
         <div className="flex items-end gap-3">
-          <div className="flex-1 space-y-1">
-            <label className="text-xs text-gray-400">Name</label>
-            <input
+          <div className="min-w-0 flex-1">
+            <Input
+              id="webhook-name"
+              label="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
               placeholder="My Webhook"
-              className="w-full rounded border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-primary"
             />
           </div>
           <div className="w-40 space-y-1">
@@ -103,14 +104,14 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
               ))}
             </select>
           </div>
-          <button
+          <Button
             type="button"
-            disabled={creating || !name.trim()}
+            disabled={!name.trim()}
+            loading={creating}
             onClick={() => void handleCreate()}
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
           >
             Create
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -128,13 +129,15 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
                     #{ch?.name ?? 'unknown'} &middot; {new Date(wh.createdAt).toLocaleDateString()}
                   </p>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   onClick={() => copyUrl(wh)}
-                  className="rounded px-3 py-1 text-xs font-medium text-primary transition hover:bg-primary/10"
+                  className="text-xs font-medium text-primary"
                 >
                   {copiedId === wh.id ? 'Copied!' : 'Copy URL'}
-                </button>
+                </Button>
                 <button
                   type="button"
                   onClick={() => void handleDelete(wh.id)}

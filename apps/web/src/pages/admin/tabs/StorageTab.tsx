@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { StorageAudit, StorageStats } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtBytes, fmtDate } from '../adminFormatters'
+import { Button, Spinner } from '@/components/ui'
 
 function StorageStatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -107,7 +108,12 @@ export function StorageTab() {
   }
 
   if (loading) {
-    return <div className="py-12 text-center text-gray-400">Loading storage info…</div>
+    return (
+      <div className="flex flex-col items-center gap-3 py-12 text-gray-400">
+        <Spinner size="md" />
+        <p className="text-sm">Loading storage info…</p>
+      </div>
+    )
   }
 
   const usagePercent = stats ? Math.min(100, (stats.dirSize.total / stats.limitBytes) * 100) : 0
@@ -158,14 +164,9 @@ export function StorageTab() {
       )}
 
       <div className="mt-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void handleRunAudit()}
-          disabled={auditing}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover disabled:opacity-50"
-        >
+        <Button onClick={() => void handleRunAudit()} disabled={auditing} loading={auditing}>
           {auditing ? 'Running Audit…' : 'Run Audit'}
-        </button>
+        </Button>
         {auditing && <span className="text-sm text-gray-400">Scanning storage, this may take a moment…</span>}
       </div>
 
@@ -210,30 +211,28 @@ export function StorageTab() {
             {confirmCleanupId === latestCompleted.id ? (
               <div className="flex items-center gap-3 rounded-md bg-red-900/20 p-3 ring-1 ring-red-500/30">
                 <span className="text-sm text-red-300">This will permanently delete files. Continue?</span>
-                <button
+                <Button
                   type="button"
-                  onClick={() => void handleCleanup(latestCompleted.id)}
+                  variant="danger"
+                  size="sm"
                   disabled={cleaningId === latestCompleted.id}
-                  className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                  onClick={() => void handleCleanup(latestCompleted.id)}
                 >
                   {cleaningId === latestCompleted.id ? 'Cleaning…' : 'Confirm Cleanup'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  onClick={() => setConfirmCleanupId(null)}
+                  variant="ghost"
                   className="text-sm text-gray-400 hover:text-white"
+                  onClick={() => setConfirmCleanupId(null)}
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmCleanupId(latestCompleted.id)}
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
-              >
+              <Button type="button" variant="danger" onClick={() => setConfirmCleanupId(latestCompleted.id)}>
                 Execute Cleanup
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -267,13 +266,15 @@ export function StorageTab() {
                       {audit.freedBytes ? fmtBytes(Number(audit.freedBytes)) : '—'}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="xs"
+                        className="text-gray-500 hover:text-red-400"
                         onClick={() => void handleDeleteAudit(audit.id)}
-                        className="text-xs text-gray-500 transition hover:text-red-400"
                       >
                         Dismiss
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}

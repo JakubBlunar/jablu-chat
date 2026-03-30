@@ -28,6 +28,7 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore } from '@/stores/voice.store'
 import { useEventStore } from '@/stores/event.store'
 import { useFriendStore } from '@/stores/friend.store'
+import { CountBadge, IconButton } from '@/components/ui'
 
 const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
@@ -324,17 +325,17 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                     <div className="mb-1 flex items-center justify-between px-2">
                       <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
                       {isAdminOrOwner && (
-                        <button
-                          type="button"
-                          title="Create channel"
+                        <IconButton
+                          label="Create channel"
+                          size="sm"
                           onClick={() => {
                             close()
                             setChannelModalOpen(true)
                           }}
-                          className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                          className="p-0.5"
                         >
                           <PlusSmallIcon />
-                        </button>
+                        </IconButton>
                       )}
                     </div>
                     <ul className="space-y-0.5">
@@ -364,7 +365,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                             >
                               <HashIcon />
                               <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                              {mentionCount > 0 && (<span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{mentionCount}</span>)}
+                              {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
                               {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-white" />)}
                             </button>
                           </li>
@@ -417,7 +418,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                                     >
                                       <HashIcon />
                                       <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                      {mentionCount > 0 && (<span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{mentionCount}</span>)}
+                                      {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
                                       {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-white" />)}
                                     </button>
                                   </li>
@@ -465,14 +466,14 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                     <div className="mb-1 mt-3 flex items-center justify-between px-2">
                       <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
                       {isAdminOrOwner && (
-                        <button
-                          type="button"
-                          title="Create channel"
+                        <IconButton
+                          label="Create channel"
+                          size="sm"
                           onClick={() => { close(); setChannelModalOpen(true) }}
-                          className="rounded p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                          className="p-0.5"
                         >
                           <PlusSmallIcon />
-                        </button>
+                        </IconButton>
                       )}
                     </div>
                     <ul className="space-y-0.5">
@@ -529,26 +530,19 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                     <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                   </svg>
                   Friends
-                  {pendingFriendCount > 0 && (
-                    <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                      {pendingFriendCount}
-                    </span>
-                  )}
+                  <CountBadge count={pendingFriendCount} variant="danger" className="ml-auto" />
                 </button>
                 <div className="mb-1 flex items-center justify-between px-2">
                   <p className="text-[11px] font-semibold tracking-wide text-gray-400">DIRECT MESSAGES</p>
-                  <button
-                    type="button"
-                    title="New Message"
-                    aria-label="New Message"
+                  <IconButton
+                    label="New Message"
                     onClick={() => {
                       close()
                       setGroupDmOpen(true)
                     }}
-                    className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                   >
                     <PlusSmallIcon />
-                  </button>
+                  </IconButton>
                 </div>
                 <input
                   value={dmFilter}
@@ -585,19 +579,19 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                           <span className="min-w-0 flex-1 truncate text-left">{info.name}</span>
                           {hasUnread && <span className="h-2 w-2 rounded-full bg-white" />}
                         </button>
-                        <button
-                          type="button"
-                          aria-label="Close conversation"
+                        <IconButton
+                          label="Close conversation"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation()
                             void closeConv(conv.id)
                           }}
-                          className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 opacity-60 transition hover:bg-white/10 hover:text-white"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 opacity-60 hover:text-white"
                         >
                           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path d="M6 18 18 6M6 6l12 12" />
                           </svg>
-                        </button>
+                        </IconButton>
                       </li>
                     )
                   })}
@@ -624,27 +618,20 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
               </p>
               <p className="truncate text-xs capitalize text-gray-400">{user?.status ?? 'online'}</p>
             </div>
-            <button
-              type="button"
-              title="Quick switcher"
-              aria-label="Quick switcher"
+            <IconButton
+              label="Quick switcher"
+              size="lg"
               onClick={() => { close(); onOpenQuickSwitcher() }}
-              className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+              className="rounded-md"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-            </button>
-            <button
-              type="button"
-              title="User settings"
-              aria-label="User settings"
-              onClick={onOpenSettings}
-              className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            >
+            </IconButton>
+            <IconButton label="User settings" size="lg" onClick={onOpenSettings} className="rounded-md">
               <GearIcon />
-            </button>
+            </IconButton>
           </div>
         </div>
       </MobileDrawer>

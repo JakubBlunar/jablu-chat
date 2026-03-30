@@ -8,6 +8,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { api } from '@/lib/api'
 import { useBookmarkStore } from '@/stores/bookmark.store'
+import { IconButton } from '@/components/ui'
 
 type BookmarkEntry = {
   id: string
@@ -117,16 +118,17 @@ export function SavedMessagesPanel({ onClose, onJump }: {
                         <p className="mt-0.5 text-sm italic text-gray-500">[empty message]</p>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      title="Remove bookmark"
+                    <IconButton
+                      label="Remove bookmark"
+                      variant="danger"
+                      size="sm"
+                      className="shrink-0 opacity-60 hover:opacity-100"
                       onClick={() => void handleRemove(b.messageId)}
-                      className="shrink-0 rounded p-1 text-gray-500 opacity-60 transition hover:bg-white/10 hover:text-red-400 hover:opacity-100"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path d="M6 18 18 6M6 6l12 12" />
                       </svg>
-                    </button>
+                    </IconButton>
                   </div>
                   {onJump && (
                     <button
