@@ -4,6 +4,7 @@ export type Tab =
   | 'account'
   | 'profile'
   | 'status'
+  | 'appearance'
   | 'privacy'
   | 'voice'
   | 'notifications'
