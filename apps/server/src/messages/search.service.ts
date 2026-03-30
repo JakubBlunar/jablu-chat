@@ -243,12 +243,12 @@ export class SearchService {
       ? Prisma.sql`AND to_tsvector('simple', m.content) @@ to_tsquery('simple', ${tsQuery})`
       : Prisma.sql``
 
-    const joinSql = joins.length > 0 ? Prisma.join(joins, ' ') : Prisma.sql``
-    const filterSql = fragments.length > 0 ? Prisma.join(fragments, ' ') : Prisma.sql``
+    const joinSql = joins.reduce((acc, j) => Prisma.sql`${acc} ${j}`, Prisma.sql``)
+    const filterSql = fragments.reduce((acc, f) => Prisma.sql`${acc} ${f}`, Prisma.sql``)
 
     const [rows, countRows] = await Promise.all([
       this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT DISTINCT m.id FROM messages m
+        SELECT DISTINCT m.id, m.created_at FROM messages m
         ${joinSql}
         WHERE m.channel_id = ANY(${channelIds})
           AND m.deleted = false
@@ -286,12 +286,12 @@ export class SearchService {
       ? Prisma.sql`AND to_tsvector('simple', m.content) @@ to_tsquery('simple', ${tsQuery})`
       : Prisma.sql``
 
-    const joinSql = joins.length > 0 ? Prisma.join(joins, ' ') : Prisma.sql``
-    const filterSql = fragments.length > 0 ? Prisma.join(fragments, ' ') : Prisma.sql``
+    const joinSql = joins.reduce((acc, j) => Prisma.sql`${acc} ${j}`, Prisma.sql``)
+    const filterSql = fragments.reduce((acc, f) => Prisma.sql`${acc} ${f}`, Prisma.sql``)
 
     const [rows, countRows] = await Promise.all([
       this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT DISTINCT m.id FROM messages m
+        SELECT DISTINCT m.id, m.created_at FROM messages m
         ${joinSql}
         WHERE m.direct_conversation_id = ANY(${conversationIds})
           AND m.deleted = false
