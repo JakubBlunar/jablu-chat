@@ -18,6 +18,7 @@ export function MembersTab({ server }: { server: Server }) {
   const { has: hasPerm } = usePermissions(server.id)
   const canManageRoles = hasPerm(Permission.MANAGE_ROLES)
   const canKick = hasPerm(Permission.KICK_MEMBERS)
+  const canBan = hasPerm(Permission.BAN_MEMBERS)
   const [roles, setRoles] = useState<import('@chat/shared').Role[]>([])
 
   useEffect(() => {
@@ -49,6 +50,21 @@ export function MembersTab({ server }: { server: Server }) {
         fetchMembers(server.id)
       } catch {
         setMemberError(`Failed to kick ${member.user.displayName ?? member.user.username}`)
+      }
+    },
+    [server.id, fetchMembers]
+  )
+
+  const handleBan = useCallback(
+    async (member: Member) => {
+      const reason = prompt(`Ban ${member.user.displayName ?? member.user.username}? Enter an optional reason:`)
+      if (reason === null) return
+      setMemberError(null)
+      try {
+        await api.banMember(server.id, member.userId, reason || undefined)
+        fetchMembers(server.id)
+      } catch {
+        setMemberError(`Failed to ban ${member.user.displayName ?? member.user.username}`)
       }
     },
     [server.id, fetchMembers]
@@ -110,6 +126,16 @@ export function MembersTab({ server }: { server: Server }) {
                     className="rounded p-1 text-red-400 transition hover:bg-red-500/20"
                   >
                     <KickIcon />
+                  </button>
+                )}
+                {canBan && (
+                  <button
+                    type="button"
+                    onClick={() => handleBan(m)}
+                    title="Ban member"
+                    className="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/20"
+                  >
+                    Ban
                   </button>
                 )}
               </div>

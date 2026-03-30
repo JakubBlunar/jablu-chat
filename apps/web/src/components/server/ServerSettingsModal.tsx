@@ -5,6 +5,7 @@ import { useIsMobile } from '@/hooks/useMobile'
 import type { Server } from '@/stores/server.store'
 import { SERVER_TABS, type Tab } from './server-settings/serverSettingsTypes'
 import { XIcon } from './server-settings/serverSettingsIcons'
+import { BansTab } from './server-settings/tabs/BansTab'
 import { OverviewTab } from './server-settings/tabs/OverviewTab'
 import { RolesTab } from './server-settings/tabs/RolesTab'
 import { MembersTab } from './server-settings/tabs/MembersTab'
@@ -29,6 +30,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
       {tab === 'afk' && <AfkTab server={server} />}
       {tab === 'roles' && <RolesTab server={server} />}
       {tab === 'members' && <MembersTab server={server} />}
+      {tab === 'bans' && <BansTab server={server} />}
       {tab === 'webhooks' && <WebhooksTab server={server} />}
       {tab === 'emoji-stats' && <EmojiStatsTab server={server} />}
       {tab === 'automod' && <AutoModTab server={server} />}

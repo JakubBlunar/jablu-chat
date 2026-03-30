@@ -41,6 +41,8 @@ model User {
   friendRequestsSent     Friendship[]     @relation("FriendRequestsSent")
   friendRequestsReceived Friendship[]     @relation("FriendRequestsReceived")
   bookmarks              MessageBookmark[]
+  bans                   ServerBan[]      @relation("BannedUser")
+  bansIssued             ServerBan[]      @relation("BanActor")
 
   @@map("users")
 }
@@ -124,6 +126,7 @@ model Server {
   registrationInvites RegistrationInvite[]
   events              ServerEvent[]
   autoModRules        AutoModRule[]
+  bans                ServerBan[]
   welcomeChannel      Channel?             @relation("WelcomeChannel", fields: [welcomeChannelId], references: [id], onDelete: SetNull)
   afkChannel          Channel?             @relation("AfkChannel", fields: [afkChannelId], references: [id], onDelete: SetNull)
 
@@ -145,6 +148,23 @@ model ServerMember {
   @@index([serverId])
   @@index([roleId])
   @@map("server_members")
+}
+
+model ServerBan {
+  id        String   @id @default(uuid())
+  serverId  String   @map("server_id")
+  userId    String   @map("user_id")
+  bannedBy  String   @map("banned_by")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user   User   @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor  User   @relation("BanActor", fields: [bannedBy], references: [id], onDelete: Cascade)
+
+  @@unique([serverId, userId])
+  @@index([serverId])
+  @@map("server_bans")
 }
 
 model Role {
