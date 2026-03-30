@@ -665,6 +665,25 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/members/${userId}`)
   }
 
+  banMember(serverId: string, userId: string, reason?: string): Promise<void> {
+    return this.post(`/api/servers/${serverId}/bans/${userId}`, { reason })
+  }
+
+  unbanMember(serverId: string, userId: string): Promise<void> {
+    return this.request<void>('DELETE', `/api/servers/${serverId}/bans/${userId}`)
+  }
+
+  getBans(serverId: string): Promise<Array<{
+    id: string
+    userId: string
+    user: { id: string; username: string; displayName: string | null; avatarUrl: string | null }
+    bannedBy: { id: string; username: string; displayName: string | null }
+    reason: string | null
+    createdAt: string
+  }>> {
+    return this.get(`/api/servers/${serverId}/bans`)
+  }
+
   updateChannel(serverId: string, channelId: string, data: { name?: string; position?: number; categoryId?: string | null; isArchived?: boolean }): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/channels/${channelId}`, data)
   }

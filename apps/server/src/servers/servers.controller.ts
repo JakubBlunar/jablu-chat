@@ -136,6 +136,35 @@ export class ServersController {
     await this.servers.kickMember(id, user.id, targetUserId)
   }
 
+  @Post(':id/bans/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async banMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
+    @CurrentUser() user: { id: string },
+    @Body() body: { reason?: string }
+  ) {
+    await this.servers.banMember(id, user.id, targetUserId, body.reason)
+  }
+
+  @Delete(':id/bans/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async unbanMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    await this.servers.unbanMember(id, user.id, targetUserId)
+  }
+
+  @Get(':id/bans')
+  listBans(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.servers.getBans(id, user.id)
+  }
+
   @Get(':id/emojis/stats')
   emojiStats(
     @Param('id', ParseUUIDPipe) id: string,

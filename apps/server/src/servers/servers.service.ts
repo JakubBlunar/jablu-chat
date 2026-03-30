@@ -286,6 +286,70 @@ export class ServersService {
     this.events.emit('member:removed', { serverId, userId: targetUserId })
   }
 
+  async banMember(serverId: string, actorId: string, targetUserId: string, reason?: string) {
+    await this.roles.requirePermission(serverId, actorId, Permission.BAN_MEMBERS)
+    const server = await this.getServerOrThrow(serverId)
+    if (targetUserId === server.ownerId) {
+      throw new ForbiddenException('Cannot ban the server owner')
+    }
+    if (targetUserId === actorId) {
+      throw new ForbiddenException('You cannot ban yourself')
+    }
+    const existing = await this.prisma.serverBan.findUnique({
+      where: { serverId_userId: { serverId, userId: targetUserId } }
+    })
+    if (existing) {
+      throw new BadRequestException('User is already banned')
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.serverBan.create({
+        data: { serverId, userId: targetUserId, bannedBy: actorId, reason: reason?.trim() || null }
+      })
+      await tx.messageBookmark.deleteMany({
+        where: { userId: targetUserId, message: { channel: { serverId } } }
+      })
+      await tx.serverMember.deleteMany({
+        where: { userId: targetUserId, serverId }
+      })
+    })
+
+    await this.auditLog.log(serverId, actorId, 'member.ban', 'user', targetUserId, reason)
+    this.events.emit('member:removed', { serverId, userId: targetUserId })
+  }
+
+  async unbanMember(serverId: string, actorId: string, targetUserId: string) {
+    await this.roles.requirePermission(serverId, actorId, Permission.BAN_MEMBERS)
+    const ban = await this.prisma.serverBan.findUnique({
+      where: { serverId_userId: { serverId, userId: targetUserId } }
+    })
+    if (!ban) {
+      throw new NotFoundException('Ban not found')
+    }
+    await this.prisma.serverBan.delete({ where: { id: ban.id } })
+    await this.auditLog.log(serverId, actorId, 'member.unban', 'user', targetUserId)
+  }
+
+  async getBans(serverId: string, actorId: string) {
+    await this.roles.requirePermission(serverId, actorId, Permission.BAN_MEMBERS)
+    const bans = await this.prisma.serverBan.findMany({
+      where: { serverId },
+      include: {
+        user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+        actor: { select: { id: true, username: true, displayName: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+    return bans.map((b) => ({
+      id: b.id,
+      userId: b.userId,
+      user: b.user,
+      bannedBy: b.actor,
+      reason: b.reason,
+      createdAt: b.createdAt.toISOString()
+    }))
+  }
+
   async deleteServer(serverId: string, userId: string) {
     const server = await this.getServerOrThrow(serverId)
     if (server.ownerId !== userId) {
@@ -322,6 +386,12 @@ export class ServersService {
 
   async joinServer(serverId: string, userId: string) {
     await this.getServerOrThrow(serverId)
+    const ban = await this.prisma.serverBan.findUnique({
+      where: { serverId_userId: { serverId, userId } }
+    })
+    if (ban) {
+      throw new ForbiddenException('You are banned from this server')
+    }
     const existing = await this.prisma.serverMember.findUnique({
       where: {
         userId_serverId: { userId, serverId }
