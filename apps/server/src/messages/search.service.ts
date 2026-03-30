@@ -77,7 +77,12 @@ export class SearchService {
     let fromUserId: string | null = null
     if (parsed.fromUsername) {
       const user = await this.prisma.user.findFirst({
-        where: { username: { equals: parsed.fromUsername, mode: 'insensitive' } },
+        where: {
+          OR: [
+            { username: { equals: parsed.fromUsername, mode: 'insensitive' } },
+            { displayName: { equals: parsed.fromUsername, mode: 'insensitive' } }
+          ]
+        },
         select: { id: true }
       })
       if (!user) return { results: [], total: 0 }
@@ -249,7 +254,7 @@ export class SearchService {
           AND m.deleted = false
           ${textCondition}
           ${filterSql}
-        ORDER BY m.id DESC
+        ORDER BY m.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `,
       this.prisma.$queryRaw<{ count: bigint }[]>`
@@ -292,7 +297,7 @@ export class SearchService {
           AND m.deleted = false
           ${textCondition}
           ${filterSql}
-        ORDER BY m.id DESC
+        ORDER BY m.created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `,
       this.prisma.$queryRaw<{ count: bigint }[]>`
