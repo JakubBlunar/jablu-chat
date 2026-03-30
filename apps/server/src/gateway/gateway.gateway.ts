@@ -116,6 +116,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return this.onlineUsers.has(userId) || this.disconnectGrace.has(userId)
   }
 
+  async getFriendUserIds(userId: string): Promise<string[]> {
+    const friendships = await this.prisma.friendship.findMany({
+      where: {
+        status: 'accepted',
+        OR: [{ requesterId: userId }, { addresseeId: userId }]
+      },
+      select: { requesterId: true, addresseeId: true }
+    })
+    return friendships.map((f) =>
+      f.requesterId === userId ? f.addresseeId : f.requesterId
+    )
+  }
+
+  private emitToFriends(friendIds: string[], event: string, data: unknown) {
+    for (const fid of friendIds) {
+      this.server.to(`user:${fid}`).emit(event, data)
+    }
+  }
+
   getOnlineUserIds(): string[] {
     const ids: string[] = []
     for (const userId of this.onlineUsers.keys()) {
@@ -255,6 +274,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const isInvisible = this.manualStatus.get(user.id) === 'offline'
 
+    const friendIds = await this.getFriendUserIds(user.id)
+
     if (pendingGrace) {
       if (isInvisible) {
         // Reconnecting during grace while invisible -- stay invisible, no broadcast
@@ -270,6 +291,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
           for (const sid of serverIds) {
             this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status })
           }
+          this.emitToFriends(friendIds, 'user:status', { userId: user.id, status })
         }
       }
     } else if (isFirstConnection) {
@@ -282,10 +304,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
         this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
       }
+      this.emitToFriends(friendIds, 'user:online', { userId: user.id })
+      this.emitToFriends(friendIds, 'user:status', { userId: user.id, status: 'online' })
     }
 
     const onlineNow = this.getOnlineUserIds().filter((id) => allMemberUserIds.has(id))
     client.emit('presence:init', { onlineUserIds: onlineNow })
+
+    const onlineFriendIds = friendIds.filter((fid) => this.isUserOnline(fid))
+    const friendStatuses: Record<string, string> = {}
+    for (const fid of onlineFriendIds) {
+      friendStatuses[fid] = this.lastBroadcastedStatus.get(fid) ?? 'online'
+    }
+    client.emit('friends:presence', { onlineFriendIds, friendStatuses })
 
     const dmConversations = await this.prisma.directConversationMember.findMany({
       where: { userId: user.id },
@@ -339,6 +370,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         for (const sid of capturedServerIds) {
           this.server.to(`server:${sid}`).emit('user:offline', { userId })
         }
+        const friendIds = await this.getFriendUserIds(userId)
+        this.emitToFriends(friendIds, 'user:offline', { userId })
       }, ChatGateway.DISCONNECT_GRACE_MS)
       this.disconnectGrace.set(userId, { timer, serverIds: capturedServerIds })
     }
@@ -651,6 +684,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       for (const sid of serverIds) {
         this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
       }
+      const friendIds = await this.getFriendUserIds(user.id)
+      this.emitToFriends(friendIds, 'user:status', { userId: user.id, status: 'online' })
     }
     return { ok: true }
   }
@@ -681,6 +716,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         for (const sid of serverIds) {
           this.server.to(`server:${sid}`).emit('user:status', { userId, status: 'idle' })
         }
+        const friendIds = await this.getFriendUserIds(userId)
+        this.emitToFriends(friendIds, 'user:status', { userId, status: 'idle' })
       }
     }
   }

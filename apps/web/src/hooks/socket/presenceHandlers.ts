@@ -62,6 +62,23 @@ export function createPresenceHandlers() {
     useNotifPrefStore.getState().fetchAll()
   }
 
+  const onFriendsPresence = (payload: { onlineFriendIds: string[]; friendStatuses?: Record<string, string> }) => {
+    const onlineSet = new Set(payload.onlineFriendIds)
+    const statuses = payload.friendStatuses ?? {}
+    const { friends, updateFriendStatus } = useFriendStore.getState()
+    for (const friend of friends) {
+      if (onlineSet.has(friend.id)) {
+        const specificStatus = statuses[friend.id]
+        const resolved = (specificStatus === 'idle' || specificStatus === 'dnd')
+          ? specificStatus
+          : 'online'
+        updateFriendStatus(friend.id, resolved as 'online' | 'idle' | 'dnd')
+      } else {
+        updateFriendStatus(friend.id, 'offline')
+      }
+    }
+  }
+
   const onMemberJoined = (payload: { serverId: string; member: import('@/stores/member.store').Member }) => {
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId === currentServerId) {
@@ -81,6 +98,7 @@ export function createPresenceHandlers() {
     onUserStatus,
     onUserCustomStatus,
     onPresenceInit,
+    onFriendsPresence,
     onMemberJoined,
     cleanup
   }
