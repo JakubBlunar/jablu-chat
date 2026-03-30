@@ -182,7 +182,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh]"
+      className="fixed inset-0 z-[60] flex items-start justify-center bg-black/40 pt-4 md:bg-transparent md:pt-[15vh]"
       role="none"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
@@ -190,7 +190,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div
-        className="w-full max-w-lg rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10"
+        className="mx-3 w-full max-w-lg rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10"
         role="combobox"
         aria-expanded="true"
         aria-haspopup="listbox"
@@ -209,12 +209,22 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
             placeholder="Where would you like to go?"
             className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
           />
-          <kbd className="hidden rounded border border-white/10 bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-gray-400 sm:inline-block">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white md:hidden"
+            aria-label="Close"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <kbd className="hidden rounded border border-white/10 bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-gray-400 md:inline-block">
             ESC
           </kbd>
         </div>
 
-        <div ref={listRef} className="chat-scroll max-h-80 overflow-y-auto p-2" role="listbox">
+        <div ref={listRef} className="chat-scroll max-h-[60dvh] overflow-y-auto p-2 md:max-h-80" role="listbox">
           {items.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-gray-500">No results found</p>
           )}

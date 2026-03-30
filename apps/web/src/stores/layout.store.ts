@@ -38,11 +38,15 @@ export { CHANNEL_SIDEBAR_MIN, CHANNEL_SIDEBAR_MAX }
 function loadMemberSidebar(): boolean {
   try {
     const v = localStorage.getItem(MEMBER_SIDEBAR_KEY)
-    return v === null ? true : v === '1'
+    if (v !== null) return v === '1'
+    // Default to hidden on tablet-sized screens to avoid cramped layout
+    return !window.matchMedia(TABLET_QUERY).matches
   } catch {
     return true
   }
 }
+
+const TABLET_QUERY = '(max-width: 1023px)'
 
 export const useLayoutStore = create<LayoutState>((set) => ({
   navDrawerOpen: false,

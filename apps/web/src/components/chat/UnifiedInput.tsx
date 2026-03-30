@@ -72,7 +72,18 @@ export function UnifiedInput({
   const mentionChannelsRef = useRef<MentionChannel[]>(channels ?? [])
   useEffect(() => {
     const buildMembers = () => {
-      if (isDm) return []
+      if (isDm) {
+        const conv = useDmStore.getState().conversations.find((c) => c.id === contextId)
+        if (!conv) return []
+        return conv.members
+          .filter((m) => m.userId !== userId)
+          .map((m) => ({
+            userId: m.userId,
+            username: m.username,
+            displayName: m.displayName,
+            avatarUrl: m.avatarUrl
+          }))
+      }
       return useMemberStore.getState().members
         .filter((m) => m.userId !== userId)
         .map((m) => ({
@@ -92,10 +103,11 @@ export function UnifiedInput({
     mentionChannelsRef.current = buildChannels()
     const unsubs = [
       useMemberStore.subscribe(() => { mentionMembersRef.current = buildMembers() }),
-      useChannelStore.subscribe(() => { mentionChannelsRef.current = buildChannels() })
+      useChannelStore.subscribe(() => { mentionChannelsRef.current = buildChannels() }),
+      ...(isDm ? [useDmStore.subscribe(() => { mentionMembersRef.current = buildMembers() })] : [])
     ]
     return () => unsubs.forEach((fn) => fn())
-  }, [isDm, userId, channels])
+  }, [isDm, userId, channels, contextId])
   const mentionMembers = mentionMembersRef.current
   const mentionChannels = mentionChannelsRef.current
 
