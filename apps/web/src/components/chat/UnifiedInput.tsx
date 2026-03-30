@@ -141,6 +141,16 @@ export function UnifiedInput({
     }
   }
 
+  function emitTypingStop() {
+    if (lastTypingEmit.current === 0) return
+    lastTypingEmit.current = 0
+    if (isDm) {
+      getSocket()?.emit('dm:typing-stop', { conversationId: contextId })
+    } else {
+      getSocket()?.emit('typing:stop', { channelId: contextId })
+    }
+  }
+
   async function uploadFiles(pending: PendingFile[]) {
     const results: PendingFile[] = [...pending]
     for (let i = 0; i < results.length; i++) {
@@ -219,6 +229,7 @@ export function UnifiedInput({
     setValue('')
     setFiles([])
     onCancelReply()
+    emitTypingStop()
     onSent?.()
   }
 
