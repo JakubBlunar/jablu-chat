@@ -19,6 +19,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { Permission as SharedPermission, permsToBigInt, hasPermission as hasPermFlag } from '@chat/shared'
 import { useDmStore } from '@/stores/dm.store'
@@ -37,8 +38,18 @@ import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { SearchBar } from '@/components/SearchBar'
 const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then((m) => ({ default: m.SearchDrawer })))
 import { EditChannelModal } from '@/components/channel/EditChannelModal'
+import { ChannelInfoSheet } from '@/components/chat/ChannelInfoSheet'
+import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 
 /* ── Small icons ── */
+
+function HamburgerIcon() {
+  return (
+    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  )
+}
 
 function HashChannelIcon() {
   return (
@@ -189,6 +200,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [searchQuery, setSearchQuery] = useState('')
   const [showPollCreator, setShowPollCreator] = useState(false)
   const [savedOpen, setSavedOpen] = useState(false)
+  const [channelSheetOpen, setChannelSheetOpen] = useState(false)
+  const [dmSheetOpen, setDmSheetOpen] = useState(false)
 
   const [replyTarget, setReplyTarget] = useState<{
     id: string
@@ -239,7 +252,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     }
     return (
       <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
-        <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+        <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
+          {isMobile && (
+            <button
+              type="button"
+              aria-label="Open navigation menu"
+              onClick={useLayoutStore.getState().openNavDrawer}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <HamburgerIcon />
+            </button>
+          )}
           <h1 className="text-base font-semibold text-gray-400">Select a channel</h1>
         </header>
         <div className="flex min-h-0 flex-1" />
@@ -313,11 +336,20 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       {savedOpen && (
         <SavedMessagesPanel
           onClose={() => setSavedOpen(false)}
-          onJump={(messageId, chId) => {
-            if (chId && chId === channelId) {
-              scroll.handleJumpToMessage(messageId)
-            }
+          onJump={(messageId, opts) => {
             setSavedOpen(false)
+            if (opts.conversationId) {
+              void useNavigationStore.getState().navigateToDm({
+                conversationId: opts.conversationId,
+                scrollToMessageId: messageId
+              })
+            } else if (opts.serverId && opts.channelId) {
+              void useNavigationStore.getState().navigateToChannel({
+                serverId: opts.serverId,
+                channelId: opts.channelId,
+                scrollToMessageId: messageId
+              })
+            }
           }}
         />
       )}
@@ -440,105 +472,80 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   )
 
   const channelHeader = !isDm ? (
-    <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
+    <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
       {activeChannel ? (
         <>
-          <HashChannelIcon />
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
-          </div>
-          <button
-            type="button"
-            title="Pinned messages"
-            aria-label="Pinned messages"
-            onClick={() => void pinned.handleOpenPinned()}
-            className="relative rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-          >
-            <PinHeaderIcon />
-            {(activeChannel.pinnedCount ?? 0) > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white">
-                {activeChannel.pinnedCount}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            title="Saved messages"
-            aria-label="Saved messages"
-            onClick={() => setSavedOpen((v) => !v)}
-            className={`rounded p-2 transition ${savedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
-          >
-            <BookmarkHeaderIcon />
-          </button>
-          <NotifBellMenu channelId={activeChannel.id} />
-          {isAdminOrOwner && (
+          {isMobile ? (
             <button
               type="button"
-              title="Channel settings"
-              aria-label="Channel settings"
-              onClick={() => setEditingChannel(true)}
-              className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+              aria-label="Open navigation menu"
+              onClick={useLayoutStore.getState().openNavDrawer}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
-              <ChannelSettingsIcon />
+              <HamburgerIcon />
             </button>
+          ) : (
+            <HashChannelIcon />
           )}
-          <button
-            type="button"
-            title="Toggle member list"
-            aria-label="Toggle member list"
-            onClick={useLayoutStore.getState().toggleMemberSidebar}
-            className="hidden rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white md:block"
-          >
-            <MembersToggleIcon />
-          </button>
-          <SearchBar
-            searchOpen={searchOpen}
-            query={searchQuery}
-            onQueryChange={setSearchQuery}
-            onSearch={(q) => {
-              setSearchQuery(q)
-              setSearchOpen(true)
-            }}
-            onClose={() => {
-              setSearchOpen(false)
-              setSearchQuery('')
-            }}
-          />
-        </>
-      ) : (
-        <h1 className="text-base font-semibold text-gray-400">Select a channel</h1>
-      )}
-    </header>
-  ) : null
-
-  if (isDm) {
-    return (
-      <div className="relative flex min-w-0 flex-1 bg-surface">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-4 shadow-sm">
-            <AtIcon />
-            <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
-            {dm.otherMember && !dm.currentConv?.isGroup && (
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={() => setChannelSheetOpen(true)}
+              className="min-w-0 flex-1 text-left"
+            >
+              <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
+            </button>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
+            </div>
+          )}
+          {!isMobile && (
+            <>
               <button
                 type="button"
-                onClick={() => dm.setShowProfile((p) => !p)}
-                title="User profile"
-                aria-label="User profile"
-                className={`shrink-0 rounded p-1.5 transition ${dm.showProfile ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                title="Pinned messages"
+                aria-label="Pinned messages"
+                onClick={() => void pinned.handleOpenPinned()}
+                className="relative rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
               >
-                <UserProfileIcon />
+                <PinHeaderIcon />
+                {(activeChannel.pinnedCount ?? 0) > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white">
+                    {activeChannel.pinnedCount}
+                  </span>
+                )}
               </button>
-            )}
-            <button
-              type="button"
-              title="Pinned messages"
-              aria-label="Pinned messages"
-              onClick={() => void pinned.handleOpenPinned()}
-              className={`shrink-0 rounded p-1.5 transition ${pinned.pinnedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              <PinHeaderIcon />
-            </button>
-            <div className="shrink-0">
+              <button
+                type="button"
+                title="Saved messages"
+                aria-label="Saved messages"
+                onClick={() => setSavedOpen((v) => !v)}
+                className={`rounded p-2 transition ${savedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+              >
+                <BookmarkHeaderIcon />
+              </button>
+              <NotifBellMenu channelId={activeChannel.id} />
+              {isAdminOrOwner && (
+                <button
+                  type="button"
+                  title="Channel settings"
+                  aria-label="Channel settings"
+                  onClick={() => setEditingChannel(true)}
+                  className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                >
+                  <ChannelSettingsIcon />
+                </button>
+              )}
+              <button
+                type="button"
+                title="Toggle member list"
+                aria-label="Toggle member list"
+                onClick={useLayoutStore.getState().toggleMemberSidebar}
+                className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
+              >
+                <MembersToggleIcon />
+              </button>
               <SearchBar
                 searchOpen={searchOpen}
                 query={searchQuery}
@@ -552,7 +559,91 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   setSearchQuery('')
                 }}
               />
-            </div>
+            </>
+          )}
+        </>
+      ) : (
+        <h1 className="text-base font-semibold text-gray-400">Select a channel</h1>
+      )}
+    </header>
+  ) : null
+
+  if (isDm) {
+    return (
+      <div className="relative flex min-w-0 flex-1 bg-surface">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
+            {isMobile ? (
+              <button
+                type="button"
+                aria-label="Open navigation menu"
+                onClick={useLayoutStore.getState().openNavDrawer}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+              >
+                <HamburgerIcon />
+              </button>
+            ) : (
+              <AtIcon />
+            )}
+            {isMobile ? (
+              <button
+                type="button"
+                onClick={() => setDmSheetOpen(true)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <h2 className="truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
+              </button>
+            ) : (
+              <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
+            )}
+            {!isMobile && (
+              <>
+                {dm.otherMember && !dm.currentConv?.isGroup && (
+                  <button
+                    type="button"
+                    onClick={() => dm.setShowProfile((p) => !p)}
+                    title="User profile"
+                    aria-label="User profile"
+                    className={`shrink-0 rounded p-1.5 transition ${dm.showProfile ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    <UserProfileIcon />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  title="Pinned messages"
+                  aria-label="Pinned messages"
+                  onClick={() => void pinned.handleOpenPinned()}
+                  className={`shrink-0 rounded p-1.5 transition ${pinned.pinnedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <PinHeaderIcon />
+                </button>
+                <button
+                  type="button"
+                  title="Saved messages"
+                  aria-label="Saved messages"
+                  onClick={() => setSavedOpen((v) => !v)}
+                  className={`shrink-0 rounded p-1.5 transition ${savedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <BookmarkHeaderIcon />
+                </button>
+                <div className="shrink-0">
+                  <SearchBar
+                    searchOpen={searchOpen}
+                    query={searchQuery}
+                    onQueryChange={setSearchQuery}
+                    onSearch={(q) => {
+                      setSearchQuery(q)
+                      setSearchOpen(true)
+                    }}
+                    onClose={() => {
+                      setSearchOpen(false)
+                      setSearchQuery('')
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </header>
           {messageList}
         </div>
@@ -593,6 +684,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
           )
         ) : null}
+        {dmSheetOpen && (
+          <DmInfoSheet
+            hasProfile={!!dm.otherMember && !dm.currentConv?.isGroup}
+            onClose={() => setDmSheetOpen(false)}
+            onProfile={() => { setDmSheetOpen(false); dm.setShowProfile((p) => !p) }}
+            onPinned={() => { setDmSheetOpen(false); void pinned.handleOpenPinned() }}
+            onSaved={() => { setDmSheetOpen(false); setSavedOpen(true) }}
+            onSearch={() => { setDmSheetOpen(false); setSearchOpen(true) }}
+          />
+        )}
       </div>
     )
   }
@@ -626,6 +727,19 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
       {editingChannel && activeChannel && (
         <EditChannelModal channel={activeChannel} onClose={() => setEditingChannel(false)} />
+      )}
+      {channelSheetOpen && activeChannel && (
+        <ChannelInfoSheet
+          channelId={activeChannel.id}
+          pinnedCount={activeChannel.pinnedCount ?? 0}
+          isAdmin={isAdminOrOwner}
+          onClose={() => setChannelSheetOpen(false)}
+          onSearch={() => { setChannelSheetOpen(false); setSearchOpen(true) }}
+          onPinned={() => { setChannelSheetOpen(false); void pinned.handleOpenPinned() }}
+          onSaved={() => { setChannelSheetOpen(false); setSavedOpen(true) }}
+          onMembers={() => { setChannelSheetOpen(false); useLayoutStore.getState().openMemberDrawer() }}
+          onSettings={() => { setChannelSheetOpen(false); setEditingChannel(true) }}
+        />
       )}
     </section>
   )

@@ -35,6 +35,12 @@ const EventsPanel = React.lazy(() =>
 const ReorderChannelsModal = React.lazy(() =>
   import('@/components/server/ReorderChannelsModal').then((m) => ({ default: m.ReorderChannelsModal }))
 )
+const ServerNotifModal = React.lazy(() =>
+  import('@/components/server/ServerNotifModal').then((m) => ({ default: m.ServerNotifModal }))
+)
+const CreateCategoryModal = React.lazy(() =>
+  import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
+)
 
 export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void }) {
   const open = useLayoutStore((s) => s.navDrawerOpen)
@@ -88,6 +94,8 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
   const [channelModalOpen, setChannelModalOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [groupDmOpen, setGroupDmOpen] = useState(false)
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
+  const [serverNotifOpen, setServerNotifOpen] = useState(false)
   const [dmFilter, setDmFilter] = useState('')
   const closeConv = useDmStore((s) => s.closeConversation)
 
@@ -642,6 +650,16 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
           onReorder={() => {
             setServerMenuOpen(false); close(); setReorderOpen(true)
           }}
+          onCreateCategory={() => {
+            setServerMenuOpen(false); close(); setCreateCategoryOpen(true)
+          }}
+          onMarkAllRead={() => {
+            setServerMenuOpen(false)
+            if (currentServer) useReadStateStore.getState().ackServer(currentServer.id)
+          }}
+          onNotifSettings={() => {
+            setServerMenuOpen(false); close(); setServerNotifOpen(true)
+          }}
           onInvite={() => {
             setServerMenuOpen(false); close(); setInviteOpen(true)
           }}
@@ -668,6 +686,16 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
       {reorderOpen && (
         <Suspense fallback={null}>
           <ReorderChannelsModal onClose={() => setReorderOpen(false)} />
+        </Suspense>
+      )}
+      {createCategoryOpen && (
+        <Suspense fallback={null}>
+          <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />
+        </Suspense>
+      )}
+      {serverNotifOpen && currentServer && (
+        <Suspense fallback={null}>
+          <ServerNotifModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setServerNotifOpen(false)} />
         </Suspense>
       )}
       <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />

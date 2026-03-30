@@ -43,7 +43,8 @@ export class MessagesService {
 
     const baseWhere: Prisma.MessageWhereInput = {
       channelId,
-      deleted: false
+      deleted: false,
+      threadParentId: null
     }
 
     let where: Prisma.MessageWhereInput = baseWhere
@@ -100,6 +101,7 @@ export class MessagesService {
         where: {
           channelId,
           deleted: false,
+          threadParentId: null,
           OR: [
             { createdAt: { lt: anchor.createdAt } },
             { AND: [{ createdAt: anchor.createdAt }, { id: { lt: anchor.id } }] }
@@ -113,6 +115,7 @@ export class MessagesService {
         where: {
           channelId,
           deleted: false,
+          threadParentId: null,
           OR: [
             { createdAt: { gt: anchor.createdAt } },
             { AND: [{ createdAt: anchor.createdAt }, { id: { gt: anchor.id } }] }
@@ -153,6 +156,7 @@ export class MessagesService {
       where: {
         channelId,
         deleted: false,
+        threadParentId: null,
         OR: [
           { createdAt: { gt: afterMsg.createdAt } },
           {

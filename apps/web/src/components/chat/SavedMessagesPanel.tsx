@@ -17,7 +17,10 @@ type BookmarkEntry = {
   message: Message & { channel?: { id: string; name: string; serverId: string } }
 }
 
-export function SavedMessagesPanel({ onClose, onJump }: { onClose: () => void; onJump?: (messageId: string, channelId?: string) => void }) {
+export function SavedMessagesPanel({ onClose, onJump }: {
+  onClose: () => void
+  onJump?: (messageId: string, opts: { channelId?: string; serverId?: string; conversationId?: string }) => void
+}) {
   const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(false)
@@ -88,6 +91,9 @@ export function SavedMessagesPanel({ onClose, onJump }: { onClose: () => void; o
                       {m.channel && (
                         <p className="text-[11px] text-gray-500">#{m.channel.name}</p>
                       )}
+                      {!m.channel && m.directConversationId && (
+                        <p className="text-[11px] text-gray-500">Direct Message</p>
+                      )}
                       {m.content && (
                         <div className="mt-0.5 text-sm [&_p]:text-sm [&_p]:leading-relaxed [&_pre]:max-h-32 [&_pre]:overflow-auto">
                           <MarkdownContent content={m.content} />
@@ -125,7 +131,11 @@ export function SavedMessagesPanel({ onClose, onJump }: { onClose: () => void; o
                   {onJump && (
                     <button
                       type="button"
-                      onClick={() => onJump(b.messageId, m.channel?.id)}
+                      onClick={() => onJump(b.messageId, {
+                        channelId: m.channel?.id,
+                        serverId: m.channel?.serverId,
+                        conversationId: m.directConversationId ?? undefined
+                      })}
                       className="mt-1.5 text-[11px] font-medium text-primary/70 transition hover:text-primary"
                     >
                       Jump to message

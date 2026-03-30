@@ -53,7 +53,16 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
   const channelRefs = isDm ? dmChannelRefs : serverChannelRefs
 
   const [showProfile, setShowProfile] = useState(false)
-  const otherName = otherMember?.displayName ?? otherMember?.username ?? 'Unknown'
+  const otherName = useMemo(() => {
+    if (otherMember) return otherMember.displayName ?? otherMember.username
+    if (currentConv?.isGroup) {
+      if (currentConv.groupName) return currentConv.groupName
+      const others = currentConv.members?.filter((m) => m.userId !== userId) ?? []
+      if (others.length === 0) return 'Group'
+      return others.map((m) => m.username).join(', ')
+    }
+    return 'Unknown'
+  }, [otherMember, currentConv, userId])
 
   const { orchestratedGoToChannel } = useAppNavigate()
   const handleChannelClick = useCallback(

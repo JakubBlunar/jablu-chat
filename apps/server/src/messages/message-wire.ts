@@ -37,7 +37,17 @@ export const messageInclude = {
       }
     }
   },
-  _count: { select: { threadMessages: true } }
+  _count: { select: { threadMessages: true } },
+  threadMessages: {
+    where: { deleted: false },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+    select: {
+      content: true,
+      createdAt: true,
+      author: { select: authorSelect }
+    }
+  }
 } satisfies Prisma.MessageInclude
 
 export const dmMessageInclude = {
@@ -80,10 +90,18 @@ export function groupReactions(
 }
 
 export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: string) {
-  const { reactions, webhookName, webhookAvatarUrl, poll, _count, ...rest } = m
+  const { reactions, webhookName, webhookAvatarUrl, poll, _count, threadMessages, ...rest } = m
+  const lastReply = threadMessages?.[0] ?? null
   return {
     ...rest,
     threadCount: _count?.threadMessages ?? 0,
+    lastThreadReply: lastReply
+      ? {
+          content: lastReply.content,
+          author: lastReply.author ?? null,
+          createdAt: lastReply.createdAt instanceof Date ? lastReply.createdAt.toISOString() : lastReply.createdAt
+        }
+      : null,
     reactions: groupReactions(reactions),
     webhook: m.webhookId
       ? {

@@ -35,7 +35,7 @@ type MessageState = {
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   setLinkPreviews: (messageId: string, linkPreviews: LinkPreview[]) => void
   updatePoll: (poll: Poll) => void
-  updateThreadCount: (messageId: string, threadCount: number) => void
+  updateThreadCount: (messageId: string, threadCount: number, lastThreadReply?: Message['lastThreadReply']) => void
   setScrollToMessageId: (id: string | null) => void
   setTypingUser: (channelId: string, userId: string, username: string) => void
   removeTypingUser: (userId: string) => void
@@ -254,9 +254,13 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     }))
   },
 
-  updateThreadCount: (messageId, threadCount) => {
+  updateThreadCount: (messageId, threadCount, lastThreadReply) => {
     set((s) => ({
-      messages: s.messages.map((m) => (m.id === messageId ? { ...m, threadCount } : m))
+      messages: s.messages.map((m) =>
+        m.id === messageId
+          ? { ...m, threadCount, ...(lastThreadReply !== undefined ? { lastThreadReply } : {}) }
+          : m
+      )
     }))
   },
 

@@ -15,6 +15,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
   const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
     if (msg.threadParentId) {
       useThreadStore.getState().addMessage(msg)
+      return
     }
     const channelId = useChannelStore.getState().currentChannelId
     const viewMode = useServerStore.getState().viewMode
@@ -98,8 +99,12 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     useMessageStore.getState().updatePoll(poll)
   }
 
-  const onThreadUpdate = (payload: { parentId: string; threadCount: number; lastThreadMessage?: { authorId: string; createdAt: string } }) => {
-    useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount)
+  const onThreadUpdate = (payload: {
+    parentId: string
+    threadCount: number
+    lastThreadReply?: { content: string | null; author: { id: string; username: string; displayName?: string | null; avatarUrl: string | null } | null; createdAt: string }
+  }) => {
+    useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount, payload.lastThreadReply ?? undefined)
   }
 
   const onNewMessageForThread = (msg: Message) => {

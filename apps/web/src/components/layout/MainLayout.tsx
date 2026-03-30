@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
 import { Spinner } from '@/components/Spinner'
@@ -82,52 +82,6 @@ function HamburgerIcon() {
   )
 }
 
-function MembersIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="8.5" cy="7" r="4" />
-      <path d="M20 8v6M23 11h-6" />
-    </svg>
-  )
-}
-
-function MobileTopBar({
-  title,
-  onMenuClick,
-  onMembersClick,
-  showMembers
-}: {
-  title: string
-  onMenuClick: () => void
-  onMembersClick?: () => void
-  showMembers?: boolean
-}) {
-  return (
-    <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
-      <button
-        type="button"
-        aria-label="Open navigation menu"
-        onClick={onMenuClick}
-        className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
-      >
-        <HamburgerIcon />
-      </button>
-      <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-white">{title}</h1>
-      {showMembers && onMembersClick && (
-        <button
-          type="button"
-          aria-label="Toggle member list"
-          onClick={onMembersClick}
-          className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
-        >
-          <MembersIcon />
-        </button>
-      )}
-    </header>
-  )
-}
-
 export function MainLayout() {
   useRouteSync()
   const navigate = useNavigate()
@@ -136,7 +90,6 @@ export function MainLayout() {
   const isMobile = useIsMobile()
 
   const openNavDrawer = useLayoutStore((s) => s.openNavDrawer)
-  const openMemberDrawer = useLayoutStore((s) => s.openMemberDrawer)
   const memberSidebarVisible = useLayoutStore((s) => s.memberSidebarVisible)
 
   useActivityReporter(socket)
@@ -147,11 +100,6 @@ export function MainLayout() {
   const servers = useServerStore((s) => s.servers)
   const serversLoading = useServerStore((s) => s.isLoading)
   const currentServerId = useServerStore((s) => s.currentServerId)
-  const currentServer = useServerStore((s) => {
-    if (!s.currentServerId) return null
-    return s.servers.find((x) => x.id === s.currentServerId) ?? null
-  })
-
   const channels = useChannelStore((s) => s.channels)
   const fetchChannels = useChannelStore((s) => s.fetchChannels)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
@@ -164,7 +112,6 @@ export function MainLayout() {
   const clearMessages = useMessageStore((s) => s.clearMessages)
 
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
-  const voiceChannelName = useVoiceConnectionStore((s) => s.currentChannelName)
   const currentConvId = useDmStore((s) => s.currentConversationId)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -265,13 +212,6 @@ export function MainLayout() {
     isNavigating
   ])
 
-  const mobileTitle = useMemo(() => {
-    if (viewMode === 'dm') return 'Direct Messages'
-    if (viewingVoiceRoom && voiceChannelName) return voiceChannelName
-    if (currentServer) return currentServer.name
-    return 'Jablu'
-  }, [viewMode, viewingVoiceRoom, voiceChannelName, currentServer])
-
   const showMemberSidebar = !isMobile && memberSidebarVisible
 
   // ─── Mobile layout ───
@@ -282,24 +222,32 @@ export function MainLayout() {
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
-        <MobileTopBar
-          title={mobileTitle}
-          onMenuClick={openNavDrawer}
-          onMembersClick={viewMode === 'server' ? openMemberDrawer : undefined}
-          showMembers={viewMode === 'server'}
-        />
         <div className="flex min-h-0 flex-1">
           {viewMode === 'dm' ? (
             <MessageArea mode="dm" contextId={currentConvId} />
           ) : serversLoading && servers.length === 0 ? (
-            <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
-              <p className="text-sm text-gray-400">Loading servers...</p>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
+                <button type="button" aria-label="Open navigation menu" onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
+                  <HamburgerIcon />
+                </button>
+              </header>
+              <div className="flex flex-1 flex-col items-center justify-center gap-3">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+                <p className="text-sm text-gray-400">Loading servers...</p>
+              </div>
             </div>
           ) : servers.length === 0 ? (
-            <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-              <p className="text-lg font-semibold text-white">No servers yet</p>
-              <p className="max-w-md text-sm text-gray-400">Use the menu to join a server.</p>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
+                <button type="button" aria-label="Open navigation menu" onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
+                  <HamburgerIcon />
+                </button>
+              </header>
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                <p className="text-lg font-semibold text-white">No servers yet</p>
+                <p className="max-w-md text-sm text-gray-400">Use the menu to join a server.</p>
+              </div>
             </div>
           ) : viewingVoiceRoom ? (
             <Suspense fallback={<Spinner className="flex-1" />}>

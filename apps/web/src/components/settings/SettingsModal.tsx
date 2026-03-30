@@ -67,7 +67,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     { key: 'voice', label: 'Voice & Video' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'sessions', label: 'Sessions' },
-    { key: 'shortcuts', label: 'Keyboard Shortcuts' },
+    { key: 'shortcuts', label: 'Keyboard Shortcuts', show: !isMobile },
     { key: 'server', label: 'Server Connection', show: isElectron },
     { key: 'desktop', label: 'Desktop App', show: isElectron },
     { key: 'downloads', label: 'Desktop App', show: !isElectron && !isMobile },

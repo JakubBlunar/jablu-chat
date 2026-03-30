@@ -144,3 +144,72 @@ export async function sendPushToOfflineMembers(
     url
   })
 }
+
+/**
+ * Sends push notifications to thread participants (parent author + anyone
+ * who replied) when a new thread reply is posted. Respects the same
+ * channel/server notification preferences as normal channel push.
+ */
+export async function sendPushToThreadParticipants(
+  ctx: PushContext,
+  parentId: string,
+  channelId: string,
+  serverId: string,
+  senderId: string,
+  senderName: string,
+  content: string | undefined,
+  attachments?: { type: string }[]
+) {
+  const [parent, replies] = await Promise.all([
+    ctx.prisma.message.findUnique({
+      where: { id: parentId },
+      select: { authorId: true }
+    }),
+    ctx.prisma.message.findMany({
+      where: { threadParentId: parentId, deleted: false },
+      select: { authorId: true },
+      distinct: ['authorId']
+    })
+  ])
+
+  const participantSet = new Set<string>()
+  if (parent?.authorId) participantSet.add(parent.authorId)
+  for (const r of replies) {
+    if (r.authorId) participantSet.add(r.authorId)
+  }
+  participantSet.delete(senderId)
+
+  if (participantSet.size === 0) return
+
+  const participantIds = [...participantSet]
+  const offlineIds = participantIds.filter((id) => !ctx.isUserOnline(id))
+  if (offlineIds.length === 0) return
+
+  const members = await ctx.prisma.serverMember.findMany({
+    where: { serverId, userId: { in: offlineIds } },
+    select: { userId: true, notifLevel: true }
+  })
+  const serverPrefMap = new Map<string, string>()
+  for (const m of members) {
+    if (m.notifLevel) serverPrefMap.set(m.userId, m.notifLevel)
+  }
+
+  const memberIds = members.map((m) => m.userId)
+  const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, memberIds)
+
+  const eligibleIds = memberIds.filter((id) => {
+    const channelLevel = channelPrefMap.get(id)
+    const serverLevel = serverPrefMap.get(id)
+    const effective = channelLevel ?? serverLevel ?? 'all'
+    return effective !== 'none'
+  })
+
+  if (eligibleIds.length === 0) return
+
+  const preview = describePushPreview(content, attachments)
+  await ctx.push.sendToUsers(eligibleIds, {
+    title: `${senderName} replied in a thread`,
+    body: preview,
+    url: `/channels/${serverId}/${channelId}`
+  })
+}

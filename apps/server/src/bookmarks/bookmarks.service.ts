@@ -7,7 +7,10 @@ const messageInclude = {
     select: { id: true, username: true, displayName: true, avatarUrl: true }
   },
   attachments: true,
-  channel: { select: { id: true, name: true, serverId: true } }
+  channel: { select: { id: true, name: true, serverId: true } },
+  linkPreviews: {
+    select: { id: true, url: true, title: true, description: true, imageUrl: true, siteName: true }
+  }
 } as const
 
 @Injectable()

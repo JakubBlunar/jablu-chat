@@ -135,7 +135,7 @@ function MemberRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span
-              className={`truncate text-[15px] font-medium ${dimmed ? 'text-gray-200' : ''}`}
+              className={`truncate text-[15px] font-medium ${dimmed ? 'text-gray-200' : 'text-white'}`}
               style={dimmed ? undefined : roleColor ? { color: roleColor } : undefined}
             >
               {name}
