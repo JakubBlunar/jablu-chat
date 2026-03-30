@@ -511,6 +511,10 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/channels/${channelId}/permissions/me`)
   }
 
+  getAllChannelPermissions(serverId: string): Promise<Record<string, string>> {
+    return this.get(`/api/servers/${serverId}/channels/permissions/me`)
+  }
+
   assignRole(serverId: string, userId: string, roleId: string): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/members/${userId}/assign-role`, { roleId })
   }

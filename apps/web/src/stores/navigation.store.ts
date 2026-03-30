@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useChannelPermissionsStore } from './channel-permissions.store'
 import { useChannelStore } from './channel.store'
 import { useDmStore } from './dm.store'
 import { useMemberStore } from './member.store'
@@ -36,7 +37,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       if (serverChanged) {
         await Promise.all([
           useChannelStore.getState().fetchChannels(serverId),
-          useMemberStore.getState().fetchMembers(serverId)
+          useMemberStore.getState().fetchMembers(serverId),
+          useChannelPermissionsStore.getState().fetchChannelPermissions(serverId)
         ])
         if (get().activeNavId !== navId) return null
       }

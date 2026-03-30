@@ -187,6 +187,10 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
   })
 
+  gw.events.on('channel:permissions:updated', (payload: { serverId: string; channelId: string; roleId: string }) => {
+    gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
+  })
+
   gw.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {
     gw.server.to(`server:${payload.serverId}`).emit('member:left', {
       serverId: payload.serverId,

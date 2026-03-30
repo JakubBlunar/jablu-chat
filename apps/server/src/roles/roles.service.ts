@@ -6,11 +6,15 @@ import {
   hasPermission,
   resolveChannelPermissions,
 } from '@chat/shared'
+import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventBusService,
+  ) {}
 
   async createDefaultRoles(serverId: string, ownerId: string): Promise<{ ownerRoleId: string; everyoneRoleId: string }> {
     const ownerRole = await this.prisma.role.create({
@@ -195,6 +199,41 @@ export class RolesService {
     return resolveChannelPermissions(rolePerms, { allow: override.allow, deny: override.deny })
   }
 
+  async getAllChannelPermissions(serverId: string, userId: string): Promise<Record<string, bigint>> {
+    const rolePerms = await this.getMemberPermissions(serverId, userId)
+
+    const channels = await this.prisma.channel.findMany({
+      where: { serverId },
+      select: { id: true },
+    })
+
+    if (hasPermission(rolePerms, Permission.ADMINISTRATOR)) {
+      const map: Record<string, bigint> = {}
+      for (const ch of channels) map[ch.id] = DEFAULT_OWNER_PERMISSIONS
+      return map
+    }
+
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId } },
+      select: { roleId: true },
+    })
+    if (!member) throw new ForbiddenException('You are not a member of this server')
+
+    const overrides = await this.prisma.channelPermissionOverride.findMany({
+      where: { roleId: member.roleId, channelId: { in: channels.map((c) => c.id) } },
+    })
+    const overrideByChannel = new Map(overrides.map((o) => [o.channelId, o]))
+
+    const map: Record<string, bigint> = {}
+    for (const ch of channels) {
+      const ov = overrideByChannel.get(ch.id)
+      map[ch.id] = ov
+        ? resolveChannelPermissions(rolePerms, { allow: ov.allow, deny: ov.deny })
+        : rolePerms
+    }
+    return map
+  }
+
   async requirePermission(serverId: string, userId: string, permission: bigint) {
     const perms = await this.getMemberPermissions(serverId, userId)
     if (!hasPermission(perms, permission)) {
@@ -258,6 +297,8 @@ export class RolesService {
       update: { allow: BigInt(allow), deny: BigInt(deny) },
     })
 
+    this.events.emit('channel:permissions:updated', { serverId, channelId, roleId })
+
     return {
       id: override.id,
       channelId: override.channelId,
@@ -273,6 +314,8 @@ export class RolesService {
     await this.prisma.channelPermissionOverride.deleteMany({
       where: { channelId, roleId },
     })
+
+    this.events.emit('channel:permissions:updated', { serverId, channelId, roleId })
   }
 
   private mapToWire(role: { id: string; serverId: string; name: string; color: string | null; position: number; permissions: bigint; isDefault: boolean; createdAt: Date }) {
