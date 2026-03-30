@@ -1,6 +1,7 @@
 import type { Friend, FriendRequest } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { useMemberStore } from './member.store'
 
 interface FriendState {
   friends: Friend[]
@@ -31,7 +32,14 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     set({ isLoading: true })
     try {
       const friends = await api.getFriends()
-      set({ friends })
+      const { onlineUserIds, realtimeStatuses } = useMemberStore.getState()
+      const patched = friends.map((f) => {
+        if (!onlineUserIds.has(f.id)) return f.status === 'offline' ? f : { ...f, status: 'offline' as const }
+        const rt = realtimeStatuses.get(f.id)
+        const status = (rt === 'idle' || rt === 'dnd') ? rt : 'online'
+        return f.status === status ? f : { ...f, status: status as Friend['status'] }
+      })
+      set({ friends: patched })
     } finally {
       set({ isLoading: false })
     }

@@ -21,7 +21,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const closeConversation = useDmStore((s) => s.closeConversation)
   const isLoading = useDmStore((s) => s.isConversationsLoading)
   const onlineIds = useMemberStore((s) => s.onlineUserIds)
-  const friends = useFriendStore((s) => s.friends)
+  const realtimeStatuses = useMemberStore((s) => s.realtimeStatuses)
   const dmReadStates = useReadStateStore((s) => s.dms)
   const ackDm = useReadStateStore((s) => s.ackDm)
   const pendingCount = useFriendStore((s) => s.pending.length)
@@ -52,17 +52,20 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         }
       }
       const other = conv.members.find((m) => m.userId !== user?.id)
-      const friend = friends.find((f) => f.id === other?.userId)
-      const status = friend?.status
-        ?? (onlineIds.has(other?.userId ?? '') ? 'online' : 'offline')
+      const otherId = other?.userId ?? ''
+      let status: 'online' | 'offline' | 'idle' | 'dnd' = 'offline'
+      if (onlineIds.has(otherId)) {
+        const rt = realtimeStatuses.get(otherId)
+        status = (rt === 'idle' || rt === 'dnd') ? rt : 'online'
+      }
       return {
         name: other?.displayName ?? other?.username ?? 'Unknown',
         avatarUrl: other?.avatarUrl ?? null,
-        status: status as 'online' | 'offline' | 'idle' | 'dnd',
+        status,
         isGroup: false
       }
     },
-    [user?.id, onlineIds, friends]
+    [user?.id, onlineIds, realtimeStatuses]
   )
 
   const voiceServerId = useVoiceConnectionStore((s) => s.currentServerId)

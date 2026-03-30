@@ -63,18 +63,17 @@ export function createPresenceHandlers() {
   }
 
   const onFriendsPresence = (payload: { onlineFriendIds: string[]; friendStatuses?: Record<string, string> }) => {
+    useMemberStore.getState().mergeFriendsPresence(payload.onlineFriendIds, payload.friendStatuses)
+    const { friends, updateFriendStatus } = useFriendStore.getState()
     const onlineSet = new Set(payload.onlineFriendIds)
     const statuses = payload.friendStatuses ?? {}
-    const { friends, updateFriendStatus } = useFriendStore.getState()
-    for (const friend of friends) {
-      if (onlineSet.has(friend.id)) {
-        const specificStatus = statuses[friend.id]
-        const resolved = (specificStatus === 'idle' || specificStatus === 'dnd')
-          ? specificStatus
-          : 'online'
-        updateFriendStatus(friend.id, resolved as 'online' | 'idle' | 'dnd')
+    for (const f of friends) {
+      if (onlineSet.has(f.id)) {
+        const specific = statuses[f.id]
+        const resolved = (specific === 'idle' || specific === 'dnd') ? specific : 'online'
+        updateFriendStatus(f.id, resolved as 'online' | 'idle' | 'dnd')
       } else {
-        updateFriendStatus(friend.id, 'offline')
+        updateFriendStatus(f.id, 'offline')
       }
     }
   }
