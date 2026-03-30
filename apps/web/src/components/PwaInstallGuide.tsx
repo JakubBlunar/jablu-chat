@@ -16,7 +16,7 @@ export function PwaInstallGuide() {
           <button
             type="button"
             onClick={() => void triggerInstall()}
-            className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover"
+            className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-text transition hover:bg-primary-hover"
           >
             Install Jablu
           </button>

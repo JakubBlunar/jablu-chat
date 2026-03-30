@@ -60,7 +60,7 @@ select {
   justify-content: center;
   flex-direction: column;
   gap: 1rem;
-  background: #1e1f22;
+  background: #0f1017;
   color: #b5bac1;
 }
 #landscape-lock.active {
@@ -121,6 +121,7 @@ select {
   /* Preset A: Amber (default) */
   --color-primary: #f59e0b;
   --color-primary-hover: #d97706;
+  --color-primary-text: #451a03;
   /* Preset B: Teal
   --color-primary: #14B8A6;
   --color-primary-hover: #0D9488;
@@ -130,14 +131,14 @@ select {
   --color-primary-hover: #EA580C;
   */
 
-  /* ──── Surfaces (dark theme) ──── */
-  --color-surface-darkest: #1e1f22;
-  --color-surface-dark: #2b2d31;
-  --color-surface: #313338;
-  --color-surface-raised: #383a40;
-  --color-surface-selected: #404249;
-  --color-surface-hover: #35373c;
-  --color-surface-overlay: #232428;
+  /* ──── Surfaces (dark theme — deep navy) ──── */
+  --color-surface-darkest: #0f1017;
+  --color-surface-dark: #161822;
+  --color-surface: #1a1c28;
+  --color-surface-raised: #222536;
+  --color-surface-selected: #2a2d3e;
+  --color-surface-hover: #1e2030;
+  --color-surface-overlay: #121318;
   --color-auth-bg: #1a1a2e;
 
   /* ──── Semantic ──── */

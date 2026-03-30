@@ -107,7 +107,7 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
             type="button"
             disabled={creating || !name.trim()}
             onClick={() => void handleCreate()}
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+            className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
           >
             Create
           </button>

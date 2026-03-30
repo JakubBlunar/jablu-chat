@@ -98,7 +98,7 @@ export function StatsTab() {
             type="button"
             onClick={() => setDays(d)}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              days === d ? 'bg-primary text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              days === d ? 'bg-primary text-primary-text' : 'text-gray-400 hover:bg-white/5 hover:text-white'
             }`}
           >
             {d}d

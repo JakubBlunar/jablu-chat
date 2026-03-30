@@ -65,7 +65,7 @@ function PasswordChangeForm() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
       >
         {loading ? 'Saving...' : 'Change Password'}
       </button>
@@ -118,7 +118,7 @@ function EmailChangeForm() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
       >
         {loading ? 'Saving...' : 'Change Email'}
       </button>
@@ -139,7 +139,9 @@ export function AccountSection() {
             <div className="rounded-full border-[6px] border-surface-darkest">
               <UserAvatar username={user?.username ?? ''} avatarUrl={user?.avatarUrl} size="lg" />
             </div>
-            <p className="mb-3 text-lg font-bold text-white">{user?.displayName ?? user?.username}</p>
+            <p className="mb-3 rounded-md bg-black/40 px-2.5 py-0.5 text-lg font-bold text-white backdrop-blur-sm">
+              {user?.displayName ?? user?.username}
+            </p>
           </div>
           <div className="mt-4 space-y-3 rounded-lg bg-surface-dark p-4">
             <InfoRow label="USERNAME" value={user?.username ?? ''} />

@@ -234,7 +234,7 @@ export function VoiceSettings() {
               type="button"
               onClick={() => handleMicModeChange(opt.value)}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                micMode === opt.value ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                micMode === opt.value ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
               }`}
             >
               {opt.label}
@@ -260,7 +260,7 @@ export function VoiceSettings() {
                     saveVadMode(m)
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    vadMode === m ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                    vadMode === m ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
                   {m === 'auto' ? 'Auto' : 'Manual'}
@@ -327,7 +327,7 @@ export function VoiceSettings() {
           <button
             type="button"
             onClick={() => void requestMicAccess()}
-            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover"
+            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
           >
             Allow Microphone Access
           </button>
@@ -381,7 +381,7 @@ export function VoiceSettings() {
           <button
             type="button"
             onClick={() => void requestCameraAccess()}
-            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover"
+            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
           >
             Allow Camera Access
           </button>

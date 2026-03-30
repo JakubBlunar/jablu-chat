@@ -102,7 +102,7 @@ export function NotificationsSection() {
             <button
               type="button"
               onClick={() => void handleRequestPermission()}
-              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
+              className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
             >
               Enable Notifications
             </button>
@@ -145,7 +145,7 @@ export function NotificationsSection() {
               <button
                 type="button"
                 onClick={() => void handleEnablePush()}
-                className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
+                className="mt-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
               >
                 Enable Push Notifications
               </button>

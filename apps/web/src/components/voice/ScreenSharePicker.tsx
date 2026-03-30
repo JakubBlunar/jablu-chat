@@ -111,7 +111,7 @@ export function ScreenSharePicker() {
                     localStorage.setItem(SS_RES_KEY, r)
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    resolution === r ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                    resolution === r ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
                   {r === 'native' ? 'Native' : r}
@@ -132,7 +132,7 @@ export function ScreenSharePicker() {
                     localStorage.setItem(SS_FPS_KEY, String(f))
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    fps === f ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                    fps === f ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
                   {f}
@@ -146,7 +146,7 @@ export function ScreenSharePicker() {
               type="button"
               disabled={!selectedSource}
               onClick={handleStart}
-              className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               Start Sharing
             </button>

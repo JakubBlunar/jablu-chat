@@ -66,7 +66,7 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
         <button
           type="submit"
           disabled={testing}
-          className="w-full rounded-md bg-primary py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+          className="w-full rounded-md bg-primary py-2.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
           {testing ? 'Connecting...' : 'Connect'}
         </button>

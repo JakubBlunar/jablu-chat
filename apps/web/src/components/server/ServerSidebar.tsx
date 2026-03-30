@@ -68,8 +68,8 @@ export function ServerSidebar() {
             onClick={handleDmClick}
             className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
               viewMode === 'dm'
-                ? 'rounded-2xl bg-primary text-white'
-                : 'rounded-[24px] bg-surface text-success hover:rounded-2xl hover:bg-primary hover:text-white'
+                ? 'rounded-2xl bg-primary text-primary-text'
+                : 'rounded-[24px] bg-surface text-success hover:rounded-2xl hover:bg-primary hover:text-primary-text'
             }`}
           >
             <DmIcon />

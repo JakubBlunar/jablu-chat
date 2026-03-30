@@ -285,7 +285,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       <button
         type="button"
         onClick={() => contextId && store.fetchMessages(contextId)}
-        className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary/80"
+        className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary/80"
       >
         Retry
       </button>
@@ -500,7 +500,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               >
                 <PinHeaderIcon />
                 {(activeChannel.pinnedCount ?? 0) > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-text">
                     {activeChannel.pinnedCount}
                   </span>
                 )}

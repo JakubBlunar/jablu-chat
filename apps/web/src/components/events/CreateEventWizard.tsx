@@ -303,7 +303,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
               type="button"
               onClick={() => setStep('details')}
               disabled={!canAdvanceToDetails}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
             >
               Next
             </button>
@@ -313,7 +313,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
               type="button"
               onClick={() => setStep('review')}
               disabled={!canAdvanceToReview}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
             >
               Review
             </button>
@@ -323,7 +323,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
               type="button"
               onClick={handleSubmit}
               disabled={submitting}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
             >
               {submitting ? 'Creating...' : 'Create Event'}
             </button>

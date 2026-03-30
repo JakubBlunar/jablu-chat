@@ -38,14 +38,14 @@ function ElectronUpdateBanner() {
   if (dismissed || state.status === 'idle' || state.status === 'error') return null
 
   return (
-    <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
+    <div className="flex items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm text-gray-300">
       {state.status === 'available' && (
         <>
           <span>A new version ({state.version}) is being downloaded...</span>
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="ml-auto text-xs text-white/70 hover:text-white"
+            className="ml-auto text-xs text-gray-500 transition hover:text-gray-300"
           >
             Dismiss
           </button>
@@ -54,8 +54,8 @@ function ElectronUpdateBanner() {
       {state.status === 'downloading' && (
         <>
           <span>Downloading update... {state.percent.toFixed(0)}%</span>
-          <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/30">
-            <div className="h-full rounded-full bg-white transition-all" style={{ width: `${state.percent}%` }} />
+          <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${state.percent}%` }} />
           </div>
         </>
       )}
@@ -65,14 +65,14 @@ function ElectronUpdateBanner() {
           <button
             type="button"
             onClick={() => electronAPI?.installUpdate()}
-            className="rounded-md bg-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/30"
+            className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-text transition hover:bg-primary-hover"
           >
             Restart & Update
           </button>
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="ml-auto text-xs text-white/70 hover:text-white"
+            className="ml-auto text-xs text-gray-500 transition hover:text-gray-300"
           >
             Later
           </button>
@@ -98,21 +98,21 @@ function PwaUpdateBanner() {
   if (!updateAvailable || dismissed) return null
 
   return (
-    <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
+    <div className="flex items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm text-gray-300">
       <span>A new version is available!</span>
       <button
         type="button"
         onClick={() => {
           ;(window as any).__updateSW?.(true)
         }}
-        className="rounded-md bg-white/20 px-3 py-1 text-xs font-medium text-white transition hover:bg-white/30"
+        className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-text transition hover:bg-primary-hover"
       >
         Reload
       </button>
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="ml-auto text-xs text-white/70 hover:text-white"
+        className="ml-auto text-xs text-gray-500 transition hover:text-gray-300"
       >
         Later
       </button>
