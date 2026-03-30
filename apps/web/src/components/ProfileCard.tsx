@@ -59,13 +59,23 @@ export function ProfileCard({
 
   useEffect(() => {
     if (isMobile) return
-    const handler = (e: PointerEvent) => {
+    const handlePointerDown = (e: PointerEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
-    document.addEventListener('pointerdown', handler)
-    return () => document.removeEventListener('pointerdown', handler)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
   }, [onClose, isMobile])
 
   const badge = user.roleName ?? null

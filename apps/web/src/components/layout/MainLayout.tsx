@@ -137,7 +137,7 @@ export function MainLayout() {
         setSettingsInitialTab('shortcuts')
         setSettingsOpen(true)
       }
-      if (e.key === 'k' && (e.ctrlKey || e.metaKey) && !isMobile) {
+      if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
         setQuickSwitcherOpen((prev) => !prev)
       }
@@ -259,11 +259,12 @@ export function MainLayout() {
             <MessageArea mode="channel" contextId={currentChannelId} />
           )}
         </div>
-        <MobileNavDrawer onOpenSettings={openSettings} />
+        <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)} />
         <MemberDrawer />
         <Suspense fallback={null}>
           <ScreenSharePicker />
         </Suspense>
+        <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />

@@ -42,7 +42,7 @@ const CreateCategoryModal = React.lazy(() =>
   import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
 )
 
-export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpenSettings: () => void; onOpenQuickSwitcher: () => void }) {
   const open = useLayoutStore((s) => s.navDrawerOpen)
   const close = useLayoutStore((s) => s.closeNavDrawer)
 
@@ -624,6 +624,18 @@ export function MobileNavDrawer({ onOpenSettings }: { onOpenSettings: () => void
               </p>
               <p className="truncate text-xs capitalize text-gray-400">{user?.status ?? 'online'}</p>
             </div>
+            <button
+              type="button"
+              title="Quick switcher"
+              aria-label="Quick switcher"
+              onClick={() => { close(); onOpenQuickSwitcher() }}
+              className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </button>
             <button
               type="button"
               title="User settings"

@@ -708,7 +708,10 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           </div>
         ) : (
           <>
-            <ThreadPanel />
+            <ThreadPanel
+              gifEnabled={gifEnabled}
+              onCommand={!isDm ? (cmd) => { if (cmd === 'poll') setShowPollCreator(true) } : undefined}
+            />
             {!threadOpen && memberSidebar}
           </>
         )}

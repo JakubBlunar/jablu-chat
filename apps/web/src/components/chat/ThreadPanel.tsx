@@ -9,7 +9,7 @@ import { formatSmartTimestamp } from '@/lib/format-time'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useThreadStore } from '@/stores/thread.store'
 
-export function ThreadPanel() {
+export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string) => void }) {
   const { isOpen, parentMessage, channelId, messages, isLoading, hasMore, closeThread, fetchMore } =
     useThreadStore()
 
@@ -125,6 +125,8 @@ export function ThreadPanel() {
         replyTarget={replyTarget}
         onCancelReply={() => setReplyTarget(null)}
         onSent={scrollToBottom}
+        gifEnabled={gifEnabled}
+        onCommand={onCommand}
         placeholder="Reply in thread..."
       />
     </div>
