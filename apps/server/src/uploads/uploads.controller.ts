@@ -14,12 +14,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { extname, resolve } from 'path';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from './uploads.service';
 
-const ALLOWED_MIMETYPES = [
+const ALLOWED_MIMETYPES = new Set([
   'image/jpeg',
   'image/png',
   'image/gif',
@@ -46,8 +46,32 @@ const ALLOWED_MIMETYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-]
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+])
+
+const EXT_TO_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic',
+  '.heif': 'image/heif', '.svg': 'image/svg+xml', '.avif': 'image/avif',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
+  '.pdf': 'application/pdf', '.txt': 'text/plain', '.csv': 'text/csv',
+  '.json': 'application/json', '.zip': 'application/zip',
+  '.tar': 'application/x-tar', '.gz': 'application/gzip',
+  '.doc': 'application/msword', '.rar': 'application/x-rar-compressed',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+}
+
+function resolveFileMime(file: { mimetype: string; originalname: string }): string {
+  const mime = file.mimetype?.toLowerCase()
+  if (mime && mime !== 'application/octet-stream' && ALLOWED_MIMETYPES.has(mime)) return mime
+  const ext = extname(file.originalname).toLowerCase()
+  return EXT_TO_MIME[ext] ?? mime
+}
 
 @Controller('uploads')
 export class UploadsController {
@@ -73,7 +97,9 @@ export class UploadsController {
     FileInterceptor('file', {
       limits: { fileSize: (parseInt(process.env.MAX_UPLOAD_SIZE_MB ?? '50', 10) || 50) * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
+        const resolved = resolveFileMime(file)
+        if (ALLOWED_MIMETYPES.has(resolved)) {
+          file.mimetype = resolved
           cb(null, true)
         } else {
           cb(new BadRequestException('File type not allowed'), false)

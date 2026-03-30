@@ -42,7 +42,17 @@ function extractIp(req: Request): string {
 }
 
 const AVATAR_MAX_SIZE = 8 * 1024 * 1024 // 8 MB
-const AVATAR_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
+const AVATAR_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
+const IMG_EXT_MAP: Record<string, string> = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif',
+}
+function resolveImageMime(file: { mimetype: string; originalname: string }): string {
+  const mime = file.mimetype?.toLowerCase()
+  if (mime && mime !== 'application/octet-stream' && AVATAR_MIMETYPES.has(mime)) return mime
+  const ext = file.originalname.slice(file.originalname.lastIndexOf('.')).toLowerCase()
+  return IMG_EXT_MAP[ext] ?? mime
+}
 
 @Controller('auth')
 export class AuthController {
@@ -152,7 +162,9 @@ export class AuthController {
     FileInterceptor('avatar', {
       limits: { fileSize: AVATAR_MAX_SIZE },
       fileFilter: (_req, file, cb) => {
-        if (AVATAR_MIMETYPES.includes(file.mimetype)) {
+        const resolved = resolveImageMime(file)
+        if (AVATAR_MIMETYPES.has(resolved)) {
+          file.mimetype = resolved
           cb(null, true)
         } else {
           cb(new BadRequestException('Only JPEG, PNG, GIF, and WebP images are allowed'), false)

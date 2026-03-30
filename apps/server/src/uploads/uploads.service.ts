@@ -99,9 +99,14 @@ export class UploadsService {
       );
     }
 
-    const mime = file.mimetype.toLowerCase();
+    let mime = file.mimetype.toLowerCase();
     if (!ALLOWED_MIMES.has(mime)) {
-      throw new BadRequestException(`File type ${mime} is not allowed.`);
+      const fallback = this.extToMime(extname(file.originalname).toLowerCase());
+      if (fallback && ALLOWED_MIMES.has(fallback)) {
+        mime = fallback;
+      } else {
+        throw new BadRequestException(`File type ${mime} is not allowed.`);
+      }
     }
 
     const attachType = this.classifyMime(mime);
@@ -184,24 +189,25 @@ export class UploadsService {
     return AttachmentType.file;
   }
 
+  private static readonly MIME_EXT_MAP: Record<string, string> = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+    'image/gif': '.gif', 'image/avif': '.avif', 'image/heic': '.heic',
+    'image/heif': '.heif', 'video/mp4': '.mp4', 'video/webm': '.webm',
+    'video/quicktime': '.mov', 'application/pdf': '.pdf', 'text/plain': '.txt',
+    'application/zip': '.zip', 'application/json': '.json',
+    'application/x-rar-compressed': '.rar', 'application/gzip': '.gz',
+  };
+
+  private static readonly EXT_MIME_MAP: Record<string, string> = Object.fromEntries(
+    Object.entries(UploadsService.MIME_EXT_MAP).map(([m, e]) => [e, m]),
+  );
+
   private mimeToExt(mime: string): string {
-    const map: Record<string, string> = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/webp': '.webp',
-      'image/gif': '.gif',
-      'image/avif': '.avif',
-      'image/heic': '.heic',
-      'image/heif': '.heif',
-      'video/mp4': '.mp4',
-      'video/webm': '.webm',
-      'video/quicktime': '.mov',
-      'application/pdf': '.pdf',
-      'text/plain': '.txt',
-      'application/zip': '.zip',
-      'application/json': '.json',
-    };
-    return map[mime] ?? '.bin';
+    return UploadsService.MIME_EXT_MAP[mime] ?? '.bin';
+  }
+
+  private extToMime(ext: string): string | null {
+    return UploadsService.EXT_MIME_MAP[ext] ?? null;
   }
 
   async saveEmoji(file: Express.Multer.File): Promise<string> {

@@ -20,7 +20,17 @@ import { CurrentUser } from '../auth/current-user.decorator'
 import { UpdateMemberRoleDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
-const IMAGE_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
+const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
+const IMG_EXT_MAP: Record<string, string> = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic', '.heif': 'image/heif',
+}
+function resolveImageMime(file: { mimetype: string; originalname: string }): string {
+  const mime = file.mimetype?.toLowerCase()
+  if (mime && mime !== 'application/octet-stream' && IMAGE_MIMETYPES.has(mime)) return mime
+  const ext = file.originalname.slice(file.originalname.lastIndexOf('.')).toLowerCase()
+  return IMG_EXT_MAP[ext] ?? mime
+}
 
 @Controller('servers')
 @UseGuards(AuthGuard('jwt'))
@@ -51,7 +61,9 @@ export class ServersController {
     FileInterceptor('icon', {
       limits: { fileSize: 8 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (IMAGE_MIMETYPES.includes(file.mimetype)) {
+        const resolved = resolveImageMime(file)
+        if (IMAGE_MIMETYPES.has(resolved)) {
+          file.mimetype = resolved
           cb(null, true)
         } else {
           cb(new BadRequestException('Only JPEG, PNG, GIF, and WebP images are allowed'), false)
@@ -145,7 +157,9 @@ export class ServersController {
     FileInterceptor('image', {
       limits: { fileSize: 200 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (IMAGE_MIMETYPES.includes(file.mimetype)) {
+        const resolved = resolveImageMime(file)
+        if (IMAGE_MIMETYPES.has(resolved)) {
+          file.mimetype = resolved
           cb(null, true)
         } else {
           cb(new BadRequestException('Only JPEG, PNG, GIF, and WebP images are allowed'), false)
