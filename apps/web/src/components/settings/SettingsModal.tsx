@@ -19,6 +19,7 @@ import { NotificationsSection } from '@/components/settings/sections/Notificatio
 import { PrivacySection } from '@/components/settings/sections/PrivacySection'
 import { ProfileSection } from '@/components/settings/sections/ProfileSection'
 import { ServerConnectionSection } from '@/components/settings/sections/ServerConnectionSection'
+import { AppearanceSection } from '@/components/settings/sections/AppearanceSection'
 import { StatusSection } from '@/components/settings/sections/StatusSection'
 
 export function CameraIcon() {
@@ -63,6 +64,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     { key: 'account', label: 'My Account' },
     { key: 'profile', label: 'Profile' },
     { key: 'status', label: 'Status' },
+    { key: 'appearance', label: 'Appearance' },
     { key: 'privacy', label: 'Privacy' },
     { key: 'voice', label: 'Voice & Video' },
     { key: 'notifications', label: 'Notifications' },
@@ -82,6 +84,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       {tab === 'account' && <AccountSection />}
       {tab === 'profile' && <ProfileSection />}
       {tab === 'status' && <StatusSection />}
+      {tab === 'appearance' && <AppearanceSection />}
       {tab === 'privacy' && <PrivacySection />}
       {tab === 'voice' && <VoiceSettings />}
       {tab === 'notifications' && <NotificationsSection />}
