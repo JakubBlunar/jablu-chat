@@ -142,7 +142,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
               type="button"
               onClick={() => void handleUpload()}
               disabled={!uploadFile || !uploadName.trim() || uploading}
-              className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+              className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
             >
               {uploading ? 'Uploading...' : 'Upload'}
             </button>

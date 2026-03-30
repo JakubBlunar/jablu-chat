@@ -88,7 +88,7 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
         <button
           type="submit"
           disabled={busy || !username || !password || isLocked}
-          className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
           {busy ? 'Checking…' : isLocked ? 'Locked' : 'Login'}
         </button>

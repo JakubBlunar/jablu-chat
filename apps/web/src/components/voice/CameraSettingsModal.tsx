@@ -60,7 +60,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
                     type="button"
                     onClick={() => setQuality(q)}
                     className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
-                      quality === q ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                      quality === q ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                     }`}
                   >
                     <span className="block">{q}</span>
@@ -107,7 +107,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
           <button
             type="button"
             onClick={handleConfirm}
-            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
+            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
           >
             {mode === 'start' ? 'Start Camera' : 'Apply Changes'}
           </button>

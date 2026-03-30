@@ -283,7 +283,7 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
           type="button"
           onClick={handleSave}
           disabled={saving || !hasChanges}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/80 disabled:opacity-50"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/80 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>

@@ -107,7 +107,7 @@ export function PushTab({ users }: { users: AdminUser[] }) {
         type="button"
         onClick={() => void handleSend()}
         disabled={sending}
-        className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+        className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
       >
         {sending ? 'Sending...' : 'Send Notification'}
       </button>

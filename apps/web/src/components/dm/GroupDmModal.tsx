@@ -143,7 +143,7 @@ export function GroupDmModal({
           type="button"
           disabled={selected.length === 0 || creating}
           onClick={() => void handleCreate()}
-          className="mt-4 w-full rounded bg-primary py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+          className="mt-4 w-full rounded bg-primary py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
           {creating ? 'Creating…' : selected.length <= 1 ? 'Create DM' : `Create Group DM (${selected.length} members)`}
         </button>

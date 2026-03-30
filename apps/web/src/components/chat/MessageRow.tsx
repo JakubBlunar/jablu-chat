@@ -438,7 +438,7 @@ export const MessageRow = memo(function MessageRow({
                 <button
                   type="button"
                   onClick={handleSaveEdit}
-                  className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition active:bg-primary/80"
+                  className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition active:bg-primary/80"
                 >
                   Save
                 </button>

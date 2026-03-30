@@ -30,16 +30,16 @@ export function PwaInstallBanner() {
   }
 
   return (
-    <div className="flex items-center gap-3 bg-primary/90 px-4 py-2 text-sm text-white">
-      <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+    <div className="flex items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm">
+      <svg className="h-4 w-4 shrink-0 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
       </svg>
-      <span className="min-w-0 flex-1">Install Jablu for a faster, app-like experience</span>
+      <span className="min-w-0 flex-1 text-gray-300">Install Jablu for a faster, app-like experience</span>
       {canPrompt ? (
         <button
           type="button"
           onClick={() => void handleInstall()}
-          className="shrink-0 rounded-md bg-white/20 px-3 py-1 text-xs font-medium transition hover:bg-white/30"
+          className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-text transition hover:bg-primary-hover"
         >
           Install
         </button>
@@ -47,7 +47,7 @@ export function PwaInstallBanner() {
         <button
           type="button"
           onClick={openGuide}
-          className="shrink-0 rounded-md bg-white/20 px-3 py-1 text-xs font-medium transition hover:bg-white/30"
+          className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-text transition hover:bg-primary-hover"
         >
           Learn How
         </button>
@@ -55,7 +55,7 @@ export function PwaInstallBanner() {
       <button
         type="button"
         onClick={handleDismiss}
-        className="shrink-0 text-white/70 transition hover:text-white"
+        className="shrink-0 text-gray-500 transition hover:text-gray-300"
         title="Dismiss"
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">

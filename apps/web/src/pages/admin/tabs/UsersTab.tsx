@@ -132,7 +132,7 @@ export function UsersTab({
         users.map((user) => (
           <div key={user.id} className="rounded-lg bg-surface-dark ring-1 ring-white/10">
             <div className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold uppercase text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold uppercase text-primary-text">
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -299,7 +299,7 @@ export function UsersTab({
                     type="button"
                     onClick={() => void handleSave()}
                     disabled={saving || !editForm.username.trim() || !editForm.email.trim()}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
                   >
                     {saving ? 'Saving…' : 'Save Changes'}
                   </button>

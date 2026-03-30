@@ -168,7 +168,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
                   className="flex min-w-0 flex-1 items-center gap-2"
                 >
                   {info.isGroup ? (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-text">
                       {conv.members.length}
                     </div>
                   ) : (

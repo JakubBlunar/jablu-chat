@@ -406,7 +406,7 @@ function FriendActionLabel({
     <button
       type="button"
       onClick={onSend}
-      className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white transition hover:bg-primary/80"
+      className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-text transition hover:bg-primary/80"
     >
       Send Request
     </button>

@@ -84,7 +84,7 @@ export function OverviewTab({ server }: { server: Server }) {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary text-3xl font-bold text-white transition hover:opacity-80"
+            className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary text-3xl font-bold text-primary-text transition hover:opacity-80"
           >
             {iconPreview ? (
               <img src={iconPreview} alt="Server icon" className="h-full w-full object-cover" />
@@ -116,7 +116,7 @@ export function OverviewTab({ server }: { server: Server }) {
               type="button"
               disabled={saving || !name.trim() || name === server.name}
               onClick={saveName}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -153,7 +153,7 @@ export function OverviewTab({ server }: { server: Server }) {
                 setSavingVanity(false)
               }
             }}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
           >
             {savingVanity ? 'Saving…' : 'Save'}
           </button>

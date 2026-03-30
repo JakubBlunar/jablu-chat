@@ -185,7 +185,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                   type="button"
                   onClick={handleSaveEdit}
                   disabled={saving || !editName.trim()}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : 'Save'}
                 </button>
@@ -264,7 +264,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               aria-pressed={!!event.isInterested}
               className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition ${
                 event.isInterested
-                  ? 'bg-primary text-white'
+                  ? 'bg-primary text-primary-text'
                   : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
               }`}
             >

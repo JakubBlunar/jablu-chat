@@ -51,7 +51,7 @@ export function ScreenShareDialog({
                   type="button"
                   onClick={() => setResolution(r)}
                   className={`flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize transition ${
-                    resolution === r ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                    resolution === r ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
                   {r}
@@ -69,7 +69,7 @@ export function ScreenShareDialog({
                   type="button"
                   onClick={() => setFps(f)}
                   className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition ${
-                    fps === f ? 'bg-primary text-white' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                    fps === f ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
                   {f} fps
@@ -106,7 +106,7 @@ export function ScreenShareDialog({
           <button
             type="button"
             onClick={() => onConfirm({ resolution, fps, audio })}
-            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-white transition hover:bg-primary-hover"
+            className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
           >
             Share Screen
           </button>

@@ -69,7 +69,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
           type="button"
           disabled={loading || !code.trim()}
           onClick={() => void handleJoin()}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:opacity-50"
+          className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
           {loading ? 'Joining...' : 'Join Server'}
         </button>

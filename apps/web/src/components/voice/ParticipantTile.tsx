@@ -148,7 +148,7 @@ export function ParticipantTile({
       {!hasVideo && (
         <div className="flex flex-col items-center gap-1.5">
           <div
-            className={`flex items-center justify-center rounded-full bg-primary font-bold text-white ${
+            className={`flex items-center justify-center rounded-full bg-primary font-bold text-primary-text ${
               compact ? 'h-10 w-10 text-lg' : 'h-20 w-20 text-3xl sm:h-24 sm:w-24 sm:text-4xl'
             }`}
           >

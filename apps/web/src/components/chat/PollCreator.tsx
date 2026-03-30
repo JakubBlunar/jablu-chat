@@ -139,7 +139,7 @@ export function PollCreator({
             type="button"
             disabled={!canSubmit || submitting}
             onClick={handleSubmit}
-            className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white transition hover:bg-primary/80 disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary/80 disabled:opacity-50"
           >
             {submitting ? 'Creating...' : 'Create Poll'}
           </button>

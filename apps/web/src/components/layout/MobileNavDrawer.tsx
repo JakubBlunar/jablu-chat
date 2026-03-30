@@ -267,8 +267,8 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                 onClick={handleDmClick}
                 className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
                   viewMode === 'dm'
-                    ? 'bg-primary text-white'
-                    : 'bg-surface text-gray-300 hover:bg-primary hover:text-white'
+                    ? 'bg-primary text-primary-text'
+                    : 'bg-surface text-gray-300 hover:bg-primary hover:text-primary-text'
                 }`}
               >
                 <DmIcon />

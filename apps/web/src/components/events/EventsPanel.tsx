@@ -240,7 +240,7 @@ export function EventsPanel({ serverId, onClose }: Props) {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90"
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text transition hover:bg-primary/90"
             >
               Create Event
             </button>

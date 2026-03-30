@@ -318,7 +318,7 @@ function ScopeBtn({ active, onClick, children }: { active: boolean; onClick: () 
       type="button"
       onClick={onClick}
       className={`shrink-0 whitespace-nowrap rounded px-2 py-1 text-xs font-medium transition ${
-        active ? 'bg-primary text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+        active ? 'bg-primary text-primary-text' : 'text-gray-400 hover:bg-white/10 hover:text-white'
       }`}
     >
       {children}
