@@ -195,6 +195,29 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         )}
       </div>
 
+      {/* Filter hints */}
+      {!query.trim() && (
+        <div className="border-b border-white/10 px-3 py-2">
+          <p className="mb-1 text-[11px] font-medium text-gray-500">Search filters</p>
+          <div className="flex flex-wrap gap-1">
+            {['has:image', 'has:file', 'has:link', 'has:poll', 'has:pinned', 'from:username'].map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => {
+                  const prefix = f === 'from:username' ? 'from:' : f + ' '
+                  setLocalQuery((prev) => prev + prefix)
+                  inputRef.current?.focus()
+                }}
+                className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-gray-400 transition hover:bg-white/10 hover:text-gray-300"
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Result count */}
       {query.trim() && !loading && (
         <div className="border-b border-white/10 px-3 py-1.5">
