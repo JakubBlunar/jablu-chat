@@ -3,6 +3,7 @@ import type { AdminServer, AdminUser, ServerMemberRow } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDate } from '../adminFormatters'
 import { ConfirmDeleteBtn, Empty } from '../AdminShared'
+import { Button, Input } from '@/components/ui'
 
 export function ServersTab({
   servers,
@@ -68,26 +69,24 @@ export function ServersTab({
         </div>
       )}
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setShowCreate(!showCreate)}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover"
-        >
+        <Button type="button" variant="primary" onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : 'Create Server'}
-        </button>
+        </Button>
       </div>
 
       {showCreate && (
         <div className="mt-4 rounded-lg bg-surface-dark p-5 ring-1 ring-white/10">
           <h2 className="text-lg font-semibold">Create New Server</h2>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Server name"
-              className="flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
-            />
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <Input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Server name"
+                className="py-2"
+              />
+            </div>
             <select
               value={newOwnerId}
               onChange={(e) => setNewOwnerId(e.target.value)}
@@ -100,14 +99,15 @@ export function ServersTab({
                 </option>
               ))}
             </select>
-            <button
+            <Button
               type="button"
-              onClick={() => void handleCreate()}
+              variant="primary"
+              className="shrink-0 bg-success text-white hover:bg-success-hover"
               disabled={creating || !newName.trim() || !newOwnerId}
-              className="rounded-md bg-success px-4 py-2 text-sm font-medium text-white transition hover:bg-success-hover disabled:opacity-50"
+              onClick={() => void handleCreate()}
             >
               {creating ? 'Creating…' : 'Create'}
-            </button>
+            </Button>
           </div>
           {createError && <p className="mt-2 text-sm text-red-400">{createError}</p>}
         </div>
@@ -297,14 +297,14 @@ function ServerMembersPanel({
             </option>
           ))}
         </select>
-        <button
+        <Button
           type="button"
-          onClick={() => void handleAdd()}
+          variant="primary"
           disabled={adding || !addUserId}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium transition hover:bg-primary-hover disabled:opacity-50"
+          onClick={() => void handleAdd()}
         >
           {adding ? 'Adding…' : 'Add'}
-        </button>
+        </Button>
       </div>
 
       {loading ? (
@@ -341,14 +341,16 @@ function ServerMembersPanel({
                 ))}
               </select>
               {m.userId !== server.ownerId && (
-                <button
+                <Button
                   type="button"
-                  onClick={() => void handleRemove(m.userId)}
+                  variant="ghost"
+                  size="xs"
+                  className="text-red-400 hover:bg-red-500/10"
                   disabled={removingId === m.userId}
-                  className="rounded-md px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+                  onClick={() => void handleRemove(m.userId)}
                 >
                   {removingId === m.userId ? 'Removing…' : 'Remove'}
-                </button>
+                </Button>
               )}
             </div>
           ))}

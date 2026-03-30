@@ -1,5 +1,6 @@
 import type { ChannelCategory } from '@chat/shared'
 import { useCallback, useState } from 'react'
+import { Button, Input, ModalFooter } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
@@ -53,68 +54,44 @@ export function EditCategoryModal({ category, onClose }: { category: ChannelCate
   return (
     <ModalOverlay onClose={onClose}>
       <h2 className="text-xl font-semibold text-white">Edit Category</h2>
-      <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-        Category name
-        <input
-          type="text"
+      <div className="mt-4">
+        <Input
+          label="Category name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
           maxLength={100}
           autoFocus
         />
-      </label>
+      </div>
       {error && (
         <p className="mt-3 text-sm text-red-400" role="alert">{error}</p>
       )}
       <div className="mt-6 flex justify-between">
         <div>
           {!confirmDelete ? (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              className="rounded-md px-3 py-2 text-sm font-medium text-red-400 transition hover:bg-red-500/10"
-            >
+            <Button variant="ghost" className="text-red-400 hover:bg-red-500/10" onClick={() => setConfirmDelete(true)}>
               Delete Category
-            </button>
+            </Button>
           ) : (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
-              >
+              <Button variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting}>
                 {deleting ? 'Deleting…' : 'Confirm'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className="rounded-md px-3 py-2 text-sm text-gray-400 hover:text-white"
-              >
+              </Button>
+              <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           )}
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving || !name.trim() || name.trim() === category.name}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
+        <ModalFooter
+          className="!mt-0"
+          onCancel={onClose}
+          onConfirm={() => void handleSave()}
+          cancelLabel="Cancel"
+          confirmLabel="Save"
+          loading={saving}
+          disabled={!name.trim() || name.trim() === category.name}
+        />
       </div>
     </ModalOverlay>
   )

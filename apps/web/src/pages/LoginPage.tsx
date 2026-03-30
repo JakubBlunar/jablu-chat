@@ -1,6 +1,7 @@
 import { loginSchema } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Button, Input, Spinner } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { ApiError } from '../lib/api'
 import { useAuthStore } from '../stores/auth.store'
@@ -51,7 +52,9 @@ export function LoginPage() {
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-auth-bg">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+        <div aria-hidden>
+          <Spinner size="xl" />
+        </div>
         <span className="sr-only">Checking session</span>
       </div>
     )
@@ -71,47 +74,41 @@ export function LoginPage() {
           </div>
         ) : null}
 
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="you@example.com"
-            required
-          />
-        </div>
+        <Input
+          id="email"
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          required
+        />
 
-        <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="••••••••"
-            required
-          />
-        </div>
+        <Input
+          id="password"
+          label="Password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+        />
 
-        <button
+        <Button
+          variant="primary"
+          size="lg"
           type="submit"
+          fullWidth
+          className="mt-2"
           disabled={isSubmitting}
-          className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
+          loading={isSubmitting}
         >
           {isSubmitting ? 'Signing in…' : 'Log In'}
-        </button>
+        </Button>
       </form>
 
       <div className="mt-6 flex flex-col gap-3 text-center text-sm">

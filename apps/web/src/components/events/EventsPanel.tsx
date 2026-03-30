@@ -1,5 +1,6 @@
 import type { ServerEvent } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { Badge } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useEventStore } from '@/stores/event.store'
 import { api } from '@/lib/api'
@@ -28,9 +29,9 @@ function RecurrenceBadge({ rule }: { rule: string }) {
     monthly: 'Monthly'
   }
   return (
-    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">
+    <Badge variant="primary" className="px-2 py-0.5 text-[10px] font-medium">
       {labels[rule] ?? rule}
-    </span>
+    </Badge>
   )
 }
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
+import { Spinner } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
 type ProtectedRouteProps = {
@@ -13,7 +14,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+        <div aria-hidden>
+          <Spinner size="xl" />
+        </div>
         <span className="sr-only">Loading session</span>
       </div>
     )

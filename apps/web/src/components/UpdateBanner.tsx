@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button, ProgressBar } from '@/components/ui'
 import { electronAPI, isElectron } from '@/lib/electron'
 
 type UpdateState =
@@ -54,21 +55,17 @@ function ElectronUpdateBanner() {
       {state.status === 'downloading' && (
         <>
           <span>Downloading update... {state.percent.toFixed(0)}%</span>
-          <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${state.percent}%` }} />
+          <div className="w-32">
+            <ProgressBar value={state.percent} size="sm" className="bg-white/10" />
           </div>
         </>
       )}
       {state.status === 'ready' && (
         <>
           <span>Update {state.version} ready to install!</span>
-          <button
-            type="button"
-            onClick={() => electronAPI?.installUpdate()}
-            className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-text transition hover:bg-primary-hover"
-          >
+          <Button type="button" size="sm" onClick={() => electronAPI?.installUpdate()} className="rounded-md text-xs font-semibold">
             Restart & Update
-          </button>
+          </Button>
           <button
             type="button"
             onClick={() => setDismissed(true)}
@@ -100,15 +97,16 @@ function PwaUpdateBanner() {
   return (
     <div className="flex items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm text-gray-300">
       <span>A new version is available!</span>
-      <button
+      <Button
         type="button"
+        size="sm"
         onClick={() => {
           ;(window as any).__updateSW?.(true)
         }}
-        className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-text transition hover:bg-primary-hover"
+        className="rounded-md text-xs font-semibold"
       >
         Reload
-      </button>
+      </Button>
       <button
         type="button"
         onClick={() => setDismissed(true)}

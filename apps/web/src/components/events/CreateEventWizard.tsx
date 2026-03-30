@@ -1,5 +1,6 @@
 import type { CreateEventInput, EventLocationType, RecurrenceRule } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { Button, IconButton, Input, Textarea } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
@@ -96,16 +97,17 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
     <ModalOverlay onClose={onClose} noPadding className="flex max-h-[85vh] flex-col">
       <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div className="flex items-center gap-2">
-            <button
+            <IconButton
               type="button"
+              label="Back"
               onClick={step === 'location' ? onBack : () => setStep(step === 'review' ? 'details' : 'location')}
-              className="rounded-lg p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
-              aria-label="Back"
+              size="lg"
+              className="rounded-lg p-1"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M15 19l-7-7 7-7" />
               </svg>
-            </button>
+            </IconButton>
             <h2 className="text-base font-bold text-white">
               {step === 'location' ? 'Choose Location' : step === 'details' ? 'Event Details' : 'Review'}
             </h2>
@@ -174,67 +176,62 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
               )}
 
               {locationType === 'custom' && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-400">Location</label>
-                  <input
-                    type="text"
-                    value={locationText}
-                    onChange={(e) => setLocationText(e.target.value)}
-                    placeholder="e.g., Discord stage, external link..."
-                    maxLength={200}
-                    className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
-                  />
-                </div>
+                <Input
+                  id="create-event-location"
+                  label="Location"
+                  type="text"
+                  value={locationText}
+                  onChange={(e) => setLocationText(e.target.value)}
+                  placeholder="e.g., Discord stage, external link..."
+                  maxLength={200}
+                  className="rounded-lg ring-white/10 focus:ring-primary"
+                />
               )}
             </div>
           )}
 
           {step === 'details' && (
             <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-400">Event Name *</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Game Night, Movie Watch Party..."
-                  maxLength={100}
-                  className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
-                />
-              </div>
+              <Input
+                id="create-event-name"
+                label="Event Name *"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Game Night, Movie Watch Party..."
+                maxLength={100}
+                className="rounded-lg ring-white/10 focus:ring-primary"
+              />
 
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-400">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Tell people what this event is about..."
-                  maxLength={1000}
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
-                />
-              </div>
+              <Textarea
+                id="create-event-description"
+                label="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Tell people what this event is about..."
+                maxLength={1000}
+                rows={3}
+                className="rounded-lg ring-white/10 focus:ring-primary"
+              />
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-400">Start *</label>
-                  <input
-                    type="datetime-local"
-                    value={startAt}
-                    onChange={(e) => setStartAt(e.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-400">End (optional)</label>
-                  <input
-                    type="datetime-local"
-                    value={endAt}
-                    onChange={(e) => setEndAt(e.target.value)}
-                    min={startAt}
-                    className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
-                  />
-                </div>
+                <Input
+                  id="create-event-start"
+                  label="Start *"
+                  type="datetime-local"
+                  value={startAt}
+                  onChange={(e) => setStartAt(e.target.value)}
+                  className="rounded-lg ring-white/10 focus:ring-primary"
+                />
+                <Input
+                  id="create-event-end"
+                  label="End (optional)"
+                  type="datetime-local"
+                  value={endAt}
+                  onChange={(e) => setEndAt(e.target.value)}
+                  min={startAt}
+                  className="rounded-lg ring-white/10 focus:ring-primary"
+                />
               </div>
 
               <div>
@@ -299,34 +296,19 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
 
         <div className="flex items-center justify-end gap-2 border-t border-white/5 px-5 py-3">
           {step === 'location' && (
-            <button
-              type="button"
-              onClick={() => setStep('details')}
-              disabled={!canAdvanceToDetails}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
-            >
+            <Button type="button" onClick={() => setStep('details')} disabled={!canAdvanceToDetails} className="rounded-lg">
               Next
-            </button>
+            </Button>
           )}
           {step === 'details' && (
-            <button
-              type="button"
-              onClick={() => setStep('review')}
-              disabled={!canAdvanceToReview}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
-            >
+            <Button type="button" onClick={() => setStep('review')} disabled={!canAdvanceToReview} className="rounded-lg">
               Review
-            </button>
+            </Button>
           )}
           {step === 'review' && (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/90 disabled:opacity-50"
-            >
+            <Button type="button" onClick={handleSubmit} disabled={submitting} className="rounded-lg">
               {submitting ? 'Creating...' : 'Create Event'}
-            </button>
+            </Button>
           )}
         </div>
     </ModalOverlay>

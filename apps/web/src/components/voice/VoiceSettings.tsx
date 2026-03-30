@@ -24,6 +24,7 @@ import {
   stopMicMode,
   startMicMode
 } from '@/lib/micMode'
+import { Button } from '@/components/ui'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 type DeviceInfo = {
@@ -229,16 +230,16 @@ export function VoiceSettings() {
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Microphone Mode</h3>
         <div className="flex gap-2">
           {micModeOptions.map((opt) => (
-            <button
+            <Button
               key={opt.value}
               type="button"
+              variant={micMode === opt.value ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => handleMicModeChange(opt.value)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                micMode === opt.value ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
-              }`}
+              className={micMode === opt.value ? '' : 'bg-surface-darkest hover:bg-white/10'}
             >
               {opt.label}
-            </button>
+            </Button>
           ))}
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
@@ -252,19 +253,19 @@ export function VoiceSettings() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">Threshold:</span>
               {(['auto', 'manual'] as const).map((m) => (
-                <button
+                <Button
                   key={m}
                   type="button"
+                  variant={vadMode === m ? 'primary' : 'secondary'}
+                  size="xs"
                   onClick={() => {
                     setVadModeState(m)
                     saveVadMode(m)
                   }}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    vadMode === m ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
-                  }`}
+                  className={vadMode === m ? '' : 'bg-surface-darkest hover:bg-white/10'}
                 >
                   {m === 'auto' ? 'Auto' : 'Manual'}
-                </button>
+                </Button>
               ))}
             </div>
             {vadMode === 'auto' ? (
@@ -324,13 +325,9 @@ export function VoiceSettings() {
       ) : !micGranted ? (
         <div className="rounded-md bg-surface-dark px-4 py-3">
           <p className="text-sm text-gray-300">Microphone access needed to list audio devices.</p>
-          <button
-            type="button"
-            onClick={() => void requestMicAccess()}
-            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
-          >
+          <Button type="button" size="sm" onClick={() => void requestMicAccess()} className="mt-2 rounded-md">
             Allow Microphone Access
-          </button>
+          </Button>
         </div>
       ) : (
         <>
@@ -378,13 +375,9 @@ export function VoiceSettings() {
       ) : !cameraGranted ? (
         <div className="rounded-md bg-surface-dark px-4 py-3">
           <p className="text-sm text-gray-300">Camera access needed to list video devices.</p>
-          <button
-            type="button"
-            onClick={() => void requestCameraAccess()}
-            className="mt-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
-          >
+          <Button type="button" size="sm" onClick={() => void requestCameraAccess()} className="mt-2 rounded-md">
             Allow Camera Access
-          </button>
+          </Button>
         </div>
       ) : (
         <DeviceSelect

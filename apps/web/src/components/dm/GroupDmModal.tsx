@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import SimpleBar from 'simplebar-react'
+import { Button, Input } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api, type DmConversation } from '@/lib/api'
@@ -94,12 +95,14 @@ export function GroupDmModal({
         </button>
       </div>
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search users..."
-          className="mb-3 w-full rounded bg-surface-darkest px-3 py-2 text-sm text-white outline-none placeholder:text-gray-500"
-        />
+        <div className="mb-3">
+          <Input
+            id="group-dm-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search users..."
+          />
+        </div>
 
         {selected.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-1">
@@ -139,14 +142,21 @@ export function GroupDmModal({
         </SimpleBar>
 
         {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-        <button
+        <Button
           type="button"
+          variant="primary"
+          fullWidth
+          className="mt-4"
           disabled={selected.length === 0 || creating}
+          loading={creating}
           onClick={() => void handleCreate()}
-          className="mt-4 w-full rounded bg-primary py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {creating ? 'Creating…' : selected.length <= 1 ? 'Create DM' : `Create Group DM (${selected.length} members)`}
-        </button>
+          {creating
+            ? 'Creating…'
+            : selected.length <= 1
+              ? 'Create DM'
+              : `Create Group DM (${selected.length} members)`}
+        </Button>
     </ModalOverlay>
   )
 }

@@ -2,7 +2,8 @@ import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { ConfirmDialog } from '@/components/ui'
+import { IconButton } from '@/components/ui/IconButton'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
@@ -86,44 +87,37 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
       <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-        <ActionBtn title="React" onClick={openEmojiPicker}>
+        <IconButton label="React" onClick={openEmojiPicker}>
           <SmileIcon />
-        </ActionBtn>
-        <ActionBtn title="Reply" onClick={handleReply}>
+        </IconButton>
+        <IconButton label="Reply" onClick={handleReply}>
           <ReplyIcon />
-        </ActionBtn>
+        </IconButton>
         {!message.threadParentId && (
-          <ActionBtn
-            title={message.threadCount ? 'View Thread' : 'Reply in Thread'}
+          <IconButton
+            label={message.threadCount ? 'View Thread' : 'Reply in Thread'}
             onClick={() => useThreadStore.getState().openThread(channelId, message)}
           >
             <ThreadIcon />
-          </ActionBtn>
+          </IconButton>
         )}
         {isAuthor && onEdit && (
-          <ActionBtn title="Edit" onClick={onEdit}>
+          <IconButton label="Edit" onClick={onEdit}>
             <EditIcon />
-          </ActionBtn>
+          </IconButton>
         )}
         {isAdminOrOwner && (
-          <ActionBtn title={message.pinned ? 'Unpin' : 'Pin'} onClick={handlePin}>
+          <IconButton label={message.pinned ? 'Unpin' : 'Pin'} onClick={handlePin}>
             <PinIcon />
-          </ActionBtn>
+          </IconButton>
         )}
-        <ActionBtn title={isBookmarked ? 'Remove Bookmark' : 'Bookmark'} onClick={() => void toggleBookmark(message.id)}>
+        <IconButton label={isBookmarked ? 'Remove Bookmark' : 'Bookmark'} onClick={() => void toggleBookmark(message.id)}>
           <BookmarkIcon filled={isBookmarked} />
-        </ActionBtn>
+        </IconButton>
         {canDelete && (
-          <button
-            ref={deleteBtnRef}
-            type="button"
-            title="Delete"
-            aria-label="Delete"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="p-1.5 text-gray-400 transition hover:text-red-400"
-          >
+          <IconButton ref={deleteBtnRef} label="Delete" variant="danger" onClick={() => setShowDeleteConfirm(true)}>
             <TrashIcon />
-          </button>
+          </IconButton>
         )}
       </div>
       {showDeleteConfirm && (
@@ -144,30 +138,6 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
         </div>
       )}
     </div>
-  )
-}
-
-function ActionBtn({
-  children,
-  title,
-  onClick,
-  danger
-}: {
-  children: React.ReactNode
-  title: string
-  onClick: () => void
-  danger?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      className={`p-1.5 transition ${danger ? 'text-gray-400 hover:text-red-400' : 'text-gray-400 hover:text-white'}`}
-    >
-      {children}
-    </button>
   )
 }
 

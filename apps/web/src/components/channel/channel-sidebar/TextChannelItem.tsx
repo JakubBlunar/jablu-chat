@@ -1,5 +1,6 @@
 import type { Channel } from '@chat/shared'
 import React from 'react'
+import { CountBadge } from '@/components/ui'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { ArchiveIcon, HashIcon } from './sidebarIcons'
 
@@ -69,11 +70,7 @@ export function TextChannelItem({
       >
         {isArchived ? <ArchiveIcon /> : <HashIcon />}
         <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-        {mentionCount > 0 && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {mentionCount > 10 ? '10+' : mentionCount}
-          </span>
-        )}
+        {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
         {showUnreadDot && mentionCount === 0 && (
           <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
         )}

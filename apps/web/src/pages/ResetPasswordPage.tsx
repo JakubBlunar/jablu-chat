@@ -1,6 +1,7 @@
 import { resetPasswordSchema } from '@chat/shared'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Button, Input } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { ApiError, api } from '../lib/api'
 
@@ -93,52 +94,45 @@ export function ResetPasswordPage() {
             </div>
           ) : null}
 
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-              New password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={tokenInvalid}
-              className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="At least 8 characters"
-              required
-            />
-          </div>
+          <Input
+            id="password"
+            label="New password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={tokenInvalid}
+            className="disabled:cursor-not-allowed"
+            placeholder="At least 8 characters"
+            required
+          />
 
-          <div className="space-y-1.5">
-            <label
-              htmlFor="confirmPassword"
-              className="block text-xs font-medium uppercase tracking-wide text-gray-400"
-            >
-              Confirm password
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={tokenInvalid}
-              className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Repeat password"
-              required
-            />
-          </div>
+          <Input
+            id="confirmPassword"
+            label="Confirm password"
+            name="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            disabled={tokenInvalid}
+            className="disabled:cursor-not-allowed"
+            placeholder="Repeat password"
+            required
+          />
 
-          <button
+          <Button
+            variant="primary"
+            size="lg"
             type="submit"
+            fullWidth
+            className="mt-2"
             disabled={isSubmitting || tokenInvalid}
-            className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
+            loading={isSubmitting}
           >
             {isSubmitting ? 'Resetting…' : 'Reset Password'}
-          </button>
+          </Button>
         </form>
       )}
 

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Button, Input } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Server } from '@/stores/server.store'
@@ -39,23 +40,25 @@ export function DangerTab({ server, onClose }: { server: Server; onClose: () => 
           and uploaded files. This action cannot be undone.
         </p>
         <div className="mt-4 space-y-2">
-          <label className="text-xs text-gray-400">
+          <label className="text-xs text-gray-400" htmlFor="danger-delete-confirm">
             Type <strong className="text-white">{server.name}</strong> to confirm
           </label>
-          <input
+          <Input
+            id="danger-delete-confirm"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={server.name}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-red-500"
+            className="focus:!ring-red-500"
           />
-          <button
+          <Button
             type="button"
-            disabled={confirmText !== server.name || deleting}
+            variant="danger"
+            disabled={confirmText !== server.name}
+            loading={deleting}
             onClick={handleDelete}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
           >
-            {deleting ? 'Deleting…' : 'Delete Server'}
-          </button>
+            Delete Server
+          </Button>
           {deleteError && <p className="mt-2 text-xs text-red-400">{deleteError}</p>}
         </div>
       </div>

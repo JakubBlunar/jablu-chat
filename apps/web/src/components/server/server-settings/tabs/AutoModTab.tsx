@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Toggle } from '@/components/ui/Toggle'
+import { Button, Input, Spinner, Toggle } from '@/components/ui'
 import { api, type AutoModRule } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 
@@ -68,22 +68,20 @@ function WordFilterConfig({
           <option value="flag">Flag for review</option>
         </select>
       </div>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addWord()}
-          placeholder="Add a word..."
-          className="min-w-0 flex-1 rounded-md border border-white/10 bg-surface px-3 py-1.5 text-sm text-white placeholder-gray-500 outline-none focus:border-primary"
-        />
-        <button
-          type="button"
-          onClick={addWord}
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-text hover:bg-primary/80"
-        >
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <Input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addWord()}
+            placeholder="Add a word..."
+            className="bg-surface py-1.5"
+          />
+        </div>
+        <Button type="button" size="sm" onClick={addWord}>
           Add
-        </button>
+        </Button>
       </div>
       {words.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -137,22 +135,20 @@ function LinkFilterConfig({
       </label>
       {blockAll && (
         <>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addDomain()}
-              placeholder="e.g. youtube.com"
-              className="min-w-0 flex-1 rounded-md border border-white/10 bg-surface px-3 py-1.5 text-sm text-white placeholder-gray-500 outline-none focus:border-primary"
-            />
-            <button
-              type="button"
-              onClick={addDomain}
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-text hover:bg-primary/80"
-            >
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <Input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addDomain()}
+                placeholder="e.g. youtube.com"
+                className="bg-surface py-1.5"
+              />
+            </div>
+            <Button type="button" size="sm" onClick={addDomain}>
               Allow
-            </button>
+            </Button>
           </div>
           {allowedDomains.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -283,7 +279,7 @@ export function AutoModTab({ server }: { server: Server }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+        <Spinner size="md" />
       </div>
     )
   }

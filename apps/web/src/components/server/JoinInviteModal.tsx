@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Button, Input } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
@@ -43,36 +44,35 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
       <h2 className="mb-1 text-lg font-bold text-white">Join a Server</h2>
       <p className="mb-4 text-sm text-gray-400">Enter an invite code to join an existing server.</p>
 
-      <input
-        type="text"
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        placeholder="Enter invite code"
-        className="mb-3 w-full rounded bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') void handleJoin()
-        }}
-        autoFocus
-      />
+      <div className="mb-3">
+        <Input
+          id="join-invite-code"
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Enter invite code"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void handleJoin()
+          }}
+          autoFocus
+        />
+      </div>
 
       {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
       <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded px-4 py-2 text-sm text-gray-300 transition hover:text-white"
-        >
+        <Button variant="secondary" type="button" onClick={onClose}>
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="primary"
           type="button"
           disabled={loading || !code.trim()}
+          loading={loading}
           onClick={() => void handleJoin()}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {loading ? 'Joining...' : 'Join Server'}
-        </button>
+          Join Server
+        </Button>
       </div>
     </ModalOverlay>
   )

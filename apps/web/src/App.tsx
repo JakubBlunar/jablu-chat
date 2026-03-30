@@ -12,6 +12,7 @@ import './stores/theme.store'
 import { showToast } from './stores/toast.store'
 import { migrateSettings } from './lib/deviceSettings'
 import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
+import { Spinner } from '@/components/ui'
 import { LoginPage } from './pages/LoginPage'
 import { useAuthStore } from './stores/auth.store'
 
@@ -116,7 +117,7 @@ function ElectronUrlGate({ children }: { children: React.ReactNode }) {
 function LazyFallback() {
   return (
     <div className="flex h-screen items-center justify-center bg-surface">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+      <Spinner size="lg" />
     </div>
   )
 }

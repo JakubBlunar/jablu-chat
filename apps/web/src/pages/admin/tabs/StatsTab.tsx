@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ProgressBar, Spinner } from '@/components/ui'
 import type { StatsData } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 
@@ -36,12 +37,7 @@ function BarChart({
             </span>
             <span className="shrink-0 ml-3 font-medium text-gray-300">{item.value.toLocaleString()}</span>
           </div>
-          <div className="h-2 rounded-full bg-white/5">
-            <div
-              className="h-2 rounded-full bg-primary transition-all"
-              style={{ width: `${(item.value / max) * 100}%` }}
-            />
-          </div>
+          <ProgressBar value={(item.value / max) * 100} size="sm" className="bg-white/5" />
         </div>
       ))}
     </div>
@@ -72,7 +68,12 @@ export function StatsTab() {
   }, [fetchStats])
 
   if (loading) {
-    return <div className="text-center text-gray-400 py-8">Loading…</div>
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-8 text-gray-400">
+        <Spinner size="lg" />
+        <span>Loading…</span>
+      </div>
+    )
   }
 
   if (error) {

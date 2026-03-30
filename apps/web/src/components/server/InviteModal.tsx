@@ -1,6 +1,7 @@
 import type { Invite } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
+import { Button } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 
@@ -134,14 +135,15 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose }: Invit
             <option value="50">50 uses</option>
             <option value="100">100 uses</option>
           </select>
-          <button
+          <Button
             type="button"
+            variant="primary"
             disabled={creating}
+            loading={creating}
             onClick={() => void handleCreate()}
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
           >
             {creating ? 'Creating...' : 'Generate'}
-          </button>
+          </Button>
         </div>
 
         {error && (

@@ -1,3 +1,4 @@
+import { Button, Input } from '@/components/ui'
 import { useEffect, useState } from 'react'
 import { setStoredToken } from './adminApi'
 import { formatRetryTime } from './adminFormatters'
@@ -64,34 +65,44 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
       >
         <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
         <p className="mt-2 text-sm text-gray-400">Enter your superadmin credentials to continue.</p>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
-          autoComplete="username"
-          autoFocus
-          disabled={isLocked}
-          className="mt-5 w-full rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary disabled:opacity-50"
-        />
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          autoComplete="current-password"
-          disabled={isLocked}
-          className="mt-3 w-full rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-primary disabled:opacity-50"
-        />
+        <div className="mt-5">
+          <Input
+            id="admin-username"
+            name="username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            autoComplete="username"
+            autoFocus
+            disabled={isLocked}
+          />
+        </div>
+        <div className="mt-3">
+          <Input
+            id="admin-password"
+            name="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            autoComplete="current-password"
+            disabled={isLocked}
+          />
+        </div>
         {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
         {isLocked && <p className="mt-1 text-xs text-gray-500">Locked for {formatRetryTime(lockoutSeconds)}</p>}
-        <button
+        <Button
+          variant="primary"
+          size="lg"
           type="submit"
+          fullWidth
+          className="mt-4 font-medium"
           disabled={busy || !username || !password || isLocked}
-          className="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
+          loading={busy}
         >
           {busy ? 'Checking…' : isLocked ? 'Locked' : 'Login'}
-        </button>
+        </Button>
       </form>
     </div>
   )

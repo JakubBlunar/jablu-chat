@@ -1,6 +1,7 @@
 import { registerSchema } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Button, Input } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { api, ApiError } from '../lib/api'
 import { useAuthStore } from '../stores/auth.store'
@@ -100,87 +101,65 @@ export function RegisterPage() {
           </div>
         ) : null}
 
-        <div className="space-y-1.5">
-          <label htmlFor="username" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Username
-          </label>
-          <input
-            id="username"
-            name="username"
-            type="text"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            maxLength={20}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="cool_nickname"
-            required
-          />
-        </div>
+        <Input
+          id="username"
+          label="Username"
+          name="username"
+          type="text"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          maxLength={20}
+          placeholder="cool_nickname"
+          required
+        />
 
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="you@example.com"
-            required
-          />
-        </div>
+        <Input
+          id="email"
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          required
+        />
 
-        <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="At least 8 characters"
-            required
-          />
-        </div>
+        <Input
+          id="password"
+          label="Password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="At least 8 characters"
+          required
+        />
 
-        <div className="space-y-1.5">
-          <label htmlFor="confirmPassword" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-            Confirm Password
-          </label>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="Repeat your password"
-            required
-          />
-        </div>
+        <Input
+          id="confirmPassword"
+          label="Confirm Password"
+          name="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Repeat your password"
+          required
+        />
 
         {regMode === 'invite' && (
           <div className="space-y-1.5">
-            <label htmlFor="inviteCode" className="block text-xs font-medium uppercase tracking-wide text-gray-400">
-              Invite Code
-            </label>
-            <input
+            <Input
               id="inviteCode"
+              label="Invite Code"
               name="inviteCode"
               type="text"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2.5 font-mono tracking-widest text-white placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="font-mono tracking-widest"
               placeholder="XXXXXXXX"
               required
             />
@@ -188,13 +167,17 @@ export function RegisterPage() {
           </div>
         )}
 
-        <button
+        <Button
+          variant="primary"
+          size="lg"
           type="submit"
+          fullWidth
+          className="mt-2"
           disabled={isSubmitting}
-          className="mt-2 w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
+          loading={isSubmitting}
         >
           {isSubmitting ? 'Creating account…' : 'Create Account'}
-        </button>
+        </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-400">

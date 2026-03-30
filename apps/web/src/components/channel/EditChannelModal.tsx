@@ -1,6 +1,7 @@
 import type { Channel, Role } from '@chat/shared'
 import { Permission, permsToBigInt, hasPermission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { Input, ModalFooter } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Toggle } from '@/components/ui/Toggle'
 import { api } from '@/lib/api'
@@ -172,17 +173,17 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
           #{channel.name} &middot; {channel.type === 'text' ? 'Text Channel' : 'Voice Channel'}
         </p>
 
-        <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Channel name
-          <input
+        <div className="mt-5">
+          <Input
+            id="edit-channel-name"
+            label="Channel name"
             type="text"
             value={rawName}
             onChange={(e) => setRawName(e.target.value)}
-            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary"
             maxLength={100}
             autoFocus
           />
-        </label>
+        </div>
         {name && name !== channel.name ? (
           <p className="mt-1.5 text-xs text-gray-500">
             Will be renamed to <span className="text-gray-300">#{name}</span>
@@ -339,24 +340,15 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             )}
           </div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving || !name || !hasChanges}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
+          <ModalFooter
+            className="!mt-0"
+            onCancel={onClose}
+            onConfirm={() => void handleSave()}
+            cancelLabel="Cancel"
+            confirmLabel="Save"
+            loading={saving}
+            disabled={!name || !hasChanges}
+          />
         </div>
     </ModalOverlay>
   )

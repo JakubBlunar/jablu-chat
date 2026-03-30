@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useIsMobile } from '@/hooks/useMobile'
+import { IconButton } from '@/components/ui'
 
 type Props = {
   searchOpen: boolean
@@ -47,25 +48,15 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
 
   if (isMobile) {
     return searchOpen ? (
-      <button
-        type="button"
-        onClick={onClose}
-        className="rounded p-1.5 text-white transition hover:bg-white/10"
-        aria-label="Close search"
-      >
+      <IconButton label="Close search" variant="ghost" className="text-white hover:text-white" onClick={onClose}>
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path d="M6 18L18 6M6 6l12 12" />
         </svg>
-      </button>
+      </IconButton>
     ) : (
-      <button
-        type="button"
-        onClick={() => onSearch('')}
-        className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-        aria-label="Search"
-      >
+      <IconButton label="Search" variant="ghost" onClick={() => onSearch('')}>
         <SearchIcon />
-      </button>
+      </IconButton>
     )
   }
 
@@ -89,11 +80,11 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
           }`}
         />
         {searchOpen && (
-          <button type="button" onClick={onClose} aria-label="Close search" className="ml-1 rounded p-0.5 text-gray-400 hover:text-white">
+          <IconButton label="Close search" variant="ghost" size="sm" className="ml-1" onClick={onClose}>
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
+          </IconButton>
         )}
       </div>
     </div>

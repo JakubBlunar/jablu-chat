@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Button } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -106,23 +107,23 @@ export function AfkTab({ server }: { server: Server }) {
       </div>
 
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
-          disabled={saving || !hasChanges}
+          disabled={!hasChanges}
+          loading={saving}
           onClick={() => void handleSave()}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+          Save
+        </Button>
         {server.afkChannelId && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
             disabled={saving}
             onClick={() => void handleDisable()}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
           >
             Disable
-          </button>
+          </Button>
         )}
       </div>
     </div>

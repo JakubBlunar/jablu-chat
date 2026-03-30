@@ -7,6 +7,7 @@ import { MarkdownContent } from '@/components/MarkdownContent'
 import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { getSocket } from '@/lib/socket'
+import { IconButton, Spinner } from '@/components/ui'
 
 export function PinnedPanel({
   messages,
@@ -44,19 +45,18 @@ export function PinnedPanel({
     <div className="absolute right-2 top-14 z-30 flex max-h-[28rem] w-96 max-w-[calc(100vw-1rem)] flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10 sm:right-4">
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
         <h3 className="text-sm font-semibold text-white">Pinned Messages</h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-        >
+        <IconButton label="Close" variant="ghost" onClick={onClose}>
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18 18 6M6 6l12 12" />
           </svg>
-        </button>
+        </IconButton>
       </div>
       <SimpleBar className="flex-1">
         {loading ? (
-          <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
+          <div className="flex flex-col items-center justify-center gap-2 p-8">
+            <Spinner size="lg" />
+            <p className="text-center text-sm text-gray-400">Loading…</p>
+          </div>
         ) : messages.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-400">{emptyLabel}</p>
         ) : (
@@ -102,11 +102,12 @@ export function PinnedPanel({
                       )}
                     </div>
                     {canUnpin && (
-                      <button
-                        type="button"
-                        title="Unpin message"
+                      <IconButton
+                        label="Unpin message"
+                        variant="danger"
+                        size="sm"
+                        className="shrink-0 opacity-60 hover:opacity-100"
                         onClick={() => handleUnpin(m.id)}
-                        className="shrink-0 rounded p-1 text-gray-500 opacity-60 transition hover:bg-white/10 hover:text-red-400 hover:opacity-100"
                       >
                         <svg
                           className="h-3.5 w-3.5"
@@ -117,7 +118,7 @@ export function PinnedPanel({
                         >
                           <path d="M6 18 18 6M6 6l12 12" />
                         </svg>
-                      </button>
+                      </IconButton>
                     )}
                   </div>
                   <button

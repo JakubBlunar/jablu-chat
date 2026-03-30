@@ -41,6 +41,7 @@ const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then(
 import { EditChannelModal } from '@/components/channel/EditChannelModal'
 import { ChannelInfoSheet } from '@/components/chat/ChannelInfoSheet'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
+import { CountBadge, IconButton, Spinner } from '@/components/ui'
 
 /* ── Small icons ── */
 
@@ -275,7 +276,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   ) : isLoading && messages.length === 0 ? (
     <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+        <Spinner size="lg" />
         <p className="text-sm text-gray-400">Loading messages...</p>
       </div>
     </DelayedRender>
@@ -373,7 +374,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               {hasMore && <div ref={scroll.topSentinelRef} className="h-1 shrink-0" />}
               {isLoading && (
                 <div className="flex justify-center py-3">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+                  <Spinner size="md" />
                 </div>
               )}
             </>
@@ -491,50 +492,44 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           )}
           {!isMobile && (
             <>
-              <button
-                type="button"
-                title="Pinned messages"
-                aria-label="Pinned messages"
+              <IconButton
+                label="Pinned messages"
+                size="lg"
+                className="relative"
                 onClick={() => void pinned.handleOpenPinned()}
-                className="relative rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
               >
                 <PinHeaderIcon />
-                {(activeChannel.pinnedCount ?? 0) > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-text">
-                    {activeChannel.pinnedCount}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                title="Saved messages"
-                aria-label="Saved messages"
+                <CountBadge
+                  count={activeChannel.pinnedCount ?? 0}
+                  variant="primary"
+                  className="absolute -right-0.5 -top-0.5"
+                />
+              </IconButton>
+              <IconButton
+                label="Saved messages"
+                size="lg"
+                active={savedOpen}
                 onClick={() => setSavedOpen((v) => !v)}
-                className={`rounded p-2 transition ${savedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
               >
                 <BookmarkHeaderIcon />
-              </button>
+              </IconButton>
               <NotifBellMenu channelId={activeChannel.id} />
               {isAdminOrOwner && (
-                <button
-                  type="button"
-                  title="Channel settings"
-                  aria-label="Channel settings"
+                <IconButton
+                  label="Channel settings"
+                  size="lg"
                   onClick={() => setEditingChannel(true)}
-                  className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
                 >
                   <ChannelSettingsIcon />
-                </button>
+                </IconButton>
               )}
-              <button
-                type="button"
-                title="Toggle member list"
-                aria-label="Toggle member list"
+              <IconButton
+                label="Toggle member list"
+                size="lg"
                 onClick={useLayoutStore.getState().toggleMemberSidebar}
-                className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
               >
                 <MembersToggleIcon />
-              </button>
+              </IconButton>
               <SearchBar
                 searchOpen={searchOpen}
                 query={searchQuery}
@@ -588,34 +583,31 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             {!isMobile && (
               <>
                 {dm.otherMember && !dm.currentConv?.isGroup && (
-                  <button
-                    type="button"
+                  <IconButton
+                    label="User profile"
+                    className="shrink-0"
+                    active={dm.showProfile}
                     onClick={() => dm.setShowProfile((p) => !p)}
-                    title="User profile"
-                    aria-label="User profile"
-                    className={`shrink-0 rounded p-1.5 transition ${dm.showProfile ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
                   >
                     <UserProfileIcon />
-                  </button>
+                  </IconButton>
                 )}
-                <button
-                  type="button"
-                  title="Pinned messages"
-                  aria-label="Pinned messages"
+                <IconButton
+                  label="Pinned messages"
+                  className="shrink-0"
+                  active={pinned.pinnedOpen}
                   onClick={() => void pinned.handleOpenPinned()}
-                  className={`shrink-0 rounded p-1.5 transition ${pinned.pinnedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   <PinHeaderIcon />
-                </button>
-                <button
-                  type="button"
-                  title="Saved messages"
-                  aria-label="Saved messages"
+                </IconButton>
+                <IconButton
+                  label="Saved messages"
+                  className="shrink-0"
+                  active={savedOpen}
                   onClick={() => setSavedOpen((v) => !v)}
-                  className={`shrink-0 rounded p-1.5 transition ${savedOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   <BookmarkHeaderIcon />
-                </button>
+                </IconButton>
                 <div className="shrink-0">
                   <SearchBar
                     searchOpen={searchOpen}

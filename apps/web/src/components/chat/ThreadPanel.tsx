@@ -8,6 +8,7 @@ import { MarkdownContent } from '@/components/MarkdownContent'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useThreadStore } from '@/stores/thread.store'
+import { IconButton, Spinner } from '@/components/ui'
 
 export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string) => void }) {
   const { isOpen, parentMessage, channelId, messages, isLoading, hasMore, closeThread, fetchMore } =
@@ -44,15 +45,11 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
     <div className={`flex shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}>
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
         <h3 className="text-sm font-semibold text-white">Thread</h3>
-        <button
-          type="button"
-          onClick={closeThread}
-          className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-        >
+        <IconButton label="Close thread" variant="ghost" size="md" onClick={closeThread}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18 18 6M6 6l12 12" />
           </svg>
-        </button>
+        </IconButton>
       </div>
 
       <SimpleBar className="flex-1" scrollableNodeProps={{ ref: scrollRef }}>
@@ -109,7 +106,7 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
 
         {isLoading && messages.length === 0 && (
           <div className="flex items-center justify-center py-8">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
+            <Spinner size="md" />
           </div>
         )}
 
