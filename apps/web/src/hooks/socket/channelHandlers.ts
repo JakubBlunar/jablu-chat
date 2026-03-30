@@ -65,6 +65,13 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     }
   }
 
+  const onUserTypingStop = (payload: { userId: string; channelId: string }) => {
+    const channelId = useChannelStore.getState().currentChannelId
+    if (payload.channelId === channelId) {
+      useMessageStore.getState().removeTypingUser(payload.userId)
+    }
+  }
+
   const onReactionAdd = (payload: ReactionPayload) => {
     if (payload.conversationId) {
       useDmStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId)
@@ -122,7 +129,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
   }
 
   return {
-    onMessageNew, onMessageEdit, onMessageDelete, onUserTyping,
+    onMessageNew, onMessageEdit, onMessageDelete, onUserTyping, onUserTypingStop,
     onReactionAdd, onReactionRemove, onMessagePin, onMessageUnpin,
     onPollVote, onThreadUpdate, onNewMessageForThread, onLinkPreviews,
     onChannelReorder

@@ -684,6 +684,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @SubscribeMessage('typing:stop')
+  async onTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    this.emitToChannel(body.channelId, 'user:typing-stop', {
+      userId: user.id,
+      channelId: body.channelId
+    })
+    return { ok: true }
+  }
+
   @SubscribeMessage('dm:send')
   async onDmSend(
     @ConnectedSocket() client: Socket,
@@ -826,6 +836,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       userId: user.id,
       conversationId: body.conversationId,
       username: user.displayName ?? user.username
+    })
+    return { ok: true }
+  }
+
+  @SubscribeMessage('dm:typing-stop')
+  async onDmTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+    const user = (client.data as { user: WsUser }).user
+    client.to(`dm:${body.conversationId}`).emit('dm:typing-stop', {
+      userId: user.id,
+      conversationId: body.conversationId
     })
     return { ok: true }
   }
