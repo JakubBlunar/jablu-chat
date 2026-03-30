@@ -304,4 +304,63 @@ export function registerEventListeners(gw: ChatGateway) {
       })
     }
   )
+
+  // ── REST-originated events ──
+  // These mirror the same Socket.IO broadcasts the gateway does for WS-originated actions,
+  // so REST API consumers get real-time delivery to other connected clients.
+
+  gw.events.on(
+    'rest:message:created',
+    (payload: { channelId: string; message: unknown; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
+      gw.emitToChannel(payload.channelId, 'message:new', payload.message)
+      if (payload.threadUpdate) {
+        gw.emitToChannel(payload.channelId, 'message:thread-update', {
+          parentId: payload.threadUpdate.parentId,
+          threadCount: payload.threadUpdate.threadCount
+        })
+      }
+    }
+  )
+
+  gw.events.on('rest:message:edited', (payload: { channelId: string; message: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'message:edit', payload.message)
+  })
+
+  gw.events.on('rest:message:deleted', (payload: { channelId: string; messageId: string }) => {
+    gw.emitToChannel(payload.channelId, 'message:delete', { messageId: payload.messageId })
+  })
+
+  gw.events.on('rest:message:pinned', (payload: { channelId: string; message: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'message:pin', payload.message)
+  })
+
+  gw.events.on('rest:message:unpinned', (payload: { channelId: string; message: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'message:unpin', payload.message)
+  })
+
+  for (const ev of ['rest:reaction:added', 'rest:reaction:removed'] as const) {
+    gw.events.on(
+      ev,
+      (payload: {
+        messageId: string
+        emoji: string
+        userId: string
+        isCustom: boolean
+        channelId: string | null
+        directConversationId: string | null
+      }) => {
+        const socketEvent = ev === 'rest:reaction:added' ? 'reaction:add' : 'reaction:remove'
+        const data = { messageId: payload.messageId, emoji: payload.emoji, userId: payload.userId, isCustom: payload.isCustom }
+        if (payload.channelId) {
+          gw.emitToChannel(payload.channelId, socketEvent, data)
+        } else if (payload.directConversationId) {
+          gw.emitToDm(payload.directConversationId, socketEvent, { ...data, conversationId: payload.directConversationId })
+        }
+      }
+    )
+  }
+
+  gw.events.on('rest:poll:voted', (payload: { channelId: string; poll: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'poll:vote', payload.poll)
+  })
 }

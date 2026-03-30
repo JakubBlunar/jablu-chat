@@ -1,13 +1,22 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
+import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
+import { EventBusService } from '../events/event-bus.service'
+import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { EditMessageDto, MessageQueryDto, SendMessageDto, ToggleReactionDto } from './dto'
 import { MessagesService } from './messages.service'
 
 @Controller('channels/:channelId/messages')
 @UseGuards(AuthGuard('jwt'))
 export class MessagesController {
-  constructor(private readonly messages: MessagesService) {}
+  constructor(
+    private readonly messages: MessagesService,
+    private readonly roles: RolesService,
+    private readonly events: EventBusService,
+    private readonly prisma: PrismaService
+  ) {}
 
   @Get()
   list(
@@ -47,57 +56,91 @@ export class MessagesController {
   }
 
   @Post()
-  send(
+  async send(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: SendMessageDto
   ) {
-    return this.messages.createMessage(channelId, user.id, dto.content, dto.replyToId, dto.attachmentIds)
+    const ch = await this.requireChannel(channelId)
+    await this.roles.requireChannelPermission(ch.serverId, channelId, user.id, Permission.SEND_MESSAGES)
+
+    const msg = await this.messages.createMessage(channelId, user.id, dto.content, dto.replyToId, dto.attachmentIds)
+    const { serverId, threadUpdate, ...wire } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
+    this.events.emit('rest:message:created', { channelId, message: wire, serverId, threadUpdate })
+    return wire
   }
 
   @Patch(':id')
-  edit(
+  async edit(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: EditMessageDto
   ) {
-    return this.messages.editMessageInChannel(messageId, channelId, user.id, dto.content)
+    const wire = await this.messages.editMessageInChannel(messageId, channelId, user.id, dto.content)
+    this.events.emit('rest:message:edited', { channelId, message: wire })
+    return wire
   }
 
   @Delete(':id')
-  remove(
+  async remove(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: { id: string; username: string; email: string }
   ) {
-    return this.messages.deleteMessageInChannel(messageId, channelId, user.id)
+    const result = await this.messages.deleteMessageInChannel(messageId, channelId, user.id)
+    this.events.emit('rest:message:deleted', { channelId, messageId })
+    return result
   }
 
   @Post(':id/pin')
-  pin(
+  async pin(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: { id: string; username: string; email: string }
   ) {
-    return this.messages.pinMessage(messageId, user.id, channelId)
+    const wire = await this.messages.pinMessage(messageId, user.id, channelId)
+    this.events.emit('rest:message:pinned', { channelId, message: wire })
+    return wire
   }
 
   @Delete(':id/pin')
-  unpin(
+  async unpin(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: { id: string; username: string; email: string }
   ) {
-    return this.messages.unpinMessage(messageId, user.id, channelId)
+    const wire = await this.messages.unpinMessage(messageId, user.id, channelId)
+    this.events.emit('rest:message:unpinned', { channelId, message: wire })
+    return wire
   }
 
   @Post(':id/reactions')
-  toggleReaction(
+  async toggleReaction(
     @Param('id', ParseUUIDPipe) messageId: string,
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: ToggleReactionDto
   ) {
-    return this.messages.toggleReaction(messageId, user.id, dto.emoji, dto.isCustom)
+    const result = await this.messages.toggleReaction(messageId, user.id, dto.emoji, dto.isCustom)
+    const event = result.action === 'added' ? 'rest:reaction:added' : 'rest:reaction:removed'
+    this.events.emit(event, {
+      messageId,
+      emoji: dto.emoji,
+      userId: user.id,
+      isCustom: result.isCustom,
+      channelId: result.channelId,
+      directConversationId: result.directConversationId
+    })
+    return result
+  }
+
+  private async requireChannel(channelId: string) {
+    const ch = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { serverId: true, isArchived: true }
+    })
+    if (!ch) throw new NotFoundException('Channel not found')
+    if (ch.isArchived) throw new ForbiddenException('This channel is archived')
+    return ch
   }
 }
