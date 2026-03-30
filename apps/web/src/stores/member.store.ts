@@ -22,7 +22,9 @@ export type Member = {
 
 type MemberState = {
   members: Member[]
+  /** All user IDs known to be online (server co-members + friends) */
   onlineUserIds: Set<string>
+  /** Authoritative real-time status for any known user */
   realtimeStatuses: Map<string, string>
   isLoading: boolean
   fetchMembers: (serverId: string) => Promise<void>
@@ -35,6 +37,8 @@ type MemberState = {
   setUserStatus: (userId: string, status: string) => void
   setUserCustomStatus: (userId: string, customStatus: string | null) => void
   updateUserProfile: (userId: string, data: Partial<Member['user']>) => void
+  mergeFriendsPresence: (onlineFriendIds: string[], friendStatuses?: Record<string, string>) => void
+  resolveStatus: (userId: string) => string
 }
 
 export const useMemberStore = create<MemberState>((set, get) => ({
@@ -117,5 +121,24 @@ export const useMemberStore = create<MemberState>((set, get) => ({
   updateUserProfile: (userId, data) =>
     set((s) => ({
       members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, ...data } } : m))
-    }))
+    })),
+
+  mergeFriendsPresence: (onlineFriendIds, friendStatuses) =>
+    set((s) => {
+      const next = new Set(s.onlineUserIds)
+      const rt = new Map(s.realtimeStatuses)
+      for (const fid of onlineFriendIds) {
+        next.add(fid)
+        rt.set(fid, friendStatuses?.[fid] ?? 'online')
+      }
+      return { onlineUserIds: next, realtimeStatuses: rt }
+    }),
+
+  resolveStatus: (userId) => {
+    const { onlineUserIds, realtimeStatuses } = get()
+    if (!onlineUserIds.has(userId)) return 'offline'
+    const rt = realtimeStatuses.get(userId)
+    if (rt === 'idle' || rt === 'dnd' || rt === 'online') return rt
+    return 'online'
+  }
 }))
