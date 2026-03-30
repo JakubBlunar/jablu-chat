@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { CurrentUser } from '../auth/current-user.decorator'
+import { EventBusService } from '../events/event-bus.service'
 import { PollsService } from './polls.service'
 
 class CreatePollDto {
@@ -17,15 +18,18 @@ class VotePollDto {
 @Controller()
 @UseGuards(AuthGuard('jwt'))
 export class PollsController {
-  constructor(private readonly polls: PollsService) {}
+  constructor(
+    private readonly polls: PollsService,
+    private readonly events: EventBusService
+  ) {}
 
   @Post('channels/:channelId/polls')
-  createPoll(
+  async createPoll(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: { id: string },
     @Body() dto: CreatePollDto
   ) {
-    return this.polls.createPoll(
+    const result = await this.polls.createPoll(
       channelId,
       user.id,
       dto.question,
@@ -33,15 +37,21 @@ export class PollsController {
       dto.multiSelect ?? false,
       dto.expiresAt
     )
+    this.events.emit('rest:message:created', { channelId, message: result })
+    return result
   }
 
   @Post('polls/:pollId/vote')
-  votePoll(
+  async votePoll(
     @Param('pollId', ParseUUIDPipe) pollId: string,
     @CurrentUser() user: { id: string },
     @Body() dto: VotePollDto
   ) {
-    return this.polls.votePoll(pollId, dto.optionId, user.id)
+    const result = await this.polls.votePoll(pollId, dto.optionId, user.id)
+    if (result.channelId) {
+      this.events.emit('rest:poll:voted', { channelId: result.channelId, poll: result.poll })
+    }
+    return result
   }
 
   @Get('polls/:pollId')
