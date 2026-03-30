@@ -6,6 +6,7 @@
     "dev": "turbo dev --filter=!@chat/bot",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
+    "test": "turbo test",
     "lint": "turbo lint",
     "clean": "turbo clean",
     "db:migrate:dev": "pnpm --filter @chat/server db:migrate:dev",
