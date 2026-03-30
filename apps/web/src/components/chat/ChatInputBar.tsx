@@ -498,6 +498,8 @@ function MentionPopup({
   return (
     <div
       ref={listRef}
+      role="listbox"
+      aria-label="Mentions"
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {members.map((m, i) => {
@@ -506,6 +508,8 @@ function MentionPopup({
           <button
             key={m.userId}
             type="button"
+            role="option"
+            aria-selected={i === selectedIdx}
             onMouseDown={(e) => {
               e.preventDefault()
               onSelect(m)
@@ -560,12 +564,16 @@ function ChannelPopup({
   return (
     <div
       ref={listRef}
+      role="listbox"
+      aria-label="Channels"
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {channels.map((c, i) => (
         <button
           key={c.id}
           type="button"
+          role="option"
+          aria-selected={i === selectedIdx}
           onMouseDown={(e) => {
             e.preventDefault()
             onSelect(c)
@@ -606,12 +614,16 @@ function CommandPopup({
   return (
     <div
       ref={listRef}
+      role="listbox"
+      aria-label="Commands"
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {commands.map((c, i) => (
         <button
           key={c.name}
           type="button"
+          role="option"
+          aria-selected={i === selectedIdx}
           onMouseDown={(e) => {
             e.preventDefault()
             onSelect(c)
