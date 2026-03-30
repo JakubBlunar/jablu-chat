@@ -153,6 +153,7 @@ export const MessageRow = memo(function MessageRow({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [mobileEmojiPicker, setMobileEmojiPicker] = useState(false)
 
   const handleStartEdit = useCallback(() => {
     setEditValue(message.content ?? '')
@@ -258,6 +259,13 @@ export const MessageRow = memo(function MessageRow({
           onClose={() => setDrawerOpen(false)}
           onEdit={isAuthor ? handleStartEdit : undefined}
           onReply={() => onReply(message)}
+          onOpenEmojiPicker={() => setMobileEmojiPicker(true)}
+        />
+      )}
+      {mobileEmojiPicker && (
+        <MobileEmojiPickerOverlay
+          messageId={message.id}
+          onClose={() => setMobileEmojiPicker(false)}
         />
       )}
       {!editing && !isMobile &&
@@ -491,12 +499,22 @@ export const MessageRow = memo(function MessageRow({
                 useThreadStore.getState().openThread(contextId, message)
               })
             }}
-            className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-primary/70 transition hover:text-primary"
+            className="mt-1.5 flex max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-white/[0.03] px-2.5 py-1.5 text-xs transition hover:bg-white/[0.06]"
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-3.5 w-3.5 shrink-0 text-primary/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            {message.threadCount} {message.threadCount === 1 ? 'reply' : 'replies'}
+            <span className="shrink-0 font-medium text-primary/70">
+              {message.threadCount} {message.threadCount === 1 ? 'reply' : 'replies'}
+            </span>
+            {message.lastThreadReply && (
+              <span className="min-w-0 truncate text-gray-400">
+                <span className="font-medium text-gray-300">
+                  {message.lastThreadReply.author?.displayName ?? message.lastThreadReply.author?.username ?? 'Someone'}:
+                </span>
+                {' '}{message.lastThreadReply.content?.slice(0, 80) || 'sent an attachment'}
+              </span>
+            )}
           </button>
         )}
 
@@ -583,5 +601,21 @@ function DmDeleteConfirmPopover({
         </button>
       </div>
     </div>
+  )
+}
+
+function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const handleReaction = useCallback(
+    (emoji: string) => {
+      getSocket()?.emit('reaction:toggle', { messageId, emoji })
+      onClose()
+    },
+    [messageId, onClose]
+  )
+
+  return (
+    <Suspense fallback={null}>
+      <EmojiPicker onSelect={handleReaction} onClose={onClose} />
+    </Suspense>
   )
 }

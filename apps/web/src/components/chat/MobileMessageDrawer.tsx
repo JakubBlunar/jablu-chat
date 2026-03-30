@@ -1,11 +1,11 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useMemo, useState } from 'react'
 import { getSocket } from '@/lib/socket'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { BottomSheet } from '@/components/ui/BottomSheet'
+import { SheetBtn } from '@/components/ui/SheetBtn'
 import { useBookmarkStore } from '@/stores/bookmark.store'
-
-const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+import { useThreadStore } from '@/stores/thread.store'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👀', '🎉']
 
@@ -35,6 +35,7 @@ interface MobileMessageDrawerProps {
   onClose: () => void
   onEdit?: () => void
   onReply: () => void
+  onOpenEmojiPicker?: () => void
 }
 
 export function MobileMessageDrawer({
@@ -45,14 +46,12 @@ export function MobileMessageDrawer({
   isAdminOrOwner,
   onClose,
   onEdit,
-  onReply
+  onReply,
+  onOpenEmojiPicker
 }: MobileMessageDrawerProps) {
   const isDm = mode === 'dm'
   const canDelete = isAuthor || isAdminOrOwner
-  const [showFullPicker, setShowFullPicker] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [visible, setVisible] = useState(false)
-
   const links = useMemo(() => {
     const contentLinks = extractLinks(message.content)
     const previewLinks = (message.linkPreviews ?? []).map((lp) => lp.url)
@@ -61,23 +60,7 @@ export function MobileMessageDrawer({
 
   const attachments = message.attachments ?? []
 
-
-  useEffect(() => {
-    requestAnimationFrame(() => setVisible(true))
-  }, [])
-
-  const close = useCallback(() => {
-    setVisible(false)
-    setTimeout(onClose, 200)
-  }, [onClose])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [close])
+  const close = onClose
 
   const handleReaction = useCallback(
     (emoji: string) => {
@@ -91,6 +74,11 @@ export function MobileMessageDrawer({
     onReply()
     close()
   }, [onReply, close])
+
+  const handleThread = useCallback(() => {
+    useThreadStore.getState().openThread(contextId, message)
+    close()
+  }, [contextId, message, close])
 
   const handleCopy = useCallback(() => {
     if (message.content) {
@@ -137,37 +125,6 @@ export function MobileMessageDrawer({
     close()
   }, [message.id, isDm, contextId, close])
 
-  if (showFullPicker) {
-    return createPortal(
-      <div
-        className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 backdrop-blur-sm"
-        role="dialog"
-        aria-modal="true"
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => {
-          e.stopPropagation()
-          if (e.target === e.currentTarget) {
-            e.preventDefault()
-            setShowFullPicker(false)
-          }
-        }}
-        onClick={(e) => {
-          e.stopPropagation()
-          if (e.target === e.currentTarget) setShowFullPicker(false)
-        }}
-      >
-        <Suspense fallback={null}>
-          <EmojiPicker
-            onSelect={handleReaction}
-            onClose={() => setShowFullPicker(false)}
-          />
-        </Suspense>
-      </div>,
-      document.body
-    )
-  }
-
   if (confirmDelete) {
     return (
       <ConfirmDialog
@@ -180,130 +137,78 @@ export function MobileMessageDrawer({
     )
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => {
-        e.stopPropagation()
-        if (e.target === e.currentTarget) {
-          e.preventDefault()
-          close()
-        }
-      }}
-      onClick={(e) => {
-        e.stopPropagation()
-        if (e.target === e.currentTarget) close()
-      }}
-    >
-      <div
-        className={`w-full max-w-lg rounded-t-2xl bg-surface-dark pb-8 shadow-2xl ring-1 ring-white/10 transition-transform duration-200 ${visible ? 'translate-y-0' : 'translate-y-full'}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Drag handle */}
-        <div className="flex justify-center py-3">
-          <div className="h-1 w-10 rounded-full bg-gray-600" />
-        </div>
-
-        {/* Quick emoji row — scrollable */}
-        <div className="flex items-center gap-1 overflow-x-auto px-3 pb-3 scrollbar-none">
-          {QUICK_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => handleReaction(emoji)}
-              className="shrink-0 rounded-full p-2 text-2xl active:scale-110 active:bg-white/10"
-            >
-              {emoji}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setShowFullPicker(true)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-light text-gray-400 active:bg-white/10"
-            aria-label="More emojis"
-          >
-            <SmileIcon />
-          </button>
-        </div>
-
-        <div className="border-t border-white/5" />
-
-        {/* Action buttons */}
-        <div className="flex flex-col gap-1.5 px-3 pt-3">
-          <DrawerBtn icon={<ReplyIcon />} label="Reply" onClick={handleReply} />
-          {message.content && (
-            <DrawerBtn icon={<CopyIcon />} label="Copy Text" onClick={handleCopy} />
-          )}
-          {links.map((url) => (
-            <DrawerBtn
-              key={url}
-              icon={<LinkIcon />}
-              label={`Copy Link`}
-              subtitle={url}
-              onClick={() => handleCopyLink(url)}
-            />
-          ))}
-          {attachments.map((att) => (
-            <DrawerBtn
-              key={att.id}
-              icon={<DownloadIcon />}
-              label={downloadLabel(att.type)}
-              subtitle={att.filename}
-              onClick={() => handleDownload(att.url, att.filename)}
-            />
-          ))}
-          {isAuthor && onEdit && (
-            <DrawerBtn icon={<EditIcon />} label="Edit Message" onClick={handleEdit} />
-          )}
-          <BookmarkDrawerBtn messageId={message.id} onClose={close} />
-          {(isDm || isAdminOrOwner) && (
-            <DrawerBtn
-              icon={<PinIcon />}
-              label={message.pinned ? 'Unpin Message' : 'Pin Message'}
-              onClick={handlePin}
-            />
-          )}
-          {canDelete && (
-            <DrawerBtn icon={<TrashIcon />} label="Delete Message" onClick={() => setConfirmDelete(true)} danger />
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
-  )
-}
-
-function DrawerBtn({
-  icon,
-  label,
-  subtitle,
-  onClick,
-  danger
-}: {
-  icon: React.ReactNode
-  label: string
-  subtitle?: string
-  onClick: () => void
-  danger?: boolean
-}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition active:brightness-125 ${danger ? 'bg-red-500/10 text-red-400' : 'bg-white/5 text-gray-200'}`}
-    >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[15px]">{label}</span>
-        {subtitle && (
-          <span className="block truncate text-xs text-gray-500">{subtitle}</span>
+    <BottomSheet open onClose={close}>
+      {/* Quick emoji row */}
+      <div className="flex items-center gap-1 overflow-x-auto px-3 pb-3 scrollbar-none">
+        {QUICK_EMOJIS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => handleReaction(emoji)}
+            className="shrink-0 rounded-full p-2 text-2xl active:scale-110 active:bg-white/10"
+          >
+            {emoji}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => { onClose(); onOpenEmojiPicker?.() }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-light text-gray-400 active:bg-white/10"
+          aria-label="More emojis"
+        >
+          <SmileIcon />
+        </button>
+      </div>
+
+      <div className="border-t border-white/5" />
+
+      <div className="flex flex-col gap-1.5 px-3 pt-3">
+        <SheetBtn icon={<ReplyIcon />} label="Reply" onClick={handleReply} />
+        {!isDm && !message.threadParentId && (
+          <SheetBtn
+            icon={<ThreadIcon />}
+            label={(message.threadCount ?? 0) > 0 ? 'View Thread' : 'Reply in Thread'}
+            onClick={handleThread}
+          />
         )}
-      </span>
-    </button>
+        {message.content && (
+          <SheetBtn icon={<CopyIcon />} label="Copy Text" onClick={handleCopy} />
+        )}
+        {links.map((url) => (
+          <SheetBtn
+            key={url}
+            icon={<LinkIcon />}
+            label="Copy Link"
+            subtitle={url}
+            onClick={() => handleCopyLink(url)}
+          />
+        ))}
+        {attachments.map((att) => (
+          <SheetBtn
+            key={att.id}
+            icon={<DownloadIcon />}
+            label={downloadLabel(att.type)}
+            subtitle={att.filename}
+            onClick={() => handleDownload(att.url, att.filename)}
+          />
+        ))}
+        {isAuthor && onEdit && (
+          <SheetBtn icon={<EditIcon />} label="Edit Message" onClick={handleEdit} />
+        )}
+        <BookmarkDrawerBtn messageId={message.id} onClose={close} />
+        {(isDm || isAdminOrOwner) && (
+          <SheetBtn
+            icon={<PinIcon />}
+            label={message.pinned ? 'Unpin Message' : 'Pin Message'}
+            onClick={handlePin}
+          />
+        )}
+        {canDelete && (
+          <SheetBtn icon={<TrashIcon />} label="Delete Message" onClick={() => setConfirmDelete(true)} danger />
+        )}
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -332,6 +237,14 @@ function CopyIcon() {
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <rect x="9" y="9" width="13" height="13" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
+}
+
+function ThreadIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
@@ -385,7 +298,7 @@ function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose:
   const isBookmarked = useBookmarkStore((s) => s.bookmarkedIds.has(messageId))
   const toggleBookmark = useBookmarkStore((s) => s.toggleBookmark)
   return (
-    <DrawerBtn
+    <SheetBtn
       icon={
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
           <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />

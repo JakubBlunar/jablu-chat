@@ -9,6 +9,9 @@ export function ServerMenuSheet({
   onClose,
   onServerSettings,
   onReorder,
+  onCreateCategory,
+  onMarkAllRead,
+  onNotifSettings,
   onInvite,
   onEvents,
   onLeave
@@ -20,6 +23,9 @@ export function ServerMenuSheet({
   onClose: () => void
   onServerSettings: () => void
   onReorder: () => void
+  onCreateCategory: () => void
+  onMarkAllRead: () => void
+  onNotifSettings: () => void
   onInvite: () => void
   onEvents: () => void
   onLeave: () => void
@@ -61,11 +67,44 @@ export function ServerMenuSheet({
               className="flex items-center gap-3 px-4 py-3 text-sm text-gray-200 transition active:bg-white/[0.06]"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z" />
+                <path d="M3 15h18v-2H3v2zm0 4h18v-2H3v4zm0-8h18V9H3v2zm0-6v2h18V5H3z" />
               </svg>
               Reorder Channels
             </button>
           )}
+          {isAdminOrOwner && (
+            <button
+              type="button"
+              onClick={onCreateCategory}
+              className="flex items-center gap-3 px-4 py-3 text-sm text-gray-200 transition active:bg-white/[0.06]"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Create Category
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onMarkAllRead}
+            className="flex items-center gap-3 px-4 py-3 text-sm text-gray-200 transition active:bg-white/[0.06]"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Mark All as Read
+          </button>
+          <button
+            type="button"
+            onClick={onNotifSettings}
+            className="flex items-center gap-3 px-4 py-3 text-sm text-gray-200 transition active:bg-white/[0.06]"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            Notification Settings
+          </button>
           <button
             type="button"
             onClick={onInvite}

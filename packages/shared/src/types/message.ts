@@ -21,6 +21,11 @@ export interface Message {
   replyTo?: MessagePreview | null
   linkPreviews?: LinkPreview[]
   threadCount?: number
+  lastThreadReply?: {
+    content: string | null
+    author: { id: string; username: string; displayName?: string | null; avatarUrl: string | null } | null
+    createdAt: string
+  } | null
   webhook?: { name: string; avatarUrl: string | null } | null
   poll?: import('./poll.js').Poll | null
 }

@@ -25,7 +25,8 @@ import { RolesService } from '../roles/roles.service'
 import { registerEventListeners } from './gateway-event-listeners'
 import {
   describePushPreview as describePushPreviewText,
-  sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx
+  sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx,
+  sendPushToThreadParticipants as sendPushToThreadParticipantsWithCtx
 } from './gateway-push-helpers'
 import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 
@@ -469,8 +470,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.emitToChannel(body.channelId, 'message:thread-update', {
         parentId: threadUpdate.parentId,
         threadCount: threadUpdate.threadCount,
-        lastThreadMessage: {
-          authorId: user.id,
+        lastThreadReply: {
+          content: msgRest.content ?? null,
+          author: msgRest.author ?? null,
           createdAt: msgRest.createdAt
         }
       })
@@ -490,7 +492,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         .catch((err) => this.logger.warn('Link preview fetch failed', err?.message))
     }
 
-    if (serverId) {
+    if (serverId && !body.threadParentId) {
       this.sendPushToOfflineMembers(
         serverId,
         user.id,
@@ -501,6 +503,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         mentionedUserIds,
         msgRest.attachments
       ).catch((err) => this.logger.warn('Push notification failed', err?.message))
+    }
+
+    if (threadUpdate && serverId) {
+      this.sendPushToThreadParticipants(
+        threadUpdate.parentId,
+        body.channelId,
+        serverId,
+        user.id,
+        msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone',
+        body.content,
+        msgRest.attachments
+      ).catch((err) => this.logger.warn('Thread push notification failed', err?.message))
     }
 
     return { ok: true, message: msgRest }
@@ -943,6 +957,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       url,
       channelId,
       mentionedUserIds,
+      attachments
+    )
+  }
+
+  async sendPushToThreadParticipants(
+    parentId: string,
+    channelId: string,
+    serverId: string,
+    senderId: string,
+    senderName: string,
+    content: string | undefined,
+    attachments?: { type: string }[]
+  ) {
+    return sendPushToThreadParticipantsWithCtx(
+      {
+        prisma: this.prisma,
+        push: this.push,
+        redis: this.redis,
+        isUserOnline: this.isUserOnline.bind(this)
+      },
+      parentId,
+      channelId,
+      serverId,
+      senderId,
+      senderName,
+      content,
       attachments
     )
   }

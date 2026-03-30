@@ -6,6 +6,7 @@ import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { UserAvatar } from '@/components/UserAvatar'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { formatSmartTimestamp } from '@/lib/format-time'
+import { useIsMobile } from '@/hooks/useMobile'
 import { useThreadStore } from '@/stores/thread.store'
 
 export function ThreadPanel() {
@@ -33,12 +34,14 @@ export function ThreadPanel() {
     })
   }, [])
 
+  const isMobile = useIsMobile()
+
   if (!isOpen || !parentMessage || !channelId) return null
 
   const parentName = parentMessage.author?.displayName ?? parentMessage.author?.username ?? 'Deleted User'
 
   return (
-    <div className="flex w-80 shrink-0 flex-col border-l border-white/10 bg-surface-dark">
+    <div className={`flex shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}>
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
         <h3 className="text-sm font-semibold text-white">Thread</h3>
         <button
