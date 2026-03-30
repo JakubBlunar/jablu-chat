@@ -89,6 +89,23 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const isMobile = useIsMobile()
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [gifOpen, setGifOpen] = useState(false)
+  const [showToolbar, setShowToolbar] = useState(false)
+
+  const wrapSelection = useCallback((prefix: string, suffix: string) => {
+    const ta = taRef.current
+    if (!ta) return
+    const start = ta.selectionStart
+    const end = ta.selectionEnd
+    const selected = value.slice(start, end)
+    const wrapped = `${prefix}${selected}${suffix}`
+    const next = value.slice(0, start) + wrapped + value.slice(end)
+    onChange(next)
+    requestAnimationFrame(() => {
+      ta.focus()
+      const newCursor = selected ? start + wrapped.length : start + prefix.length
+      ta.setSelectionRange(newCursor, newCursor)
+    })
+  }, [value, onChange])
 
   const [popupMode, setPopupMode] = useState<PopupMode>('none')
   const [query, setQuery] = useState('')
@@ -278,6 +295,17 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (value.length <= MAX_MESSAGE_LENGTH) onSend()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault()
+        wrapSelection('**', '**')
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+        e.preventDefault()
+        wrapSelection('*', '*')
+        return
       }
     },
     [
@@ -292,7 +320,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       insertChannel,
       executeCommand,
       onSend,
-      value
+      value,
+      wrapSelection
     ]
   )
 
@@ -306,6 +335,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       )}
       {popupOpen && popupMode === 'command' && (
         <CommandPopup commands={filteredCommands} selectedIdx={selectedIdx} onSelect={executeCommand} />
+      )}
+
+      {showToolbar && !isMobile && (
+        <div className="flex items-center gap-0.5 border-b border-white/5 px-2 py-1">
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('**', '**')} className="rounded p-1 text-xs font-bold text-gray-400 transition hover:bg-white/10 hover:text-white" title="Bold (Ctrl+B)">B</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('*', '*')} className="rounded p-1 text-xs italic text-gray-400 transition hover:bg-white/10 hover:text-white" title="Italic (Ctrl+I)">I</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('~~', '~~')} className="rounded p-1 text-xs text-gray-400 line-through transition hover:bg-white/10 hover:text-white" title="Strikethrough">S</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('`', '`')} className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Inline code">{'\u{60}'}</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('```\n', '\n```')} className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Code block">{'\u{60}\u{60}\u{60}'}</button>
+        </div>
       )}
 
       <div className="flex items-end">
@@ -341,6 +380,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           disabled={disabled}
           enterKeyHint={isMobile ? 'send' : undefined}
           className="max-h-[240px] min-h-[44px] flex-1 resize-none bg-transparent py-3 text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
+          onFocus={() => setShowToolbar(true)}
+          onBlur={() => setShowToolbar(false)}
           onChange={(e) => {
             onChange(e.target.value)
             onTyping?.()
