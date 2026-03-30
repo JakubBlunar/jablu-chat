@@ -1,6 +1,7 @@
 import type { Channel, ChannelCategory, ServerEvent } from '@chat/shared'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useEventStore } from '@/stores/event.store'
 import { useFriendStore } from '@/stores/friend.store'
@@ -32,6 +33,17 @@ export function createServerHandlers() {
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId === currentServerId && payload.roleId) {
       useMemberStore.getState().updateMemberRole(payload.serverId, payload.userId, payload.roleId)
+      const myId = useAuthStore.getState().user?.id
+      if (payload.userId === myId) {
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
+      }
+    }
+  }
+
+  const onChannelPermissionsUpdated = (payload: { serverId: string }) => {
+    const currentServerId = useServerStore.getState().currentServerId
+    if (payload.serverId === currentServerId) {
+      void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
     }
   }
 
@@ -122,6 +134,7 @@ export function createServerHandlers() {
     onEventInterest,
     onMemberLeft,
     onMemberUpdated,
+    onChannelPermissionsUpdated,
     onChannelCreated,
     onChannelUpdated,
     onChannelDeleted,

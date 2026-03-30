@@ -17,7 +17,8 @@ function resetAllStores() {
     import('./voice-connection.store'),
     import('./layout.store'),
     import('./navigation.store'),
-    import('./event.store')
+    import('./event.store'),
+    import('./channel-permissions.store')
   ]).then(
     ([
       { useServerStore },
@@ -31,7 +32,8 @@ function resetAllStores() {
       { useVoiceConnectionStore },
       { useLayoutStore },
       { useNavigationStore },
-      { useEventStore }
+      { useEventStore },
+      { useChannelPermissionsStore }
     ]) => {
       useServerStore.setState({ servers: [], currentServerId: null, viewMode: 'server', isLoading: false })
       useChannelStore.setState({ channels: [], categories: [], currentChannelId: null, isLoading: false, loadedServerId: null })
@@ -56,6 +58,7 @@ function resetAllStores() {
       useLayoutStore.setState({ navDrawerOpen: false, memberDrawerOpen: false })
       useNavigationStore.setState({ isNavigating: false, navigatingToServerId: null, activeNavId: 0 })
       useEventStore.getState().reset()
+      useChannelPermissionsStore.getState().clear()
     }
   )
 }

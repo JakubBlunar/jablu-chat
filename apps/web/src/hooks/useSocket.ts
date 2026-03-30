@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -63,6 +64,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         if (currentServerId) {
           useChannelStore.getState().fetchChannels(currentServerId).catch(() => {})
           useMemberStore.getState().fetchMembers(currentServerId).catch(() => {})
+          useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId).catch(() => {})
         }
 
         if (useServerStore.getState().viewMode === 'dm') {
@@ -146,6 +148,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('event:interest', srv.onEventInterest)
     socket.on('member:left', srv.onMemberLeft)
     socket.on('member:updated', srv.onMemberUpdated)
+    socket.on('channel:permissions:updated', srv.onChannelPermissionsUpdated)
     socket.on('channel:created', srv.onChannelCreated)
     socket.on('channel:updated', srv.onChannelUpdated)
     socket.on('channel:deleted', srv.onChannelDeleted)
@@ -206,6 +209,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('event:interest', srv.onEventInterest)
       socket.off('member:left', srv.onMemberLeft)
       socket.off('member:updated', srv.onMemberUpdated)
+      socket.off('channel:permissions:updated', srv.onChannelPermissionsUpdated)
       socket.off('channel:created', srv.onChannelCreated)
       socket.off('channel:updated', srv.onChannelUpdated)
       socket.off('channel:deleted', srv.onChannelDeleted)

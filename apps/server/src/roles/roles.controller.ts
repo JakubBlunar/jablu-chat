@@ -77,6 +77,17 @@ export class RolesController {
     return this.roles.assignRole(serverId, targetUserId, body.roleId, user.id)
   }
 
+  @Get('servers/:serverId/channels/permissions/me')
+  async getAllMyChannelPermissions(
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    const map = await this.roles.getAllChannelPermissions(serverId, user.id)
+    const wire: Record<string, string> = {}
+    for (const [chId, perms] of Object.entries(map)) wire[chId] = perms.toString()
+    return wire
+  }
+
   @Get('servers/:serverId/channels/:channelId/permissions/me')
   async getMyChannelPermissions(
     @Param('serverId', ParseUUIDPipe) serverId: string,

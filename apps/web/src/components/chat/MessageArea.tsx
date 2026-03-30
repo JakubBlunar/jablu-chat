@@ -16,12 +16,13 @@ import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
 import { formatDateSeparator, isDifferentDay } from '@/lib/format-time'
 import { useAuthStore } from '@/stores/auth.store'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
-import { Permission as SharedPermission, permsToBigInt, hasPermission as hasPermFlag } from '@chat/shared'
+import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@chat/shared'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
@@ -177,24 +178,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     })
   }, [])
 
-  const [canSend, setCanSend] = useState(true)
-  const currentServerId = useServerStore((s) => s.currentServerId)
-  useEffect(() => {
-    if (isDm || !contextId || !currentServerId) {
-      setCanSend(true)
-      return
-    }
-    let cancelled = false
-    api.getMyChannelPermissions(currentServerId, contextId).then((res) => {
-      if (!cancelled) {
-        const perms = permsToBigInt(res.permissions)
-        setCanSend(hasPermFlag(perms, SharedPermission.SEND_MESSAGES))
-      }
-    }).catch(() => {
-      if (!cancelled) setCanSend(true)
-    })
-    return () => { cancelled = true }
-  }, [isDm, contextId, currentServerId])
+  const channelPerms = useChannelPermissionsStore(
+    (s) => contextId ? s.permissionsMap[contextId] ?? null : null
+  )
+  const canSend = isDm || channelPerms === null
+    ? true
+    : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')

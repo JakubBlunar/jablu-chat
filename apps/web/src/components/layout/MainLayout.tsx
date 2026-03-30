@@ -16,6 +16,7 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -185,6 +186,7 @@ export function MainLayout() {
           navigate('/channels/@me', { replace: true })
         })
         void fetchMembers(currentServerId)
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId)
       }
     }
   }, [viewMode, currentServerId, fetchChannels, fetchMembers, navigate])
