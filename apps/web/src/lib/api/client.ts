@@ -38,6 +38,7 @@ export class ApiClient {
   baseUrl = ''
   onAuthFailure: (() => void) | null = null
   onTokenRefresh: ((accessToken: string, refreshToken: string) => void) | null = null
+  onApiError: ((error: ApiError) => void) | null = null
   private refreshPromise: Promise<AuthResponse> | null = null
 
   private async tryRefreshToken(): Promise<AuthResponse | null> {
@@ -128,7 +129,9 @@ export class ApiClient {
           /* ignore */
         }
       }
-      throw new ApiError(message, res.status, errBody)
+      const apiError = new ApiError(message, res.status, errBody)
+      if (res.status !== 401) this.onApiError?.(apiError)
+      throw apiError
     }
 
     if (res.status === 204 || res.headers.get('content-length') === '0') {
@@ -215,6 +218,18 @@ export class ApiClient {
     }[]
   }> {
     return this.get(`/api/users/${userId}/mutual-servers`)
+  }
+
+  getMutualFriends(userId: string): Promise<{
+    friends: {
+      id: string
+      username: string
+      displayName: string | null
+      avatarUrl: string | null
+      status: string
+    }[]
+  }> {
+    return this.get(`/api/users/${userId}/mutual-friends`)
   }
 
   getFriends(): Promise<import('@chat/shared').Friend[]> {

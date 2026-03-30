@@ -131,6 +131,14 @@ type MutualServer = {
   iconUrl: string | null
 }
 
+type MutualFriend = {
+  id: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  status: string
+}
+
 function ProfileCardContent({
   user,
   badge,
@@ -142,6 +150,7 @@ function ProfileCardContent({
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id)
   const [mutualServers, setMutualServers] = useState<MutualServer[]>([])
+  const [mutualFriends, setMutualFriends] = useState<MutualFriend[]>([])
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatusResponse | null>(null)
   const { orchestratedGoToChannel } = useAppNavigate()
 
@@ -152,6 +161,12 @@ function ProfileCardContent({
       .getMutualServers(user.id)
       .then((res) => {
         if (!cancelled) setMutualServers(res.servers)
+      })
+      .catch(() => {})
+    api
+      .getMutualFriends(user.id)
+      .then((res) => {
+        if (!cancelled) setMutualFriends(res.friends)
       })
       .catch(() => {})
     api
@@ -212,6 +227,25 @@ function ProfileCardContent({
           <div className="mb-3">
             <p className="mb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">MEMBER SINCE</p>
             <p className="text-sm text-gray-200">{formatDate(user.joinedAt)}</p>
+          </div>
+        )}
+
+        {mutualFriends.length > 0 && (
+          <div className="mb-3">
+            <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">
+              MUTUAL FRIENDS — {mutualFriends.length}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {mutualFriends.slice(0, 8).map((f) => (
+                <div key={f.id} className="flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-1" title={f.displayName ?? f.username}>
+                  <UserAvatar username={f.username} avatarUrl={f.avatarUrl} size="sm" />
+                  <span className="max-w-[80px] truncate text-xs text-gray-300">{f.displayName ?? f.username}</span>
+                </div>
+              ))}
+              {mutualFriends.length > 8 && (
+                <span className="flex items-center px-1.5 text-xs text-gray-500">+{mutualFriends.length - 8} more</span>
+              )}
+            </div>
           </div>
         )}
 

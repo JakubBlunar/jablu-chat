@@ -8,6 +8,7 @@ import { ServerUrlScreen, getStoredServerUrl } from './components/settings/Serve
 import { UpdateBanner } from './components/UpdateBanner'
 import { isElectron } from './lib/electron'
 import { api } from './lib/api'
+import { showToast } from './stores/toast.store'
 import { migrateSettings } from './lib/deviceSettings'
 import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
 import { LoginPage } from './pages/LoginPage'
@@ -53,9 +54,13 @@ function AuthBootstrap() {
     api.onTokenRefresh = (accessToken, refreshToken) => {
       useAuthStore.setState({ accessToken, refreshToken })
     }
+    api.onApiError = (err) => {
+      showToast('Error', err.message)
+    }
     return () => {
       api.onAuthFailure = null
       api.onTokenRefresh = null
+      api.onApiError = null
     }
   }, [])
 
