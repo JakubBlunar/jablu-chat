@@ -18,7 +18,7 @@ export type PermissionFlag = (typeof Permission)[keyof typeof Permission]
 export const ALL_PERMISSIONS = Object.values(Permission).reduce((a, b) => a | b, 0n)
 
 export const DEFAULT_EVERYONE_PERMISSIONS =
-  Permission.SEND_MESSAGES | Permission.MENTION_EVERYONE
+  Permission.SEND_MESSAGES
 
 export const DEFAULT_OWNER_PERMISSIONS = ALL_PERMISSIONS
 

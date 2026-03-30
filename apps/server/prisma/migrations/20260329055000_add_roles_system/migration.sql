@@ -39,8 +39,9 @@ ALTER TABLE "channel_permission_overrides" ADD CONSTRAINT "channel_permission_ov
 ALTER TABLE "channel_permission_overrides" ADD CONSTRAINT "channel_permission_overrides_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "server_roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Seed a default "@everyone" role for every existing server
+-- 64 = SEND_MESSAGES only (MENTION_EVERYONE is admin-only)
 INSERT INTO "server_roles" ("id", "server_id", "name", "permissions", "is_default", "position")
-SELECT gen_random_uuid(), "id", '@everyone', 0, true, 0
+SELECT gen_random_uuid(), "id", '@everyone', 64, true, 0
 FROM "servers";
 
 -- Seed an "admin" role for every existing server (full permissions = all bits set)
