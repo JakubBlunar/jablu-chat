@@ -33,6 +33,10 @@ const sanitizeSchema = {
     p: ['className', 'class'],
     strong: ['className', 'class'],
     em: ['className', 'class']
+  },
+  protocols: {
+    ...defaultSchema.protocols,
+    href: [...(defaultSchema.protocols?.href ?? []), 'mention', 'channel']
   }
 }
 

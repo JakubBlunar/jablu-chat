@@ -1,5 +1,6 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
@@ -559,12 +560,16 @@ function DmDeleteConfirmPopover({
   onCancel: () => void
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
-  const [above, setAbove] = useState(true)
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
 
   useEffect(() => {
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect()
-      setAbove(rect.top > 200)
+      const above = rect.top > 200
+      setPos({
+        right: window.innerWidth - rect.right,
+        ...(above ? { bottom: window.innerHeight - rect.top + 8 } : { top: rect.bottom + 8 })
+      })
     }
   }, [anchorRef])
 
@@ -585,10 +590,13 @@ function DmDeleteConfirmPopover({
     }
   }, [onCancel])
 
-  return (
+  if (!pos) return null
+
+  return createPortal(
     <div
       ref={popoverRef}
-      className={`absolute right-0 z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10 ${above ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+      className="fixed z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10"
+      style={pos}
     >
       <p className="text-sm font-semibold text-white">Delete Message</p>
       <p className="mt-1 text-xs text-gray-400">Are you sure? This cannot be undone.</p>
@@ -600,7 +608,8 @@ function DmDeleteConfirmPopover({
           Delete
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
