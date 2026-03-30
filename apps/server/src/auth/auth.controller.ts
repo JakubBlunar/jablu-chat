@@ -42,7 +42,7 @@ function extractIp(req: Request): string {
 }
 
 const AVATAR_MAX_SIZE = 8 * 1024 * 1024 // 8 MB
-const AVATAR_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const AVATAR_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
 
 @Controller('auth')
 export class AuthController {

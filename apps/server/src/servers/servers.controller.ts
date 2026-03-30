@@ -20,7 +20,7 @@ import { CurrentUser } from '../auth/current-user.decorator'
 import { UpdateMemberRoleDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
-const IMAGE_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const IMAGE_MIMETYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']
 
 @Controller('servers')
 @UseGuards(AuthGuard('jwt'))
