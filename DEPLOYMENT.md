@@ -1,19 +1,17 @@
-# Jablu Deployment Guide — VPS
+# Jablu Deployment Guide
 
-## Recommended Plan
+## Recommended VPS Specs
 
-**VPS (4 vCPU, 8 GB RAM)** (~$7-10/mo)
+Any VPS provider (Hetzner, Contabo, DigitalOcean, Linode, etc.) with these minimum specs will work:
 
-| Spec    | Value                                           |
-| ------- | ----------------------------------------------- |
-| vCPU    | 4 cores                                         |
-| RAM     | 8 GB                                            |
-| Storage | 200 GB NVMe                                     |
-| Traffic | 32 TB/month (unlimited inbound)                 |
-| OS      | Ubuntu 22.04 or 24.04 LTS                       |
-| Region  | EU (Nuremberg/Munich) or US (St. Louis/Seattle) |
+| Spec    | Minimum                |
+| ------- | ---------------------- |
+| vCPU    | 2+ cores               |
+| RAM     | 4+ GB                  |
+| Storage | 40+ GB SSD/NVMe        |
+| OS      | Ubuntu 22.04 or 24.04  |
 
-This comfortably handles all services for under 20 concurrent users, including voice/video calls.
+For 20+ concurrent users with voice/video, 4 cores and 8 GB RAM is recommended.
 
 ## Services Running on the VPS
 
@@ -61,12 +59,12 @@ On the **VPS**:
 
 ---
 
-## Step 1: Order the VPS
+## Step 1: Provision a VPS
 
-1. Go to [contabo.com](https://contabo.com) and order a **VPS S** (or higher)
+1. Order a VPS from your preferred provider (Hetzner, Contabo, DigitalOcean, etc.)
 2. Select **Ubuntu 22.04** or **24.04 LTS** as the OS
 3. Choose the region closest to your community
-4. Note the **public IP address** from your order confirmation email
+4. Note the **public IP address** from your provider's dashboard
 
 ## Step 2: Initial Server Setup
 
@@ -160,8 +158,8 @@ ufw allow 50000:50100/udp  # LiveKit media ports
 ufw enable
 ```
 
-Your provider's default firewall policy allows all traffic, but verify in their control panel
-under **Firewall Configuration** that inbound UDP is not blocked.
+Some providers block UDP by default. Check your provider's firewall/security group
+settings to ensure inbound UDP is not blocked.
 
 ## Step 5: Deploy
 
@@ -439,7 +437,7 @@ ufw status
 # Ensure 7882/udp and 50000:50100/udp are ALLOW
 ```
 
-Also check that Your provider's firewall allows UDP inbound.
+Also check that your provider's firewall/security group allows UDP inbound.
 
 ### Database connection errors
 
@@ -521,7 +519,8 @@ Internet
    │              │              │
    ▼              ▼              ▼
  Jablu        Website A      Website B
- chat.example.com  example.com     other.com
+ chat.example  example.com  other.com
+  .com
 ```
 
 ### Step 1: Initial VPS Setup
@@ -550,8 +549,8 @@ su - jablu
 
 In your domain registrar's DNS settings, add **A records** pointing to the VPS IP:
 
-| Type | Name          | Value                                      |
-| ---- | ------------- | ------------------------------------------ |
+| Type | Name               | Value                                      |
+| ---- | ------------------ | ------------------------------------------ |
 | A    | `chat.example.com` | `YOUR_VPS_IP`                              |
 | A    | `example.com`      | `YOUR_VPS_IP` (optional, for landing page) |
 
@@ -699,7 +698,7 @@ SMTP_HOST=smtp.mailgun.org
 SMTP_PORT=587
 SMTP_USER=postmaster@mg.example.com
 SMTP_PASS=your-mailgun-password
-SMTP_FROM=aaa@example.com
+SMTP_FROM=noreply@example.com
 
 # Security
 REGISTRATION_MODE=invite
@@ -721,7 +720,7 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 This uses the `docker-compose.traefik.yml` override which:
 
 - Removes ports 80/443 from Jablu's nginx (Traefik owns those)
-- Adds Traefik routing labels for `chat.example.com`
+- Adds Traefik routing labels for your domain
 - Connects to the shared `web` network
 - Applies a Traefik `rateLimit` middleware to `/api/admin` routes (10 req/s average, burst 20) to protect the admin panel from brute-force attacks at the edge — before traffic reaches Nginx or Node.js
 
@@ -751,8 +750,8 @@ your first server + invite codes.
 To add another site (e.g. a landing page at `example.com`), create its own directory:
 
 ```bash
-mkdir -p /opt/jablu-website
-cd /opt/jablu-website
+mkdir -p /opt/my-website
+cd /opt/my-website
 ```
 
 Create a `docker-compose.yml` with Traefik labels:
@@ -810,7 +809,7 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 
 | Item                              | Cost                 |
 | --------------------------------- | -------------------- |
-| VPS (4 vCPU, 8 GB RAM)                     | ~$7-10/mo            |
+| VPS (4 vCPU, 8 GB RAM)            | ~$7-15/mo            |
 | Domain (optional)                 | ~$1/mo ($10-15/year) |
 | Email sending (Mailgun free tier) | $0                   |
 | **Total**                         | **~$7-11/mo**        |
