@@ -288,12 +288,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           } else if (popupMode === 'channel' && filteredChannels[selectedIdx]) {
             insertChannel(filteredChannels[selectedIdx])
           } else if (popupMode === 'command' && filteredCommands[selectedIdx]) {
-            if (e.key === 'Tab') {
-              executeCommand(filteredCommands[selectedIdx])
-            } else {
-              setPopupMode('none')
-              if (value.length <= MAX_MESSAGE_LENGTH) onSend()
-            }
+            executeCommand(filteredCommands[selectedIdx])
           }
           return
         }
