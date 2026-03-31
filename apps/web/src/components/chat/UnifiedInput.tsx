@@ -24,6 +24,21 @@ function XIcon() {
   )
 }
 
+const TEXT_COMMANDS: Record<string, (rest: string) => string> = {
+  shrug: (rest) => `${rest} ¯\\_(ツ)_/¯`.trim(),
+  tableflip: (rest) => `${rest} (╯°□°)╯︵ ┻━┻`.trim(),
+  unflip: (rest) => `${rest} ┬─┬ ノ( ゜-゜ノ)`.trim(),
+  lenny: (rest) => `${rest} ( ͡° ͜ʖ ͡°)`.trim(),
+  spoiler: (rest) => rest ? `||${rest}||` : '',
+  me: (rest) => rest ? `*${rest}*` : '',
+}
+
+function resolveTextCommand(cmd: string, rest: string): string | null {
+  const handler = TEXT_COMMANDS[cmd]
+  if (!handler) return null
+  return handler(rest) || null
+}
+
 type PendingFile = {
   file: File
   preview: string | null
@@ -52,7 +67,7 @@ export function UnifiedInput({
   channels?: MentionChannel[]
   gifEnabled?: boolean
   placeholder: string
-  onCommand?: (command: string) => void
+  onCommand?: (command: string, args?: string) => void
   threadParentId?: string
 }) {
   const isDm = mode === 'dm'
@@ -170,13 +185,19 @@ export function UnifiedInput({
   }
 
   async function send() {
-    const content = value.trim()
+    let content = value.trim()
 
     if (content.startsWith('/') && onCommand) {
-      const cmd = content.slice(1).split(/\s/)[0]
-      if (cmd) {
+      const parts = content.slice(1).split(/\s(.*)/)
+      const cmd = parts[0]?.toLowerCase()
+      const rest = parts[1]?.trim() ?? ''
+
+      const textResult = resolveTextCommand(cmd, rest)
+      if (textResult !== null) {
+        content = textResult
+      } else if (cmd) {
         setValue('')
-        onCommand(cmd)
+        onCommand(cmd, rest)
         return
       }
     }

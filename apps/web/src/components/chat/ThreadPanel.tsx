@@ -10,7 +10,7 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { useThreadStore } from '@/stores/thread.store'
 import { IconButton, Spinner } from '@/components/ui'
 
-export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string) => void }) {
+export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => void }) {
   const { isOpen, parentMessage, channelId, messages, isLoading, hasMore, closeThread, fetchMore } =
     useThreadStore()
 

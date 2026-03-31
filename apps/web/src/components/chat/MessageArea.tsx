@@ -198,6 +198,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showPollCreator, setShowPollCreator] = useState(false)
+  const [commandToast, setCommandToast] = useState<string | null>(null)
   const [savedOpen, setSavedOpen] = useState(false)
   const [channelSheetOpen, setChannelSheetOpen] = useState(false)
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
@@ -243,6 +244,29 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     }
     return items
   }, [messages, lastOwnMsg?.id])
+
+  const handleNick = useCallback(async (args?: string) => {
+    const name = args?.trim()
+    if (!name) {
+      setCommandToast('Usage: /nick <display name>')
+      setTimeout(() => setCommandToast(null), 3000)
+      return
+    }
+    if (name.length < 5 || name.length > 20) {
+      setCommandToast('Display name must be 5–20 characters')
+      setTimeout(() => setCommandToast(null), 3000)
+      return
+    }
+    try {
+      const updated = await api.updateProfile({ displayName: name })
+      useAuthStore.getState().setUser(updated)
+      useMemberStore.getState().updateUserProfile(updated.id, { displayName: updated.displayName })
+      setCommandToast(`Display name changed to "${name}"`)
+    } catch {
+      setCommandToast('Failed to change display name')
+    }
+    setTimeout(() => setCommandToast(null), 3000)
+  }, [])
 
   /* ── Empty states ── */
   if (!contextId) {
@@ -470,14 +494,22 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                     : `Message #${activeChannel.name}`
                   : 'Message'
             }
-            onCommand={!isDm ? (cmd) => {
+            onCommand={!isDm ? (cmd, args) => {
               if (cmd === 'poll') setShowPollCreator(true)
+              else if (cmd === 'nick') handleNick(args)
             } : undefined}
           />
         </>
       )}
 
       {cardUser && <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />}
+      {commandToast && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-20 z-50 flex justify-center">
+          <div className="pointer-events-auto rounded-lg bg-surface-darkest px-4 py-2 text-sm text-gray-200 shadow-lg ring-1 ring-white/10">
+            {commandToast}
+          </div>
+        </div>
+      )}
     </>
   )
 
@@ -722,7 +754,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           <>
             <ThreadPanel
               gifEnabled={gifEnabled}
-              onCommand={!isDm ? (cmd) => { if (cmd === 'poll') setShowPollCreator(true) } : undefined}
+              onCommand={!isDm ? (cmd, args) => { if (cmd === 'poll') setShowPollCreator(true); else if (cmd === 'nick') handleNick(args) } : undefined}
             />
             {!threadOpen && memberSidebar}
           </>
