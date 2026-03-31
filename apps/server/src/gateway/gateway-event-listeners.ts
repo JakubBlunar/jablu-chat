@@ -201,12 +201,28 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
   })
 
-  gw.events.on('member:updated', (payload: { serverId: string; userId: string; roleId?: string; mutedUntil?: string | null }) => {
+  gw.events.on('member:updated', (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: unknown[]; mutedUntil?: string | null; onboardingCompleted?: boolean }) => {
     gw.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
   })
 
   gw.events.on('channel:permissions:updated', (payload: { serverId: string; channelId: string; roleId: string }) => {
     gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
+  })
+
+  gw.events.on('role:created', (payload: { serverId: string; role: unknown }) => {
+    gw.server.to(`server:${payload.serverId}`).emit('role:created', payload)
+  })
+
+  gw.events.on('role:updated', (payload: { serverId: string; role: unknown }) => {
+    gw.server.to(`server:${payload.serverId}`).emit('role:updated', payload)
+  })
+
+  gw.events.on('role:deleted', (payload: { serverId: string; roleId: string }) => {
+    gw.server.to(`server:${payload.serverId}`).emit('role:deleted', payload)
+  })
+
+  gw.events.on('roles:reordered', (payload: { serverId: string; roles: unknown[] }) => {
+    gw.server.to(`server:${payload.serverId}`).emit('roles:reordered', payload)
   })
 
   gw.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {

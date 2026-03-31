@@ -307,38 +307,6 @@ describe('RolesService', () => {
     })
   })
 
-  describe('assignRole', () => {
-    beforeEach(() => {
-      prisma.server.findUnique.mockResolvedValue({ ownerId })
-    })
-
-    it('assigns role to member', async () => {
-      prisma.role.findFirst.mockResolvedValue({ id: 'role-1', serverId })
-      prisma.serverMember.findUnique.mockResolvedValue({ userId, serverId })
-      prisma.serverMember.update.mockResolvedValue({ userId, serverId, roleId: 'role-1' })
-
-      const result = await service.assignRole(serverId, userId, 'role-1', ownerId)
-      expect(prisma.serverMember.update).toHaveBeenCalled()
-    })
-
-    it('throws NotFoundException when role not found', async () => {
-      prisma.role.findFirst.mockResolvedValue(null)
-
-      await expect(
-        service.assignRole(serverId, userId, 'missing-role', ownerId),
-      ).rejects.toThrow(NotFoundException)
-    })
-
-    it('throws NotFoundException when member not found', async () => {
-      prisma.role.findFirst.mockResolvedValue({ id: 'role-1', serverId })
-      prisma.serverMember.findUnique.mockResolvedValue(null)
-
-      await expect(
-        service.assignRole(serverId, 'nonmember', 'role-1', ownerId),
-      ).rejects.toThrow(NotFoundException)
-    })
-  })
-
   describe('reorderRoles', () => {
     beforeEach(() => {
       prisma.server.findUnique.mockResolvedValue({ ownerId })

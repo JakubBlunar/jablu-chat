@@ -33,9 +33,11 @@ import { AdminTokenStore } from './admin-token-store'
 import {
   AdminAddServerMemberDto,
   AdminCreateInviteDto,
+  AdminCreateRoleDto,
   AdminCreateServerDto,
   AdminLoginDto,
-  AdminUpdateMemberRoleDto,
+  AdminUpdateMemberRolesDto,
+  AdminUpdateRoleDto,
   AdminUpdateUserDto
 } from './dto'
 
@@ -147,6 +149,9 @@ export class AdminController {
     })
     const { ownerRoleId } = await this.roles.createDefaultRoles(server.id, dto.ownerUserId)
     await this.prisma.serverMember.create({
+      data: { userId: dto.ownerUserId, serverId: server.id }
+    })
+    await this.prisma.serverMemberRole.create({
       data: { userId: dto.ownerUserId, serverId: server.id, roleId: ownerRoleId }
     })
     return this.prisma.server.findUnique({
@@ -177,7 +182,7 @@ export class AdminController {
         user: {
           select: { id: true, username: true, email: true, avatarUrl: true }
         },
-        role: true
+        roles: { include: { role: true } }
       },
       orderBy: { joinedAt: 'asc' }
     })
@@ -199,14 +204,13 @@ export class AdminController {
     })
     if (existing) throw new BadRequestException('User is already a member')
 
-    const defaultRoleId = await this.roles.getDefaultRoleId(id)
     const member = await this.prisma.serverMember.create({
-      data: { userId: dto.userId, serverId: id, roleId: defaultRoleId },
+      data: { userId: dto.userId, serverId: id },
       include: {
         user: {
           select: { id: true, username: true, displayName: true, email: true, avatarUrl: true, bio: true, status: true }
         },
-        role: true
+        roles: { include: { role: true } }
       }
     })
     this.events.emit('member:joined', { serverId: id, member })
@@ -235,12 +239,12 @@ export class AdminController {
     this.events.emit('member:removed', { serverId: id, userId })
   }
 
-  @Patch('servers/:id/members/:userId/role')
+  @Patch('servers/:id/members/:userId/roles')
   @UseGuards(AdminAuthGuard)
-  async updateMemberRole(
+  async updateMemberRoles(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
-    @Body() dto: AdminUpdateMemberRoleDto
+    @Body() dto: AdminUpdateMemberRolesDto
   ) {
     const server = await this.prisma.server.findUnique({ where: { id } })
     if (!server) throw new NotFoundException('Server not found')
@@ -250,30 +254,144 @@ export class AdminController {
     })
     if (!member) throw new NotFoundException('Member not found')
 
-    const role = await this.prisma.role.findFirst({
-      where: { id: dto.roleId, serverId: id }
+    const validRoles = await this.prisma.role.findMany({
+      where: { id: { in: dto.roleIds }, serverId: id, isDefault: false }
     })
-    if (!role) throw new BadRequestException('Role not found in this server')
+    if (validRoles.length !== dto.roleIds.length) {
+      throw new BadRequestException('Some roles not found in this server')
+    }
 
-    await this.prisma.serverMember.update({
-      where: { userId_serverId: { userId, serverId: id } },
-      data: { roleId: dto.roleId }
+    await this.prisma.$transaction([
+      this.prisma.serverMemberRole.deleteMany({ where: { userId, serverId: id } }),
+      ...dto.roleIds.map((roleId) =>
+        this.prisma.serverMemberRole.create({ data: { userId, serverId: id, roleId } })
+      )
+    ])
+
+    const memberRoles = await this.roles.loadMemberRolesWire(id, userId)
+    this.events.emit('member:updated', {
+      serverId: id,
+      userId,
+      roleIds: memberRoles.map((r) => r.id),
+      roles: memberRoles
     })
 
     const members = await this.prisma.serverMember.findMany({
       where: { serverId: id },
       include: {
-        user: {
-          select: { id: true, username: true, email: true, avatarUrl: true }
-        },
-        role: true
+        user: { select: { id: true, username: true, email: true, avatarUrl: true } },
+        roles: { include: { role: true } }
       },
       orderBy: { joinedAt: 'asc' }
     })
 
-    this.events.emit('member:updated', { serverId: id, userId, roleId: dto.roleId })
-
     return { members, owner: server }
+  }
+
+  // ─── Server Roles (Admin CRUD) ─────────────────────────────
+
+  @Get('servers/:id/roles')
+  @UseGuards(AdminAuthGuard)
+  async listServerRoles(@Param('id', ParseUUIDPipe) id: string) {
+    const server = await this.prisma.server.findUnique({ where: { id } })
+    if (!server) throw new NotFoundException('Server not found')
+    return this.roles.getRoles(id)
+  }
+
+  @Post('servers/:id/roles')
+  @UseGuards(AdminAuthGuard)
+  async createServerRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminCreateRoleDto
+  ) {
+    const server = await this.prisma.server.findUnique({ where: { id } })
+    if (!server) throw new NotFoundException('Server not found')
+
+    const maxPos = await this.prisma.role.aggregate({
+      where: { serverId: id },
+      _max: { position: true }
+    })
+    const position = (maxPos._max.position ?? 0) + 1
+
+    const role = await this.prisma.role.create({
+      data: {
+        serverId: id,
+        name: dto.name,
+        color: dto.color ?? null,
+        position,
+        permissions: dto.permissions ? BigInt(dto.permissions) : 0n
+      }
+    })
+    const wire = this.roles.mapToWire(role)
+    this.events.emit('role:created', { serverId: id, role: wire })
+    return wire
+  }
+
+  @Patch('servers/:id/roles/:roleId')
+  @UseGuards(AdminAuthGuard)
+  async updateServerRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('roleId', ParseUUIDPipe) roleId: string,
+    @Body() dto: AdminUpdateRoleDto
+  ) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, serverId: id } })
+    if (!role) throw new NotFoundException('Role not found')
+
+    const updated = await this.prisma.role.update({
+      where: { id: roleId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.color !== undefined && { color: dto.color }),
+        ...(dto.permissions !== undefined && { permissions: BigInt(dto.permissions) }),
+        ...(dto.position !== undefined && { position: dto.position }),
+        ...(dto.selfAssignable !== undefined && { selfAssignable: dto.selfAssignable }),
+        ...(dto.isAdmin !== undefined && { isAdmin: dto.isAdmin })
+      }
+    })
+    const wire = this.roles.mapToWire(updated)
+    this.events.emit('role:updated', { serverId: id, role: wire })
+    return wire
+  }
+
+  @Delete('servers/:id/roles/:roleId')
+  @UseGuards(AdminAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteServerRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('roleId', ParseUUIDPipe) roleId: string
+  ) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, serverId: id } })
+    if (!role) throw new NotFoundException('Role not found')
+    if (role.isDefault) throw new BadRequestException('Cannot delete the default role')
+
+    await this.prisma.$transaction([
+      this.prisma.serverMemberRole.deleteMany({ where: { serverId: id, roleId } }),
+      this.prisma.role.delete({ where: { id: roleId } })
+    ])
+    this.events.emit('role:deleted', { serverId: id, roleId })
+  }
+
+  @Patch('servers/:id/roles/reorder')
+  @UseGuards(AdminAuthGuard)
+  async reorderServerRoles(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { roleIds: string[] }
+  ) {
+    const roles = await this.prisma.role.findMany({
+      where: { id: { in: body.roleIds }, serverId: id },
+      select: { id: true }
+    })
+    if (roles.length !== body.roleIds.length) {
+      throw new BadRequestException('Some role IDs do not belong to this server')
+    }
+    await this.prisma.$transaction(
+      body.roleIds.map((rid, i) =>
+        this.prisma.role.update({ where: { id: rid }, data: { position: body.roleIds.length - i } })
+      )
+    )
+    const updatedRoles = await this.roles.getRoles(id)
+    this.events.emit('roles:reordered', { serverId: id, roles: updatedRoles })
+    return updatedRoles
   }
 
   // ─── Users ─────────────────────────────────────────────────

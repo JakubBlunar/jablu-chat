@@ -1,4 +1,4 @@
-import type { Channel, ChannelCategory, ServerEvent } from '@chat/shared'
+import type { Channel, ChannelCategory, Role, ServerEvent } from '@chat/shared'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
@@ -29,11 +29,11 @@ export function createServerHandlers() {
     }
   }
 
-  const onMemberUpdated = (payload: { serverId: string; userId: string; roleId?: string; mutedUntil?: string | null }) => {
+  const onMemberUpdated = (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: Role[]; mutedUntil?: string | null; onboardingCompleted?: boolean }) => {
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId !== currentServerId) return
-    if (payload.roleId) {
-      useMemberStore.getState().updateMemberRole(payload.serverId, payload.userId, payload.roleId)
+    if (payload.roleIds) {
+      useMemberStore.getState().updateMemberRoles(payload.serverId, payload.userId, payload.roleIds, payload.roles)
       const myId = useAuthStore.getState().user?.id
       if (payload.userId === myId) {
         void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
@@ -42,6 +42,44 @@ export function createServerHandlers() {
     if (payload.mutedUntil !== undefined) {
       useMemberStore.getState().updateMemberTimeout(payload.serverId, payload.userId, payload.mutedUntil ?? null)
     }
+    if (payload.onboardingCompleted !== undefined) {
+      useMemberStore.getState().updateMemberOnboarding(payload.serverId, payload.userId, payload.onboardingCompleted)
+    }
+  }
+
+  const onRoleCreated = (payload: { serverId: string; role: Role }) => {
+    const currentServerId = useServerStore.getState().currentServerId
+    if (payload.serverId === currentServerId) {
+      useServerStore.getState().updateServerInList(payload.serverId, {})
+    }
+  }
+
+  const onRoleUpdated = (payload: { serverId: string; role: Role }) => {
+    const currentServerId = useServerStore.getState().currentServerId
+    if (payload.serverId === currentServerId) {
+      useMemberStore.getState().updateRoleInMembers(payload.role)
+      const myId = useAuthStore.getState().user?.id
+      const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
+      if (member?.roleIds?.includes(payload.role.id)) {
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
+      }
+    }
+  }
+
+  const onRoleDeleted = (payload: { serverId: string; roleId: string }) => {
+    const currentServerId = useServerStore.getState().currentServerId
+    if (payload.serverId === currentServerId) {
+      useMemberStore.getState().removeRoleFromMembers(payload.serverId, payload.roleId)
+      const myId = useAuthStore.getState().user?.id
+      const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
+      if (member?.roleIds?.includes(payload.roleId)) {
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
+      }
+    }
+  }
+
+  const onRolesReordered = (_payload: { serverId: string; roles: Role[] }) => {
+    // Roles reorder doesn't affect permissions display directly
   }
 
   const onChannelPermissionsUpdated = (payload: { serverId: string }) => {
@@ -152,6 +190,10 @@ export function createServerHandlers() {
     onFriendAccepted,
     onFriendDeclined,
     onFriendCancelled,
-    onFriendRemoved
+    onFriendRemoved,
+    onRoleCreated,
+    onRoleUpdated,
+    onRoleDeleted,
+    onRolesReordered
   }
 }

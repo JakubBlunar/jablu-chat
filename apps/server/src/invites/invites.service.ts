@@ -119,9 +119,8 @@ export class InvitesService {
     })
     if (existing) throw new ConflictException('You are already a member of this server')
 
-    const defaultRoleId = await this.roles.getDefaultRoleId(server.id)
     const member = await this.prisma.serverMember.create({
-      data: { userId, serverId: server.id, roleId: defaultRoleId, onboardingCompleted: !server.onboardingEnabled },
+      data: { userId, serverId: server.id, onboardingCompleted: !server.onboardingEnabled },
       include: {
         user: { select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true } }
       }
@@ -164,14 +163,11 @@ export class InvitesService {
       throw new ConflictException('You are already a member of this server')
     }
 
-    const defaultRoleId = await this.roles.getDefaultRoleId(invite.serverId)
-
     await this.prisma.$transaction([
       this.prisma.serverMember.create({
         data: {
           userId,
           serverId: invite.serverId,
-          roleId: defaultRoleId,
           onboardingCompleted: !invite.server.onboardingEnabled
         }
       }),

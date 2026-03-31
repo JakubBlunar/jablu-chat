@@ -138,20 +138,31 @@ model Server {
 model ServerMember {
   userId     String      @map("user_id")
   serverId   String      @map("server_id")
-  roleId     String      @map("role_id")
   notifLevel NotifLevel? @map("notif_level")
   mutedUntil          DateTime?   @map("muted_until")
   onboardingCompleted Boolean     @default(true) @map("onboarding_completed")
   joinedAt            DateTime    @default(now()) @map("joined_at")
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  role   Role   @relation(fields: [roleId], references: [id])
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  server Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  roles  ServerMemberRole[]
 
   @@id([userId, serverId])
   @@index([serverId])
-  @@index([roleId])
   @@map("server_members")
+}
+
+model ServerMemberRole {
+  userId   String @map("user_id")
+  serverId String @map("server_id")
+  roleId   String @map("role_id")
+
+  member ServerMember @relation(fields: [userId, serverId], references: [userId, serverId], onDelete: Cascade)
+  role   Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, serverId, roleId])
+  @@index([roleId])
+  @@map("server_member_roles")
 }
 
 model ServerBan {
@@ -180,10 +191,11 @@ model Role {
   permissions    BigInt   @default(0)
   isDefault      Boolean  @default(false) @map("is_default")
   selfAssignable Boolean  @default(false) @map("self_assignable")
+  isAdmin        Boolean  @default(false) @map("is_admin")
   createdAt      DateTime @default(now()) @map("created_at")
 
   server           Server                    @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  members          ServerMember[]
+  memberRoles      ServerMemberRole[]
   channelOverrides ChannelPermissionOverride[]
 
   @@unique([serverId, name])

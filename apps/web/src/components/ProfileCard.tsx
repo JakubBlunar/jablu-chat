@@ -520,31 +520,44 @@ function SelfRolePicker({ userId }: { userId: string }) {
     s.members.find((m) => m.userId === userId && m.serverId === currentServerId)
   )
 
-  const [roles, setRoles] = useState<{ id: string; name: string; color: string | null }[]>([])
+  const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string; color: string | null }[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [changing, setChanging] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const isSelf = userId === currentUserId
   if (!isSelf || !currentServerId) return null
 
-  const currentRole = myMember?.role
+  const myRoles = (myMember?.roles ?? []).filter((r) => !r.isDefault)
 
   const handleOpen = () => {
     if (open) { setOpen(false); return }
     setOpen(true)
     setLoading(true)
+    const currentSelfIds = new Set(
+      myRoles.filter((r) => r.selfAssignable).map((r) => r.id)
+    )
+    setSelectedIds(currentSelfIds)
     api.getSelfAssignableRoles(currentServerId)
-      .then(setRoles)
-      .catch(() => setRoles([]))
+      .then(setAvailableRoles)
+      .catch(() => setAvailableRoles([]))
       .finally(() => setLoading(false))
   }
 
-  const handleSelect = async (roleId: string) => {
-    if (roleId === myMember?.roleId) { setOpen(false); return }
+  const toggleRole = (roleId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(roleId)) next.delete(roleId)
+      else next.add(roleId)
+      return next
+    })
+  }
+
+  const handleSave = async () => {
     setChanging(true)
     try {
-      await api.changeSelfRole(currentServerId, roleId)
+      await api.changeSelfRoles(currentServerId, Array.from(selectedIds))
       await useMemberStore.getState().fetchMembers(currentServerId)
       setOpen(false)
     } catch { /* ignore */ }
@@ -553,51 +566,79 @@ function SelfRolePicker({ userId }: { userId: string }) {
 
   return (
     <div className="mb-3">
-      <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">ROLE</p>
+      <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">ROLES</p>
+      {myRoles.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {myRoles.map((role) => (
+            <span
+              key={role.id}
+              className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ring-1"
+              style={{
+                color: role.color ?? '#99aab5',
+                borderColor: `${role.color ?? '#99aab5'}66`
+              }}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+              {role.name}
+            </span>
+          ))}
+        </div>
+      )}
       <button
         type="button"
         onClick={handleOpen}
         className="flex w-full items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-left text-sm transition hover:bg-white/10"
       >
-        {currentRole && !currentRole.isDefault ? (
-          <>
-            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: currentRole.color ?? '#99aab5' }} />
-            <span className="flex-1 truncate text-gray-200">{currentRole.name}</span>
-          </>
-        ) : (
-          <span className="flex-1 text-gray-500">No role selected</span>
-        )}
+        <span className="flex-1 text-gray-400 text-xs">Change Roles</span>
         <svg className={`h-3.5 w-3.5 shrink-0 text-gray-500 transition ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {open && (
-        <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-white/10 bg-surface-darkest">
-          {loading ? (
-            <p className="px-3 py-2 text-xs text-gray-500">Loading roles...</p>
-          ) : roles.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-500">No self-assignable roles available</p>
-          ) : (
-            roles.map((role) => (
+        <div className="mt-1 rounded-md border border-white/10 bg-surface-darkest">
+          <div className="max-h-40 overflow-y-auto">
+            {loading ? (
+              <p className="px-3 py-2 text-xs text-gray-500">Loading roles...</p>
+            ) : availableRoles.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-gray-500">No self-assignable roles available</p>
+            ) : (
+              availableRoles.map((role) => (
+                <button
+                  key={role.id}
+                  type="button"
+                  disabled={changing}
+                  onClick={() => toggleRole(role.id)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-white/5 disabled:opacity-50 ${
+                    selectedIds.has(role.id) ? 'bg-primary/10 text-white' : 'text-gray-300'
+                  }`}
+                >
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                    selectedIds.has(role.id) ? 'border-primary bg-primary' : 'border-gray-600'
+                  }`}>
+                    {selectedIds.has(role.id) && (
+                      <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+                  <span className="truncate">{role.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+          {availableRoles.length > 0 && (
+            <div className="border-t border-white/10 p-2">
               <button
-                key={role.id}
                 type="button"
                 disabled={changing}
-                onClick={() => void handleSelect(role.id)}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-white/5 disabled:opacity-50 ${
-                  role.id === myMember?.roleId ? 'bg-primary/10 text-white' : 'text-gray-300'
-                }`}
+                onClick={() => void handleSave()}
+                className="w-full rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
               >
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
-                <span className="truncate">{role.name}</span>
-                {role.id === myMember?.roleId && (
-                  <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
+                {changing ? 'Saving...' : 'Save'}
               </button>
-            ))
+            </div>
           )}
         </div>
       )}

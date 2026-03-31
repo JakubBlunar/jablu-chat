@@ -137,10 +137,23 @@ export type UserSession = {
 export type ServerMemberRow = {
   userId: string
   serverId: string
-  roleId: string
-  role?: { id: string; name: string; color: string | null; isDefault: boolean; permissions: string }
+  roleIds: string[]
+  roles?: { role: AdminRole }[]
   joinedAt: string
   user: { id: string; username: string; email: string; avatarUrl: string | null }
+}
+
+export type AdminRole = {
+  id: string
+  serverId: string
+  name: string
+  color: string | null
+  position: number
+  permissions: string
+  isDefault: boolean
+  selfAssignable: boolean
+  isAdmin: boolean
+  createdAt: string
 }
 
 export type DeletedStats = {

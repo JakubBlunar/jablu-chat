@@ -48,14 +48,17 @@ export function MembersTab({ server }: { server: Server }) {
 
   const [memberError, setMemberError] = useState<string | null>(null)
 
-  const handleRoleChange = useCallback(
+  const handleRoleToggle = useCallback(
     async (member: Member, roleId: string) => {
       setMemberError(null)
+      const current = new Set(member.roleIds ?? [])
+      if (current.has(roleId)) current.delete(roleId)
+      else current.add(roleId)
       try {
-        await api.assignRole(server.id, member.userId, roleId)
+        await api.assignRoles(server.id, member.userId, Array.from(current))
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to change role for ${member.user.displayName ?? member.user.username}`)
+        setMemberError(`Failed to change roles for ${member.user.displayName ?? member.user.username}`)
       }
     },
     [server.id, fetchMembers]
@@ -125,8 +128,9 @@ export function MembersTab({ server }: { server: Server }) {
         const presence: UserStatus = onlineIds.has(m.userId) ? ((m.user.status as UserStatus) ?? 'online') : 'offline'
         const isSelf = m.userId === currentUser?.id
         const isMemberOwner = m.userId === server.ownerId
-        const roleName = m.role?.name ?? '@everyone'
-        const roleColor = m.role?.color
+        const memberRoles = (m.roles ?? []).filter((r) => !r.isDefault)
+        const topRole = memberRoles.length > 0 ? memberRoles.reduce((a, b) => a.position > b.position ? a : b) : undefined
+        const roleColor = topRole?.color
         const isMuted = m.mutedUntil ? new Date(m.mutedUntil) > new Date() : false
         const timeLeft = isMuted && m.mutedUntil ? formatTimeLeft(m.mutedUntil) : ''
 
@@ -143,14 +147,16 @@ export function MembersTab({ server }: { server: Server }) {
               <span className="text-sm font-medium" style={roleColor ? { color: roleColor } : { color: 'white' }}>
                 {m.user.displayName ?? m.user.username}
               </span>
-              {!m.role?.isDefault && (
+              {memberRoles.map((r) => (
                 <span
-                  className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
-                  style={roleColor ? { color: roleColor, borderColor: `${roleColor}66` } : { color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
+                  key={r.id}
+                  className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
+                  style={r.color ? { color: r.color, borderColor: `${r.color}66` } : { color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
                 >
-                  {roleName}
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.color ?? 'var(--color-primary)' }} />
+                  {r.name}
                 </span>
-              )}
+              ))}
               {isMuted && (
                 <span className="ml-2 rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400">
                   Timed out {timeLeft && `· ${timeLeft}`}
@@ -161,15 +167,23 @@ export function MembersTab({ server }: { server: Server }) {
             {!isSelf && !isMemberOwner && (
               <div className="flex items-center gap-2">
                 {canManageRoles && roles.length > 0 && (
-                  <select
-                    value={m.roleId}
-                    onChange={(e) => handleRoleChange(m, e.target.value)}
-                    className="rounded border border-white/10 bg-surface-darkest px-2 py-1 text-xs text-white outline-none"
-                  >
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
+                  <div className="flex flex-wrap gap-1">
+                    {roles.filter((r) => !r.isDefault).map((r) => {
+                      const isActive = m.roleIds?.includes(r.id) ?? false
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => handleRoleToggle(m, r.id)}
+                          className={`rounded border px-2 py-0.5 text-[10px] font-medium transition ${
+                            isActive ? 'border-primary bg-primary/20 text-white' : 'border-white/10 text-gray-400 hover:bg-white/5'
+                          }`}
+                        >
+                          {r.name}
+                        </button>
+                      )
+                    })}
+                  </div>
                 )}
                 {canMute && (
                   isMuted ? (

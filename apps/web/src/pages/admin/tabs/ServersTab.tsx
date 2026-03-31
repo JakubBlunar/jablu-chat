@@ -200,15 +200,16 @@ function ServerMembersPanel({
     setLoading(true)
     setError('')
     try {
-      const data = await adminFetch<ServerMemberRow[]>(`/api/admin/servers/${server.id}/members`)
-      setMembers(data)
-      const uniqueRoles = new Map<string, { id: string; name: string; color: string | null; isDefault: boolean }>()
-      for (const m of data) {
-        if (m.role && !uniqueRoles.has(m.role.id)) {
-          uniqueRoles.set(m.role.id, { id: m.role.id, name: m.role.name, color: m.role.color, isDefault: m.role.isDefault })
-        }
-      }
-      setRoles(Array.from(uniqueRoles.values()))
+      const [membersData, rolesData] = await Promise.all([
+        adminFetch<ServerMemberRow[]>(`/api/admin/servers/${server.id}/members`),
+        adminFetch<{ id: string; name: string; color: string | null; isDefault: boolean }[]>(`/api/admin/servers/${server.id}/roles`)
+      ])
+      const normalized = membersData.map((m) => ({
+        ...m,
+        roleIds: m.roles?.map((r) => r.role.id) ?? [],
+      }))
+      setMembers(normalized)
+      setRoles(rolesData)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load members')
     } finally {
@@ -260,19 +261,28 @@ function ServerMembersPanel({
     }
   }
 
-  const handleRoleChange = async (userId: string, roleId: string) => {
+  const handleRoleToggle = async (userId: string, roleId: string) => {
     setUpdatingRoleId(userId)
     setError('')
+    const member = members.find((m) => m.userId === userId)
+    if (!member) return
+    const currentIds = new Set(member.roleIds ?? [])
+    if (currentIds.has(roleId)) currentIds.delete(roleId)
+    else currentIds.add(roleId)
     try {
       const result = await adminFetch<{
         members: ServerMemberRow[]
         owner: { id: string; username: string }
         ownerId: string
-      }>(`/api/admin/servers/${server.id}/members/${userId}/role`, { method: 'PATCH', body: { roleId } })
-      setMembers(result.members)
+      }>(`/api/admin/servers/${server.id}/members/${userId}/roles`, { method: 'PATCH', body: { roleIds: Array.from(currentIds) } })
+      const normalized = result.members.map((m) => ({
+        ...m,
+        roleIds: m.roles?.map((r) => r.role.id) ?? [],
+      }))
+      setMembers(normalized)
       if (result.owner) onServerUpdate({ ownerId: result.ownerId, owner: result.owner })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update role')
+      setError(e instanceof Error ? e.message : 'Failed to update roles')
     } finally {
       setUpdatingRoleId(null)
     }
@@ -331,17 +341,24 @@ function ServerMembersPanel({
                 <span className="text-sm font-medium text-white">{m.user.username}</span>
                 <span className="ml-2 text-xs text-gray-500">{m.user.email}</span>
               </div>
-              <select
-                value={m.roleId}
-                onChange={(e) => void handleRoleChange(m.userId, e.target.value)}
-                disabled={updatingRoleId === m.userId}
-                className="rounded-md bg-white/5 px-2 py-1 text-xs font-semibold outline-none disabled:opacity-50"
-                style={m.role?.color ? { color: m.role.color } : { color: '#9ca3af' }}
-              >
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-1">
+                {roles.filter((r) => !r.isDefault).map((r) => {
+                  const isActive = m.roleIds?.includes(r.id) ?? false
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => void handleRoleToggle(m.userId, r.id)}
+                      disabled={updatingRoleId === m.userId}
+                      className={`rounded border px-2 py-0.5 text-[10px] font-medium transition disabled:opacity-50 ${
+                        isActive ? 'border-primary bg-primary/20 text-white' : 'border-white/10 text-gray-400 hover:bg-white/5'
+                      }`}
+                    >
+                      {r.name}
+                    </button>
+                  )
+                })}
+              </div>
               {m.userId !== server.ownerId && (
                 <Button
                   type="button"

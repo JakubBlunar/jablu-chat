@@ -17,7 +17,7 @@ import {
 import { AuthGuard } from '@nestjs/passport'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CurrentUser } from '../auth/current-user.decorator'
-import { ChangeSelfRoleDto, CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRoleDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
+import { ChangeSelfRolesDto, CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRolesDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
 const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
@@ -116,14 +116,14 @@ export class ServersController {
     return this.servers.getMembers(id, user.id)
   }
 
-  @Patch(':id/members/:userId/role')
-  updateRole(
+  @Patch(':id/members/:userId/roles')
+  updateRoles(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) targetUserId: string,
     @CurrentUser() user: { id: string },
-    @Body() dto: UpdateMemberRoleDto
+    @Body() dto: UpdateMemberRolesDto
   ) {
-    return this.servers.updateMemberRole(id, user.id, targetUserId, dto.roleId)
+    return this.servers.updateMemberRoles(id, user.id, targetUserId, dto.roleIds)
   }
 
   @Delete(':id/members/:userId')
@@ -193,13 +193,13 @@ export class ServersController {
     return this.servers.getOnboardingWizardData(id, user.id)
   }
 
-  @Patch(':id/self-role')
-  changeSelfRole(
+  @Patch(':id/self-roles')
+  changeSelfRoles(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: { id: string },
-    @Body() dto: ChangeSelfRoleDto
+    @Body() dto: ChangeSelfRolesDto
   ) {
-    return this.servers.changeSelfRole(id, user.id, dto.roleId)
+    return this.servers.changeSelfRoles(id, user.id, dto.roleIds)
   }
 
   @Post(':id/onboarding/complete')
@@ -208,7 +208,7 @@ export class ServersController {
     @CurrentUser() user: { id: string },
     @Body() dto: CompleteOnboardingDto
   ) {
-    return this.servers.completeOnboarding(id, user.id, dto.roleId)
+    return this.servers.completeOnboarding(id, user.id, dto.roleIds)
   }
 
   @Post(':id/bans/:userId')
