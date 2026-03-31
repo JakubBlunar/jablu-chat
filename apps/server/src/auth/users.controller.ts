@@ -24,11 +24,6 @@ export class UsersController {
         id: true,
         name: true,
         iconUrl: true,
-        channels: {
-          where: { type: 'text' },
-          select: { id: true, name: true },
-          orderBy: { position: 'asc' }
-        }
       },
       orderBy: { name: 'asc' }
     })

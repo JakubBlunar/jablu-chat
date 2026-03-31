@@ -15,7 +15,11 @@ export class UpdatesController {
   @Get(':filename')
   serveUpdate(@Param('filename') filename: string, @Res() res: Response) {
     const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '')
-    const fullPath = join(this.updatesDir, safe)
+    const fullPath = resolve(join(this.updatesDir, safe))
+
+    if (!fullPath.startsWith(this.updatesDir)) {
+      return res.status(400).json({ message: 'Invalid filename' })
+    }
 
     if (!existsSync(fullPath)) {
       return res.status(404).json({ message: 'File not found' })

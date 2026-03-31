@@ -65,6 +65,7 @@ export class WebhooksController {
       }
     } catch (err) {
       if (err instanceof HttpException) throw err
+      throw new HttpException('Service temporarily unavailable', HttpStatus.SERVICE_UNAVAILABLE)
     }
     return this.webhooks.executeWebhook(token, dto.content, dto.username, dto.avatarUrl)
   }

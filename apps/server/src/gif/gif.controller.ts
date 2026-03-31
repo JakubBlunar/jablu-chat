@@ -66,6 +66,7 @@ export class GifController {
       }
     } catch (err) {
       if (err instanceof HttpException) throw err
+      throw new HttpException('Service temporarily unavailable', HttpStatus.SERVICE_UNAVAILABLE)
     }
   }
 

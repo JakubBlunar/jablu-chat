@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { IsEnum } from 'class-validator'
 import { NotifLevel } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
+import { RolesService } from '../roles/roles.service'
 
 class SetNotifPrefDto {
   @IsEnum(NotifLevel)
@@ -77,24 +79,18 @@ export class ServerNotifPrefsController {
 export class NotifPrefsController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    private readonly roles: RolesService
   ) {}
 
-  private async requireChannelMembership(channelId: string, userId: string) {
-    const channel = await this.prisma.channel.findUnique({
-      where: { id: channelId },
-      select: { serverId: true }
-    })
-    if (!channel) throw new NotFoundException('Channel not found')
-    const member = await this.prisma.serverMember.findUnique({
-      where: { userId_serverId: { userId, serverId: channel.serverId } }
-    })
-    if (!member) throw new ForbiddenException('Not a server member')
+  private async requireChannelAccess(channelId: string, userId: string) {
+    const channel = await this.roles.findChannelOrThrow(channelId)
+    await this.roles.requireChannelPermission(channel.serverId, channelId, userId, Permission.VIEW_CHANNEL)
   }
 
   @Get()
   async get(@Param('channelId', ParseUUIDPipe) channelId: string, @CurrentUser() user: { id: string }) {
-    await this.requireChannelMembership(channelId, user.id)
+    await this.requireChannelAccess(channelId, user.id)
     const pref = await this.prisma.channelNotifPref.findUnique({
       where: { userId_channelId: { userId: user.id, channelId } }
     })
@@ -107,7 +103,7 @@ export class NotifPrefsController {
     @CurrentUser() user: { id: string },
     @Body() dto: SetNotifPrefDto
   ) {
-    await this.requireChannelMembership(channelId, user.id)
+    await this.requireChannelAccess(channelId, user.id)
     const pref = await this.prisma.channelNotifPref.upsert({
       where: { userId_channelId: { userId: user.id, channelId } },
       update: { level: dto.level },
@@ -119,7 +115,7 @@ export class NotifPrefsController {
 
   @Delete()
   async reset(@Param('channelId', ParseUUIDPipe) channelId: string, @CurrentUser() user: { id: string }) {
-    await this.requireChannelMembership(channelId, user.id)
+    await this.requireChannelAccess(channelId, user.id)
     await this.prisma.channelNotifPref
       .delete({
         where: { userId_channelId: { userId: user.id, channelId } }

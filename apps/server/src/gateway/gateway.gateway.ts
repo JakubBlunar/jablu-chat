@@ -516,20 +516,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       mentionEveryone = result.everyone
       mentionHere = result.here
 
-      if (mentionEveryone || mentionHere) {
-        const filtered: string[] = []
-        for (const uid of result.userIds) {
-          try {
-            const perms = await this.roles.getChannelPermissions(serverId, body.channelId, uid)
-            if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
-              filtered.push(uid)
-            }
-          } catch { /* not a member, skip */ }
-        }
-        mentionedUserIds = filtered
-      } else {
-        mentionedUserIds = result.userIds
+      const filtered: string[] = []
+      for (const uid of result.userIds) {
+        try {
+          const perms = await this.roles.getChannelPermissions(serverId, body.channelId, uid)
+          if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
+            filtered.push(uid)
+          }
+        } catch { /* not a member, skip */ }
       }
+      mentionedUserIds = filtered
 
       if (mentionedUserIds.length > 0) {
         await this.readState.incrementMention(body.channelId, mentionedUserIds)

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
@@ -32,11 +32,17 @@ export class BookmarksService {
     }
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
-      select: { id: true, channelId: true, channel: { select: { serverId: true } } }
+      select: { id: true, channelId: true, directConversationId: true, channel: { select: { serverId: true } } }
     })
     if (!message) throw new NotFoundException('Message not found')
     if (message.channelId && message.channel?.serverId) {
       await this.roles.requireChannelPermission(message.channel.serverId, message.channelId, userId, Permission.VIEW_CHANNEL)
+    }
+    if (message.directConversationId) {
+      const dmMember = await this.prisma.directConversationMember.findUnique({
+        where: { conversationId_userId: { conversationId: message.directConversationId, userId } }
+      })
+      if (!dmMember) throw new ForbiddenException('Not a member of this conversation')
     }
     try {
       const bookmark = await this.prisma.messageBookmark.create({
@@ -72,6 +78,14 @@ export class BookmarksService {
         try {
           const perms = await this.roles.getChannelPermissions(serverId, channelId, userId)
           if (!hasPermission(perms, Permission.VIEW_CHANNEL)) continue
+        } catch { continue }
+      }
+      if (bm.message.directConversationId) {
+        try {
+          const dmMember = await this.prisma.directConversationMember.findUnique({
+            where: { conversationId_userId: { conversationId: bm.message.directConversationId, userId } }
+          })
+          if (!dmMember) continue
         } catch { continue }
       }
       filtered.push(bm)
