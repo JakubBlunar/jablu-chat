@@ -4,7 +4,7 @@ import SimpleBar from 'simplebar-react'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { UserAvatar } from '@/components/UserAvatar'
 import type { Member } from '@/stores/member.store'
-import { getTopRole, useMemberStore } from '@/stores/member.store'
+import { getTopRole, getRoleColor, useMemberStore } from '@/stores/member.store'
 import { useServerStore } from '@/stores/server.store'
 
 function resolvePresence(m: Member, onlineIds: Set<string>): UserStatus {
@@ -37,7 +37,7 @@ export function MemberSidebar() {
       customStatus: member.user.customStatus ?? null,
       joinedAt: member.joinedAt,
       roleName: topRole && !topRole.isDefault ? topRole.name : null,
-      roleColor: topRole?.color ?? null
+      roleColor: getRoleColor(member)
     })
     setCardRect(rect)
   }, [])
@@ -120,8 +120,7 @@ function MemberRow({
   isOwner: boolean
 }) {
   const name = member.user.displayName ?? member.user.username
-  const topRole = getTopRole(member)
-  const roleColor = topRole?.color
+  const roleColor = getRoleColor(member)
   const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {

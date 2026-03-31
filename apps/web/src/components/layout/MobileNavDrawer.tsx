@@ -44,6 +44,9 @@ const ServerNotifModal = React.lazy(() =>
 const CreateCategoryModal = React.lazy(() =>
   import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
 )
+const RolePickerModal = React.lazy(() =>
+  import('@/components/server/RolePickerModal').then((m) => ({ default: m.RolePickerModal }))
+)
 
 export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpenSettings: (tab?: string) => void; onOpenQuickSwitcher: () => void }) {
   const { open, close } = useLayoutStore(useShallow((s) => ({ open: s.navDrawerOpen, close: s.closeNavDrawer })))
@@ -115,6 +118,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
   const [groupDmOpen, setGroupDmOpen] = useState(false)
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
   const [serverNotifOpen, setServerNotifOpen] = useState(false)
+  const [rolePickerOpen, setRolePickerOpen] = useState(false)
   const [dmFilter, setDmFilter] = useState('')
   const { has: hasPerm } = usePermissions(currentServerId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
@@ -679,6 +683,9 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
           onEvents={() => {
             setServerMenuOpen(false); close(); setEventsOpen(true)
           }}
+          onChangeRoles={() => {
+            setServerMenuOpen(false); close(); setRolePickerOpen(true)
+          }}
           onLeave={() => {
             setServerMenuOpen(false); void handleLeave()
           }}
@@ -709,6 +716,11 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
       {serverNotifOpen && currentServer && (
         <Suspense fallback={null}>
           <ServerNotifModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setServerNotifOpen(false)} />
+        </Suspense>
+      )}
+      {rolePickerOpen && currentServer && (
+        <Suspense fallback={null}>
+          <RolePickerModal onClose={() => setRolePickerOpen(false)} />
         </Suspense>
       )}
       <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />

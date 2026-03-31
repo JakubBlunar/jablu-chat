@@ -34,12 +34,15 @@ const CreateCategoryModal = React.lazy(() =>
 const EditCategoryModal = React.lazy(() =>
   import('@/components/channel/EditCategoryModal').then((m) => ({ default: m.EditCategoryModal }))
 )
+const RolePickerModal = React.lazy(() =>
+  import('@/components/server/RolePickerModal').then((m) => ({ default: m.RolePickerModal }))
+)
 
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useLayoutStore } from '@/stores/layout.store'
-import { useMemberStore } from '@/stores/member.store'
+import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { type VoiceParticipant, useVoiceStore } from '@/stores/voice.store'
@@ -133,6 +136,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<ChannelCategory | null>(null)
 
+  const [rolePickerOpen, setRolePickerOpen] = useState(false)
   const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
@@ -188,27 +192,31 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   }, [currentServer?.id, fetchEvents])
 
   const members = useMemberStore((s) => s.members)
+  const onlineUserIds = useMemberStore((s) => s.onlineUserIds)
 
   const handleVoiceParticipantClick = useCallback(
     (p: VoiceParticipant, e: React.MouseEvent) => {
       if (p.userId === user?.id) return
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
       const member = members.find((m) => m.userId === p.userId)
+      const resolvedStatus: UserStatus = !onlineUserIds.has(p.userId)
+        ? 'offline'
+        : (member?.user.status as UserStatus) || 'online'
       setVoiceCardUser({
         id: p.userId,
         username: p.username,
         displayName: member?.user.displayName,
         avatarUrl: member?.user.avatarUrl,
         bio: member?.user.bio ?? null,
-        status: (member?.user.status ?? 'online') as UserStatus,
+        status: resolvedStatus,
         customStatus: member?.user.customStatus ?? null,
         joinedAt: member?.joinedAt,
         roleName: (() => { const r = member?.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).name : null })(),
-        roleColor: (() => { const r = member?.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).color : null })()
+        roleColor: member ? getRoleColor(member) : null
       })
       setVoiceCardRect(rect)
     },
-    [user?.id, members]
+    [user?.id, members, onlineUserIds]
   )
 
   useEffect(() => {
@@ -422,6 +430,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                     {eventCount}
                   </span>
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setRolePickerOpen(true)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Change Roles
               </button>
               {!isOwner && (
                 <>
@@ -751,6 +772,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           onEditChannel={() => setEditingChannel(drawerChannel)}
           onOpenPinned={handleDrawerOpenPinned}
         />
+      )}
+      {rolePickerOpen && currentServer && (
+        <Suspense fallback={null}>
+          <RolePickerModal onClose={() => setRolePickerOpen(false)} />
+        </Suspense>
       )}
       {showLeaveConfirm && currentServer && (
         <ConfirmDialog

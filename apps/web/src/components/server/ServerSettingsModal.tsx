@@ -84,31 +84,33 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-[720px]" noPadding className="flex h-[80vh] overflow-hidden">
-      <nav className="flex w-44 shrink-0 flex-col gap-0.5 bg-surface-darkest p-3">
+      <SimpleBar className="w-44 shrink-0 bg-surface-darkest p-3">
         <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server Settings</h2>
-        {SERVER_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
-              tab === t.key ? 'bg-surface-selected text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+        <nav className="flex flex-col gap-0.5">
+          {SERVER_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
+                tab === t.key ? 'bg-surface-selected text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </SimpleBar>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
           <h1 className="text-lg font-semibold text-white">{currentLabel}</h1>
           <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 transition hover:text-white">
             <XIcon />
           </button>
         </div>
 
-        <SimpleBar className="flex-1 p-6">{tabContent}</SimpleBar>
+        <SimpleBar className="min-h-0 flex-1 p-6">{tabContent}</SimpleBar>
       </div>
     </ModalOverlay>
   )

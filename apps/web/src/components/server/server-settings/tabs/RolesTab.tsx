@@ -71,7 +71,7 @@ function SortableRoleItem({ role, isSelected, onClick, isDraggable }: {
 }
 
 export function RolesTab({ server }: { server: Server }) {
-  const { has: hasPerm } = usePermissions(server.id)
+  const { has: hasPerm, isOwner, topRole } = usePermissions(server.id)
   const canManage = hasPerm(Permission.MANAGE_ROLES)
   const [roles, setRoles] = useState<Role[]>([])
   const [selected, setSelected] = useState<Role | null>(null)
@@ -186,6 +186,8 @@ export function RolesTab({ server }: { server: Server }) {
 
   const draggableRoles = roles.filter((r) => !r.isDefault)
   const everyoneRole = roles.find((r) => r.isDefault)
+  const actorTopPos = topRole?.position ?? 0
+  const canEditSelected = canManage && selected != null && (isOwner || selected.position < actorTopPos)
 
   return (
     <div className="flex gap-4">
@@ -199,7 +201,7 @@ export function RolesTab({ server }: { server: Server }) {
                   role={r}
                   isSelected={selected?.id === r.id}
                   onClick={() => setSelected(r)}
-                  isDraggable={canManage}
+                  isDraggable={isOwner || r.position < actorTopPos}
                 />
               ))}
             </SortableContext>
@@ -254,6 +256,12 @@ export function RolesTab({ server }: { server: Server }) {
           <p className="py-8 text-center text-sm text-gray-500">Select a role to edit</p>
         ) : (
           <div className="space-y-4">
+            {!canEditSelected && canManage && (
+              <p className="rounded-md bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+                This role is at or above your highest role — view only.
+              </p>
+            )}
+
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <Input
@@ -262,7 +270,7 @@ export function RolesTab({ server }: { server: Server }) {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  disabled={!canManage || selected.isDefault}
+                  disabled={!canEditSelected || selected.isDefault}
                 />
               </div>
               <div>
@@ -271,7 +279,7 @@ export function RolesTab({ server }: { server: Server }) {
                   type="color"
                   value={editColor}
                   onChange={(e) => setEditColor(e.target.value)}
-                  disabled={!canManage}
+                  disabled={!canEditSelected}
                   className="h-9 w-14 cursor-pointer rounded-md border border-white/10 bg-surface-darkest disabled:opacity-50"
                 />
               </div>
@@ -285,13 +293,13 @@ export function RolesTab({ server }: { server: Server }) {
                     key={key}
                     className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${
                       (editPerms & flag) === flag ? 'text-white' : 'text-gray-400'
-                    } ${!canManage ? 'pointer-events-none opacity-50' : ''}`}
+                    } ${!canEditSelected ? 'pointer-events-none opacity-50' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={(editPerms & flag) === flag}
                       onChange={() => togglePerm(flag)}
-                      disabled={!canManage}
+                      disabled={!canEditSelected}
                       className="accent-primary"
                     />
                     {PERMISSION_LABELS[key] ?? key}
@@ -306,13 +314,13 @@ export function RolesTab({ server }: { server: Server }) {
                   <label
                     className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${
                       editSelfAssignable ? 'text-white' : 'text-gray-400'
-                    } ${!canManage ? 'pointer-events-none opacity-50' : ''}`}
+                    } ${!canEditSelected ? 'pointer-events-none opacity-50' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={editSelfAssignable}
                       onChange={(e) => setEditSelfAssignable(e.target.checked)}
-                      disabled={!canManage}
+                      disabled={!canEditSelected}
                       className="accent-primary"
                     />
                     Self-assignable
@@ -325,13 +333,13 @@ export function RolesTab({ server }: { server: Server }) {
                   <label
                     className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${
                       editIsAdmin ? 'text-white' : 'text-gray-400'
-                    } ${!canManage ? 'pointer-events-none opacity-50' : ''}`}
+                    } ${!canEditSelected ? 'pointer-events-none opacity-50' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={editIsAdmin}
                       onChange={(e) => setEditIsAdmin(e.target.checked)}
-                      disabled={!canManage}
+                      disabled={!canEditSelected}
                       className="accent-primary"
                     />
                     Admin role
@@ -343,7 +351,7 @@ export function RolesTab({ server }: { server: Server }) {
               </div>
             )}
 
-            {canManage && (
+            {canEditSelected && (
               <div className="flex items-center gap-2 border-t border-white/5 pt-4">
                 <Button type="button" onClick={() => void handleSave()} loading={saving}>
                   Save Changes

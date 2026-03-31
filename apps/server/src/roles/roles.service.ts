@@ -35,6 +35,7 @@ export class RolesService {
       data: {
         serverId,
         name: '@everyone',
+        color: '#99aab5',
         position: 0,
         permissions: DEFAULT_EVERYONE_PERMISSIONS,
         isDefault: true,
@@ -367,11 +368,18 @@ export class RolesService {
   }
 
   async loadMemberRolesWire(serverId: string, userId: string) {
-    const memberRoles = await this.prisma.serverMemberRole.findMany({
-      where: { userId, serverId },
-      include: { role: true },
-    })
-    return memberRoles.map((mr) => this.mapToWire(mr.role))
+    const [memberRoles, everyoneRole] = await Promise.all([
+      this.prisma.serverMemberRole.findMany({
+        where: { userId, serverId },
+        include: { role: true },
+      }),
+      this.prisma.role.findFirst({ where: { serverId, isDefault: true } }),
+    ])
+    const roles = memberRoles.map((mr) => this.mapToWire(mr.role))
+    if (everyoneRole && !roles.some((r) => r.id === everyoneRole.id)) {
+      roles.push(this.mapToWire(everyoneRole))
+    }
+    return roles
   }
 
   mapToWire(role: { id: string; serverId: string; name: string; color: string | null; position: number; permissions: bigint; isDefault: boolean; selfAssignable: boolean; isAdmin: boolean; createdAt: Date }) {

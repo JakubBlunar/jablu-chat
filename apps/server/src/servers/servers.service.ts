@@ -494,8 +494,12 @@ export class ServersService {
       },
       include: memberInclude
     })
-    this.events.emit('member:joined', { serverId, member })
-    return member
+    const everyoneRole = await this.prisma.role.findFirst({ where: { serverId, isDefault: true } })
+    const enriched = everyoneRole
+      ? { ...member, roles: [...member.roles, { userId, serverId, roleId: everyoneRole.id, role: everyoneRole }] }
+      : member
+    this.events.emit('member:joined', { serverId, member: enriched })
+    return enriched
   }
 
   async leaveServer(serverId: string, userId: string) {
@@ -524,10 +528,22 @@ export class ServersService {
 
   async getMembers(serverId: string, userId: string) {
     await this.requireMembership(serverId, userId)
-    return this.prisma.serverMember.findMany({
-      where: { serverId },
-      include: memberInclude,
-      orderBy: { joinedAt: 'asc' }
+    const [members, everyoneRole] = await Promise.all([
+      this.prisma.serverMember.findMany({
+        where: { serverId },
+        include: memberInclude,
+        orderBy: { joinedAt: 'asc' }
+      }),
+      this.prisma.role.findFirst({ where: { serverId, isDefault: true } })
+    ])
+    if (!everyoneRole) return members
+    return members.map((m) => {
+      const hasEveryone = m.roles.some((r) => r.roleId === everyoneRole.id)
+      if (hasEveryone) return m
+      return {
+        ...m,
+        roles: [...m.roles, { userId: m.userId, serverId, roleId: everyoneRole.id, role: everyoneRole }]
+      }
     })
   }
 
