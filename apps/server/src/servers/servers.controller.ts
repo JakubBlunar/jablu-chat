@@ -17,7 +17,7 @@ import {
 import { AuthGuard } from '@nestjs/passport'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CurrentUser } from '../auth/current-user.decorator'
-import { UpdateMemberRoleDto, UpdateServerDto } from './dto'
+import { TimeoutMemberDto, UpdateMemberRoleDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
 const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
@@ -134,6 +134,26 @@ export class ServersController {
     @CurrentUser() user: { id: string }
   ) {
     await this.servers.kickMember(id, user.id, targetUserId)
+  }
+
+  @Post(':id/members/:userId/timeout')
+  async timeoutMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: TimeoutMemberDto
+  ) {
+    return this.servers.timeoutMember(id, user.id, targetUserId, dto.duration)
+  }
+
+  @Delete(':id/members/:userId/timeout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeTimeout(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    await this.servers.removeTimeout(id, user.id, targetUserId)
   }
 
   @Post(':id/bans/:userId')

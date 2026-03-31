@@ -186,6 +186,15 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     ? true
     : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
 
+  const myId = useAuthStore((s) => s.user?.id)
+  const currentServerId = useServerStore((s) => s.currentServerId)
+  const myMember = useMemberStore((s) =>
+    s.members.find((m) => m.userId === myId && m.serverId === currentServerId)
+  )
+  const isMuted = !isDm && myMember?.mutedUntil
+    ? new Date(myMember.mutedUntil) > new Date()
+    : false
+
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showPollCreator, setShowPollCreator] = useState(false)
@@ -413,6 +422,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               <line x1="10" y1="12" x2="14" y2="12" />
             </svg>
             This channel is archived. You can read messages but cannot send new ones.
+          </div>
+        </div>
+      ) : isMuted ? (
+        <div className="shrink-0 border-t border-black/20 bg-surface px-4 py-3">
+          <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 px-4 py-2.5 text-sm text-yellow-400">
+            <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            You are timed out in this server and cannot send messages.
           </div>
         </div>
       ) : !isDm && !canSend ? (

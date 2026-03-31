@@ -12,6 +12,7 @@ export const Permission = {
   MANAGE_WEBHOOKS:  1n << 10n,
   ADMINISTRATOR:    1n << 11n,
   VIEW_CHANNEL:     1n << 12n,
+  MUTE_MEMBERS:     1n << 13n,
 } as const
 
 export type PermissionFlag = (typeof Permission)[keyof typeof Permission]
@@ -50,6 +51,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   MANAGE_WEBHOOKS:  'Manage Webhooks',
   ADMINISTRATOR:    'Administrator',
   VIEW_CHANNEL:     'View Channel',
+  MUTE_MEMBERS:     'Timeout Members',
 }
 
 export interface Role {

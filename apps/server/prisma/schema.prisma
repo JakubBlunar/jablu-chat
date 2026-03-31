@@ -138,6 +138,7 @@ model ServerMember {
   serverId   String      @map("server_id")
   roleId     String      @map("role_id")
   notifLevel NotifLevel? @map("notif_level")
+  mutedUntil DateTime?   @map("muted_until")
   joinedAt   DateTime    @default(now()) @map("joined_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
