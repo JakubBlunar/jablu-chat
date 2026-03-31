@@ -688,6 +688,14 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/bans/${userId}`)
   }
 
+  timeoutMember(serverId: string, userId: string, duration: number): Promise<{ mutedUntil: string }> {
+    return this.post(`/api/servers/${serverId}/members/${userId}/timeout`, { duration })
+  }
+
+  removeTimeout(serverId: string, userId: string): Promise<void> {
+    return this.request<void>('DELETE', `/api/servers/${serverId}/members/${userId}/timeout`)
+  }
+
   getBans(serverId: string): Promise<Array<{
     id: string
     userId: string

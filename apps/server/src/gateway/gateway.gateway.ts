@@ -413,7 +413,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { archived: false as const }
   }
 
-  private async assertCanSendInChannel(channelId: string, userId: string): Promise<{ denied: boolean; serverId?: string }> {
+  private async assertCanSendInChannel(channelId: string, userId: string): Promise<{ denied: boolean; serverId?: string; muted?: boolean }> {
     const ch = await this.prisma.channel.findUnique({
       where: { id: channelId },
       select: { serverId: true }
@@ -421,10 +421,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (!ch) return { denied: false }
     try {
       await this.roles.requireChannelPermission(ch.serverId, channelId, userId, Permission.SEND_MESSAGES)
-      return { denied: false, serverId: ch.serverId }
     } catch {
       return { denied: true, serverId: ch.serverId }
     }
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId: ch.serverId } },
+      select: { mutedUntil: true }
+    })
+    if (member?.mutedUntil && member.mutedUntil > new Date()) {
+      return { denied: true, serverId: ch.serverId, muted: true }
+    }
+    return { denied: false, serverId: ch.serverId }
   }
 
   @SubscribeMessage('message:send')
@@ -453,7 +460,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const sendCheck = await this.assertCanSendInChannel(body.channelId, user.id)
     if (sendCheck.denied) {
-      return { ok: false, error: 'You do not have permission to send messages in this channel' }
+      return { ok: false, error: sendCheck.muted ? 'You are timed out in this server' : 'You do not have permission to send messages in this channel' }
     }
 
     if (body.content && sendCheck.serverId) {

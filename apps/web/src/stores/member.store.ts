@@ -7,6 +7,7 @@ export type Member = {
   serverId: string
   roleId: string
   joinedAt: string
+  mutedUntil?: string | null
   role?: Role
   user: {
     id: string
@@ -31,6 +32,7 @@ type MemberState = {
   addMember: (member: Member) => void
   removeMember: (serverId: string, userId: string) => void
   updateMemberRole: (serverId: string, userId: string, roleId: string) => void
+  updateMemberTimeout: (serverId: string, userId: string, mutedUntil: string | null) => void
   initOnlineUsers: (userIds: string[]) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string) => void
@@ -80,6 +82,13 @@ export const useMemberStore = create<MemberState>((set, get) => ({
     set((s) => ({
       members: s.members.map((m) =>
         m.serverId === serverId && m.userId === userId ? { ...m, roleId } : m
+      )
+    })),
+
+  updateMemberTimeout: (serverId, userId, mutedUntil) =>
+    set((s) => ({
+      members: s.members.map((m) =>
+        m.serverId === serverId && m.userId === userId ? { ...m, mutedUntil } : m
       )
     })),
 

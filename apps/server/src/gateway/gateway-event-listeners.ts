@@ -201,7 +201,7 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
   })
 
-  gw.events.on('member:updated', (payload: { serverId: string; userId: string; roleId?: string }) => {
+  gw.events.on('member:updated', (payload: { serverId: string; userId: string; roleId?: string; mutedUntil?: string | null }) => {
     gw.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
   })
 

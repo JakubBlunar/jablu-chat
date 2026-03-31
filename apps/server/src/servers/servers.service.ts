@@ -318,6 +318,54 @@ export class ServersService {
     this.events.emit('member:removed', { serverId, userId: targetUserId })
   }
 
+  async timeoutMember(serverId: string, actorId: string, targetUserId: string, durationSeconds: number) {
+    await this.roles.requirePermission(serverId, actorId, Permission.MUTE_MEMBERS)
+    const server = await this.getServerOrThrow(serverId)
+    if (targetUserId === server.ownerId) {
+      throw new ForbiddenException('Cannot timeout the server owner')
+    }
+    if (targetUserId === actorId) {
+      throw new ForbiddenException('You cannot timeout yourself')
+    }
+    const target = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: targetUserId, serverId } }
+    })
+    if (!target) throw new NotFoundException('Member not found')
+
+    const mutedUntil = new Date(Date.now() + durationSeconds * 1000)
+    await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId: targetUserId, serverId } },
+      data: { mutedUntil }
+    })
+    await this.auditLog.log(serverId, actorId, 'member.timeout', 'user', targetUserId, `${durationSeconds}s`)
+    this.events.emit('member:updated', { serverId, userId: targetUserId, mutedUntil: mutedUntil.toISOString() })
+    return { mutedUntil: mutedUntil.toISOString() }
+  }
+
+  async removeTimeout(serverId: string, actorId: string, targetUserId: string) {
+    await this.roles.requirePermission(serverId, actorId, Permission.MUTE_MEMBERS)
+    const target = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: targetUserId, serverId } }
+    })
+    if (!target) throw new NotFoundException('Member not found')
+
+    await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId: targetUserId, serverId } },
+      data: { mutedUntil: null }
+    })
+    await this.auditLog.log(serverId, actorId, 'member.timeout.remove', 'user', targetUserId)
+    this.events.emit('member:updated', { serverId, userId: targetUserId, mutedUntil: null })
+  }
+
+  async isUserMuted(serverId: string, userId: string): Promise<boolean> {
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId } },
+      select: { mutedUntil: true }
+    })
+    if (!member?.mutedUntil) return false
+    return member.mutedUntil > new Date()
+  }
+
   async unbanMember(serverId: string, actorId: string, targetUserId: string) {
     await this.roles.requirePermission(serverId, actorId, Permission.BAN_MEMBERS)
     const ban = await this.prisma.serverBan.findUnique({

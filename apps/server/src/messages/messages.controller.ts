@@ -64,6 +64,14 @@ export class MessagesController {
     const ch = await this.requireChannel(channelId)
     await this.roles.requireChannelPermission(ch.serverId, channelId, user.id, Permission.SEND_MESSAGES)
 
+    const membership = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: user.id, serverId: ch.serverId } },
+      select: { mutedUntil: true }
+    })
+    if (membership?.mutedUntil && membership.mutedUntil > new Date()) {
+      throw new ForbiddenException('You are timed out in this server')
+    }
+
     const msg = await this.messages.createMessage(channelId, user.id, dto.content, dto.replyToId, dto.attachmentIds)
     const { serverId, threadUpdate, ...wire } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
     this.events.emit('rest:message:created', { channelId, message: wire, serverId, threadUpdate })

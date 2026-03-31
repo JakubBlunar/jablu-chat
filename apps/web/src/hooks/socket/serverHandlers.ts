@@ -29,14 +29,18 @@ export function createServerHandlers() {
     }
   }
 
-  const onMemberUpdated = (payload: { serverId: string; userId: string; roleId?: string }) => {
+  const onMemberUpdated = (payload: { serverId: string; userId: string; roleId?: string; mutedUntil?: string | null }) => {
     const currentServerId = useServerStore.getState().currentServerId
-    if (payload.serverId === currentServerId && payload.roleId) {
+    if (payload.serverId !== currentServerId) return
+    if (payload.roleId) {
       useMemberStore.getState().updateMemberRole(payload.serverId, payload.userId, payload.roleId)
       const myId = useAuthStore.getState().user?.id
       if (payload.userId === myId) {
         void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
       }
+    }
+    if (payload.mutedUntil !== undefined) {
+      useMemberStore.getState().updateMemberTimeout(payload.serverId, payload.userId, payload.mutedUntil ?? null)
     }
   }
 

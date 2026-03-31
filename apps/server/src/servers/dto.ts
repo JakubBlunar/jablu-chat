@@ -47,3 +47,10 @@ export class UpdateMemberRoleDto {
   @IsUUID()
   roleId: string
 }
+
+export class TimeoutMemberDto {
+  @IsInt()
+  @Min(1)
+  @Max(2_419_200) // 28 days in seconds
+  duration: number
+}
