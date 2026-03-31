@@ -11,6 +11,7 @@ export const Permission = {
   MANAGE_EVENTS:    1n << 9n,
   MANAGE_WEBHOOKS:  1n << 10n,
   ADMINISTRATOR:    1n << 11n,
+  VIEW_CHANNEL:     1n << 12n,
 } as const
 
 export type PermissionFlag = (typeof Permission)[keyof typeof Permission]
@@ -18,7 +19,7 @@ export type PermissionFlag = (typeof Permission)[keyof typeof Permission]
 export const ALL_PERMISSIONS = Object.values(Permission).reduce((a, b) => a | b, 0n)
 
 export const DEFAULT_EVERYONE_PERMISSIONS =
-  Permission.SEND_MESSAGES
+  Permission.SEND_MESSAGES | Permission.VIEW_CHANNEL
 
 export const DEFAULT_OWNER_PERMISSIONS = ALL_PERMISSIONS
 
@@ -48,6 +49,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   MANAGE_EVENTS:    'Manage Events',
   MANAGE_WEBHOOKS:  'Manage Webhooks',
   ADMINISTRATOR:    'Administrator',
+  VIEW_CHANNEL:     'View Channel',
 }
 
 export interface Role {

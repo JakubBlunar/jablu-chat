@@ -34,6 +34,7 @@ export class MessagesService {
     if (!membership) {
       throw new ForbiddenException('You are not a member of this server')
     }
+    await this.roles.requireChannelPermission(channel.serverId, channelId, userId, Permission.VIEW_CHANNEL)
     return channel
   }
 
@@ -523,6 +524,7 @@ export class MessagesService {
     if (!membership) {
       throw new ForbiddenException('You are not a member of this server')
     }
+    await this.roles.requireChannelPermission(channel.serverId, channelId, userId, Permission.VIEW_CHANNEL)
     return channel
   }
 }
