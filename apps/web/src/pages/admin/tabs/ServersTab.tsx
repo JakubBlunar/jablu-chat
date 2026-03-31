@@ -1,5 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AdminServer, AdminUser, ServerMemberRow } from '../adminTypes'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { Permission, PERMISSION_LABELS, permsToBigInt } from '@chat/shared'
+import type { AdminServer, AdminUser, AdminRole, ServerMemberRow } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDate } from '../adminFormatters'
 import { ConfirmDeleteBtn, Empty } from '../AdminShared'
@@ -24,6 +42,7 @@ export function ServersTab({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedPanel, setExpandedPanel] = useState<'members' | 'roles'>('members')
 
   const handleCreate = async () => {
     if (!newName.trim() || !newOwnerId) return
@@ -138,10 +157,27 @@ export function ServersTab({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setExpandedId(expandedId === server.id ? null : server.id)}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 transition hover:bg-white/5 hover:text-white"
+                  onClick={() => {
+                    setExpandedPanel('members')
+                    setExpandedId(expandedId === server.id ? null : server.id)
+                  }}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition hover:bg-white/5 hover:text-white ${
+                    expandedId === server.id && expandedPanel === 'members' ? 'text-white bg-white/5' : 'text-gray-400'
+                  }`}
                 >
                   Members
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedPanel('roles')
+                    setExpandedId(expandedId === server.id ? null : server.id)
+                  }}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition hover:bg-white/5 hover:text-white ${
+                    expandedId === server.id && expandedPanel === 'roles' ? 'text-white bg-white/5' : 'text-gray-400'
+                  }`}
+                >
+                  Roles
                 </button>
                 <ConfirmDeleteBtn
                   id={server.id}
@@ -152,7 +188,7 @@ export function ServersTab({
                   onDelete={() => void handleDelete(server.id)}
                 />
               </div>
-              {expandedId === server.id && (
+              {expandedId === server.id && expandedPanel === 'members' && (
                 <ServerMembersPanel
                   server={server}
                   users={users}
@@ -167,6 +203,9 @@ export function ServersTab({
                     setServers((prev) => prev.map((s) => (s.id === server.id ? { ...s, ...patch } : s)))
                   }
                 />
+              )}
+              {expandedId === server.id && expandedPanel === 'roles' && (
+                <ServerRolesPanel server={server} />
               )}
             </div>
           ))
@@ -375,6 +414,314 @@ function ServerMembersPanel({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function GripIcon() {
+  return (
+    <svg className="h-3.5 w-3.5 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="9" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="19" r="1.5" /><circle cx="15" cy="19" r="1.5" />
+    </svg>
+  )
+}
+
+function SortableAdminRoleItem({ role, isSelected, onClick }: {
+  role: AdminRole
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: role.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-1.5 rounded-md text-left text-sm transition ${
+        isSelected ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/[0.04]'
+      } ${isDragging ? 'z-50 opacity-75 shadow-lg' : ''}`}
+    >
+      <button type="button" className="cursor-grab touch-none px-1 py-2 active:cursor-grabbing" {...attributes} {...listeners}>
+        <GripIcon />
+      </button>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-3"
+      >
+        <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+        <span className="truncate">{role.name}</span>
+      </button>
+    </div>
+  )
+}
+
+function ServerRolesPanel({ server }: { server: AdminServer }) {
+  const [roles, setRoles] = useState<AdminRole[]>([])
+  const [selected, setSelected] = useState<AdminRole | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [editName, setEditName] = useState('')
+  const [editColor, setEditColor] = useState('#99aab5')
+  const [editPerms, setEditPerms] = useState(0n)
+  const [editSelfAssignable, setEditSelfAssignable] = useState(false)
+  const [editIsAdmin, setEditIsAdmin] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const fetchRoles = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await adminFetch<AdminRole[]>(`/api/admin/servers/${server.id}/roles`)
+      setRoles(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load roles')
+    } finally {
+      setLoading(false)
+    }
+  }, [server.id])
+
+  useEffect(() => { void fetchRoles() }, [fetchRoles])
+
+  useEffect(() => {
+    if (selected) {
+      setEditName(selected.name)
+      setEditColor(selected.color ?? '#99aab5')
+      setEditPerms(permsToBigInt(selected.permissions))
+      setEditSelfAssignable(selected.selfAssignable ?? false)
+      setEditIsAdmin(selected.isAdmin ?? false)
+    }
+  }, [selected])
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = roles.findIndex((r) => r.id === active.id)
+    const newIndex = roles.findIndex((r) => r.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(roles, oldIndex, newIndex)
+    setRoles(reordered)
+    try {
+      await adminFetch(`/api/admin/servers/${server.id}/roles/reorder`, {
+        method: 'PATCH',
+        body: { roleIds: reordered.map((r) => r.id) }
+      })
+    } catch {
+      setError('Failed to reorder roles')
+      void fetchRoles()
+    }
+  }
+
+  const handleCreate = async () => {
+    setError('')
+    try {
+      await adminFetch<AdminRole>(`/api/admin/servers/${server.id}/roles`, {
+        method: 'POST',
+        body: { name: 'New Role' }
+      })
+      await fetchRoles()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create role')
+    }
+  }
+
+  const handleSave = async () => {
+    if (!selected) return
+    setSaving(true)
+    setError('')
+    try {
+      const updated = await adminFetch<AdminRole>(`/api/admin/servers/${server.id}/roles/${selected.id}`, {
+        method: 'PATCH',
+        body: {
+          name: editName,
+          color: editColor,
+          permissions: editPerms.toString(),
+          selfAssignable: editSelfAssignable,
+          isAdmin: editIsAdmin
+        }
+      })
+      setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      setSelected(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save role')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selected || selected.isDefault) return
+    if (!confirm(`Delete role "${selected.name}"? Members with this role will lose it.`)) return
+    setError('')
+    try {
+      await adminFetch(`/api/admin/servers/${server.id}/roles/${selected.id}`, { method: 'DELETE' })
+      setRoles((prev) => prev.filter((r) => r.id !== selected.id))
+      setSelected(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete role')
+    }
+  }
+
+  const togglePerm = (flag: bigint) => {
+    setEditPerms((prev) => (prev & flag) === flag ? prev & ~flag : prev | flag)
+  }
+
+  if (loading) return <div className="border-t border-white/5 px-4 py-4"><p className="text-center text-sm text-gray-500">Loading roles…</p></div>
+
+  const draggableRoles = roles.filter((r) => !r.isDefault)
+  const everyoneRole = roles.find((r) => r.isDefault)
+
+  return (
+    <div className="border-t border-white/5 px-4 pb-4 pt-3">
+      {error && (
+        <div className="mb-3 rounded-md bg-red-900/30 px-3 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
+          {error}
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        <div className="w-48 shrink-0 space-y-1">
+          {draggableRoles.length > 1 ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void handleDragEnd(e)}>
+              <SortableContext items={draggableRoles.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                {draggableRoles.map((r) => (
+                  <SortableAdminRoleItem
+                    key={r.id}
+                    role={r}
+                    isSelected={selected?.id === r.id}
+                    onClick={() => setSelected(r)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            draggableRoles.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setSelected(r)}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                  selected?.id === r.id ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/[0.04]'
+                }`}
+              >
+                <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: r.color ?? '#99aab5' }} />
+                <span className="truncate">{r.name}</span>
+              </button>
+            ))
+          )}
+
+          {everyoneRole && (
+            <button
+              type="button"
+              onClick={() => setSelected(everyoneRole)}
+              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition ${
+                selected?.id === everyoneRole.id ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/[0.04]'
+              }`}
+            >
+              <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: '#99aab5' }} />
+              <span className="truncate">{everyoneRole.name}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void handleCreate()}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-gray-400 transition hover:bg-white/[0.04] hover:text-white"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M12 4v16m8-8H4" /></svg>
+            Create Role
+          </button>
+
+          {draggableRoles.length > 1 && (
+            <p className="px-2 pt-1 text-[10px] text-gray-600">Drag to reorder hierarchy</p>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          {!selected ? (
+            <p className="py-8 text-center text-sm text-gray-500">Select a role to edit</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Input
+                    id="admin-role-name"
+                    label="Role Name"
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    disabled={selected.isDefault}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-400">Color</label>
+                  <input
+                    type="color"
+                    value={editColor}
+                    onChange={(e) => setEditColor(e.target.value)}
+                    className="h-9 w-14 cursor-pointer rounded-md border border-white/10 bg-surface-darkest"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Permissions</h4>
+                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                  {Object.entries(Permission).map(([key, flag]) => (
+                    <label
+                      key={key}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${
+                        (editPerms & flag) === flag ? 'text-white' : 'text-gray-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(editPerms & flag) === flag}
+                        onChange={() => togglePerm(flag)}
+                        className="accent-primary"
+                      />
+                      {PERMISSION_LABELS[key] ?? key}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {!selected.isDefault && (
+                <div className="space-y-3 border-t border-white/5 pt-4">
+                  <label className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${editSelfAssignable ? 'text-white' : 'text-gray-400'}`}>
+                    <input type="checkbox" checked={editSelfAssignable} onChange={(e) => setEditSelfAssignable(e.target.checked)} className="accent-primary" />
+                    Self-assignable
+                  </label>
+                  <label className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${editIsAdmin ? 'text-white' : 'text-gray-400'}`}>
+                    <input type="checkbox" checked={editIsAdmin} onChange={(e) => setEditIsAdmin(e.target.checked)} className="accent-primary" />
+                    Admin role
+                  </label>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 border-t border-white/5 pt-4">
+                <Button type="button" onClick={() => void handleSave()} loading={saving}>
+                  Save Changes
+                </Button>
+                {!selected.isDefault && (
+                  <Button type="button" variant="danger" onClick={() => void handleDelete()}>
+                    Delete Role
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
