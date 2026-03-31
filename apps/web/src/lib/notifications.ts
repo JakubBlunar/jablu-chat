@@ -128,6 +128,9 @@ export async function subscribeToPush(token: string): Promise<void> {
     const vapidKey = await getVapidKey()
     if (!vapidKey) return
 
+    const regs = await navigator.serviceWorker.getRegistrations()
+    if (regs.length === 0) return
+
     const reg = await navigator.serviceWorker.ready
     let sub = await reg.pushManager.getSubscription()
 
@@ -162,6 +165,9 @@ export async function unsubscribeFromPush(token: string): Promise<void> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
   try {
+    const regs = await navigator.serviceWorker.getRegistrations()
+    if (regs.length === 0) return
+
     const reg = await navigator.serviceWorker.ready
     const sub = await reg.pushManager.getSubscription()
     if (!sub) return

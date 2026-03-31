@@ -1,0 +1,68 @@
+---
+description: Instructions for running exploratory UI testing on Jablu using the Playwright MCP
+alwaysApply: false
+---
+
+# Exploratory Testing with Playwright MCP
+
+## Test Credentials
+
+Read `.playwright-mcp/.test-credentials.json` (gitignored) at the start of each test session:
+
+```json
+{
+  "admin": { "email": "...", "password": "..." },
+  "user":  { "email": "...", "password": "..." }
+}
+```
+
+`admin` has full admin privileges. `user` has the @everyone role only.
+
+## Starting the Dev Environment
+
+1. Start Docker infrastructure: `docker compose -f docker-compose.dev.yml up -d`
+2. Run `pnpm dev` from the project root (starts NestJS backend + Vite dev server)
+3. Web app: `http://localhost:5173` | API server: `http://localhost:3000`
+
+## Running Tests
+
+Use the Playwright MCP tools (`browser_navigate`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_take_screenshot`, etc.) against `http://localhost:5173`. No special MCP config needed.
+
+The web app is the same codebase that runs inside the Electron shell, so testing it covers ~95% of the Electron experience. The only untestable parts are native Electron APIs (tray, system notifications, auto-updater, desktop capture picker).
+
+### Workflow
+
+1. Read credentials from `.playwright-mcp/.test-credentials.json`
+2. Navigate to `http://localhost:5173`
+3. Use `browser_snapshot` to understand page structure before interacting
+4. Use `browser_take_screenshot` to capture bugs or notable states
+5. Use `browser_run_code` for complex multi-step interactions
+
+## Test Areas
+
+- **Auth:** Login, register, forgot-password, logout, protected route redirect
+- **Servers:** Create, join, switch, server settings modal
+- **Channels:** Create, switch, text + voice channels, categories
+- **Messaging:** Send, edit, delete, markdown, code blocks, link previews, polls, pins, threads, reactions
+- **DMs:** Start DM, group DM, conversation list
+- **Voice UI:** Join voice channel, voice settings
+- **Settings:** All tabs (Account, Profile, Status, Appearance, Privacy, Voice & Video, Notifications, Sessions, Shortcuts, Desktop App, Install App)
+- **Events:** Events panel, create event
+- **Search:** SearchBar, SearchDrawer, Quick Switcher (Ctrl+K)
+- **Admin:** Admin login (`/admin`), dashboard tabs
+- **Mobile:** Resize to 375x812, test hamburger menu / mobile nav drawer
+
+## Electron-Specific UI (visible in web too via `isElectron` flag)
+
+These features are conditional on `window.electronAPI` being present. In the web browser this flag is absent, so they won't appear. Note them as "not testable via web" rather than bugs:
+
+- `ElectronUrlGate` (server URL first-run screen)
+- `HashRouter` (Electron uses `#/` paths vs `/` paths)
+- Push-to-Talk in Voice settings
+- Electron source picker for screen share
+- `ElectronUpdateBanner` vs PWA update banner
+- Settings tabs: "Server Connection" visible only in Electron
+
+## Reporting
+
+After testing, summarize: bugs found (with screenshots), UX observations, and any issues.

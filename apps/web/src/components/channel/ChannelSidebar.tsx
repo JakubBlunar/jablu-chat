@@ -16,7 +16,7 @@ const InviteModal = React.lazy(() =>
 const ServerSettingsModal = React.lazy(() =>
   import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
 )
-import { UserAvatar } from '@/components/UserAvatar'
+import { UserFooter } from '@/components/layout/UserFooter'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
@@ -65,7 +65,7 @@ const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
 )
 
-export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
   const user = useAuthStore((s) => s.user)
 
   const currentServer = useServerStore((s) => {
@@ -679,28 +679,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
         <VoicePanel />
         <DownloadAppBanner />
 
-        <div className="flex h-[52px] shrink-0 items-center gap-2 bg-surface-overlay px-2">
-          <UserAvatar
-            username={user?.username ?? 'User'}
-            avatarUrl={user?.avatarUrl}
-            size="md"
-            showStatus
-            status={user?.status ?? 'online'}
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{user?.displayName ?? user?.username ?? '…'}</p>
-            <p className="truncate text-xs text-gray-400">{user?.customStatus || <span className="capitalize">{user?.status ?? 'online'}</span>}</p>
-          </div>
-          <button
-            type="button"
-            title="User settings"
-            aria-label="User settings"
-            onClick={onOpenSettings}
-            className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-          >
-            <GearIcon />
-          </button>
-        </div>
+        <UserFooter onOpenSettings={onOpenSettings} className="h-[52px] px-2" />
       </aside>
 
       {channelModalOpen && (

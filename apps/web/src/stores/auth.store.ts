@@ -121,9 +121,12 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         const rt = get().refreshToken
         const at = get().accessToken
-        try {
+        const cleanup = async () => {
           if (at) await unsubscribeFromPush(at).catch(() => {})
           if (rt) await api.logout(rt).catch(() => {})
+        }
+        try {
+          await Promise.race([cleanup(), new Promise((r) => setTimeout(r, 5000))])
         } finally {
           set({
             user: null,
