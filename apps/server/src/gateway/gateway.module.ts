@@ -8,9 +8,10 @@ import { ReadStateModule } from '../read-state/read-state.module'
 import { RolesModule } from '../roles/roles.module'
 import { ChatGateway } from './gateway.gateway'
 import { WsJwtGuard } from './ws-jwt.guard'
+import { WsThrottleGuard } from './ws-throttle.guard'
 
 @Module({
   imports: [MessagesModule, DmModule, AuthModule, ReadStateModule, PushModule, AutoModModule, RolesModule],
-  providers: [ChatGateway, WsJwtGuard]
+  providers: [ChatGateway, WsJwtGuard, WsThrottleGuard]
 })
 export class GatewayModule {}

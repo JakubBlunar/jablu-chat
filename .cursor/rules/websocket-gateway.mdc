@@ -1,0 +1,75 @@
+---
+description: WebSocket gateway conventions for adding events, DTOs, rate limiting, and error handling
+globs: apps/server/src/gateway/**
+alwaysApply: false
+---
+
+# WebSocket Gateway Conventions
+
+All WebSocket logic lives in `apps/server/src/gateway/`. The single gateway class is `ChatGateway` in `gateway.gateway.ts`.
+
+## Adding a New Event Handler
+
+1. **Create or reuse a DTO** in `gateway.dto.ts`. Every `@MessageBody()` parameter must be a class with `class-validator` decorators -- never use inline object types.
+   - Prefix DTO class names with `Ws` (e.g. `WsSendMessageDto`).
+   - Use `@IsUUID()` for all ID fields. Use `@IsOptional()` for nullable fields.
+   - Reuse existing DTOs when the shape matches (e.g. `WsChannelIdDto` for any event needing only `channelId`).
+
+2. **Add a `@WsThrottle(limit, windowSeconds)` decorator** above `@SubscribeMessage()`. Choose limits from the tier table below or define a new tier if the event category is novel.
+
+3. **Use `domain:action` event naming** (e.g. `message:send`, `dm:typing`, `voice:join`).
+
+4. **Return `{ ok: false, error }` for business logic errors** (permission denied, archived channel, etc.). Do not throw `BadRequestException` from handlers -- the `WsExceptionFilter` handles validation errors automatically.
+
+## Guard & Filter Order
+
+Class-level decorators on `ChatGateway`:
+
+```typescript
+@UseGuards(WsJwtGuard, WsThrottleGuard)
+@UseFilters(WsExceptionFilter)
+```
+
+- `WsJwtGuard` runs first (authentication).
+- `WsThrottleGuard` runs second (rate limiting via Redis).
+- `WsExceptionFilter` catches `BadRequestException` from `ValidationPipe` and `WsException`, emitting structured errors to the client on the `exception` event.
+
+## Rate Limit Tiers
+
+| Category | Examples | Limit | Window |
+|----------|----------|-------|--------|
+| Message sends | `message:send`, `dm:send` | 5 | 5s |
+| Message edits | `message:edit`, `dm:edit` | 5 | 5s |
+| Message deletes | `message:delete`, `dm:delete` | 5 | 5s |
+| Reactions | `reaction:toggle` | 10 | 10s |
+| Typing | `typing:start`, `dm:typing` | 5 | 5s |
+| Channel/room joins | `channel:join`, `dm:join` | 5 | 5s |
+| Voice | `voice:join`, `voice:state` | 10 | 10s |
+| Pin/unpin | `message:pin`, `dm:unpin` | 5 | 10s |
+| Poll | `poll:vote` | 5 | 10s |
+| Heartbeat | `activity:heartbeat` | 2 | 5s |
+| Default (undecorated) | -- | 10 | 10s |
+
+## DTO Validation
+
+The global `ValidationPipe` in `main.ts` (`whitelist: true`, `forbidNonWhitelisted: true`, `transform: true`) applies to WebSocket handlers. When a client sends an invalid payload, the pipe throws a `BadRequestException` which `WsExceptionFilter` catches and emits as `{ status: 'error', message: '...' }` on the `exception` event.
+
+## Testing Requirements
+
+- **New DTOs** need validation tests in `gateway.dto.spec.ts` using `validate()` from `class-validator` and `plainToInstance()` from `class-transformer`. Test valid payloads, missing required fields, and type violations.
+- **New rate limit tiers** need a test case in `ws-throttle.guard.spec.ts`.
+- Follow the guard test pattern from `admin-auth.guard.spec.ts`: construct the guard directly with mock dependencies, build a fake `ExecutionContext`, no `TestingModule` needed.
+
+## File Map
+
+| File | Purpose |
+|------|---------|
+| `gateway.gateway.ts` | `ChatGateway` class with all `@SubscribeMessage` handlers |
+| `gateway.dto.ts` | All WebSocket DTO classes with `class-validator` decorators |
+| `ws-throttle.guard.ts` | `WsThrottleGuard` + `@WsThrottle()` decorator |
+| `ws-exception.filter.ts` | `WsExceptionFilter` for structured WS error responses |
+| `ws-jwt.guard.ts` | `WsJwtGuard` for JWT authentication |
+| `gateway.module.ts` | Module wiring for providers |
+| `gateway-event-listeners.ts` | Internal event bus -> Socket.IO room fan-out |
+| `gateway-push-helpers.ts` | Push notification helpers |
+| `ws-adapter.ts` | Custom Socket.IO adapter with CORS |

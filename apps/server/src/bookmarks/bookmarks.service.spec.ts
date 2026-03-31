@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { ConflictException, NotFoundException } from '@nestjs/common'
 import { BookmarksService } from './bookmarks.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('BookmarksService', () => {
@@ -18,6 +19,7 @@ describe('BookmarksService', () => {
       providers: [
         BookmarksService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RolesService, useValue: { requireMembership: jest.fn().mockResolvedValue({}), getChannelPermissions: jest.fn().mockResolvedValue(0n) } },
       ],
     }).compile()
 

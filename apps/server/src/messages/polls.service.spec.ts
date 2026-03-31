@@ -2,11 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { PollsService } from './polls.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('PollsService', () => {
   let service: PollsService
   let prisma: MockPrismaService
+  let roles: { requireChannelPermission: jest.Mock }
 
   const userId = 'user-1'
   const channelId = 'ch-1'
@@ -14,11 +16,13 @@ describe('PollsService', () => {
 
   beforeEach(async () => {
     prisma = createMockPrismaService()
+    roles = { requireChannelPermission: jest.fn().mockResolvedValue(0n) }
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PollsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: RolesService, useValue: roles },
       ],
     }).compile()
 
@@ -64,8 +68,8 @@ describe('PollsService', () => {
       ).rejects.toThrow(NotFoundException)
     })
 
-    it('throws when user is not a member', async () => {
-      prisma.serverMember.findUnique.mockResolvedValue(null)
+    it('throws when user does not have permission', async () => {
+      roles.requireChannelPermission.mockRejectedValue(new ForbiddenException('Missing permission'))
       await expect(
         service.createPoll(channelId, userId, 'Q?', ['A', 'B'], false),
       ).rejects.toThrow(ForbiddenException)
@@ -140,10 +144,6 @@ describe('PollsService', () => {
       ],
     }
 
-    beforeEach(() => {
-      prisma.serverMember.findUnique.mockResolvedValue({ userId, serverId })
-    })
-
     it('throws when poll not found', async () => {
       prisma.poll.findUnique.mockResolvedValue(null)
       await expect(service.votePoll('bad', 'opt-1', userId)).rejects.toThrow(NotFoundException)
@@ -157,9 +157,9 @@ describe('PollsService', () => {
       await expect(service.votePoll('poll-1', 'opt-1', userId)).rejects.toThrow('This poll has expired')
     })
 
-    it('throws when user is not a server member', async () => {
+    it('throws when user does not have permission', async () => {
       prisma.poll.findUnique.mockResolvedValue(basePoll)
-      prisma.serverMember.findUnique.mockResolvedValue(null)
+      roles.requireChannelPermission.mockRejectedValue(new ForbiddenException('Missing permission'))
 
       await expect(service.votePoll('poll-1', 'opt-1', userId)).rejects.toThrow(ForbiddenException)
     })
@@ -230,6 +230,7 @@ describe('PollsService', () => {
         multiSelect: false,
         expiresAt: null,
         createdAt: new Date('2024-06-01'),
+        message: { channelId, channel: { serverId } },
         options: [{ id: 'opt-1', label: 'A', position: 0, votes: [] }],
       })
 
