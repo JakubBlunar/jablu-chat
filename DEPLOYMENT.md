@@ -439,6 +439,25 @@ ufw status
 
 Also check that your provider's firewall/security group allows UDP inbound.
 
+### Using LiveKit Cloud instead of self-hosted
+
+If you prefer not to self-host LiveKit (or need better scalability), you can use
+[LiveKit Cloud](https://livekit.io/cloud) by updating three env vars in `.env`:
+
+```ini
+LIVEKIT_API_KEY=<your-cloud-api-key>
+LIVEKIT_API_SECRET=<your-cloud-api-secret>
+LIVEKIT_URL=wss://<your-project>.livekit.cloud
+```
+
+Then stop the self-hosted LiveKit container:
+
+```bash
+docker compose stop livekit
+```
+
+No code changes needed — the app connects to whatever `LIVEKIT_URL` points to.
+
 ### Database connection errors
 
 ```bash
