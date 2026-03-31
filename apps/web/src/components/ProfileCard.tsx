@@ -10,6 +10,8 @@ import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
+import { useMemberStore } from '@/stores/member.store'
+import { useServerStore } from '@/stores/server.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore } from '@/stores/voice.store'
 
@@ -273,6 +275,7 @@ function ProfileCardContent({
           </div>
         )}
 
+        <SelfRolePicker userId={user.id} />
         <VoiceVolumeSlider userId={user.id} />
         <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={setFriendshipStatus} />
         <SendDmButton userId={user.id} onClose={onClose} friendshipStatus={friendshipStatus} />
@@ -506,6 +509,98 @@ function SendDmButton({
       >
         {loading ? 'Opening…' : 'Message'}
       </button>
+    </div>
+  )
+}
+
+function SelfRolePicker({ userId }: { userId: string }) {
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const currentServerId = useServerStore((s) => s.currentServerId)
+  const myMember = useMemberStore((s) =>
+    s.members.find((m) => m.userId === userId && m.serverId === currentServerId)
+  )
+
+  const [roles, setRoles] = useState<{ id: string; name: string; color: string | null }[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [changing, setChanging] = useState(false)
+
+  const isSelf = userId === currentUserId
+  if (!isSelf || !currentServerId) return null
+
+  const currentRole = myMember?.role
+
+  const handleOpen = () => {
+    if (open) { setOpen(false); return }
+    setOpen(true)
+    setLoading(true)
+    api.getSelfAssignableRoles(currentServerId)
+      .then(setRoles)
+      .catch(() => setRoles([]))
+      .finally(() => setLoading(false))
+  }
+
+  const handleSelect = async (roleId: string) => {
+    if (roleId === myMember?.roleId) { setOpen(false); return }
+    setChanging(true)
+    try {
+      await api.changeSelfRole(currentServerId, roleId)
+      await useMemberStore.getState().fetchMembers(currentServerId)
+      setOpen(false)
+    } catch { /* ignore */ }
+    finally { setChanging(false) }
+  }
+
+  return (
+    <div className="mb-3">
+      <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">ROLE</p>
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="flex w-full items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-left text-sm transition hover:bg-white/10"
+      >
+        {currentRole && !currentRole.isDefault ? (
+          <>
+            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: currentRole.color ?? '#99aab5' }} />
+            <span className="flex-1 truncate text-gray-200">{currentRole.name}</span>
+          </>
+        ) : (
+          <span className="flex-1 text-gray-500">No role selected</span>
+        )}
+        <svg className={`h-3.5 w-3.5 shrink-0 text-gray-500 transition ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-white/10 bg-surface-darkest">
+          {loading ? (
+            <p className="px-3 py-2 text-xs text-gray-500">Loading roles...</p>
+          ) : roles.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-500">No self-assignable roles available</p>
+          ) : (
+            roles.map((role) => (
+              <button
+                key={role.id}
+                type="button"
+                disabled={changing}
+                onClick={() => void handleSelect(role.id)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-white/5 disabled:opacity-50 ${
+                  role.id === myMember?.roleId ? 'bg-primary/10 text-white' : 'text-gray-300'
+                }`}
+              >
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+                <span className="truncate">{role.name}</span>
+                {role.id === myMember?.roleId && (
+                  <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

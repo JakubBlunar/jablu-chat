@@ -80,7 +80,7 @@ export class RolesService {
     return this.mapToWire(role)
   }
 
-  async updateRole(serverId: string, roleId: string, actorId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number }) {
+  async updateRole(serverId: string, roleId: string, actorId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number; selfAssignable?: boolean }) {
     await this.requirePermission(serverId, actorId, Permission.MANAGE_ROLES)
 
     const role = await this.prisma.role.findFirst({
@@ -95,6 +95,7 @@ export class RolesService {
         ...(data.color !== undefined && { color: data.color }),
         ...(data.permissions !== undefined && { permissions: BigInt(data.permissions) }),
         ...(data.position !== undefined && { position: data.position }),
+        ...(data.selfAssignable !== undefined && { selfAssignable: data.selfAssignable }),
       },
     })
 
