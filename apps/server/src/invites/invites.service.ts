@@ -10,7 +10,6 @@ import { AuditLogService } from '../servers/audit-log.service'
 const createdByUserSelect = {
   id: true,
   username: true,
-  email: true,
   avatarUrl: true
 } as const
 
@@ -132,7 +131,7 @@ export class InvitesService {
       include: {
         channels: { orderBy: { position: 'asc' } },
         members: {
-          include: { user: { select: { id: true, username: true, email: true, avatarUrl: true } } },
+          include: { user: { select: { id: true, username: true, avatarUrl: true } } },
           orderBy: { joinedAt: 'asc' }
         }
       }
@@ -199,7 +198,6 @@ export class InvitesService {
               select: {
                 id: true,
                 username: true,
-                email: true,
                 avatarUrl: true
               }
             }

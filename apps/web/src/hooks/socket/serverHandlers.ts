@@ -61,7 +61,8 @@ export function createServerHandlers() {
       useMemberStore.getState().updateRoleInMembers(payload.role)
       const myId = useAuthStore.getState().user?.id
       const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
-      if (member?.roleIds?.includes(payload.role.id)) {
+      const isEveryoneRole = payload.role.isDefault
+      if (isEveryoneRole || member?.roleIds?.includes(payload.role.id)) {
         void useChannelStore.getState().fetchChannels(payload.serverId)
         void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
       }

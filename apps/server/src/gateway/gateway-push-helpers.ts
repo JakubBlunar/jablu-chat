@@ -1,11 +1,14 @@
+import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
+import type { RolesService } from '../roles/roles.service'
 
 export type PushContext = {
   prisma: PrismaService
   push: PushService
   redis: RedisService
+  roles: RolesService
   isUserOnline: (userId: string) => boolean
 }
 
@@ -126,7 +129,7 @@ export async function sendPushToOfflineMembers(
   const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, offlineUserIds)
   const mentionSet = new Set(mentionedUserIds)
 
-  const eligibleIds = offlineUserIds.filter((id) => {
+  const prefFilteredIds = offlineUserIds.filter((id) => {
     const channelLevel = channelPrefMap.get(id)
     const serverLevel = serverPrefMap.get(id)
     const effective = channelLevel ?? serverLevel ?? 'all'
@@ -134,6 +137,18 @@ export async function sendPushToOfflineMembers(
     if (effective === 'mentions') return mentionSet.has(id)
     return true
   })
+
+  if (prefFilteredIds.length === 0) return
+
+  const eligibleIds: string[] = []
+  for (const id of prefFilteredIds) {
+    try {
+      const perms = await ctx.roles.getChannelPermissions(serverId, channelId, id)
+      if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
+        eligibleIds.push(id)
+      }
+    } catch { /* member removed, skip */ }
+  }
 
   if (eligibleIds.length === 0) return
 
@@ -197,12 +212,24 @@ export async function sendPushToThreadParticipants(
   const memberIds = members.map((m) => m.userId)
   const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, memberIds)
 
-  const eligibleIds = memberIds.filter((id) => {
+  const prefFilteredIds = memberIds.filter((id) => {
     const channelLevel = channelPrefMap.get(id)
     const serverLevel = serverPrefMap.get(id)
     const effective = channelLevel ?? serverLevel ?? 'all'
     return effective !== 'none'
   })
+
+  if (prefFilteredIds.length === 0) return
+
+  const eligibleIds: string[] = []
+  for (const id of prefFilteredIds) {
+    try {
+      const perms = await ctx.roles.getChannelPermissions(serverId, channelId, id)
+      if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
+        eligibleIds.push(id)
+      }
+    } catch { /* member removed, skip */ }
+  }
 
   if (eligibleIds.length === 0) return
 

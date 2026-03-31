@@ -1,11 +1,16 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import type { Poll as PollType, PollOptionWithVotes } from '@chat/shared'
+import { Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { messageInclude, mapMessageToWire } from './message-wire'
 
 @Injectable()
 export class PollsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roles: RolesService,
+  ) {}
 
   async createPoll(
     channelId: string,
@@ -30,10 +35,8 @@ export class PollsService {
       throw new NotFoundException('Text channel not found')
     }
 
-    const member = await this.prisma.serverMember.findUnique({
-      where: { userId_serverId: { userId, serverId: channel.serverId } }
-    })
-    if (!member) throw new ForbiddenException('Not a server member')
+    await this.roles.requireChannelPermission(channel.serverId, channelId, userId, Permission.VIEW_CHANNEL)
+    await this.roles.requireChannelPermission(channel.serverId, channelId, userId, Permission.SEND_MESSAGES)
 
     const result = await this.prisma.$transaction(async (tx) => {
       const message = await tx.message.create({
@@ -85,11 +88,9 @@ export class PollsService {
     }
 
     const serverId = poll.message.channel?.serverId
-    if (serverId) {
-      const member = await this.prisma.serverMember.findUnique({
-        where: { userId_serverId: { userId, serverId } }
-      })
-      if (!member) throw new ForbiddenException('Not a server member')
+    const channelId = poll.message.channelId
+    if (serverId && channelId) {
+      await this.roles.requireChannelPermission(serverId, channelId, userId, Permission.VIEW_CHANNEL)
     }
 
     const option = poll.options.find((o) => o.id === optionId)
@@ -135,10 +136,16 @@ export class PollsService {
     const poll = await this.prisma.poll.findUnique({
       where: { id: pollId },
       include: {
+        message: { select: { channelId: true, channel: { select: { serverId: true } } } },
         options: { orderBy: { position: 'asc' }, include: { votes: true } }
       }
     })
     if (!poll) throw new NotFoundException('Poll not found')
+    const serverId = poll.message.channel?.serverId
+    const channelId = poll.message.channelId
+    if (serverId && channelId) {
+      await this.roles.requireChannelPermission(serverId, channelId, userId, Permission.VIEW_CHANNEL)
+    }
     return this.mapPollToWire(poll, userId)
   }
 

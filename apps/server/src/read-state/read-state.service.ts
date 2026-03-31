@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common'
+import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 
 @Injectable()
 export class ReadStateService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roles: RolesService,
+  ) {}
 
   async getAllForUser(userId: string) {
     const [channelRows, dmRows] = await Promise.all([
@@ -51,13 +56,27 @@ export class ReadStateService {
       `
     ])
 
-    const channels = channelRows.map((r) => ({
+    const allChannels = channelRows.map((r) => ({
       channelId: r.channel_id,
       lastReadAt: r.last_read_at.toISOString(),
       mentionCount: Number(r.mention_count),
       serverId: r.server_id,
       unreadCount: Number(r.unread_count)
     }))
+
+    const serverIds = [...new Set(allChannels.map((c) => c.serverId))]
+    const permMaps = new Map<string, Record<string, bigint>>()
+    for (const sid of serverIds) {
+      try {
+        permMaps.set(sid, await this.roles.getAllChannelPermissions(sid, userId))
+      } catch { /* not a member, skip */ }
+    }
+    const channels = allChannels.filter((c) => {
+      const pm = permMaps.get(c.serverId)
+      if (!pm) return false
+      const perms = pm[c.channelId]
+      return perms !== undefined && hasPermission(perms, Permission.VIEW_CHANNEL)
+    })
 
     const dms = dmRows.map((r) => ({
       conversationId: r.conversation_id,
@@ -70,18 +89,18 @@ export class ReadStateService {
   }
 
   async ackServer(userId: string, serverId: string) {
-    const channels = await this.prisma.channel.findMany({
-      where: { serverId },
-      select: { id: true }
-    })
-    if (channels.length === 0) return
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const visibleIds = Object.entries(permMap)
+      .filter(([, perms]) => hasPermission(perms, Permission.VIEW_CHANNEL))
+      .map(([chId]) => chId)
+    if (visibleIds.length === 0) return
     const now = new Date()
     await Promise.all(
-      channels.map((ch) =>
+      visibleIds.map((chId) =>
         this.prisma.channelReadState.upsert({
-          where: { userId_channelId: { userId, channelId: ch.id } },
+          where: { userId_channelId: { userId, channelId: chId } },
           update: { lastReadAt: now, mentionCount: 0 },
-          create: { userId, channelId: ch.id, lastReadAt: now, mentionCount: 0 }
+          create: { userId, channelId: chId, lastReadAt: now, mentionCount: 0 }
         })
       )
     )

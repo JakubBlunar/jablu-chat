@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 
 type SearchPage = { ids: string[]; total: number }
 
@@ -47,7 +49,10 @@ function parseSearchQuery(raw: string): ParsedQuery {
 
 @Injectable()
 export class SearchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roles: RolesService,
+  ) {}
 
   async searchMessages(
     userId: string,
@@ -117,35 +122,26 @@ export class SearchService {
           select: { serverId: true }
         })
         if (ch && memberServerIds.includes(ch.serverId)) {
-          channelPage = await this.searchInChannels([channelId], tsQuery, take, skip, filters)
+          const visible = await this.getVisibleChannelIds(ch.serverId, userId)
+          if (visible.includes(channelId)) {
+            channelPage = await this.searchInChannels([channelId], tsQuery, take, skip, filters)
+          }
         }
       } else if (serverId) {
         if (memberServerIds.includes(serverId)) {
-          const channels = await this.prisma.channel.findMany({
-            where: { serverId },
-            select: { id: true }
-          })
-          channelPage = await this.searchInChannels(
-            channels.map((c) => c.id),
-            tsQuery,
-            take,
-            skip,
-            filters
-          )
+          const visible = await this.getVisibleChannelIds(serverId, userId)
+          if (visible.length > 0) {
+            channelPage = await this.searchInChannels(visible, tsQuery, take, skip, filters)
+          }
         }
       } else {
-        const channels = await this.prisma.channel.findMany({
-          where: { serverId: { in: memberServerIds } },
-          select: { id: true }
-        })
-        if (channels.length > 0) {
-          channelPage = await this.searchInChannels(
-            channels.map((c) => c.id),
-            tsQuery,
-            take,
-            skip,
-            filters
-          )
+        const allVisible: string[] = []
+        for (const sid of memberServerIds) {
+          const visible = await this.getVisibleChannelIds(sid, userId)
+          allVisible.push(...visible)
+        }
+        if (allVisible.length > 0) {
+          channelPage = await this.searchInChannels(allVisible, tsQuery, take, skip, filters)
         }
       }
     }
@@ -166,6 +162,14 @@ export class SearchService {
     if (allIds.length === 0) return { results: [], total }
 
     return this.hydrateResults(allIds, total)
+  }
+
+  private async getVisibleChannelIds(serverId: string, userId: string): Promise<string[]> {
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const VIEW = Permission.VIEW_CHANNEL
+    return Object.entries(permMap)
+      .filter(([, perms]) => hasPermission(perms, VIEW))
+      .map(([chId]) => chId)
   }
 
   private async hydrateResults(ids: string[], total: number) {

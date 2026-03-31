@@ -13,8 +13,10 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { ChannelType } from '@prisma/client'
+import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 import { VoiceService } from './voice.service'
 
 @Controller('voice')
@@ -22,7 +24,8 @@ import { VoiceService } from './voice.service'
 export class VoiceController {
   constructor(
     private readonly voice: VoiceService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly roles: RolesService,
   ) {}
 
   @Post('token/:channelId')
@@ -41,14 +44,7 @@ export class VoiceController {
       throw new ForbiddenException('Not a voice channel')
     }
 
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        userId_serverId: { userId: user.id, serverId: channel.serverId }
-      }
-    })
-    if (!membership) {
-      throw new ForbiddenException('Not a server member')
-    }
+    await this.roles.requireChannelPermission(channel.serverId, channelId, user.id, Permission.VIEW_CHANNEL)
 
     const result = await this.voice.generateToken(user.id, user.username, channelId)
     return result

@@ -116,6 +116,9 @@ export class RolesService {
       if (role.position >= actorTopPos) {
         throw new ForbiddenException('Cannot edit a role at or above your own position')
       }
+      if (data.position !== undefined && data.position >= actorTopPos) {
+        throw new ForbiddenException('Cannot promote a role to or above your own position')
+      }
     }
 
     await this.enforceOwnerRoleProtection(serverId, role, isOwner)
@@ -124,11 +127,10 @@ export class RolesService {
       this.enforcePermissionCeiling(actorPerms, BigInt(data.permissions))
     }
 
-    if (data.selfAssignable === true) {
-      const permsToCheck = data.permissions !== undefined ? BigInt(data.permissions) : role.permissions
-      if (permsToCheck & DANGEROUS_PERMISSIONS) {
-        throw new BadRequestException('Cannot mark a role with dangerous permissions as self-assignable')
-      }
+    const willBeSelfAssignable = data.selfAssignable !== undefined ? data.selfAssignable : role.selfAssignable
+    const effectivePerms = data.permissions !== undefined ? BigInt(data.permissions) : role.permissions
+    if (willBeSelfAssignable && (effectivePerms & DANGEROUS_PERMISSIONS)) {
+      throw new BadRequestException('Cannot have dangerous permissions on a self-assignable role')
     }
 
     const updated = await this.prisma.role.update({
@@ -190,13 +192,30 @@ export class RolesService {
 
   async reorderRoles(serverId: string, actorId: string, roleIds: string[]) {
     await this.requirePermission(serverId, actorId, Permission.MANAGE_ROLES)
+    const isOwner = await this.isServerOwner(serverId, actorId)
 
     const roles = await this.prisma.role.findMany({
       where: { id: { in: roleIds }, serverId },
-      select: { id: true },
+      select: { id: true, position: true, isDefault: true },
     })
     if (roles.length !== roleIds.length) {
       throw new BadRequestException('Some role IDs do not belong to this server')
+    }
+
+    const ownerRoleId = await this.getOwnerRoleId(serverId)
+
+    if (!isOwner) {
+      const actorTopPos = await this.getActorTopPosition(serverId, actorId)
+      const posMap = new Map(roles.map((r) => [r.id, r]))
+      for (const id of roleIds) {
+        const role = posMap.get(id)!
+        if (role.position >= actorTopPos) {
+          throw new ForbiddenException('Cannot reorder roles at or above your own position')
+        }
+        if (role.id === ownerRoleId) {
+          throw new ForbiddenException('Cannot reorder the Owner role')
+        }
+      }
     }
 
     await this.prisma.$transaction(
@@ -302,6 +321,15 @@ export class RolesService {
       throw new ForbiddenException('Insufficient permissions')
     }
     return perms
+  }
+
+  async findChannelOrThrow(channelId: string) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { id: true, serverId: true },
+    })
+    if (!channel) throw new NotFoundException('Channel not found')
+    return channel
   }
 
   async requireMembership(serverId: string, userId: string) {
@@ -424,7 +452,7 @@ export class RolesService {
     return server?.ownerId === userId
   }
 
-  private async getActorTopPosition(serverId: string, actorId: string): Promise<number> {
+  async getActorTopPosition(serverId: string, actorId: string): Promise<number> {
     const memberRoles = await this.prisma.serverMemberRole.findMany({
       where: { userId: actorId, serverId },
       include: { role: { select: { position: true } } },
@@ -441,25 +469,28 @@ export class RolesService {
     }
   }
 
+  async getOwnerRoleId(serverId: string): Promise<string | null> {
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+      select: { ownerId: true },
+    })
+    if (!server) return null
+    const ownerMemberRole = await this.prisma.serverMemberRole.findMany({
+      where: { userId: server.ownerId, serverId },
+      include: { role: { select: { id: true, position: true } } },
+      orderBy: { role: { position: 'desc' } },
+    })
+    return ownerMemberRole.length > 0 ? ownerMemberRole[0].roleId : null
+  }
+
   private async enforceOwnerRoleProtection(
     serverId: string,
     role: { id: string; position: number; isDefault: boolean },
     isOwner: boolean,
   ) {
-    const ownerRoleCheck = await this.prisma.serverMemberRole.findFirst({
-      where: { serverId, roleId: role.id },
-      include: { member: { select: { userId: true } } },
-    })
-    if (ownerRoleCheck) {
-      const server = await this.prisma.server.findUnique({
-        where: { id: serverId },
-        select: { ownerId: true },
-      })
-      if (server && server.ownerId === ownerRoleCheck.member.userId && role.position >= 100) {
-        if (!isOwner) {
-          throw new ForbiddenException('Only the server owner can modify the Owner role')
-        }
-      }
+    const ownerRoleId = await this.getOwnerRoleId(serverId)
+    if (ownerRoleId === role.id && !isOwner) {
+      throw new ForbiddenException('Only the server owner can modify the Owner role')
     }
   }
 }

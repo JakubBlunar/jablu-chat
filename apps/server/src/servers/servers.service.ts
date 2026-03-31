@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { ChannelType, Prisma } from '@prisma/client'
-import { Permission } from '@chat/shared'
+import { DANGEROUS_PERMISSIONS, hasPermission, Permission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
@@ -121,7 +121,13 @@ export class ServersService {
     if (!server) {
       throw new NotFoundException('Server not found or you are not a member')
     }
-    return server
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const visibleChannelIds = new Set(
+      Object.entries(permMap)
+        .filter(([, p]) => hasPermission(p, Permission.VIEW_CHANNEL))
+        .map(([id]) => id)
+    )
+    return { ...server, channels: server.channels.filter((c) => visibleChannelIds.has(c.id)) }
   }
 
   async updateServer(serverId: string, userId: string, data: {
@@ -247,6 +253,7 @@ export class ServersService {
       throw new ForbiddenException('You cannot change your own roles')
     }
     const server = await this.getServerOrThrow(serverId)
+    const isOwner = server.ownerId === actorId
 
     const target = await this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId: targetUserId, serverId } }
@@ -260,16 +267,18 @@ export class ServersService {
       throw new BadRequestException('Some role IDs are invalid')
     }
 
-    if (server.ownerId === targetUserId) {
-      const ownerRole = await this.prisma.serverMemberRole.findFirst({
-        where: { userId: targetUserId, serverId },
-        include: { role: { select: { position: true } } }
-      })
-      if (ownerRole && ownerRole.role.position >= 100) {
-        if (!roleIds.includes(ownerRole.roleId)) {
-          throw new ForbiddenException('Cannot remove the Owner role from the server owner')
+    if (!isOwner) {
+      const actorTopPos = await this.roles.getActorTopPosition(serverId, actorId)
+      for (const role of validRoles) {
+        if (role.position >= actorTopPos) {
+          throw new ForbiddenException('Cannot assign a role at or above your own position')
         }
       }
+    }
+
+    const ownerRoleId = await this.roles.getOwnerRoleId(serverId)
+    if (server.ownerId === targetUserId && ownerRoleId && !roleIds.includes(ownerRoleId)) {
+      throw new ForbiddenException('Cannot remove the Owner role from the server owner')
     }
 
     await this.prisma.$transaction([
@@ -657,6 +666,17 @@ export class ServersService {
     }
 
     if (data.selfAssignableRoleIds !== undefined) {
+      if (data.selfAssignableRoleIds.length > 0) {
+        const candidateRoles = await this.prisma.role.findMany({
+          where: { serverId, id: { in: data.selfAssignableRoleIds }, isDefault: false },
+          select: { id: true, name: true, permissions: true }
+        })
+        for (const role of candidateRoles) {
+          if (role.permissions & DANGEROUS_PERMISSIONS) {
+            throw new BadRequestException(`Role "${role.name}" has dangerous permissions and cannot be self-assignable`)
+          }
+        }
+      }
       await this.prisma.role.updateMany({
         where: { serverId, selfAssignable: true },
         data: { selfAssignable: false }
@@ -710,11 +730,9 @@ export class ServersService {
       .filter((mr) => !mr.role.selfAssignable)
       .map((mr) => mr.roleId)
 
-    if (server.ownerId === userId) {
-      const ownerRole = currentRoles.find((mr) => mr.role.position >= 100)
-      if (ownerRole && !preservedRoleIds.includes(ownerRole.roleId)) {
-        preservedRoleIds.push(ownerRole.roleId)
-      }
+    const ownerRoleId = await this.roles.getOwnerRoleId(serverId)
+    if (server.ownerId === userId && ownerRoleId && !preservedRoleIds.includes(ownerRoleId)) {
+      preservedRoleIds.push(ownerRoleId)
     }
 
     const newRoleIds = [...new Set([...preservedRoleIds, ...roleIds])]

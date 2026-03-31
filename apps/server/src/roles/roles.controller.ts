@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
+import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { RolesService } from './roles.service'
 
@@ -85,6 +87,10 @@ export class RolesController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: { id: string },
   ) {
+    const channel = await this.roles.findChannelOrThrow(channelId)
+    if (channel.serverId !== serverId) {
+      throw new NotFoundException('Channel not found in this server')
+    }
     const perms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
     return { permissions: perms.toString() }
   }
@@ -94,6 +100,8 @@ export class RolesController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: { id: string },
   ) {
+    const channel = await this.roles.findChannelOrThrow(channelId)
+    await this.roles.requirePermission(channel.serverId, user.id, Permission.MANAGE_ROLES)
     return this.roles.getChannelOverrides(channelId)
   }
 
