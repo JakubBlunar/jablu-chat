@@ -9,7 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer
 } from '@nestjs/websockets'
-import { MAX_MESSAGE_LENGTH, Permission } from '@chat/shared'
+import { MAX_MESSAGE_LENGTH, Permission, hasPermission } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
 import { AutoModService } from '../automod/automod.service'
 import { DmService } from '../dm/dm.service'
@@ -77,7 +77,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     private readonly readState: ReadStateService,
     readonly push: PushService,
     private readonly redis: RedisService,
-    private readonly roles: RolesService
+    readonly roles: RolesService
   ) {}
 
   onModuleDestroy() {
@@ -196,19 +196,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         this.socketVoiceChannel.set(socketId, afkChannelId)
         this.voiceActivity.set(socketId, now)
 
-        const serverIds = (await this.server.in(`user:${participant.userId}`).fetchSockets())
-          .map((s) => (s.data as { serverIds?: string[] }).serverIds ?? [])
-          .flat()
-        const uniqueServerIds = [...new Set(serverIds)]
-
-        for (const sid of uniqueServerIds) {
-          this.server.to(`server:${sid}`).emit('voice:participant-left', { channelId, userId: participant.userId })
-          this.server.to(`server:${sid}`).emit('voice:participant-joined', {
-            channelId: afkChannelId,
-            userId: participant.userId,
-            username: participant.username
-          })
-        }
+        this.server.to(`channel:${channelId}`).emit('voice:participant-left', { channelId, userId: participant.userId })
+        this.server.to(`channel:${afkChannelId}`).emit('voice:participant-joined', {
+          channelId: afkChannelId,
+          userId: participant.userId,
+          username: participant.username
+        })
 
         this.server.to(`user:${participant.userId}`).emit('voice:moved', {
           userId: participant.userId,
@@ -225,6 +218,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   emitToDm(conversationId: string, event: string, data: unknown) {
     this.server.to(`dm:${conversationId}`).emit(event, data)
+  }
+
+  async getVisibleChannelIds(serverId: string, userId: string): Promise<string[]> {
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const VIEW = Permission.VIEW_CHANNEL
+    return Object.entries(permMap)
+      .filter(([, perms]) => hasPermission(perms, VIEW))
+      .map(([chId]) => chId)
+  }
+
+  async reconcileChannelRooms(serverId: string, userId: string) {
+    const visibleIds = new Set(await this.getVisibleChannelIds(serverId, userId))
+    const allChannels = await this.prisma.channel.findMany({
+      where: { serverId },
+      select: { id: true },
+    })
+    const userSockets = await this.server.in(`user:${userId}`).fetchSockets()
+    for (const s of userSockets) {
+      for (const ch of allChannels) {
+        const room = `channel:${ch.id}`
+        if (visibleIds.has(ch.id)) {
+          s.join(room)
+        } else {
+          s.leave(room)
+        }
+      }
+    }
   }
 
   async handleConnection(client: Socket) {
@@ -253,8 +273,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     for (const m of memberships) {
       serverIds.push(m.serverId)
       client.join(`server:${m.serverId}`)
+      const visibleChannelIds = await this.getVisibleChannelIds(m.serverId, user.id)
+      const visibleSet = new Set(visibleChannelIds)
       for (const ch of m.server.channels) {
-        client.join(`channel:${ch.id}`)
+        if (visibleSet.has(ch.id)) {
+          client.join(`channel:${ch.id}`)
+        }
       }
       for (const mem of m.server.members) {
         allMemberUserIds.add(mem.userId)
@@ -392,13 +416,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       this.voiceParticipants.delete(channelId)
     }
 
-    if (leaving && serverIds) {
-      for (const sid of serverIds) {
-        this.server.to(`server:${sid}`).emit('voice:participant-left', {
-          channelId,
-          userId: leaving.userId
-        })
-      }
+    if (leaving) {
+      this.server.to(`channel:${channelId}`).emit('voice:participant-left', {
+        channelId,
+        userId: leaving.userId
+      })
     }
   }
 
@@ -491,9 +513,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         user.id,
         this.getOnlineUserIds()
       )
-      mentionedUserIds = result.userIds
       mentionEveryone = result.everyone
       mentionHere = result.here
+
+      if (mentionEveryone || mentionHere) {
+        const filtered: string[] = []
+        for (const uid of result.userIds) {
+          try {
+            const perms = await this.roles.getChannelPermissions(serverId, body.channelId, uid)
+            if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
+              filtered.push(uid)
+            }
+          } catch { /* not a member, skip */ }
+        }
+        mentionedUserIds = filtered
+      } else {
+        mentionedUserIds = result.userIds
+      }
+
       if (mentionedUserIds.length > 0) {
         await this.readState.incrementMention(body.channelId, mentionedUserIds)
       }
@@ -748,6 +785,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('typing:stop')
   async onTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
     const user = (client.data as { user: WsUser }).user
+    await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     this.emitToChannel(body.channelId, 'user:typing-stop', {
       userId: user.id,
       channelId: body.channelId
@@ -904,6 +942,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('dm:typing-stop')
   async onDmTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
     const user = (client.data as { user: WsUser }).user
+    await this.dm.requireMembership(body.conversationId, user.id)
     client.to(`dm:${body.conversationId}`).emit('dm:typing-stop', {
       userId: user.id,
       conversationId: body.conversationId
@@ -959,13 +998,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     this.socketVoiceChannel.set(client.id, body.channelId)
     this.voiceActivity.set(client.id, Date.now())
 
-    for (const sid of serverIds) {
-      this.server.to(`server:${sid}`).emit('voice:participant-joined', {
-        channelId: body.channelId,
-        userId: user.id,
-        username: user.displayName ?? user.username
-      })
-    }
+    this.server.to(`channel:${body.channelId}`).emit('voice:participant-joined', {
+      channelId: body.channelId,
+      userId: user.id,
+      username: user.displayName ?? user.username
+    })
 
     return { ok: true }
   }
@@ -1000,13 +1037,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     if (!sanitized.muted) this.voiceActivity.set(client.id, Date.now())
 
-    for (const sid of serverIds) {
-      this.server.to(`server:${sid}`).emit('voice:participant-state', {
-        channelId,
-        userId: user.id,
-        ...sanitized
-      })
-    }
+    this.server.to(`channel:${channelId}`).emit('voice:participant-state', {
+      channelId,
+      userId: user.id,
+      ...sanitized
+    })
     return { ok: true }
   }
 
@@ -1029,6 +1064,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         prisma: this.prisma,
         push: this.push,
         redis: this.redis,
+        roles: this.roles,
         isUserOnline: this.isUserOnline.bind(this)
       },
       serverId,
@@ -1056,6 +1092,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         prisma: this.prisma,
         push: this.push,
         redis: this.redis,
+        roles: this.roles,
         isUserOnline: this.isUserOnline.bind(this)
       },
       parentId,

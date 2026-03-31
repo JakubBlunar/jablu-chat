@@ -1,6 +1,8 @@
+import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
+import type { RolesService } from '../roles/roles.service'
 
 export function describePushPreview(
   content: string | undefined,
@@ -103,7 +105,8 @@ export async function sendPushToOfflineMembers(
   url: string,
   channelId: string,
   mentionedUserIds: string[],
-  attachments?: { type: string }[]
+  attachments?: { type: string }[],
+  roles?: RolesService
 ): Promise<void> {
   const members = await prisma.serverMember.findMany({
     where: { serverId, NOT: { userId: senderId } },
@@ -123,7 +126,7 @@ export async function sendPushToOfflineMembers(
   const channelPrefMap = await getChannelNotifPrefs(prisma, redis, channelId, offlineUserIds)
   const mentionSet = new Set(mentionedUserIds)
 
-  const eligibleIds = offlineUserIds.filter((id) => {
+  const prefFilteredIds = offlineUserIds.filter((id) => {
     const channelLevel = channelPrefMap.get(id)
     const serverLevel = serverPrefMap.get(id)
     const effective = channelLevel ?? serverLevel ?? 'all'
@@ -132,7 +135,22 @@ export async function sendPushToOfflineMembers(
     return true
   })
 
-  if (eligibleIds.length === 0) return
+  if (prefFilteredIds.length === 0) return
+
+  let eligibleIds = prefFilteredIds
+  if (roles) {
+    const filtered: string[] = []
+    for (const id of prefFilteredIds) {
+      try {
+        const perms = await roles.getChannelPermissions(serverId, channelId, id)
+        if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
+          filtered.push(id)
+        }
+      } catch { /* member removed, skip */ }
+    }
+    eligibleIds = filtered
+    if (eligibleIds.length === 0) return
+  }
 
   const preview = describePushPreview(content, attachments)
   await push.sendToUsers(eligibleIds, {

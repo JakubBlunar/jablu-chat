@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { RolesService } from '../roles/roles.service'
 
 const messageInclude = {
   author: {
@@ -15,7 +17,10 @@ const messageInclude = {
 
 @Injectable()
 export class BookmarksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roles: RolesService,
+  ) {}
 
   async toggle(userId: string, messageId: string, note?: string) {
     const existing = await this.prisma.messageBookmark.findUnique({
@@ -25,8 +30,14 @@ export class BookmarksService {
       await this.prisma.messageBookmark.delete({ where: { id: existing.id } })
       return { action: 'removed' as const, messageId }
     }
-    const message = await this.prisma.message.findUnique({ where: { id: messageId } })
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, channelId: true, channel: { select: { serverId: true } } }
+    })
     if (!message) throw new NotFoundException('Message not found')
+    if (message.channelId && message.channel?.serverId) {
+      await this.roles.requireChannelPermission(message.channel.serverId, message.channelId, userId, Permission.VIEW_CHANNEL)
+    }
     try {
       const bookmark = await this.prisma.messageBookmark.create({
         data: { userId, messageId, note }
@@ -52,7 +63,20 @@ export class BookmarksService {
     })
     const hasMore = bookmarks.length > limit
     if (hasMore) bookmarks.pop()
-    return { bookmarks, hasMore }
+
+    const filtered = []
+    for (const bm of bookmarks) {
+      const serverId = bm.message.channel?.serverId
+      const channelId = bm.message.channelId
+      if (serverId && channelId) {
+        try {
+          const perms = await this.roles.getChannelPermissions(serverId, channelId, userId)
+          if (!hasPermission(perms, Permission.VIEW_CHANNEL)) continue
+        } catch { continue }
+      }
+      filtered.push(bm)
+    }
+    return { bookmarks: filtered, hasMore }
   }
 
   async listIds(userId: string) {

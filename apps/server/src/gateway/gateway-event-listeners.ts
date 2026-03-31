@@ -1,3 +1,4 @@
+import { Permission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
 
 /**
@@ -105,8 +106,19 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on('channel:created', async (payload: { serverId: string; channel: { id: string } }) => {
     gw.server.to(`server:${payload.serverId}`).emit('channel:created', payload)
-    const sockets = await gw.server.in(`server:${payload.serverId}`).fetchSockets()
-    for (const s of sockets) s.join(`channel:${payload.channel.id}`)
+    const members = await gw.prisma.serverMember.findMany({
+      where: { serverId: payload.serverId },
+      select: { userId: true },
+    })
+    for (const m of members) {
+      try {
+        const perms = await gw.roles.getChannelPermissions(payload.serverId, payload.channel.id, m.userId)
+        if (perms & Permission.VIEW_CHANNEL || perms & Permission.ADMINISTRATOR) {
+          const sockets = await gw.server.in(`user:${m.userId}`).fetchSockets()
+          for (const s of sockets) s.join(`channel:${payload.channel.id}`)
+        }
+      } catch { /* member may have been removed */ }
+    }
   })
 
   gw.events.on('channel:updated', (payload: { serverId: string; channel: unknown }) => {
@@ -140,15 +152,12 @@ export function registerEventListeners(gw: ChatGateway) {
     }
     gw.server.to(`server:${serverId}`).emit('member:joined', { serverId, member })
 
-    const channels = await gw.prisma.channel.findMany({
-      where: { serverId },
-      select: { id: true }
-    })
+    const visibleChannelIds = await gw.getVisibleChannelIds(serverId, member.userId)
     const userSockets = await gw.server.in(`user:${member.userId}`).fetchSockets()
     for (const s of userSockets) {
       s.join(`server:${serverId}`)
-      for (const ch of channels) {
-        s.join(`channel:${ch.id}`)
+      for (const chId of visibleChannelIds) {
+        s.join(`channel:${chId}`)
       }
       const sids = (s.data as { serverIds?: string[] }).serverIds
       if (sids && !sids.includes(serverId)) {
@@ -201,12 +210,22 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
   })
 
-  gw.events.on('member:updated', (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: unknown[]; mutedUntil?: string | null; onboardingCompleted?: boolean }) => {
+  gw.events.on('member:updated', async (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: unknown[]; mutedUntil?: string | null; onboardingCompleted?: boolean }) => {
     gw.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
+    if (payload.roleIds) {
+      await gw.reconcileChannelRooms(payload.serverId, payload.userId)
+    }
   })
 
-  gw.events.on('channel:permissions:updated', (payload: { serverId: string; channelId: string; roleId: string }) => {
+  gw.events.on('channel:permissions:updated', async (payload: { serverId: string; channelId: string; roleId: string }) => {
     gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
+    const members = await gw.prisma.serverMember.findMany({
+      where: { serverId: payload.serverId },
+      select: { userId: true },
+    })
+    for (const m of members) {
+      await gw.reconcileChannelRooms(payload.serverId, m.userId)
+    }
   })
 
   gw.events.on('role:created', (payload: { serverId: string; role: unknown }) => {
