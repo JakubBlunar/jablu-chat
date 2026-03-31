@@ -10,6 +10,8 @@ export interface Server {
   welcomeMessage?: string | null
   afkChannelId?: string | null
   afkTimeout?: number
+  onboardingEnabled?: boolean
+  onboardingMessage?: string | null
   createdAt: string
   roles?: Role[]
 }
@@ -19,6 +21,7 @@ export interface ServerMember {
   serverId: string
   roleId: string
   joinedAt: string
+  onboardingCompleted?: boolean
   role?: Role
   user?: {
     id: string

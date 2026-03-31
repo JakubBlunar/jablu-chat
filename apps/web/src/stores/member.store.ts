@@ -8,6 +8,7 @@ export type Member = {
   roleId: string
   joinedAt: string
   mutedUntil?: string | null
+  onboardingCompleted?: boolean
   role?: Role
   user: {
     id: string
@@ -33,6 +34,7 @@ type MemberState = {
   removeMember: (serverId: string, userId: string) => void
   updateMemberRole: (serverId: string, userId: string, roleId: string) => void
   updateMemberTimeout: (serverId: string, userId: string, mutedUntil: string | null) => void
+  updateMemberOnboarding: (serverId: string, userId: string, completed: boolean) => void
   initOnlineUsers: (userIds: string[]) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string) => void
@@ -89,6 +91,13 @@ export const useMemberStore = create<MemberState>((set, get) => ({
     set((s) => ({
       members: s.members.map((m) =>
         m.serverId === serverId && m.userId === userId ? { ...m, mutedUntil } : m
+      )
+    })),
+
+  updateMemberOnboarding: (serverId, userId, completed) =>
+    set((s) => ({
+      members: s.members.map((m) =>
+        m.serverId === serverId && m.userId === userId ? { ...m, onboardingCompleted: completed } : m
       )
     })),
 

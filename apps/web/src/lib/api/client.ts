@@ -31,6 +31,7 @@ import type {
   DmConversation,
   EmojiStat,
   GifSearchResult,
+  OnboardingConfig,
   SearchResult,
   ServerInsights
 } from './types'
@@ -416,6 +417,31 @@ export class ApiClient {
 
   getServerInsights(serverId: string): Promise<ServerInsights> {
     return this.get(`/api/servers/${serverId}/insights`)
+  }
+
+  getOnboardingConfig(serverId: string): Promise<OnboardingConfig> {
+    return this.get(`/api/servers/${serverId}/onboarding`)
+  }
+
+  updateOnboardingConfig(serverId: string, data: {
+    enabled?: boolean
+    message?: string | null
+    selfAssignableRoleIds?: string[]
+  }): Promise<OnboardingConfig> {
+    return this.patch(`/api/servers/${serverId}/onboarding`, data)
+  }
+
+  getOnboardingWizard(serverId: string): Promise<{
+    onboardingEnabled: boolean
+    onboardingMessage: string | null
+    name: string
+    roles: { id: string; name: string; color: string | null }[]
+  }> {
+    return this.get(`/api/servers/${serverId}/onboarding/wizard`)
+  }
+
+  completeOnboarding(serverId: string, roleId?: string) {
+    return this.post(`/api/servers/${serverId}/onboarding/complete`, { roleId })
   }
 
   getEmojiStats(serverId: string): Promise<EmojiStat[]> {

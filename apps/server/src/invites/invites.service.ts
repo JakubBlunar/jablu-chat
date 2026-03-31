@@ -110,7 +110,7 @@ export class InvitesService {
   async joinVanity(code: string, userId: string) {
     const server = await this.prisma.server.findUnique({
       where: { vanityCode: code },
-      select: { id: true }
+      select: { id: true, onboardingEnabled: true }
     })
     if (!server) throw new NotFoundException('Server not found')
 
@@ -121,7 +121,7 @@ export class InvitesService {
 
     const defaultRoleId = await this.roles.getDefaultRoleId(server.id)
     const member = await this.prisma.serverMember.create({
-      data: { userId, serverId: server.id, roleId: defaultRoleId },
+      data: { userId, serverId: server.id, roleId: defaultRoleId, onboardingCompleted: !server.onboardingEnabled },
       include: {
         user: { select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true } }
       }
@@ -171,7 +171,8 @@ export class InvitesService {
         data: {
           userId,
           serverId: invite.serverId,
-          roleId: defaultRoleId
+          roleId: defaultRoleId,
+          onboardingCompleted: !invite.server.onboardingEnabled
         }
       }),
       this.prisma.invite.update({

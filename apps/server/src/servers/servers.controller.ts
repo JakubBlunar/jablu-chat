@@ -17,7 +17,7 @@ import {
 import { AuthGuard } from '@nestjs/passport'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CurrentUser } from '../auth/current-user.decorator'
-import { TimeoutMemberDto, UpdateMemberRoleDto, UpdateServerDto } from './dto'
+import { CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRoleDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
 const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
@@ -162,6 +162,44 @@ export class ServersController {
     @CurrentUser() user: { id: string }
   ) {
     return this.servers.getInsights(id, user.id)
+  }
+
+  @Get(':id/onboarding')
+  getOnboarding(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.servers.getOnboardingConfig(id, user.id)
+  }
+
+  @Patch(':id/onboarding')
+  updateOnboarding(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpdateOnboardingDto
+  ) {
+    return this.servers.updateOnboardingConfig(id, user.id, {
+      enabled: dto.enabled,
+      message: dto.message,
+      selfAssignableRoleIds: dto.selfAssignableRoleIds
+    })
+  }
+
+  @Get(':id/onboarding/wizard')
+  getOnboardingWizard(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.servers.getOnboardingWizardData(id, user.id)
+  }
+
+  @Post(':id/onboarding/complete')
+  completeOnboarding(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CompleteOnboardingDto
+  ) {
+    return this.servers.completeOnboarding(id, user.id, dto.roleId)
   }
 
   @Post(':id/bans/:userId')

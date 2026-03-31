@@ -14,6 +14,7 @@ import { EmojiStatsTab } from './server-settings/tabs/EmojiStatsTab'
 import { AutoModTab } from './server-settings/tabs/AutoModTab'
 import { AuditLogTab } from './server-settings/tabs/AuditLogTab'
 import { InsightsTab } from './server-settings/tabs/InsightsTab'
+import { OnboardingTab } from './server-settings/tabs/OnboardingTab'
 import { DangerTab } from './server-settings/tabs/DangerTab'
 import { WelcomeTab } from './server-settings/tabs/WelcomeTab'
 import { AfkTab } from './server-settings/tabs/AfkTab'
@@ -37,6 +38,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
       {tab === 'automod' && <AutoModTab server={server} />}
       {tab === 'audit' && <AuditLogTab server={server} />}
       {tab === 'insights' && <InsightsTab server={server} />}
+      {tab === 'onboarding' && <OnboardingTab server={server} />}
       {tab === 'danger' && <DangerTab server={server} onClose={onClose} />}
     </>
   )
