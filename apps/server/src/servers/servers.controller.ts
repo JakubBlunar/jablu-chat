@@ -17,7 +17,7 @@ import {
 import { AuthGuard } from '@nestjs/passport'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CurrentUser } from '../auth/current-user.decorator'
-import { CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRoleDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
+import { ChangeSelfRoleDto, CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRoleDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
 import { ServersService } from './servers.service'
 
 const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
@@ -191,6 +191,15 @@ export class ServersController {
     @CurrentUser() user: { id: string }
   ) {
     return this.servers.getOnboardingWizardData(id, user.id)
+  }
+
+  @Patch(':id/self-role')
+  changeSelfRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: ChangeSelfRoleDto
+  ) {
+    return this.servers.changeSelfRole(id, user.id, dto.roleId)
   }
 
   @Post(':id/onboarding/complete')

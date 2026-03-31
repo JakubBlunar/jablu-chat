@@ -105,11 +105,7 @@ export function OnboardingWizard() {
               ))}
             </div>
           </div>
-        ) : (
-          <p className="mt-4 text-center text-sm text-gray-400">
-            No roles to choose from. You can proceed directly.
-          </p>
-        )}
+        ) : null}
 
         <button
           type="button"

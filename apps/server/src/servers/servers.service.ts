@@ -638,6 +638,27 @@ export class ServersService {
     return { ...server, roles }
   }
 
+  async changeSelfRole(serverId: string, userId: string, roleId: string) {
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId } }
+    })
+    if (!member) throw new NotFoundException('Not a member of this server')
+
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, serverId, selfAssignable: true }
+    })
+    if (!role) throw new ForbiddenException('This role is not self-assignable')
+
+    const updated = await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId, serverId } },
+      data: { roleId },
+      include: memberInclude
+    })
+
+    this.events.emit('member:updated', { serverId, userId, roleId })
+    return updated
+  }
+
   async completeOnboarding(serverId: string, userId: string, roleId?: string) {
     const member = await this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId, serverId } }

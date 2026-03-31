@@ -18,6 +18,7 @@ export function RolesTab({ server }: { server: Server }) {
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState('#99aab5')
   const [editPerms, setEditPerms] = useState(0n)
+  const [editSelfAssignable, setEditSelfAssignable] = useState(false)
 
   const fetchRoles = useCallback(async () => {
     setLoading(true)
@@ -38,6 +39,7 @@ export function RolesTab({ server }: { server: Server }) {
       setEditName(selected.name)
       setEditColor(selected.color ?? '#99aab5')
       setEditPerms(permsToBigInt(selected.permissions))
+      setEditSelfAssignable(selected.selfAssignable ?? false)
     }
   }, [selected])
 
@@ -60,7 +62,8 @@ export function RolesTab({ server }: { server: Server }) {
       const updated = await api.updateRole(server.id, selected.id, {
         name: editName,
         color: editColor,
-        permissions: editPerms.toString()
+        permissions: editPerms.toString(),
+        selfAssignable: editSelfAssignable
       })
       setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
       setSelected(updated)
@@ -175,6 +178,28 @@ export function RolesTab({ server }: { server: Server }) {
                 ))}
               </div>
             </div>
+
+            {!selected.isDefault && (
+              <div className="border-t border-white/5 pt-4">
+                <label
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition hover:bg-white/[0.04] ${
+                    editSelfAssignable ? 'text-white' : 'text-gray-400'
+                  } ${!canManage ? 'pointer-events-none opacity-50' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={editSelfAssignable}
+                    onChange={(e) => setEditSelfAssignable(e.target.checked)}
+                    disabled={!canManage}
+                    className="accent-primary"
+                  />
+                  Self-assignable
+                </label>
+                <p className="mt-0.5 px-3 text-[11px] text-gray-500">
+                  Members can pick this role during onboarding or change to it later
+                </p>
+              </div>
+            )}
 
             {canManage && (
               <div className="flex items-center gap-2 border-t border-white/5 pt-4">

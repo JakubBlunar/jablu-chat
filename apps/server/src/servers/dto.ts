@@ -77,3 +77,8 @@ export class CompleteOnboardingDto {
   @IsUUID('4')
   roleId?: string
 }
+
+export class ChangeSelfRoleDto {
+  @IsUUID('4')
+  roleId: string
+}

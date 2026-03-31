@@ -444,6 +444,15 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/onboarding/complete`, { roleId })
   }
 
+  changeSelfRole(serverId: string, roleId: string) {
+    return this.patch(`/api/servers/${serverId}/self-role`, { roleId })
+  }
+
+  async getSelfAssignableRoles(serverId: string): Promise<{ id: string; name: string; color: string | null }[]> {
+    const data = await this.get<{ roles: { id: string; name: string; color: string | null }[] }>(`/api/servers/${serverId}/onboarding/wizard`)
+    return data.roles
+  }
+
   getEmojiStats(serverId: string): Promise<EmojiStat[]> {
     return this.get(`/api/servers/${serverId}/emojis/stats`)
   }
@@ -529,7 +538,7 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/roles`, data)
   }
 
-  updateRole(serverId: string, roleId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number }): Promise<import('@chat/shared').Role> {
+  updateRole(serverId: string, roleId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number; selfAssignable?: boolean }): Promise<import('@chat/shared').Role> {
     return this.patch(`/api/servers/${serverId}/roles/${roleId}`, data)
   }
 
