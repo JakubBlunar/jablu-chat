@@ -39,6 +39,7 @@ export type MockPrismaService = {
   passwordReset: MockModel
   server: MockModel
   serverMember: MockModel
+  serverMemberRole: MockModel
   serverBan: MockModel
   role: MockModel
   channelPermissionOverride: MockModel
@@ -79,6 +80,7 @@ export function createMockPrismaService(): MockPrismaService {
     passwordReset: createMockModel(),
     server: createMockModel(),
     serverMember: createMockModel(),
+    serverMemberRole: createMockModel(),
     serverBan: createMockModel(),
     role: createMockModel(),
     channelPermissionOverride: createMockModel(),
