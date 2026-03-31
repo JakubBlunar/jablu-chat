@@ -117,7 +117,10 @@ export function MainLayout() {
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
-  const openSettings = useCallback(() => setSettingsOpen(true), [])
+  const openSettings = useCallback((tab?: string) => {
+    if (tab) setSettingsInitialTab(tab)
+    setSettingsOpen(true)
+  }, [])
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false)
 
   useEffect(() => {

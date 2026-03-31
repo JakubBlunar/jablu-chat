@@ -7,7 +7,8 @@ import { GroupDmModal } from '@/components/dm/GroupDmModal'
 import { EditChannelModal } from '@/components/channel/EditChannelModal'
 import { InviteModal } from '@/components/server/InviteModal'
 import { MobileDrawer } from '@/components/layout/MobileDrawer'
-import { DmIcon, HashIcon, SpeakerIcon, GearIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
+import { DmIcon, HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
+import { UserFooter } from '@/components/layout/UserFooter'
 import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
 import { ServerSettingsModal } from '@/components/server/ServerSettingsModal'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -28,6 +29,7 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore } from '@/stores/voice.store'
 import { useEventStore } from '@/stores/event.store'
 import { useFriendStore } from '@/stores/friend.store'
+import { useShallow } from 'zustand/react/shallow'
 import { CountBadge, IconButton } from '@/components/ui'
 
 const EventsPanel = React.lazy(() =>
@@ -43,41 +45,57 @@ const CreateCategoryModal = React.lazy(() =>
   import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
 )
 
-export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpenSettings: () => void; onOpenQuickSwitcher: () => void }) {
-  const open = useLayoutStore((s) => s.navDrawerOpen)
-  const close = useLayoutStore((s) => s.closeNavDrawer)
+export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpenSettings: (tab?: string) => void; onOpenQuickSwitcher: () => void }) {
+  const { open, close } = useLayoutStore(useShallow((s) => ({ open: s.navDrawerOpen, close: s.closeNavDrawer })))
 
   const { orchestratedGoToChannel, goToDms, goToDm } = useAppNavigate()
 
-  const viewMode = useServerStore((s) => s.viewMode)
-  const servers = useServerStore((s) => s.servers)
-  const currentServerId = useServerStore((s) => s.currentServerId)
+  const { viewMode, servers, currentServerId, removeServer } = useServerStore(
+    useShallow((s) => ({ viewMode: s.viewMode, servers: s.servers, currentServerId: s.currentServerId, removeServer: s.removeServer }))
+  )
 
-  const channels = useChannelStore((s) => s.channels)
-  const currentChannelId = useChannelStore((s) => s.currentChannelId)
+  const { channels, currentChannelId, storeCategories, collapsedCategories, toggleCategoryCollapsed } = useChannelStore(
+    useShallow((s) => ({
+      channels: s.channels,
+      currentChannelId: s.currentChannelId,
+      storeCategories: s.categories,
+      collapsedCategories: s.collapsedCategories,
+      toggleCategoryCollapsed: s.toggleCategoryCollapsed
+    }))
+  )
 
-  const conversations = useDmStore((s) => s.conversations)
-  const currentConvId = useDmStore((s) => s.currentConversationId)
-  const fetchConversations = useDmStore((s) => s.fetchConversations)
+  const { conversations, currentConvId, fetchConversations, closeConv } = useDmStore(
+    useShallow((s) => ({
+      conversations: s.conversations,
+      currentConvId: s.currentConversationId,
+      fetchConversations: s.fetchConversations,
+      closeConv: s.closeConversation
+    }))
+  )
 
   useEffect(() => {
     if (viewMode === 'dm') fetchConversations()
   }, [viewMode, fetchConversations])
 
   const user = useAuthStore((s) => s.user)
-  const onlineIds = useMemberStore((s) => s.onlineUserIds)
-  const dmReadStates = useReadStateStore((s) => s.dms)
-  const pendingFriendCount = useFriendStore((s) => s.pending.length)
-  const channelReadStates = useReadStateStore((s) => s.channels)
-  const notifPrefs = useNotifPrefStore((s) => s.prefs)
-  const getNotifLevel = useCallback(
-    (channelId: string) => (notifPrefs[channelId] ?? 'all') as 'all' | 'mentions' | 'none',
-    [notifPrefs]
+
+  const { onlineIds, members } = useMemberStore(useShallow((s) => ({ onlineIds: s.onlineUserIds, members: s.members })))
+
+  const { dmReadStates, channelReadStates, channelToServer, getServerUnread } = useReadStateStore(
+    useShallow((s) => ({ dmReadStates: s.dms, channelReadStates: s.channels, channelToServer: s.channelToServer, getServerUnread: s.getServerUnread }))
   )
-  const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
+
+  const { notifPrefs, serverPrefs, getNotifLevel, getServerLevel } = useNotifPrefStore(
+    useShallow((s) => ({ notifPrefs: s.prefs, serverPrefs: s.serverPrefs, getNotifLevel: s.get, getServerLevel: s.getServerLevel }))
+  )
+
+  const pendingFriendCount = useFriendStore((s) => s.pending.length)
+
+  const { viewingVoiceRoom, currentVoiceChannelId, voiceServerId } = useVoiceConnectionStore(
+    useShallow((s) => ({ viewingVoiceRoom: s.viewingVoiceRoom, currentVoiceChannelId: s.currentChannelId, voiceServerId: s.currentServerId }))
+  )
+
   const voiceParticipants = useVoiceStore((s) => s.participants)
-  const currentVoiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
-  const voiceServerId = useVoiceConnectionStore((s) => s.currentServerId)
 
   const handleGoToVoiceRoom = useCallback(() => {
     if (voiceServerId && currentVoiceChannelId) {
@@ -98,9 +116,6 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
   const [serverNotifOpen, setServerNotifOpen] = useState(false)
   const [dmFilter, setDmFilter] = useState('')
-  const closeConv = useDmStore((s) => s.closeConversation)
-
-  const members = useMemberStore((s) => s.members)
   const { has: hasPerm } = usePermissions(currentServerId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
 
@@ -170,7 +185,6 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   const currentServer = useMemo(() => servers.find((s) => s.id === currentServerId) ?? null, [servers, currentServerId])
   const isOwner = currentServer?.ownerId === user?.id
-  const removeServer = useServerStore((s) => s.removeServer)
   const eventCount = useEventStore((s) =>
     currentServerId && s.loadedServerId === currentServerId ? s.events.length : 0
   )
@@ -189,9 +203,12 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
-  const storeCategories = useChannelStore((s) => s.categories)
-  const collapsedCategories = useChannelStore((s) => s.collapsedCategories)
-  const toggleCategoryCollapsed = useChannelStore((s) => s.toggleCategoryCollapsed)
+  const computeServerBadge = useCallback(
+    (serverId: string) => getServerUnread(serverId, getNotifLevel, getServerLevel),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getServerUnread, getNotifLevel, getServerLevel, channelReadStates, channelToServer, notifPrefs, serverPrefs]
+  )
+
   const { uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, storeCategories)
 
   const handleServerClick = useCallback(
@@ -281,22 +298,32 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
             <div className="h-6 w-px shrink-0 bg-white/15" />
             {servers.map((s) => {
               const active = viewMode === 'server' && s.id === currentServerId
+              const badge = active ? null : computeServerBadge(s.id)
               return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => handleServerClick(s)}
-                  title={s.name}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden text-xs font-semibold text-white transition ${
-                    active ? 'rounded-xl bg-primary' : 'rounded-full bg-surface hover:rounded-xl hover:bg-primary'
-                  }`}
-                >
-                  {s.iconUrl ? (
-                    <img src={resolveMediaUrl(s.iconUrl)} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    s.name.charAt(0).toUpperCase()
+                <div key={s.id} className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleServerClick(s)}
+                    title={s.name}
+                    className={`flex h-10 w-10 items-center justify-center overflow-hidden text-xs font-semibold text-white transition ${
+                      active ? 'rounded-xl bg-primary' : 'rounded-full bg-surface hover:rounded-xl hover:bg-primary'
+                    }`}
+                  >
+                    {s.iconUrl ? (
+                      <img src={resolveMediaUrl(s.iconUrl)} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      s.name.charAt(0).toUpperCase()
+                    )}
+                  </button>
+                  {badge && badge.mentions > 0 && (
+                    <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-dark bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white">
+                      {badge.mentions > 10 ? '10+' : badge.mentions}
+                    </span>
                   )}
-                </button>
+                  {badge && badge.unread && badge.mentions === 0 && (
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface-dark bg-red-500" />
+                  )}
+                </div>
               )
             })}
           </div>
@@ -366,7 +393,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                               <HashIcon />
                               <span className="min-w-0 flex-1 truncate">{ch.name}</span>
                               {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
-                              {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-white" />)}
+                              {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-primary" />)}
                             </button>
                           </li>
                         )
@@ -419,7 +446,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                                       <HashIcon />
                                       <span className="min-w-0 flex-1 truncate">{ch.name}</span>
                                       {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
-                                      {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-white" />)}
+                                      {showUnreadDot && mentionCount === 0 && (<span className="h-2 w-2 shrink-0 rounded-full bg-primary" />)}
                                     </button>
                                   </li>
                                 )
@@ -577,7 +604,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                             status={info.status}
                           />
                           <span className="min-w-0 flex-1 truncate text-left">{info.name}</span>
-                          {hasUnread && <span className="h-2 w-2 rounded-full bg-white" />}
+                          {hasUnread && <span className="h-2 w-2 rounded-full bg-primary" />}
                         </button>
                         <IconButton
                           label="Close conversation"
@@ -604,20 +631,10 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
           <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />
 
           {/* User footer */}
-          <div className="flex shrink-0 items-center gap-2 border-t border-black/20 bg-surface-overlay px-3 py-2">
-            <UserAvatar
-              username={user?.username ?? 'User'}
-              avatarUrl={user?.avatarUrl}
-              size="md"
-              showStatus
-              status={user?.status ?? 'online'}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">
-                {user?.displayName ?? user?.username ?? '...'}
-              </p>
-              <p className="truncate text-xs capitalize text-gray-400">{user?.status ?? 'online'}</p>
-            </div>
+          <UserFooter
+            onOpenSettings={(tab) => { close(); onOpenSettings(tab) }}
+            className="border-t border-black/20 px-3 py-2"
+          >
             <IconButton
               label="Quick switcher"
               size="lg"
@@ -629,10 +646,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </IconButton>
-            <IconButton label="User settings" size="lg" onClick={onOpenSettings} className="rounded-md">
-              <GearIcon />
-            </IconButton>
-          </div>
+          </UserFooter>
         </div>
       </MobileDrawer>
 
