@@ -6,7 +6,7 @@ import {
   NotFoundException
 } from '@nestjs/common'
 import { ChannelType, Prisma } from '@prisma/client'
-import { Permission } from '@chat/shared'
+import { Permission, hasPermission } from '@chat/shared'
 import { EventBusService } from '../../events/event-bus.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { RolesService } from '../../roles/roles.service'
@@ -66,10 +66,20 @@ export class ChannelsService {
         }
       }
     })
-    return channels.map(({ _count, ...ch }) => ({
-      ...ch,
-      pinnedCount: _count.messages
-    }))
+
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const VIEW = Permission.VIEW_CHANNEL
+
+    return channels
+      .filter((ch) => {
+        const perms = permMap[ch.id]
+        if (perms === undefined) return true
+        return hasPermission(perms, VIEW)
+      })
+      .map(({ _count, ...ch }) => ({
+        ...ch,
+        pinnedCount: _count.messages
+      }))
   }
 
   async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number; categoryId?: string | null; isArchived?: boolean }) {

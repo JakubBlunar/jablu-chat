@@ -1,5 +1,6 @@
 import type { Channel, ChannelCategory, UserStatus } from '@chat/shared'
-import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react'
+import { hasPermission as hasPermFlag, Permission as SharedPermission } from '@chat/shared'
+import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
 import { useIsMobile } from '@/hooks/useMobile'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -36,6 +37,7 @@ const EditCategoryModal = React.lazy(() =>
 
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
@@ -81,7 +83,18 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const collapsedCategories = useChannelStore((s) => s.collapsedCategories)
   const toggleCategoryCollapsed = useChannelStore((s) => s.toggleCategoryCollapsed)
 
-  const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups, archivedChannels } = useSortedChannels(channels, categories)
+  const permissionsMap = useChannelPermissionsStore((s) => s.permissionsMap)
+  const visibleChannels = useMemo(
+    () =>
+      channels.filter((ch) => {
+        const perms = permissionsMap[ch.id]
+        if (perms === undefined) return true
+        return hasPermFlag(perms, SharedPermission.VIEW_CHANNEL)
+      }),
+    [channels, permissionsMap]
+  )
+
+  const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups, archivedChannels } = useSortedChannels(visibleChannels, categories)
   const [showArchived, setShowArchived] = useState(false)
 
   const { has: hasPerm } = usePermissions(currentServer?.id)
