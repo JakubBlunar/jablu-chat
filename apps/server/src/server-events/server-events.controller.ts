@@ -41,7 +41,8 @@ export class ServerEventsController {
     @Query('cursor') cursor?: string,
     @Query('afterId') afterId?: string
   ) {
-    return this.serverEvents.list(serverId, user.id, limit ? parseInt(limit, 10) || 10 : 10, cursor, afterId)
+    const take = limit ? Math.max(1, Math.min(parseInt(limit, 10) || 10, 50)) : 10
+    return this.serverEvents.list(serverId, user.id, take, cursor, afterId)
   }
 
   @Get(':eventId')
