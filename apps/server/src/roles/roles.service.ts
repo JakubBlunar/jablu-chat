@@ -72,25 +72,30 @@ export class RolesService {
       this.enforcePermissionCeiling(actorPerms, requestedPerms)
     }
 
-    const actorTopPos = isOwner ? Infinity : await this.getActorTopPosition(serverId, actorId)
-    const maxPos = await this.prisma.role.aggregate({
-      where: { serverId },
-      _max: { position: true },
+    await this.prisma.role.updateMany({
+      where: { serverId, isDefault: false, position: { gte: 1 } },
+      data: { position: { increment: 1 } },
     })
-    const position = Math.min((maxPos._max.position ?? 0) + 1, actorTopPos - 1)
 
     const role = await this.prisma.role.create({
       data: {
         serverId,
         name: data.name,
         color: data.color ?? null,
-        position: Math.max(1, position),
+        position: 1,
         permissions: requestedPerms,
       },
     })
 
     const wire = this.mapToWire(role)
     this.events.emit('role:created', { serverId, role: wire })
+
+    const allRoles = await this.prisma.role.findMany({
+      where: { serverId },
+      orderBy: { position: 'desc' },
+    })
+    this.events.emit('roles:reordered', { serverId, roles: allRoles.map((r) => this.mapToWire(r)) })
+
     return wire
   }
 

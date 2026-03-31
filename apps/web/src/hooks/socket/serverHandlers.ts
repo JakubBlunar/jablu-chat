@@ -81,8 +81,12 @@ export function createServerHandlers() {
     }
   }
 
-  const onRolesReordered = (_payload: { serverId: string; roles: Role[] }) => {
-    // Roles reorder doesn't affect permissions display directly
+  const onRolesReordered = (payload: { serverId: string; roles: Role[] }) => {
+    const currentServerId = useServerStore.getState().currentServerId
+    if (payload.serverId !== currentServerId) return
+    for (const role of payload.roles) {
+      useMemberStore.getState().updateRoleInMembers(role)
+    }
   }
 
   const onChannelPermissionsUpdated = (payload: { serverId: string }) => {
