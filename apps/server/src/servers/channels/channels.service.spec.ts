@@ -14,7 +14,7 @@ describe('ChannelsService', () => {
   let events: { emit: jest.Mock }
   let uploads: { deleteFile: jest.Mock }
   let auditLog: { log: jest.Mock }
-  let roles: { requirePermission: jest.Mock; requireMembership: jest.Mock }
+  let roles: { requirePermission: jest.Mock; requireMembership: jest.Mock; getAllChannelPermissions: jest.Mock }
 
   const serverId = 'server-1'
   const userId = 'user-1'
@@ -28,6 +28,7 @@ describe('ChannelsService', () => {
     roles = {
       requirePermission: jest.fn().mockResolvedValue(0n),
       requireMembership: jest.fn().mockResolvedValue({ server: {}, membership: {} }),
+      getAllChannelPermissions: jest.fn().mockResolvedValue({}),
     }
 
     const module: TestingModule = await Test.createTestingModule({

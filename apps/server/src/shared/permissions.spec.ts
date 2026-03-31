@@ -24,8 +24,8 @@ describe('Permission constants', () => {
     expect(ALL_PERMISSIONS).toBe(manual)
   })
 
-  it('DEFAULT_EVERYONE_PERMISSIONS should equal SEND_MESSAGES', () => {
-    expect(DEFAULT_EVERYONE_PERMISSIONS).toBe(Permission.SEND_MESSAGES)
+  it('DEFAULT_EVERYONE_PERMISSIONS should equal SEND_MESSAGES | VIEW_CHANNEL', () => {
+    expect(DEFAULT_EVERYONE_PERMISSIONS).toBe(Permission.SEND_MESSAGES | Permission.VIEW_CHANNEL)
   })
 
   it('DEFAULT_OWNER_PERMISSIONS should equal ALL_PERMISSIONS', () => {

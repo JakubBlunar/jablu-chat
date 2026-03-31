@@ -1,4 +1,4 @@
-import { BadRequestException, Logger, OnModuleDestroy, UseGuards } from '@nestjs/common'
+import { Logger, OnModuleDestroy, UseFilters, UseGuards } from '@nestjs/common'
 import {
   ConnectedSocket,
   MessageBody,
@@ -9,7 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer
 } from '@nestjs/websockets'
-import { MAX_MESSAGE_LENGTH, Permission, hasPermission } from '@chat/shared'
+import { Permission, hasPermission } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
 import { AutoModService } from '../automod/automod.service'
 import { DmService } from '../dm/dm.service'
@@ -24,14 +24,31 @@ import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
 import { registerEventListeners } from './gateway-event-listeners'
 import {
+  WsChannelIdDto,
+  WsConversationIdDto,
+  WsDmEditDto,
+  WsDmMessageDto,
+  WsDmSendDto,
+  WsEditMessageDto,
+  WsMessageChannelDto,
+  WsMessageIdDto,
+  WsPollVoteDto,
+  WsReactionToggleDto,
+  WsSendMessageDto,
+  WsVoiceStateDto
+} from './gateway.dto'
+import {
   describePushPreview as describePushPreviewText,
   sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx,
   sendPushToThreadParticipants as sendPushToThreadParticipantsWithCtx
 } from './gateway-push-helpers'
+import { WsExceptionFilter } from './ws-exception.filter'
 import { WsJwtGuard, WsUser } from './ws-jwt.guard'
+import { WsThrottle, WsThrottleGuard } from './ws-throttle.guard'
 
 @WebSocketGateway({ namespace: '/' })
-@UseGuards(WsJwtGuard)
+@UseGuards(WsJwtGuard, WsThrottleGuard)
+@UseFilters(WsExceptionFilter)
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatGateway.name)
 
@@ -456,21 +473,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { denied: false, serverId: ch.serverId }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('message:send')
   async onMessageSend(
     @ConnectedSocket() client: Socket,
-    @MessageBody()
-    body: {
-      channelId: string
-      content?: string
-      replyToId?: string
-      attachmentIds?: string[]
-      threadParentId?: string
-    }
+    @MessageBody() body: WsSendMessageDto
   ) {
-    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
-    }
     const user = (client.data as { user: WsUser }).user
 
     if (this.socketVoiceChannel.has(client.id)) this.voiceActivity.set(client.id, Date.now())
@@ -593,11 +601,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: msgRest }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('message:edit')
-  async onMessageEdit(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string; content: string }) {
-    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
-    }
+  async onMessageEdit(@ConnectedSocket() client: Socket, @MessageBody() body: WsEditMessageDto) {
     const user = (client.data as { user: WsUser }).user
 
     if (body.content) {
@@ -624,8 +630,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: updated }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('message:delete')
-  async onMessageDelete(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string }) {
+  async onMessageDelete(@ConnectedSocket() client: Socket, @MessageBody() body: WsMessageIdDto) {
     const user = (client.data as { user: WsUser }).user
     const channelId = await this.messages.getMessageChannelId(body.messageId)
     await this.messages.deleteMessage(body.messageId, user.id)
@@ -638,10 +645,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(10, 10)
   @SubscribeMessage('reaction:toggle')
   async onReactionToggle(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string; emoji: string; isCustom?: boolean }
+    @MessageBody() body: WsReactionToggleDto
   ) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.prisma.message.findUnique({ where: { id: body.messageId }, select: { channelId: true } })
@@ -670,8 +678,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, action: result.action }
   }
 
+  @WsThrottle(5, 10)
   @SubscribeMessage('message:pin')
-  async onMessagePin(@ConnectedSocket() client: Socket, @MessageBody() body: { messageId: string; channelId: string }) {
+  async onMessagePin(@ConnectedSocket() client: Socket, @MessageBody() body: WsMessageChannelDto) {
     const user = (client.data as { user: WsUser }).user
     const archiveCheck = await this.assertNotArchived(body.channelId)
     if (archiveCheck.archived) return { ok: false, error: 'This channel is archived' }
@@ -680,10 +689,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: msg }
   }
 
+  @WsThrottle(5, 10)
   @SubscribeMessage('message:unpin')
   async onMessageUnpin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { messageId: string; channelId: string }
+    @MessageBody() body: WsMessageChannelDto
   ) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.messages.unpinMessage(body.messageId, user.id, body.channelId)
@@ -691,10 +701,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: msg }
   }
 
+  @WsThrottle(5, 10)
   @SubscribeMessage('poll:vote')
   async onPollVote(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { pollId: string; optionId: string }
+    @MessageBody() body: WsPollVoteDto
   ) {
     const user = (client.data as { user: WsUser }).user
     const result = await this.polls.votePoll(body.pollId, body.optionId, user.id)
@@ -707,6 +718,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> last broadcasted effective status, avoids redundant DB writes */
   private readonly lastBroadcastedStatus = new Map<string, string>()
 
+  @WsThrottle(2, 5)
   @SubscribeMessage('activity:heartbeat')
   async onActivityHeartbeat(@ConnectedSocket() client: Socket) {
     const user = (client.data as { user: WsUser }).user
@@ -762,8 +774,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('typing:start')
-  async onTypingStart(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+  async onTypingStart(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     const archiveCheck = await this.assertNotArchived(body.channelId)
     if (archiveCheck.archived) return { ok: false }
@@ -778,8 +791,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('typing:stop')
-  async onTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+  async onTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     this.emitToChannel(body.channelId, 'user:typing-stop', {
@@ -789,20 +803,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('dm:send')
   async onDmSend(
     @ConnectedSocket() client: Socket,
-    @MessageBody()
-    body: {
-      conversationId: string
-      content?: string
-      replyToId?: string
-      attachmentIds?: string[]
-    }
+    @MessageBody() body: WsDmSendDto
   ) {
-    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
-    }
     const user = (client.data as { user: WsUser }).user
     const msg = await this.dm.createMessage(
       body.conversationId,
@@ -863,15 +869,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: msg }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('dm:edit')
   async onDmEdit(
     @ConnectedSocket() client: Socket,
-    @MessageBody()
-    body: { conversationId: string; messageId: string; content: string }
+    @MessageBody() body: WsDmEditDto
   ) {
-    if (body.content && body.content.length > MAX_MESSAGE_LENGTH) {
-      throw new BadRequestException(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`)
-    }
     const user = (client.data as { user: WsUser }).user
     const updated = await this.dm.editMessage(body.conversationId, body.messageId, user.id, body.content)
     this.emitToDm(body.conversationId, 'dm:edit', {
@@ -881,10 +884,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: updated }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('dm:delete')
   async onDmDelete(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { conversationId: string; messageId: string }
+    @MessageBody() body: WsDmMessageDto
   ) {
     const user = (client.data as { user: WsUser }).user
     await this.dm.deleteMessage(body.conversationId, body.messageId, user.id)
@@ -895,10 +899,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(5, 10)
   @SubscribeMessage('dm:pin')
   async onDmPin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { conversationId: string; messageId: string }
+    @MessageBody() body: WsDmMessageDto
   ) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.dm.pinMessage(body.conversationId, body.messageId, user.id)
@@ -909,10 +914,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: msg }
   }
 
+  @WsThrottle(5, 10)
   @SubscribeMessage('dm:unpin')
   async onDmUnpin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() body: { conversationId: string; messageId: string }
+    @MessageBody() body: WsDmMessageDto
   ) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.dm.unpinMessage(body.conversationId, body.messageId, user.id)
@@ -923,8 +929,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true, message: msg }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('dm:typing')
-  async onDmTyping(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+  async onDmTyping(@ConnectedSocket() client: Socket, @MessageBody() body: WsConversationIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.dm.requireMembership(body.conversationId, user.id)
     client.to(`dm:${body.conversationId}`).emit('dm:typing', {
@@ -935,8 +942,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('dm:typing-stop')
-  async onDmTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+  async onDmTypingStop(@ConnectedSocket() client: Socket, @MessageBody() body: WsConversationIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.dm.requireMembership(body.conversationId, user.id)
     client.to(`dm:${body.conversationId}`).emit('dm:typing-stop', {
@@ -946,32 +954,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('dm:join')
-  async onDmJoin(@ConnectedSocket() client: Socket, @MessageBody() body: { conversationId: string }) {
+  async onDmJoin(@ConnectedSocket() client: Socket, @MessageBody() body: WsConversationIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.dm.requireMembership(body.conversationId, user.id)
     client.join(`dm:${body.conversationId}`)
     return { ok: true }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('channel:join')
-  async onChannelJoin(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+  async onChannelJoin(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     client.join(`channel:${body.channelId}`)
     return { ok: true }
   }
 
+  @WsThrottle(5, 5)
   @SubscribeMessage('channel:leave')
-  async onChannelLeave(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+  async onChannelLeave(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
     client.leave(`channel:${body.channelId}`)
     return { ok: true }
   }
 
+  @WsThrottle(10, 10)
   @SubscribeMessage('voice:join')
-  async onVoiceJoin(@ConnectedSocket() client: Socket, @MessageBody() body: { channelId: string }) {
+  async onVoiceJoin(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
 
@@ -1003,6 +1015,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(10, 10)
   @SubscribeMessage('voice:leave')
   async onVoiceLeave(@ConnectedSocket() client: Socket) {
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
@@ -1010,16 +1023,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { ok: true }
   }
 
+  @WsThrottle(10, 10)
   @SubscribeMessage('voice:state')
   async onVoiceState(
     @ConnectedSocket() client: Socket,
-    @MessageBody()
-    body: {
-      muted?: boolean
-      deafened?: boolean
-      camera?: boolean
-      screenShare?: boolean
-    }
+    @MessageBody() body: WsVoiceStateDto
   ) {
     const user = (client.data as { user: WsUser }).user
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
