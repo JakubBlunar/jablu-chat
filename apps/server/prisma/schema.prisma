@@ -110,10 +110,12 @@ model Server {
   vanityCode  String?  @unique @map("vanity_code")
   welcomeChannelId String? @map("welcome_channel_id")
   welcomeMessage   String? @map("welcome_message")
-  afkChannelId     String? @map("afk_channel_id")
-  afkTimeout       Int     @default(300) @map("afk_timeout")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  afkChannelId         String?  @map("afk_channel_id")
+  afkTimeout           Int      @default(300) @map("afk_timeout")
+  onboardingEnabled    Boolean  @default(false) @map("onboarding_enabled")
+  onboardingMessage    String?  @map("onboarding_message")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   owner               User                 @relation("ServerOwner", fields: [ownerId], references: [id])
   channels            Channel[]
@@ -138,8 +140,9 @@ model ServerMember {
   serverId   String      @map("server_id")
   roleId     String      @map("role_id")
   notifLevel NotifLevel? @map("notif_level")
-  mutedUntil DateTime?   @map("muted_until")
-  joinedAt   DateTime    @default(now()) @map("joined_at")
+  mutedUntil          DateTime?   @map("muted_until")
+  onboardingCompleted Boolean     @default(true) @map("onboarding_completed")
+  joinedAt            DateTime    @default(now()) @map("joined_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
@@ -174,9 +177,10 @@ model Role {
   name        String
   color       String?
   position    Int      @default(0)
-  permissions BigInt   @default(0)
-  isDefault   Boolean  @default(false) @map("is_default")
-  createdAt   DateTime @default(now()) @map("created_at")
+  permissions    BigInt   @default(0)
+  isDefault      Boolean  @default(false) @map("is_default")
+  selfAssignable Boolean  @default(false) @map("self_assignable")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   server           Server                    @relation(fields: [serverId], references: [id], onDelete: Cascade)
   members          ServerMember[]

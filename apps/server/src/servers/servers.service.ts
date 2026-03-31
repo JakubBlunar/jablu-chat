@@ -448,12 +448,16 @@ export class ServersService {
     if (existing) {
       return existing
     }
-    const defaultRoleId = await this.roles.getDefaultRoleId(serverId)
+    const [defaultRoleId, server] = await Promise.all([
+      this.roles.getDefaultRoleId(serverId),
+      this.prisma.server.findUniqueOrThrow({ where: { id: serverId }, select: { onboardingEnabled: true } })
+    ])
     const member = await this.prisma.serverMember.create({
       data: {
         userId,
         serverId,
-        roleId: defaultRoleId
+        roleId: defaultRoleId,
+        onboardingCompleted: !server.onboardingEnabled
       },
       include: memberInclude
     })
@@ -570,6 +574,94 @@ export class ServersService {
     await this.auditLog.log(serverId, userId, 'emoji.create', 'emoji', emoji.id, `:${sanitized}:`)
     this.events.emit('server:updated', { serverId })
     return emoji
+  }
+
+  async getOnboardingConfig(serverId: string, userId: string) {
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
+    const server = await this.prisma.server.findUniqueOrThrow({
+      where: { id: serverId },
+      select: { onboardingEnabled: true, onboardingMessage: true }
+    })
+    const roles = await this.prisma.role.findMany({
+      where: { serverId },
+      orderBy: { position: 'desc' },
+      select: { id: true, name: true, color: true, isDefault: true, selfAssignable: true, position: true }
+    })
+    return { ...server, roles }
+  }
+
+  async updateOnboardingConfig(
+    serverId: string,
+    userId: string,
+    data: { enabled?: boolean; message?: string | null; selfAssignableRoleIds?: string[] }
+  ) {
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
+
+    if (data.enabled !== undefined || data.message !== undefined) {
+      await this.prisma.server.update({
+        where: { id: serverId },
+        data: {
+          ...(data.enabled !== undefined && { onboardingEnabled: data.enabled }),
+          ...(data.message !== undefined && { onboardingMessage: data.message })
+        }
+      })
+    }
+
+    if (data.selfAssignableRoleIds !== undefined) {
+      await this.prisma.role.updateMany({
+        where: { serverId, selfAssignable: true },
+        data: { selfAssignable: false }
+      })
+      if (data.selfAssignableRoleIds.length > 0) {
+        await this.prisma.role.updateMany({
+          where: { serverId, id: { in: data.selfAssignableRoleIds }, isDefault: false },
+          data: { selfAssignable: true }
+        })
+      }
+    }
+
+    this.events.emit('server:updated', { serverId })
+    return this.getOnboardingConfig(serverId, userId)
+  }
+
+  async getOnboardingWizardData(serverId: string, userId: string) {
+    await this.requireMembership(serverId, userId)
+    const server = await this.prisma.server.findUniqueOrThrow({
+      where: { id: serverId },
+      select: { onboardingEnabled: true, onboardingMessage: true, name: true }
+    })
+    const roles = await this.prisma.role.findMany({
+      where: { serverId, selfAssignable: true },
+      orderBy: { position: 'desc' },
+      select: { id: true, name: true, color: true }
+    })
+    return { ...server, roles }
+  }
+
+  async completeOnboarding(serverId: string, userId: string, roleId?: string) {
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId } }
+    })
+    if (!member) throw new NotFoundException('Not a member of this server')
+    if (member.onboardingCompleted) return member
+
+    const updateData: { onboardingCompleted: boolean; roleId?: string } = { onboardingCompleted: true }
+
+    if (roleId) {
+      const role = await this.prisma.role.findFirst({
+        where: { id: roleId, serverId, selfAssignable: true }
+      })
+      if (role) updateData.roleId = roleId
+    }
+
+    const updated = await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId, serverId } },
+      data: updateData,
+      include: memberInclude
+    })
+
+    this.events.emit('member:updated', { serverId, member: updated })
+    return updated
   }
 
   async getInsights(serverId: string, userId: string) {

@@ -62,6 +62,7 @@ export interface Role {
   position: number
   permissions: string
   isDefault: boolean
+  selfAssignable: boolean
   createdAt: string
 }
 

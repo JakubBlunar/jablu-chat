@@ -85,6 +85,19 @@ export type DmConversation = {
   } | null
 }
 
+export type OnboardingConfig = {
+  onboardingEnabled: boolean
+  onboardingMessage: string | null
+  roles: {
+    id: string
+    name: string
+    color: string | null
+    isDefault: boolean
+    selfAssignable: boolean
+    position: number
+  }[]
+}
+
 export type ServerInsights = {
   overview: {
     totalMembers: number

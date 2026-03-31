@@ -27,6 +27,7 @@ import { useServerStore } from '@/stores/server.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { QuickSwitcher } from '@/components/QuickSwitcher'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { OnboardingWizard } from '@/components/server/OnboardingWizard'
 
 const SettingsModal = lazy(() =>
   import('@/components/settings/SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -340,11 +341,12 @@ export function MainLayout() {
         </Suspense>
       </div>
       <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
-        {settingsOpen && (
+      {settingsOpen && (
         <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
           <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
         </Suspense>
       )}
+      {viewMode === 'server' && <OnboardingWizard />}
     </div>
   )
 }

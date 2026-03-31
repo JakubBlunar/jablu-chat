@@ -318,7 +318,7 @@ export class RolesService {
     this.events.emit('channel:permissions:updated', { serverId, channelId, roleId })
   }
 
-  private mapToWire(role: { id: string; serverId: string; name: string; color: string | null; position: number; permissions: bigint; isDefault: boolean; createdAt: Date }) {
+  private mapToWire(role: { id: string; serverId: string; name: string; color: string | null; position: number; permissions: bigint; isDefault: boolean; selfAssignable: boolean; createdAt: Date }) {
     return {
       id: role.id,
       serverId: role.serverId,
@@ -327,6 +327,7 @@ export class RolesService {
       position: role.position,
       permissions: role.permissions.toString(),
       isDefault: role.isDefault,
+      selfAssignable: role.selfAssignable,
       createdAt: role.createdAt.toISOString(),
     }
   }

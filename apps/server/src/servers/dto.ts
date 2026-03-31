@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator'
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator'
 import { Transform } from 'class-transformer'
 
 export class CreateServerDto {
@@ -53,4 +53,27 @@ export class TimeoutMemberDto {
   @Min(1)
   @Max(2_419_200) // 28 days in seconds
   duration: number
+}
+
+export class UpdateOnboardingDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 2000)
+  @Transform(({ value }) => (value === '' ? null : value))
+  message?: string | null
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  selfAssignableRoleIds?: string[]
+}
+
+export class CompleteOnboardingDto {
+  @IsOptional()
+  @IsUUID('4')
+  roleId?: string
 }
