@@ -10,8 +10,10 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [busy, setBusy] = useState(false)
   const [lockoutSeconds, setLockoutSeconds] = useState(0)
 
+  const isLocked = lockoutSeconds > 0
+
   useEffect(() => {
-    if (lockoutSeconds <= 0) return
+    if (!isLocked) return
     const id = setInterval(() => {
       setLockoutSeconds((s) => {
         if (s <= 1) return 0
@@ -19,7 +21,7 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
       })
     }, 1000)
     return () => clearInterval(id)
-  }, [lockoutSeconds > 0])
+  }, [isLocked])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,8 +56,6 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
       setBusy(false)
     }
   }
-
-  const isLocked = lockoutSeconds > 0
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-darkest p-4">

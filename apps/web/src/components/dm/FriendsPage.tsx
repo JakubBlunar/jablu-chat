@@ -41,6 +41,10 @@ export function FriendsPage() {
     fetchPending()
   }, [fetchFriends, fetchPending])
 
+  useEffect(() => {
+    if (tab === 'pending' && pending.length === 0) setTab('online')
+  }, [tab, pending.length])
+
   const onlineFriends = useMemo(() => friends.filter((f) => f.status !== 'offline'), [friends])
   const displayedFriends = tab === 'online' ? onlineFriends : friends
 
@@ -67,12 +71,14 @@ export function FriendsPage() {
           <TabBtn active={tab === 'all'} onClick={() => { setTab('all'); setAddFriendOpen(false) }}>
             All
           </TabBtn>
-          {pending.length > 0 && (
+          {(pending.length > 0 || tab === 'pending') && (
             <TabBtn active={tab === 'pending'} onClick={() => { setTab('pending'); setAddFriendOpen(false) }}>
               Pending
-              <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                {pending.length}
-              </span>
+              {pending.length > 0 && (
+                <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {pending.length}
+                </span>
+              )}
             </TabBtn>
           )}
         </div>
@@ -291,14 +297,17 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
   const [sent, setSent] = useState<Set<string>>(new Set())
   const [searchError, setSearchError] = useState('')
   const [sendError, setSendError] = useState('')
+  const searchGenRef = useRef(0)
 
   useEffect(() => {
     if (query.trim().length < 2) { setResults([]); setSearchError(''); return }
+    const gen = ++searchGenRef.current
     const timeout = setTimeout(async () => {
       setSearching(true)
       setSearchError('')
       try {
         const res = await api.searchUsers(query.trim())
+        if (gen !== searchGenRef.current) return
         setResults(res)
         const statusMap = new Map<string, FriendshipStatusResponse>()
         await Promise.all(
@@ -311,12 +320,14 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
             }
           })
         )
+        if (gen !== searchGenRef.current) return
         setStatuses(statusMap)
       } catch {
+        if (gen !== searchGenRef.current) return
         setResults([])
         setSearchError('Search failed. Please try again.')
       } finally {
-        setSearching(false)
+        if (gen === searchGenRef.current) setSearching(false)
       }
     }, 300)
     return () => clearTimeout(timeout)
