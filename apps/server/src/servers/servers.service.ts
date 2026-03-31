@@ -572,6 +572,142 @@ export class ServersService {
     return emoji
   }
 
+  async getInsights(serverId: string, userId: string) {
+    await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
+
+    const channelIds = (
+      await this.prisma.channel.findMany({
+        where: { serverId },
+        select: { id: true }
+      })
+    ).map((c) => c.id)
+
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    const [
+      totalMembers,
+      totalChannels,
+      totalMessages,
+      messagesByDay,
+      topChannelsRaw,
+      topContributorsRaw,
+      membersByWeek,
+      channelBreakdown
+    ] = await Promise.all([
+      this.prisma.serverMember.count({ where: { serverId } }),
+      this.prisma.channel.count({ where: { serverId } }),
+      channelIds.length > 0
+        ? this.prisma.message.count({
+            where: { channelId: { in: channelIds }, deleted: false }
+          })
+        : Promise.resolve(0),
+
+      channelIds.length > 0
+        ? this.prisma.$queryRaw<{ day: string; count: bigint }[]>`
+            SELECT DATE("created_at") AS day, COUNT(*)::bigint AS count
+            FROM messages
+            WHERE channel_id = ANY(${channelIds})
+              AND deleted = false
+              AND created_at >= ${thirtyDaysAgo}
+            GROUP BY DATE("created_at")
+            ORDER BY day
+          `
+        : Promise.resolve([]),
+
+      channelIds.length > 0
+        ? this.prisma.$queryRaw<{ channel_id: string; count: bigint }[]>`
+            SELECT channel_id, COUNT(*)::bigint AS count
+            FROM messages
+            WHERE channel_id = ANY(${channelIds})
+              AND deleted = false
+              AND created_at >= ${thirtyDaysAgo}
+            GROUP BY channel_id
+            ORDER BY count DESC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
+
+      channelIds.length > 0
+        ? this.prisma.$queryRaw<{ author_id: string; count: bigint }[]>`
+            SELECT author_id, COUNT(*)::bigint AS count
+            FROM messages
+            WHERE channel_id = ANY(${channelIds})
+              AND deleted = false
+              AND created_at >= ${thirtyDaysAgo}
+            GROUP BY author_id
+            ORDER BY count DESC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
+
+      this.prisma.$queryRaw<{ week: string; count: bigint }[]>`
+        SELECT DATE_TRUNC('week', joined_at)::date::text AS week, COUNT(*)::bigint AS count
+        FROM server_members
+        WHERE server_id = ANY(${[serverId]})
+        GROUP BY DATE_TRUNC('week', joined_at)
+        ORDER BY week
+      `,
+
+      this.prisma.channel.groupBy({
+        by: ['type'],
+        where: { serverId },
+        _count: true
+      })
+    ])
+
+    const channelMap = new Map(
+      (
+        await this.prisma.channel.findMany({
+          where: { serverId },
+          select: { id: true, name: true }
+        })
+      ).map((c) => [c.id, c.name])
+    )
+
+    const userIds = topContributorsRaw.map((r) => r.author_id)
+    const userMap = new Map(
+      userIds.length > 0
+        ? (
+            await this.prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, username: true, displayName: true, avatarUrl: true }
+            })
+          ).map((u) => [u.id, u])
+        : []
+    )
+
+    return {
+      overview: {
+        totalMembers,
+        totalChannels,
+        totalMessages,
+        textChannels: channelBreakdown.find((c) => c.type === 'text')?._count ?? 0,
+        voiceChannels: channelBreakdown.find((c) => c.type === 'voice')?._count ?? 0
+      },
+      messagesByDay: messagesByDay.map((r) => ({
+        day: typeof r.day === 'string' ? r.day : new Date(r.day).toISOString().slice(0, 10),
+        count: Number(r.count)
+      })),
+      topChannels: topChannelsRaw.map((r) => ({
+        channelId: r.channel_id,
+        name: channelMap.get(r.channel_id) ?? 'deleted',
+        count: Number(r.count)
+      })),
+      topContributors: topContributorsRaw.map((r) => ({
+        userId: r.author_id,
+        username: userMap.get(r.author_id)?.username ?? 'deleted',
+        displayName: userMap.get(r.author_id)?.displayName ?? null,
+        avatarUrl: userMap.get(r.author_id)?.avatarUrl ?? null,
+        count: Number(r.count)
+      })),
+      membersByWeek: membersByWeek.map((r) => ({
+        week: r.week,
+        count: Number(r.count)
+      }))
+    }
+  }
+
   async renameEmoji(serverId: string, userId: string, emojiId: string, newName: string) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_EMOJIS)
 

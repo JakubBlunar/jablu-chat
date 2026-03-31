@@ -85,6 +85,26 @@ export type DmConversation = {
   } | null
 }
 
+export type ServerInsights = {
+  overview: {
+    totalMembers: number
+    totalChannels: number
+    totalMessages: number
+    textChannels: number
+    voiceChannels: number
+  }
+  messagesByDay: { day: string; count: number }[]
+  topChannels: { channelId: string; name: string; count: number }[]
+  topContributors: {
+    userId: string
+    username: string
+    displayName: string | null
+    avatarUrl: string | null
+    count: number
+  }[]
+  membersByWeek: { week: string; count: number }[]
+}
+
 export type ActiveSession = {
   id: string
   userAgent: string | null
