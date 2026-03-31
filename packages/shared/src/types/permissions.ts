@@ -37,6 +37,31 @@ export function resolveChannelPermissions(
   return (rolePerms | override.allow) & ~override.deny
 }
 
+export function resolveMultiRolePermissions(roles: { permissions: bigint }[]): bigint {
+  let perms = 0n
+  for (const r of roles) perms |= r.permissions
+  return perms
+}
+
+/**
+ * Discord-style multi-override resolution:
+ * collect all allow bits (OR), all deny bits (OR),
+ * then (base & ~allDeny) | allAllow
+ */
+export function resolveMultiRoleChannelPermissions(
+  basePerms: bigint,
+  overrides: { allow: bigint; deny: bigint }[]
+): bigint {
+  if (overrides.length === 0) return basePerms
+  let allAllow = 0n
+  let allDeny = 0n
+  for (const o of overrides) {
+    allAllow |= o.allow
+    allDeny |= o.deny
+  }
+  return (basePerms & ~allDeny) | allAllow
+}
+
 export const PERMISSION_LABELS: Record<string, string> = {
   MANAGE_CHANNELS:  'Manage Channels',
   MANAGE_MESSAGES:  'Manage Messages',
@@ -63,8 +88,11 @@ export interface Role {
   permissions: string
   isDefault: boolean
   selfAssignable: boolean
+  isAdmin: boolean
   createdAt: string
 }
+
+export const DANGEROUS_PERMISSIONS = Permission.ADMINISTRATOR | Permission.MANAGE_ROLES | Permission.MANAGE_SERVER | Permission.BAN_MEMBERS
 
 export interface ChannelPermissionOverride {
   id: string

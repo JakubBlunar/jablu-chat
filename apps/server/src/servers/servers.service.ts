@@ -19,7 +19,7 @@ const memberUserSelect = {
 
 const memberInclude = {
   user: { select: memberUserSelect },
-  role: true
+  roles: { include: { role: true } }
 } as const
 
 @Injectable()
@@ -72,6 +72,9 @@ export class ServersService {
     const { ownerRoleId } = await this.roles.createDefaultRoles(server.id, userId)
 
     await this.prisma.serverMember.create({
+      data: { userId, serverId: server.id }
+    })
+    await this.prisma.serverMemberRole.create({
       data: { userId, serverId: server.id, roleId: ownerRoleId }
     })
 
@@ -238,27 +241,61 @@ export class ServersService {
     return result
   }
 
-  async updateMemberRole(serverId: string, actorId: string, targetUserId: string, roleId: string) {
+  async updateMemberRoles(serverId: string, actorId: string, targetUserId: string, roleIds: string[]) {
     await this.roles.requirePermission(serverId, actorId, Permission.MANAGE_ROLES)
     if (targetUserId === actorId) {
-      throw new ForbiddenException('You cannot change your own role')
+      throw new ForbiddenException('You cannot change your own roles')
     }
-    const role = await this.prisma.role.findFirst({ where: { id: roleId, serverId } })
-    if (!role) throw new NotFoundException('Role not found')
+    const server = await this.getServerOrThrow(serverId)
 
     const target = await this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId: targetUserId, serverId } }
     })
     if (!target) throw new NotFoundException('Member not found')
 
-    const result = await this.prisma.serverMember.update({
-      where: { userId_serverId: { userId: targetUserId, serverId } },
-      data: { roleId },
-      include: { ...memberInclude }
+    const validRoles = await this.prisma.role.findMany({
+      where: { id: { in: roleIds }, serverId, isDefault: false }
     })
-    await this.auditLog.log(serverId, actorId, 'member.role.update', 'user', targetUserId, `Role changed to ${role.name}`)
-    this.events.emit('member:updated', { serverId, userId: targetUserId, roleId })
-    return result
+    if (validRoles.length !== roleIds.length) {
+      throw new BadRequestException('Some role IDs are invalid')
+    }
+
+    if (server.ownerId === targetUserId) {
+      const ownerRole = await this.prisma.serverMemberRole.findFirst({
+        where: { userId: targetUserId, serverId },
+        include: { role: { select: { position: true } } }
+      })
+      if (ownerRole && ownerRole.role.position >= 100) {
+        if (!roleIds.includes(ownerRole.roleId)) {
+          throw new ForbiddenException('Cannot remove the Owner role from the server owner')
+        }
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.serverMemberRole.deleteMany({
+        where: { userId: targetUserId, serverId }
+      }),
+      ...roleIds.map((roleId) =>
+        this.prisma.serverMemberRole.create({
+          data: { userId: targetUserId, serverId, roleId }
+        })
+      )
+    ])
+
+    const memberRoles = await this.roles.loadMemberRolesWire(serverId, targetUserId)
+    await this.auditLog.log(serverId, actorId, 'member.role.update', 'user', targetUserId, `Roles: ${memberRoles.map((r) => r.name).join(', ')}`)
+    this.events.emit('member:updated', {
+      serverId,
+      userId: targetUserId,
+      roleIds: memberRoles.map((r) => r.id),
+      roles: memberRoles
+    })
+
+    return this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: targetUserId, serverId } },
+      include: memberInclude
+    })
   }
 
   async kickMember(serverId: string, actorId: string, targetUserId: string) {
@@ -448,15 +485,11 @@ export class ServersService {
     if (existing) {
       return existing
     }
-    const [defaultRoleId, server] = await Promise.all([
-      this.roles.getDefaultRoleId(serverId),
-      this.prisma.server.findUniqueOrThrow({ where: { id: serverId }, select: { onboardingEnabled: true } })
-    ])
+    const server = await this.prisma.server.findUniqueOrThrow({ where: { id: serverId }, select: { onboardingEnabled: true } })
     const member = await this.prisma.serverMember.create({
       data: {
         userId,
         serverId,
-        roleId: defaultRoleId,
         onboardingCompleted: !server.onboardingEnabled
       },
       include: memberInclude
@@ -638,51 +671,97 @@ export class ServersService {
     return { ...server, roles }
   }
 
-  async changeSelfRole(serverId: string, userId: string, roleId: string) {
+  async changeSelfRoles(serverId: string, userId: string, roleIds: string[]) {
     const member = await this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId, serverId } }
     })
     if (!member) throw new NotFoundException('Not a member of this server')
 
-    const role = await this.prisma.role.findFirst({
-      where: { id: roleId, serverId, selfAssignable: true }
+    const validRoles = await this.prisma.role.findMany({
+      where: { id: { in: roleIds }, serverId, selfAssignable: true }
     })
-    if (!role) throw new ForbiddenException('This role is not self-assignable')
+    if (validRoles.length !== roleIds.length) {
+      throw new ForbiddenException('Some roles are not self-assignable')
+    }
 
-    const updated = await this.prisma.serverMember.update({
+    const server = await this.getServerOrThrow(serverId)
+    const currentRoles = await this.prisma.serverMemberRole.findMany({
+      where: { userId, serverId },
+      include: { role: true }
+    })
+
+    const preservedRoleIds = currentRoles
+      .filter((mr) => !mr.role.selfAssignable)
+      .map((mr) => mr.roleId)
+
+    if (server.ownerId === userId) {
+      const ownerRole = currentRoles.find((mr) => mr.role.position >= 100)
+      if (ownerRole && !preservedRoleIds.includes(ownerRole.roleId)) {
+        preservedRoleIds.push(ownerRole.roleId)
+      }
+    }
+
+    const newRoleIds = [...new Set([...preservedRoleIds, ...roleIds])]
+
+    await this.prisma.$transaction([
+      this.prisma.serverMemberRole.deleteMany({ where: { userId, serverId } }),
+      ...newRoleIds.map((roleId) =>
+        this.prisma.serverMemberRole.create({ data: { userId, serverId, roleId } })
+      )
+    ])
+
+    const memberRoles = await this.roles.loadMemberRolesWire(serverId, userId)
+    this.events.emit('member:updated', {
+      serverId,
+      userId,
+      roleIds: memberRoles.map((r) => r.id),
+      roles: memberRoles
+    })
+
+    return this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId, serverId } },
-      data: { roleId },
       include: memberInclude
     })
-
-    this.events.emit('member:updated', { serverId, userId, roleId })
-    return updated
   }
 
-  async completeOnboarding(serverId: string, userId: string, roleId?: string) {
+  async completeOnboarding(serverId: string, userId: string, roleIds?: string[]) {
     const member = await this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId, serverId } }
     })
     if (!member) throw new NotFoundException('Not a member of this server')
     if (member.onboardingCompleted) return member
 
-    const updateData: { onboardingCompleted: boolean; roleId?: string } = { onboardingCompleted: true }
-
-    if (roleId) {
-      const role = await this.prisma.role.findFirst({
-        where: { id: roleId, serverId, selfAssignable: true }
-      })
-      if (role) updateData.roleId = roleId
-    }
-
-    const updated = await this.prisma.serverMember.update({
+    await this.prisma.serverMember.update({
       where: { userId_serverId: { userId, serverId } },
-      data: updateData,
-      include: memberInclude
+      data: { onboardingCompleted: true }
     })
 
-    this.events.emit('member:updated', { serverId, member: updated })
-    return updated
+    if (roleIds && roleIds.length > 0) {
+      const validRoles = await this.prisma.role.findMany({
+        where: { id: { in: roleIds }, serverId, selfAssignable: true }
+      })
+      for (const role of validRoles) {
+        await this.prisma.serverMemberRole.upsert({
+          where: { userId_serverId_roleId: { userId, serverId, roleId: role.id } },
+          create: { userId, serverId, roleId: role.id },
+          update: {}
+        })
+      }
+    }
+
+    const memberRoles = await this.roles.loadMemberRolesWire(serverId, userId)
+    this.events.emit('member:updated', {
+      serverId,
+      userId,
+      roleIds: memberRoles.map((r) => r.id),
+      roles: memberRoles,
+      onboardingCompleted: true
+    })
+
+    return this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId } },
+      include: memberInclude
+    })
   }
 
   async getInsights(serverId: string, userId: string) {

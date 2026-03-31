@@ -58,8 +58,8 @@ export function useProfileCard(
           bio: member.user.bio,
           status,
           joinedAt: member.joinedAt,
-          roleName: member.role && !member.role.isDefault ? member.role.name : null,
-          roleColor: member.role?.color ?? null
+          roleName: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).name : null })(),
+          roleColor: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).color : null })()
         })
       }
       setCardRect(rect)
@@ -80,8 +80,8 @@ export function useProfileCard(
       bio: member.user.bio,
       status,
       joinedAt: member.joinedAt,
-      roleName: member.role && !member.role.isDefault ? member.role.name : null,
-      roleColor: member.role?.color ?? null
+      roleName: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).name : null })(),
+      roleColor: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).color : null })()
     })
     setCardRect(rect)
   }, [])

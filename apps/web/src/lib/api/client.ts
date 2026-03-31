@@ -440,12 +440,12 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/onboarding/wizard`)
   }
 
-  completeOnboarding(serverId: string, roleId?: string) {
-    return this.post(`/api/servers/${serverId}/onboarding/complete`, { roleId })
+  completeOnboarding(serverId: string, roleIds?: string[]) {
+    return this.post(`/api/servers/${serverId}/onboarding/complete`, { roleIds })
   }
 
-  changeSelfRole(serverId: string, roleId: string) {
-    return this.patch(`/api/servers/${serverId}/self-role`, { roleId })
+  changeSelfRoles(serverId: string, roleIds: string[]) {
+    return this.patch(`/api/servers/${serverId}/self-roles`, { roleIds })
   }
 
   async getSelfAssignableRoles(serverId: string): Promise<{ id: string; name: string; color: string | null }[]> {
@@ -538,7 +538,7 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/roles`, data)
   }
 
-  updateRole(serverId: string, roleId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number; selfAssignable?: boolean }): Promise<import('@chat/shared').Role> {
+  updateRole(serverId: string, roleId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number; selfAssignable?: boolean; isAdmin?: boolean }): Promise<import('@chat/shared').Role> {
     return this.patch(`/api/servers/${serverId}/roles/${roleId}`, data)
   }
 
@@ -570,8 +570,8 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/channels/permissions/me`)
   }
 
-  assignRole(serverId: string, userId: string, roleId: string): Promise<unknown> {
-    return this.patch(`/api/servers/${serverId}/members/${userId}/assign-role`, { roleId })
+  assignRoles(serverId: string, userId: string, roleIds: string[]): Promise<unknown> {
+    return this.patch(`/api/servers/${serverId}/members/${userId}/roles`, { roleIds })
   }
 
   createInvite(serverId: string, opts?: { maxUses?: number; expiresInMinutes?: number }): Promise<Invite> {
@@ -710,9 +710,9 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/leave`)
   }
 
-  updateMemberRole(serverId: string, userId: string, roleId: string): Promise<unknown> {
-    return this.patch(`/api/servers/${serverId}/members/${userId}/role`, {
-      roleId
+  updateMemberRoles(serverId: string, userId: string, roleIds: string[]): Promise<unknown> {
+    return this.patch(`/api/servers/${serverId}/members/${userId}/roles`, {
+      roleIds
     })
   }
 

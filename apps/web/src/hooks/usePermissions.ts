@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Permission, hasPermission, permsToBigInt, ALL_PERMISSIONS, type Role } from '@chat/shared'
-import { useMemberStore } from '@/stores/member.store'
+import { useMemberStore, getTopRole } from '@/stores/member.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
 
@@ -17,7 +17,8 @@ export function usePermissions(serverId?: string | null) {
         permissions: 0n,
         has: (_flag: bigint) => false,
         isOwner: false,
-        role: undefined as Role | undefined,
+        roles: [] as Role[],
+        topRole: undefined as Role | undefined,
       }
     }
 
@@ -27,17 +28,24 @@ export function usePermissions(serverId?: string | null) {
         permissions: ALL_PERMISSIONS,
         has: (_flag: bigint) => true,
         isOwner: true,
-        role: member.role,
+        roles: member.roles ?? [],
+        topRole: getTopRole(member),
       }
     }
 
-    const perms = member.role ? permsToBigInt(member.role.permissions) : 0n
+    let perms = 0n
+    if (member.roles && member.roles.length > 0) {
+      for (const role of member.roles) {
+        perms |= permsToBigInt(role.permissions)
+      }
+    }
 
     return {
       permissions: perms,
       has: (flag: bigint) => hasPermission(perms, flag),
       isOwner: false,
-      role: member.role,
+      roles: member.roles ?? [],
+      topRole: getTopRole(member),
     }
   }, [serverId, userId, member, server?.ownerId])
 }

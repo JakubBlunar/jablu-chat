@@ -135,18 +135,12 @@ export class AuthService implements OnModuleInit {
 
       if (invite.serverId) {
         try {
-          const [defaultRole, srv] = await Promise.all([
-            this.prisma.role.findFirst({
-              where: { serverId: invite.serverId, isDefault: true },
-              select: { id: true }
-            }),
-            this.prisma.server.findUnique({
-              where: { id: invite.serverId },
-              select: { onboardingEnabled: true }
-            })
-          ])
+          const srv = await this.prisma.server.findUnique({
+            where: { id: invite.serverId },
+            select: { onboardingEnabled: true }
+          })
           const member = await this.prisma.serverMember.create({
-            data: { userId: user.id, serverId: invite.serverId, roleId: defaultRole?.id ?? '', onboardingCompleted: !srv?.onboardingEnabled },
+            data: { userId: user.id, serverId: invite.serverId, onboardingCompleted: !srv?.onboardingEnabled },
             include: {
               user: {
                 select: { id: true, username: true, displayName: true, avatarUrl: true, bio: true, status: true }

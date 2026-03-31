@@ -22,10 +22,11 @@ export class RolesController {
   constructor(private readonly roles: RolesService) {}
 
   @Get('servers/:serverId/roles')
-  list(
+  async list(
     @Param('serverId', ParseUUIDPipe) serverId: string,
-    @CurrentUser() user: { id: string }
+    @CurrentUser() user: { id: string },
   ) {
+    await this.roles.requireMembership(serverId, user.id)
     return this.roles.getRoles(serverId)
   }
 
@@ -33,7 +34,7 @@ export class RolesController {
   create(
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @CurrentUser() user: { id: string },
-    @Body() body: { name: string; color?: string; permissions?: string }
+    @Body() body: { name: string; color?: string; permissions?: string },
   ) {
     return this.roles.createRole(serverId, user.id, body)
   }
@@ -43,7 +44,7 @@ export class RolesController {
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @Param('roleId', ParseUUIDPipe) roleId: string,
     @CurrentUser() user: { id: string },
-    @Body() body: { name?: string; color?: string | null; permissions?: string; position?: number }
+    @Body() body: { name?: string; color?: string | null; permissions?: string; position?: number; selfAssignable?: boolean; isAdmin?: boolean },
   ) {
     return this.roles.updateRole(serverId, roleId, user.id, body)
   }
@@ -53,7 +54,7 @@ export class RolesController {
   remove(
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @Param('roleId', ParseUUIDPipe) roleId: string,
-    @CurrentUser() user: { id: string }
+    @CurrentUser() user: { id: string },
   ) {
     return this.roles.deleteRole(serverId, roleId, user.id)
   }
@@ -62,25 +63,15 @@ export class RolesController {
   reorder(
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @CurrentUser() user: { id: string },
-    @Body() body: { roleIds: string[] }
+    @Body() body: { roleIds: string[] },
   ) {
     return this.roles.reorderRoles(serverId, user.id, body.roleIds)
-  }
-
-  @Patch('servers/:serverId/members/:userId/assign-role')
-  assignRole(
-    @Param('serverId', ParseUUIDPipe) serverId: string,
-    @Param('userId', ParseUUIDPipe) targetUserId: string,
-    @CurrentUser() user: { id: string },
-    @Body() body: { roleId: string }
-  ) {
-    return this.roles.assignRole(serverId, targetUserId, body.roleId, user.id)
   }
 
   @Get('servers/:serverId/channels/permissions/me')
   async getAllMyChannelPermissions(
     @Param('serverId', ParseUUIDPipe) serverId: string,
-    @CurrentUser() user: { id: string }
+    @CurrentUser() user: { id: string },
   ) {
     const map = await this.roles.getAllChannelPermissions(serverId, user.id)
     const wire: Record<string, string> = {}
@@ -92,16 +83,16 @@ export class RolesController {
   async getMyChannelPermissions(
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
-    @CurrentUser() user: { id: string }
+    @CurrentUser() user: { id: string },
   ) {
     const perms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
     return { permissions: perms.toString() }
   }
 
   @Get('channels/:channelId/overrides')
-  getOverrides(
+  async getOverrides(
     @Param('channelId', ParseUUIDPipe) channelId: string,
-    @CurrentUser() _user: { id: string }
+    @CurrentUser() user: { id: string },
   ) {
     return this.roles.getChannelOverrides(channelId)
   }
@@ -112,7 +103,7 @@ export class RolesController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('roleId', ParseUUIDPipe) roleId: string,
     @CurrentUser() user: { id: string },
-    @Body() body: { allow: string; deny: string }
+    @Body() body: { allow: string; deny: string },
   ) {
     return this.roles.upsertChannelOverride(serverId, channelId, roleId, user.id, body.allow, body.deny)
   }
@@ -123,7 +114,7 @@ export class RolesController {
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('roleId', ParseUUIDPipe) roleId: string,
-    @CurrentUser() user: { id: string }
+    @CurrentUser() user: { id: string },
   ) {
     return this.roles.deleteChannelOverride(serverId, channelId, roleId, user.id)
   }

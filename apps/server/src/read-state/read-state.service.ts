@@ -184,12 +184,12 @@ export class ReadStateService {
       where: { serverId },
       include: {
         user: { select: { id: true, username: true, displayName: true } },
-        role: { select: { permissions: true } }
+        roles: { include: { role: { select: { permissions: true } } } }
       }
     })
 
     const sender = members.find((m) => m.userId === excludeUserId)
-    const senderPerms = sender?.role?.permissions ?? 0n
+    const senderPerms = sender?.roles?.reduce((acc, mr) => acc | mr.role.permissions, 0n) ?? 0n
     const MENTION_EVERYONE_FLAG = 1n << 7n
     const ADMINISTRATOR_FLAG = 1n << 11n
     const senderIsPrivileged = (senderPerms & ADMINISTRATOR_FLAG) !== 0n || (senderPerms & MENTION_EVERYONE_FLAG) !== 0n

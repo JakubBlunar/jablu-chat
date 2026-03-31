@@ -19,10 +19,10 @@ export interface Server {
 export interface ServerMember {
   userId: string
   serverId: string
-  roleId: string
+  roleIds: string[]
   joinedAt: string
   onboardingCompleted?: boolean
-  role?: Role
+  roles?: Role[]
   user?: {
     id: string
     username: string

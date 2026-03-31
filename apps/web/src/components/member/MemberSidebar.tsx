@@ -4,7 +4,8 @@ import SimpleBar from 'simplebar-react'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { UserAvatar } from '@/components/UserAvatar'
 import type { Member } from '@/stores/member.store'
-import { useMemberStore } from '@/stores/member.store'
+import { getTopRole, useMemberStore } from '@/stores/member.store'
+import { useServerStore } from '@/stores/server.store'
 
 function resolvePresence(m: Member, onlineIds: Set<string>): UserStatus {
   if (!onlineIds.has(m.userId)) return 'offline'
@@ -17,6 +18,7 @@ export function MemberSidebar() {
   const members = useMemberStore((s) => s.members)
   const onlineIds = useMemberStore((s) => s.onlineUserIds)
   const isLoading = useMemberStore((s) => s.isLoading)
+  const server = useServerStore((s) => s.servers.find((sv) => sv.id === s.currentServerId))
 
   const [cardUser, setCardUser] = useState<ProfileCardUser | null>(null)
   const [cardRect, setCardRect] = useState<DOMRect | null>(null)
@@ -24,6 +26,7 @@ export function MemberSidebar() {
   const closeCard = useCallback(() => setCardUser(null), [])
 
   const handleMemberClick = useCallback((member: Member, presence: UserStatus, rect: DOMRect) => {
+    const topRole = getTopRole(member)
     setCardUser({
       id: member.userId,
       username: member.user.username,
@@ -33,8 +36,8 @@ export function MemberSidebar() {
       status: presence,
       customStatus: member.user.customStatus ?? null,
       joinedAt: member.joinedAt,
-      roleName: member.role && !member.role.isDefault ? member.role.name : null,
-      roleColor: member.role?.color ?? null
+      roleName: topRole && !topRole.isDefault ? topRole.name : null,
+      roleColor: topRole?.color ?? null
     })
     setCardRect(rect)
   }, [])
@@ -80,6 +83,7 @@ export function MemberSidebar() {
                 presence={resolvePresence(m, onlineIds)}
                 dimmed={false}
                 onClick={handleMemberClick}
+                isOwner={server?.ownerId === m.userId}
               />
             ))}
           </ul>
@@ -91,7 +95,7 @@ export function MemberSidebar() {
           </h3>
           <ul className="space-y-0.5">
             {offline.map((m) => (
-              <MemberRow key={m.userId} member={m} presence="offline" dimmed onClick={handleMemberClick} />
+              <MemberRow key={m.userId} member={m} presence="offline" dimmed onClick={handleMemberClick} isOwner={server?.ownerId === m.userId} />
             ))}
           </ul>
         </section>
@@ -106,16 +110,19 @@ function MemberRow({
   member,
   presence,
   dimmed,
-  onClick
+  onClick,
+  isOwner
 }: {
   member: Member
   presence: UserStatus
   dimmed: boolean
   onClick: (member: Member, presence: UserStatus, rect: DOMRect) => void
+  isOwner: boolean
 }) {
   const name = member.user.displayName ?? member.user.username
-  const roleColor = member.role?.color
-  const roleName = member.role && !member.role.isDefault ? member.role.name : null
+  const topRole = getTopRole(member)
+  const roleColor = topRole?.color
+  const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -133,24 +140,23 @@ function MemberRow({
       >
         <UserAvatar username={name} avatarUrl={member.user.avatarUrl} size="md" showStatus status={presence} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span
               className={`truncate text-[15px] font-medium ${dimmed ? 'text-gray-200' : 'text-white'}`}
               style={dimmed ? undefined : roleColor ? { color: roleColor } : undefined}
             >
               {name}
             </span>
-            {roleName ? (
-              <span
-                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
-                style={roleColor
-                  ? { color: roleColor, borderColor: `${roleColor}66` }
-                  : { color: 'var(--color-primary)', borderColor: 'var(--color-primary-40, rgba(99,102,241,0.4))' }
-                }
-              >
-                {roleName}
-              </span>
-            ) : null}
+            {isOwner && (
+              <svg className="h-3.5 w-3.5 shrink-0 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm0 2h14v2H5v-2z" />
+              </svg>
+            )}
+            {!isOwner && hasAdminRole && (
+              <svg className="h-3.5 w-3.5 shrink-0 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
+              </svg>
+            )}
           </div>
           {member.user.customStatus && (
             <p className="truncate text-xs text-gray-500">{member.user.customStatus}</p>

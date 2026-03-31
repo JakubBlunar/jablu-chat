@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, IsUUID, Length } from 'class-validator'
+import { IsArray, IsEmail, IsOptional, IsString, IsUUID, Length } from 'class-validator'
 
 export class AdminCreateServerDto {
   @IsString()
@@ -52,7 +52,46 @@ export class AdminAddServerMemberDto {
   userId: string
 }
 
-export class AdminUpdateMemberRoleDto {
-  @IsUUID()
-  roleId: string
+export class AdminUpdateMemberRolesDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  roleIds: string[]
+}
+
+export class AdminCreateRoleDto {
+  @IsString()
+  @Length(1, 100)
+  name: string
+
+  @IsOptional()
+  @IsString()
+  color?: string
+
+  @IsOptional()
+  @IsString()
+  permissions?: string
+}
+
+export class AdminUpdateRoleDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  name?: string
+
+  @IsOptional()
+  @IsString()
+  color?: string | null
+
+  @IsOptional()
+  @IsString()
+  permissions?: string
+
+  @IsOptional()
+  position?: number
+
+  @IsOptional()
+  selfAssignable?: boolean
+
+  @IsOptional()
+  isAdmin?: boolean
 }

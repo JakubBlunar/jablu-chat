@@ -43,9 +43,10 @@ export class UpdateServerDto {
   afkTimeout?: number
 }
 
-export class UpdateMemberRoleDto {
-  @IsUUID()
-  roleId: string
+export class UpdateMemberRolesDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  roleIds: string[]
 }
 
 export class TimeoutMemberDto {
@@ -74,11 +75,13 @@ export class UpdateOnboardingDto {
 
 export class CompleteOnboardingDto {
   @IsOptional()
-  @IsUUID('4')
-  roleId?: string
+  @IsArray()
+  @IsUUID('4', { each: true })
+  roleIds?: string[]
 }
 
-export class ChangeSelfRoleDto {
-  @IsUUID('4')
-  roleId: string
+export class ChangeSelfRolesDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  roleIds: string[]
 }

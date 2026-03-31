@@ -96,9 +96,13 @@ export const MessageRow = memo(function MessageRow({
     ? message.webhook!.name
     : (message.author?.displayName ?? message.author?.username ?? 'Deleted User')
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
-  const authorRoleColor = useMemberStore((s) =>
-    s.members.find((m) => m.userId === message.authorId)?.role?.color ?? null
-  )
+  const authorRoleColor = useMemberStore((s) => {
+    const member = s.members.find((m) => m.userId === message.authorId)
+    if (!member?.roles || member.roles.length === 0) return null
+    const nonDefault = member.roles.filter((r) => !r.isDefault)
+    if (nonDefault.length === 0) return null
+    return nonDefault.reduce((top, r) => r.position > top.position ? r : top, nonDefault[0]).color
+  })
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
   const linkPreviews = message.linkPreviews ?? []
