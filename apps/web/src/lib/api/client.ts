@@ -31,7 +31,8 @@ import type {
   DmConversation,
   EmojiStat,
   GifSearchResult,
-  SearchResult
+  SearchResult,
+  ServerInsights
 } from './types'
 
 export class ApiClient {
@@ -411,6 +412,10 @@ export class ApiClient {
 
   getPinnedDmMessages(conversationId: string): Promise<Message[]> {
     return this.get(`/api/dm/${conversationId}/messages/pinned`)
+  }
+
+  getServerInsights(serverId: string): Promise<ServerInsights> {
+    return this.get(`/api/servers/${serverId}/insights`)
   }
 
   getEmojiStats(serverId: string): Promise<EmojiStat[]> {

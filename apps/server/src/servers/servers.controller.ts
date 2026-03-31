@@ -156,6 +156,14 @@ export class ServersController {
     await this.servers.removeTimeout(id, user.id, targetUserId)
   }
 
+  @Get(':id/insights')
+  getInsights(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string }
+  ) {
+    return this.servers.getInsights(id, user.id)
+  }
+
   @Post(':id/bans/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   async banMember(
