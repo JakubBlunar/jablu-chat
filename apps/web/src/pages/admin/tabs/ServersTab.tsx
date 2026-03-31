@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AdminServer, AdminUser, ServerMemberRow } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDate } from '../adminFormatters'
@@ -220,8 +220,10 @@ function ServerMembersPanel({
     void fetchMembers()
   }, [fetchMembers])
 
-  const memberIds = new Set(members.map((m) => m.userId))
-  const nonMembers = users.filter((u) => !memberIds.has(u.id))
+  const nonMembers = useMemo(() => {
+    const ids = new Set(members.map((m) => m.userId))
+    return users.filter((u) => !ids.has(u.id))
+  }, [members, users])
 
   const handleAdd = async () => {
     if (!addUserId) return

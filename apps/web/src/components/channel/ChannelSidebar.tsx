@@ -2,6 +2,7 @@ import type { Channel, ChannelCategory, UserStatus } from '@chat/shared'
 import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
 import { useIsMobile } from '@/hooks/useMobile'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
@@ -217,9 +218,10 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
   )
 
   const [leaveError, setLeaveError] = useState<string | null>(null)
-  const handleLeave = useCallback(async () => {
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const handleLeaveConfirmed = useCallback(async () => {
     if (!currentServer) return
-    if (!confirm(`Leave ${currentServer.name}? You will need a new invite to rejoin.`)) return
+    setShowLeaveConfirm(false)
     setLeaveError(null)
     try {
       await api.leaveServer(currentServer.id)
@@ -415,7 +417,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
                     type="button"
                     onClick={() => {
                       setMenuOpen(false)
-                      void handleLeave()
+                      setShowLeaveConfirm(true)
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 transition hover:bg-red-500/20"
                   >
@@ -756,6 +758,15 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: () => void 
           onClose={() => setDrawerChannel(null)}
           onEditChannel={() => setEditingChannel(drawerChannel)}
           onOpenPinned={handleDrawerOpenPinned}
+        />
+      )}
+      {showLeaveConfirm && currentServer && (
+        <ConfirmDialog
+          title="Leave Server"
+          description={`Leave ${currentServer.name}? You will need a new invite to rejoin.`}
+          confirmLabel="Leave"
+          onConfirm={handleLeaveConfirmed}
+          onCancel={() => setShowLeaveConfirm(false)}
         />
       )}
     </>
