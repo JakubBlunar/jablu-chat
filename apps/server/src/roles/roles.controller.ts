@@ -39,6 +39,15 @@ export class RolesController {
     return this.roles.createRole(serverId, user.id, body)
   }
 
+  @Patch('servers/:serverId/roles/reorder')
+  reorder(
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @CurrentUser() user: { id: string },
+    @Body() body: { roleIds: string[] },
+  ) {
+    return this.roles.reorderRoles(serverId, user.id, body.roleIds)
+  }
+
   @Patch('servers/:serverId/roles/:roleId')
   update(
     @Param('serverId', ParseUUIDPipe) serverId: string,
@@ -57,15 +66,6 @@ export class RolesController {
     @CurrentUser() user: { id: string },
   ) {
     return this.roles.deleteRole(serverId, roleId, user.id)
-  }
-
-  @Patch('servers/:serverId/roles/reorder')
-  reorder(
-    @Param('serverId', ParseUUIDPipe) serverId: string,
-    @CurrentUser() user: { id: string },
-    @Body() body: { roleIds: string[] },
-  ) {
-    return this.roles.reorderRoles(serverId, user.id, body.roleIds)
   }
 
   @Get('servers/:serverId/channels/permissions/me')

@@ -327,6 +327,29 @@ export class AdminController {
     return wire
   }
 
+  @Patch('servers/:id/roles/reorder')
+  @UseGuards(AdminAuthGuard)
+  async reorderServerRoles(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { roleIds: string[] }
+  ) {
+    const roles = await this.prisma.role.findMany({
+      where: { id: { in: body.roleIds }, serverId: id },
+      select: { id: true }
+    })
+    if (roles.length !== body.roleIds.length) {
+      throw new BadRequestException('Some role IDs do not belong to this server')
+    }
+    await this.prisma.$transaction(
+      body.roleIds.map((rid, i) =>
+        this.prisma.role.update({ where: { id: rid }, data: { position: body.roleIds.length - i } })
+      )
+    )
+    const updatedRoles = await this.roles.getRoles(id)
+    this.events.emit('roles:reordered', { serverId: id, roles: updatedRoles })
+    return updatedRoles
+  }
+
   @Patch('servers/:id/roles/:roleId')
   @UseGuards(AdminAuthGuard)
   async updateServerRole(
@@ -369,29 +392,6 @@ export class AdminController {
       this.prisma.role.delete({ where: { id: roleId } })
     ])
     this.events.emit('role:deleted', { serverId: id, roleId })
-  }
-
-  @Patch('servers/:id/roles/reorder')
-  @UseGuards(AdminAuthGuard)
-  async reorderServerRoles(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { roleIds: string[] }
-  ) {
-    const roles = await this.prisma.role.findMany({
-      where: { id: { in: body.roleIds }, serverId: id },
-      select: { id: true }
-    })
-    if (roles.length !== body.roleIds.length) {
-      throw new BadRequestException('Some role IDs do not belong to this server')
-    }
-    await this.prisma.$transaction(
-      body.roleIds.map((rid, i) =>
-        this.prisma.role.update({ where: { id: rid }, data: { position: body.roleIds.length - i } })
-      )
-    )
-    const updatedRoles = await this.roles.getRoles(id)
-    this.events.emit('roles:reordered', { serverId: id, roles: updatedRoles })
-    return updatedRoles
   }
 
   // ─── Users ─────────────────────────────────────────────────
