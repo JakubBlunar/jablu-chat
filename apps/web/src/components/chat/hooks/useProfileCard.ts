@@ -1,7 +1,7 @@
 import type { UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ProfileCardUser } from '@/components/ProfileCard'
-import { useMemberStore } from '@/stores/member.store'
+import { getRoleColor, useMemberStore } from '@/stores/member.store'
 
 export function useProfileCard(
   isDm: boolean,
@@ -48,8 +48,9 @@ export function useProfileCard(
       } else {
         const member = membersRef.current.find((m) => m.userId === authorId)
         if (!member) return
-        const status: UserStatus =
-          (member.user.status as UserStatus) ?? (onlineIdsRef.current.has(authorId) ? 'online' : 'offline')
+        const status: UserStatus = !onlineIdsRef.current.has(authorId)
+          ? 'offline'
+          : (member.user.status as UserStatus) || 'online'
         setCardUser({
           id: member.userId,
           username: member.user.username,
@@ -59,7 +60,7 @@ export function useProfileCard(
           status,
           joinedAt: member.joinedAt,
           roleName: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).name : null })(),
-          roleColor: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).color : null })()
+          roleColor: getRoleColor(member)
         })
       }
       setCardRect(rect)
@@ -70,8 +71,9 @@ export function useProfileCard(
   const handleMentionClick = useCallback((username: string, rect: DOMRect) => {
     const member = membersRef.current.find((m) => m.user.username.toLowerCase() === username.toLowerCase())
     if (!member) return
-    const status: UserStatus =
-      (member.user.status as UserStatus) ?? (onlineIdsRef.current.has(member.userId) ? 'online' : 'offline')
+    const status: UserStatus = !onlineIdsRef.current.has(member.userId)
+      ? 'offline'
+      : (member.user.status as UserStatus) || 'online'
     setCardUser({
       id: member.userId,
       username: member.user.username,
@@ -81,7 +83,7 @@ export function useProfileCard(
       status,
       joinedAt: member.joinedAt,
       roleName: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).name : null })(),
-      roleColor: (() => { const r = member.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).color : null })()
+      roleColor: getRoleColor(member)
     })
     setCardRect(rect)
   }, [])

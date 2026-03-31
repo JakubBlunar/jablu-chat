@@ -36,6 +36,7 @@ export function createServerHandlers() {
       useMemberStore.getState().updateMemberRoles(payload.serverId, payload.userId, payload.roleIds, payload.roles)
       const myId = useAuthStore.getState().user?.id
       if (payload.userId === myId) {
+        void useChannelStore.getState().fetchChannels(payload.serverId)
         void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
       }
     }
@@ -61,6 +62,7 @@ export function createServerHandlers() {
       const myId = useAuthStore.getState().user?.id
       const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
       if (member?.roleIds?.includes(payload.role.id)) {
+        void useChannelStore.getState().fetchChannels(payload.serverId)
         void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
       }
     }
@@ -73,6 +75,7 @@ export function createServerHandlers() {
       const myId = useAuthStore.getState().user?.id
       const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
       if (member?.roleIds?.includes(payload.roleId)) {
+        void useChannelStore.getState().fetchChannels(payload.serverId)
         void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
       }
     }
@@ -85,6 +88,7 @@ export function createServerHandlers() {
   const onChannelPermissionsUpdated = (payload: { serverId: string }) => {
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId === currentServerId) {
+      void useChannelStore.getState().fetchChannels(payload.serverId)
       void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId)
     }
   }

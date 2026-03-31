@@ -1,12 +1,13 @@
 import type { UserStatus } from '@chat/shared'
 import { Permission } from '@chat/shared'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Member } from '@/stores/member.store'
-import { useMemberStore } from '@/stores/member.store'
+import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import type { Server } from '@/stores/server.store'
 import { KickIcon } from '../serverSettingsIcons'
 
@@ -51,7 +52,8 @@ export function MembersTab({ server }: { server: Server }) {
   const handleRoleToggle = useCallback(
     async (member: Member, roleId: string) => {
       setMemberError(null)
-      const current = new Set(member.roleIds ?? [])
+      const defaultIds = new Set((member.roles ?? []).filter((r) => r.isDefault).map((r) => r.id))
+      const current = new Set((member.roleIds ?? []).filter((id) => !defaultIds.has(id)))
       if (current.has(roleId)) current.delete(roleId)
       else current.add(roleId)
       try {
@@ -129,10 +131,10 @@ export function MembersTab({ server }: { server: Server }) {
         const isSelf = m.userId === currentUser?.id
         const isMemberOwner = m.userId === server.ownerId
         const memberRoles = (m.roles ?? []).filter((r) => !r.isDefault)
-        const topRole = memberRoles.length > 0 ? memberRoles.reduce((a, b) => a.position > b.position ? a : b) : undefined
-        const roleColor = topRole?.color
+        const roleColor = getRoleColor(m)
         const isMuted = m.mutedUntil ? new Date(m.mutedUntil) > new Date() : false
         const timeLeft = isMuted && m.mutedUntil ? formatTimeLeft(m.mutedUntil) : ''
+        const showActions = !isSelf && !isMemberOwner
 
         return (
           <div key={m.userId} className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-white/[0.04]">
@@ -143,14 +145,14 @@ export function MembersTab({ server }: { server: Server }) {
               showStatus
               status={presence}
             />
-            <div className="min-w-0 flex-1">
-              <span className="text-sm font-medium" style={roleColor ? { color: roleColor } : { color: 'white' }}>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+              <span className="text-sm font-medium" style={roleColor ? { color: roleColor } : { color: '#9ca3af' }}>
                 {m.user.displayName ?? m.user.username}
               </span>
               {memberRoles.map((r) => (
                 <span
                   key={r.id}
-                  className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
                   style={r.color ? { color: r.color, borderColor: `${r.color}66` } : { color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
                 >
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.color ?? 'var(--color-primary)' }} />
@@ -158,32 +160,20 @@ export function MembersTab({ server }: { server: Server }) {
                 </span>
               ))}
               {isMuted && (
-                <span className="ml-2 rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400">
+                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400">
                   Timed out {timeLeft && `· ${timeLeft}`}
                 </span>
               )}
             </div>
 
-            {!isSelf && !isMemberOwner && (
-              <div className="flex items-center gap-2">
+            {showActions && (
+              <div className="flex shrink-0 items-center gap-1.5">
                 {canManageRoles && roles.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {roles.filter((r) => !r.isDefault).map((r) => {
-                      const isActive = m.roleIds?.includes(r.id) ?? false
-                      return (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => handleRoleToggle(m, r.id)}
-                          className={`rounded border px-2 py-0.5 text-[10px] font-medium transition ${
-                            isActive ? 'border-primary bg-primary/20 text-white' : 'border-white/10 text-gray-400 hover:bg-white/5'
-                          }`}
-                        >
-                          {r.name}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <RoleDropdown
+                    roles={roles.filter((r) => !r.isDefault)}
+                    activeIds={m.roleIds ?? []}
+                    onToggle={(roleId) => handleRoleToggle(m, roleId)}
+                  />
                 )}
                 {canMute && (
                   isMuted ? (
@@ -239,5 +229,98 @@ export function MembersTab({ server }: { server: Server }) {
         )
       })}
     </div>
+  )
+}
+
+function RoleDropdown({
+  roles,
+  activeIds,
+  onToggle
+}: {
+  roles: import('@chat/shared').Role[]
+  activeIds: string[]
+  onToggle: (roleId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (
+        btnRef.current?.contains(e.target as Node) ||
+        panelRef.current?.contains(e.target as Node)
+      ) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [open])
+
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.right })
+    }
+    setOpen((v) => !v)
+  }
+
+  const activeCount = roles.filter((r) => activeIds.includes(r.id)).length
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleToggle}
+        className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-gray-300 transition hover:bg-white/5"
+      >
+        <svg className="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Roles
+        {activeCount > 0 && (
+          <span className="rounded-full bg-primary/20 px-1.5 text-[10px] font-semibold text-primary">{activeCount}</span>
+        )}
+        <svg className={`h-3 w-3 text-gray-500 transition ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed z-[200] min-w-[180px] overflow-hidden rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
+          style={{ top: pos.top, left: pos.left, transform: 'translateX(-100%)' }}
+        >
+          {roles.map((r) => {
+            const isActive = activeIds.includes(r.id)
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => onToggle(r.id)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-white/5"
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                  isActive ? 'border-primary bg-primary' : 'border-gray-600'
+                }`}>
+                  {isActive && (
+                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </span>
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: r.color ?? '#99aab5' }} />
+                <span className={`truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>{r.name}</span>
+              </button>
+            )
+          })}
+        </div>,
+        document.body
+      )}
+    </>
   )
 }

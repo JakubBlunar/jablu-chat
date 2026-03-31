@@ -12,7 +12,7 @@ import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
 import { getSocket } from '@/lib/socket'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
-import { useMemberStore } from '@/stores/member.store'
+import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { ConfirmDialog, IconButton } from '@/components/ui'
@@ -98,10 +98,8 @@ export const MessageRow = memo(function MessageRow({
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
   const authorRoleColor = useMemberStore((s) => {
     const member = s.members.find((m) => m.userId === message.authorId)
-    if (!member?.roles || member.roles.length === 0) return null
-    const nonDefault = member.roles.filter((r) => !r.isDefault)
-    if (nonDefault.length === 0) return null
-    return nonDefault.reduce((top, r) => r.position > top.position ? r : top, nonDefault[0]).color
+    if (!member) return null
+    return getRoleColor(member)
   })
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []

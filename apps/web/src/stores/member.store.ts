@@ -29,6 +29,13 @@ export function getTopRole(member: Member): Role | undefined {
   return nonDefault.reduce((top, r) => (r.position > top.position ? r : top), nonDefault[0])
 }
 
+export function getRoleColor(member: Member): string | null {
+  if (!member.roles || member.roles.length === 0) return null
+  const withColor = member.roles.filter((r) => r.color)
+  if (withColor.length === 0) return null
+  return withColor.reduce((best, r) => (r.position > best.position ? r : best), withColor[0]).color
+}
+
 type MemberState = {
   members: Member[]
   onlineUserIds: Set<string>
