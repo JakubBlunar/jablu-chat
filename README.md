@@ -22,6 +22,7 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **Voice channels** powered by [LiveKit](https://livekit.io/) (self-hosted WebRTC SFU)
 - **Video calls** with camera controls
 - **Screen sharing** (including native picker on the desktop app)
+- Works out of the box with the bundled self-hosted LiveKit, or swap in [LiveKit Cloud](https://livekit.io/cloud) by changing three env vars
 
 ### Servers & Permissions
 - **Servers** with categories, text channels, and voice channels
