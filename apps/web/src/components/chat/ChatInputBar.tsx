@@ -52,10 +52,17 @@ export type ChatInputBarProps = {
 
 type PopupMode = 'none' | 'mention' | 'channel' | 'command'
 
-type SlashCommand = { name: string; description: string }
+type SlashCommand = { name: string; description: string; category?: string }
 
 const COMMANDS: SlashCommand[] = [
-  { name: 'poll', description: 'Create a poll' }
+  { name: 'poll', description: 'Create a poll', category: 'Tools' },
+  { name: 'shrug', description: 'Append ¯\\_(ツ)_/¯ to your message', category: 'Fun' },
+  { name: 'tableflip', description: 'Send (╯°□°)╯︵ ┻━┻', category: 'Fun' },
+  { name: 'unflip', description: 'Send ┬─┬ ノ( ゜-゜ノ)', category: 'Fun' },
+  { name: 'lenny', description: 'Append ( ͡° ͜ʖ ͡°) to your message', category: 'Fun' },
+  { name: 'spoiler', description: 'Wrap your text in a spoiler ||text||', category: 'Formatting' },
+  { name: 'me', description: 'Send an action message in italics', category: 'Formatting' },
+  { name: 'nick', description: 'Change your server display name', category: 'Settings' },
 ]
 
 export type ChatInputBarHandle = {
@@ -254,12 +261,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
   const executeCommand = useCallback(
     (cmd: SlashCommand) => {
-      onChange('')
+      onChange(`/${cmd.name} `)
       setPopupMode('none')
-      onCommand?.(cmd.name)
       requestAnimationFrame(() => taRef.current?.focus())
     },
-    [onChange, onCommand]
+    [onChange]
   )
 
   const handleKeyDown = useCallback(
@@ -282,7 +288,12 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           } else if (popupMode === 'channel' && filteredChannels[selectedIdx]) {
             insertChannel(filteredChannels[selectedIdx])
           } else if (popupMode === 'command' && filteredCommands[selectedIdx]) {
-            executeCommand(filteredCommands[selectedIdx])
+            if (e.key === 'Tab') {
+              executeCommand(filteredCommands[selectedIdx])
+            } else {
+              setPopupMode('none')
+              if (value.length <= MAX_MESSAGE_LENGTH) onSend()
+            }
           }
           return
         }
@@ -616,7 +627,7 @@ function CommandPopup({
       ref={listRef}
       role="listbox"
       aria-label="Commands"
-      className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
+      className="absolute bottom-full left-0 z-50 mb-1 max-h-64 w-80 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {commands.map((c, i) => (
         <button
@@ -639,6 +650,9 @@ function CommandPopup({
             <span className="block truncate text-sm font-medium">/{c.name}</span>
             <span className="block truncate text-xs text-gray-500">{c.description}</span>
           </div>
+          {c.category && (
+            <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-gray-500">{c.category}</span>
+          )}
         </button>
       ))}
     </div>
