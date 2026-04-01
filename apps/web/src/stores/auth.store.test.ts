@@ -54,9 +54,11 @@ const mockUser = {
   displayName: null,
   email: 'test@example.com',
   avatarUrl: null,
-  status: 'online',
+  bio: null,
+  status: 'online' as const,
   customStatus: null,
-  dmPrivacy: 'everyone',
+  dmPrivacy: 'everyone' as const,
+  lastSeenAt: null,
   createdAt: '2025-01-01T00:00:00Z'
 }
 
@@ -118,7 +120,7 @@ describe('auth.store', () => {
         refreshToken: 'rt-1',
         isAuthenticated: true
       })
-      jest.mocked(api.logout).mockResolvedValueOnce(undefined)
+      jest.mocked(api.logout).mockResolvedValueOnce({ message: 'ok' })
 
       await useAuthStore.getState().logout()
 

@@ -80,13 +80,11 @@ export function ProfileCard({
     }
   }, [onClose, isMobile])
 
-  const badge = user.roleName ?? null
-
   if (isMobile) {
     return createPortal(
       <ModalOverlay onClose={onClose} zIndex="z-[110]" maxWidth="max-w-[320px]" noPadding className="max-h-[80vh] overflow-y-auto overflow-x-hidden">
         <div ref={cardRef}>
-          <ProfileCardContent user={user} badge={badge} onClose={onClose} />
+          <ProfileCardContent user={user} onClose={onClose} />
         </div>
       </ModalOverlay>,
       document.body
@@ -122,7 +120,7 @@ export function ProfileCard({
       style={style}
       className="z-[90] w-[300px] overflow-hidden rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
     >
-      <ProfileCardContent user={user} badge={badge} onClose={onClose} />
+      <ProfileCardContent user={user} onClose={onClose} />
     </div>
   )
 }
@@ -143,14 +141,20 @@ type MutualFriend = {
 
 function ProfileCardContent({
   user,
-  badge,
   onClose
 }: {
   user: ProfileCardUser
-  badge: string | null
   onClose: () => void
 }) {
   const currentUserId = useAuthStore((s) => s.user?.id)
+  const currentServerId = useServerStore((s) => s.currentServerId)
+  const adminRole = useMemberStore((s) => {
+    if (!currentServerId) return null
+    const member = s.members.find((m) => m.userId === user.id && m.serverId === currentServerId)
+    const roles = (member?.roles ?? []).filter((r) => !r.isDefault && r.isAdmin)
+    if (roles.length === 0) return null
+    return roles.reduce((a, b) => (a.position > b.position ? a : b))
+  })
   const [mutualServers, setMutualServers] = useState<MutualServer[]>([])
   const [mutualFriends, setMutualFriends] = useState<MutualFriend[]>([])
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatusResponse | null>(null)
@@ -195,15 +199,15 @@ function ProfileCardContent({
 
         <div className="mt-1 flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{user.displayName ?? user.username}</h3>
-          {badge && (
+          {adminRole && (
             <span
               className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
-              style={user.roleColor
-                ? { color: user.roleColor, borderColor: `${user.roleColor}66` }
-                : { color: 'var(--color-primary)', borderColor: 'var(--color-primary-40, rgba(99,102,241,0.4))' }
-              }
+              style={{
+                color: adminRole.color ?? 'var(--color-primary)',
+                borderColor: `${adminRole.color ?? 'var(--color-primary)'}66`
+              }}
             >
-              {badge}
+              {adminRole.name}
             </span>
           )}
         </div>

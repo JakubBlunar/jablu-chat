@@ -39,14 +39,14 @@ describe('bookmark.store', () => {
 
   describe('toggleBookmark', () => {
     it('adds message id on "added"', async () => {
-      jest.mocked(api.toggleBookmark).mockResolvedValueOnce({ action: 'added' })
+      jest.mocked(api.toggleBookmark).mockResolvedValueOnce({ action: 'added', messageId: 'm1' })
       await useBookmarkStore.getState().toggleBookmark('m1')
       expect(useBookmarkStore.getState().bookmarkedIds.has('m1')).toBe(true)
     })
 
     it('removes message id on "removed"', async () => {
       useBookmarkStore.setState({ bookmarkedIds: new Set(['m1']) })
-      jest.mocked(api.toggleBookmark).mockResolvedValueOnce({ action: 'removed' })
+      jest.mocked(api.toggleBookmark).mockResolvedValueOnce({ action: 'removed', messageId: 'm1' })
       await useBookmarkStore.getState().toggleBookmark('m1')
       expect(useBookmarkStore.getState().bookmarkedIds.has('m1')).toBe(false)
     })

@@ -56,7 +56,7 @@ describe('event.store', () => {
     })
 
     it('discards stale responses', async () => {
-      let resolveSlow!: (v: unknown) => void
+      let resolveSlow!: (v: any) => void
       mockGetEvents.mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))
       const firstFetch = useEventStore.getState().fetchEvents('s1')
 
