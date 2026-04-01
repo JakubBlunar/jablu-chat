@@ -25,6 +25,7 @@ import { useMessageStore } from '@/stores/message.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
+import { useBookmarkStore } from '@/stores/bookmark.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { QuickSwitcher } from '@/components/QuickSwitcher'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -156,9 +157,7 @@ export function MainLayout() {
 
   useEffect(() => {
     void fetchServers()
-    import('@/stores/bookmark.store').then(({ useBookmarkStore }) => {
-      if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
-    })
+    if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
   }, [fetchServers])
 
   // Auto-redirect: server view with no server → navigate to first server
