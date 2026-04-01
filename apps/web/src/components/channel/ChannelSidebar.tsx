@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } fr
 import SimpleBar from 'simplebar-react'
 import { useIsMobile } from '@/hooks/useMobile'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
@@ -498,7 +499,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
             <>
               <div className="group/header flex items-center justify-between px-2 pt-1">
-                <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
+                <SectionHeading as="span">TEXT CHANNELS</SectionHeading>
                 {isAdminOrOwner && (
                   <button
                     type="button"
@@ -654,7 +655,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {uncategorizedVoice.length > 0 && (
             <>
               <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
-                <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
+                <SectionHeading as="span">VOICE CHANNELS</SectionHeading>
                 {isAdminOrOwner && (
                   <button
                     type="button"
@@ -698,7 +699,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {uncategorizedForum.length > 0 && (
             <>
               <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
-                <span className="text-[11px] font-semibold tracking-wide text-gray-400">FORUM CHANNELS</span>
+                <SectionHeading as="span">FORUM CHANNELS</SectionHeading>
                 {isAdminOrOwner && (
                   <button
                     type="button"

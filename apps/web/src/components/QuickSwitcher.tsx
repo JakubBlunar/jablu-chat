@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Kbd } from '@/components/ui/Kbd'
 import { useNavigate } from 'react-router-dom'
 import type { Channel } from '@chat/shared'
 import { type DmConversation } from '@/lib/api'
@@ -219,9 +220,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
               <path d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
-          <kbd className="hidden rounded border border-white/10 bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-gray-400 md:inline-block">
-            ESC
-          </kbd>
+          <Kbd className="hidden md:inline-flex">ESC</Kbd>
         </div>
 
         <div ref={listRef} className="chat-scroll max-h-[60dvh] overflow-y-auto p-2 md:max-h-80" role="listbox">

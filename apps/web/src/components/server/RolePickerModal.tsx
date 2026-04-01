@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
-import { Button } from '@/components/ui'
+import { Button, ColorDot } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -109,7 +109,7 @@ export function RolePickerModal({ onClose }: { onClose: () => void }) {
                     </svg>
                   )}
                 </span>
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+                <ColorDot color={role.color} />
                 <span className="truncate font-medium">{role.name}</span>
               </button>
             )

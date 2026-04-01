@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Input } from '@/components/ui'
+import { Button, InlineAlert, Input } from '@/components/ui'
 import { api, resolveMediaUrl } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
 import type { Server } from '@/stores/server.store'
@@ -79,7 +79,7 @@ export function OverviewTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-6">
-      {error && <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
+      {error && <InlineAlert variant="error">{error}</InlineAlert>}
       <div className="flex items-start gap-6">
         <div className="flex flex-col items-center gap-2">
           <button

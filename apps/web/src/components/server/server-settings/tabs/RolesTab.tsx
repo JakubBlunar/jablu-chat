@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Button, Input } from '@/components/ui'
+import { Button, ColorDot, InlineAlert, Input } from '@/components/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -63,7 +63,7 @@ function SortableRoleItem({ role, isSelected, onClick, isDraggable }: {
         onClick={onClick}
         className={`flex min-w-0 flex-1 items-center gap-2 py-2 ${isDraggable ? 'pr-3' : 'px-3'}`}
       >
-        <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+        <ColorDot color={role.color} />
         <span className="truncate">{role.name}</span>
       </button>
     </div>
@@ -226,7 +226,7 @@ export function RolesTab({ server }: { server: Server }) {
               selected?.id === everyoneRole.id ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/[0.04]'
             }`}
           >
-            <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: '#99aab5' }} />
+            <ColorDot />
             <span className="truncate">{everyoneRole.name}</span>
           </button>
         )}
@@ -249,7 +249,7 @@ export function RolesTab({ server }: { server: Server }) {
 
       <div className="min-w-0 flex-1">
         {error && (
-          <div className="mb-3 rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
+          <InlineAlert variant="error" className="mb-3">{error}</InlineAlert>
         )}
 
         {!selected ? (
@@ -257,9 +257,9 @@ export function RolesTab({ server }: { server: Server }) {
         ) : (
           <div className="space-y-4">
             {!canEditSelected && canManage && (
-              <p className="rounded-md bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+              <InlineAlert variant="warning">
                 This role is at or above your highest role — view only.
-              </p>
+              </InlineAlert>
             )}
 
             <div className="flex items-center gap-3">

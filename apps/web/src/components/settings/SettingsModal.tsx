@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useIsMobile } from '@/hooks/useMobile'
 import SimpleBar from 'simplebar-react'
@@ -142,7 +143,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       {/* Left sidebar */}
       <div className="flex w-56 shrink-0 flex-col items-end bg-surface-dark">
         <nav className="w-44 space-y-0.5 px-2 py-16">
-          <p className="mb-1 px-2 text-[11px] font-semibold tracking-wide text-gray-400">USER SETTINGS</p>
+          <SectionHeading className="mb-1 px-2">USER SETTINGS</SectionHeading>
           {visibleTabs.map((t) => (
             <SidebarButton key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
               {t.label}

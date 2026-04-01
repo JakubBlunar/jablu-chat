@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import type { UserStatus } from '@chat/shared'
+import { statusColors } from '@/components/ui/StatusDot'
 import { hashUsernameToHue } from '@/lib/username-color'
 import { resolveMediaUrl } from '@/lib/api'
 
@@ -9,17 +10,6 @@ const sizeMap = {
   lg: 'h-10 w-10 min-h-10 min-w-10 text-base',
   xl: 'h-20 w-20 min-h-20 min-w-20 text-2xl'
 } as const
-
-const statusColor: Record<UserStatus, string> = {
-  online: 'bg-emerald-500',
-  idle: 'bg-amber-400',
-  dnd: 'bg-red-500',
-  offline: 'bg-zinc-500'
-}
-
-function resolveStatusClass(status: UserStatus | undefined, fallback: UserStatus): string {
-  return statusColor[status ?? fallback]
-}
 
 export type UserAvatarProps = {
   username: string
@@ -53,7 +43,7 @@ export const UserAvatar = memo(function UserAvatar({
       )}
       {showStatus ? (
         <span
-          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface-dark ${resolveStatusClass(status, 'offline')}`}
+          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-surface-dark ${statusColors[status ?? 'offline']}`}
           aria-hidden
         />
       ) : null}

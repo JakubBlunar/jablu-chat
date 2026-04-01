@@ -1,6 +1,6 @@
 import type { ServerEvent } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
-import { Badge } from '@/components/ui'
+import { Badge, SectionHeading } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useEventStore } from '@/stores/event.store'
 import { api } from '@/lib/api'
@@ -296,7 +296,7 @@ export function EventsPanel({ serverId, onClose }: Props) {
             {scheduledEvents.length > 0 && (
               <div className="space-y-2">
                 {activeEvents.length > 0 && (
-                  <h3 className="px-1 text-[11px] font-semibold tracking-wide text-gray-400">UPCOMING</h3>
+                  <SectionHeading as="h3" className="px-1">UPCOMING</SectionHeading>
                 )}
                 {scheduledEvents.map((event) => (
                   <EventCard

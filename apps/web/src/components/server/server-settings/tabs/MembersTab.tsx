@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
+import { ColorDot } from '@/components/ui/ColorDot'
+import { InlineAlert } from '@/components/ui/InlineAlert'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAuthStore } from '@/stores/auth.store'
@@ -125,7 +127,7 @@ export function MembersTab({ server }: { server: Server }) {
   return (
     <div className="space-y-1">
       {memberError && (
-        <div className="mb-2 rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{memberError}</div>
+        <InlineAlert variant="error" className="mb-2">{memberError}</InlineAlert>
       )}
       {members.map((m) => {
         const presence: UserStatus = onlineIds.has(m.userId) ? ((m.user.status as UserStatus) ?? 'online') : 'offline'
@@ -307,7 +309,7 @@ function RoleDropdown({
                     </svg>
                   )}
                 </span>
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: r.color ?? '#99aab5' }} />
+                <ColorDot color={r.color} size="sm" />
                 <span className={`truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>{r.name}</span>
               </button>
             )

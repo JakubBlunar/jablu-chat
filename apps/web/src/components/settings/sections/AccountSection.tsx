@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Button, Input } from '@/components/ui'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { useAuthStore } from '@/stores/auth.store'
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold tracking-wide text-gray-400">{label}</p>
+      <SectionHeading>{label}</SectionHeading>
       <p className="text-sm text-gray-200">{value}</p>
     </div>
   )

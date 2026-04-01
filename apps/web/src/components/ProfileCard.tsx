@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { RoleBadge } from '@/components/ui/RoleBadge'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import { resolveMediaUrl } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -217,23 +218,23 @@ function ProfileCardContent({
 
         {user.bio && (
           <div className="mb-3">
-            <p className="mb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">ABOUT ME</p>
+            <SectionHeading className="mb-0.5">ABOUT ME</SectionHeading>
             <p className="whitespace-pre-wrap text-sm text-gray-200">{user.bio}</p>
           </div>
         )}
 
         {user.joinedAt && (
           <div className="mb-3">
-            <p className="mb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">MEMBER SINCE</p>
+            <SectionHeading className="mb-0.5">MEMBER SINCE</SectionHeading>
             <p className="text-sm text-gray-200">{formatDate(user.joinedAt)}</p>
           </div>
         )}
 
         {mutualFriends.length > 0 && (
           <div className="mb-3">
-            <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">
+            <SectionHeading className="mb-1">
               MUTUAL FRIENDS — {mutualFriends.length}
-            </p>
+            </SectionHeading>
             <div className="flex flex-wrap gap-1.5">
               {mutualFriends.slice(0, 8).map((f) => (
                 <div key={f.id} className="flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-1" title={f.displayName ?? f.username}>
@@ -250,9 +251,9 @@ function ProfileCardContent({
 
         {mutualServers.length > 0 && (
           <div className="mb-3">
-            <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">
+            <SectionHeading className="mb-1">
               MUTUAL SERVERS — {mutualServers.length}
-            </p>
+            </SectionHeading>
             <div className="space-y-0.5">
               {mutualServers.map((s) => (
                 <button
@@ -306,7 +307,7 @@ function VoiceVolumeSlider({ userId }: { userId: string }) {
 
   return (
     <div className="mb-3">
-      <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">VOICE VOLUME</p>
+      <SectionHeading className="mb-1">VOICE VOLUME</SectionHeading>
       <div className="flex items-center gap-3 rounded-md bg-surface-darkest px-3 py-2">
         <svg className="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
@@ -523,7 +524,7 @@ function RoleBadges({ userId }: { userId: string }) {
 
   return (
     <div className="mb-3">
-      <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">ROLES</p>
+      <SectionHeading className="mb-1">ROLES</SectionHeading>
       <div className="flex flex-wrap gap-1">
         {roles.map((role) => (
           <RoleBadge key={role.id} name={role.name} color={role.color} size="md" />
