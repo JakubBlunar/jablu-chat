@@ -1,4 +1,5 @@
 import type { Message } from '@chat/shared'
+import { TagChip } from '@/components/ui/TagChip'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ProfileCard } from '@/components/ProfileCard'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
@@ -254,16 +255,7 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
         {post.tags.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
             {post.tags.map((t) => (
-              <span
-                key={t.id}
-                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={{
-                  backgroundColor: t.color ? `${t.color}30` : 'rgba(255,255,255,0.1)',
-                  color: t.color || '#9ca3af'
-                }}
-              >
-                {t.name}
-              </span>
+              <TagChip key={t.id} name={t.name} color={t.color} />
             ))}
           </div>
         )}
