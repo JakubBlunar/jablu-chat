@@ -1,5 +1,6 @@
 import type { UserStatus } from '@chat/shared'
 import { useState } from 'react'
+import { StatusDot } from '@/components/ui/StatusDot'
 import { STATUS_OPTIONS } from '@/components/settings/settingsTypes'
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -97,7 +98,7 @@ export function StatusSection() {
                   active ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
                 }`}
               >
-                <span className={`inline-block h-3 w-3 rounded-full ${opt.color}`} />
+                <StatusDot status={opt.value} size="md" />
                 <span className="text-sm font-medium">{opt.label}</span>
                 {active && <span className="ml-auto text-xs text-gray-400">Current</span>}
                 {loading === opt.value && <span className="ml-auto text-xs text-gray-400">...</span>}

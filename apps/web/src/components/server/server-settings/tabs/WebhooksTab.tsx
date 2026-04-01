@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Input } from '@/components/ui'
+import { Button, Input, InlineAlert } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import type { Server } from '@/stores/server.store'
@@ -75,7 +75,7 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
   return (
     <div className="space-y-6">
       {webhookError && (
-        <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{webhookError}</div>
+        <InlineAlert variant="error">{webhookError}</InlineAlert>
       )}
       <div className="rounded-md bg-surface-dark p-4">
         <h3 className="mb-3 text-sm font-semibold text-white">Create Webhook</h3>

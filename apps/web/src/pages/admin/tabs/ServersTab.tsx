@@ -21,7 +21,7 @@ import type { AdminServer, AdminUser, AdminRole, ServerMemberRow } from '../admi
 import { adminFetch } from '../adminApi'
 import { fmtDate } from '../adminFormatters'
 import { ConfirmDeleteBtn, Empty } from '../AdminShared'
-import { Button, Input } from '@/components/ui'
+import { Button, ColorDot, Input } from '@/components/ui'
 
 export function ServersTab({
   servers,
@@ -452,7 +452,7 @@ function SortableAdminRoleItem({ role, isSelected, onClick }: {
         onClick={onClick}
         className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-3"
       >
-        <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
+        <ColorDot color={role.color} />
         <span className="truncate">{role.name}</span>
       </button>
     </div>
@@ -613,7 +613,7 @@ function ServerRolesPanel({ server }: { server: AdminServer }) {
                   selected?.id === r.id ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/[0.04]'
                 }`}
               >
-                <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: r.color ?? '#99aab5' }} />
+                <ColorDot color={r.color} />
                 <span className="truncate">{r.name}</span>
               </button>
             ))
@@ -627,7 +627,7 @@ function ServerRolesPanel({ server }: { server: AdminServer }) {
                 selected?.id === everyoneRole.id ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/[0.04]'
               }`}
             >
-              <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: '#99aab5' }} />
+              <ColorDot />
               <span className="truncate">{everyoneRole.name}</span>
             </button>
           )}

@@ -1,6 +1,7 @@
 import type { Friend, FriendRequest, FriendshipStatusResponse } from '@chat/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { StatusDot } from '@/components/ui/StatusDot'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { api } from '@/lib/api'
@@ -16,13 +17,6 @@ const STATUS_LABELS: Record<string, string> = {
   idle: 'Idle',
   dnd: 'Do Not Disturb',
   offline: 'Offline'
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  online: 'bg-green-500',
-  idle: 'bg-yellow-500',
-  dnd: 'bg-red-500',
-  offline: 'bg-gray-500'
 }
 
 export function FriendsPage() {
@@ -187,7 +181,7 @@ function FriendRow({ friend, isMobile }: { friend: Friend; isMobile: boolean }) 
           {friend.displayName ?? friend.username}
         </p>
         <div className="flex items-center gap-1.5">
-          <span className={`inline-block h-2 w-2 rounded-full ${STATUS_COLORS[friend.status]}`} />
+          <StatusDot status={friend.status} />
           <span className="text-xs text-gray-400">{STATUS_LABELS[friend.status]}</span>
         </div>
       </div>

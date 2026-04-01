@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import type { AdminUser } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 
@@ -55,7 +56,7 @@ export function PushTab({ users }: { users: AdminUser[] }) {
 
       <div className="space-y-3">
         <div>
-          <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">TITLE</label>
+          <SectionHeading as="label" className="mb-1 block">TITLE</SectionHeading>
           <input
             type="text"
             value={title}
@@ -65,7 +66,7 @@ export function PushTab({ users }: { users: AdminUser[] }) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">BODY</label>
+          <SectionHeading as="label" className="mb-1 block">BODY</SectionHeading>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -77,9 +78,9 @@ export function PushTab({ users }: { users: AdminUser[] }) {
       </div>
 
       <div>
-        <p className="mb-2 text-[11px] font-semibold tracking-wide text-gray-400">
+        <SectionHeading className="mb-2">
           RECIPIENTS {selectedUsers.length > 0 ? `(${selectedUsers.length} selected)` : '(all)'}
-        </p>
+        </SectionHeading>
         <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg bg-surface-dark p-2">
           {users.map((u) => (
             <label

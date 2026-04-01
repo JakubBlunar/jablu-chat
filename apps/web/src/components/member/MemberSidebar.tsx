@@ -2,6 +2,7 @@ import type { UserStatus } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import type { Member } from '@/stores/member.store'
 import { getTopRole, getRoleColor, useMemberStore } from '@/stores/member.store'
@@ -57,7 +58,7 @@ export function MemberSidebar() {
   return (
     <aside className="flex h-full w-full shrink-0 flex-col bg-surface-dark md:w-60">
       <div className="flex h-12 shrink-0 items-center border-b border-black/20 px-4">
-        <h2 className="text-[11px] font-semibold tracking-wide text-gray-400">MEMBERS — {total}</h2>
+        <SectionHeading as="h2">MEMBERS — {total}</SectionHeading>
       </div>
 
       <SimpleBar className="min-h-0 flex-1 px-2 py-3">
@@ -74,7 +75,7 @@ export function MemberSidebar() {
         ) : null}
 
         <section className="mb-4">
-          <h3 className="mb-2 px-2 text-[11px] font-semibold tracking-wide text-gray-400">ONLINE — {online.length}</h3>
+          <SectionHeading as="h3" className="mb-2 px-2">ONLINE — {online.length}</SectionHeading>
           <ul className="space-y-0.5">
             {online.map((m) => (
               <MemberRow
@@ -90,9 +91,9 @@ export function MemberSidebar() {
         </section>
 
         <section>
-          <h3 className="mb-2 px-2 text-[11px] font-semibold tracking-wide text-gray-400">
+          <SectionHeading as="h3" className="mb-2 px-2">
             OFFLINE — {offline.length}
-          </h3>
+          </SectionHeading>
           <ul className="space-y-0.5">
             {offline.map((m) => (
               <MemberRow key={m.userId} member={m} presence="offline" dimmed onClick={handleMemberClick} isOwner={server?.ownerId === m.userId} />

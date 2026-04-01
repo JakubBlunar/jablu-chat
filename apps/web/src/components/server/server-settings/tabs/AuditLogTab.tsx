@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { InlineAlert } from '@/components/ui/InlineAlert'
 import { api, type AuditLogEntry } from '@/lib/api'
 import { formatFullDateTime } from '@/lib/format-time'
 import type { Server } from '@/stores/server.store'
@@ -41,7 +42,7 @@ export function AuditLogTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-3">
-      {logError && <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{logError}</div>}
+      {logError && <InlineAlert variant="error">{logError}</InlineAlert>}
       {entries.length === 0 && !loading ? (
         <p className="text-center text-sm text-gray-500">No audit log entries yet.</p>
       ) : (

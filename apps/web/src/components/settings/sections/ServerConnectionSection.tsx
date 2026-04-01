@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { getStoredServerUrl, setStoredServerUrl } from '@/components/settings/ServerUrlScreen'
 import { api } from '@/lib/api'
 import { electronAPI, isElectron } from '@/lib/electron'
@@ -48,7 +49,7 @@ export function ServerConnectionSection() {
       </p>
 
       <div>
-        <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">SERVER URL</label>
+        <SectionHeading as="label" className="mb-1 block">SERVER URL</SectionHeading>
         <input
           type="text"
           value={url}

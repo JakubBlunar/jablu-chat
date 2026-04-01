@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { CameraIcon } from '@/components/settings/SettingsModal'
-import { Button, Input, Textarea } from '@/components/ui'
+import { Button, Input, SectionHeading, Textarea } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function ProfileSection() {
@@ -105,7 +105,7 @@ export function ProfileSection() {
       {/* Profile form */}
       <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <label className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-400">USERNAME</label>
+          <SectionHeading as="label" className="mb-1 block">USERNAME</SectionHeading>
           <div className="w-full rounded-md border border-surface-darkest bg-surface-darkest/50 px-3 py-2 text-sm text-gray-500">
             {user?.username}
           </div>

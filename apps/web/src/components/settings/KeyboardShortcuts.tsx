@@ -1,12 +1,5 @@
 import { keyboardShortcuts, type Shortcut } from '@/lib/keyboardShortcuts'
-
-function Kbd({ children }: { children: string }) {
-  return (
-    <kbd className="inline-flex min-w-[1.5rem] items-center justify-center rounded border border-white/10 bg-surface-raised px-1.5 py-0.5 font-mono text-xs text-gray-200">
-      {children}
-    </kbd>
-  )
-}
+import { Kbd } from '@/components/ui/Kbd'
 
 function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
   return (

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Button, Textarea } from '@/components/ui'
+import { Button, InlineAlert, Textarea } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -73,8 +73,8 @@ export function WelcomeTab({ server }: { server: Server }) {
         </p>
       </div>
 
-      {error && <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
-      {success && <div className="rounded bg-green-500/10 px-3 py-2 text-xs text-green-400">Welcome settings saved!</div>}
+      {error && <InlineAlert variant="error">{error}</InlineAlert>}
+      {success && <InlineAlert variant="success">Welcome settings saved!</InlineAlert>}
 
       <div className="space-y-4">
         <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">

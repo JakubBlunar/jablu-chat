@@ -13,6 +13,7 @@ import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
 import { ServerSettingsModal } from '@/components/server/ServerSettingsModal'
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoicePanel } from '@/components/voice/VoicePanel'
+import { SectionHeading } from '@/components/ui/SectionHeading'
 import { api, resolveMediaUrl } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
@@ -355,7 +356,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                 {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
                   <>
                     <div className="mb-1 flex items-center justify-between px-2">
-                      <span className="text-[11px] font-semibold tracking-wide text-gray-400">TEXT CHANNELS</span>
+                      <SectionHeading as="span">TEXT CHANNELS</SectionHeading>
                       {isAdminOrOwner && (
                         <IconButton
                           label="Create channel"
@@ -517,7 +518,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                 {uncategorizedVoice.length > 0 && (
                   <>
                     <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                      <span className="text-[11px] font-semibold tracking-wide text-gray-400">VOICE CHANNELS</span>
+                      <SectionHeading as="span">VOICE CHANNELS</SectionHeading>
                       {isAdminOrOwner && (
                         <IconButton
                           label="Create channel"
@@ -574,7 +575,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                 {uncategorizedForum.length > 0 && (
                   <>
                     <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                      <span className="text-[11px] font-semibold tracking-wide text-gray-400">FORUM CHANNELS</span>
+                      <SectionHeading as="span">FORUM CHANNELS</SectionHeading>
                       {isAdminOrOwner && (
                         <IconButton
                           label="Create channel"
@@ -622,7 +623,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                   <CountBadge count={pendingFriendCount} variant="danger" className="ml-auto" />
                 </button>
                 <div className="mb-1 flex items-center justify-between px-2">
-                  <p className="text-[11px] font-semibold tracking-wide text-gray-400">DIRECT MESSAGES</p>
+                  <SectionHeading>DIRECT MESSAGES</SectionHeading>
                   <IconButton
                     label="New Message"
                     onClick={() => {

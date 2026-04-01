@@ -1,6 +1,6 @@
 import { Permission } from '@chat/shared'
 import { useEffect, useRef, useState } from 'react'
-import { Spinner } from '@/components/ui'
+import { InlineAlert, Spinner } from '@/components/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api, resolveMediaUrl, type CustomEmoji, type EmojiStat } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -100,7 +100,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
+        <InlineAlert variant="error">{error}</InlineAlert>
       )}
 
       {canManage && (

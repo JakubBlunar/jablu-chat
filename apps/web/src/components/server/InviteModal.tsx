@@ -1,7 +1,7 @@
 import type { Invite } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
-import { Button } from '@/components/ui'
+import { Button, InlineAlert } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 
@@ -147,7 +147,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose }: Invit
         </div>
 
         {error && (
-          <div className="mb-3 rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
+          <InlineAlert variant="error" className="mb-3">{error}</InlineAlert>
         )}
 
         <SimpleBar className="max-h-64 space-y-2">
