@@ -75,7 +75,10 @@ export const MessageRow = memo(function MessageRow({
   onMentionClick,
   channels,
   onChannelClick,
-  membersByUsername
+  membersByUsername,
+  hideThreadAction,
+  hidePinAction,
+  hideBookmarkAction
 }: {
   mode: 'channel' | 'dm'
   message: Message
@@ -87,6 +90,9 @@ export const MessageRow = memo(function MessageRow({
   channels?: ChannelRef[]
   onChannelClick?: (serverId: string, channelId: string) => void
   membersByUsername?: Map<string, import('@/stores/member.store').Member>
+  hideThreadAction?: boolean
+  hidePinAction?: boolean
+  hideBookmarkAction?: boolean
 }) {
   const userId = useAuthStore((s) => s.user?.id)
   const isDm = mode === 'dm'
@@ -232,6 +238,8 @@ export const MessageRow = memo(function MessageRow({
           mode={mode}
           isAuthor={isAuthor}
           isAdminOrOwner={isAdminOrOwner}
+          hidePinAction={hidePinAction}
+          hideBookmarkAction={hideBookmarkAction}
           onClose={() => setDrawerOpen(false)}
           onEdit={isAuthor ? handleStartEdit : undefined}
           onReply={() => onReply(message)}
@@ -251,6 +259,8 @@ export const MessageRow = memo(function MessageRow({
             channelId={contextId}
             onEdit={handleStartEdit}
             onReply={() => onReply(message)}
+            hidePinAction={hidePinAction}
+            hideBookmarkAction={hideBookmarkAction}
           />
         ) : (
           <div ref={actionsRef} className="absolute -top-3 right-2 z-10 flex items-start">
@@ -482,7 +492,7 @@ export const MessageRow = memo(function MessageRow({
 
         {message.poll && <PollDisplay poll={message.poll} />}
 
-        {!isDm && !message.threadParentId && (message.threadCount ?? 0) > 0 && (
+        {!isDm && !hideThreadAction && !message.threadParentId && (message.threadCount ?? 0) > 0 && (
           <button
             type="button"
             onClick={() => {

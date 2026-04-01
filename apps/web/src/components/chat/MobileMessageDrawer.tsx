@@ -32,6 +32,8 @@ interface MobileMessageDrawerProps {
   mode: 'channel' | 'dm'
   isAuthor: boolean
   isAdminOrOwner: boolean
+  hidePinAction?: boolean
+  hideBookmarkAction?: boolean
   onClose: () => void
   onEdit?: () => void
   onReply: () => void
@@ -44,6 +46,8 @@ export function MobileMessageDrawer({
   mode,
   isAuthor,
   isAdminOrOwner,
+  hidePinAction,
+  hideBookmarkAction,
   onClose,
   onEdit,
   onReply,
@@ -196,8 +200,8 @@ export function MobileMessageDrawer({
         {isAuthor && onEdit && (
           <SheetBtn icon={<EditIcon />} label="Edit Message" onClick={handleEdit} />
         )}
-        <BookmarkDrawerBtn messageId={message.id} onClose={close} />
-        {(isDm || isAdminOrOwner) && (
+        {!hideBookmarkAction && <BookmarkDrawerBtn messageId={message.id} onClose={close} />}
+        {!hidePinAction && (isDm || isAdminOrOwner) && (
           <SheetBtn
             icon={<PinIcon />}
             label={message.pinned ? 'Unpin Message' : 'Pin Message'}

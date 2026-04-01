@@ -1,5 +1,6 @@
-import type { Message, Poll } from '@chat/shared'
+import type { ForumPost, Message, Poll } from '@chat/shared'
 import { useThreadStore } from '@/stores/thread.store'
+import { useForumStore } from '@/stores/forum.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -15,6 +16,9 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
   const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
     if (msg.threadParentId) {
       useThreadStore.getState().addMessage(msg)
+      if (useForumStore.getState().currentPostId === msg.threadParentId) {
+        window.dispatchEvent(new CustomEvent('forum-reply', { detail: msg }))
+      }
       return
     }
     const channelId = useChannelStore.getState().currentChannelId
@@ -44,6 +48,9 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
 
   const onMessageEdit = (msg: Message) => {
     useThreadStore.getState().updateMessage(msg)
+    if (msg.threadParentId && useForumStore.getState().currentPostId === msg.threadParentId) {
+      window.dispatchEvent(new CustomEvent('forum-reply:edit', { detail: msg }))
+    }
     const channelId = useChannelStore.getState().currentChannelId
     if (msg.channelId != null && msg.channelId === channelId) {
       useMessageStore.getState().updateMessage(msg)
@@ -52,6 +59,10 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
 
   const onMessageDelete = (payload: MessageDeletePayload) => {
     useThreadStore.getState().deleteMessage(payload.messageId)
+    const forum = useForumStore.getState()
+    if (forum.currentPostId && forum.channelId === payload.channelId) {
+      window.dispatchEvent(new CustomEvent('forum-reply:delete', { detail: payload.messageId }))
+    }
     const channelId = useChannelStore.getState().currentChannelId
     if (payload.channelId === channelId) {
       useMessageStore.getState().removeMessage(payload.messageId)
@@ -76,6 +87,11 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     if (payload.conversationId) {
       useDmStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId)
     } else {
+      const threadMsg = useThreadStore.getState().messages.find((m) => m.id === payload.messageId)
+      const currentForumPostId = useForumStore.getState().currentPostId
+      if ((threadMsg?.threadParentId && currentForumPostId === threadMsg.threadParentId) || currentForumPostId) {
+        window.dispatchEvent(new CustomEvent('forum-reply:reaction-add', { detail: payload }))
+      }
       useMessageStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId)
     }
   }
@@ -84,11 +100,20 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     if (payload.conversationId) {
       useDmStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId)
     } else {
+      const threadMsg = useThreadStore.getState().messages.find((m) => m.id === payload.messageId)
+      const currentForumPostId = useForumStore.getState().currentPostId
+      if ((threadMsg?.threadParentId && currentForumPostId === threadMsg.threadParentId) || currentForumPostId) {
+        window.dispatchEvent(new CustomEvent('forum-reply:reaction-remove', { detail: payload }))
+      }
       useMessageStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId)
     }
   }
 
   const onMessagePin = (msg: Message) => {
+    useThreadStore.getState().updateMessage(msg)
+    if (msg.threadParentId && useForumStore.getState().currentPostId === msg.threadParentId) {
+      window.dispatchEvent(new CustomEvent('forum-reply:pin', { detail: msg }))
+    }
     useMessageStore.getState().updateMessage(msg)
     if (msg.channelId) {
       useChannelStore.getState().adjustPinnedCount(msg.channelId, 1)
@@ -96,6 +121,10 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
   }
 
   const onMessageUnpin = (msg: Message) => {
+    useThreadStore.getState().updateMessage(msg)
+    if (msg.threadParentId && useForumStore.getState().currentPostId === msg.threadParentId) {
+      window.dispatchEvent(new CustomEvent('forum-reply:unpin', { detail: msg }))
+    }
     useMessageStore.getState().updateMessage(msg)
     if (msg.channelId) {
       useChannelStore.getState().adjustPinnedCount(msg.channelId, -1)
@@ -112,11 +141,15 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     lastThreadReply?: { content: string | null; author: { id: string; username: string; displayName?: string | null; avatarUrl: string | null } | null; createdAt: string }
   }) => {
     useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount, payload.lastThreadReply ?? undefined)
+    useForumStore.getState().updateReplyCount(payload.parentId, payload.threadCount)
   }
 
   const onNewMessageForThread = (msg: Message) => {
     if (msg.threadParentId) {
       useThreadStore.getState().addMessage(msg)
+      if (useForumStore.getState().currentPostId === msg.threadParentId) {
+        window.dispatchEvent(new CustomEvent('forum-reply', { detail: msg }))
+      }
     }
   }
 
@@ -128,10 +161,22 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     useChannelStore.getState().applyReorder(payload.channelIds)
   }
 
+  const onForumPostCreated = (post: ForumPost) => {
+    useForumStore.getState().addPost(post)
+  }
+
+  const onForumPostUpdated = (post: ForumPost) => {
+    useForumStore.getState().updatePost(post)
+  }
+
+  const onForumPostDeleted = (payload: { postId: string }) => {
+    useForumStore.getState().removePost(payload.postId)
+  }
+
   return {
     onMessageNew, onMessageEdit, onMessageDelete, onUserTyping, onUserTypingStop,
     onReactionAdd, onReactionRemove, onMessagePin, onMessageUnpin,
     onPollVote, onThreadUpdate, onNewMessageForThread, onLinkPreviews,
-    onChannelReorder
+    onChannelReorder, onForumPostCreated, onForumPostUpdated, onForumPostDeleted
   }
 }

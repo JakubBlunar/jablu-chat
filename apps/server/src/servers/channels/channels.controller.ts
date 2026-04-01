@@ -27,7 +27,12 @@ export class ChannelsController {
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: CreateChannelDto
   ) {
-    return this.channels.createChannel(serverId, user.id, dto.name, dto.type, dto.categoryId)
+    return this.channels.createChannel(serverId, user.id, dto.name, dto.type, dto.categoryId, {
+      defaultSortOrder: dto.defaultSortOrder,
+      defaultLayout: dto.defaultLayout,
+      postGuidelines: dto.postGuidelines,
+      requireTags: dto.requireTags
+    })
   }
 
   @Get()

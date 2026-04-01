@@ -63,6 +63,7 @@ import {
   GearSmallIcon
 } from './channel-sidebar/sidebarIcons'
 import { useSpeakingUsers } from './channel-sidebar/VoiceComponents'
+import { ForumChannelItem } from './channel-sidebar/ForumChannelItem'
 import { TextChannelItem } from './channel-sidebar/TextChannelItem'
 import { VoiceChannelItem } from './channel-sidebar/VoiceChannelItem'
 
@@ -97,7 +98,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
     [channels, permissionsMap]
   )
 
-  const { textChannels, uncategorizedText, uncategorizedVoice, categoryGroups, archivedChannels } = useSortedChannels(visibleChannels, categories)
+  const { textChannels, uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups, archivedChannels } = useSortedChannels(visibleChannels, categories)
   const [showArchived, setShowArchived] = useState(false)
 
   const { has: hasPerm } = usePermissions(currentServer?.id)
@@ -535,7 +536,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {/* Category groups */}
           {categoryGroups.map((group) => {
             const isCollapsed = collapsedCategories.has(group.category.id)
-            const hasChannels = group.textChannels.length > 0 || group.voiceChannels.length > 0
+            const hasChannels = group.textChannels.length > 0 || group.voiceChannels.length > 0 || group.forumChannels.length > 0
             return (
               <div key={group.category.id} className="mt-1">
                 <div className="group/header flex items-center justify-between px-1 pt-1">
@@ -623,6 +624,26 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                         ))}
                       </ul>
                     )}
+                    {group.forumChannels.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {group.forumChannels.map((ch) => (
+                          <ForumChannelItem
+                            key={ch.id}
+                            ch={ch}
+                            active={ch.id === currentChannelId && !viewingVoiceRoom}
+                            channelReadStates={channelReadStates}
+                            getNotifLevel={getNotifLevel}
+                            longPressFired={longPressFired}
+                            currentServer={currentServer}
+                            orchestratedGoToChannel={orchestratedGoToChannel}
+                            handleChannelTouchStart={handleChannelTouchStart}
+                            handleChannelTouchEnd={handleChannelTouchEnd}
+                            handleChannelTouchMove={handleChannelTouchMove}
+                            handleChannelContextMenu={handleChannelContextMenu}
+                          />
+                        ))}
+                      </ul>
+                    )}
                   </>
                 )}
               </div>
@@ -667,6 +688,45 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                     handleChannelContextMenu={handleChannelContextMenu}
                     handleVoiceParticipantClick={handleVoiceParticipantClick}
                     setEditingChannel={setEditingChannel}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+
+          {/* Uncategorized forum channels */}
+          {uncategorizedForum.length > 0 && (
+            <>
+              <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
+                <span className="text-[11px] font-semibold tracking-wide text-gray-400">FORUM CHANNELS</span>
+                {isAdminOrOwner && (
+                  <button
+                    type="button"
+                    title="Create channel"
+                    aria-label="Create forum channel"
+                    disabled={!currentServer}
+                    onClick={() => setChannelModalOpen(true)}
+                    className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+                  >
+                    <PlusSmallIcon />
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-0.5">
+                {uncategorizedForum.map((ch) => (
+                  <ForumChannelItem
+                    key={ch.id}
+                    ch={ch}
+                    active={ch.id === currentChannelId && !viewingVoiceRoom}
+                    channelReadStates={channelReadStates}
+                    getNotifLevel={getNotifLevel}
+                    longPressFired={longPressFired}
+                    currentServer={currentServer}
+                    orchestratedGoToChannel={orchestratedGoToChannel}
+                    handleChannelTouchStart={handleChannelTouchStart}
+                    handleChannelTouchEnd={handleChannelTouchEnd}
+                    handleChannelTouchMove={handleChannelTouchMove}
+                    handleChannelContextMenu={handleChannelContextMenu}
                   />
                 ))}
               </ul>

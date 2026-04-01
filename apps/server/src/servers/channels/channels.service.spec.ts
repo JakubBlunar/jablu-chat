@@ -89,6 +89,41 @@ describe('ChannelsService', () => {
       await service.createChannel(serverId, userId, 'test', 'text' as any, 'cat-1')
       expect(prisma.channel.create.mock.calls[0][0].data.categoryId).toBe('cat-1')
     })
+
+    it('creates a forum channel with forum-specific options', async () => {
+      prisma.channel.aggregate.mockResolvedValue({ _max: { position: 0 } })
+      prisma.channel.create.mockResolvedValue({
+        id: 'ch-forum',
+        serverId,
+        name: 'help',
+        type: 'forum',
+        position: 1,
+        defaultLayout: 'grid',
+        requireTags: true,
+      })
+
+      const result = await service.createChannel(serverId, userId, 'help', 'forum' as any, null, {
+        defaultLayout: 'grid',
+        requireTags: true,
+        postGuidelines: 'Be kind'
+      })
+      expect(result.type).toBe('forum')
+      const createData = prisma.channel.create.mock.calls[0][0].data
+      expect(createData.defaultLayout).toBe('grid')
+      expect(createData.requireTags).toBe(true)
+      expect(createData.postGuidelines).toBe('Be kind')
+    })
+
+    it('ignores forum options for non-forum channels', async () => {
+      prisma.channel.aggregate.mockResolvedValue({ _max: { position: 0 } })
+      prisma.channel.create.mockResolvedValue({ id: 'ch-text', type: 'text' })
+
+      await service.createChannel(serverId, userId, 'general', 'text' as any, null, {
+        defaultLayout: 'grid',
+      })
+      const createData = prisma.channel.create.mock.calls[0][0].data
+      expect(createData.defaultLayout).toBeUndefined()
+    })
   })
 
   describe('getChannels', () => {
@@ -135,6 +170,14 @@ describe('ChannelsService', () => {
       await expect(
         service.updateChannel(serverId, channelId, userId, { isArchived: true }),
       ).rejects.toThrow(BadRequestException)
+    })
+
+    it('allows archiving a forum channel', async () => {
+      prisma.channel.findFirst.mockResolvedValue({ id: channelId, serverId, type: 'forum', name: 'help' })
+      prisma.channel.update.mockResolvedValue({ id: channelId, isArchived: true })
+
+      const result = await service.updateChannel(serverId, channelId, userId, { isArchived: true })
+      expect(result.isArchived).toBe(true)
     })
 
     it('throws ConflictException on duplicate name', async () => {

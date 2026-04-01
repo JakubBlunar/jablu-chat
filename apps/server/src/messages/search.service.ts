@@ -184,7 +184,7 @@ export class SearchService {
             avatarUrl: true
           }
         },
-        channel: { select: { id: true, name: true, serverId: true } },
+        channel: { select: { id: true, name: true, serverId: true, type: true } },
         directConversation: { select: { id: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -194,6 +194,8 @@ export class SearchService {
       results: fullMessages.map((m) => ({
         id: m.id,
         content: m.content,
+        title: m.title,
+        threadParentId: m.threadParentId,
         authorId: m.authorId,
         author: m.author,
         channelId: m.channelId,
@@ -244,7 +246,7 @@ export class SearchService {
     const { fragments, joins } = this.buildFilterClauses(filters)
 
     const textCondition = tsQuery
-      ? Prisma.sql`AND to_tsvector('simple', m.content) @@ to_tsquery('simple', ${tsQuery})`
+      ? Prisma.sql`AND (to_tsvector('simple', coalesce(m.content, '')) @@ to_tsquery('simple', ${tsQuery}) OR to_tsvector('simple', coalesce(m.title, '')) @@ to_tsquery('simple', ${tsQuery}))`
       : Prisma.sql``
 
     const joinSql = joins.reduce((acc, j) => Prisma.sql`${acc} ${j}`, Prisma.sql``)

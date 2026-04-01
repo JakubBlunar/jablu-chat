@@ -6,6 +6,7 @@ import type {
   ChannelCategory,
   CreateEventInput,
   ForgotPasswordRequest,
+  ForumTag,
   Invite,
   LoginRequest,
   Message,
@@ -509,10 +510,13 @@ export class ApiClient {
   getThreadMessages(
     channelId: string,
     parentId: string,
-    cursor?: string
-  ): Promise<{ messages: Message[]; hasMore: boolean }> {
+    opts?: { cursor?: string; after?: string; around?: string; limit?: number }
+  ): Promise<{ messages: Message[]; hasMore: boolean; hasNewer?: boolean }> {
     const params = new URLSearchParams()
-    if (cursor) params.set('cursor', cursor)
+    if (opts?.cursor) params.set('cursor', opts.cursor)
+    if (opts?.after) params.set('after', opts.after)
+    if (opts?.around) params.set('around', opts.around)
+    if (opts?.limit != null) params.set('limit', String(opts.limit))
     const qs = params.toString()
     return this.get(`/api/channels/${channelId}/messages/${parentId}/thread${qs ? `?${qs}` : ''}`)
   }
@@ -747,8 +751,37 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/bans`)
   }
 
-  updateChannel(serverId: string, channelId: string, data: { name?: string; position?: number; categoryId?: string | null; isArchived?: boolean }): Promise<unknown> {
+  updateChannel(
+    serverId: string,
+    channelId: string,
+    data: {
+      name?: string
+      position?: number
+      categoryId?: string | null
+      isArchived?: boolean
+      defaultSortOrder?: 'latest_activity' | 'newest'
+      defaultLayout?: 'list' | 'grid'
+      postGuidelines?: string | null
+      requireTags?: boolean
+    }
+  ): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/channels/${channelId}`, data)
+  }
+
+  getForumTags(channelId: string): Promise<ForumTag[]> {
+    return this.get(`/api/channels/${channelId}/tags`)
+  }
+
+  createForumTag(channelId: string, data: { name: string; color?: string }): Promise<ForumTag> {
+    return this.post(`/api/channels/${channelId}/tags`, data)
+  }
+
+  updateForumTag(channelId: string, tagId: string, data: { name?: string; color?: string | null }): Promise<ForumTag> {
+    return this.patch(`/api/channels/${channelId}/tags/${tagId}`, data)
+  }
+
+  deleteForumTag(channelId: string, tagId: string): Promise<{ id: string; deleted: boolean }> {
+    return this.delete(`/api/channels/${channelId}/tags/${tagId}`)
   }
 
   deleteChannel(serverId: string, channelId: string): Promise<void> {

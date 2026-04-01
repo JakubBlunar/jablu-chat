@@ -358,6 +358,29 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   )
 
+  // ── Forum events ──
+
+  gw.events.on(
+    'forum:post:created',
+    (payload: { channelId: string; serverId: string; post: unknown }) => {
+      gw.emitToChannel(payload.channelId, 'forum:post:created', payload.post)
+    }
+  )
+
+  gw.events.on(
+    'forum:post:updated',
+    (payload: { channelId: string; serverId: string; post: unknown }) => {
+      gw.emitToChannel(payload.channelId, 'forum:post:updated', payload.post)
+    }
+  )
+
+  gw.events.on(
+    'forum:post:deleted',
+    (payload: { channelId: string; serverId: string; postId: string }) => {
+      gw.emitToChannel(payload.channelId, 'forum:post:deleted', { postId: payload.postId })
+    }
+  )
+
   // ── REST-originated events ──
   // These mirror the same Socket.IO broadcasts the gateway does for WS-originated actions,
   // so REST API consumers get real-time delivery to other connected clients.

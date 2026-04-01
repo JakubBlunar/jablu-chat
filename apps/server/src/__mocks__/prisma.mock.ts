@@ -5,13 +5,16 @@ type MockModel = {
   findFirst: jest.Mock
   findMany: jest.Mock
   create: jest.Mock
+  createMany: jest.Mock
   update: jest.Mock
   upsert: jest.Mock
   delete: jest.Mock
   deleteMany: jest.Mock
   count: jest.Mock
   aggregate: jest.Mock
+  groupBy: jest.Mock
   updateMany: jest.Mock
+  findUniqueOrThrow: jest.Mock
 }
 
 function createMockModel(): MockModel {
@@ -20,13 +23,16 @@ function createMockModel(): MockModel {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
     update: jest.fn(),
     upsert: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
     count: jest.fn(),
     aggregate: jest.fn(),
+    groupBy: jest.fn(),
     updateMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
   }
 }
 
@@ -69,6 +75,8 @@ export type MockPrismaService = {
   friendship: MockModel
   messageBookmark: MockModel
   autoModRule: MockModel
+  forumTag: MockModel
+  forumPostTag: MockModel
   $transaction: jest.Mock
 }
 
@@ -110,6 +118,8 @@ export function createMockPrismaService(): MockPrismaService {
     friendship: createMockModel(),
     messageBookmark: createMockModel(),
     autoModRule: createMockModel(),
+    forumTag: createMockModel(),
+    forumPostTag: createMockModel(),
     $transaction: jest.fn((fn: (prisma: any) => Promise<any>) => fn(createMockPrismaService())),
   } as unknown as MockPrismaService
 }

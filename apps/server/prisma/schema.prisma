@@ -237,6 +237,10 @@ model Channel {
   type       ChannelType @default(text)
   position   Int         @default(0)
   isArchived Boolean     @default(false) @map("is_archived")
+  defaultSortOrder  ForumSortOrder @default(latest_activity) @map("default_sort_order")
+  defaultLayout     ForumLayout    @default(list)            @map("default_layout")
+  postGuidelines    String?        @map("post_guidelines")
+  requireTags       Boolean        @default(false)           @map("require_tags")
   createdAt  DateTime    @default(now()) @map("created_at")
   updatedAt  DateTime    @updatedAt @map("updated_at")
 
@@ -250,6 +254,7 @@ model Channel {
   permissionOverrides ChannelPermissionOverride[]
   welcomeForServers   Server[]                  @relation("WelcomeChannel")
   afkForServers       Server[]                  @relation("AfkChannel")
+  forumTags           ForumTag[]
 
   @@unique([serverId, name])
   @@map("channels")
@@ -258,6 +263,17 @@ model Channel {
 enum ChannelType {
   text
   voice
+  forum
+}
+
+enum ForumSortOrder {
+  latest_activity
+  newest
+}
+
+enum ForumLayout {
+  list
+  grid
 }
 
 model DirectConversation {
@@ -294,9 +310,11 @@ model Message {
   authorId               String?  @map("author_id")
   replyToId              String?  @map("reply_to_id")
   threadParentId         String?  @map("thread_parent_id")
+  title                  String?
   content                String?
   pinned                 Boolean  @default(false)
   deleted                Boolean  @default(false)
+  isLocked               Boolean  @default(false) @map("is_locked")
   webhookId              String?  @map("webhook_id")
   webhookName            String?  @map("webhook_name")
   webhookAvatarUrl       String?  @map("webhook_avatar_url")
@@ -316,6 +334,7 @@ model Message {
   linkPreviews       LinkPreview[]
   poll               Poll?
   bookmarks          MessageBookmark[]
+  forumPostTags      ForumPostTag[]
 
   @@index([channelId, createdAt])
   @@index([channelId, pinned])
@@ -533,6 +552,8 @@ model StorageAudit {
   orphanedBytes   BigInt    @map("orphaned_bytes")
   attachmentCount Int       @map("attachment_count")
   attachmentBytes BigInt    @map("attachment_bytes")
+  forumPostCount  Int       @default(0) @map("forum_post_count")
+  forumPostBytes  BigInt    @default(0) @map("forum_post_bytes")
   messageCount    Int       @map("message_count")
   messageBytes    BigInt    @map("message_bytes")
   diskOrphanCount Int       @map("disk_orphan_count")
@@ -681,4 +702,31 @@ model AutoModRule {
   server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
   @@unique([serverId, type])
   @@map("automod_rules")
+}
+
+model ForumTag {
+  id        String   @id @default(uuid())
+  channelId String   @map("channel_id")
+  name      String
+  color     String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  channel Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  posts   ForumPostTag[]
+
+  @@unique([channelId, name])
+  @@index([channelId])
+  @@map("forum_tags")
+}
+
+model ForumPostTag {
+  messageId String @map("message_id")
+  tagId     String @map("tag_id")
+
+  message Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  tag     ForumTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, tagId])
+  @@map("forum_post_tags")
 }

@@ -1,10 +1,7 @@
 import type { Message } from '@chat/shared'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { getSocket } from '@/lib/socket'
-import { useDmStore } from '@/stores/dm.store'
-import { useMessageStore } from '@/stores/message.store'
 
-interface StoreAdapter {
+export interface ScrollStoreAdapter {
   messages: Message[]
   isLoading: boolean
   hasMore: boolean
@@ -17,10 +14,24 @@ interface StoreAdapter {
   clearMessages: () => void
   setScrollToMessageId: (id: string | null) => void
   getLoadedForId: () => string | null
+  getSnapshot: () => { messages: Message[]; isLoading: boolean; hasMore: boolean; hasNewer: boolean }
+  onContextJoin?: (contextId: string) => void
+  onContextLeave?: (contextId: string) => void
 }
 
-export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | null, store: StoreAdapter) {
-  const isDm = mode === 'dm'
+export interface ScrollState {
+  scrollParentRef: React.RefObject<HTMLDivElement | null>
+  topSentinelRef: React.RefObject<HTMLDivElement | null>
+  bottomSentinelRef: React.RefObject<HTMLDivElement | null>
+  newerSentinelRef: React.RefObject<HTMLDivElement | null>
+  atBottom: boolean
+  settling: boolean
+  stickToBottom: () => void
+  handleBottomButtonClick: () => void
+  handleJumpToMessage: (messageId: string) => void
+}
+
+export function useMessageScroll(contextId: string | null, store: ScrollStoreAdapter): ScrollState {
   const {
     messages,
     hasMore,
@@ -35,11 +46,15 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     getLoadedForId
   } = store
 
+  const storeRef = useRef(store)
+  storeRef.current = store
+
   const scrollParentRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const newerSentinelRef = useRef<HTMLDivElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
+  const [settling, setSettling] = useState(false)
 
   const goToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const sp = scrollParentRef.current
@@ -66,6 +81,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     if (!sp) return
 
     sp.scrollTop = 0
+    setSettling(false)
   }, [messages.length])
 
   useEffect(() => {
@@ -120,28 +136,24 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
   /* ── Context switch ── */
   const prevIdRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    const socket = getSocket()
+  useLayoutEffect(() => {
     const prev = prevIdRef.current
 
     if (prev && prev !== contextId) {
-      if (!isDm) socket?.emit('channel:leave', { channelId: prev })
+      storeRef.current.onContextLeave?.(prev)
     }
 
     if (contextId) {
       const alreadyLoaded = getLoadedForId() === contextId
 
       if (!alreadyLoaded) {
-        if (isDm) {
-          if (socket?.connected) socket.emit('dm:join', { conversationId: contextId })
-        } else {
-          socket?.emit('channel:join', { channelId: contextId })
-        }
+        storeRef.current.onContextJoin?.(contextId)
       }
       prevIdRef.current = contextId
 
       if (!alreadyLoaded) {
         setAtBottom(true)
+        setSettling(true)
         pendingGoToBottom.current = true
         anchorMsgRef.current = null
         clearMessages()
@@ -157,12 +169,10 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     }
 
     return () => {
-      if (!isDm && contextId) {
-        getSocket()?.emit('channel:leave', { channelId: contextId })
-      }
+      if (contextId) storeRef.current.onContextLeave?.(contextId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextId, clearMessages, fetchMessages, isDm, getLoadedForId])
+  }, [contextId, clearMessages, fetchMessages, getLoadedForId])
 
   /* ── Load older messages (top sentinel) ── */
   const loadingOlderRef = useRef(false)
@@ -178,8 +188,8 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
       (entries) => {
         if (!entries[0].isIntersecting) return
         if (loadingOlderRef.current || !contextId || !messagesRef.current.length) return
-        const storeState = isDm ? useDmStore.getState() : useMessageStore.getState()
-        if (!storeState.hasMore || storeState.isLoading) return
+        const snap = storeRef.current.getSnapshot()
+        if (!snap.hasMore || snap.isLoading) return
 
         loadingOlderRef.current = true
         const prevScrollTop = sp.scrollTop
@@ -196,7 +206,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [contextId, fetchMessages, isDm, hasMore])
+  }, [contextId, fetchMessages, hasMore])
 
   /* ── Load newer messages (bottom/newer sentinel) ── */
   const loadingNewerRef = useRef(false)
@@ -210,8 +220,8 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
       (entries) => {
         if (!entries[0].isIntersecting) return
         if (loadingNewerRef.current || !contextId || !messagesRef.current.length) return
-        const storeState = isDm ? useDmStore.getState() : useMessageStore.getState()
-        if (!storeState.hasNewer || storeState.isLoading) return
+        const snap = storeRef.current.getSnapshot()
+        if (!snap.hasNewer || snap.isLoading) return
 
         loadingNewerRef.current = true
         const msgs = messagesRef.current
@@ -230,7 +240,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [contextId, fetchNewerMessages, isDm, hasNewer])
+  }, [contextId, fetchNewerMessages, hasNewer])
 
   /* ── Anchor message tracking + width-resize restore ── */
   const atBottomRef = useRef(true)
@@ -323,8 +333,6 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     const startTime = Date.now()
     const TIMEOUT = 8000
 
-    const getStore = () => (isDm ? useDmStore.getState() : useMessageStore.getState())
-
     const attempt = () => {
       if (cancelled) return
       if (Date.now() - startTime > TIMEOUT) {
@@ -332,23 +340,21 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
         return
       }
 
-      const state = getStore()
-      const loadedId = isDm
-        ? (state as ReturnType<typeof useDmStore.getState>).loadedForConvId
-        : (state as ReturnType<typeof useMessageStore.getState>).loadedForChannelId
+      const snap = storeRef.current.getSnapshot()
+      const loadedId = storeRef.current.getLoadedForId()
 
-      if (state.isLoading || state.messages.length === 0 || loadedId !== contextId) {
+      if (snap.isLoading || snap.messages.length === 0 || loadedId !== contextId) {
         setTimeout(attempt, 60)
         return
       }
 
-      const idx = state.messages.findIndex((m) => m.id === targetId)
+      const idx = snap.messages.findIndex((m) => m.id === targetId)
       if (idx < 0) {
         clearMessages()
         void fetchMessagesAround(contextId, targetId)
         const waitForLoad = () => {
           if (cancelled) return
-          const s = getStore()
+          const s = storeRef.current.getSnapshot()
           if (s.isLoading || s.messages.length === 0) {
             setTimeout(waitForLoad, 60)
             return
@@ -371,7 +377,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
 
     setTimeout(attempt, 30)
     return () => { cancelled = true }
-  }, [scrollToMessageId, scrollRequestNonce, contextId, isDm, clearMessages, fetchMessagesAround, setScrollToMessageId])
+  }, [scrollToMessageId, scrollRequestNonce, contextId, clearMessages, fetchMessagesAround, setScrollToMessageId])
 
   const scrollToAndHighlight = useCallback((messageId: string) => {
     const tryFind = (attempts = 0) => {
@@ -380,8 +386,13 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
         el.scrollIntoView({ block: 'center', behavior: 'auto' })
         setAtBottom(false)
         el.classList.add('bg-primary/10')
-        setTimeout(() => el.classList.remove('bg-primary/10'), 3000)
-      } else if (attempts < 30) {
+        setTimeout(() => {
+          el.style.transition = 'background-color 1s ease'
+          void el.offsetHeight
+          el.classList.remove('bg-primary/10')
+          setTimeout(() => { el.style.transition = '' }, 1000)
+        }, 5000)
+      } else if (attempts < 50) {
         setTimeout(() => tryFind(attempts + 1), 50)
       }
     }
@@ -394,8 +405,8 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
   }, [goToBottom])
 
   const handleBottomButtonClick = useCallback(() => {
-    const storeHasNewer = isDm ? useDmStore.getState().hasNewer : useMessageStore.getState().hasNewer
-    if (storeHasNewer && contextId) {
+    const snap = storeRef.current.getSnapshot()
+    if (snap.hasNewer && contextId) {
       pendingGoToBottom.current = true
       anchorMsgRef.current = null
       clearMessages()
@@ -409,7 +420,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     } else {
       goToBottom('smooth')
     }
-  }, [contextId, clearMessages, fetchMessages, goToBottom, isDm])
+  }, [contextId, clearMessages, fetchMessages, goToBottom])
 
   return {
     scrollParentRef,
@@ -417,6 +428,7 @@ export function useMessageScroll(mode: 'channel' | 'dm', contextId: string | nul
     bottomSentinelRef,
     newerSentinelRef,
     atBottom,
+    settling,
     stickToBottom,
     handleBottomButtonClick,
     handleJumpToMessage: scrollToAndHighlight

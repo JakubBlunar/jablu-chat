@@ -41,6 +41,8 @@ export type StorageAudit = {
   orphanedBytes: string
   attachmentCount: number
   attachmentBytes: string
+  forumPostCount: number
+  forumPostBytes: string
   messageCount: number
   messageBytes: string
   diskOrphanCount: number

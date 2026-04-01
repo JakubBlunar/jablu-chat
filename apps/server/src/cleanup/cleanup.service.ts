@@ -4,6 +4,7 @@ import { SchedulerRegistry } from '@nestjs/schedule'
 import { CronJob } from 'cron'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
+import { ChannelType } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { UploadsService } from '../uploads/uploads.service'
 
@@ -158,15 +159,47 @@ export class CleanupService implements OnModuleInit {
     const attachmentCount = oldAttachments.length
     const attachmentBytes = oldAttachments.reduce((s, a) => s + a.sizeBytes, 0)
 
-    // Phase 3: old messages with attachments
+    // Phase 3: old forum root posts (with flat replies)
     const archivedMsgFilter = this.skipArchived
       ? { channel: { isArchived: { not: true } } }
       : {}
+    const forumChannelWhere = this.skipArchived
+      ? { type: ChannelType.forum, isArchived: { not: true } }
+      : { type: ChannelType.forum }
+    let forumPostCount = 0
+    let forumPostBytes = 0
     let messageCount = 0
     let messageBytes = 0
     if (this.deleteMessages) {
+      const oldForumPosts = await this.prisma.message.findMany({
+        where: {
+          createdAt: { lt: ageCutoff },
+          threadParentId: null,
+          channel: forumChannelWhere
+        },
+        select: {
+          id: true,
+          attachments: { select: { sizeBytes: true } },
+          threadMessages: { select: { attachments: { select: { sizeBytes: true } } } }
+        }
+      }) as { id: string; attachments: { sizeBytes: number }[]; threadMessages: { attachments: { sizeBytes: number }[] }[] }[]
+      forumPostCount = oldForumPosts.length
+      forumPostBytes = oldForumPosts.reduce((sum, post) => {
+        const own = post.attachments.reduce((sa: number, a) => sa + a.sizeBytes, 0)
+        const replies = post.threadMessages.reduce(
+          (sr: number, reply) => sr + reply.attachments.reduce((sa: number, a) => sa + a.sizeBytes, 0),
+          0
+        )
+        return sum + own + replies
+      }, 0)
+
+      // Phase 4: old non-forum messages with attachments
       const oldMessages = await this.prisma.message.findMany({
-        where: { createdAt: { lt: ageCutoff }, ...archivedMsgFilter },
+        where: {
+          createdAt: { lt: ageCutoff },
+          ...archivedMsgFilter,
+          OR: [{ channelId: null }, { channel: { type: { not: 'forum' } } }]
+        },
         select: {
           id: true,
           attachments: { select: { sizeBytes: true } }
@@ -176,7 +209,7 @@ export class CleanupService implements OnModuleInit {
       messageBytes = oldMessages.reduce((s, m) => s + m.attachments.reduce((sa, a) => sa + a.sizeBytes, 0), 0)
     }
 
-    const totalFreeable = orphanedBytes + diskOrphanBytes + attachmentBytes + messageBytes
+    const totalFreeable = orphanedBytes + diskOrphanBytes + attachmentBytes + forumPostBytes + messageBytes
 
     return this.prisma.storageAudit.create({
       data: {
@@ -187,12 +220,14 @@ export class CleanupService implements OnModuleInit {
         orphanedBytes: BigInt(Math.floor(orphanedBytes)),
         attachmentCount,
         attachmentBytes: BigInt(Math.floor(attachmentBytes)),
+        forumPostCount,
+        forumPostBytes: BigInt(Math.floor(forumPostBytes)),
         messageCount,
         messageBytes: BigInt(Math.floor(messageBytes)),
         diskOrphanCount,
         diskOrphanBytes: BigInt(Math.floor(diskOrphanBytes)),
         totalFreeable: BigInt(Math.floor(totalFreeable))
-      }
+      } as any
     })
   }
 
@@ -233,7 +268,14 @@ export class CleanupService implements OnModuleInit {
         return this.finalizeAudit(auditId, freedBytes)
       }
 
-      // Phase 3: old messages
+      // Phase 3: old forum posts (with flat replies)
+      freedBytes += await this.cleanOldForumPosts()
+
+      if ((await this.currentSize()) <= this.watermarkBytes) {
+        return this.finalizeAudit(auditId, freedBytes)
+      }
+
+      // Phase 4: old non-forum messages
       freedBytes += await this.cleanOldMessages()
 
       return this.finalizeAudit(auditId, freedBytes)
@@ -371,13 +413,16 @@ export class CleanupService implements OnModuleInit {
     const archivedFilter = this.skipArchived
       ? { channel: { isArchived: { not: true } } }
       : {}
-
     // eslint-disable-next-line no-constant-condition
     while (true) {
       if ((await this.currentSize()) <= this.watermarkBytes) break
 
       const batch = await this.prisma.message.findMany({
-        where: { createdAt: { lt: cutoff }, ...archivedFilter },
+        where: {
+          createdAt: { lt: cutoff },
+          ...archivedFilter,
+          OR: [{ channelId: null }, { channel: { type: { not: 'forum' } } }]
+        },
         orderBy: { createdAt: 'asc' },
         take: BATCH,
         include: {
@@ -409,6 +454,70 @@ export class CleanupService implements OnModuleInit {
 
     if (deleted > 0) {
       this.logger.log(`Phase 3: deleted ${deleted} old messages (${this.formatBytes(freed)})`)
+    }
+
+    return freed
+  }
+
+  private async cleanOldForumPosts(): Promise<number> {
+    const cutoff = new Date(Date.now() - this.minAgeDays * 24 * 3600_000)
+    const BATCH = 50
+    let freed = 0
+    let deletedRoots = 0
+    const forumChannelWhere = this.skipArchived
+      ? { type: ChannelType.forum, isArchived: { not: true } }
+      : { type: ChannelType.forum }
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if ((await this.currentSize()) <= this.watermarkBytes) break
+
+      const roots = await this.prisma.message.findMany({
+        where: {
+          createdAt: { lt: cutoff },
+          threadParentId: null,
+          channel: forumChannelWhere
+        },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: BATCH
+      })
+
+      if (roots.length === 0) break
+      const rootIds = roots.map((r) => r.id)
+
+      const messages = await this.prisma.message.findMany({
+        where: {
+          OR: [{ id: { in: rootIds } }, { threadParentId: { in: rootIds } }]
+        },
+        select: {
+          id: true,
+          attachments: { select: { url: true, thumbnailUrl: true, sizeBytes: true } },
+          linkPreviews: { select: { imageUrl: true } }
+        }
+      })
+
+      for (const msg of messages) {
+        for (const att of msg.attachments) {
+          this.uploads.deleteFile(att.url)
+          if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl)
+          freed += att.sizeBytes
+        }
+        for (const lp of msg.linkPreviews) {
+          if (lp.imageUrl?.startsWith('/api/uploads/')) {
+            this.uploads.deleteFile(lp.imageUrl)
+          }
+        }
+      }
+
+      await this.prisma.message.deleteMany({
+        where: { id: { in: messages.map((m) => m.id) } }
+      })
+      deletedRoots += roots.length
+    }
+
+    if (deletedRoots > 0) {
+      this.logger.log(`Phase 3: deleted ${deletedRoots} old forum posts (${this.formatBytes(freed)})`)
     }
 
     return freed

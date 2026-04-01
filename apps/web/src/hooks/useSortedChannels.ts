@@ -5,6 +5,7 @@ export type CategoryGroup = {
   category: ChannelCategory
   textChannels: Channel[]
   voiceChannels: Channel[]
+  forumChannels: Channel[]
 }
 
 export function useSortedChannels(channels: Channel[], categories: ChannelCategory[] = []) {
@@ -20,6 +21,9 @@ export function useSortedChannels(channels: Channel[], categories: ChannelCatego
     const uncatVoice = active
       .filter((c) => c.type === 'voice' && !c.categoryId)
       .sort(byPos)
+    const uncatForum = active
+      .filter((c) => c.type === 'forum' && !c.categoryId)
+      .sort(byPos)
 
     const groups: CategoryGroup[] = [...categories].sort(byPos).map((cat) => ({
       category: cat,
@@ -28,17 +32,23 @@ export function useSortedChannels(channels: Channel[], categories: ChannelCatego
         .sort(byPos),
       voiceChannels: active
         .filter((c) => c.categoryId === cat.id && c.type === 'voice')
+        .sort(byPos),
+      forumChannels: active
+        .filter((c) => c.categoryId === cat.id && c.type === 'forum')
         .sort(byPos)
     }))
 
     const allText = active.filter((c) => c.type === 'text').sort(byPos)
     const allVoice = active.filter((c) => c.type === 'voice').sort(byPos)
+    const allForum = active.filter((c) => c.type === 'forum').sort(byPos)
 
     return {
       textChannels: allText,
       voiceChannels: allVoice,
+      forumChannels: allForum,
       uncategorizedText: uncatText,
       uncategorizedVoice: uncatVoice,
+      uncategorizedForum: uncatForum,
       categoryGroups: groups,
       archivedChannels: archived
     }

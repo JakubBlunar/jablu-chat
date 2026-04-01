@@ -46,7 +46,7 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
   }, [isDm, otherMember?.userId])
 
   const dmChannelRefs: ChannelRef[] = useMemo(
-    () => mutualServers.flatMap((s) => s.channels.map((c) => ({ id: c.id, serverId: s.id, name: c.name }))),
+    () => mutualServers.flatMap((s) => (s.channels ?? []).map((c) => ({ id: c.id, serverId: s.id, name: c.name }))),
     [mutualServers]
   )
 
@@ -87,6 +87,6 @@ export function dmMentionChannels(
   mutualServers: { id: string; name: string; channels: { id: string; name: string }[] }[]
 ): MentionChannel[] {
   return mutualServers.flatMap((s) =>
-    s.channels.map((c) => ({ id: c.id, serverId: s.id, name: c.name, serverName: s.name }))
+    (s.channels ?? []).map((c) => ({ id: c.id, serverId: s.id, name: c.name, serverName: s.name }))
   )
 }

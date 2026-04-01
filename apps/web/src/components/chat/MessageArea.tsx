@@ -1,9 +1,8 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { DelayedRender } from '@/components/DelayedRender'
-import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { ProfileCard } from '@/components/ProfileCard'
-import { MessageRow } from '@/components/chat/MessageRow'
+import { MessageSurface } from '@/components/chat/MessageSurface'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PollCreator } from '@/components/chat/PollCreator'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
@@ -14,7 +13,6 @@ import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
-import { formatDateSeparator, isDifferentDay } from '@/lib/format-time'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -103,27 +101,6 @@ function AtIcon() {
   )
 }
 
-function DateSeparator({ date }: { date: string }) {
-  return (
-    <div className="my-2 flex items-center gap-3">
-      <div className="h-px flex-1 bg-white/10" />
-      <span className="text-[11px] font-semibold text-gray-400">{formatDateSeparator(date)}</span>
-      <div className="h-px flex-1 bg-white/10" />
-    </div>
-  )
-}
-
-/* ── Constants ── */
-
-const GROUP_GAP_MS = 5 * 60 * 1000
-
-function isGap(a: Message, b: Message): boolean {
-  const ta = new Date(a.createdAt).getTime()
-  const tb = new Date(b.createdAt).getTime()
-  if (Number.isNaN(ta) || Number.isNaN(tb)) return false
-  return tb - ta > GROUP_GAP_MS
-}
-
 /* ── MessageArea ── */
 
 export interface MessageAreaProps {
@@ -144,7 +121,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const userId = useAuthStore((s) => s.user?.id)
 
-  const scroll = useMessageScroll(mode, contextId, store)
+  const scroll = useMessageScroll(contextId, store)
   const dm = useDmContext(isDm, userId)
   const { cardUser, cardRect, closeCard, handleUserClick, handleMentionClick } = useProfileCard(isDm, dm.currentConv)
   const typingNames = useTypingIndicators(isDm, contextId, userId)
@@ -231,19 +208,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const channelRefsRef = useRef(dm.channelRefs)
   channelRefsRef.current = dm.channelRefs
-
-  const renderedItems = useMemo(() => {
-    const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
-      const prev = i > 0 ? messages[i - 1] : undefined
-      const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
-      const showHead = newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
-      const isLastOwn = lastOwnMsg?.id === msg.id
-      items.push({ msg, showHead, newDay, isLastOwn })
-    }
-    return items
-  }, [messages, lastOwnMsg?.id])
 
   const handleNick = useCallback(async (args?: string) => {
     const name = args?.trim()
@@ -377,61 +341,24 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         />
       )}
 
-      <div className="relative min-h-0 flex-1">
-        {(() => {
-          const scrollChildren = emptyState ?? (
-            <>
-              <div ref={scroll.bottomSentinelRef} className="h-1 shrink-0" />
-              {hasNewer && <div ref={scroll.newerSentinelRef} className="h-1 shrink-0" />}
-              <div className="h-6 shrink-0" />
-              {renderedItems.map(({ msg, showHead, newDay, isLastOwn }) => (
-                <div key={msg.id} className="pb-0.5">
-                  {newDay && <DateSeparator date={msg.createdAt} />}
-                  <MessageRow
-                    mode={mode}
-                    message={msg}
-                    showHead={showHead}
-                    contextId={contextId}
-                    onReply={handleReply}
-                    onUserClick={handleUserClick}
-                    onMentionClick={isDm ? undefined : handleMentionClick}
-                    channels={channelRefsRef.current}
-                    onChannelClick={dm.handleChannelClick}
-                    membersByUsername={membersByUsernameRef.current}
-                  />
-                  {isLastOwn && seenByLabel && (
-                    <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabel}</div>
-                  )}
-                </div>
-              ))}
-              {hasMore && <div ref={scroll.topSentinelRef} className="h-1 shrink-0" />}
-              {isLoading && (
-                <div className="flex justify-center py-3">
-                  <Spinner size="md" />
-                </div>
-              )}
-            </>
-          )
-
-          return (
-            <div
-              ref={scroll.scrollParentRef}
-              className="chat-scroll flex h-full flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2"
-            >
-              {scrollChildren}
-            </div>
-          )
-        })()}
-
-        <ScrollToBottomButton
-          atBottom={scroll.atBottom}
-          hasNewer={hasNewer}
-          isLoading={isLoading}
-          messageCount={messages.length}
-          contextId={contextId}
-          onClick={scroll.handleBottomButtonClick}
-        />
-      </div>
+      <MessageSurface
+        scroll={scroll}
+        messages={messages}
+        isLoading={isLoading}
+        hasMore={hasMore}
+        hasNewer={hasNewer}
+        mode={mode}
+        contextId={contextId}
+        emptyState={emptyState}
+        lastOwnMsgId={lastOwnMsg?.id}
+        seenByLabel={seenByLabel}
+        onReply={handleReply}
+        onUserClick={handleUserClick}
+        onMentionClick={isDm ? undefined : handleMentionClick}
+        channels={channelRefsRef.current}
+        onChannelClick={dm.handleChannelClick}
+        membersByUsername={membersByUsernameRef.current}
+      />
 
       <div aria-live="polite" className="px-4 py-1 text-xs text-gray-400">
         {typingNames.length > 0 ? formatTyping(typingNames) : ''}
@@ -737,7 +664,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
       <div className="relative flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
-        {searchOpen ? (
+        <ThreadPanel
+          gifEnabled={gifEnabled}
+          onCommand={!isDm ? (cmd, args) => { if (cmd === 'poll') setShowPollCreator(true); else if (cmd === 'nick') handleNick(args) } : undefined}
+        />
+        {searchOpen && (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">
             <Suspense fallback={null}>
               <SearchDrawer
@@ -750,15 +681,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               />
             </Suspense>
           </div>
-        ) : (
-          <>
-            <ThreadPanel
-              gifEnabled={gifEnabled}
-              onCommand={!isDm ? (cmd, args) => { if (cmd === 'poll') setShowPollCreator(true); else if (cmd === 'nick') handleNick(args) } : undefined}
-            />
-            {!threadOpen && memberSidebar}
-          </>
         )}
+        {!threadOpen && !searchOpen && memberSidebar}
       </div>
 
       {editingChannel && activeChannel && (
