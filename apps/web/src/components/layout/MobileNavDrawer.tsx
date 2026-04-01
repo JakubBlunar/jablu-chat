@@ -2,15 +2,23 @@ import type { Channel } from '@chat/shared'
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import SimpleBar from 'simplebar-react'
 import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
-import { CreateChannelModal } from '@/components/channel/CreateChannelModal'
 import { GroupDmModal } from '@/components/dm/GroupDmModal'
-import { EditChannelModal } from '@/components/channel/EditChannelModal'
-import { InviteModal } from '@/components/server/InviteModal'
 import { MobileDrawer } from '@/components/layout/MobileDrawer'
 import { DmIcon, HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
-import { ServerSettingsModal } from '@/components/server/ServerSettingsModal'
+const CreateChannelModal = React.lazy(() =>
+  import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
+)
+const EditChannelModal = React.lazy(() =>
+  import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
+)
+const InviteModal = React.lazy(() =>
+  import('@/components/server/InviteModal').then((m) => ({ default: m.InviteModal }))
+)
+const ServerSettingsModal = React.lazy(() =>
+  import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
+)
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { SectionHeading } from '@/components/ui/SectionHeading'
@@ -752,10 +760,14 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
       )}
 
       {inviteOpen && currentServer && (
-        <InviteModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setInviteOpen(false)} />
+        <Suspense fallback={null}>
+          <InviteModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setInviteOpen(false)} />
+        </Suspense>
       )}
       {serverSettingsOpen && currentServer && (
-        <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
+        <Suspense fallback={null}>
+          <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
+        </Suspense>
       )}
       {eventsOpen && currentServer && (
         <Suspense fallback={null}>
@@ -782,8 +794,14 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
           <RolePickerModal onClose={() => setRolePickerOpen(false)} />
         </Suspense>
       )}
-      <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />
-      {editingChannel && <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />}
+      <Suspense fallback={null}>
+        <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />
+      </Suspense>
+      {editingChannel && (
+        <Suspense fallback={null}>
+          <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />
+        </Suspense>
+      )}
       {drawerChannel && (
         <ChannelOptionsDrawer
           channel={drawerChannel}

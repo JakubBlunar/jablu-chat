@@ -36,7 +36,9 @@ import { useDmContext, dmMentionChannels } from '@/components/dm/hooks/useDmCont
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { SearchBar } from '@/components/SearchBar'
 const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then((m) => ({ default: m.SearchDrawer })))
-import { EditChannelModal } from '@/components/channel/EditChannelModal'
+const EditChannelModal = lazy(() =>
+  import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
+)
 import { ChannelInfoSheet } from '@/components/chat/ChannelInfoSheet'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
@@ -686,7 +688,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       </div>
 
       {editingChannel && activeChannel && (
-        <EditChannelModal channel={activeChannel} onClose={() => setEditingChannel(false)} />
+        <Suspense fallback={null}>
+          <EditChannelModal channel={activeChannel} onClose={() => setEditingChannel(false)} />
+        </Suspense>
       )}
       {channelSheetOpen && activeChannel && (
         <ChannelInfoSheet
