@@ -3,6 +3,7 @@ import type { AdminUser, UserSession } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtDate, fmtDateTime } from '../adminFormatters'
 import { ConfirmDeleteBtn, Empty } from '../AdminShared'
+import type { UserStatus } from '@chat/shared'
 import { Button, Input, Spinner, StatusDot, Textarea } from '@/components/ui'
 
 export function UsersTab({
@@ -143,7 +144,7 @@ export function UsersTab({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="truncate font-semibold">{user.username}</p>
-                  <StatusDot status={user.status} />
+                  <StatusDot status={user.status as UserStatus} />
                 </div>
                 <p className="truncate text-sm text-gray-400">{user.email}</p>
                 <p className="text-xs text-gray-500">
