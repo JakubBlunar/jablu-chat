@@ -1,0 +1,28 @@
+---
+description: Run unit tests after making code changes to verify nothing is broken
+alwaysApply: true
+---
+
+# Run Tests After Changes
+
+After completing code changes (new features, bug fixes, refactors), run the relevant test suites to verify nothing is broken.
+
+## Commands
+
+- **Web app** (`apps/web`): `npx jest --no-coverage`
+- **Server** (`apps/server`): `npx jest --no-coverage`
+- **Targeted run** (faster): `npx jest path/to/file.test.ts --no-coverage`
+
+## Conventions
+
+- Web tests use `*.test.ts` / `*.test.tsx` (Jest + jsdom)
+- Server tests use `*.spec.ts` (Jest + node)
+- Shared test factories live in `apps/web/src/test/factories.ts`
+- Server mocks live in `apps/server/src/__mocks__/` (prisma.mock.ts, redis.mock.ts)
+
+## When to Run
+
+- After editing any `.ts` / `.tsx` source file in `apps/web/src/` or `apps/server/src/`
+- After adding or modifying test files
+- Before committing: run the full suite for the affected app
+- Do NOT redirect test output to files (e.g. `2>err.txt`) — it creates untracked artifacts
