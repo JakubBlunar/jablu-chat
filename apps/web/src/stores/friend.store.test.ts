@@ -37,8 +37,10 @@ const makeFriend = (overrides: Record<string, unknown> = {}) => ({
   username: 'alice',
   displayName: null,
   avatarUrl: null,
+  bio: null,
   friendshipId: 'fs-1',
   status: 'online' as const,
+  since: '2025-01-01T00:00:00Z',
   ...overrides
 })
 
@@ -83,7 +85,7 @@ describe('friend.store', () => {
 
   describe('removeFriend', () => {
     it('optimistically removes and calls API', async () => {
-      jest.mocked(api.removeFriend).mockResolvedValueOnce(undefined)
+      jest.mocked(api.removeFriend).mockResolvedValueOnce({ ok: true })
       useFriendStore.setState({ friends: [makeFriend({ friendshipId: 'fs-1' })] })
 
       await useFriendStore.getState().removeFriend('fs-1')
@@ -105,7 +107,7 @@ describe('friend.store', () => {
 
   describe('acceptRequest', () => {
     it('removes from pending and re-fetches friends', async () => {
-      jest.mocked(api.acceptFriendRequest).mockResolvedValueOnce(undefined)
+      jest.mocked(api.acceptFriendRequest).mockResolvedValueOnce({ ok: true })
       jest.mocked(api.getFriends).mockResolvedValueOnce([])
       useFriendStore.setState({ pending: [{ friendshipId: 'fs-1' } as any] })
 
