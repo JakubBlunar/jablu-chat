@@ -2,6 +2,7 @@ import type { FriendshipStatusResponse, UserStatus } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { UserAvatar } from '@/components/UserAvatar'
 import { resolveMediaUrl } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -200,15 +201,7 @@ function ProfileCardContent({
         <div className="mt-1 flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{user.displayName ?? user.username}</h3>
           {adminRole && (
-            <span
-              className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
-              style={{
-                color: adminRole.color ?? 'var(--color-primary)',
-                borderColor: `${adminRole.color ?? 'var(--color-primary)'}66`
-              }}
-            >
-              {adminRole.name}
-            </span>
+            <RoleBadge name={adminRole.name} color={adminRole.color} size="sm" showDot={false} />
           )}
         </div>
 
@@ -533,17 +526,7 @@ function RoleBadges({ userId }: { userId: string }) {
       <p className="mb-1 text-[11px] font-semibold tracking-wide text-gray-400">ROLES</p>
       <div className="flex flex-wrap gap-1">
         {roles.map((role) => (
-          <span
-            key={role.id}
-            className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ring-1"
-            style={{
-              color: role.color ?? '#99aab5',
-              borderColor: `${role.color ?? '#99aab5'}66`
-            }}
-          >
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: role.color ?? '#99aab5' }} />
-            {role.name}
-          </span>
+          <RoleBadge key={role.id} name={role.name} color={role.color} size="md" />
         ))}
       </div>
     </div>

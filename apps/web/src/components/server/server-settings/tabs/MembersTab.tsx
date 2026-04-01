@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
+import { RoleBadge } from '@/components/ui/RoleBadge'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Member } from '@/stores/member.store'
@@ -150,14 +151,7 @@ export function MembersTab({ server }: { server: Server }) {
                 {m.user.displayName ?? m.user.username}
               </span>
               {memberRoles.map((r) => (
-                <span
-                  key={r.id}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1"
-                  style={r.color ? { color: r.color, borderColor: `${r.color}66` } : { color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.color ?? 'var(--color-primary)' }} />
-                  {r.name}
-                </span>
+                <RoleBadge key={r.id} name={r.name} color={r.color} size="sm" />
               ))}
               {isMuted && (
                 <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400">

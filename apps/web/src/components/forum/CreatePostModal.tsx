@@ -1,6 +1,6 @@
 import type { ForumTag } from '@chat/shared'
 import { useEffect, useState } from 'react'
-import { Input, Label, ModalFooter } from '@/components/ui'
+import { Input, Label, ModalFooter, TagChip } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useForumStore } from '@/stores/forum.store'
@@ -239,25 +239,13 @@ export function CreatePostModal({
           <Label>Tags {requireTags && <span className="text-red-400">*</span>}</Label>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {tags.map((tag) => (
-              <button
+              <TagChip
                 key={tag.id}
-                type="button"
+                name={tag.name}
+                color={tag.color}
+                active={selectedTags.includes(tag.id)}
                 onClick={() => toggleTag(tag.id)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
-                  selectedTags.includes(tag.id)
-                    ? 'bg-primary text-primary-text'
-                    : 'bg-surface-darkest text-gray-400 hover:text-white'
-                }`}
-                style={
-                  selectedTags.includes(tag.id) && tag.color
-                    ? { backgroundColor: tag.color, color: '#fff' }
-                    : tag.color
-                      ? { borderColor: tag.color, borderWidth: 1 }
-                      : undefined
-                }
-              >
-                {tag.name}
-              </button>
+              />
             ))}
           </div>
         </div>

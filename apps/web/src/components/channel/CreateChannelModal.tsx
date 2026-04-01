@@ -1,6 +1,6 @@
 import type { ChannelType, ForumLayout } from '@chat/shared'
 import { useState } from 'react'
-import { Input, Label, ModalFooter } from '@/components/ui'
+import { Input, Label, ModalFooter, TagChip } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -254,21 +254,12 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
               {draftTags.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {draftTags.map((tag, idx) => (
-                    <span
+                    <TagChip
                       key={`${tag.name}-${idx}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 px-2 py-1 text-xs text-white"
-                      style={{ backgroundColor: `${tag.color}33`, borderColor: `${tag.color}99` }}
-                    >
-                      <span>{tag.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setDraftTags((prev) => prev.filter((_, i) => i !== idx))}
-                        className="rounded-sm px-1 text-gray-300 hover:bg-black/20 hover:text-white"
-                        aria-label={`Remove ${tag.name}`}
-                      >
-                        x
-                      </button>
-                    </span>
+                      name={tag.name}
+                      color={tag.color}
+                      onRemove={() => setDraftTags((prev) => prev.filter((_, i) => i !== idx))}
+                    />
                   ))}
                 </div>
               )}

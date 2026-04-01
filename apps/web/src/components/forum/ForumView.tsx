@@ -1,4 +1,5 @@
 import type { Channel, ForumPost } from '@chat/shared'
+import { TagChip } from '@/components/ui/TagChip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { useForumStore } from '@/stores/forum.store'
@@ -49,13 +50,7 @@ function ForumPostCard({
         {post.tags.length > 0 && (
           <div className="mb-1.5 flex flex-wrap gap-1">
             {post.tags.map((t) => (
-              <span
-                key={t.id}
-                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={{ backgroundColor: t.color ? `${t.color}30` : 'rgba(255,255,255,0.1)', color: t.color || '#9ca3af' }}
-              >
-                {t.name}
-              </span>
+              <TagChip key={t.id} name={t.name} color={t.color} />
             ))}
           </div>
         )}
@@ -84,13 +79,7 @@ function ForumPostCard({
         {post.tags.length > 0 && (
           <div className="mb-1 flex flex-wrap gap-1">
             {post.tags.map((t) => (
-              <span
-                key={t.id}
-                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={{ backgroundColor: t.color ? `${t.color}30` : 'rgba(255,255,255,0.1)', color: t.color || '#9ca3af' }}
-              >
-                {t.name}
-              </span>
+              <TagChip key={t.id} name={t.name} color={t.color} />
             ))}
           </div>
         )}
@@ -297,29 +286,13 @@ export function ForumView({
             {tags.length > 0 && (
               <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
                 {tags.map((tag) => (
-                  <button
+                  <TagChip
                     key={tag.id}
-                    type="button"
+                    name={tag.name}
+                    color={tag.color}
+                    active={activeTagIds.includes(tag.id)}
                     onClick={() => toggleTag(tag.id)}
-                    className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-                      activeTagIds.includes(tag.id)
-                        ? 'border-transparent text-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.25)]'
-                        : 'border-white/10 hover:border-white/20 hover:text-white'
-                    }`}
-                    style={
-                      activeTagIds.includes(tag.id)
-                        ? {
-                            backgroundColor: tag.color || '#f59e0b'
-                          }
-                        : {
-                            backgroundColor: 'rgba(255,255,255,0.06)',
-                            color: tag.color || '#9ca3af',
-                            borderColor: tag.color ? `${tag.color}66` : undefined
-                          }
-                    }
-                  >
-                    {tag.name}
-                  </button>
+                  />
                 ))}
                 {tags.length > 8 && (
                   <button
