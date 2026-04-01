@@ -36,6 +36,9 @@ apps/desktop/release/
 # Generated
 apps/server/prisma/generated/
 
+# Test coverage
+coverage/
+
 # TLS certs
 docker/nginx/certs/
 
