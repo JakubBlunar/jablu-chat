@@ -196,6 +196,11 @@ export function StorageTab() {
               count={latestCompleted.attachmentCount}
               bytes={latestCompleted.attachmentBytes}
             />
+            <AuditRow
+              label="Old forum posts"
+              count={latestCompleted.forumPostCount}
+              bytes={latestCompleted.forumPostBytes}
+            />
             <AuditRow label="Old messages" count={latestCompleted.messageCount} bytes={latestCompleted.messageBytes} />
             <div className="border-t border-white/10 pt-2">
               <div className="flex items-baseline justify-between">

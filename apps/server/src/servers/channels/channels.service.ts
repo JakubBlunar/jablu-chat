@@ -27,23 +27,29 @@ export class ChannelsService {
     return this.roles.requireMembership(serverId, userId)
   }
 
-  async createChannel(serverId: string, userId: string, name: string, type: ChannelType, categoryId?: string | null) {
+  async createChannel(
+    serverId: string,
+    userId: string,
+    name: string,
+    type: ChannelType,
+    categoryId?: string | null,
+    forumOpts?: { defaultSortOrder?: string; defaultLayout?: string; postGuidelines?: string | null; requireTags?: boolean }
+  ) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const maxPos = await this.prisma.channel.aggregate({
       where: { serverId },
       _max: { position: true }
     })
     const position = (maxPos._max.position ?? -1) + 1
+    const data: any = { serverId, name, type, position, categoryId: categoryId || null }
+    if (type === ChannelType.forum && forumOpts) {
+      if (forumOpts.defaultSortOrder) data.defaultSortOrder = forumOpts.defaultSortOrder
+      if (forumOpts.defaultLayout) data.defaultLayout = forumOpts.defaultLayout
+      if (forumOpts.postGuidelines !== undefined) data.postGuidelines = forumOpts.postGuidelines || null
+      if (forumOpts.requireTags !== undefined) data.requireTags = forumOpts.requireTags
+    }
     try {
-      const channel = await this.prisma.channel.create({
-        data: {
-          serverId,
-          name,
-          type,
-          position,
-          categoryId: categoryId || null
-        }
-      })
+      const channel = await this.prisma.channel.create({ data })
       await this.auditLog.log(serverId, userId, 'channel.create', 'channel', channel.id, `#${name} (${type})`)
       this.events.emit('channel:created', { serverId, channel })
       return channel
@@ -82,7 +88,21 @@ export class ChannelsService {
       }))
   }
 
-  async updateChannel(serverId: string, channelId: string, userId: string, data: { name?: string; position?: number; categoryId?: string | null; isArchived?: boolean }) {
+  async updateChannel(
+    serverId: string,
+    channelId: string,
+    userId: string,
+    data: {
+      name?: string
+      position?: number
+      categoryId?: string | null
+      isArchived?: boolean
+      defaultSortOrder?: string
+      defaultLayout?: string
+      postGuidelines?: string | null
+      requireTags?: boolean
+    }
+  ) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const channel = await this.prisma.channel.findFirst({
       where: { id: channelId, serverId }
@@ -93,13 +113,41 @@ export class ChannelsService {
     if (data.isArchived && channel.type === 'voice') {
       throw new BadRequestException('Voice channels cannot be archived')
     }
-    if (data.name === undefined && data.position === undefined && data.categoryId === undefined && data.isArchived === undefined) {
+    const hasForumSettingUpdate =
+      data.defaultSortOrder !== undefined ||
+      data.defaultLayout !== undefined ||
+      data.postGuidelines !== undefined ||
+      data.requireTags !== undefined
+    if (hasForumSettingUpdate && channel.type !== ChannelType.forum) {
+      throw new BadRequestException('Forum settings can only be updated on forum channels')
+    }
+    if (
+      data.name === undefined &&
+      data.position === undefined &&
+      data.categoryId === undefined &&
+      data.isArchived === undefined &&
+      !hasForumSettingUpdate
+    ) {
       return channel
     }
     try {
+      const updateData: Prisma.ChannelUpdateInput = {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.position !== undefined && { position: data.position }),
+        ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
+        ...(data.categoryId !== undefined && {
+          category: data.categoryId
+            ? { connect: { id: data.categoryId } }
+            : { disconnect: true }
+        }),
+        ...(data.defaultSortOrder !== undefined && { defaultSortOrder: data.defaultSortOrder as any }),
+        ...(data.defaultLayout !== undefined && { defaultLayout: data.defaultLayout as any }),
+        ...(data.postGuidelines !== undefined && { postGuidelines: data.postGuidelines }),
+        ...(data.requireTags !== undefined && { requireTags: data.requireTags })
+      }
       const updated = await this.prisma.channel.update({
         where: { id: channelId },
-        data
+        data: updateData
       })
       const detail = data.isArchived !== undefined
         ? (data.isArchived ? `Archived #${channel.name}` : `Unarchived #${channel.name}`)

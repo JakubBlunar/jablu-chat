@@ -15,6 +15,8 @@ export type GifSearchResult = {
 export type SearchResult = {
   id: string
   content: string | null
+  title?: string | null
+  threadParentId?: string | null
   authorId: string | null
   author: {
     id: string
@@ -23,7 +25,7 @@ export type SearchResult = {
     avatarUrl: string | null
   } | null
   channelId: string | null
-  channel: { id: string; name: string; serverId: string } | null
+  channel: { id: string; name: string; serverId: string; type?: string } | null
   dmConversationId: string | null
   createdAt: string
 }

@@ -1,5 +1,6 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 import { ConfirmDialog } from '@/components/ui'
@@ -16,9 +17,18 @@ interface MessageActionsProps {
   channelId: string
   onEdit?: () => void
   onReply?: () => void
+  hidePinAction?: boolean
+  hideBookmarkAction?: boolean
 }
 
-export function MessageActions({ message, channelId, onEdit, onReply }: MessageActionsProps) {
+export function MessageActions({
+  message,
+  channelId,
+  onEdit,
+  onReply,
+  hidePinAction,
+  hideBookmarkAction
+}: MessageActionsProps) {
   const userId = useAuthStore((s) => s.user?.id)
   const serverId = useServerStore((s) => s.currentServerId)
   const { has: hasPerm } = usePermissions(serverId)
@@ -31,16 +41,22 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const btnRef = useRef<HTMLDivElement>(null)
   const deleteBtnRef = useRef<HTMLButtonElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
   const [pickerAbove, setPickerAbove] = useState(true)
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null)
 
   const handleReply = useCallback(() => {
     onReply?.()
   }, [onReply])
 
   const handleDelete = useCallback(() => {
-    getSocket()?.emit('message:delete', { messageId: message.id })
+    getSocket()?.emit('message:delete', { messageId: message.id }, (res?: { ok?: boolean }) => {
+      if (res?.ok && message.threadParentId) {
+        window.dispatchEvent(new CustomEvent('forum-reply:delete', { detail: message.id }))
+      }
+    })
     setShowDeleteConfirm(false)
-  }, [message.id])
+  }, [message.id, message.threadParentId])
 
   const handlePin = useCallback(() => {
     if (message.pinned) {
@@ -60,6 +76,10 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       setPickerAbove(rect.top > 460)
+      const width = 320
+      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))
+      const top = rect.top > 460 ? rect.top - 8 : rect.bottom + 8
+      setPickerPos({ top, left })
     }
     setShowEmojiPicker((p) => !p)
   }, [])
@@ -84,6 +104,21 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
     return () => document.removeEventListener('keydown', onKey)
   }, [showEmojiPicker])
 
+  useEffect(() => {
+    if (!showEmojiPicker || !pickerPos || !pickerRef.current) return
+    const rect = pickerRef.current.getBoundingClientRect()
+    let nextLeft = pickerPos.left
+    if (rect.right > window.innerWidth - 8) {
+      nextLeft -= rect.right - (window.innerWidth - 8)
+    }
+    if (rect.left < 8) {
+      nextLeft += 8 - rect.left
+    }
+    if (Math.abs(nextLeft - pickerPos.left) > 1) {
+      setPickerPos((prev) => (prev ? { ...prev, left: nextLeft } : prev))
+    }
+  }, [showEmojiPicker, pickerPos])
+
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
       <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
@@ -106,14 +141,16 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
             <EditIcon />
           </IconButton>
         )}
-        {isAdminOrOwner && (
+        {isAdminOrOwner && !hidePinAction && (
           <IconButton label={message.pinned ? 'Unpin' : 'Pin'} onClick={handlePin}>
             <PinIcon />
           </IconButton>
         )}
-        <IconButton label={isBookmarked ? 'Remove Bookmark' : 'Bookmark'} onClick={() => void toggleBookmark(message.id)}>
-          <BookmarkIcon filled={isBookmarked} />
-        </IconButton>
+        {!hideBookmarkAction && (
+          <IconButton label={isBookmarked ? 'Remove Bookmark' : 'Bookmark'} onClick={() => void toggleBookmark(message.id)}>
+            <BookmarkIcon filled={isBookmarked} />
+          </IconButton>
+        )}
         {canDelete && (
           <IconButton ref={deleteBtnRef} label="Delete" variant="danger" onClick={() => setShowDeleteConfirm(true)}>
             <TrashIcon />
@@ -130,12 +167,21 @@ export function MessageActions({ message, channelId, onEdit, onReply }: MessageA
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
-      {showEmojiPicker && (
-        <div className={`absolute right-0 z-50 ${pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
+      {showEmojiPicker && pickerPos && createPortal(
+        <div
+          ref={pickerRef}
+          className="fixed z-[130]"
+          style={{
+            left: pickerPos.left,
+            top: pickerAbove ? undefined : pickerPos.top,
+            bottom: pickerAbove ? window.innerHeight - pickerPos.top : undefined
+          }}
+        >
           <Suspense fallback={null}>
             <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />
           </Suspense>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

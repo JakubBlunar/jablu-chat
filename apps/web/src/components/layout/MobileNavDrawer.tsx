@@ -31,6 +31,7 @@ import { useEventStore } from '@/stores/event.store'
 import { useFriendStore } from '@/stores/friend.store'
 import { useShallow } from 'zustand/react/shallow'
 import { CountBadge, IconButton } from '@/components/ui'
+import { ForumChannelItem } from '@/components/channel/channel-sidebar/ForumChannelItem'
 
 const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
@@ -213,7 +214,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
     [getServerUnread, getNotifLevel, getServerLevel, channelReadStates, channelToServer, notifPrefs, serverPrefs]
   )
 
-  const { uncategorizedText, uncategorizedVoice, categoryGroups } = useSortedChannels(channels, storeCategories)
+  const { uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups } = useSortedChannels(channels, storeCategories)
 
   const handleServerClick = useCallback(
     (server: Server) => {
@@ -485,6 +486,27 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                               })}
                             </ul>
                           )}
+                          {group.forumChannels.length > 0 && (
+                            <ul className="space-y-0.5">
+                              {group.forumChannels.map((ch) => (
+                                <ForumChannelItem
+                                  key={ch.id}
+                                  ch={ch}
+                                  compact
+                                  active={ch.id === currentChannelId && !viewingVoiceRoom}
+                                  channelReadStates={channelReadStates}
+                                  getNotifLevel={getNotifLevel}
+                                  longPressFired={longPressFired}
+                                  currentServer={currentServer}
+                                  orchestratedGoToChannel={orchestratedGoToChannel}
+                                  handleChannelTouchStart={handleChannelTouchStart}
+                                  handleChannelTouchEnd={handleChannelTouchEnd}
+                                  handleChannelTouchMove={handleChannelTouchMove}
+                                  handleChannelContextMenu={handleChannelContextMenu}
+                                />
+                              ))}
+                            </ul>
+                          )}
                         </>
                       )}
                     </div>
@@ -546,6 +568,42 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                           </li>
                         )
                       })}
+                    </ul>
+                  </>
+                )}
+                {uncategorizedForum.length > 0 && (
+                  <>
+                    <div className="mb-1 mt-3 flex items-center justify-between px-2">
+                      <span className="text-[11px] font-semibold tracking-wide text-gray-400">FORUM CHANNELS</span>
+                      {isAdminOrOwner && (
+                        <IconButton
+                          label="Create channel"
+                          size="sm"
+                          onClick={() => { close(); setChannelModalOpen(true) }}
+                          className="p-0.5"
+                        >
+                          <PlusSmallIcon />
+                        </IconButton>
+                      )}
+                    </div>
+                    <ul className="space-y-0.5">
+                      {uncategorizedForum.map((ch) => (
+                        <ForumChannelItem
+                          key={ch.id}
+                          ch={ch}
+                          compact
+                          active={ch.id === currentChannelId && !viewingVoiceRoom}
+                          channelReadStates={channelReadStates}
+                          getNotifLevel={getNotifLevel}
+                          longPressFired={longPressFired}
+                          currentServer={currentServer}
+                          orchestratedGoToChannel={orchestratedGoToChannel}
+                          handleChannelTouchStart={handleChannelTouchStart}
+                          handleChannelTouchEnd={handleChannelTouchEnd}
+                          handleChannelTouchMove={handleChannelTouchMove}
+                          handleChannelContextMenu={handleChannelContextMenu}
+                        />
+                      ))}
                     </ul>
                   </>
                 )}

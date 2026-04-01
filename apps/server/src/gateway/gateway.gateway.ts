@@ -634,13 +634,49 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('message:delete')
   async onMessageDelete(@ConnectedSocket() client: Socket, @MessageBody() body: WsMessageIdDto) {
     const user = (client.data as { user: WsUser }).user
-    const channelId = await this.messages.getMessageChannelId(body.messageId)
+    const meta = await this.prisma.message.findUnique({
+      where: { id: body.messageId },
+      select: { channelId: true, threadParentId: true }
+    })
+    const channelId = meta?.channelId ?? null
     await this.messages.deleteMessage(body.messageId, user.id)
     if (channelId) {
       this.emitToChannel(channelId, 'message:delete', {
         messageId: body.messageId,
         channelId
       })
+      if (meta?.threadParentId) {
+        const threadCount = await this.prisma.message.count({
+          where: { threadParentId: meta.threadParentId, deleted: false }
+        })
+        const lastReply = await this.prisma.message.findFirst({
+          where: { threadParentId: meta.threadParentId, deleted: false },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            content: true,
+            createdAt: true,
+            author: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true
+              }
+            }
+          }
+        })
+        this.emitToChannel(channelId, 'message:thread-update', {
+          parentId: meta.threadParentId,
+          threadCount,
+          lastThreadReply: lastReply
+            ? {
+                content: lastReply.content ?? null,
+                author: lastReply.author ?? null,
+                createdAt: lastReply.createdAt
+              }
+            : undefined
+        })
+      }
     }
     return { ok: true }
   }

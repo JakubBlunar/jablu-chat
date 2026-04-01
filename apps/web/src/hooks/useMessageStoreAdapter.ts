@@ -1,29 +1,18 @@
 import type { Message } from '@chat/shared'
 import { useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScroll'
+import { getSocket } from '@/lib/socket'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
 
-export interface MessageStoreData {
-  messages: Message[]
-  isLoading: boolean
-  hasMore: boolean
-  hasNewer: boolean
-  scrollToMessageId: string | null
-  scrollRequestNonce: number
-  fetchMessages: (id: string, cursor?: string) => Promise<void>
-  fetchMessagesAround: (id: string, messageId: string) => Promise<void>
-  fetchNewerMessages?: (id: string) => Promise<void>
-  clearMessages: () => void
-  setScrollToMessageId: (id: string | null) => void
-  getLoadedForId: () => string | null
-}
+export type { ScrollStoreAdapter as MessageStoreData } from '@/components/chat/hooks/useMessageScroll'
 
 const EMPTY: Message[] = []
 const NOOP_FETCH = async () => {}
 const NOOP_CLEAR = () => {}
 
-export function useMessageStoreAdapter(mode: 'channel' | 'dm'): MessageStoreData {
+export function useMessageStoreAdapter(mode: 'channel' | 'dm'): ScrollStoreAdapter {
   const isDm = mode === 'dm'
 
   const ch = useMessageStore(
@@ -82,37 +71,51 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm'): MessageStoreData
     return useMessageStore.getState().loadedForChannelId
   }, [isDm])
 
-  if (isDm && dm) {
-    return {
-      messages: dm.messages,
-      isLoading: dm.isLoading,
-      hasMore: dm.hasMore,
-      hasNewer: dm.hasNewer,
-      scrollToMessageId: dm.scrollToMessageId,
-      scrollRequestNonce: dm.scrollRequestNonce,
-      fetchMessages: dm.fetchMessages,
-      fetchMessagesAround: dm.fetchMessagesAround,
-      fetchNewerMessages: dm.fetchNewerMessages,
-      clearMessages: dm.clearMessages,
-      setScrollToMessageId,
-      getLoadedForId
-    }
-  }
+  const getSnapshot = useCallback(() => {
+    const s = isDm ? useDmStore.getState() : useMessageStore.getState()
+    return { messages: s.messages, isLoading: s.isLoading, hasMore: s.hasMore, hasNewer: s.hasNewer }
+  }, [isDm])
 
-  if (ch) {
+  const onContextJoin = useCallback(
+    (contextId: string) => {
+      const socket = getSocket()
+      if (isDm) {
+        if (socket?.connected) socket.emit('dm:join', { conversationId: contextId })
+      } else {
+        socket?.emit('channel:join', { channelId: contextId })
+      }
+    },
+    [isDm]
+  )
+
+  const onContextLeave = useCallback(
+    (contextId: string) => {
+      if (!isDm) {
+        getSocket()?.emit('channel:leave', { channelId: contextId })
+      }
+    },
+    [isDm]
+  )
+
+  const src = isDm ? dm : ch
+
+  if (src) {
     return {
-      messages: ch.messages,
-      isLoading: ch.isLoading,
-      hasMore: ch.hasMore,
-      hasNewer: ch.hasNewer,
-      scrollToMessageId: ch.scrollToMessageId,
-      scrollRequestNonce: ch.scrollRequestNonce,
-      fetchMessages: ch.fetchMessages,
-      fetchMessagesAround: ch.fetchMessagesAround,
-      fetchNewerMessages: ch.fetchNewerMessages,
-      clearMessages: ch.clearMessages,
+      messages: src.messages,
+      isLoading: src.isLoading,
+      hasMore: src.hasMore,
+      hasNewer: src.hasNewer,
+      scrollToMessageId: src.scrollToMessageId,
+      scrollRequestNonce: src.scrollRequestNonce,
+      fetchMessages: src.fetchMessages,
+      fetchMessagesAround: src.fetchMessagesAround,
+      fetchNewerMessages: src.fetchNewerMessages,
+      clearMessages: src.clearMessages,
       setScrollToMessageId,
-      getLoadedForId
+      getLoadedForId,
+      getSnapshot,
+      onContextJoin,
+      onContextLeave
     }
   }
 
@@ -127,6 +130,9 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm'): MessageStoreData
     fetchMessagesAround: NOOP_FETCH,
     clearMessages: NOOP_CLEAR,
     setScrollToMessageId,
-    getLoadedForId
+    getLoadedForId,
+    getSnapshot,
+    onContextJoin,
+    onContextLeave
   }
 }

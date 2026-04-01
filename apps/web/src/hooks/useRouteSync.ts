@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
+import { useForumStore } from '@/stores/forum.store'
 import { useServerStore } from '@/stores/server.store'
+import { useThreadStore } from '@/stores/thread.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 /**
@@ -28,6 +30,8 @@ export function useRouteSync() {
       const modeChanged = prevIsDmRef.current !== true
       if (modeChanged) {
         useServerStore.getState().setViewMode('dm')
+        useThreadStore.getState().closeThread()
+        useForumStore.getState().closePost()
         prevIsDmRef.current = true
         prevServerRef.current = null
         prevChannelRef.current = null
@@ -47,6 +51,8 @@ export function useRouteSync() {
         prevServerRef.current = serverId
         prevChannelRef.current = null
         useServerStore.getState().setCurrentServer(serverId)
+        useThreadStore.getState().closeThread()
+        useForumStore.getState().closePost()
       }
 
       if (channelId && prevChannelRef.current !== channelId) {

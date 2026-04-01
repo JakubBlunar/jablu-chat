@@ -6,6 +6,14 @@ export function HashIcon() {
   )
 }
 
+export function ForumIcon() {
+  return (
+    <svg className="h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M4 4h16a2 2 0 012 2v8a2 2 0 01-2 2h-5.17L10 19.17V16H4a2 2 0 01-2-2V6a2 2 0 012-2zm2 4h12v2H6V8zm0 3h8v2H6v-2z" />
+    </svg>
+  )
+}
+
 export function ArchiveIcon() {
   return (
     <svg className="h-5 w-5 shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>

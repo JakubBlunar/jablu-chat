@@ -16,15 +16,15 @@ export class MessagesService {
     return mapMessageToWire(m, requestingUserId)
   }
 
-  private async requireTextChannelMember(channelId: string, userId: string) {
+  private async requireMessageChannelMember(channelId: string, userId: string) {
     const channel = await this.prisma.channel.findUnique({
       where: { id: channelId }
     })
     if (!channel) {
       throw new NotFoundException('Channel not found')
     }
-    if (channel.type !== ChannelType.text) {
-      throw new ForbiddenException('Messages are only available in text channels')
+    if (channel.type !== ChannelType.text && channel.type !== ChannelType.forum) {
+      throw new ForbiddenException('Messages are only available in text or forum channels')
     }
     const membership = await this.prisma.serverMember.findUnique({
       where: {
@@ -39,7 +39,7 @@ export class MessagesService {
   }
 
   async getMessages(channelId: string, userId: string, cursor?: string, limit = 50) {
-    await this.requireTextChannelMember(channelId, userId)
+    await this.requireMessageChannelMember(channelId, userId)
     const take = Math.min(Math.max(1, limit), 100)
 
     const baseWhere: Prisma.MessageWhereInput = {
@@ -87,7 +87,7 @@ export class MessagesService {
   }
 
   async getMessagesAround(channelId: string, userId: string, messageId: string, limit = 50) {
-    await this.requireTextChannelMember(channelId, userId)
+    await this.requireMessageChannelMember(channelId, userId)
     const half = Math.floor(Math.min(Math.max(1, limit), 100) / 2)
 
     const anchor = await this.prisma.message.findFirst({
@@ -143,7 +143,7 @@ export class MessagesService {
   }
 
   async getMessagesAfter(channelId: string, userId: string, afterId: string, limit = 50) {
-    await this.requireTextChannelMember(channelId, userId)
+    await this.requireMessageChannelMember(channelId, userId)
     const take = Math.min(Math.max(1, limit), 100)
 
     const afterMsg = await this.prisma.message.findFirst({
@@ -188,7 +188,7 @@ export class MessagesService {
     attachmentIds?: string[],
     threadParentId?: string
   ) {
-    await this.requireTextChannelMember(channelId, userId)
+    await this.requireMessageChannelMember(channelId, userId)
 
     const trimmed = content?.trim()
     const hasAttachments = !!attachmentIds?.length
@@ -256,53 +256,162 @@ export class MessagesService {
     return { ...wire, serverId: channel!.serverId, threadUpdate }
   }
 
-  async getThreadMessages(parentId: string, userId: string, cursor?: string, limit = 50) {
+  async getThreadMessages(
+    parentId: string,
+    userId: string,
+    opts?: { cursor?: string; after?: string; around?: string; limit?: number }
+  ): Promise<{ messages: ReturnType<typeof this.mapToWire>[]; hasMore: boolean; hasNewer?: boolean }> {
     const parent = await this.prisma.message.findUnique({
       where: { id: parentId },
       select: { channelId: true }
     })
     if (!parent?.channelId) throw new NotFoundException('Parent message not found')
-    await this.requireTextChannelMember(parent.channelId, userId)
+    await this.requireMessageChannelMember(parent.channelId, userId)
 
-    const take = Math.min(Math.max(1, limit), 100)
+    const take = Math.min(Math.max(1, opts?.limit ?? 50), 100)
 
     const baseWhere: Prisma.MessageWhereInput = {
       threadParentId: parentId,
       deleted: false
     }
 
-    let where: Prisma.MessageWhereInput = baseWhere
-    if (cursor) {
+    if (opts?.around) {
+      const anchor = await this.prisma.message.findFirst({
+        where: { id: opts.around, threadParentId: parentId, deleted: false },
+        include: messageInclude
+      })
+      if (!anchor) {
+        return this.getThreadMessages(parentId, userId, { limit: take })
+      }
+
+      const beforeTake = Math.floor(take / 2)
+      const afterTake = Math.max(0, take - beforeTake - 1)
+
+      const [beforeRows, afterRows] = await Promise.all([
+        this.prisma.message.findMany({
+          where: {
+            AND: [
+              baseWhere,
+              {
+                OR: [
+                  { createdAt: { lt: anchor.createdAt } },
+                  { AND: [{ createdAt: anchor.createdAt }, { id: { lt: anchor.id } }] }
+                ]
+              }
+            ]
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: beforeTake + 1,
+          include: messageInclude
+        }),
+        this.prisma.message.findMany({
+          where: {
+            AND: [
+              baseWhere,
+              {
+                OR: [
+                  { createdAt: { gt: anchor.createdAt } },
+                  { AND: [{ createdAt: anchor.createdAt }, { id: { gt: anchor.id } }] }
+                ]
+              }
+            ]
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: afterTake + 1,
+          include: messageInclude
+        })
+      ])
+
+      const hasMore = beforeRows.length > beforeTake
+      const hasNewer = afterRows.length > afterTake
+      const before = (hasMore ? beforeRows.slice(0, beforeTake) : beforeRows).reverse()
+      const after = hasNewer ? afterRows.slice(0, afterTake) : afterRows
+      const page = [...before, anchor, ...after]
+
+      return {
+        messages: page.map((m) => this.mapToWire(m, userId)),
+        hasMore,
+        hasNewer
+      }
+    }
+
+    if (opts?.after) {
       const cursorMsg = await this.prisma.message.findFirst({
-        where: { id: cursor, threadParentId: parentId, deleted: false }
+        where: { id: opts.after, threadParentId: parentId, deleted: false }
+      })
+      if (!cursorMsg) throw new BadRequestException('Invalid after cursor')
+
+      const rows = await this.prisma.message.findMany({
+        where: {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { createdAt: { gt: cursorMsg.createdAt } },
+                { AND: [{ createdAt: cursorMsg.createdAt }, { id: { gt: cursorMsg.id } }] }
+              ]
+            }
+          ]
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: take + 1,
+        include: messageInclude
+      })
+
+      const hasNewer = rows.length > take
+      const page = hasNewer ? rows.slice(0, take) : rows
+      return {
+        messages: page.map((m) => this.mapToWire(m, userId)),
+        hasMore: false,
+        hasNewer
+      }
+    }
+
+    if (opts?.cursor) {
+      const cursorMsg = await this.prisma.message.findFirst({
+        where: { id: opts.cursor, threadParentId: parentId, deleted: false }
       })
       if (!cursorMsg) throw new BadRequestException('Invalid cursor')
-      where = {
-        AND: [
-          baseWhere,
-          {
-            OR: [
-              { createdAt: { gt: cursorMsg.createdAt } },
-              { AND: [{ createdAt: cursorMsg.createdAt }, { id: { gt: cursorMsg.id } }] }
-            ]
-          }
-        ]
+
+      const rows = await this.prisma.message.findMany({
+        where: {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { createdAt: { lt: cursorMsg.createdAt } },
+                { AND: [{ createdAt: cursorMsg.createdAt }, { id: { lt: cursorMsg.id } }] }
+              ]
+            }
+          ]
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+        include: messageInclude
+      })
+
+      const hasMore = rows.length > take
+      const page = (hasMore ? rows.slice(0, take) : rows).reverse()
+      return {
+        messages: page.map((m) => this.mapToWire(m, userId)),
+        hasMore,
+        hasNewer: false
       }
     }
 
     const rows = await this.prisma.message.findMany({
-      where,
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      where: baseWhere,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       include: messageInclude
     })
 
     const hasMore = rows.length > take
-    const page = hasMore ? rows.slice(0, take) : rows
-
+    const page = (hasMore ? rows.slice(0, take) : rows).reverse()
     return {
       messages: page.map((m) => this.mapToWire(m, userId)),
-      hasMore
+      hasMore,
+      hasNewer: false
     }
   }
 
@@ -334,7 +443,7 @@ export class MessagesService {
     if (!message || !message.channelId) {
       throw new NotFoundException('Message not found')
     }
-    await this.requireTextChannelMember(message.channelId, userId)
+    await this.requireMessageChannelMember(message.channelId, userId)
     if (message.deleted) {
       throw new ForbiddenException('Cannot edit a deleted message')
     }
@@ -362,7 +471,7 @@ export class MessagesService {
     if (!message || !message.channelId || !message.channel) {
       throw new NotFoundException('Message not found')
     }
-    await this.requireTextChannelMember(message.channelId, userId)
+    await this.requireMessageChannelMember(message.channelId, userId)
 
     if (message.deleted) {
       return { id: messageId, deleted: true }
@@ -382,7 +491,7 @@ export class MessagesService {
   }
 
   async pinMessage(messageId: string, userId: string, channelId: string) {
-    const channel = await this.requireTextChannelMember(channelId, userId)
+    const channel = await this.requireMessageChannelMember(channelId, userId)
     await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_MESSAGES)
 
     const message = await this.prisma.message.findFirst({
@@ -405,7 +514,7 @@ export class MessagesService {
   }
 
   async unpinMessage(messageId: string, userId: string, channelId: string) {
-    const channel = await this.requireTextChannelMember(channelId, userId)
+    const channel = await this.requireMessageChannelMember(channelId, userId)
     await this.roles.requirePermission(channel.serverId, userId, Permission.MANAGE_MESSAGES)
 
     const message = await this.prisma.message.findFirst({
@@ -452,7 +561,7 @@ export class MessagesService {
     if (!message) throw new NotFoundException('Message not found')
 
     if (message.channelId) {
-      await this.requireTextChannelMember(message.channelId, userId)
+      await this.requireMessageChannelMember(message.channelId, userId)
     } else if (message.directConversationId) {
       const member = await this.prisma.directConversationMember.findUnique({
         where: {
@@ -497,7 +606,7 @@ export class MessagesService {
   }
 
   async getPinnedMessages(channelId: string, userId: string) {
-    await this.requireTextChannelMember(channelId, userId)
+    await this.requireMessageChannelMember(channelId, userId)
 
     const rows = await this.prisma.message.findMany({
       where: { channelId, pinned: true, deleted: false },

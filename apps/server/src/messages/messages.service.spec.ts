@@ -135,6 +135,15 @@ describe('MessagesService', () => {
       ).rejects.toThrow(ForbiddenException)
     })
 
+    it('accepts forum channels', async () => {
+      prisma.channel.findUnique.mockResolvedValue({ ...textChannel, type: 'forum' })
+      prisma.serverMember.findUnique.mockResolvedValue(membership)
+      prisma.message.findMany.mockResolvedValue([])
+
+      const result = await service.getMessages(channelId, userId)
+      expect(result.messages).toEqual([])
+    })
+
     it('throws ForbiddenException when not a member', async () => {
       prisma.channel.findUnique.mockResolvedValue(textChannel)
       prisma.serverMember.findUnique.mockResolvedValue(null)
@@ -393,6 +402,174 @@ describe('MessagesService', () => {
 
       const result = await service.getPinnedMessages(channelId, userId)
       expect(result).toHaveLength(1)
+    })
+  })
+
+  describe('getThreadMessages', () => {
+    const parentId = 'parent-msg'
+    const parentChannel = { channelId }
+
+    function makeThreadMsg(id: string, createdAt: string, overrides: Record<string, unknown> = {}) {
+      return makeMessage({
+        id,
+        threadParentId: parentId,
+        createdAt: new Date(createdAt),
+        ...overrides,
+      })
+    }
+
+    beforeEach(() => {
+      prisma.message.findUnique.mockResolvedValue(parentChannel)
+      mockChannelAndMembership()
+    })
+
+    it('returns latest thread messages in chronological order', async () => {
+      const msgs = [
+        makeThreadMsg('t-3', '2024-06-03'),
+        makeThreadMsg('t-2', '2024-06-02'),
+        makeThreadMsg('t-1', '2024-06-01'),
+      ]
+      prisma.message.findMany.mockResolvedValue(msgs)
+
+      const result = await service.getThreadMessages(parentId, userId)
+      expect(result.messages).toHaveLength(3)
+      expect(result.hasMore).toBe(false)
+      expect(result.hasNewer).toBe(false)
+    })
+
+    it('sets hasMore when more messages exist', async () => {
+      const msgs = Array.from({ length: 51 }, (_, i) =>
+        makeThreadMsg(`t-${i}`, `2024-06-${String(i + 1).padStart(2, '0')}`)
+      )
+      prisma.message.findMany.mockResolvedValue(msgs)
+
+      const result = await service.getThreadMessages(parentId, userId, { limit: 50 })
+      expect(result.messages).toHaveLength(50)
+      expect(result.hasMore).toBe(true)
+    })
+
+    it('throws NotFoundException when parent not found', async () => {
+      prisma.message.findUnique.mockResolvedValue(null)
+
+      await expect(
+        service.getThreadMessages('missing', userId),
+      ).rejects.toThrow(NotFoundException)
+    })
+
+    describe('cursor (older messages)', () => {
+      it('returns older messages before the cursor', async () => {
+        const cursorMsg = makeThreadMsg('cursor', '2024-06-10')
+        prisma.message.findFirst.mockResolvedValue(cursorMsg)
+
+        const olderMsgs = [
+          makeThreadMsg('t-2', '2024-06-09'),
+          makeThreadMsg('t-1', '2024-06-08'),
+        ]
+        prisma.message.findMany.mockResolvedValue(olderMsgs)
+
+        const result = await service.getThreadMessages(parentId, userId, { cursor: 'cursor' })
+        expect(result.messages).toHaveLength(2)
+        expect(result.hasMore).toBe(false)
+        expect(result.hasNewer).toBe(false)
+      })
+
+      it('throws BadRequestException for invalid cursor', async () => {
+        prisma.message.findFirst.mockResolvedValue(null)
+
+        await expect(
+          service.getThreadMessages(parentId, userId, { cursor: 'bad' }),
+        ).rejects.toThrow(BadRequestException)
+      })
+    })
+
+    describe('after (newer messages)', () => {
+      it('returns newer messages after the cursor', async () => {
+        const cursorMsg = makeThreadMsg('after-cursor', '2024-06-05')
+        prisma.message.findFirst.mockResolvedValue(cursorMsg)
+
+        const newerMsgs = [
+          makeThreadMsg('t-6', '2024-06-06'),
+          makeThreadMsg('t-7', '2024-06-07'),
+        ]
+        prisma.message.findMany.mockResolvedValue(newerMsgs)
+
+        const result = await service.getThreadMessages(parentId, userId, { after: 'after-cursor' })
+        expect(result.messages).toHaveLength(2)
+        expect(result.hasNewer).toBe(false)
+      })
+
+      it('sets hasNewer when more new messages exist', async () => {
+        const cursorMsg = makeThreadMsg('after-cursor', '2024-06-05')
+        prisma.message.findFirst.mockResolvedValue(cursorMsg)
+
+        const msgs = Array.from({ length: 51 }, (_, i) =>
+          makeThreadMsg(`t-${i}`, `2024-07-${String(i + 1).padStart(2, '0')}`)
+        )
+        prisma.message.findMany.mockResolvedValue(msgs)
+
+        const result = await service.getThreadMessages(parentId, userId, { after: 'after-cursor', limit: 50 })
+        expect(result.messages).toHaveLength(50)
+        expect(result.hasNewer).toBe(true)
+      })
+
+      it('throws BadRequestException for invalid after cursor', async () => {
+        prisma.message.findFirst.mockResolvedValue(null)
+
+        await expect(
+          service.getThreadMessages(parentId, userId, { after: 'bad' }),
+        ).rejects.toThrow(BadRequestException)
+      })
+    })
+
+    describe('around (bidirectional)', () => {
+      it('returns messages around the target', async () => {
+        const anchor = makeThreadMsg('anchor', '2024-06-15')
+        prisma.message.findFirst.mockResolvedValue(anchor)
+
+        const beforeRows = [
+          makeThreadMsg('t-14', '2024-06-14'),
+          makeThreadMsg('t-13', '2024-06-13'),
+        ]
+        const afterRows = [
+          makeThreadMsg('t-16', '2024-06-16'),
+          makeThreadMsg('t-17', '2024-06-17'),
+        ]
+        prisma.message.findMany
+          .mockResolvedValueOnce(beforeRows)
+          .mockResolvedValueOnce(afterRows)
+
+        const result = await service.getThreadMessages(parentId, userId, { around: 'anchor' })
+        expect(result.messages.length).toBeGreaterThanOrEqual(1)
+        expect(result.hasMore).toBe(false)
+        expect(result.hasNewer).toBe(false)
+      })
+
+      it('falls back to latest when anchor not found', async () => {
+        prisma.message.findFirst.mockResolvedValue(null)
+        prisma.message.findMany.mockResolvedValue([makeThreadMsg('t-1', '2024-06-01')])
+
+        const result = await service.getThreadMessages(parentId, userId, { around: 'missing' })
+        expect(result.messages).toHaveLength(1)
+      })
+
+      it('sets hasMore/hasNewer flags correctly', async () => {
+        const anchor = makeThreadMsg('anchor', '2024-06-15')
+        prisma.message.findFirst.mockResolvedValue(anchor)
+
+        const beforeRows = Array.from({ length: 26 }, (_, i) =>
+          makeThreadMsg(`b-${i}`, `2024-06-${String(14 - i).padStart(2, '0')}`)
+        )
+        const afterRows = Array.from({ length: 26 }, (_, i) =>
+          makeThreadMsg(`a-${i}`, `2024-06-${String(16 + i).padStart(2, '0')}`)
+        )
+        prisma.message.findMany
+          .mockResolvedValueOnce(beforeRows)
+          .mockResolvedValueOnce(afterRows)
+
+        const result = await service.getThreadMessages(parentId, userId, { around: 'anchor' })
+        expect(result.hasMore).toBe(true)
+        expect(result.hasNewer).toBe(true)
+      })
     })
   })
 

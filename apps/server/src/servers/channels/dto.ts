@@ -1,4 +1,4 @@
-import { ChannelType } from '@prisma/client'
+import { ChannelType, ForumLayout, ForumSortOrder } from '@prisma/client'
 import {
   ArrayMinSize,
   IsArray,
@@ -31,6 +31,24 @@ export class CreateChannelDto {
   @IsUUID('4')
   @Transform(({ value }) => (value === '' ? null : value))
   categoryId?: string | null
+
+  @IsOptional()
+  @IsEnum(ForumSortOrder)
+  defaultSortOrder?: ForumSortOrder
+
+  @IsOptional()
+  @IsEnum(ForumLayout)
+  defaultLayout?: ForumLayout
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  @Transform(({ value }) => (value === '' ? null : value))
+  postGuidelines?: string | null
+
+  @IsOptional()
+  @IsBoolean()
+  requireTags?: boolean
 }
 
 export class UpdateChannelDto {
@@ -56,6 +74,24 @@ export class UpdateChannelDto {
   @IsOptional()
   @IsBoolean()
   isArchived?: boolean
+
+  @IsOptional()
+  @IsEnum(ForumSortOrder)
+  defaultSortOrder?: ForumSortOrder
+
+  @IsOptional()
+  @IsEnum(ForumLayout)
+  defaultLayout?: ForumLayout
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  @Transform(({ value }) => (value === '' ? null : value))
+  postGuidelines?: string | null
+
+  @IsOptional()
+  @IsBoolean()
+  requireTags?: boolean
 }
 
 export class ReorderChannelsDto {

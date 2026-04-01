@@ -238,8 +238,13 @@ export function UnifiedInput({
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
       }, (res: { ok?: boolean; message?: Message; error?: string }) => {
         if (res?.ok && res.message) {
-          if (threadParentId) useThreadStore.getState().addMessage(res.message)
-          else useMessageStore.getState().addMessage(res.message)
+          if (threadParentId) {
+            useThreadStore.getState().addMessage(res.message)
+            // Fallback for forum side-panel: render immediately even if socket broadcast is delayed.
+            window.dispatchEvent(new CustomEvent('forum-reply', { detail: res.message }))
+          } else {
+            useMessageStore.getState().addMessage(res.message)
+          }
         } else if (res?.error) {
           setSizeError(res.error)
           setTimeout(() => setSizeError(null), 5000)

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Message } from '@chat/shared'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api, type SearchResult } from '@/lib/api'
@@ -110,7 +111,71 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     setActiveId(result.id)
     if (result.channelId) {
       const serverId = result.channel?.serverId ?? currentServerId
-      if (serverId) void orchestratedGoToChannel(serverId, result.channelId, result.id)
+      if (!serverId) return
+
+      if (result.channel?.type === 'forum') {
+        void orchestratedGoToChannel(serverId, result.channelId).then(() => {
+          const openForumPost = () => {
+            Promise.all([
+              import('@/stores/forum.store'),
+              import('@/stores/forumReply.store')
+            ]).then(([{ useForumStore }, { useForumReplyStore }]) => {
+              const postId = result.threadParentId ?? result.id
+              if (!useForumStore.getState().channelId) {
+                useForumStore.setState({ channelId: result.channelId })
+              }
+              useForumStore.getState().openPost(postId)
+              if (result.threadParentId) {
+                const s = useForumReplyStore.getState()
+                useForumReplyStore.setState({
+                  scrollToMessageId: result.id,
+                  scrollRequestNonce: s.scrollRequestNonce + 1
+                })
+              }
+            })
+          }
+          let attempts = 0
+          const waitForChannel = () => {
+            const ch = useChannelStore.getState().channels.find((c) => c.id === result.channelId)
+            if (ch || attempts >= 30) {
+              openForumPost()
+            } else {
+              attempts++
+              setTimeout(waitForChannel, 100)
+            }
+          }
+          waitForChannel()
+        })
+      } else if (result.threadParentId) {
+        // Thread reply in text channel: open thread panel
+        void orchestratedGoToChannel(serverId, result.channelId).then(() => {
+          setTimeout(() => {
+            import('@/stores/message.store').then(({ useMessageStore }) => {
+              const openWithParent = (msg: Message) => {
+                import('@/stores/thread.store').then(({ useThreadStore }) => {
+                  useThreadStore.getState().openThread(result.channelId!, msg, { focusMessageId: result.id })
+                })
+              }
+              const msg = useMessageStore.getState().messages.find((m) => m.id === result.threadParentId)
+              if (msg) {
+                openWithParent(msg)
+                return
+              }
+              api
+                .get<{ messages: Message[] }>(
+                  `/api/channels/${result.channelId}/messages?around=${result.threadParentId}&limit=1`
+                )
+                .then((res) => {
+                  const parent = res.messages.find((m) => m.id === result.threadParentId)
+                  if (parent) openWithParent(parent)
+                })
+                .catch(() => {})
+            })
+          }, 200)
+        })
+      } else {
+        void orchestratedGoToChannel(serverId, result.channelId, result.id)
+      }
     } else if (result.dmConversationId) {
       void orchestratedGoToDm(result.dmConversationId, result.id)
     }
@@ -271,6 +336,9 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                       <span className="shrink-0 text-[11px] text-gray-500">DM</span>
                     ) : null}
                   </div>
+                  {r.title && (
+                    <p className="mt-0.5 text-xs font-semibold text-gray-200">{r.title}</p>
+                  )}
                   <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-300">{r.content}</p>
                   <time className="mt-1 block text-[10px] text-gray-500">{formatSmartTimestamp(r.createdAt)}</time>
                 </div>

@@ -1,4 +1,4 @@
-import type { Channel, Role } from '@chat/shared'
+import type { Channel, ForumLayout, ForumSortOrder, ForumTag, Role } from '@chat/shared'
 import { Permission, permsToBigInt, hasPermission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { Input, ModalFooter } from '@/components/ui'
@@ -7,6 +7,7 @@ import { Toggle } from '@/components/ui/Toggle'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
+import { useForumStore } from '@/stores/forum.store'
 import { useServerStore } from '@/stores/server.store'
 
 function normalizeChannelName(raw: string): string {
@@ -29,6 +30,11 @@ type RoleOverride = {
   roleName: string
   perms: PermOverride
   original: PermOverride | null
+}
+
+type EditableForumTag = ForumTag & {
+  saving?: boolean
+  deleting?: boolean
 }
 
 const VIEW_CHANNEL = Permission.VIEW_CHANNEL
@@ -61,6 +67,15 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const [rawName, setRawName] = useState(channel.name)
   const [categoryId, setCategoryId] = useState<string | null>(channel.categoryId ?? null)
   const [isArchived, setIsArchived] = useState(channel.isArchived ?? false)
+  const [defaultSortOrder, setDefaultSortOrder] = useState<ForumSortOrder>(channel.defaultSortOrder ?? 'latest_activity')
+  const [defaultLayout, setDefaultLayout] = useState<ForumLayout>(channel.defaultLayout ?? 'list')
+  const [postGuidelines, setPostGuidelines] = useState(channel.postGuidelines ?? '')
+  const [requireTags, setRequireTags] = useState(channel.requireTags ?? false)
+  const [forumTags, setForumTags] = useState<EditableForumTag[]>([])
+  const [tagsLoading, setTagsLoading] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [newTagColor, setNewTagColor] = useState('#7c3aed')
+  const [newTagSaving, setNewTagSaving] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -78,7 +93,12 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const nameChanged = name !== channel.name
   const categoryChanged = categoryId !== (channel.categoryId ?? null)
   const archivedChanged = isArchived !== (channel.isArchived ?? false)
-  const hasChanges = nameChanged || categoryChanged || archivedChanged
+  const sortChanged = channel.type === 'forum' && defaultSortOrder !== (channel.defaultSortOrder ?? 'latest_activity')
+  const layoutChanged = channel.type === 'forum' && defaultLayout !== (channel.defaultLayout ?? 'list')
+  const guidelinesChanged = channel.type === 'forum' && postGuidelines !== (channel.postGuidelines ?? '')
+  const requireTagsChanged = channel.type === 'forum' && requireTags !== (channel.requireTags ?? false)
+  const hasChanges =
+    nameChanged || categoryChanged || archivedChanged || sortChanged || layoutChanged || guidelinesChanged || requireTagsChanged
 
   useEffect(() => {
     if (!showPermissions || !currentServerId) return
@@ -112,6 +132,22 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     return () => { cancelled = true }
   }, [showPermissions, currentServerId, channel.id])
 
+  useEffect(() => {
+    if (channel.type !== 'forum') return
+    let cancelled = false
+    setTagsLoading(true)
+    api.getForumTags(channel.id)
+      .then((tags) => {
+        if (cancelled) return
+        setForumTags(tags)
+        setTagsLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setTagsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [channel.id, channel.type])
+
   const permissionsChanged = roleOverrides.some(
     (r) => r.original === null || r.perms.view !== r.original.view || r.perms.send !== r.original.send
   )
@@ -134,6 +170,49 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
       setError('Failed to remove override')
     }
   }
+
+  const handleCreateTag = useCallback(async () => {
+    const name = newTagName.trim()
+    if (!name) return
+    setNewTagSaving(true)
+    setError(null)
+    try {
+      const created = await api.createForumTag(channel.id, { name, color: newTagColor || undefined })
+      setForumTags((prev) => [...prev, created])
+      void useForumStore.getState().fetchTags(channel.id)
+      setNewTagName('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create tag')
+    } finally {
+      setNewTagSaving(false)
+    }
+  }, [channel.id, newTagName, newTagColor])
+
+  const handleUpdateTag = useCallback(async (tagId: string, name: string, color: string | null) => {
+    setForumTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, saving: true } : t)))
+    setError(null)
+    try {
+      const updated = await api.updateForumTag(channel.id, tagId, { name: name.trim(), color })
+      setForumTags((prev) => prev.map((t) => (t.id === tagId ? updated : t)))
+      void useForumStore.getState().fetchTags(channel.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update tag')
+      setForumTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, saving: false } : t)))
+    }
+  }, [channel.id])
+
+  const handleDeleteTag = useCallback(async (tagId: string) => {
+    setForumTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, deleting: true } : t)))
+    setError(null)
+    try {
+      await api.deleteForumTag(channel.id, tagId)
+      setForumTags((prev) => prev.filter((t) => t.id !== tagId))
+      void useForumStore.getState().fetchTags(channel.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete tag')
+      setForumTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, deleting: false } : t)))
+    }
+  }, [channel.id])
 
   const handleSavePermissions = useCallback(async () => {
     if (!currentServerId || !permissionsChanged) return
@@ -163,10 +242,22 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     setSaving(true)
     setError(null)
     try {
-      const patch: { name?: string; categoryId?: string | null; isArchived?: boolean } = {}
+      const patch: {
+        name?: string
+        categoryId?: string | null
+        isArchived?: boolean
+        defaultSortOrder?: ForumSortOrder
+        defaultLayout?: ForumLayout
+        postGuidelines?: string | null
+        requireTags?: boolean
+      } = {}
       if (nameChanged) patch.name = name
       if (categoryChanged) patch.categoryId = categoryId
       if (archivedChanged) patch.isArchived = isArchived
+      if (sortChanged) patch.defaultSortOrder = defaultSortOrder
+      if (layoutChanged) patch.defaultLayout = defaultLayout
+      if (guidelinesChanged) patch.postGuidelines = postGuidelines.trim() || null
+      if (requireTagsChanged) patch.requireTags = requireTags
       await api.updateChannel(currentServerId, channel.id, patch)
       await fetchChannels(currentServerId)
       onClose()
@@ -175,7 +266,27 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     } finally {
       setSaving(false)
     }
-  }, [currentServerId, channel, name, categoryId, isArchived, nameChanged, categoryChanged, archivedChanged, hasChanges, fetchChannels, onClose])
+  }, [
+    currentServerId,
+    channel,
+    name,
+    categoryId,
+    isArchived,
+    defaultSortOrder,
+    defaultLayout,
+    postGuidelines,
+    requireTags,
+    nameChanged,
+    categoryChanged,
+    archivedChanged,
+    sortChanged,
+    layoutChanged,
+    guidelinesChanged,
+    requireTagsChanged,
+    hasChanges,
+    fetchChannels,
+    onClose
+  ])
 
   const handleDelete = useCallback(async () => {
     if (!currentServerId) return
@@ -208,7 +319,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     <ModalOverlay onClose={onClose}>
       <h2 className="text-xl font-semibold text-white">Edit Channel</h2>
         <p className="mt-1 text-sm text-gray-400">
-          #{channel.name} &middot; {channel.type === 'text' ? 'Text Channel' : 'Voice Channel'}
+          #{channel.name} &middot; {channel.type === 'text' ? 'Text Channel' : channel.type === 'forum' ? 'Forum Channel' : 'Voice Channel'}
         </p>
 
         <div className="mt-5">
@@ -244,7 +355,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
           </label>
         )}
 
-        {channel.type === 'text' && (
+        {(channel.type === 'text' || channel.type === 'forum') && (
           <div className="mt-5 flex items-center justify-between text-sm text-gray-300">
             <span>
               Archive channel
@@ -253,6 +364,159 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
               </span>
             </span>
             <Toggle checked={isArchived} onChange={setIsArchived} />
+          </div>
+        )}
+
+        {channel.type === 'forum' && (
+          <div className="mt-5 space-y-4 rounded-lg border border-white/10 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Forum Settings</p>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Default sort</label>
+              <div className="mt-1.5 flex gap-2">
+                {([
+                  { id: 'latest_activity' as const, label: 'Latest Activity' },
+                  { id: 'newest' as const, label: 'Newest' }
+                ]).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setDefaultSortOrder(opt.id)}
+                    className={`rounded-md px-3 py-1.5 text-sm transition ${
+                      defaultSortOrder === opt.id
+                        ? 'bg-primary text-primary-text'
+                        : 'bg-surface-darkest text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Default layout</label>
+              <div className="mt-1.5 flex gap-2">
+                {(['list', 'grid'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setDefaultLayout(v)}
+                    className={`rounded-md px-3 py-1.5 text-sm capitalize transition ${
+                      defaultLayout === v
+                        ? 'bg-primary text-primary-text'
+                        : 'bg-surface-darkest text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Input
+                id="edit-forum-guidelines"
+                label="Post guidelines"
+                type="text"
+                value={postGuidelines}
+                onChange={(e) => setPostGuidelines(e.target.value)}
+                maxLength={2000}
+                placeholder="Optional guidelines shown above posts"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input
+                type="checkbox"
+                checked={requireTags}
+                onChange={(e) => setRequireTags(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Require tags on posts
+            </label>
+
+            <div className="rounded-md bg-surface-darkest p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Forum tags</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Create and manage tags used on forum posts.
+              </p>
+
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <input
+                  type="text"
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="Tag name"
+                  maxLength={32}
+                  className="min-w-0 flex-1 rounded-md border-0 bg-surface px-2.5 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+                />
+                <input
+                  type="color"
+                  value={newTagColor}
+                  onChange={(e) => setNewTagColor(e.target.value)}
+                  className="h-9 w-11 rounded border-0 bg-surface p-1 ring-1 ring-white/10"
+                  aria-label="New tag color"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCreateTag()}
+                  disabled={newTagSaving || !newTagName.trim()}
+                  className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {newTagSaving ? 'Adding…' : 'Add tag'}
+                </button>
+              </div>
+
+              {tagsLoading ? (
+                <div className="mt-3 text-xs text-gray-500">Loading tags…</div>
+              ) : forumTags.length === 0 ? (
+                <div className="mt-3 text-xs text-gray-500">No tags created yet.</div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {forumTags.map((tag) => (
+                    <div key={tag.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={tag.name}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setForumTags((prev) => prev.map((t) => (t.id === tag.id ? { ...t, name: value } : t)))
+                        }}
+                        maxLength={32}
+                        className="min-w-0 flex-1 rounded-md border-0 bg-surface px-2 py-1.5 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+                      />
+                      <input
+                        type="color"
+                        value={tag.color ?? '#7c3aed'}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setForumTags((prev) => prev.map((t) => (t.id === tag.id ? { ...t, color: value } : t)))
+                        }}
+                        className="h-8 w-10 rounded border-0 bg-surface p-1 ring-1 ring-white/10"
+                        aria-label={`Color for ${tag.name}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleUpdateTag(tag.id, tag.name, tag.color ?? null)}
+                        disabled={tag.saving || !tag.name.trim()}
+                        className="rounded-md bg-white/10 px-2.5 py-1.5 text-xs text-gray-200 transition hover:bg-white/15 disabled:opacity-50"
+                      >
+                        {tag.saving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteTag(tag.id)}
+                        disabled={tag.deleting}
+                        className="rounded-md px-2.5 py-1.5 text-xs text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        {tag.deleting ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -294,8 +558,8 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
                       <div className="grid grid-cols-[1fr_60px_60px_32px] items-center gap-1 px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                         <span>Role</span>
                         <span className="text-center">View</span>
-                        {channel.type === 'text' && <span className="text-center">Send</span>}
-                        {channel.type !== 'text' && <span />}
+                        {(channel.type === 'text' || channel.type === 'forum') && <span className="text-center">Send</span>}
+                        {channel.type !== 'text' && channel.type !== 'forum' && <span />}
                         <span />
                       </div>
                       {roleOverrides.map((r) => (
@@ -315,7 +579,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
                           >
                             {r.perms.view ? 'Allow' : 'Deny'}
                           </button>
-                          {channel.type === 'text' ? (
+                          {(channel.type === 'text' || channel.type === 'forum') ? (
                             <button
                               type="button"
                               onClick={() => togglePerm(r.roleId, 'send')}

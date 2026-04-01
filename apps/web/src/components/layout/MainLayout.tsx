@@ -6,6 +6,7 @@ import { DmSidebar } from '@/components/dm/DmSidebar'
 import { MemberDrawer } from '@/components/member/MemberDrawer'
 import { MemberSidebar } from '@/components/member/MemberSidebar'
 import { MessageArea } from '@/components/chat/MessageArea'
+import { ForumView } from '@/components/forum/ForumView'
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { ToastContainer } from '@/components/ToastContainer'
@@ -109,6 +110,7 @@ export function MainLayout() {
   const isNavigating = useNavigationStore((s) => s.isNavigating)
 
   const { textChannels } = useSortedChannels(channels)
+  const currentChannelType = channels.find((c) => c.id === currentChannelId)?.type
 
   const fetchMembers = useMemberStore((s) => s.fetchMembers)
   const clearMessages = useMessageStore((s) => s.clearMessages)
@@ -259,6 +261,8 @@ export function MainLayout() {
             <Suspense fallback={<Spinner size="lg" className="flex-1" />}>
               <VoiceRoom />
             </Suspense>
+          ) : currentChannelType === 'forum' && currentChannelId ? (
+            <ForumView channelId={currentChannelId} onOpenNav={openNavDrawer} />
           ) : (
             <MessageArea mode="channel" contextId={currentChannelId} />
           )}
@@ -328,6 +332,8 @@ export function MainLayout() {
             <Suspense fallback={<Spinner size="lg" className="flex-1" />}>
               <VoiceRoom />
             </Suspense>
+          ) : currentChannelType === 'forum' && currentChannelId ? (
+            <ForumView channelId={currentChannelId} />
           ) : (
             <MessageArea
               mode="channel"

@@ -48,11 +48,13 @@ export class MessagesController {
     @Param('id', ParseUUIDPipe) parentId: string,
     @CurrentUser() user: { id: string; username: string; email: string },
     @Query('cursor') cursor?: string,
+    @Query('after') after?: string,
+    @Query('around') around?: string,
     @Query('limit') limit?: string
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : undefined
     const safeLimit = parsedLimit != null && !Number.isNaN(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : undefined
-    return this.messages.getThreadMessages(parentId, user.id, cursor, safeLimit)
+    return this.messages.getThreadMessages(parentId, user.id, { cursor, after, around, limit: safeLimit })
   }
 
   @Post()

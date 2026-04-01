@@ -6,8 +6,11 @@ export interface Message {
   replyToId: string | null
   threadParentId: string | null
   webhookId: string | null
+  title?: string | null
   content: string | null
   pinned: boolean
+  deleted?: boolean
+  isLocked?: boolean
   createdAt: string
   editedAt: string | null
   author?: {
