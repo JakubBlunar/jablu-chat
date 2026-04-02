@@ -1,7 +1,7 @@
 import { BotClient, Permission, hasPermission } from '@chat/sdk'
 import cron from 'node-cron'
 import { config } from './config.js'
-import { wasPosted, markPosted, cleanOldEntries, titleKey, getLastPollAt, setLastPollAt } from './db.js'
+import { wasPosted, markPosted, cleanOldEntries, titleKey, setLastPollAt, closeDb } from './db.js'
 import { formatBatch } from './format.js'
 import { fetchEpicDeals } from './sources/epic.js'
 import { fetchGamerPowerDeals } from './sources/gamerpower.js'
@@ -279,12 +279,23 @@ async function postDeals(deals: Deal[], skipDuplicateCheck: boolean): Promise<vo
   }
 }
 
+let polling = false
+
 async function pollAndPost(): Promise<void> {
-  console.log(`[poll] Checking for free games at ${new Date().toISOString()}`)
-  const allDeals = await fetchAllDeals()
-  console.log(`[poll] ${allDeals.length} deal(s) after de-duplication`)
-  await postDeals(allDeals, false)
-  setLastPollAt()
+  if (polling) {
+    console.log('[poll] Already polling, skipping this cycle')
+    return
+  }
+  polling = true
+  try {
+    console.log(`[poll] Checking for free games at ${new Date().toISOString()}`)
+    const allDeals = await fetchAllDeals()
+    console.log(`[poll] ${allDeals.length} deal(s) after de-duplication`)
+    await postDeals(allDeals, false)
+    setLastPollAt()
+  } finally {
+    polling = false
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -307,19 +318,19 @@ if (isTestMode) {
     console.log(`Schedule: ${config.pollCron}\n`)
     cleanOldEntries(90)
 
-    const STARTUP_SKIP_MS = 60 * 60 * 1000
-    const lastPoll = getLastPollAt()
-    if (!lastPoll || Date.now() - lastPoll.getTime() > STARTUP_SKIP_MS) {
-      void pollAndPost()
-    } else {
-      const ago = Math.round((Date.now() - lastPoll.getTime()) / 60_000)
-      console.log(`[poll] Last poll was ${ago}m ago, skipping startup poll`)
-    }
-
     cron.schedule(config.pollCron, () => {
       void pollAndPost()
     })
 
     console.log('[bot] Scheduler started. Waiting for next poll...')
   })
+
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(sig, () => {
+      console.log(`[bot] Received ${sig}, shutting down…`)
+      bot.disconnect()
+      closeDb()
+      process.exit(0)
+    })
+  }
 }

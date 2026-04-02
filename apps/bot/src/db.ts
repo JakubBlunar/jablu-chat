@@ -70,3 +70,10 @@ export function setLastPollAt(): void {
     .prepare("INSERT OR REPLACE INTO bot_meta (key, value) VALUES ('last_poll_at', ?)")
     .run(new Date().toISOString())
 }
+
+export function closeDb(): void {
+  if (_db) {
+    _db.close()
+    _db = null
+  }
+}
