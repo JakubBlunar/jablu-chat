@@ -55,7 +55,7 @@ export class ChannelsService {
       return channel
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('A channel with this name already exists on this server')
+        throw new ConflictException('A channel of this type with this name already exists on this server')
       }
       throw e
     }
@@ -157,7 +157,7 @@ export class ChannelsService {
       return updated
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('A channel with this name already exists on this server')
+        throw new ConflictException('A channel of this type with this name already exists on this server')
       }
       throw e
     }
