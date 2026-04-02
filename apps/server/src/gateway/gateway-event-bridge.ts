@@ -57,7 +57,10 @@ export function registerEventBridgeHandlers(
   events.on(
     'webhook:message',
     (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
-      emitToChannel(payload.channelId, 'message:new', payload.message)
+      emitToChannel(payload.channelId, 'message:new', {
+        ...(payload.message as object),
+        ...(payload.serverId ? { serverId: payload.serverId } : {})
+      })
 
       if (payload.serverId && payload.webhookName) {
         const content = (payload.message as { content?: string })?.content

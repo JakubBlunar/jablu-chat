@@ -185,7 +185,10 @@ export function registerEventListeners(gw: ChatGateway) {
   gw.events.on(
     'webhook:message',
     (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
-      gw.emitToChannel(payload.channelId, 'message:new', payload.message)
+      gw.emitToChannel(payload.channelId, 'message:new', {
+        ...(payload.message as object),
+        ...(payload.serverId ? { serverId: payload.serverId } : {})
+      })
 
       if (payload.serverId && payload.webhookName) {
         const content = (payload.message as { content?: string })?.content
@@ -514,7 +517,10 @@ export function registerEventListeners(gw: ChatGateway) {
   gw.events.on(
     'rest:message:created',
     (payload: { channelId: string; message: any; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
-      gw.emitToChannel(payload.channelId, 'message:new', payload.message)
+      gw.emitToChannel(payload.channelId, 'message:new', {
+        ...payload.message,
+        ...(payload.serverId ? { serverId: payload.serverId } : {})
+      })
       if (payload.threadUpdate) {
         gw.emitToChannel(payload.channelId, 'message:thread-update', {
           parentId: payload.threadUpdate.parentId,
