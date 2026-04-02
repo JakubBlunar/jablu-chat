@@ -11,7 +11,23 @@ function getDb(): Database.Database {
     _db.pragma('journal_mode = WAL')
 
     _db.exec(`
-      CREATE TABLE IF NOT EXISTS posted_deals (
+      CREATE TABLE IF NOT EXISTS bot_meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `)
+
+    migratePostedDeals(_db)
+  }
+  return _db
+}
+
+function migratePostedDeals(db: Database.Database): void {
+  const tableExists = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='posted_deals'").get()
+
+  if (!tableExists) {
+    db.exec(`
+      CREATE TABLE posted_deals (
         deal_id    TEXT NOT NULL,
         channel_id TEXT NOT NULL,
         posted_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -19,23 +35,36 @@ function getDb(): Database.Database {
         PRIMARY KEY (deal_id, channel_id)
       )
     `)
+    console.log('[db] Created posted_deals table')
+    return
+  }
 
-    _db.exec(`
-      CREATE TABLE IF NOT EXISTS bot_meta (
-        key   TEXT PRIMARY KEY,
-        value TEXT NOT NULL
+  const pkCols = (db.prepare("PRAGMA table_info('posted_deals')").all() as { name: string; pk: number }[])
+    .filter((c) => c.pk > 0)
+    .sort((a, b) => a.pk - b.pk)
+    .map((c) => c.name)
+
+  const needsRecreate = pkCols.length !== 2 || pkCols[0] !== 'deal_id' || pkCols[1] !== 'channel_id'
+
+  if (needsRecreate) {
+    console.log(`[db] Stale PK detected (${pkCols.join(', ')}), recreating posted_deals table`)
+    db.exec('DROP TABLE posted_deals')
+    db.exec(`
+      CREATE TABLE posted_deals (
+        deal_id    TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        posted_at  TEXT NOT NULL DEFAULT (datetime('now')),
+        title_key  TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (deal_id, channel_id)
       )
     `)
-
-    const cols = _db.prepare("PRAGMA table_info('posted_deals')").all() as { name: string }[]
-    if (!cols.some((c) => c.name === 'channel_id')) {
-      _db.exec("ALTER TABLE posted_deals ADD COLUMN channel_id TEXT NOT NULL DEFAULT 'legacy'")
-    }
-    if (!cols.some((c) => c.name === 'title_key')) {
-      _db.exec("ALTER TABLE posted_deals ADD COLUMN title_key TEXT NOT NULL DEFAULT ''")
-    }
+    return
   }
-  return _db
+
+  const cols = db.prepare("PRAGMA table_info('posted_deals')").all() as { name: string }[]
+  if (!cols.some((c) => c.name === 'title_key')) {
+    db.exec("ALTER TABLE posted_deals ADD COLUMN title_key TEXT NOT NULL DEFAULT ''")
+  }
 }
 
 export function titleKey(title: string, source: string): string {
@@ -47,38 +76,15 @@ export function wasPosted(dealId: string, channelId: string, tKey?: string): boo
     const row = getDb()
       .prepare('SELECT 1 FROM posted_deals WHERE channel_id = ? AND (deal_id = ? OR title_key = ?)')
       .get(channelId, dealId, tKey)
-    if (!row) {
-      const byPk = getDb()
-        .prepare('SELECT deal_id, channel_id, title_key FROM posted_deals WHERE deal_id = ? AND channel_id = ?')
-        .get(dealId, channelId) as { deal_id: string; channel_id: string; title_key: string } | undefined
-      if (byPk) {
-        console.log(`[db] wasPosted BUG: complex query missed but PK query found row`, JSON.stringify({ dealId, channelId, tKey, dbRow: byPk }))
-      } else {
-        const anyMatch = getDb()
-          .prepare('SELECT deal_id, channel_id FROM posted_deals WHERE deal_id = ?')
-          .all(dealId) as { deal_id: string; channel_id: string }[]
-        if (anyMatch.length > 0) {
-          console.log(`[db] wasPosted: deal exists but for different channel`, JSON.stringify({ queriedChannel: channelId, dbChannels: anyMatch.map(r => r.channel_id) }))
-        }
-      }
-    }
     return !!row
   }
   return !!getDb().prepare('SELECT 1 FROM posted_deals WHERE deal_id = ? AND channel_id = ?').get(dealId, channelId)
 }
 
 export function markPosted(dealId: string, channelId: string, tKey: string): void {
-  const result = getDb()
+  getDb()
     .prepare('INSERT OR IGNORE INTO posted_deals (deal_id, channel_id, title_key) VALUES (?, ?, ?)')
     .run(dealId, channelId, tKey)
-  if (result.changes === 0) {
-    console.log(`[db] markPosted: already exists deal_id=${dealId} channel=${channelId.slice(0, 8)}`)
-  }
-}
-
-export function countPosted(): number {
-  const row = getDb().prepare('SELECT COUNT(*) as cnt FROM posted_deals').get() as { cnt: number }
-  return row.cnt
 }
 
 export function cleanOldEntries(daysToKeep = 90): void {

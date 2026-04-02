@@ -20,6 +20,11 @@ services:
       web:
         condition: service_completed_successfully
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ─── API Server ──────────────────────────────────────────────────────
   api:
@@ -76,6 +81,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ─── Web App Build ──────────────────────────────────────────────────
   web:
@@ -113,6 +123,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ─── Redis ──────────────────────────────────────────────────────────
   redis:
@@ -125,6 +140,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ─── LiveKit ────────────────────────────────────────────────────────
   livekit:
@@ -138,6 +158,11 @@ services:
     volumes:
       - ./docker/livekit/livekit.yaml:/etc/livekit.yaml:ro
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ─── Mailpit (dev only) ────────────────────────────────────────────
   mailpit:
