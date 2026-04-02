@@ -54,7 +54,7 @@ bot.registerCommands([
 ])
 
 bot.onCommand('help', async (ctx) => {
-  const canManage = ctx.isDm || hasPermission(ctx.userPermissions, Permission.MANAGE_CHANNELS)
+  const canManage = !ctx.isDm && hasPermission(ctx.userPermissions, Permission.MANAGE_CHANNELS)
 
   const lines = [
     '**FreeGameBot — Commands**',
