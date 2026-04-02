@@ -7,6 +7,7 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useServerStore } from '@/stores/server.store'
 import { resolveMediaUrl } from '@/lib/api'
+import { computeServerBadge as computeServerBadgeUtil } from '@/lib/unread'
 
 function DmIcon() {
   return (
@@ -37,18 +38,16 @@ export function ServerSidebar() {
   const dmReadStates = useReadStateStore((s) => s.dms)
   const channelReadStates = useReadStateStore((s) => s.channels)
   const channelToServer = useReadStateStore((s) => s.channelToServer)
-  const getServerUnread = useReadStateStore((s) => s.getServerUnread)
   const notifPrefs = useNotifPrefStore((s) => s.prefs)
   const serverPrefs = useNotifPrefStore((s) => s.serverPrefs)
-  const getNotifLevel = useNotifPrefStore((s) => s.get)
-  const getServerLevel = useNotifPrefStore((s) => s.getServerLevel)
+  const getEffective = useNotifPrefStore((s) => s.getEffective)
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
   const computeServerBadge = useCallback(
-    (serverId: string) => getServerUnread(serverId, getNotifLevel, getServerLevel),
+    (serverId: string) => computeServerBadgeUtil(serverId, getEffective),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getServerUnread, getNotifLevel, getServerLevel, channelReadStates, channelToServer, notifPrefs, serverPrefs]
+    [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs]
   )
 
   const [joinOpen, setJoinOpen] = useState(false)

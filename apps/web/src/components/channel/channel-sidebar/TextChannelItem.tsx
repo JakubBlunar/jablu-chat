@@ -1,6 +1,7 @@
 import type { Channel } from '@chat/shared'
 import React from 'react'
 import { CountBadge } from '@/components/ui'
+import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { ArchiveIcon, HashIcon } from './sidebarIcons'
 
@@ -31,12 +32,8 @@ export function TextChannelItem({
   handleChannelTouchMove: () => void
   handleChannelContextMenu: (e: React.MouseEvent) => void
 }) {
-  const rs = channelReadStates.get(ch.id)
-  const level = getNotifLevel(ch.id)
-  const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
-  const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
-  const mentionCount = showMentions ? rs!.mentionCount : 0
-  const hasIndicator = showUnreadDot || showMentions
+  const badge = computeChannelBadge(channelReadStates.get(ch.id), getNotifLevel(ch.id) as NotifLevel, active)
+  const { showUnread: showUnreadDot, mentionCount, hasIndicator } = badge
   const isArchived = !!ch.isArchived
   return (
     <li>

@@ -1,28 +1,12 @@
 import { useEffect } from 'react'
+import { computeTotalBadge } from '@/lib/unread'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
+import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 
 const BASE_TITLE = 'Jablu'
-
-function getTotalUnread(): number {
-  const { channels, dms } = useReadStateStore.getState()
-  const viewMode = useServerStore.getState().viewMode
-  const activeChannelId = useChannelStore.getState().currentChannelId
-  const activeConvId = useDmStore.getState().currentConversationId
-
-  let total = 0
-  for (const [id, rs] of channels) {
-    if (viewMode === 'server' && id === activeChannelId) continue
-    total += rs.unreadCount
-  }
-  for (const [id, rs] of dms) {
-    if (viewMode === 'dm' && id === activeConvId) continue
-    total += rs.unreadCount
-  }
-  return total
-}
 
 function updateBadge(count: number) {
   document.title = count > 0 ? `(${count > 99 ? '99+' : count}) ${BASE_TITLE}` : BASE_TITLE
@@ -42,13 +26,14 @@ function updateBadge(count: number) {
 
 export function useAppBadge() {
   useEffect(() => {
-    const recalc = () => updateBadge(getTotalUnread())
+    const recalc = () => updateBadge(computeTotalBadge())
     recalc()
     const unsubs = [
       useReadStateStore.subscribe(recalc),
       useServerStore.subscribe(recalc),
       useChannelStore.subscribe(recalc),
       useDmStore.subscribe(recalc),
+      useNotifPrefStore.subscribe(recalc),
     ]
     return () => unsubs.forEach((u) => u())
   }, [])

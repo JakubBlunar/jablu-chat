@@ -41,6 +41,7 @@ import { useFriendStore } from '@/stores/friend.store'
 import { useShallow } from 'zustand/react/shallow'
 import { CountBadge, IconButton } from '@/components/ui'
 import { ForumChannelItem } from '@/components/channel/channel-sidebar/ForumChannelItem'
+import { computeChannelBadge, computeServerBadge, type NotifLevel } from '@/lib/unread'
 
 const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
@@ -94,12 +95,12 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   const { onlineIds, members } = useMemberStore(useShallow((s) => ({ onlineIds: s.onlineUserIds, members: s.members })))
 
-  const { dmReadStates, channelReadStates, channelToServer, getServerUnread } = useReadStateStore(
-    useShallow((s) => ({ dmReadStates: s.dms, channelReadStates: s.channels, channelToServer: s.channelToServer, getServerUnread: s.getServerUnread }))
+  const { dmReadStates, channelReadStates, channelToServer } = useReadStateStore(
+    useShallow((s) => ({ dmReadStates: s.dms, channelReadStates: s.channels, channelToServer: s.channelToServer }))
   )
 
-  const { notifPrefs, serverPrefs, getNotifLevel, getServerLevel } = useNotifPrefStore(
-    useShallow((s) => ({ notifPrefs: s.prefs, serverPrefs: s.serverPrefs, getNotifLevel: s.get, getServerLevel: s.getServerLevel }))
+  const { notifPrefs, serverPrefs, getEffective } = useNotifPrefStore(
+    useShallow((s) => ({ notifPrefs: s.prefs, serverPrefs: s.serverPrefs, getEffective: s.getEffective }))
   )
 
   const pendingFriendCount = useFriendStore((s) => s.pending.length)
@@ -217,10 +218,16 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
-  const computeServerBadge = useCallback(
-    (serverId: string) => getServerUnread(serverId, getNotifLevel, getServerLevel),
+  const computeServerBadgeFn = useCallback(
+    (serverId: string) => computeServerBadge(serverId, getEffective),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getServerUnread, getNotifLevel, getServerLevel, channelReadStates, channelToServer, notifPrefs, serverPrefs]
+    [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs]
+  )
+
+  const getNotifLevel = useCallback(
+    (channelId: string) => getEffective(channelId, currentServer?.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notifPrefs, serverPrefs, currentServer?.id, getEffective]
   )
 
   const { uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups } = useSortedChannels(channels, storeCategories)
@@ -312,7 +319,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
             <div className="h-6 w-px shrink-0 bg-white/15" />
             {servers.map((s) => {
               const active = viewMode === 'server' && s.id === currentServerId
-              const badge = active ? null : computeServerBadge(s.id)
+              const badge = active ? null : computeServerBadgeFn(s.id)
               return (
                 <div key={s.id} className="relative shrink-0">
                   <button
@@ -382,12 +389,9 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                     <ul className="space-y-0.5">
                       {uncategorizedText.map((ch) => {
                         const active = ch.id === currentChannelId && !viewingVoiceRoom
-                        const rs = channelReadStates.get(ch.id)
-                        const level = getNotifLevel(ch.id)
-                        const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
-                        const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
-                        const mentionCount = showMentions ? rs!.mentionCount : 0
-                        const hasIndicator = showUnreadDot || showMentions
+                        const { showUnread: showUnreadDot, mentionCount, hasIndicator } = computeChannelBadge(
+                          channelReadStates.get(ch.id), getEffective(ch.id, currentServer?.id) as NotifLevel, active
+                        )
                         return (
                           <li key={ch.id}>
                             <button
@@ -435,12 +439,9 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                             <ul className="space-y-0.5">
                               {group.textChannels.map((ch) => {
                                 const active = ch.id === currentChannelId && !viewingVoiceRoom
-                                const rs = channelReadStates.get(ch.id)
-                                const level = getNotifLevel(ch.id)
-                                const showUnreadDot = level === 'all' && !active && rs != null && rs.unreadCount > 0
-                                const showMentions = level !== 'none' && !active && (rs?.mentionCount ?? 0) > 0
-                                const mentionCount = showMentions ? rs!.mentionCount : 0
-                                const hasIndicator = showUnreadDot || showMentions
+                                const { showUnread: showUnreadDot, mentionCount, hasIndicator } = computeChannelBadge(
+                                  channelReadStates.get(ch.id), getEffective(ch.id, currentServer?.id) as NotifLevel, active
+                                )
                                 return (
                                   <li key={ch.id}>
                                     <button
