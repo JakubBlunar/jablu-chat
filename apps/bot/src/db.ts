@@ -5,7 +5,9 @@ let _db: Database.Database | null = null
 
 function getDb(): Database.Database {
   if (!_db) {
-    _db = new Database(config.dbPath)
+    const dbPath = config.dbPath
+    console.log(`[db] Opening database at: ${dbPath}`)
+    _db = new Database(dbPath)
     _db.pragma('journal_mode = WAL')
 
     _db.exec(`
@@ -51,9 +53,17 @@ export function wasPosted(dealId: string, channelId: string, tKey?: string): boo
 }
 
 export function markPosted(dealId: string, channelId: string, tKey: string): void {
-  getDb()
+  const result = getDb()
     .prepare('INSERT OR IGNORE INTO posted_deals (deal_id, channel_id, title_key) VALUES (?, ?, ?)')
     .run(dealId, channelId, tKey)
+  if (result.changes === 0) {
+    console.log(`[db] markPosted: already exists deal_id=${dealId} channel=${channelId.slice(0, 8)}`)
+  }
+}
+
+export function countPosted(): number {
+  const row = getDb().prepare('SELECT COUNT(*) as cnt FROM posted_deals').get() as { cnt: number }
+  return row.cnt
 }
 
 export function cleanOldEntries(daysToKeep = 90): void {
