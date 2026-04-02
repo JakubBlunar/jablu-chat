@@ -47,6 +47,21 @@ export function wasPosted(dealId: string, channelId: string, tKey?: string): boo
     const row = getDb()
       .prepare('SELECT 1 FROM posted_deals WHERE channel_id = ? AND (deal_id = ? OR title_key = ?)')
       .get(channelId, dealId, tKey)
+    if (!row) {
+      const byPk = getDb()
+        .prepare('SELECT deal_id, channel_id, title_key FROM posted_deals WHERE deal_id = ? AND channel_id = ?')
+        .get(dealId, channelId) as { deal_id: string; channel_id: string; title_key: string } | undefined
+      if (byPk) {
+        console.log(`[db] wasPosted BUG: complex query missed but PK query found row`, JSON.stringify({ dealId, channelId, tKey, dbRow: byPk }))
+      } else {
+        const anyMatch = getDb()
+          .prepare('SELECT deal_id, channel_id FROM posted_deals WHERE deal_id = ?')
+          .all(dealId) as { deal_id: string; channel_id: string }[]
+        if (anyMatch.length > 0) {
+          console.log(`[db] wasPosted: deal exists but for different channel`, JSON.stringify({ queriedChannel: channelId, dbChannels: anyMatch.map(r => r.channel_id) }))
+        }
+      }
+    }
     return !!row
   }
   return !!getDb().prepare('SELECT 1 FROM posted_deals WHERE deal_id = ? AND channel_id = ?').get(dealId, channelId)
