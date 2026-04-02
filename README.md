@@ -18,6 +18,14 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **Typing indicators** and **read receipts**
 - **Webhooks** for external integrations
 
+### Bot Support
+- **First-class bot users** with full messaging capabilities
+- **Slash commands** with autocomplete in the message input
+- **Permission-gated commands** — restrict bot commands to users with specific permissions
+- **Bot SDK** (`@chat/sdk`) — TypeScript library for building bots with event handling, slash commands, and local storage
+- **Bot management UI** — create bots, generate tokens, add/remove bots from servers
+- **FreeGameBot** — built-in example bot that monitors free game deals
+
 ### Voice & Video
 - **Voice channels** powered by [LiveKit](https://livekit.io/) (self-hosted WebRTC SFU)
 - **Video calls** with camera controls
@@ -122,9 +130,11 @@ jablu-chat/
 ├── apps/
 │   ├── server/          # NestJS backend (REST API + WebSocket gateway)
 │   ├── web/             # React SPA (Vite + Tailwind CSS)
-│   └── desktop/         # Electron desktop app
+│   ├── desktop/         # Electron desktop app
+│   └── bot/             # FreeGameBot — example bot built with the SDK
 ├── packages/
-│   └── shared/          # Shared types, validation schemas (Zod), permissions
+│   ├── shared/          # Shared types, validation schemas (Zod), permissions
+│   └── sdk/             # Bot SDK — TypeScript library for building Jablu bots
 ├── docker/
 │   ├── nginx/           # Reverse proxy + TLS termination
 │   └── livekit/         # LiveKit media server config
@@ -143,6 +153,7 @@ jablu-chat/
 | **Frontend** | React 19, TypeScript, Vite 8, Tailwind CSS v4, Zustand |
 | **Voice**    | LiveKit (self-hosted WebRTC SFU)                 |
 | **Desktop**  | Electron with auto-updates                       |
+| **Bots**     | `@chat/sdk`, Socket.IO, better-sqlite3           |
 | **Tooling**  | pnpm workspaces, Turborepo                       |
 
 ---

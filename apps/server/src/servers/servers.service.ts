@@ -13,6 +13,7 @@ const memberUserSelect = {
   displayName: true,
   avatarUrl: true,
   bio: true,
+  isBot: true,
   status: true,
   customStatus: true
 } as const

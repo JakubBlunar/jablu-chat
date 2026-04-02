@@ -23,6 +23,7 @@ const config: Config = {
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@chat/shared$': '<rootDir>/../../packages/shared/dist/cjs/index.js',
+    '^@chat/sdk$': '<rootDir>/../../packages/sdk/dist/index.js',
   },
 }
 

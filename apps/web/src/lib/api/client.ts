@@ -1,6 +1,8 @@
 import type {
   Attachment,
   AuthResponse,
+  BotApplication,
+  BotCommandWithBot,
   ChangeEmailInput,
   ChangePasswordInput,
   ChannelCategory,
@@ -933,5 +935,62 @@ export class ApiClient {
     eventId: string
   ): Promise<{ userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]> {
     return this.get(`/api/servers/${serverId}/events/${eventId}/interested`)
+  }
+
+  // Bot management
+  createBot(data: { username: string; displayName: string; description?: string; public?: boolean }): Promise<BotApplication & { token: string }> {
+    return this.post('/api/bots', data)
+  }
+
+  listOwnBots(): Promise<BotApplication[]> {
+    return this.get('/api/bots')
+  }
+
+  getBot(botId: string): Promise<BotApplication> {
+    return this.get(`/api/bots/${botId}`)
+  }
+
+  updateBot(botId: string, data: { displayName?: string; description?: string; public?: boolean }): Promise<BotApplication> {
+    return this.patch(`/api/bots/${botId}`, data)
+  }
+
+  deleteBot(botId: string): Promise<void> {
+    return this.delete(`/api/bots/${botId}`)
+  }
+
+  regenerateBotToken(botId: string): Promise<{ token: string }> {
+    return this.post(`/api/bots/${botId}/regenerate-token`)
+  }
+
+  searchBots(query: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null }[]> {
+    return this.get(`/api/bots/search?q=${encodeURIComponent(query)}`)
+  }
+
+  // Server bot management
+  addBotToServer(serverId: string, username: string): Promise<unknown> {
+    return this.post(`/api/servers/${serverId}/bots`, { username })
+  }
+
+  removeBotFromServer(serverId: string, botUserId: string): Promise<void> {
+    return this.delete(`/api/servers/${serverId}/bots/${botUserId}`)
+  }
+
+  listServerBots(serverId: string): Promise<{
+    userId: string
+    user: { id: string; username: string; displayName: string | null; avatarUrl: string | null; isBot: boolean }
+    joinedAt: string
+    roles: { id: string; name: string; color: string | null }[]
+  }[]> {
+    return this.get(`/api/servers/${serverId}/bots`)
+  }
+
+  // Bot commands
+  getServerBotCommands(serverId: string, channelId?: string): Promise<BotCommandWithBot[]> {
+    const qs = channelId ? `?channelId=${channelId}` : ''
+    return this.get(`/api/servers/${serverId}/bot-commands${qs}`)
+  }
+
+  getBotUserCommands(botUserId: string): Promise<BotCommandWithBot[]> {
+    return this.get(`/api/bots/user/${botUserId}/commands`)
   }
 }

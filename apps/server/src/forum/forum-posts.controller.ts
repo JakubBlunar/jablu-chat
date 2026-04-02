@@ -10,13 +10,13 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
 import { CurrentUser } from '../auth/current-user.decorator'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { ForumPostsService } from './forum-posts.service'
 import { CreateForumPostDto, ListForumPostsDto, UpdateForumPostDto } from './dto'
 
 @Controller('channels/:channelId/posts')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ForumPostsController {
   constructor(private readonly posts: ForumPostsService) {}
 

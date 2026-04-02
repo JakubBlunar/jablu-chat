@@ -10,13 +10,9 @@
     "test": "node --env-file=.env --import=tsx src/index.ts --test"
   },
   "dependencies": {
+    "@chat/sdk": "workspace:*",
     "better-sqlite3": "^11.9.1",
     "node-cron": "^3.0.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3"
-    ]
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

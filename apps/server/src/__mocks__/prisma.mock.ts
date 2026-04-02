@@ -77,6 +77,8 @@ export type MockPrismaService = {
   autoModRule: MockModel
   forumTag: MockModel
   forumPostTag: MockModel
+  botApplication: MockModel
+  botCommand: MockModel
   $transaction: jest.Mock
 }
 
@@ -120,6 +122,8 @@ export function createMockPrismaService(): MockPrismaService {
     autoModRule: createMockModel(),
     forumTag: createMockModel(),
     forumPostTag: createMockModel(),
+    botApplication: createMockModel(),
+    botCommand: createMockModel(),
     $transaction: jest.fn((fn: (prisma: any) => Promise<any>) => fn(createMockPrismaService())),
   } as unknown as MockPrismaService
 }

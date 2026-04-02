@@ -1,11 +1,11 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { FriendsService } from './friends.service'
 import { EventBusService } from '../events/event-bus.service'
 
 @Controller('friends')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class FriendsController {
   constructor(
     private readonly friends: FriendsService,

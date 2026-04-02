@@ -1,5 +1,5 @@
 import { Controller, Get, HttpException, HttpStatus, Query, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { ConfigService } from '@nestjs/config'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { RedisService } from '../redis/redis.service'
@@ -45,7 +45,7 @@ function mapResults(results: GiphyResult[]) {
 }
 
 @Controller('gif')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class GifController {
   private readonly apiKey: string
 

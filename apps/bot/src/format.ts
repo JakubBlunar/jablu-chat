@@ -51,7 +51,7 @@ export function formatDeal(deal: Deal): string {
   return lines.join('\n')
 }
 
-export function formatBatchSummary(deals: Deal[]): string {
+export function formatBatch(deals: Deal[]): string {
   if (deals.length === 0) return ''
 
   const grouped = new Map<string, Deal[]>()
@@ -61,12 +61,15 @@ export function formatBatchSummary(deals: Deal[]): string {
     grouped.set(deal.source, list)
   }
 
-  const sections: string[] = []
+  const sections: string[] = ['🎁 **Free Games Alert!**']
   for (const [source, items] of grouped) {
     const emoji = SOURCE_EMOJI[source] ?? '🎁'
-    const header = `${emoji} **Free on ${source}**`
-    const list = items.map((d) => `• **${d.title}** — ${buildLinks(d)}`).join('\n')
-    sections.push(`${header}\n${list}`)
+    sections.push(`${emoji} **${source}**`)
+    for (const d of items) {
+      const price = buildPriceLine(d)
+      const lines = `• **${d.title}** — ${price}\n  ${buildLinks(d)}`
+      sections.push(d.imageUrl ? `${lines}\n  ![${d.title}](${d.imageUrl})` : lines)
+    }
   }
 
   return sections.join('\n\n')

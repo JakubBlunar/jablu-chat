@@ -17,6 +17,7 @@ export type Member = {
     email?: string
     avatarUrl: string | null
     bio: string | null
+    isBot?: boolean
     status?: string
     customStatus?: string | null
   }

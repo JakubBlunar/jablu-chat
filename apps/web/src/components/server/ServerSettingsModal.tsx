@@ -10,6 +10,7 @@ import { OverviewTab } from './server-settings/tabs/OverviewTab'
 import { RolesTab } from './server-settings/tabs/RolesTab'
 import { MembersTab } from './server-settings/tabs/MembersTab'
 import { WebhooksTab } from './server-settings/tabs/WebhooksTab'
+import { BotsTab } from './server-settings/tabs/BotsTab'
 import { EmojiStatsTab } from './server-settings/tabs/EmojiStatsTab'
 import { AutoModTab } from './server-settings/tabs/AutoModTab'
 import { AuditLogTab } from './server-settings/tabs/AuditLogTab'
@@ -34,6 +35,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
       {tab === 'members' && <MembersTab server={server} />}
       {tab === 'bans' && <BansTab server={server} />}
       {tab === 'webhooks' && <WebhooksTab server={server} />}
+      {tab === 'bots' && <BotsTab server={server} />}
       {tab === 'emoji-stats' && <EmojiStatsTab server={server} />}
       {tab === 'automod' && <AutoModTab server={server} />}
       {tab === 'audit' && <AuditLogTab server={server} />}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
+import { showToast } from '@/stores/toast.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -31,11 +32,26 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     let handlingAuthError = false
     let hasConnectedBefore = false
     let lastAckTs = 0
+    let trailingTimer: ReturnType<typeof setTimeout> | null = null
+    let trailingFn: (() => void) | null = null
     const throttledAck = (fn: () => void) => {
       const now = Date.now()
       if (now - lastAckTs > 3000) {
         lastAckTs = now
+        if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
+        trailingFn = null
         fn()
+      } else {
+        trailingFn = fn
+        if (!trailingTimer) {
+          const remaining = 3000 - (now - lastAckTs)
+          trailingTimer = setTimeout(() => {
+            trailingTimer = null
+            lastAckTs = Date.now()
+            trailingFn?.()
+            trailingFn = null
+          }, remaining)
+        }
       }
     }
     const onConnect = () => {
@@ -173,6 +189,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('friend:cancelled', srv.onFriendCancelled)
     socket.on('friend:removed', srv.onFriendRemoved)
 
+    const onBotCommandError = (data: { error?: string }) => {
+      showToast('Command failed', data.error ?? 'Could not run this command')
+    }
+    socket.on('bot:command-error', onBotCommandError)
+
     setIsConnected(socket.connected)
 
     return () => {
@@ -238,6 +259,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:declined', srv.onFriendDeclined)
       socket.off('friend:cancelled', srv.onFriendCancelled)
       socket.off('friend:removed', srv.onFriendRemoved)
+      socket.off('bot:command-error', onBotCommandError)
+      if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
+      if (trailingFn) { trailingFn(); trailingFn = null }
       presence.cleanup()
       disconnectSocket()
       setIsConnected(false)

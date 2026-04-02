@@ -83,7 +83,9 @@ export function createPresenceHandlers() {
     if (payload.serverId === currentServerId) {
       useMemberStore.getState().addMember(payload.member)
     }
-    useMemberStore.getState().setUserOnline(payload.member.userId)
+    if (!payload.member.user?.isBot) {
+      useMemberStore.getState().setUserOnline(payload.member.userId)
+    }
   }
 
   const cleanup = () => {

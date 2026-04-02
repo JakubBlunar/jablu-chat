@@ -17,6 +17,7 @@ model User {
   bio          String?
   status       UserStatus @default(offline)
   customStatus String?    @map("custom_status")
+  isBot        Boolean  @default(false) @map("is_bot")
   dmPrivacy    DmPrivacy  @default(everyone) @map("dm_privacy")
   lastSeenAt   DateTime?  @map("last_seen_at")
   createdAt    DateTime   @default(now()) @map("created_at")
@@ -43,6 +44,8 @@ model User {
   bookmarks              MessageBookmark[]
   bans                   ServerBan[]      @relation("BannedUser")
   bansIssued             ServerBan[]      @relation("BanActor")
+  botApplication         BotApplication?  @relation("BotUser")
+  ownedBots              BotApplication[] @relation("BotOwner")
 
   @@map("users")
 }
@@ -729,4 +732,39 @@ model ForumPostTag {
 
   @@id([messageId, tagId])
   @@map("forum_post_tags")
+}
+
+model BotApplication {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  public      Boolean  @default(false)
+  userId      String   @unique @map("user_id")
+  ownerId     String   @map("owner_id")
+  tokenHash   String   @map("token_hash")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user     User         @relation("BotUser", fields: [userId], references: [id], onDelete: Cascade)
+  owner    User         @relation("BotOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  commands BotCommand[]
+
+  @@index([ownerId])
+  @@map("bot_applications")
+}
+
+model BotCommand {
+  id                 String   @id @default(uuid())
+  botAppId           String   @map("bot_app_id")
+  name               String
+  description        String
+  parameters         Json     @default("[]")
+  requiredPermission String?  @map("required_permission")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  botApp BotApplication @relation(fields: [botAppId], references: [id], onDelete: Cascade)
+
+  @@unique([botAppId, name])
+  @@index([botAppId])
+  @@map("bot_commands")
 }

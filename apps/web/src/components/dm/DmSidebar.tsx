@@ -40,6 +40,9 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
 
   useEffect(() => {
     if (currentConvId) ackDm(currentConvId)
+    return () => {
+      if (currentConvId) ackDm(currentConvId)
+    }
   }, [currentConvId, ackDm])
 
   const getDisplayInfo = useCallback(

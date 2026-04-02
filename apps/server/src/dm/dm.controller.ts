@@ -1,13 +1,17 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
-import { CreateDmDto, CreateGroupDmDto } from './dto'
+import { EventBusService } from '../events/event-bus.service'
+import { CreateDmDto, CreateGroupDmDto, SendDmMessageDto } from './dto'
 import { DmService } from './dm.service'
 
 @Controller('dm')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class DmController {
-  constructor(private readonly dm: DmService) {}
+  constructor(
+    private readonly dm: DmService,
+    private readonly events: EventBusService
+  ) {}
 
   @Get()
   listConversations(@CurrentUser() user: { id: string }) {
@@ -68,5 +72,16 @@ export class DmController {
       return this.dm.getMessagesAfter(id, user.id, after, safeLimit)
     }
     return this.dm.getMessages(id, user.id, cursor, safeLimit)
+  }
+
+  @Post(':id/messages')
+  async sendMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: SendDmMessageDto
+  ) {
+    const msg = await this.dm.createMessage(id, user.id, dto.content)
+    this.events.emit('rest:dm:created', { conversationId: id, message: msg })
+    return msg
   }
 }

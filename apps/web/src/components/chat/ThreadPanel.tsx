@@ -11,7 +11,7 @@ import { useThreadSurfaceAdapter } from '@/hooks/useThreadSurfaceAdapter'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
 import { IconButton, Spinner } from '@/components/ui'
 
-export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => void }) {
+export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => boolean | void }) {
   const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore()
   const adapter = useThreadSurfaceAdapter()
   const contextId = isOpen && parentMessage ? parentMessage.id : null

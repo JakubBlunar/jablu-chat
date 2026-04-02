@@ -8,13 +8,8 @@ function env(key: string, fallback?: string): string {
 }
 
 export const config = {
-  webhookUrls: env('WEBHOOK_URLS')
-    .split(',')
-    .map((u) => u.trim())
-    .filter(Boolean),
-
-  botName: env('BOT_NAME', 'FreeGameBot'),
-  botAvatarUrl: process.env['BOT_AVATAR_URL']?.trim() || undefined,
+  botToken: env('BOT_TOKEN'),
+  serverUrl: env('SERVER_URL', 'http://localhost:3001'),
 
   pollCron: env('POLL_CRON', '0 * * * *'),
 

@@ -22,6 +22,7 @@ import { ProfileSection } from '@/components/settings/sections/ProfileSection'
 import { ServerConnectionSection } from '@/components/settings/sections/ServerConnectionSection'
 import { AppearanceSection } from '@/components/settings/sections/AppearanceSection'
 import { StatusSection } from '@/components/settings/sections/StatusSection'
+import { MyBotsSection } from '@/components/settings/sections/MyBotsSection'
 
 export function CameraIcon() {
   return (
@@ -69,6 +70,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     { key: 'privacy', label: 'Privacy' },
     { key: 'voice', label: 'Voice & Video' },
     { key: 'notifications', label: 'Notifications' },
+    { key: 'my-bots', label: 'My Bots' },
     { key: 'sessions', label: 'Sessions' },
     { key: 'shortcuts', label: 'Keyboard Shortcuts', show: !isMobile },
     { key: 'server', label: 'Server Connection', show: isElectron },
@@ -89,6 +91,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       {tab === 'privacy' && <PrivacySection />}
       {tab === 'voice' && <VoiceSettings />}
       {tab === 'notifications' && <NotificationsSection />}
+      {tab === 'my-bots' && <MyBotsSection />}
       {tab === 'sessions' && <ActiveSessionsSection />}
       {tab === 'shortcuts' && <KeyboardShortcutsSection />}
       {tab === 'server' && <ServerConnectionSection />}

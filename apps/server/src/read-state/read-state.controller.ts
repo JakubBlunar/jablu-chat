@@ -1,5 +1,5 @@
 import { Controller, ForbiddenException, Get, NotFoundException, Param, ParseUUIDPipe, Put, Request, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { Permission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -7,7 +7,7 @@ import { RolesService } from '../roles/roles.service'
 import { ReadStateService } from './read-state.service'
 
 @Controller()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ReadStateController {
   constructor(
     private readonly readState: ReadStateService,

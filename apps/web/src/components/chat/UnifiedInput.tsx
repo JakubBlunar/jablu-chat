@@ -1,11 +1,13 @@
 import type { Attachment, Message } from '@chat/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Permission } from '@chat/shared'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ChatInputBar,
   type ChatInputBarHandle,
   type MentionChannel,
   type MentionMember
 } from '@/components/chat/ChatInputBar'
+import { useBotCommands } from '@/components/chat/useBotCommands'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
@@ -14,6 +16,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { usePermissions } from '@/hooks/usePermissions'
 
 function XIcon() {
   return (
@@ -67,7 +70,7 @@ export function UnifiedInput({
   channels?: MentionChannel[]
   gifEnabled?: boolean
   placeholder: string
-  onCommand?: (command: string, args?: string) => void
+  onCommand?: (command: string, args?: string) => boolean | void
   threadParentId?: string
 }) {
   const isDm = mode === 'dm'
@@ -78,6 +81,40 @@ export function UnifiedInput({
   const [sizeError, setSizeError] = useState<string | null>(null)
   const lastTypingEmit = useRef(0)
   const userId = useAuthStore((s) => s.user?.id)
+
+  const serverId = useChannelStore((s) =>
+    isDm ? null : s.channels.find((c) => c.id === contextId)?.serverId ?? null
+  )
+
+  const dmBotUserId = useDmStore((s) => {
+    if (!isDm) return null
+    const conv = s.conversations.find((c) => c.id === contextId)
+    if (!conv || conv.isGroup) return null
+    const botMember = conv.members.find((m) => m.isBot)
+    return botMember?.userId ?? null
+  })
+
+  const allBotCommands = useBotCommands(serverId, isDm ? null : contextId, dmBotUserId)
+  const { has: hasPerm } = usePermissions(serverId)
+  const botCommands = useMemo(() =>
+    allBotCommands.filter((cmd) => {
+      if (!cmd.requiredPermission) return true
+      const flag = Permission[cmd.requiredPermission as keyof typeof Permission]
+      return flag ? hasPerm(flag) : true
+    }),
+    [allBotCommands, hasPerm]
+  )
+  const [targetBot, setTargetBot] = useState<{ botAppId: string; commandName: string } | null>(null)
+
+  useEffect(() => {
+    if (!value.trimStart().startsWith('/')) setTargetBot(null)
+  }, [value])
+
+  useEffect(() => {
+    setValue('')
+    setTargetBot(null)
+    setFiles([])
+  }, [contextId])
 
   useEffect(() => {
     if (replyTarget) inputRef.current?.focus()
@@ -187,7 +224,8 @@ export function UnifiedInput({
   async function send() {
     let content = value.trim()
 
-    if (content.startsWith('/') && onCommand) {
+    let sendTargetBotAppId: string | undefined
+    if (content.startsWith('/')) {
       const parts = content.slice(1).split(/\s(.*)/)
       const cmd = parts[0]?.toLowerCase()
       const rest = parts[1]?.trim() ?? ''
@@ -195,10 +233,17 @@ export function UnifiedInput({
       const textResult = resolveTextCommand(cmd, rest)
       if (textResult !== null) {
         content = textResult
-      } else if (cmd) {
-        setValue('')
-        onCommand(cmd, rest)
-        return
+      } else if (onCommand && cmd) {
+        const handled = onCommand(cmd, rest)
+        if (handled) {
+          setValue('')
+          setTargetBot(null)
+          return
+        }
+      }
+
+      if (targetBot && cmd === targetBot.commandName) {
+        sendTargetBotAppId = targetBot.botAppId
       }
     }
 
@@ -221,7 +266,8 @@ export function UnifiedInput({
         conversationId: contextId,
         content: content || undefined,
         replyToId: replyTarget?.id,
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
+        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+        targetBotAppId: sendTargetBotAppId
       }, (res: { ok?: boolean; message?: Message }) => {
         if (res?.ok && res.message) useDmStore.getState().addMessage(res.message)
       })
@@ -235,12 +281,12 @@ export function UnifiedInput({
         content: content || undefined,
         replyToId: threadParentId ? undefined : replyTarget?.id,
         threadParentId,
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined
+        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+        targetBotAppId: sendTargetBotAppId
       }, (res: { ok?: boolean; message?: Message; error?: string }) => {
         if (res?.ok && res.message) {
           if (threadParentId) {
             useThreadStore.getState().addMessage(res.message)
-            // Fallback for forum side-panel: render immediately even if socket broadcast is delayed.
             window.dispatchEvent(new CustomEvent('forum-reply', { detail: res.message }))
           } else {
             useMessageStore.getState().addMessage(res.message)
@@ -253,6 +299,7 @@ export function UnifiedInput({
     }
 
     setValue('')
+    setTargetBot(null)
     setFiles([])
     onCancelReply()
     emitTypingStop()
@@ -370,7 +417,7 @@ export function UnifiedInput({
       )}
 
       <div className="flex items-end gap-1">
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           <ChatInputBar
             ref={inputRef}
             value={value}
@@ -386,6 +433,8 @@ export function UnifiedInput({
             gifEnabled={gifEnabled}
             onGifSelect={handleGifSelect}
             onCommand={onCommand}
+            botCommands={botCommands}
+            onBotCommandPick={setTargetBot}
           />
         </div>
       </div>

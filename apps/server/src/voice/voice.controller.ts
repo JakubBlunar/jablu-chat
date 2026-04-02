@@ -11,7 +11,7 @@ import {
   ServiceUnavailableException,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { ChannelType } from '@prisma/client'
 import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
@@ -20,7 +20,7 @@ import { RolesService } from '../roles/roles.service'
 import { VoiceService } from './voice.service'
 
 @Controller('voice')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class VoiceController {
   constructor(
     private readonly voice: VoiceService,

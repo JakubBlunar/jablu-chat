@@ -15,3 +15,9 @@ export class CreateGroupDmDto {
   @Length(1, 100)
   groupName?: string
 }
+
+export class SendDmMessageDto {
+  @IsString()
+  @Length(1, 4000)
+  content: string
+}

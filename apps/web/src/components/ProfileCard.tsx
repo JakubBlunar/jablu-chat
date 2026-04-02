@@ -23,6 +23,7 @@ export type ProfileCardUser = {
   displayName?: string | null
   avatarUrl?: string | null
   bio?: string | null
+  isBot?: boolean
   status: UserStatus
   customStatus?: string | null
   joinedAt?: string
@@ -171,22 +172,24 @@ function ProfileCardContent({
         if (!cancelled) setMutualServers(res.servers)
       })
       .catch(() => {})
-    api
-      .getMutualFriends(user.id)
-      .then((res) => {
-        if (!cancelled) setMutualFriends(res.friends)
-      })
-      .catch(() => {})
-    api
-      .getFriendshipStatus(user.id)
-      .then((res) => {
-        if (!cancelled) setFriendshipStatus(res)
-      })
-      .catch(() => {})
+    if (!user.isBot) {
+      api
+        .getMutualFriends(user.id)
+        .then((res) => {
+          if (!cancelled) setMutualFriends(res.friends)
+        })
+        .catch(() => {})
+      api
+        .getFriendshipStatus(user.id)
+        .then((res) => {
+          if (!cancelled) setFriendshipStatus(res)
+        })
+        .catch(() => {})
+    }
     return () => {
       cancelled = true
     }
-  }, [user.id, currentUserId])
+  }, [user.id, user.isBot, currentUserId])
 
   return (
     <>
@@ -201,6 +204,9 @@ function ProfileCardContent({
 
         <div className="mt-1 flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{user.displayName ?? user.username}</h3>
+          {user.isBot && (
+            <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
+          )}
           {adminRole && (
             <RoleBadge name={adminRole.name} color={adminRole.color} size="sm" showDot={false} />
           )}
@@ -275,7 +281,9 @@ function ProfileCardContent({
 
         <RoleBadges userId={user.id} />
         <VoiceVolumeSlider userId={user.id} />
-        <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={setFriendshipStatus} />
+        {!user.isBot && (
+          <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={setFriendshipStatus} />
+        )}
         <SendDmButton userId={user.id} onClose={onClose} friendshipStatus={friendshipStatus} />
       </div>
     </>

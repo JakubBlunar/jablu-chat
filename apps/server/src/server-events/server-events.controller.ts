@@ -12,13 +12,13 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { createEventSchema, updateEventSchema } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { ServerEventsService } from './server-events.service'
 
 @Controller('servers/:serverId/events')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ServerEventsController {
   constructor(private readonly serverEvents: ServerEventsService) {}
 

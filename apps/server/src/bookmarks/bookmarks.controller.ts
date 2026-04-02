@@ -11,12 +11,12 @@ import {
   Query,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { BookmarksService } from './bookmarks.service'
 
 @Controller('bookmarks')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class BookmarksController {
   constructor(private readonly bookmarks: BookmarksService) {}
 

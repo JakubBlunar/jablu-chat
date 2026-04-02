@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { IsEnum } from 'class-validator'
 import { NotifLevel } from '@prisma/client'
 import { Permission } from '@chat/shared'
@@ -14,7 +14,7 @@ class SetNotifPrefDto {
 }
 
 @Controller('notif-prefs')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class BulkNotifPrefsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -38,7 +38,7 @@ export class BulkNotifPrefsController {
 }
 
 @Controller('servers/:serverId/notifications')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ServerNotifPrefsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -75,7 +75,7 @@ export class ServerNotifPrefsController {
 }
 
 @Controller('channels/:channelId/notifications')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class NotifPrefsController {
   constructor(
     private readonly prisma: PrismaService,

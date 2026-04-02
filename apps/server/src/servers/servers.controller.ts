@@ -14,7 +14,7 @@ import {
   UseGuards,
   UseInterceptors
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { ChangeSelfRolesDto, CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRolesDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
@@ -33,7 +33,7 @@ function resolveImageMime(file: { mimetype: string; originalname: string }): str
 }
 
 @Controller('servers')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ServersController {
   constructor(private readonly servers: ServersService) {}
 

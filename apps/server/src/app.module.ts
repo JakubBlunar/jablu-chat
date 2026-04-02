@@ -25,6 +25,7 @@ import { WebhooksModule } from './webhooks/webhooks.module'
 import { AutoModModule } from './automod/automod.module'
 import { FriendsModule } from './friends/friends.module'
 import { BookmarksModule } from './bookmarks/bookmarks.module'
+import { BotsModule } from './bots/bots.module'
 import { ForumModule } from './forum/forum.module'
 import { RolesModule } from './roles/roles.module'
 
@@ -63,7 +64,8 @@ import { RolesModule } from './roles/roles.module'
     BookmarksModule,
     AutoModModule,
     ForumModule,
-    RolesModule
+    RolesModule,
+    BotsModule
   ]
 })
 export class AppModule {}

@@ -32,6 +32,10 @@ export class WsSendMessageDto {
   @IsOptional()
   @IsUUID()
   threadParentId?: string
+
+  @IsOptional()
+  @IsUUID()
+  targetBotAppId?: string
 }
 
 export class WsEditMessageDto {
@@ -102,6 +106,10 @@ export class WsDmSendDto {
   @IsUUID('4', { each: true })
   @ArrayMaxSize(20)
   attachmentIds?: string[]
+
+  @IsOptional()
+  @IsUUID()
+  targetBotAppId?: string
 }
 
 export class WsDmEditDto {

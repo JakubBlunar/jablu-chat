@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { IsNotEmpty, IsString } from 'class-validator'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PushService } from './push.service'
@@ -33,7 +33,7 @@ export class PushController {
   }
 
   @Post('subscribe')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async subscribe(@CurrentUser() user: { id: string }, @Body() dto: SubscribeDto) {
     await this.push.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth)
@@ -41,7 +41,7 @@ export class PushController {
   }
 
   @Delete('unsubscribe')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async unsubscribe(@CurrentUser() user: { id: string }, @Body() dto: UnsubscribeDto) {
     await this.push.unsubscribe(dto.endpoint, user.id)

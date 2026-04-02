@@ -28,6 +28,7 @@ export class ReadStateService {
               AND m.created_at > crs.last_read_at
               AND m.deleted = false
               AND m.author_id != ${userId}
+              AND m.thread_parent_id IS NULL
             LIMIT 100
           ) sub) AS unread_count
         FROM channel_read_states crs
