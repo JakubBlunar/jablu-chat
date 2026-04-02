@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { useChannelStore } from './channel.store'
+import { useDmStore } from './dm.store'
+import { useServerStore } from './server.store'
 
 type ChannelUnread = {
   unreadCount: number
@@ -54,6 +57,20 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
           lastReadAt: rs.lastReadAt
         })
       }
+      const viewMode = useServerStore.getState().viewMode
+      const activeChannelId = useChannelStore.getState().currentChannelId
+      const activeConvId = useDmStore.getState().currentConversationId
+      const zero = { unreadCount: 0, mentionCount: 0, lastReadAt: new Date().toISOString() }
+
+      if (viewMode === 'server' && activeChannelId && channels.has(activeChannelId)) {
+        channels.set(activeChannelId, zero)
+        api.ackChannel(activeChannelId).catch(() => {})
+      }
+      if (viewMode === 'dm' && activeConvId && dms.has(activeConvId)) {
+        dms.set(activeConvId, zero)
+        api.ackDm(activeConvId).catch(() => {})
+      }
+
       set({ channels, dms, channelToServer })
     } catch {
       // ignore
