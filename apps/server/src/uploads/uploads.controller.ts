@@ -9,7 +9,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
@@ -92,7 +92,7 @@ export class UploadsController {
   }
 
   @Post('attachments')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: (parseInt(process.env.MAX_UPLOAD_SIZE_MB ?? '50', 10) || 50) * 1024 * 1024 },

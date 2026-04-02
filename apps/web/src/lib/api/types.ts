@@ -79,6 +79,7 @@ export type DmConversation = {
     bio: string | null
     status: string
     createdAt: string
+    isBot?: boolean
   }[]
   lastMessage?: {
     content: string | null

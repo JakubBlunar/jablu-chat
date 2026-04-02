@@ -17,6 +17,7 @@ const memberSelect = {
       displayName: true,
       avatarUrl: true,
       bio: true,
+      isBot: true,
       status: true,
       createdAt: true
     }
@@ -65,7 +66,7 @@ export class DmService {
 
     const recipient = await this.prisma.user.findUnique({
       where: { id: recipientId },
-      select: { id: true, dmPrivacy: true }
+      select: { id: true, dmPrivacy: true, isBot: true }
     })
     if (!recipient) {
       throw new NotFoundException('User not found')
@@ -87,7 +88,7 @@ export class DmService {
       return this.toConversationWire(existing)
     }
 
-    if (recipient.dmPrivacy === 'friends_only') {
+    if (!recipient.isBot && recipient.dmPrivacy === 'friends_only') {
       const friends = await this.friendsService.areFriends(currentUserId, recipientId)
       if (!friends) {
         throw new BadRequestException('This user only accepts DMs from friends')
@@ -465,10 +466,11 @@ export class DmService {
 
     const targetUser = await this.prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { dmPrivacy: true }
+      select: { dmPrivacy: true, isBot: true }
     })
 
     if (!targetUser) return { allowed: false }
+    if (targetUser.isBot) return { allowed: true }
     if (targetUser.dmPrivacy !== 'friends_only') return { allowed: true }
 
     const friends = await this.friendsService.areFriends(currentUserId, targetUserId)
@@ -535,8 +537,10 @@ export class DmService {
       members: c.members.map((m) => ({
         userId: m.user.id,
         username: m.user.username,
+        displayName: m.user.displayName,
         avatarUrl: m.user.avatarUrl,
         bio: m.user.bio,
+        isBot: m.user.isBot,
         status: m.user.status,
         createdAt: m.user.createdAt.toISOString()
       }))

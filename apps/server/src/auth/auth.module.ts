@@ -6,8 +6,10 @@ import { FriendsModule } from '../friends/friends.module'
 import { AuthController } from './auth.controller'
 import { AuthRateLimiter } from './auth-rate-limiter'
 import { AuthService } from './auth.service'
+import { BotTokenStrategy } from './bot-token.strategy'
 import { JwtStrategy } from './jwt.strategy'
 import { MailService } from './mail.service'
+import { UnifiedAuthGuard } from './unified-auth.guard'
 import { UsersController } from './users.controller'
 
 @Module({
@@ -28,7 +30,7 @@ import { UsersController } from './users.controller'
     forwardRef(() => FriendsModule)
   ],
   controllers: [AuthController, UsersController],
-  providers: [AuthService, AuthRateLimiter, JwtStrategy, MailService],
-  exports: [AuthService, JwtModule, MailService]
+  providers: [AuthService, AuthRateLimiter, JwtStrategy, BotTokenStrategy, UnifiedAuthGuard, MailService],
+  exports: [AuthService, JwtModule, MailService, UnifiedAuthGuard, BotTokenStrategy]
 })
 export class AuthModule {}

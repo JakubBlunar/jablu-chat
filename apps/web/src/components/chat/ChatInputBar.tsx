@@ -1,3 +1,4 @@
+import type { BotCommandWithBot } from '@chat/shared'
 import {
   Suspense,
   forwardRef,
@@ -48,25 +49,49 @@ export type ChatInputBarProps = {
   gifEnabled?: boolean
   onGifSelect?: (url: string) => void
   onCommand?: (command: string) => void
+  botCommands?: BotCommandWithBot[]
+  onBotCommandPick?: (info: { botAppId: string; commandName: string } | null) => void
 }
 
 type PopupMode = 'none' | 'mention' | 'channel' | 'command'
 
-type SlashCommand = { name: string; description: string; category?: string }
+type CommandItem = {
+  key: string
+  name: string
+  description: string
+  tag?: string
+  botAppId?: string
+  botUser?: { username: string; avatarUrl: string | null }
+}
 
-const COMMANDS: SlashCommand[] = [
-  { name: 'poll', description: 'Create a poll', category: 'Tools' },
-  { name: 'shrug', description: 'Append ¯\\_(ツ)_/¯ to your message', category: 'Fun' },
-  { name: 'tableflip', description: 'Send (╯°□°)╯︵ ┻━┻', category: 'Fun' },
-  { name: 'unflip', description: 'Send ┬─┬ ノ( ゜-゜ノ)', category: 'Fun' },
-  { name: 'lenny', description: 'Append ( ͡° ͜ʖ ͡°) to your message', category: 'Fun' },
-  { name: 'spoiler', description: 'Wrap your text in a spoiler ||text||', category: 'Formatting' },
-  { name: 'me', description: 'Send an action message in italics', category: 'Formatting' },
-  { name: 'nick', description: 'Change your server display name', category: 'Settings' },
+const BUILTIN_COMMANDS: CommandItem[] = [
+  { key: 'b:poll', name: 'poll', description: 'Create a poll', tag: 'Tools' },
+  { key: 'b:shrug', name: 'shrug', description: 'Append ¯\\_(ツ)_/¯ to your message', tag: 'Fun' },
+  { key: 'b:tableflip', name: 'tableflip', description: 'Send (╯°□°)╯︵ ┻━┻', tag: 'Fun' },
+  { key: 'b:unflip', name: 'unflip', description: 'Send ┬─┬ ノ( ゜-゜ノ)', tag: 'Fun' },
+  { key: 'b:lenny', name: 'lenny', description: 'Append ( ͡° ͜ʖ ͡°) to your message', tag: 'Fun' },
+  { key: 'b:spoiler', name: 'spoiler', description: 'Wrap your text in a spoiler ||text||', tag: 'Formatting' },
+  { key: 'b:me', name: 'me', description: 'Send an action message in italics', tag: 'Formatting' },
+  { key: 'b:nick', name: 'nick', description: 'Change your server display name', tag: 'Settings' },
 ]
+
+function botToCommandItems(bots: BotCommandWithBot[]): CommandItem[] {
+  return bots.map((cmd) => {
+    const u = cmd.bot.user
+    return {
+      key: `bot:${cmd.id}`,
+      name: cmd.name,
+      description: cmd.description,
+      tag: u.displayName?.trim() || u.username,
+      botAppId: cmd.botAppId,
+      botUser: u
+    }
+  })
+}
 
 export type ChatInputBarHandle = {
   focus: () => void
+  dismissPopup: () => void
 }
 
 export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(function ChatInputBar(
@@ -83,15 +108,15 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     channels,
     gifEnabled,
     onGifSelect,
-    onCommand
+    onCommand,
+    botCommands,
+    onBotCommandPick
   },
   ref
 ) {
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
-  useImperativeHandle(ref, () => ({
-    focus: () => taRef.current?.focus()
-  }))
   const fileRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -119,6 +144,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [triggerStart, setTriggerStart] = useState(0)
   const [selectedIdx, setSelectedIdx] = useState(0)
 
+  useImperativeHandle(ref, () => ({
+    focus: () => taRef.current?.focus(),
+    dismissPopup: () => setPopupMode('none')
+  }))
+
   const filteredMembers = useMemo(() => {
     if (popupMode !== 'mention' || !members) return []
     const q = query.toLowerCase()
@@ -141,11 +171,15 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return channels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 10)
   }, [popupMode, query, channels])
 
+  const botCommandItems = useMemo(() => botToCommandItems(botCommands ?? []), [botCommands])
+
   const filteredCommands = useMemo(() => {
     if (popupMode !== 'command') return []
     const q = query.toLowerCase()
-    return COMMANDS.filter((c) => c.name.startsWith(q))
-  }, [popupMode, query])
+    const builtIn = BUILTIN_COMMANDS.filter((c) => c.name.startsWith(q))
+    const bots = botCommandItems.filter((c) => c.name.toLowerCase().startsWith(q))
+    return [...builtIn, ...bots]
+  }, [popupMode, query, botCommandItems])
 
   const popupOpen =
     (popupMode === 'mention' && filteredMembers.length > 0) ||
@@ -158,6 +192,17 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       : popupMode === 'channel'
         ? filteredChannels.length
         : filteredCommands.length
+
+  useEffect(() => {
+    if (!popupOpen) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setPopupMode('none')
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [popupOpen])
 
   const detectTrigger = useCallback(() => {
     const el = taRef.current
@@ -185,6 +230,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     }
 
     const trigger = text[bestIdx]
+
     if (trigger === '/' && onCommand) {
       setPopupMode('command')
       setQuery(fragment)
@@ -260,12 +306,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   }, [value, detectTrigger])
 
   const executeCommand = useCallback(
-    (cmd: SlashCommand) => {
+    (cmd: CommandItem) => {
       onChange(`/${cmd.name} `)
+      onBotCommandPick?.(cmd.botAppId ? { botAppId: cmd.botAppId, commandName: cmd.name } : null)
       setPopupMode('none')
       requestAnimationFrame(() => taRef.current?.focus())
     },
-    [onChange]
+    [onChange, onBotCommandPick]
   )
 
   const handleKeyDown = useCallback(
@@ -332,7 +379,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   )
 
   return (
-    <div className="relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-primary/60">
+    <div ref={wrapperRef} className="relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-primary/60">
       {popupOpen && popupMode === 'mention' && (
         <MentionPopup members={filteredMembers} selectedIdx={selectedIdx} onSelect={insertMention} />
       )}
@@ -606,9 +653,9 @@ function CommandPopup({
   selectedIdx,
   onSelect
 }: {
-  commands: SlashCommand[]
+  commands: CommandItem[]
   selectedIdx: number
-  onSelect: (c: SlashCommand) => void
+  onSelect: (c: CommandItem) => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -626,7 +673,7 @@ function CommandPopup({
     >
       {commands.map((c, i) => (
         <button
-          key={c.name}
+          key={c.key}
           type="button"
           role="option"
           aria-selected={i === selectedIdx}
@@ -638,15 +685,19 @@ function CommandPopup({
             i === selectedIdx ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'
           }`}
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center text-gray-400">
-            <SlashIcon />
-          </span>
+          {c.botUser ? (
+            <UserAvatar username={c.botUser.username} avatarUrl={c.botUser.avatarUrl} size="sm" />
+          ) : (
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center text-gray-400">
+              <SlashIcon />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">/{c.name}</span>
             <span className="block truncate text-xs text-gray-500">{c.description}</span>
           </div>
-          {c.category && (
-            <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-gray-500">{c.category}</span>
+          {c.tag && (
+            <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-gray-500">{c.tag}</span>
           )}
         </button>
       ))}

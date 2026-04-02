@@ -11,13 +11,13 @@ import {
   Post,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
 import { CurrentUser } from '../../auth/current-user.decorator'
+import { UnifiedAuthGuard } from '../../auth/unified-auth.guard'
 import { ChannelsService } from './channels.service'
 import { CreateChannelDto, ReorderChannelsDto, UpdateChannelDto } from './dto'
 
 @Controller('servers/:serverId/channels')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ChannelsController {
   constructor(private readonly channels: ChannelsService) {}
 

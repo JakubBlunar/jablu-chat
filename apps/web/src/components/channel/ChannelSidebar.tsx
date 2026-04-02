@@ -210,6 +210,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
         displayName: member?.user.displayName,
         avatarUrl: member?.user.avatarUrl,
         bio: member?.user.bio ?? null,
+        isBot: member?.user.isBot,
         status: resolvedStatus,
         customStatus: member?.user.customStatus ?? null,
         joinedAt: member?.joinedAt,
@@ -224,6 +225,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   useEffect(() => {
     if (currentChannelId && !viewingVoiceRoom) {
       ackChannel(currentChannelId)
+    }
+    return () => {
+      if (currentChannelId && !viewingVoiceRoom) {
+        ackChannel(currentChannelId)
+      }
     }
   }, [currentChannelId, viewingVoiceRoom, ackChannel])
 

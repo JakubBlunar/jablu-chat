@@ -23,7 +23,7 @@ import { api } from '@/lib/api'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { IconButton, Spinner } from '@/components/ui'
 
-export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => void }) {
+export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => boolean | void }) {
   const currentPostId = useForumStore((s) => s.currentPostId)
   const posts = useForumStore((s) => s.posts)
   const channelId = useForumStore((s) => s.channelId)

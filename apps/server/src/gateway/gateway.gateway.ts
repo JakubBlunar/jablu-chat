@@ -304,6 +304,33 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     ;(client.data as { serverIds?: string[] }).serverIds = serverIds
     client.join(`user:${user.id}`)
 
+    if (user.isBot) {
+      const dmConversations = await this.prisma.directConversationMember.findMany({
+        where: { userId: user.id },
+        select: { conversationId: true }
+      })
+      for (const dc of dmConversations) {
+        client.join(`dm:${dc.conversationId}`)
+      }
+
+      const servers = memberships.map((m) => ({
+        id: m.serverId,
+        name: m.server.name,
+        channels: m.server.channels.map((ch) => ({ id: ch.id }))
+      }))
+      client.emit('bot:ready', {
+        user: { id: user.id, username: user.username, displayName: user.displayName },
+        servers
+      })
+      this.addOnlineUser(user.id)
+      await this.prisma.user.update({ where: { id: user.id }, data: { status: 'online' } })
+      for (const sid of serverIds) {
+        this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
+        this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
+      }
+      return
+    }
+
     const pendingGrace = this.disconnectGrace.get(user.id)
     if (pendingGrace) {
       clearTimeout(pendingGrace.timer)
@@ -398,7 +425,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (isLastConnection) {
       const capturedServerIds = [...serverIds]
       const userId = user.id
-      const timer = setTimeout(async () => {
+
+      const markOffline = async () => {
         this.disconnectGrace.delete(userId)
         if (this.onlineUsers.has(userId)) return
         this.userLastActivity.delete(userId)
@@ -413,8 +441,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         }
         const friendIds = await this.getFriendUserIds(userId)
         this.emitToFriends(friendIds, 'user:offline', { userId })
-      }, ChatGateway.DISCONNECT_GRACE_MS)
-      this.disconnectGrace.set(userId, { timer, serverIds: capturedServerIds })
+      }
+
+      if (user.isBot) {
+        void markOffline()
+      } else {
+        const timer = setTimeout(markOffline, ChatGateway.DISCONNECT_GRACE_MS)
+        this.disconnectGrace.set(userId, { timer, serverIds: capturedServerIds })
+      }
     }
   }
 
@@ -598,7 +632,213 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       ).catch((err) => this.logger.warn('Thread push notification failed', err?.message))
     }
 
+    if (body.content?.startsWith('/') && serverId) {
+      void this.routeSlashCommand(body.content, serverId, body.channelId, user, client, body.targetBotAppId)
+    }
+
     return { ok: true, message: msgRest }
+  }
+
+  private async routeSlashCommand(
+    content: string,
+    serverId: string,
+    channelId: string,
+    user: WsUser,
+    client: Socket,
+    targetBotAppId?: string
+  ) {
+    try {
+      const parts = content.slice(1).split(/\s+/)
+      const commandName = parts[0]?.toLowerCase()
+      if (!commandName) return
+
+      const argsString = parts.slice(1).join(' ')
+
+      let match: { userId: string; commands: { parameters: unknown; requiredPermission: string | null }[] } | undefined
+
+      if (targetBotAppId) {
+        const targeted = await this.prisma.botApplication.findUnique({
+          where: { id: targetBotAppId },
+          include: { commands: { where: { name: commandName } } }
+        })
+        if (targeted && targeted.commands.length > 0) match = targeted
+      }
+
+      if (!match) {
+        const botMembers = await this.prisma.serverMember.findMany({
+          where: { serverId, user: { isBot: true } },
+          select: { userId: true }
+        })
+        if (botMembers.length === 0) return
+
+        const botApps = await this.prisma.botApplication.findMany({
+          where: { userId: { in: botMembers.map((m) => m.userId) } },
+          include: { commands: { where: { name: commandName } }, user: { select: { username: true } } },
+          orderBy: { user: { username: 'asc' } }
+        })
+        match = botApps.find((app) => app.commands.length > 0)
+        if (!match) return
+      }
+
+      const command = match.commands[0]!
+
+      if (command.requiredPermission) {
+        const permFlag = Permission[command.requiredPermission as keyof typeof Permission]
+        if (!permFlag) {
+          client.emit('bot:command-error', { error: 'This command has an invalid permission requirement', channelId })
+          return
+        }
+        try {
+          const userPerms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
+          if (!hasPermission(userPerms, permFlag)) {
+            client.emit('bot:command-error', { error: `You need the ${command.requiredPermission.replace(/_/g, ' ').toLowerCase()} permission to use this command`, channelId })
+            return
+          }
+        } catch {
+          client.emit('bot:command-error', { error: 'Could not verify your permissions', channelId })
+          return
+        }
+      }
+
+      const botParams = (command.parameters as any[]) ?? []
+      const args: Record<string, string> = {}
+      if (botParams.length > 0 && argsString) {
+        if (botParams.length === 1) {
+          args[botParams[0].name] = argsString
+        } else {
+          const argParts = argsString.split(/\s+/)
+          botParams.forEach((p: any, i: number) => {
+            if (argParts[i]) args[p.name] = argParts[i]
+          })
+        }
+      }
+
+      const botSocket = await this.findBotSocket(match.userId)
+      if (!botSocket) {
+        client.emit('bot:command-error', { error: 'Bot is currently offline', channelId })
+        return
+      }
+
+      const hasSendPerm = await this.checkBotChannelPermission(serverId, channelId, match.userId)
+      if (!hasSendPerm) {
+        client.emit('bot:command-error', { error: 'Bot does not have permission to respond in this channel', channelId })
+        return
+      }
+
+      let userPermissions: string | undefined
+      try {
+        const perms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
+        userPermissions = perms.toString()
+      } catch { /* best-effort */ }
+
+      botSocket.emit('bot:command', {
+        serverId,
+        channelId,
+        commandName,
+        args,
+        user: { id: user.id, username: user.username, displayName: user.displayName },
+        userPermissions
+      })
+    } catch (err) {
+      this.logger.warn('Slash command routing failed', (err as Error)?.message)
+      client.emit('bot:command-error', { error: 'Something went wrong running this command', channelId })
+    }
+  }
+
+  private async findBotSocket(botUserId: string): Promise<Socket | null> {
+    const sockets = await this.server.in(`user:${botUserId}`).fetchSockets()
+    for (const s of sockets) {
+      const data = s.data as { user?: WsUser }
+      if (data.user?.isBot) return s as unknown as Socket
+    }
+    return null
+  }
+
+  private async routeDmSlashCommand(
+    content: string,
+    conversationId: string,
+    memberIds: string[],
+    user: WsUser,
+    client: Socket,
+    targetBotAppId?: string
+  ) {
+    try {
+      const parts = content.slice(1).split(/\s+/)
+      const commandName = parts[0]?.toLowerCase()
+      if (!commandName) return
+
+      const argsString = parts.slice(1).join(' ')
+
+      let botApp: { userId: string; commands: { parameters: unknown }[] } | null = null
+
+      if (targetBotAppId) {
+        const targeted = await this.prisma.botApplication.findUnique({
+          where: { id: targetBotAppId },
+          include: { commands: { where: { name: commandName } } }
+        })
+        if (targeted && targeted.commands.length > 0 && memberIds.includes(targeted.userId)) {
+          botApp = targeted
+        }
+      }
+
+      if (!botApp) {
+        const otherMembers = memberIds.filter((id) => id !== user.id)
+        if (otherMembers.length === 0) return
+
+        const botUser = await this.prisma.user.findFirst({
+          where: { id: { in: otherMembers }, isBot: true }
+        })
+        if (!botUser) return
+
+        const found = await this.prisma.botApplication.findUnique({
+          where: { userId: botUser.id },
+          include: { commands: { where: { name: commandName } } }
+        })
+        if (!found || found.commands.length === 0) return
+        botApp = found
+      }
+
+      if (!botApp) return
+
+      const command = botApp.commands[0]!
+      const botParams = (command.parameters as any[]) ?? []
+      const args: Record<string, string> = {}
+      if (botParams.length > 0 && argsString) {
+        if (botParams.length === 1) {
+          args[botParams[0].name] = argsString
+        } else {
+          const argParts = argsString.split(/\s+/)
+          botParams.forEach((p: any, i: number) => {
+            if (argParts[i]) args[p.name] = argParts[i]
+          })
+        }
+      }
+
+      const botSocket = await this.findBotSocket(botApp.userId)
+      if (!botSocket) {
+        client.emit('bot:command-error', { error: 'Bot is currently offline', channelId: conversationId })
+        return
+      }
+
+      botSocket.emit('bot:command', {
+        conversationId,
+        channelId: conversationId,
+        commandName,
+        args,
+        user: { id: user.id, username: user.username, displayName: user.displayName }
+      })
+    } catch (err) {
+      this.logger.warn('DM slash command routing failed', (err as Error)?.message)
+    }
+  }
+
+  private async checkBotChannelPermission(serverId: string, channelId: string, botUserId: string): Promise<boolean> {
+    try {
+      const perms = await this.roles.getChannelPermissions(serverId, channelId, botUserId)
+      return hasPermission(perms, Permission.SEND_MESSAGES) && hasPermission(perms, Permission.VIEW_CHANNEL)
+    } catch {
+      return false
+    }
   }
 
   @WsThrottle(5, 5)
@@ -900,6 +1140,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
           url: `/channels/@me/${body.conversationId}`
         })
         .catch((err) => this.logger.warn('DM push notification failed', err?.message))
+    }
+
+    if (body.content?.startsWith('/')) {
+      void this.routeDmSlashCommand(body.content, body.conversationId, memberIds, user, client, body.targetBotAppId)
     }
 
     return { ok: true, message: msg }

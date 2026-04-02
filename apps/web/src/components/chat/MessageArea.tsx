@@ -423,10 +423,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                     : `Message #${activeChannel.name}`
                   : 'Message'
             }
-            onCommand={!isDm ? (cmd, args) => {
-              if (cmd === 'poll') setShowPollCreator(true)
-              else if (cmd === 'nick') handleNick(args)
-            } : undefined}
+            onCommand={(cmd, args) => {
+              if (!isDm && cmd === 'poll') { setShowPollCreator(true); return true }
+              if (!isDm && cmd === 'nick') { handleNick(args); return true }
+              return false
+            }}
           />
         </>
       )}
@@ -668,7 +669,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
         <ThreadPanel
           gifEnabled={gifEnabled}
-          onCommand={!isDm ? (cmd, args) => { if (cmd === 'poll') setShowPollCreator(true); else if (cmd === 'nick') handleNick(args) } : undefined}
+          onCommand={(cmd, args) => { if (!isDm && cmd === 'poll') { setShowPollCreator(true); return true } if (!isDm && cmd === 'nick') { handleNick(args); return true } return false }}
         />
         {searchOpen && (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">

@@ -16,7 +16,7 @@ import {
   UseGuards,
   UseInterceptors
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from './unified-auth.guard'
 import { FileInterceptor } from '@nestjs/platform-express'
 import type { Request } from 'express'
 import { EventBusService } from '../events/event-bus.service'
@@ -145,19 +145,19 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async getProfile(@CurrentUser() user: { id: string }) {
     return this.auth.getProfile(user.id)
   }
 
   @Patch('profile')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async updateProfile(@CurrentUser() user: { id: string }, @Body() dto: UpdateProfileDto) {
     return this.auth.updateProfile(user.id, dto)
   }
 
   @Post('avatar')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @UseInterceptors(
     FileInterceptor('avatar', {
       limits: { fileSize: AVATAR_MAX_SIZE },
@@ -180,13 +180,13 @@ export class AuthController {
   }
 
   @Delete('avatar')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async deleteAvatar(@CurrentUser() user: { id: string }) {
     return this.auth.deleteAvatar(user.id)
   }
 
   @Patch('password')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async changePassword(@CurrentUser() user: { id: string }, @Body() dto: ChangePasswordDto) {
     await this.auth.changePassword(user.id, dto.currentPassword, dto.newPassword)
@@ -194,13 +194,13 @@ export class AuthController {
   }
 
   @Patch('email')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async changeEmail(@CurrentUser() user: { id: string }, @Body() dto: ChangeEmailDto) {
     return this.auth.changeEmail(user.id, dto.email, dto.password)
   }
 
   @Patch('status')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async updateStatus(@CurrentUser() user: { id: string }, @Body() dto: UpdateStatusDto) {
     const updated = await this.auth.updateStatus(user.id, dto.status)
     this.events.emit('user:status', {
@@ -211,7 +211,7 @@ export class AuthController {
   }
 
   @Patch('custom-status')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async updateCustomStatus(@CurrentUser() user: { id: string }, @Body() dto: UpdateCustomStatusDto) {
     const updated = await this.auth.updateCustomStatus(user.id, dto.customStatus || null)
     this.events.emit('user:custom-status', {
@@ -222,26 +222,26 @@ export class AuthController {
   }
 
   @Patch('privacy')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async updateDmPrivacy(@CurrentUser() user: { id: string }, @Body() dto: UpdateDmPrivacyDto) {
     return this.auth.updateDmPrivacy(user.id, dto.dmPrivacy)
   }
 
   @Get('users/search')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async searchUsers(@Query('q') q: string, @CurrentUser() user: { id: string }, @Req() req: Request) {
     await this.checkRateLimit(req)
     return this.auth.searchUsers(q ?? '', user.id)
   }
 
   @Get('sessions')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async getSessions(@CurrentUser() user: { id: string }) {
     return this.auth.getSessions(user.id)
   }
 
   @Delete('sessions/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async revokeSession(@CurrentUser() user: { id: string }, @Param('id') sessionId: string) {
     await this.auth.revokeSession(user.id, sessionId)
@@ -249,7 +249,7 @@ export class AuthController {
   }
 
   @Delete('sessions')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async revokeAllSessions(@CurrentUser() user: { id: string }, @Body() body: { refreshToken?: string }) {
     let exceptId: string | undefined

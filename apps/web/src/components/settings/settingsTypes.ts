@@ -8,6 +8,7 @@ export type Tab =
   | 'privacy'
   | 'voice'
   | 'notifications'
+  | 'my-bots'
   | 'sessions'
   | 'shortcuts'
   | 'server'

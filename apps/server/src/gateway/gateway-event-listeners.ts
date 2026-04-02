@@ -1,5 +1,131 @@
-import { Permission } from '@chat/shared'
+import { Permission, hasPermission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
+
+export async function routeDmSlashCommand(
+  gw: ChatGateway,
+  content: string,
+  conversationId: string,
+  botUserId: string,
+  invoker: { id: string; username: string; displayName: string | null }
+) {
+  try {
+    const parts = content.slice(1).split(/\s+/)
+    const commandName = parts[0]?.toLowerCase()
+    if (!commandName) return
+
+    const argsString = parts.slice(1).join(' ')
+
+    const botApp = await gw.prisma.botApplication.findUnique({
+      where: { userId: botUserId },
+      include: { commands: { where: { name: commandName } } }
+    })
+    if (!botApp || botApp.commands.length === 0) return
+
+    const command = botApp.commands[0]!
+    const botParams = (command.parameters as any[]) ?? []
+    const args: Record<string, string> = {}
+    if (botParams.length > 0 && argsString) {
+      if (botParams.length === 1) {
+        args[botParams[0].name] = argsString
+      } else {
+        const argParts = argsString.split(/\s+/)
+        botParams.forEach((p: any, i: number) => {
+          if (argParts[i]) args[p.name] = argParts[i]
+        })
+      }
+    }
+
+    const botSockets = await gw.server.in(`user:${botUserId}`).fetchSockets()
+    for (const s of botSockets) {
+      const data = s.data as { user?: { id: string; isBot?: boolean } }
+      if (data.user?.isBot) {
+        s.emit('bot:command', {
+          conversationId,
+          channelId: conversationId,
+          commandName,
+          args,
+          user: invoker
+        })
+        return
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+}
+
+export async function routeRestSlashCommand(gw: ChatGateway, content: string, serverId: string, channelId: string, authorId?: string) {
+  try {
+    const parts = content.slice(1).split(/\s+/)
+    const commandName = parts[0]?.toLowerCase()
+    if (!commandName) return
+
+    const argsString = parts.slice(1).join(' ')
+
+    const botMembers = await gw.prisma.serverMember.findMany({
+      where: { serverId, user: { isBot: true } },
+      select: { userId: true }
+    })
+    if (botMembers.length === 0) return
+
+    const botApps = await gw.prisma.botApplication.findMany({
+      where: { userId: { in: botMembers.map((m) => m.userId) } },
+      include: { commands: { where: { name: commandName } }, user: { select: { username: true } } },
+      orderBy: { user: { username: 'asc' } }
+    })
+
+    const match = botApps.find((app) => app.commands.length > 0)
+    if (!match) return
+
+    const command = match.commands[0]!
+
+    if (command.requiredPermission) {
+      if (!authorId) return
+      const permFlag = Permission[command.requiredPermission as keyof typeof Permission]
+      if (!permFlag) return
+      try {
+        const invokerPerms = await gw.roles.getChannelPermissions(serverId, channelId, authorId)
+        if (!hasPermission(invokerPerms, permFlag)) return
+      } catch { return }
+    }
+
+    const botParams = (command.parameters as any[]) ?? []
+    const args: Record<string, string> = {}
+    if (botParams.length > 0 && argsString) {
+      if (botParams.length === 1) {
+        args[botParams[0].name] = argsString
+      } else {
+        const argParts = argsString.split(/\s+/)
+        botParams.forEach((p: any, i: number) => {
+          if (argParts[i]) args[p.name] = argParts[i]
+        })
+      }
+    }
+
+    const perms = await gw.roles.getChannelPermissions(serverId, channelId, match.userId)
+    if (!hasPermission(perms, Permission.SEND_MESSAGES) || !hasPermission(perms, Permission.VIEW_CHANNEL)) return
+
+    const botSockets = await gw.server.in(`user:${match.userId}`).fetchSockets()
+    for (const s of botSockets) {
+      const data = s.data as { user?: { id: string; isBot?: boolean } }
+      if (data.user?.isBot) {
+        if (!authorId) return
+        const author = await gw.prisma.user.findUnique({ where: { id: authorId }, select: { id: true, username: true, displayName: true } })
+        if (!author) return
+        s.emit('bot:command', {
+          serverId,
+          channelId,
+          commandName,
+          args,
+          user: author
+        })
+        return
+      }
+    }
+  } catch {
+    /* best-effort routing */
+  }
+}
 
 /**
  * Registers all event-bus listeners on the gateway.
@@ -387,13 +513,18 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'rest:message:created',
-    (payload: { channelId: string; message: unknown; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
+    (payload: { channelId: string; message: any; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
       gw.emitToChannel(payload.channelId, 'message:new', payload.message)
       if (payload.threadUpdate) {
         gw.emitToChannel(payload.channelId, 'message:thread-update', {
           parentId: payload.threadUpdate.parentId,
           threadCount: payload.threadUpdate.threadCount
         })
+      }
+
+      const content = payload.message?.content
+      if (typeof content === 'string' && content.startsWith('/') && payload.serverId) {
+        void routeRestSlashCommand(gw, content, payload.serverId, payload.channelId, payload.message?.authorId)
       }
     }
   )
@@ -439,4 +570,47 @@ export function registerEventListeners(gw: ChatGateway) {
   gw.events.on('rest:poll:voted', (payload: { channelId: string; poll: unknown }) => {
     gw.emitToChannel(payload.channelId, 'poll:vote', payload.poll)
   })
+
+  gw.events.on('bot:commands-updated', (payload: { serverId: string; botAppId: string }) => {
+    gw.server.to(`server:${payload.serverId}`).emit('bot:commands-updated', { serverId: payload.serverId })
+  })
+
+  gw.events.on(
+    'rest:dm:created',
+    async (payload: { conversationId: string; message: any }) => {
+      const roomName = `dm:${payload.conversationId}`
+      const memberIds = await gw.prisma.directConversationMember.findMany({
+        where: { conversationId: payload.conversationId },
+        select: { userId: true }
+      })
+      for (const { userId } of memberIds) {
+        const sockets = await gw.server.in(`user:${userId}`).fetchSockets()
+        for (const s of sockets) s.join(roomName)
+      }
+
+      gw.emitToDm(payload.conversationId, 'dm:new', {
+        ...payload.message,
+        conversationId: payload.conversationId
+      })
+
+      const content = payload.message?.content
+      if (typeof content === 'string' && content.startsWith('/')) {
+        const members = memberIds.map((m) => m.userId)
+        const authorId = payload.message?.authorId
+        const otherMembers = members.filter((id) => id !== authorId)
+        const botMember = otherMembers.length > 0 ? await gw.prisma.user.findFirst({
+          where: { id: { in: otherMembers }, isBot: true },
+        }) : null
+        if (botMember && authorId) {
+          const invoker = await gw.prisma.user.findUnique({
+            where: { id: authorId },
+            select: { id: true, username: true, displayName: true }
+          })
+          if (invoker) {
+            void routeDmSlashCommand(gw, content, payload.conversationId, botMember.id, invoker)
+          }
+        }
+      }
+    }
+  )
 }

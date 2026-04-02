@@ -1,10 +1,10 @@
 import { Controller, Get, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from './unified-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { CurrentUser } from './current-user.decorator'
 
 @Controller('users')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {}
 

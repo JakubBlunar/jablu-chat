@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { EventBusService } from '../events/event-bus.service'
 import { PollsService } from './polls.service'
@@ -16,7 +16,7 @@ class VotePollDto {
 }
 
 @Controller()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class PollsController {
   constructor(
     private readonly polls: PollsService,

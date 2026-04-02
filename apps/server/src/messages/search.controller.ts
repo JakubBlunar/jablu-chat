@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { IsBooleanString, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
 import { Type } from 'class-transformer'
 import { CurrentUser } from '../auth/current-user.decorator'
@@ -40,7 +40,7 @@ class SearchQueryDto {
 }
 
 @Controller('search')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class SearchController {
   constructor(private readonly search: SearchService) {}
 

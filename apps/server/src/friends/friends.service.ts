@@ -21,6 +21,14 @@ export class FriendsService {
       throw new BadRequestException('Cannot send a friend request to yourself')
     }
 
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: addresseeId },
+      select: { isBot: true }
+    })
+    if (targetUser?.isBot) {
+      throw new BadRequestException('Cannot send a friend request to a bot')
+    }
+
     const existing = await this.prisma.friendship.findFirst({
       where: {
         OR: [

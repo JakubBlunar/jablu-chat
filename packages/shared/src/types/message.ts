@@ -18,6 +18,7 @@ export interface Message {
     username: string
     displayName?: string | null
     avatarUrl: string | null
+    isBot?: boolean
   } | null
   attachments?: Attachment[]
   reactions?: ReactionGroup[]

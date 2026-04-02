@@ -21,8 +21,8 @@ FROM build-shared AS build
 COPY apps/web/src/ ./apps/web/src/
 COPY apps/web/public/ ./apps/web/public/
 COPY apps/web/index.html apps/web/vite.config.ts ./apps/web/
-COPY apps/web/tsconfig.json apps/web/tsconfig.app.json apps/web/tsconfig.node.json ./apps/web/
-RUN pnpm --filter @chat/web build
+COPY apps/web/tsconfig.json apps/web/tsconfig.app.json apps/web/tsconfig.node.json apps/web/tsconfig.test.json ./apps/web/
+RUN pnpm --filter @chat/web exec vite build
 
 # ─── Output: copy built files to volume on startup ──────────────────
 FROM alpine:3.20

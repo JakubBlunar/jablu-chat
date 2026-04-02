@@ -24,7 +24,7 @@ RUN pnpm --filter @chat/server db:generate
 # ─── Build server ───────────────────────────────────────────────────
 FROM prisma-generate AS build
 COPY apps/server/src/ ./apps/server/src/
-COPY apps/server/nest-cli.json apps/server/tsconfig.json ./apps/server/
+COPY apps/server/nest-cli.json apps/server/tsconfig.json apps/server/tsconfig.build.json ./apps/server/
 RUN pnpm --filter @chat/server build
 
 # ─── Production bundle (only server prod deps) ──────────────────────

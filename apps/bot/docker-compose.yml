@@ -1,6 +1,8 @@
 services:
   freegamebot:
-    build: .
+    build:
+      context: ../..
+      dockerfile: apps/bot/Dockerfile
     container_name: freegamebot
     restart: unless-stopped
     env_file: .env

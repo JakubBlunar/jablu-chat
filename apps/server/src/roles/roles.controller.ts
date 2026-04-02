@@ -13,13 +13,13 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { RolesService } from './roles.service'
 
 @Controller()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class RolesController {
   constructor(private readonly roles: RolesService) {}
 

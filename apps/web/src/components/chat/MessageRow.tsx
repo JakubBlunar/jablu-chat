@@ -395,7 +395,7 @@ export const MessageRow = memo(function MessageRow({
                 {name}
               </button>
             )}
-            {message.webhookId && (
+            {(message.webhookId || message.author?.isBot) && (
               <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
             )}
             <time className="text-xs text-gray-500" dateTime={message.createdAt}>

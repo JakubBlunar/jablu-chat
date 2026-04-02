@@ -10,8 +10,8 @@ import {
   Post,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
 import { CurrentUser } from '../auth/current-user.decorator'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { RedisService } from '../redis/redis.service'
 import { CreateWebhookDto, ExecuteWebhookDto } from './dto'
 import { WebhooksService } from './webhooks.service'
@@ -27,7 +27,7 @@ export class WebhooksController {
   ) {}
 
   @Post('channels/:channelId/webhooks')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   create(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: { id: string; username: string; email: string },
@@ -37,7 +37,7 @@ export class WebhooksController {
   }
 
   @Get('channels/:channelId/webhooks')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   list(
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @CurrentUser() user: { id: string; username: string; email: string }
@@ -46,7 +46,7 @@ export class WebhooksController {
   }
 
   @Delete('webhooks/:id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(UnifiedAuthGuard)
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: { id: string; username: string; email: string }

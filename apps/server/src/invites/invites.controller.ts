@@ -10,13 +10,13 @@ import {
   Post,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { CreateInviteDto } from './dto'
 import { InvitesService } from './invites.service'
 
 @Controller()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class InvitesController {
   constructor(private readonly invites: InvitesService) {}
 

@@ -4,7 +4,8 @@ export const authorSelect = {
   id: true,
   username: true,
   displayName: true,
-  avatarUrl: true
+  avatarUrl: true,
+  isBot: true
 } as const
 
 export const messageInclude = {

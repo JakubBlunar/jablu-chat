@@ -11,13 +11,13 @@ import {
   Post,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../../auth/unified-auth.guard'
 import { CurrentUser } from '../../auth/current-user.decorator'
 import { CategoriesService } from './categories.service'
 import { CreateCategoryDto, ReorderCategoriesDto, UpdateCategoryDto } from './dto'
 
 @Controller('servers/:serverId/categories')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class CategoriesController {
   constructor(private readonly categories: CategoriesService) {}
 

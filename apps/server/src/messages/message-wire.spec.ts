@@ -16,7 +16,7 @@ function makeBaseMessage(overrides: Record<string, unknown> = {}) {
     webhookId: null,
     webhookName: null,
     webhookAvatarUrl: null,
-    author: { id: 'user-1', username: 'alice', displayName: 'Alice', avatarUrl: null },
+    author: { id: 'user-1', username: 'alice', displayName: 'Alice', avatarUrl: null, isBot: false },
     attachments: [],
     reactions: [],
     replyTo: null,
@@ -210,6 +210,14 @@ describe('mapMessageToWire', () => {
 
   it('returns null poll when message has no poll', () => {
     expect(mapMessageToWire(makeBaseMessage()).poll).toBeNull()
+  })
+
+  it('includes isBot flag in author', () => {
+    const msg = makeBaseMessage({
+      author: { id: 'bot-1', username: 'freebot', displayName: 'FreeGameBot', avatarUrl: null, isBot: true },
+    })
+    const wire = mapMessageToWire(msg)
+    expect(wire.author!.isBot).toBe(true)
   })
 
   it('groups reactions in the wire output', () => {

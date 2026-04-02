@@ -9,13 +9,13 @@ import {
   Post,
   UseGuards
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { ForumTagsService } from './forum-tags.service'
 import { CreateForumTagDto, UpdateForumTagDto } from './dto'
 
 @Controller('channels/:channelId/tags')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class ForumTagsController {
   constructor(private readonly tags: ForumTagsService) {}
 

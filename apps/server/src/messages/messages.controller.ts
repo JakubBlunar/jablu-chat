@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { EventBusService } from '../events/event-bus.service'
@@ -9,7 +9,7 @@ import { EditMessageDto, MessageQueryDto, SendMessageDto, ToggleReactionDto } fr
 import { MessagesService } from './messages.service'
 
 @Controller('channels/:channelId/messages')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(UnifiedAuthGuard)
 export class MessagesController {
   constructor(
     private readonly messages: MessagesService,
