@@ -576,6 +576,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     this.emitToChannel(body.channelId, 'message:new', {
       ...msgRest,
+      serverId,
       mentionedUserIds,
       mentionEveryone,
       mentionHere
