@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
 import { useChannelStore } from './channel.store'
 import { useDmStore } from './dm.store'
 import { useServerStore } from './server.store'
@@ -9,8 +10,6 @@ type ChannelUnread = {
   mentionCount: number
   lastReadAt: string
 }
-
-type NotifLevel = 'all' | 'mentions' | 'none'
 
 type ReadStateState = {
   channels: Map<string, ChannelUnread>
@@ -24,8 +23,7 @@ type ReadStateState = {
   incrementDm: (conversationId: string) => void
   getServerUnread: (
     serverId: string,
-    getNotifLevel: (channelId: string) => NotifLevel,
-    getServerLevel?: (serverId: string) => NotifLevel
+    getEffective: (channelId: string, serverId?: string) => NotifLevel
   ) => { unread: boolean; mentions: number }
 }
 
@@ -146,27 +144,17 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     set({ dms })
   },
 
-  getServerUnread: (serverId, getNotifLevel, getServerLevel) => {
+  getServerUnread: (serverId, getEffective) => {
     const { channels, channelToServer } = get()
     let mentions = 0
     let unread = false
-    const serverLevel = getServerLevel?.(serverId) ?? 'all'
     for (const [channelId, sid] of channelToServer) {
       if (sid !== serverId) continue
       const rs = channels.get(channelId)
       if (!rs) continue
-      const channelLevel = getNotifLevel(channelId)
-      const effective = channelLevel !== 'all' ? channelLevel : serverLevel
-      if (effective === 'none') continue
-      if (effective === 'mentions') {
-        if (rs.mentionCount > 0) {
-          unread = true
-          mentions += rs.mentionCount
-        }
-      } else {
-        if (rs.unreadCount > 0) unread = true
-        mentions += rs.mentionCount
-      }
+      const badge = computeChannelBadge(rs, getEffective(channelId, serverId), false)
+      if (badge.hasIndicator) unread = true
+      mentions += badge.mentionCount
     }
     return { unread, mentions }
   }

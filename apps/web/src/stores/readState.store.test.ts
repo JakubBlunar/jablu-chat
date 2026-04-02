@@ -167,20 +167,18 @@ describe('readState.store', () => {
       expect(result).toEqual({ unread: false, mentions: 0 })
     })
 
-    it('falls back to server level when channel level is "all"', () => {
+    it('respects effective level from getEffective callback', () => {
       const result = useReadStateStore.getState().getServerUnread(
         's1',
-        () => 'all',
         () => 'mentions'
       )
       expect(result).toEqual({ unread: true, mentions: 2 })
     })
 
-    it('channel level overrides server level', () => {
+    it('channel level "none" hides everything', () => {
       const result = useReadStateStore.getState().getServerUnread(
         's1',
-        () => 'none',
-        () => 'all'
+        () => 'none'
       )
       expect(result).toEqual({ unread: false, mentions: 0 })
     })

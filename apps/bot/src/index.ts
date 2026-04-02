@@ -1,7 +1,7 @@
 import { BotClient, Permission, hasPermission } from '@chat/sdk'
 import cron from 'node-cron'
 import { config } from './config.js'
-import { wasPosted, markPosted, cleanOldEntries } from './db.js'
+import { wasPosted, markPosted, cleanOldEntries, titleKey, getLastPollAt, setLastPollAt } from './db.js'
 import { formatBatch } from './format.js'
 import { fetchEpicDeals } from './sources/epic.js'
 import { fetchGamerPowerDeals } from './sources/gamerpower.js'
@@ -256,7 +256,9 @@ async function postDeals(deals: Deal[], skipDuplicateCheck: boolean): Promise<vo
     const allowedSources = (channelConfig.sources ?? ALL_SOURCES.map((s) => s.toLowerCase())).map(normalizeSource)
 
     const filtered = deals.filter((d) => allowedSources.includes(d.source.toLowerCase()))
-    const newDeals = skipDuplicateCheck ? filtered : filtered.filter((d) => !wasPosted(d.id, channelId))
+    const newDeals = skipDuplicateCheck
+      ? filtered
+      : filtered.filter((d) => !wasPosted(d.id, channelId, titleKey(d.title, d.source)))
 
     if (newDeals.length === 0) {
       console.log(`[poll] No new deals for channel ${channelId.slice(0, 8)}…`)
@@ -268,7 +270,7 @@ async function postDeals(deals: Deal[], skipDuplicateCheck: boolean): Promise<vo
     try {
       await bot.sendMessage(channelId, formatBatch(newDeals))
       if (!skipDuplicateCheck) {
-        for (const deal of newDeals) markPosted(deal.id, channelId)
+        for (const deal of newDeals) markPosted(deal.id, channelId, titleKey(deal.title, deal.source))
       }
       console.log(`[poll] Batch posted: ${newDeals.map((d) => d.title).join(', ')}`)
     } catch (err) {
@@ -282,6 +284,7 @@ async function pollAndPost(): Promise<void> {
   const allDeals = await fetchAllDeals()
   console.log(`[poll] ${allDeals.length} deal(s) after de-duplication`)
   await postDeals(allDeals, false)
+  setLastPollAt()
 }
 
 function sleep(ms: number): Promise<void> {
@@ -303,7 +306,15 @@ if (isTestMode) {
   bot.connect().then(() => {
     console.log(`Schedule: ${config.pollCron}\n`)
     cleanOldEntries(90)
-    void pollAndPost()
+
+    const STARTUP_SKIP_MS = 60 * 60 * 1000
+    const lastPoll = getLastPollAt()
+    if (!lastPoll || Date.now() - lastPoll.getTime() > STARTUP_SKIP_MS) {
+      void pollAndPost()
+    } else {
+      const ago = Math.round((Date.now() - lastPoll.getTime()) / 60_000)
+      console.log(`[poll] Last poll was ${ago}m ago, skipping startup poll`)
+    }
 
     cron.schedule(config.pollCron, () => {
       void pollAndPost()
