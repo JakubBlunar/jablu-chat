@@ -1,7 +1,7 @@
 import { BotClient, Permission, hasPermission } from '@chat/sdk'
 import cron from 'node-cron'
 import { config } from './config.js'
-import { wasPosted, markPosted, cleanOldEntries, titleKey, setLastPollAt, closeDb } from './db.js'
+import { wasPosted, markPosted, cleanOldEntries, titleKey, setLastPollAt, closeDb, countPosted } from './db.js'
 import { formatBatch } from './format.js'
 import { fetchEpicDeals } from './sources/epic.js'
 import { fetchGamerPowerDeals } from './sources/gamerpower.js'
@@ -273,6 +273,7 @@ async function postDeals(deals: Deal[], skipDuplicateCheck: boolean): Promise<vo
         for (const deal of newDeals) markPosted(deal.id, channelId, titleKey(deal.title, deal.source))
       }
       console.log(`[poll] Batch posted: ${newDeals.map((d) => d.title).join(', ')}`)
+      console.log(`[poll] Total tracked entries in DB: ${countPosted()}`)
     } catch (err) {
       console.error(`[poll] Failed to post batch:`, (err as Error).message)
     }
