@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Input, InlineAlert } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
@@ -8,7 +8,7 @@ import { TrashIcon } from '../serverSettingsIcons'
 
 export function WebhooksTab({ server: _server }: { server: Server }) {
   const channels = useChannelStore((s) => s.channels)
-  const textChannels = channels.filter((c) => c.type === 'text')
+  const textChannels = useMemo(() => channels.filter((c) => c.type === 'text'), [channels])
   const [webhooks, setWebhooks] = useState<WebhookItem[]>([])
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
