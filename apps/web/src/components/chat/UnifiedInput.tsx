@@ -13,6 +13,7 @@ import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
+import { useEmojiStore } from '@/stores/emoji.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -85,6 +86,8 @@ export function UnifiedInput({
   const serverId = useChannelStore((s) =>
     isDm ? null : s.channels.find((c) => c.id === contextId)?.serverId ?? null
   )
+
+  const customEmojis = useEmojiStore((s) => serverId ? s.getForServer(serverId) : [])
 
   const dmBotUserId = useDmStore((s) => {
     if (!isDm) return null
@@ -435,6 +438,7 @@ export function UnifiedInput({
             onCommand={onCommand}
             botCommands={botCommands}
             onBotCommandPick={setTargetBot}
+            customEmojis={customEmojis}
           />
         </div>
       </div>

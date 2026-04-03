@@ -74,7 +74,7 @@ export class MessagesController {
       throw new ForbiddenException('You are timed out in this server')
     }
 
-    const msg = await this.messages.createMessage(channelId, user.id, dto.content, dto.replyToId, dto.attachmentIds)
+    const msg = await this.messages.createMessage(channelId, user.id, dto.content, dto.replyToId, dto.attachmentIds, undefined, dto.embeds)
     const { serverId, threadUpdate, ...wire } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
     this.events.emit('rest:message:created', { channelId, message: wire, serverId, threadUpdate })
     return wire

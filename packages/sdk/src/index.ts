@@ -14,5 +14,8 @@ export type {
   CommandContext,
   CommandDefinition,
   CommandHandler,
-  CommandParameter
+  CommandParameter,
+  EmbedField,
+  MessageEmbed,
+  SendMessageOptions
 } from './types.js'

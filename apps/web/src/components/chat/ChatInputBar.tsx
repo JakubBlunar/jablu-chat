@@ -12,10 +12,17 @@ import {
 } from 'react'
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { useIsMobile } from '@/hooks/useMobile'
+import { resolveMediaUrl } from '@/lib/api'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 const GifPicker = lazy(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
 import { UserAvatar } from '@/components/UserAvatar'
+
+export type CustomEmojiItem = {
+  id: string
+  name: string
+  imageUrl: string
+}
 
 const MAX_TEXTAREA_PX = 240
 const MIN_TEXTAREA_PX = 44
@@ -51,9 +58,10 @@ export type ChatInputBarProps = {
   onCommand?: (command: string) => void
   botCommands?: BotCommandWithBot[]
   onBotCommandPick?: (info: { botAppId: string; commandName: string } | null) => void
+  customEmojis?: CustomEmojiItem[]
 }
 
-type PopupMode = 'none' | 'mention' | 'channel' | 'command'
+type PopupMode = 'none' | 'mention' | 'channel' | 'command' | 'emoji'
 
 type CommandItem = {
   key: string
@@ -110,7 +118,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onGifSelect,
     onCommand,
     botCommands,
-    onBotCommandPick
+    onBotCommandPick,
+    customEmojis
   },
   ref
 ) {
@@ -181,17 +190,26 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return [...builtIn, ...bots]
   }, [popupMode, query, botCommandItems])
 
+  const filteredEmojis = useMemo(() => {
+    if (popupMode !== 'emoji' || !customEmojis?.length) return []
+    const q = query.toLowerCase()
+    return customEmojis.filter((e) => e.name.toLowerCase().includes(q)).slice(0, 10)
+  }, [popupMode, query, customEmojis])
+
   const popupOpen =
     (popupMode === 'mention' && filteredMembers.length > 0) ||
     (popupMode === 'channel' && filteredChannels.length > 0) ||
-    (popupMode === 'command' && filteredCommands.length > 0)
+    (popupMode === 'command' && filteredCommands.length > 0) ||
+    (popupMode === 'emoji' && filteredEmojis.length > 0)
 
   const popupLength =
     popupMode === 'mention'
       ? filteredMembers.length
       : popupMode === 'channel'
         ? filteredChannels.length
-        : filteredCommands.length
+        : popupMode === 'emoji'
+          ? filteredEmojis.length
+          : filteredCommands.length
 
   useEffect(() => {
     if (!popupOpen) return
@@ -218,6 +236,21 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     const slashIdx = text.lastIndexOf('/')
 
     const bestIdx = Math.max(atIdx, hashIdx, slashIdx)
+
+    if (customEmojis?.length) {
+      const colonIdx = text.lastIndexOf(':')
+      if (colonIdx !== -1 && colonIdx >= bestIdx) {
+        const emojiFragment = text.slice(colonIdx + 1)
+        if (emojiFragment.length >= 1 && !/[\s:]/.test(emojiFragment)) {
+          setPopupMode('emoji')
+          setQuery(emojiFragment)
+          setTriggerStart(colonIdx)
+          setSelectedIdx(0)
+          return
+        }
+      }
+    }
+
     if (bestIdx === -1 || (bestIdx > 0 && /\S/.test(text[bestIdx - 1]))) {
       setPopupMode('none')
       return
@@ -249,7 +282,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     } else {
       setPopupMode('none')
     }
-  }, [members, channels, onCommand])
+  }, [members, channels, onCommand, customEmojis])
 
   const insertMention = useCallback(
     (member: MentionMember) => {
@@ -277,6 +310,25 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       const before = value.slice(0, triggerStart)
       const after = value.slice(el.selectionStart)
       const insert = `#${channel.name} `
+      const next = before + insert + after
+      onChange(next)
+      setPopupMode('none')
+      requestAnimationFrame(() => {
+        const cursor = before.length + insert.length
+        el.setSelectionRange(cursor, cursor)
+        el.focus()
+      })
+    },
+    [value, triggerStart, onChange]
+  )
+
+  const insertEmoji = useCallback(
+    (emoji: CustomEmojiItem) => {
+      const el = taRef.current
+      if (!el) return
+      const before = value.slice(0, triggerStart)
+      const after = value.slice(el.selectionStart)
+      const insert = `:${emoji.name}: `
       const next = before + insert + after
       onChange(next)
       setPopupMode('none')
@@ -336,6 +388,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             insertChannel(filteredChannels[selectedIdx])
           } else if (popupMode === 'command' && filteredCommands[selectedIdx]) {
             executeCommand(filteredCommands[selectedIdx])
+          } else if (popupMode === 'emoji' && filteredEmojis[selectedIdx]) {
+            insertEmoji(filteredEmojis[selectedIdx])
           }
           return
         }
@@ -368,9 +422,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       filteredMembers,
       filteredChannels,
       filteredCommands,
+      filteredEmojis,
       selectedIdx,
       insertMention,
       insertChannel,
+      insertEmoji,
       executeCommand,
       onSend,
       value,
@@ -389,12 +445,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       {popupOpen && popupMode === 'command' && (
         <CommandPopup commands={filteredCommands} selectedIdx={selectedIdx} onSelect={executeCommand} />
       )}
+      {popupOpen && popupMode === 'emoji' && (
+        <CustomEmojiPopup emojis={filteredEmojis} selectedIdx={selectedIdx} onSelect={insertEmoji} />
+      )}
 
       {showToolbar && !isMobile && (
         <div className="flex items-center gap-0.5 border-b border-white/5 px-2 py-1">
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('**', '**')} className="rounded p-1 text-xs font-bold text-gray-400 transition hover:bg-white/10 hover:text-white" title="Bold (Ctrl+B)">B</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('*', '*')} className="rounded p-1 text-xs italic text-gray-400 transition hover:bg-white/10 hover:text-white" title="Italic (Ctrl+I)">I</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('~~', '~~')} className="rounded p-1 text-xs text-gray-400 line-through transition hover:bg-white/10 hover:text-white" title="Strikethrough">S</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('||', '||')} className="rounded p-1 text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Spoiler"><EyeSlashIcon /></button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('`', '`')} className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Inline code">{'\u{60}'}</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('```\n', '\n```')} className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Code block">{'\u{60}\u{60}\u{60}'}</button>
         </div>
@@ -524,6 +584,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
                 taRef.current?.focus()
               }}
               onClose={() => setEmojiOpen(false)}
+              customEmojis={customEmojis}
             />
           </Suspense>
         </div>
@@ -705,6 +766,56 @@ function CommandPopup({
   )
 }
 
+function CustomEmojiPopup({
+  emojis,
+  selectedIdx,
+  onSelect
+}: {
+  emojis: CustomEmojiItem[]
+  selectedIdx: number
+  onSelect: (e: CustomEmojiItem) => void
+}) {
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = listRef.current?.children[selectedIdx] as HTMLElement | undefined
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIdx])
+
+  return (
+    <div
+      ref={listRef}
+      role="listbox"
+      aria-label="Custom Emoji"
+      className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
+    >
+      {emojis.map((e, i) => (
+        <button
+          key={e.id}
+          type="button"
+          role="option"
+          aria-selected={i === selectedIdx}
+          onMouseDown={(ev) => {
+            ev.preventDefault()
+            onSelect(e)
+          }}
+          className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition ${
+            i === selectedIdx ? 'bg-primary/20 text-white' : 'text-gray-300 hover:bg-white/5'
+          }`}
+        >
+          <img
+            src={resolveMediaUrl(e.imageUrl)}
+            alt={e.name}
+            className="h-6 w-6 shrink-0 object-contain"
+            loading="lazy"
+          />
+          <span className="truncate text-sm">:{e.name}:</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function SlashIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -750,6 +861,17 @@ function GifIcon() {
       >
         GIF
       </text>
+    </svg>
+  )
+}
+
+function EyeSlashIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   )
 }

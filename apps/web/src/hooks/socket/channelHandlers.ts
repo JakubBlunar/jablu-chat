@@ -85,14 +85,14 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
 
   const onReactionAdd = (payload: ReactionPayload) => {
     if (payload.conversationId) {
-      useDmStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId)
+      useDmStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
     } else {
       const threadMsg = useThreadStore.getState().messages.find((m) => m.id === payload.messageId)
       const currentForumPostId = useForumStore.getState().currentPostId
       if ((threadMsg?.threadParentId && currentForumPostId === threadMsg.threadParentId) || currentForumPostId) {
         window.dispatchEvent(new CustomEvent('forum-reply:reaction-add', { detail: payload }))
       }
-      useMessageStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId)
+      useMessageStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
     }
   }
 

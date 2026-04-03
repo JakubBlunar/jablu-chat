@@ -186,14 +186,16 @@ export class MessagesService {
     content?: string,
     replyToId?: string,
     attachmentIds?: string[],
-    threadParentId?: string
+    threadParentId?: string,
+    embeds?: any[]
   ) {
     await this.requireMessageChannelMember(channelId, userId)
 
     const trimmed = content?.trim()
     const hasAttachments = !!attachmentIds?.length
-    if (!trimmed && !hasAttachments) {
-      throw new BadRequestException('Message must have content or at least one attachment')
+    const hasEmbeds = !!embeds?.length
+    if (!trimmed && !hasAttachments && !hasEmbeds) {
+      throw new BadRequestException('Message must have content, at least one attachment, or embeds')
     }
 
     if (replyToId) {
@@ -236,7 +238,8 @@ export class MessagesService {
           content: trimmed ?? null,
           replyToId: replyToId ?? undefined,
           threadParentId: threadParentId ?? undefined,
-          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
+          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
+          embeds: hasEmbeds ? embeds : undefined
         },
         include: { ...messageInclude, channel: { select: { serverId: true } } }
       })

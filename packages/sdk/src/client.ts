@@ -3,7 +3,7 @@ import { CommandRegistry } from './commands.js'
 import { GatewayClient } from './gateway.js'
 import { RestClient } from './rest.js'
 import { BotStorage } from './storage.js'
-import type { BotClientOptions, BotEventMap, BotReadyData, CommandDefinition, CommandHandler } from './types.js'
+import type { BotClientOptions, BotEventMap, BotReadyData, CommandDefinition, CommandHandler, SendMessageOptions } from './types.js'
 
 export class BotClient {
   readonly rest: RestClient
@@ -50,8 +50,8 @@ export class BotClient {
     this.gateway.off(event, listener)
   }
 
-  async sendMessage(channelId: string, content: string): Promise<any> {
-    return this.rest.sendMessage(channelId, content)
+  async sendMessage(channelId: string, content: string, options?: SendMessageOptions): Promise<any> {
+    return this.rest.sendMessage(channelId, content, options)
   }
 
   async sendDmMessage(conversationId: string, content: string): Promise<any> {

@@ -23,6 +23,7 @@ export interface Message {
   attachments?: Attachment[]
   reactions?: ReactionGroup[]
   replyTo?: MessagePreview | null
+  embeds?: MessageEmbed[]
   linkPreviews?: LinkPreview[]
   threadCount?: number
   lastThreadReply?: {
@@ -73,4 +74,23 @@ export interface LinkPreview {
   description: string | null
   imageUrl: string | null
   siteName: string | null
+}
+
+export interface EmbedField {
+  name: string
+  value: string
+  inline?: boolean
+}
+
+export interface MessageEmbed {
+  title?: string
+  description?: string
+  url?: string
+  color?: number
+  fields?: EmbedField[]
+  thumbnail?: { url: string }
+  image?: { url: string }
+  footer?: { text: string; iconUrl?: string }
+  author?: { name: string; url?: string; iconUrl?: string }
+  timestamp?: string
 }

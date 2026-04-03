@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
@@ -108,12 +108,50 @@ function processMentions(text: string, byUsername: Map<string, Member>): string 
   })
 }
 
+function processSpoilers(text: string): string {
+  return text.replace(/\|\|(.+?)\|\|/gs, '<span class="spoiler" tabindex="0">$1</span>')
+}
+
+export type CustomEmojiRef = { name: string; imageUrl: string }
+
+function processCustomEmojis(text: string, emojiMap: Map<string, CustomEmojiRef>): string {
+  if (emojiMap.size === 0) return text
+  return text.replace(/:([a-zA-Z0-9_]+):/g, (full, name: string) => {
+    const emoji = emojiMap.get(name.toLowerCase())
+    if (!emoji) return full
+    const url = resolveMediaUrl(emoji.imageUrl)
+    return `<img class="custom-emoji" src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" />`
+  })
+}
+
 function processChannelMentions(text: string, byName: Map<string, ChannelRef>): string {
   return text.replace(/#([\w][\w-]*)/g, (full, name: string) => {
     const channel = byName.get(name.toLowerCase())
     if (!channel) return full
     return `[#${channel.name}](channel:${channel.serverId}/${channel.id})`
   })
+}
+
+function SpoilerSpan({ children }: { children?: React.ReactNode }) {
+  const [revealed, setRevealed] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  return (
+    <span
+      ref={ref}
+      role="button"
+      tabIndex={0}
+      className={
+        revealed
+          ? 'rounded bg-gray-600/30 px-0.5 text-gray-200 transition-colors cursor-pointer'
+          : 'rounded bg-gray-600 px-0.5 text-transparent select-none cursor-pointer transition-colors'
+      }
+      onClick={() => setRevealed((r) => !r)}
+      onKeyDown={(e) => { if (e.key === 'Enter') setRevealed((r) => !r) }}
+    >
+      {children}
+    </span>
+  )
 }
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
@@ -173,13 +211,16 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 
 const EMPTY_MEMBERS_MAP = new Map<string, Member>()
 
+const EMPTY_EMOJI_MAP = new Map<string, CustomEmojiRef>()
+
 export const MarkdownContent = memo(function MarkdownContent({
   content,
   className = '',
   onMentionClick,
   channels,
   onChannelClick,
-  membersByUsername
+  membersByUsername,
+  customEmojiMap
 }: {
   content: string
   className?: string
@@ -187,18 +228,22 @@ export const MarkdownContent = memo(function MarkdownContent({
   channels?: ChannelRef[]
   onChannelClick?: (serverId: string, channelId: string) => void
   membersByUsername?: Map<string, Member>
+  customEmojiMap?: Map<string, CustomEmojiRef>
 }) {
   const byUsername = membersByUsername ?? EMPTY_MEMBERS_MAP
   const byChannelName = useMemo(() => buildChannelLookup(channels ?? []), [channels])
+  const emojiMap = customEmojiMap ?? EMPTY_EMOJI_MAP
 
   const processed = useMemo(() => {
     let text = convertEmoticons(content)
+    text = processSpoilers(text)
+    text = processCustomEmojis(text, emojiMap)
     text = processMentions(text, byUsername)
     if (byChannelName.size > 0) {
       text = processChannelMentions(text, byChannelName)
     }
     return text
-  }, [content, byUsername, byChannelName])
+  }, [content, byUsername, byChannelName, emojiMap])
 
   const components = useMemo(
     () => ({
@@ -306,16 +351,31 @@ export const MarkdownContent = memo(function MarkdownContent({
       blockquote: ({ children }: { children?: React.ReactNode }) => (
         <blockquote className="border-l-4 border-gray-500 pl-3 text-gray-400">{children}</blockquote>
       ),
-      img: ({ src, alt }: { src?: string; alt?: string }) => (
-        <img
-          src={resolveMediaUrl(src)}
-          alt={alt ?? ''}
-          className="my-1 max-h-72 max-w-full rounded-lg object-cover"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      ),
+      img: ({ src, alt, className: imgClass }: { src?: string; alt?: string; className?: string }) => {
+        if (imgClass === 'custom-emoji') {
+          return (
+            <img
+              src={src}
+              alt={alt ?? ''}
+              title={alt ?? ''}
+              className="inline-block h-5 w-5 align-text-bottom object-contain"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+            />
+          )
+        }
+        return (
+          <img
+            src={resolveMediaUrl(src)}
+            alt={alt ?? ''}
+            className="my-1 max-h-72 max-w-full rounded-lg object-cover"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        )
+      },
       hr: () => <hr className="my-2 border-white/10" />,
       h1: ({ children }: { children?: React.ReactNode }) => (
         <h1 className="text-xl font-bold text-white">{children}</h1>
@@ -339,7 +399,11 @@ export const MarkdownContent = memo(function MarkdownContent({
       ),
       td: ({ children }: { children?: React.ReactNode }) => (
         <td className="border border-white/10 px-3 py-1.5">{children}</td>
-      )
+      ),
+      span: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
+        if (className === 'spoiler') return <SpoilerSpan>{children}</SpoilerSpan>
+        return <span className={className}>{children}</span>
+      }
     }),
     [onMentionClick, onChannelClick]
   )
