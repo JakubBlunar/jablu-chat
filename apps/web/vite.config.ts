@@ -65,6 +65,35 @@ export default defineConfig({
             dropConsole: true,
             dropDebugger: true
           }
+        },
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('react-syntax-highlighter')) return 'syntax-highlighter'
+          if (
+            id.includes('react-markdown') ||
+            id.includes('rehype-') ||
+            id.includes('remark-') ||
+            id.includes('micromark') ||
+            id.includes('mdast') ||
+            id.includes('unist') ||
+            id.includes('/hast') ||
+            id.includes('property-information') ||
+            id.includes('space-separated-tokens') ||
+            id.includes('comma-separated-tokens') ||
+            id.includes('decode-named-character-reference')
+          ) {
+            return 'markdown'
+          }
+          if (id.includes('livekit-client')) return 'livekit'
+          if (id.includes('socket.io-client')) return 'socket-io'
+          if (id.includes('@emoji-mart')) return 'emoji-mart'
+          if (id.includes('simplebar')) return 'simplebar'
+          if (id.includes('@dnd-kit')) return 'dnd-kit'
+          if (id.includes('react-router')) return 'react-router'
+          if (/node_modules\/(react-dom|scheduler)\//.test(id) || /node_modules\/react\//.test(id)) {
+            return 'react-vendor'
+          }
+          return undefined
         }
       }
     }

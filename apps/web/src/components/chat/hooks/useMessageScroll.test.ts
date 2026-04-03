@@ -48,6 +48,14 @@ describe('useMessageScroll', () => {
       expect(typeof result.current.handleBottomButtonClick).toBe('function')
       expect(typeof result.current.handleJumpToMessage).toBe('function')
     })
+
+    it('reuses the same scroll API object across rerenders when state is unchanged', () => {
+      const adapter = makeAdapter({ getLoadedForId: jest.fn(() => 'ch-1') })
+      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
+      const first = result.current
+      rerender()
+      expect(result.current).toBe(first)
+    })
   })
 
   describe('context switch', () => {

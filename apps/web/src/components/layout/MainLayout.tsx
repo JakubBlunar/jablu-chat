@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
 import { Spinner } from '@/components/ui'
@@ -99,15 +100,34 @@ export function MainLayout() {
   useActivityReporter(socket)
   useAppBadge()
 
-  const viewMode = useServerStore((s) => s.viewMode)
-  const fetchServers = useServerStore((s) => s.fetchServers)
-  const servers = useServerStore((s) => s.servers)
-  const serversLoading = useServerStore((s) => s.isLoading)
-  const currentServerId = useServerStore((s) => s.currentServerId)
-  const channels = useChannelStore((s) => s.channels)
-  const fetchChannels = useChannelStore((s) => s.fetchChannels)
-  const currentChannelId = useChannelStore((s) => s.currentChannelId)
-  const channelLoadedServerId = useChannelStore((s) => s.loadedServerId)
+  const {
+    viewMode,
+    fetchServers,
+    servers,
+    serversLoading,
+    currentServerId
+  } = useServerStore(
+    useShallow((s) => ({
+      viewMode: s.viewMode,
+      fetchServers: s.fetchServers,
+      servers: s.servers,
+      serversLoading: s.isLoading,
+      currentServerId: s.currentServerId
+    }))
+  )
+  const {
+    channels,
+    fetchChannels,
+    currentChannelId,
+    channelLoadedServerId
+  } = useChannelStore(
+    useShallow((s) => ({
+      channels: s.channels,
+      fetchChannels: s.fetchChannels,
+      currentChannelId: s.currentChannelId,
+      channelLoadedServerId: s.loadedServerId
+    }))
+  )
   const isNavigating = useNavigationStore((s) => s.isNavigating)
 
   const { textChannels } = useSortedChannels(channels)

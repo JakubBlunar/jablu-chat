@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { JoinInviteModal } from '@/components/server/JoinInviteModal'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -28,19 +29,31 @@ function JoinIcon() {
 }
 
 export function ServerSidebar() {
-  const servers = useServerStore((s) => s.servers)
-  const currentServerId = useServerStore((s) => s.currentServerId)
-  const viewMode = useServerStore((s) => s.viewMode)
-  const isLoading = useServerStore((s) => s.isLoading)
+  const { servers, currentServerId, viewMode, isLoading } = useServerStore(
+    useShallow((s) => ({
+      servers: s.servers,
+      currentServerId: s.currentServerId,
+      viewMode: s.viewMode,
+      isLoading: s.isLoading
+    }))
+  )
   const { goToDms, orchestratedGoToChannel } = useAppNavigate()
   const navigatingToServerId = useNavigationStore((s) => s.navigatingToServerId)
 
-  const dmReadStates = useReadStateStore((s) => s.dms)
-  const channelReadStates = useReadStateStore((s) => s.channels)
-  const channelToServer = useReadStateStore((s) => s.channelToServer)
-  const notifPrefs = useNotifPrefStore((s) => s.prefs)
-  const serverPrefs = useNotifPrefStore((s) => s.serverPrefs)
-  const getEffective = useNotifPrefStore((s) => s.getEffective)
+  const { dmReadStates, channelReadStates, channelToServer } = useReadStateStore(
+    useShallow((s) => ({
+      dmReadStates: s.dms,
+      channelReadStates: s.channels,
+      channelToServer: s.channelToServer
+    }))
+  )
+  const { notifPrefs, serverPrefs, getEffective } = useNotifPrefStore(
+    useShallow((s) => ({
+      notifPrefs: s.prefs,
+      serverPrefs: s.serverPrefs,
+      getEffective: s.getEffective
+    }))
+  )
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 

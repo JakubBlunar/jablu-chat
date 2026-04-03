@@ -1,6 +1,7 @@
 import type { Channel, ChannelCategory, UserStatus } from '@chat/shared'
 import { hasPermission as hasPermFlag, Permission as SharedPermission } from '@chat/shared'
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { useIsMobile } from '@/hooks/useMobile'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -75,18 +76,31 @@ const EventsPanel = React.lazy(() =>
 export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
   const user = useAuthStore((s) => s.user)
 
-  const currentServer = useServerStore((s) => {
-    const id = s.currentServerId
-    if (!id) return null
-    return s.servers.find((x) => x.id === id) ?? null
-  })
+  const { currentServer, removeServer } = useServerStore(
+    useShallow((s) => {
+      const id = s.currentServerId
+      const currentServer = id ? s.servers.find((x) => x.id === id) ?? null : null
+      return { currentServer, removeServer: s.removeServer }
+    })
+  )
   const { orchestratedGoToChannel } = useAppNavigate()
-  const channelsLoading = useChannelStore((s) => s.isLoading)
-  const channels = useChannelStore((s) => s.channels)
-  const categories = useChannelStore((s) => s.categories)
-  const currentChannelId = useChannelStore((s) => s.currentChannelId)
-  const collapsedCategories = useChannelStore((s) => s.collapsedCategories)
-  const toggleCategoryCollapsed = useChannelStore((s) => s.toggleCategoryCollapsed)
+  const {
+    channelsLoading,
+    channels,
+    categories,
+    currentChannelId,
+    collapsedCategories,
+    toggleCategoryCollapsed
+  } = useChannelStore(
+    useShallow((s) => ({
+      channelsLoading: s.isLoading,
+      channels: s.channels,
+      categories: s.categories,
+      currentChannelId: s.currentChannelId,
+      collapsedCategories: s.collapsedCategories,
+      toggleCategoryCollapsed: s.toggleCategoryCollapsed
+    }))
+  )
 
   const permissionsMap = useChannelPermissionsStore((s) => s.permissionsMap)
   const visibleChannels = useMemo(
@@ -106,18 +120,29 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
 
   const isOwner = currentServer?.ownerId === user?.id
-  const removeServer = useServerStore((s) => s.removeServer)
   const voiceParticipants = useVoiceStore((s) => s.participants)
-  const currentVoiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
-  const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
+  const { currentVoiceChannelId, viewingVoiceRoom } = useVoiceConnectionStore(
+    useShallow((s) => ({
+      currentVoiceChannelId: s.currentChannelId,
+      viewingVoiceRoom: s.viewingVoiceRoom
+    }))
+  )
   const speakingUsers = useSpeakingUsers()
 
-  const channelReadStates = useReadStateStore((s) => s.channels)
-  const ackChannel = useReadStateStore((s) => s.ackChannel)
-  const ackServer = useReadStateStore((s) => s.ackServer)
-  const notifPrefs = useNotifPrefStore((s) => s.prefs)
-  const serverPrefs = useNotifPrefStore((s) => s.serverPrefs)
-  const getEffective = useNotifPrefStore((s) => s.getEffective)
+  const { channelReadStates, ackChannel, ackServer } = useReadStateStore(
+    useShallow((s) => ({
+      channelReadStates: s.channels,
+      ackChannel: s.ackChannel,
+      ackServer: s.ackServer
+    }))
+  )
+  const { notifPrefs, serverPrefs, getEffective } = useNotifPrefStore(
+    useShallow((s) => ({
+      notifPrefs: s.prefs,
+      serverPrefs: s.serverPrefs,
+      getEffective: s.getEffective
+    }))
+  )
   const getNotifLevel = useCallback(
     (channelId: string) => getEffective(channelId, currentServer?.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -193,8 +218,9 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
     if (currentServer) fetchEvents(currentServer.id)
   }, [currentServer?.id, fetchEvents])
 
-  const members = useMemberStore((s) => s.members)
-  const onlineUserIds = useMemberStore((s) => s.onlineUserIds)
+  const { members, onlineUserIds } = useMemberStore(
+    useShallow((s) => ({ members: s.members, onlineUserIds: s.onlineUserIds }))
+  )
 
   const handleVoiceParticipantClick = useCallback(
     (p: VoiceParticipant, e: React.MouseEvent) => {
