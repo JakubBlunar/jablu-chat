@@ -1,18 +1,55 @@
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
+import { resolveMediaUrl } from '@/lib/api'
+
+export type CustomEmojiDef = {
+  id: string
+  name: string
+  imageUrl: string
+}
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void
   onClose: () => void
+  customEmojis?: CustomEmojiDef[]
+  /** When true, custom emoji return the name (not `:name:`), for reaction use */
+  reactionMode?: boolean
+  onCustomSelect?: (name: string) => void
 }
 
-export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
+export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onCustomSelect }: EmojiPickerProps) {
   const ref = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
+
+  const custom = useMemo(() => {
+    if (!customEmojis?.length) return undefined
+    return [{
+      id: 'server',
+      name: 'Server',
+      emojis: customEmojis.map((e) => ({
+        id: e.name,
+        name: e.name,
+        keywords: [e.name],
+        skins: [{ src: resolveMediaUrl(e.imageUrl) }]
+      }))
+    }]
+  }, [customEmojis])
+
+  const handleEmojiSelect = (emoji: { native?: string; id?: string; src?: string }) => {
+    if (emoji.native) {
+      onSelect(emoji.native)
+    } else if (emoji.id && !emoji.native) {
+      if (reactionMode && onCustomSelect) {
+        onCustomSelect(emoji.id)
+      } else {
+        onSelect(`:${emoji.id}: `)
+      }
+    }
+  }
 
   useEffect(() => {
     if (isMobile) return
@@ -44,9 +81,8 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
           </div>
           <Picker
             data={data}
-            onEmojiSelect={(emoji: { native?: string }) => {
-              if (emoji.native) onSelect(emoji.native)
-            }}
+            custom={custom}
+            onEmojiSelect={handleEmojiSelect}
             theme="dark"
             previewPosition="none"
             skinTonePosition="search"
@@ -62,9 +98,8 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
     <div ref={ref} className="z-50">
       <Picker
         data={data}
-        onEmojiSelect={(emoji: { native?: string }) => {
-          if (emoji.native) onSelect(emoji.native)
-        }}
+        custom={custom}
+        onEmojiSelect={handleEmojiSelect}
         theme="dark"
         previewPosition="none"
         skinTonePosition="search"

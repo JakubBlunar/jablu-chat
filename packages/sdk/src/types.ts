@@ -79,4 +79,27 @@ export type BotEventMap = {
   error: (error: Error) => void
 }
 
+export interface EmbedField {
+  name: string
+  value: string
+  inline?: boolean
+}
+
+export interface MessageEmbed {
+  title?: string
+  description?: string
+  url?: string
+  color?: number
+  fields?: EmbedField[]
+  thumbnail?: { url: string }
+  image?: { url: string }
+  footer?: { text: string; iconUrl?: string }
+  author?: { name: string; url?: string; iconUrl?: string }
+  timestamp?: string
+}
+
+export interface SendMessageOptions {
+  embeds?: MessageEmbed[]
+}
+
 export type CommandHandler = (ctx: CommandContext) => void | Promise<void>

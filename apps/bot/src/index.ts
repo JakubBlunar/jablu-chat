@@ -1,8 +1,8 @@
-import { BotClient, Permission, hasPermission } from '@chat/sdk'
+import { BotClient, Permission, hasPermission, type MessageEmbed } from '@chat/sdk'
 import cron from 'node-cron'
 import { config } from './config.js'
 import { wasPosted, markPosted, cleanOldEntries, titleKey, setLastPollAt, closeDb } from './db.js'
-import { formatBatch } from './format.js'
+import { formatBatch, dealsToEmbeds } from './format.js'
 import { fetchEpicDeals } from './sources/epic.js'
 import { fetchGamerPowerDeals } from './sources/gamerpower.js'
 import { fetchGogDeals } from './sources/gog.js'
@@ -164,7 +164,13 @@ bot.onCommand('deals', async (ctx) => {
     return
   }
 
-  await ctx.reply(formatBatch(filtered))
+  const channelId = ctx.channelId
+  const embeds = dealsToEmbeds(filtered)
+  if (ctx.isDm) {
+    await ctx.reply(formatBatch(filtered))
+  } else {
+    await bot.sendMessage(channelId, '', { embeds })
+  }
 })
 
 bot.onCommand('status', async (ctx) => {
@@ -268,7 +274,8 @@ async function postDeals(deals: Deal[], skipDuplicateCheck: boolean): Promise<vo
     console.log(`[poll] Posting ${newDeals.length} deal(s) to channel ${channelId.slice(0, 8)}…`)
 
     try {
-      await bot.sendMessage(channelId, formatBatch(newDeals))
+      const embeds = dealsToEmbeds(newDeals)
+      await bot.sendMessage(channelId, '', { embeds })
       if (!skipDuplicateCheck) {
         for (const deal of newDeals) markPosted(deal.id, channelId, titleKey(deal.title, deal.source))
       }

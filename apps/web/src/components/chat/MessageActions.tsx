@@ -8,6 +8,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
+import { useEmojiStore } from '@/stores/emoji.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -84,11 +85,25 @@ export function MessageActions({
     setShowEmojiPicker((p) => !p)
   }, [])
 
+  const customEmojis = useEmojiStore((s) => serverId ? s.getForServer(serverId) : [])
+
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
       getSocket()?.emit('reaction:toggle', {
         messageId: message.id,
         emoji
+      })
+      setShowEmojiPicker(false)
+    },
+    [message.id]
+  )
+
+  const handleCustomReaction = useCallback(
+    (name: string) => {
+      getSocket()?.emit('reaction:toggle', {
+        messageId: message.id,
+        emoji: name,
+        isCustom: true
       })
       setShowEmojiPicker(false)
     },
@@ -178,7 +193,13 @@ export function MessageActions({
           }}
         >
           <Suspense fallback={null}>
-            <EmojiPicker onSelect={handleEmojiSelect} onClose={() => setShowEmojiPicker(false)} />
+            <EmojiPicker
+              onSelect={handleEmojiSelect}
+              onClose={() => setShowEmojiPicker(false)}
+              customEmojis={customEmojis}
+              reactionMode
+              onCustomSelect={handleCustomReaction}
+            />
           </Suspense>
         </div>,
         document.body

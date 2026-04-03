@@ -84,7 +84,7 @@ export class WebhooksService {
     await this.auditLog.log(channel.serverId, userId, 'webhook.delete', 'webhook', webhookId, webhook.name)
   }
 
-  async executeWebhook(token: string, content: string, username?: string, avatarUrl?: string) {
+  async executeWebhook(token: string, content?: string, username?: string, avatarUrl?: string, embeds?: any[]) {
     const webhook = await this.prisma.webhook.findUnique({
       where: { token }
     })
@@ -93,9 +93,10 @@ export class WebhooksService {
     }
     const channel = await this.requireTextChannel(webhook.channelId)
 
-    const trimmed = content.trim()
-    if (!trimmed) {
-      throw new BadRequestException('Content is required')
+    const trimmed = content?.trim()
+    const hasEmbeds = !!embeds?.length
+    if (!trimmed && !hasEmbeds) {
+      throw new BadRequestException('Content or embeds are required')
     }
 
     const resolvedName = username?.trim() || webhook.name
@@ -105,10 +106,11 @@ export class WebhooksService {
       data: {
         channelId: webhook.channelId,
         authorId: webhook.createdById,
-        content: trimmed,
+        content: trimmed ?? null,
         webhookId: webhook.id,
         webhookName: resolvedName,
-        webhookAvatarUrl: resolvedAvatar
+        webhookAvatarUrl: resolvedAvatar,
+        embeds: hasEmbeds ? embeds : undefined
       },
       include: webhookMessageInclude
     })
@@ -127,6 +129,8 @@ export class WebhooksService {
       webhookName: resolvedName,
       message: wireWithWebhook
     })
+
+    if (!trimmed) return wireWithWebhook
 
     void this.linkPreviews
       .generatePreviews(created.id, trimmed)

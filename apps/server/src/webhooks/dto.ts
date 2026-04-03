@@ -1,5 +1,7 @@
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
-import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
+import { Type } from 'class-transformer'
+import { ArrayMaxSize, IsArray, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, ValidateNested } from 'class-validator'
+import { EmbedDto } from '../messages/dto'
 
 export class CreateWebhookDto {
   @IsString()
@@ -10,11 +12,10 @@ export class CreateWebhookDto {
 }
 
 export class ExecuteWebhookDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MinLength(1)
   @MaxLength(MAX_MESSAGE_LENGTH)
-  content!: string
+  content?: string
 
   @IsOptional()
   @IsString()
@@ -25,4 +26,11 @@ export class ExecuteWebhookDto {
   @IsString()
   @MaxLength(500)
   avatarUrl?: string
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => EmbedDto)
+  embeds?: EmbedDto[]
 }

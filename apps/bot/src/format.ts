@@ -1,3 +1,4 @@
+import type { MessageEmbed } from '@chat/sdk'
 import type { Deal } from './types.js'
 
 const SOURCE_EMOJI: Record<string, string> = {
@@ -7,6 +8,13 @@ const SOURCE_EMOJI: Record<string, string> = {
   'Humble Bundle': '📦',
   'itch.io': '🕹️',
   PC: '💻'
+}
+
+const SOURCE_COLOR: Record<string, number> = {
+  'Epic Games': 0x2f2f2f,
+  Steam: 0x1b2838,
+  GOG: 0x86328a,
+  GamerPower: 0x00b894
 }
 
 function formatDate(iso: string): string {
@@ -73,4 +81,26 @@ export function formatBatch(deals: Deal[]): string {
   }
 
   return sections.join('\n\n')
+}
+
+export function dealsToEmbeds(deals: Deal[]): MessageEmbed[] {
+  return deals.map((deal) => {
+    const emoji = SOURCE_EMOJI[deal.source] ?? '🎁'
+    const color = SOURCE_COLOR[deal.source] ?? 0x00b894
+
+    const descParts: string[] = []
+    descParts.push(buildPriceLine(deal))
+    descParts.push('')
+    descParts.push(buildLinks(deal))
+
+    return {
+      title: deal.title,
+      url: deal.url,
+      description: descParts.join('\n'),
+      color,
+      image: deal.imageUrl ? { url: deal.imageUrl } : undefined,
+      footer: { text: `${emoji} ${deal.source}` },
+      timestamp: deal.freeUntil ?? undefined
+    }
+  })
 }

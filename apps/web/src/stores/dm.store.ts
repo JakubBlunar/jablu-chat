@@ -26,7 +26,7 @@ type DmState = {
   updateMessage: (message: Message) => void
   removeMessage: (messageId: string) => void
   clearMessages: () => void
-  addReaction: (messageId: string, emoji: string, userId: string) => void
+  addReaction: (messageId: string, emoji: string, userId: string, isCustom?: boolean) => void
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   updateConversationLastMessage: (
     conversationId: string,
@@ -182,7 +182,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   clearMessages: () => set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null }),
 
-  addReaction: (messageId, emoji, userId) => {
+  addReaction: (messageId, emoji, userId, isCustom) => {
     set((s) => {
       if (!s.messages.some((m) => m.id === messageId)) return s
       return {
@@ -196,7 +196,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
               existing.count += 1
             }
           } else {
-            reactions.push({ emoji, count: 1, userIds: [userId], isCustom: false })
+            reactions.push({ emoji, count: 1, userIds: [userId], isCustom: isCustom ?? false })
           }
           return { ...m, reactions }
         })

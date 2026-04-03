@@ -1,3 +1,5 @@
+import type { SendMessageOptions } from './types.js'
+
 export class RestClient {
   private baseUrl: string
   private token: string
@@ -7,8 +9,8 @@ export class RestClient {
     this.token = token
   }
 
-  async sendMessage(channelId: string, content: string): Promise<any> {
-    return this.post(`/channels/${channelId}/messages`, { content })
+  async sendMessage(channelId: string, content: string, options?: SendMessageOptions): Promise<any> {
+    return this.post(`/channels/${channelId}/messages`, { content: content || undefined, ...options })
   }
 
   async editMessage(channelId: string, messageId: string, content: string): Promise<any> {

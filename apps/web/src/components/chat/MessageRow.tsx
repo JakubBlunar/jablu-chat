@@ -5,7 +5,10 @@ import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewC
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import { MessageActions } from '@/components/chat/MessageActions'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
+import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
 import { PollDisplay } from '@/components/chat/PollDisplay'
+import { resolveMediaUrl } from '@/lib/api'
+import { useEmojiStore } from '@/stores/emoji.store'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
@@ -121,6 +124,7 @@ export const MessageRow = memo(function MessageRow({
 
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
+  const customEmojiMap = useEmojiStore((s) => serverId ? s.getNameMap(serverId) : undefined)
   const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)
@@ -469,10 +473,19 @@ export const MessageRow = memo(function MessageRow({
               channels={channels}
               onChannelClick={onChannelClick}
               membersByUsername={membersByUsername}
+              customEmojiMap={customEmojiMap}
             />
             {!showHead && message.editedAt ? <span className="ml-1.5 text-xs text-gray-500">(edited)</span> : null}
           </div>
         ) : null}
+
+        {message.embeds && message.embeds.length > 0 && (
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            {message.embeds.map((embed, i) => (
+              <MessageEmbedCard key={i} embed={embed} />
+            ))}
+          </div>
+        )}
 
         {attachments.length > 0 && (
           <div className="flex flex-col gap-1">
@@ -530,7 +543,7 @@ export const MessageRow = memo(function MessageRow({
                   aria-pressed={isMine}
                   aria-label={`${r.emoji} ${r.count}`}
                   onClick={() => {
-                    getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji: r.emoji })
+                    getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji: r.emoji, isCustom: r.isCustom })
                   }}
                   className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${
                     isMine
@@ -538,7 +551,7 @@ export const MessageRow = memo(function MessageRow({
                       : 'bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover'
                   }`}
                 >
-                  <span>{r.emoji}</span>
+                  <ReactionEmoji emoji={r.emoji} isCustom={r.isCustom} />
                   <span className="font-medium">{r.count}</span>
                 </button>
               )
@@ -551,7 +564,29 @@ export const MessageRow = memo(function MessageRow({
 })
 
 
+function ReactionEmoji({ emoji, isCustom }: { emoji: string; isCustom: boolean }) {
+  const serverId = useServerStore((s) => s.currentServerId)
+  const customEmoji = useEmojiStore((s) => serverId ? s.findByName(serverId, emoji) : undefined)
+
+  if (isCustom && customEmoji) {
+    return (
+      <img
+        src={resolveMediaUrl(customEmoji.imageUrl)}
+        alt={`:${emoji}:`}
+        title={`:${emoji}:`}
+        className="h-4 w-4 object-contain"
+        loading="lazy"
+      />
+    )
+  }
+
+  return <span>{emoji}</span>
+}
+
 function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const serverId = useServerStore((s) => s.currentServerId)
+  const customEmojis = useEmojiStore((s) => serverId ? s.getForServer(serverId) : [])
+
   const handleReaction = useCallback(
     (emoji: string) => {
       getSocket()?.emit('reaction:toggle', { messageId, emoji })
@@ -560,9 +595,23 @@ function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; o
     [messageId, onClose]
   )
 
+  const handleCustomReaction = useCallback(
+    (name: string) => {
+      getSocket()?.emit('reaction:toggle', { messageId, emoji: name, isCustom: true })
+      onClose()
+    },
+    [messageId, onClose]
+  )
+
   return (
     <Suspense fallback={null}>
-      <EmojiPicker onSelect={handleReaction} onClose={onClose} />
+      <EmojiPicker
+        onSelect={handleReaction}
+        onClose={onClose}
+        customEmojis={customEmojis}
+        reactionMode
+        onCustomSelect={handleCustomReaction}
+      />
     </Suspense>
   )
 }

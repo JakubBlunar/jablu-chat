@@ -321,6 +321,7 @@ model Message {
   webhookId              String?  @map("webhook_id")
   webhookName            String?  @map("webhook_name")
   webhookAvatarUrl       String?  @map("webhook_avatar_url")
+  embeds                 Json?    @default("[]")
   createdAt              DateTime @default(now()) @map("created_at")
   editedAt               DateTime? @map("edited_at")
 

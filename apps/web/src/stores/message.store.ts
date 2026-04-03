@@ -31,7 +31,7 @@ type MessageState = {
   updateMessage: (message: Message) => void
   removeMessage: (messageId: string) => void
   clearMessages: () => void
-  addReaction: (messageId: string, emoji: string, userId: string) => void
+  addReaction: (messageId: string, emoji: string, userId: string, isCustom?: boolean) => void
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   setLinkPreviews: (messageId: string, linkPreviews: LinkPreview[]) => void
   updatePoll: (poll: Poll) => void
@@ -189,7 +189,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     })
   },
 
-  addReaction: (messageId, emoji, userId) => {
+  addReaction: (messageId, emoji, userId, isCustom) => {
     set((s) => {
       if (!s.messages.some((m) => m.id === messageId)) return s
       return {
@@ -210,7 +210,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
           }
           return {
             ...m,
-            reactions: [...reactions, { emoji, count: 1, userIds: [userId], isCustom: false }]
+            reactions: [...reactions, { emoji, count: 1, userIds: [userId], isCustom: isCustom ?? false }]
           }
         })
       }

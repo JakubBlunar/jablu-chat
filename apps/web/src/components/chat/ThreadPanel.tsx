@@ -6,6 +6,8 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useEmojiStore } from '@/stores/emoji.store'
+import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useThreadSurfaceAdapter } from '@/hooks/useThreadSurfaceAdapter'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
@@ -32,6 +34,8 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
   }, [])
 
   const isMobile = useIsMobile()
+  const serverId = useServerStore((s) => s.currentServerId)
+  const customEmojiMap = useEmojiStore((s) => serverId ? s.getNameMap(serverId) : undefined)
 
   if (!isOpen || !parentMessage || !channelId) return null
 
@@ -54,7 +58,7 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
           </div>
           {parentMessage.content && (
             <div className="mt-0.5 text-sm text-gray-300">
-              <MarkdownContent content={parentMessage.content} />
+              <MarkdownContent content={parentMessage.content} customEmojiMap={customEmojiMap} />
             </div>
           )}
         </div>

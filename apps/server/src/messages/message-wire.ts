@@ -91,10 +91,12 @@ export function groupReactions(
 }
 
 export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: string) {
-  const { reactions, webhookName, webhookAvatarUrl, poll, _count, threadMessages, ...rest } = m
+  const { reactions, webhookName, webhookAvatarUrl, poll, _count, threadMessages, embeds: rawEmbeds, ...rest } = m
+  const embeds = Array.isArray(rawEmbeds) && rawEmbeds.length > 0 ? rawEmbeds : undefined
   const lastReply = threadMessages?.[0] ?? null
   return {
     ...rest,
+    embeds,
     threadCount: _count?.threadMessages ?? 0,
     lastThreadReply: lastReply
       ? {
