@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { UserFooter } from '@/components/layout/UserFooter'
@@ -15,14 +16,28 @@ import { GroupDmModal } from './GroupDmModal'
 
 export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
   const user = useAuthStore((s) => s.user)
-  const conversations = useDmStore((s) => s.conversations)
-  const currentConvId = useDmStore((s) => s.currentConversationId)
+  const {
+    conversations,
+    currentConvId,
+    fetchConversations,
+    closeConversation,
+    isLoading
+  } = useDmStore(
+    useShallow((s) => ({
+      conversations: s.conversations,
+      currentConvId: s.currentConversationId,
+      fetchConversations: s.fetchConversations,
+      closeConversation: s.closeConversation,
+      isLoading: s.isConversationsLoading
+    }))
+  )
   const { goToDm, goToDms, goToChannel } = useAppNavigate()
-  const fetchConversations = useDmStore((s) => s.fetchConversations)
-  const closeConversation = useDmStore((s) => s.closeConversation)
-  const isLoading = useDmStore((s) => s.isConversationsLoading)
-  const onlineIds = useMemberStore((s) => s.onlineUserIds)
-  const realtimeStatuses = useMemberStore((s) => s.realtimeStatuses)
+  const { onlineIds, realtimeStatuses } = useMemberStore(
+    useShallow((s) => ({
+      onlineIds: s.onlineUserIds,
+      realtimeStatuses: s.realtimeStatuses
+    }))
+  )
   const dmReadStates = useReadStateStore((s) => s.dms)
   const ackDm = useReadStateStore((s) => s.ackDm)
   const pendingCount = useFriendStore((s) => s.pending.length)
@@ -72,8 +87,12 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
     [user?.id, onlineIds, realtimeStatuses]
   )
 
-  const voiceServerId = useVoiceConnectionStore((s) => s.currentServerId)
-  const voiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
+  const { voiceServerId, voiceChannelId } = useVoiceConnectionStore(
+    useShallow((s) => ({
+      voiceServerId: s.currentServerId,
+      voiceChannelId: s.currentChannelId
+    }))
+  )
 
   const handleGoToVoiceRoom = useCallback(() => {
     if (voiceServerId) {

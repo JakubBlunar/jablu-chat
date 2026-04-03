@@ -8,6 +8,7 @@ import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
 import { PollDisplay } from '@/components/chat/PollDisplay'
 import { resolveMediaUrl } from '@/lib/api'
+import type { CustomEmoji } from '@/lib/api/types'
 import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -513,7 +514,7 @@ export const MessageRow = memo(function MessageRow({
                       : 'bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover'
                   }`}
                 >
-                  <ReactionEmoji emoji={r.emoji} isCustom={r.isCustom} />
+                  <ReactionEmoji emoji={r.emoji} isCustom={r.isCustom} customEmojiMap={customEmojiMap} />
                   <span className="font-medium">{r.count}</span>
                 </button>
               )
@@ -526,9 +527,16 @@ export const MessageRow = memo(function MessageRow({
 })
 
 
-function ReactionEmoji({ emoji, isCustom }: { emoji: string; isCustom: boolean }) {
-  const serverId = useServerStore((s) => s.currentServerId)
-  const customEmoji = useEmojiStore((s) => serverId ? s.findByName(serverId, emoji) : undefined)
+function ReactionEmoji({
+  emoji,
+  isCustom,
+  customEmojiMap
+}: {
+  emoji: string
+  isCustom: boolean
+  customEmojiMap?: Map<string, CustomEmoji>
+}) {
+  const customEmoji = isCustom ? customEmojiMap?.get(emoji.toLowerCase()) : undefined
 
   if (isCustom && customEmoji) {
     return (

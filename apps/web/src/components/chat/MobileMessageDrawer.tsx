@@ -4,6 +4,7 @@ import { getSocket } from '@/lib/socket'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { SheetBtn } from '@/components/ui/SheetBtn'
+import { useShallow } from 'zustand/react/shallow'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useThreadStore } from '@/stores/thread.store'
 import {
@@ -229,8 +230,12 @@ export function MobileMessageDrawer({
 }
 
 function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose: () => void }) {
-  const isBookmarked = useBookmarkStore((s) => s.bookmarkedIds.has(messageId))
-  const toggleBookmark = useBookmarkStore((s) => s.toggleBookmark)
+  const { isBookmarked, toggleBookmark } = useBookmarkStore(
+    useShallow((s) => ({
+      isBookmarked: s.bookmarkedIds.has(messageId),
+      toggleBookmark: s.toggleBookmark
+    }))
+  )
   return (
     <SheetBtn
       icon={<BookmarkIcon className="h-5 w-5" filled={isBookmarked} />}

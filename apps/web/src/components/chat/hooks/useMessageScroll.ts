@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 export interface ScrollStoreAdapter {
   messages: Message[]
@@ -422,15 +422,19 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     }
   }, [contextId, clearMessages, fetchMessages, goToBottom])
 
-  return {
-    scrollParentRef,
-    topSentinelRef,
-    bottomSentinelRef,
-    newerSentinelRef,
-    atBottom,
-    settling,
-    stickToBottom,
-    handleBottomButtonClick,
-    handleJumpToMessage: scrollToAndHighlight
-  }
+  // Stable object so MessageSurface memo compares meaningfully (refs + callbacks are stable).
+  return useMemo(
+    () => ({
+      scrollParentRef,
+      topSentinelRef,
+      bottomSentinelRef,
+      newerSentinelRef,
+      atBottom,
+      settling,
+      stickToBottom,
+      handleBottomButtonClick,
+      handleJumpToMessage: scrollToAndHighlight
+    }),
+    [atBottom, settling, stickToBottom, handleBottomButtonClick, scrollToAndHighlight]
+  )
 }

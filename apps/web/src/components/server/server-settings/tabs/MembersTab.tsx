@@ -1,6 +1,7 @@
 import type { UserStatus } from '@chat/shared'
 import { Permission } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { createPortal } from 'react-dom'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
@@ -35,9 +36,13 @@ function formatTimeLeft(iso: string): string {
 
 export function MembersTab({ server }: { server: Server }) {
   const currentUser = useAuthStore((s) => s.user)
-  const members = useMemberStore((s) => s.members)
-  const onlineIds = useMemberStore((s) => s.onlineUserIds)
-  const fetchMembers = useMemberStore((s) => s.fetchMembers)
+  const { members, onlineIds, fetchMembers } = useMemberStore(
+    useShallow((s) => ({
+      members: s.members,
+      onlineIds: s.onlineUserIds,
+      fetchMembers: s.fetchMembers
+    }))
+  )
   const { has: hasPerm } = usePermissions(server.id)
   const canManageRoles = hasPerm(Permission.MANAGE_ROLES)
   const canKick = hasPerm(Permission.KICK_MEMBERS)

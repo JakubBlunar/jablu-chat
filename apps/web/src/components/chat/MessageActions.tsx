@@ -16,6 +16,7 @@ import {
 } from '@/components/chat/chatIcons'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
+import { useShallow } from 'zustand/react/shallow'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
@@ -45,8 +46,12 @@ export function MessageActions({
   const isAuthor = message.authorId === userId
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const canDelete = isAuthor || isAdminOrOwner
-  const isBookmarked = useBookmarkStore((s) => s.bookmarkedIds.has(message.id))
-  const toggleBookmark = useBookmarkStore((s) => s.toggleBookmark)
+  const { isBookmarked, toggleBookmark } = useBookmarkStore(
+    useShallow((s) => ({
+      isBookmarked: s.bookmarkedIds.has(message.id),
+      toggleBookmark: s.toggleBookmark
+    }))
+  )
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const btnRef = useRef<HTMLDivElement>(null)
