@@ -13,20 +13,12 @@ import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
-import { useEmojiStore } from '@/stores/emoji.store'
+import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { usePermissions } from '@/hooks/usePermissions'
-
-function XIcon() {
-  return (
-    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  )
-}
+import { XSmallIcon } from '@/components/chat/chatIcons'
 
 const TEXT_COMMANDS: Record<string, (rest: string) => string> = {
   shrug: (rest) => `${rest} ¯\\_(ツ)_/¯`.trim(),
@@ -87,7 +79,7 @@ export function UnifiedInput({
     isDm ? null : s.channels.find((c) => c.id === contextId)?.serverId ?? null
   )
 
-  const customEmojis = useEmojiStore((s) => serverId ? s.getForServer(serverId) : [])
+  const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
 
   const dmBotUserId = useDmStore((s) => {
     if (!isDm) return null
@@ -379,7 +371,7 @@ export function UnifiedInput({
           <span className="font-semibold text-white">{replyTarget.authorName}</span>
           <span className="flex-1 truncate text-gray-400">{replyTarget.content || '[attachment]'}</span>
           <button type="button" onClick={onCancelReply} aria-label="Cancel reply" className="text-gray-500 transition hover:text-white">
-            <XIcon />
+            <XSmallIcon />
           </button>
         </div>
       )}
@@ -412,7 +404,7 @@ export function UnifiedInput({
                 onClick={() => removeFile(i)}
                 className="absolute -right-1.5 -top-1.5 rounded-full bg-red-600 p-1 text-white shadow transition hover:bg-red-500"
               >
-                <XIcon />
+                <XSmallIcon />
               </button>
             </div>
           ))}

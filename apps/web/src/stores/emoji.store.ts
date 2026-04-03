@@ -2,6 +2,21 @@ import { create } from 'zustand'
 import { api } from '@/lib/api'
 import type { CustomEmoji } from '@/lib/api/types'
 
+export const EMPTY_EMOJIS: CustomEmoji[] = []
+
+const nameMapCache = new WeakMap<CustomEmoji[], Map<string, CustomEmoji>>()
+
+export function buildNameMap(emojis: CustomEmoji[]): Map<string, CustomEmoji> {
+  const cached = nameMapCache.get(emojis)
+  if (cached) return cached
+  const map = new Map<string, CustomEmoji>()
+  for (const e of emojis) {
+    map.set(e.name.toLowerCase(), e)
+  }
+  nameMapCache.set(emojis, map)
+  return map
+}
+
 interface EmojiState {
   byServer: Record<string, CustomEmoji[]>
   fetch: (serverId: string) => Promise<void>
@@ -23,7 +38,7 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
   },
 
   getForServer: (serverId: string) => {
-    return get().byServer[serverId] ?? []
+    return get().byServer[serverId] ?? EMPTY_EMOJIS
   },
 
   findByName: (serverId: string, name: string) => {
@@ -34,11 +49,7 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
   },
 
   getNameMap: (serverId: string) => {
-    const emojis = get().byServer[serverId] ?? []
-    const map = new Map<string, CustomEmoji>()
-    for (const e of emojis) {
-      map.set(e.name.toLowerCase(), e)
-    }
-    return map
+    const emojis = get().byServer[serverId] ?? EMPTY_EMOJIS
+    return buildNameMap(emojis)
   }
 }))
