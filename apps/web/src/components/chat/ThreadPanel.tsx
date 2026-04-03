@@ -6,7 +6,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { useIsMobile } from '@/hooks/useMobile'
-import { useEmojiStore } from '@/stores/emoji.store'
+import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useThreadSurfaceAdapter } from '@/hooks/useThreadSurfaceAdapter'
@@ -35,7 +35,8 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
 
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
-  const customEmojiMap = useEmojiStore((s) => serverId ? s.getNameMap(serverId) : undefined)
+  const emojiArr = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
+  const customEmojiMap = emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined
 
   if (!isOpen || !parentMessage || !channelId) return null
 

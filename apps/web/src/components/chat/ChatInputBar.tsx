@@ -13,6 +13,14 @@ import {
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { useIsMobile } from '@/hooks/useMobile'
 import { resolveMediaUrl } from '@/lib/api'
+import {
+  EyeSlashIcon,
+  GifIcon,
+  HashIcon,
+  PlusCircleIcon,
+  SlashIcon,
+  SmileIcon,
+} from '@/components/chat/chatIcons'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 const GifPicker = lazy(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
@@ -531,7 +539,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           title="Emoji"
           aria-label="Emoji picker"
         >
-          <SmileIcon />
+          <SmileIcon className="h-5 w-5" />
         </button>
 
         {value.trim().length > 0 && (
@@ -813,76 +821,5 @@ function CustomEmojiPopup({
         </button>
       ))}
     </div>
-  )
-}
-
-function SlashIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <line x1="7" y1="20" x2="17" y2="4" />
-    </svg>
-  )
-}
-
-function HashIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <line x1="4" y1="9" x2="20" y2="9" />
-      <line x1="4" y1="15" x2="20" y2="15" />
-      <line x1="10" y1="3" x2="8" y2="21" />
-      <line x1="16" y1="3" x2="14" y2="21" />
-    </svg>
-  )
-}
-
-function PlusCircleIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="16" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-    </svg>
-  )
-}
-
-function GifIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-      <rect x="2" y="4" width="20" height="16" rx="3" />
-      <text
-        x="12"
-        y="14.5"
-        textAnchor="middle"
-        fill="currentColor"
-        stroke="none"
-        fontSize="8"
-        fontWeight="700"
-        fontFamily="system-ui, sans-serif"
-      >
-        GIF
-      </text>
-    </svg>
-  )
-}
-
-function EyeSlashIcon() {
-  return (
-    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-      <line x1="1" y1="1" x2="23" y2="23" />
-    </svg>
-  )
-}
-
-function SmileIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-      <line x1="9" y1="9" x2="9.01" y2="9" />
-      <line x1="15" y1="9" x2="15.01" y2="9" />
-    </svg>
   )
 }

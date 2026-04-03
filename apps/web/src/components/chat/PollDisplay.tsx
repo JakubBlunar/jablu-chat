@@ -1,6 +1,7 @@
 import type { Poll } from '@chat/shared'
 import { useCallback, useMemo } from 'react'
 import { getSocket } from '@/lib/socket'
+import { CheckIcon, PollIcon } from '@/components/chat/chatIcons'
 
 export function PollDisplay({ poll }: { poll: Poll }) {
   const totalVotes = useMemo(
@@ -68,24 +69,5 @@ export function PollDisplay({ poll }: { poll: Poll }) {
         )}
       </div>
     </div>
-  )
-}
-
-function PollIcon() {
-  return (
-    <svg className="mt-0.5 h-4 w-4 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M3 3v18h18" />
-      <rect x="7" y="13" width="3" height="5" rx="0.5" />
-      <rect x="12" y="9" width="3" height="9" rx="0.5" />
-      <rect x="17" y="5" width="3" height="13" rx="0.5" />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg className="relative ml-1.5 h-3.5 w-3.5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
   )
 }

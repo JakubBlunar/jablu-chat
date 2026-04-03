@@ -8,7 +8,7 @@ import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
 import { PollDisplay } from '@/components/chat/PollDisplay'
 import { resolveMediaUrl } from '@/lib/api'
-import { useEmojiStore } from '@/stores/emoji.store'
+import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
@@ -19,54 +19,15 @@ import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { ConfirmDialog, IconButton } from '@/components/ui'
+import {
+  EditIcon,
+  MessagePinIcon,
+  ReplyIcon,
+  SmileIcon,
+  TrashIcon,
+} from '@/components/chat/chatIcons'
 
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
-
-function ReplyArrowIcon() {
-  return (
-    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <polyline points="9 17 4 12 9 7" />
-      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-    </svg>
-  )
-}
-
-function SmileIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-      <line x1="9" y1="9" x2="9.01" y2="9" />
-      <line x1="15" y1="9" x2="15.01" y2="9" />
-    </svg>
-  )
-}
-
-function EditIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  )
-}
-
-function PinIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4H7v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1v3.76z" />
-    </svg>
-  )
-}
 
 export const MessageRow = memo(function MessageRow({
   mode,
@@ -124,7 +85,8 @@ export const MessageRow = memo(function MessageRow({
 
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
-  const customEmojiMap = useEmojiStore((s) => serverId ? s.getNameMap(serverId) : undefined)
+  const emojiArr = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
+  const customEmojiMap = emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined
   const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)
@@ -289,7 +251,7 @@ export const MessageRow = memo(function MessageRow({
                   onReply(message)
                 }}
               >
-                <ReplyArrowIcon />
+                <ReplyIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} />
               </IconButton>
               <IconButton
                 label={message.pinned ? 'Unpin' : 'Pin'}
@@ -299,7 +261,7 @@ export const MessageRow = memo(function MessageRow({
                   getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
                 }}
               >
-                <PinIcon />
+                <MessagePinIcon />
               </IconButton>
               {isAuthor && (
                 <>
@@ -375,7 +337,7 @@ export const MessageRow = memo(function MessageRow({
       <div className="min-w-0 flex-1 pb-0.5">
         {message.replyTo && (
           <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
-            <ReplyArrowIcon />
+            <ReplyIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} />
             <span className="font-medium text-gray-300">
               {message.replyTo.author?.displayName ?? message.replyTo.author?.username ?? 'Deleted User'}
             </span>
@@ -585,7 +547,7 @@ function ReactionEmoji({ emoji, isCustom }: { emoji: string; isCustom: boolean }
 
 function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const serverId = useServerStore((s) => s.currentServerId)
-  const customEmojis = useEmojiStore((s) => serverId ? s.getForServer(serverId) : [])
+  const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
 
   const handleReaction = useCallback(
     (emoji: string) => {

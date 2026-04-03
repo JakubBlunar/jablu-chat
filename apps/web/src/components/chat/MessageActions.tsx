@@ -5,10 +5,19 @@ import { createPortal } from 'react-dom'
 const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 import { ConfirmDialog } from '@/components/ui'
 import { IconButton } from '@/components/ui/IconButton'
+import {
+  BookmarkIcon,
+  EditIcon,
+  MessagePinIcon,
+  ReplyIcon,
+  SmileIcon,
+  ThreadIcon,
+  TrashIcon,
+} from '@/components/chat/chatIcons'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
-import { useEmojiStore } from '@/stores/emoji.store'
+import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -85,7 +94,7 @@ export function MessageActions({
     setShowEmojiPicker((p) => !p)
   }, [])
 
-  const customEmojis = useEmojiStore((s) => serverId ? s.getForServer(serverId) : [])
+  const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
 
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
@@ -158,7 +167,7 @@ export function MessageActions({
         )}
         {isAdminOrOwner && !hidePinAction && (
           <IconButton label={message.pinned ? 'Unpin' : 'Pin'} onClick={handlePin}>
-            <PinIcon />
+            <MessagePinIcon />
           </IconButton>
         )}
         {!hideBookmarkAction && (
@@ -207,66 +216,3 @@ export function MessageActions({
     </div>
   )
 }
-
-function SmileIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-      <line x1="9" y1="9" x2="9.01" y2="9" />
-      <line x1="15" y1="9" x2="15.01" y2="9" />
-    </svg>
-  )
-}
-
-function ReplyIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <polyline points="9 17 4 12 9 7" />
-      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-    </svg>
-  )
-}
-
-function EditIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  )
-}
-
-function PinIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4H7v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1v3.76z" />
-    </svg>
-  )
-}
-
-function ThreadIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  )
-}
-
-function BookmarkIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-

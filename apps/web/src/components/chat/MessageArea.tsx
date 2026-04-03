@@ -42,66 +42,15 @@ const EditChannelModal = lazy(() =>
 import { ChannelInfoSheet } from '@/components/chat/ChannelInfoSheet'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
-
-/* ── Small icons ── */
-
-function HamburgerIcon() {
-  return (
-    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  )
-}
-
-function HashChannelIcon() {
-  return (
-    <svg className="h-6 w-6 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M11 4h2l1 4h4v2h-3.382l.894 4H19v2h-3.618l1 4h-2.054l-1-4H9.382l-1 4H6.328l1-4H4v-2h3.618L6.724 10H3V8h3.382L5.5 4h2.054l1 4h5.946l-1-4zM10.618 10l.894 4h5.946l-.894-4h-5.946z" />
-    </svg>
-  )
-}
-
-function MembersToggleIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="8.5" cy="7" r="4" />
-      <path d="M20 8v6M23 11h-6" />
-    </svg>
-  )
-}
-
-function ChannelSettingsIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 00-.49-.42h-3.84a.5.5 0 00-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.5.5 0 00-.6.22L2.74 8.87c-.17.29-.11.67.19.86l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.17.29.49.38.78.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54a.5.5 0 00.49.42h3.84c.24 0 .45-.17.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.29.15.62.06.78-.22l1.92-3.32c.17-.29.11-.67-.19-.86l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
-    </svg>
-  )
-}
-
-function PinHeaderIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-      <path d="M12 2v8m0 0-3-3m3 3 3-3M9 17h6m-6 0v4m6-4v4M5 12h14" />
-    </svg>
-  )
-}
-
-function BookmarkHeaderIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-    </svg>
-  )
-}
-
-function AtIcon() {
-  return (
-    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 2a10 10 0 1 0 4.4 19 1 1 0 0 0-.8-1.8A8 8 0 1 1 20 12v1.5a2.5 2.5 0 0 1-5 0V8h-2v.3A5 5 0 1 0 15 17a4.5 4.5 0 0 0 7-3.5V12A10 10 0 0 0 12 2zm0 13a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
-    </svg>
-  )
-}
+import {
+  AtIcon,
+  BookmarkIcon,
+  HamburgerIcon,
+  HashChannelIcon,
+  MembersIcon,
+  PinnedListIcon,
+  SettingsCogIcon,
+} from '@/components/chat/chatIcons'
 
 /* ── MessageArea ── */
 
@@ -480,7 +429,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 className="relative"
                 onClick={() => void pinned.handleOpenPinned()}
               >
-                <PinHeaderIcon />
+                <PinnedListIcon />
                 <CountBadge
                   count={activeChannel.pinnedCount ?? 0}
                   variant="primary"
@@ -493,7 +442,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 active={savedOpen}
                 onClick={() => setSavedOpen((v) => !v)}
               >
-                <BookmarkHeaderIcon />
+                <BookmarkIcon className="h-5 w-5" />
               </IconButton>
               <NotifBellMenu channelId={activeChannel.id} serverId={activeChannel.serverId} />
               {isAdminOrOwner && (
@@ -502,7 +451,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   size="lg"
                   onClick={() => setEditingChannel(true)}
                 >
-                  <ChannelSettingsIcon />
+                  <SettingsCogIcon />
                 </IconButton>
               )}
               <IconButton
@@ -510,7 +459,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 size="lg"
                 onClick={useLayoutStore.getState().toggleMemberSidebar}
               >
-                <MembersToggleIcon />
+                <MembersIcon />
               </IconButton>
               <SearchBar
                 searchOpen={searchOpen}
@@ -580,7 +529,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   active={pinned.pinnedOpen}
                   onClick={() => void pinned.handleOpenPinned()}
                 >
-                  <PinHeaderIcon />
+                  <PinnedListIcon />
                 </IconButton>
                 <IconButton
                   label="Saved messages"
@@ -588,7 +537,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   active={savedOpen}
                   onClick={() => setSavedOpen((v) => !v)}
                 >
-                  <BookmarkHeaderIcon />
+                  <BookmarkIcon className="h-5 w-5" />
                 </IconButton>
                 <div className="shrink-0">
                   <SearchBar
