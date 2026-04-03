@@ -12,6 +12,14 @@ export type MockRedisClient = {
   exists: jest.Mock
   keys: jest.Mock
   mget: jest.Mock
+  hgetall: jest.Mock
+  hmset: jest.Mock
+  rpush: jest.Mock
+  blpop: jest.Mock
+  status: string
+  duplicate: jest.Mock
+  on: jest.Mock
+  quit: jest.Mock
 }
 
 export type MockRedisService = {
@@ -20,7 +28,7 @@ export type MockRedisService = {
 }
 
 export function createMockRedisClient(): MockRedisClient {
-  return {
+  const client: MockRedisClient = {
     get: jest.fn(),
     set: jest.fn(),
     del: jest.fn(),
@@ -32,7 +40,17 @@ export function createMockRedisClient(): MockRedisClient {
     exists: jest.fn(),
     keys: jest.fn(),
     mget: jest.fn(),
+    hgetall: jest.fn(),
+    hmset: jest.fn(),
+    rpush: jest.fn(),
+    blpop: jest.fn(),
+    status: 'ready',
+    duplicate: jest.fn(),
+    on: jest.fn().mockReturnThis(),
+    quit: jest.fn().mockResolvedValue('OK'),
   }
+  client.duplicate.mockReturnValue(client)
+  return client
 }
 
 export function createMockRedisService(): MockRedisService {
