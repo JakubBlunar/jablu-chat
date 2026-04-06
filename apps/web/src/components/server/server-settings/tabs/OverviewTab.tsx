@@ -96,7 +96,7 @@ export function OverviewTab({ server }: { server: Server }) {
               <CameraIcon />
             </div>
           </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleIconChange} />
+          <input ref={fileRef} type="file" accept="image/*" className="absolute opacity-0 w-px h-px pointer-events-none" onChange={handleIconChange} />
           {iconPreview && (
             <Button
               type="button"

@@ -484,7 +484,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               ref={fileRef}
               type="file"
               multiple
-              className="hidden"
+              className="absolute opacity-0 w-px h-px pointer-events-none"
               onChange={(e) => {
                 if (e.target.files?.length) onFilesPicked(e.target.files)
                 e.target.value = ''
