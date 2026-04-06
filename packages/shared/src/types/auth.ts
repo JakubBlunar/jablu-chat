@@ -20,6 +20,8 @@ export interface AuthResponse {
     avatarUrl: string | null
     bio: string | null
     status: string
+    manualStatus: string | null
+    manualStatusExpiresAt: string | null
     customStatus: string | null
     dmPrivacy: string
     lastSeenAt: string | null

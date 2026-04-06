@@ -56,6 +56,8 @@ const mockUser = {
   avatarUrl: null,
   bio: null,
   status: 'online' as const,
+  manualStatus: null as const,
+  manualStatusExpiresAt: null as const,
   customStatus: null,
   dmPrivacy: 'everyone' as const,
   lastSeenAt: null,
@@ -220,16 +222,27 @@ describe('auth.store', () => {
   })
 
   describe('updateStatus', () => {
-    it('sets isManualStatus to true for non-online status', async () => {
-      jest.mocked(api.updateStatus).mockResolvedValueOnce({ ...mockUser, status: 'dnd' })
-      await useAuthStore.getState().updateStatus('dnd' as any)
+    it('sets isManualStatus when server returns manual presence', async () => {
+      jest.mocked(api.updateStatus).mockResolvedValueOnce({
+        ...mockUser,
+        status: 'dnd',
+        manualStatus: 'dnd',
+        manualStatusExpiresAt: new Date(Date.now() + 3600_000).toISOString()
+      })
+      await useAuthStore.getState().updateStatus('dnd', '1h')
+      expect(jest.mocked(api.updateStatus)).toHaveBeenCalledWith('dnd', '1h')
       expect(useAuthStore.getState().isManualStatus).toBe(true)
     })
 
     it('sets isManualStatus to false for online status', async () => {
       useAuthStore.setState({ isManualStatus: true })
-      jest.mocked(api.updateStatus).mockResolvedValueOnce({ ...mockUser, status: 'online' })
-      await useAuthStore.getState().updateStatus('online' as any)
+      jest.mocked(api.updateStatus).mockResolvedValueOnce({
+        ...mockUser,
+        status: 'online',
+        manualStatus: null,
+        manualStatusExpiresAt: null
+      })
+      await useAuthStore.getState().updateStatus('online')
       expect(useAuthStore.getState().isManualStatus).toBe(false)
     })
   })

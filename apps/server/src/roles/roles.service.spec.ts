@@ -784,4 +784,47 @@ describe('RolesService', () => {
       )
     })
   })
+
+  describe('getVisibleChannelIdsForServers', () => {
+    it('returns empty map for empty server list', async () => {
+      const m = await service.getVisibleChannelIdsForServers(userId, [])
+      expect(m.size).toBe(0)
+      expect(prisma.server.findMany).not.toHaveBeenCalled()
+    })
+
+    it('returns all channel ids for server owner', async () => {
+      prisma.server.findMany.mockResolvedValue([{ id: serverId, ownerId: userId }])
+      prisma.channel.findMany.mockResolvedValue([
+        { id: 'ch-a', serverId },
+        { id: 'ch-b', serverId },
+      ])
+      prisma.serverMember.findMany.mockResolvedValue([])
+      prisma.role.findMany.mockResolvedValue([])
+
+      const m = await service.getVisibleChannelIdsForServers(userId, [serverId])
+      expect(m.get(serverId)).toEqual(expect.arrayContaining(['ch-a', 'ch-b']))
+      expect(m.get(serverId)).toHaveLength(2)
+      expect(prisma.channelPermissionOverride.findMany).not.toHaveBeenCalled()
+    })
+
+    it('returns all channel ids for member with ADMINISTRATOR', async () => {
+      prisma.server.findMany.mockResolvedValue([{ id: serverId, ownerId: 'other' }])
+      prisma.channel.findMany.mockResolvedValue([
+        { id: 'c1', serverId },
+        { id: 'c2', serverId },
+      ])
+      prisma.serverMember.findMany.mockResolvedValue([
+        {
+          serverId,
+          roles: [{ role: { permissions: Permission.ADMINISTRATOR } }],
+        },
+      ])
+      prisma.role.findMany.mockResolvedValue([])
+
+      const m = await service.getVisibleChannelIdsForServers(userId, [serverId])
+      expect(m.get(serverId)).toEqual(expect.arrayContaining(['c1', 'c2']))
+      expect(m.get(serverId)).toHaveLength(2)
+      expect(prisma.channelPermissionOverride.findMany).not.toHaveBeenCalled()
+    })
+  })
 })

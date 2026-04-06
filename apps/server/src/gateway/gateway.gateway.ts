@@ -58,8 +58,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> number of active socket connections */
   private readonly onlineUsers = new Map<string, number>()
 
-  /** userId -> manually chosen status (idle/dnd/offline) that should not be overridden by auto-detection */
-  readonly manualStatus = new Map<string, string>()
+  /**
+   * userId -> manual presence (idle / dnd / invisible) with optional wall-clock expiry.
+   * `expiresAt: null` means until user picks Online or sets a new status.
+   */
+  readonly manualPresence = new Map<string, { status: string; expiresAt: Date | null }>()
 
   /** userId -> last activity timestamp (ms) from any of their sockets */
   private readonly userLastActivity = new Map<string, number>()
@@ -128,8 +131,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return false
   }
 
+  private getActiveManualPresence(userId: string): { status: string; expiresAt: Date | null } | undefined {
+    const row = this.manualPresence.get(userId)
+    if (!row) return undefined
+    if (row.expiresAt !== null && row.expiresAt.getTime() <= Date.now()) return undefined
+    return row
+  }
+
+  private hasActiveManualPresence(userId: string): boolean {
+    return this.getActiveManualPresence(userId) !== undefined
+  }
+
+  private isInvisible(userId: string): boolean {
+    return this.getActiveManualPresence(userId)?.status === 'offline'
+  }
+
   isUserOnline(userId: string): boolean {
-    if (this.manualStatus.get(userId) === 'offline') return false
+    if (this.isInvisible(userId)) return false
     return this.onlineUsers.has(userId) || this.disconnectGrace.has(userId)
   }
 
@@ -155,10 +173,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   getOnlineUserIds(): string[] {
     const ids: string[] = []
     for (const userId of this.onlineUsers.keys()) {
-      if (this.manualStatus.get(userId) !== 'offline') ids.push(userId)
+      if (!this.isInvisible(userId)) ids.push(userId)
     }
     for (const userId of this.disconnectGrace.keys()) {
-      if (!this.onlineUsers.has(userId) && this.manualStatus.get(userId) !== 'offline') {
+      if (!this.onlineUsers.has(userId) && !this.isInvisible(userId)) {
         ids.push(userId)
       }
     }
@@ -168,7 +186,59 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   afterInit() {
     registerEventListeners(this)
     this.afkInterval = setInterval(() => void this.checkAfkParticipants(), 30_000)
-    this.idleCheckInterval = setInterval(() => void this.checkIdleUsers(), 60_000)
+    this.idleCheckInterval = setInterval(() => void this.runIdleAndManualExpiryChecks(), 60_000)
+  }
+
+  private async runIdleAndManualExpiryChecks() {
+    await this.checkManualPresenceExpiry()
+    await this.checkIdleUsers()
+  }
+
+  private async checkManualPresenceExpiry() {
+    const now = Date.now()
+    const due: string[] = []
+    for (const userId of this.onlineUsers.keys()) {
+      const raw = this.manualPresence.get(userId)
+      if (!raw) continue
+      if (raw.expiresAt === null) continue
+      if (raw.expiresAt.getTime() > now) continue
+      due.push(userId)
+    }
+    for (const userId of due) {
+      await this.clearTimedManualPresenceForOnlineUser(userId)
+    }
+  }
+
+  private async clearTimedManualPresenceForOnlineUser(userId: string) {
+    this.manualPresence.delete(userId)
+
+    const lastActivity = this.userLastActivity.get(userId) ?? Date.now()
+    const next: 'online' | 'idle' =
+      Date.now() - lastActivity > ChatGateway.IDLE_THRESHOLD_MS ? 'idle' : 'online'
+    this.lastBroadcastedStatus.set(userId, next)
+    await this.prisma.user
+      .update({
+        where: { id: userId },
+        data: {
+          manualStatus: null,
+          manualStatusExpiresAt: null,
+          status: next
+        }
+      })
+      .catch((err) => this.logger.warn(`Manual presence expiry DB ${userId}`, err?.message))
+
+    const sockets = await this.server.in(`user:${userId}`).fetchSockets()
+    const serverIds = new Set<string>()
+    for (const s of sockets) {
+      for (const sid of (s.data as { serverIds?: string[] }).serverIds ?? []) {
+        serverIds.add(sid)
+      }
+    }
+    for (const sid of serverIds) {
+      this.server.to(`server:${sid}`).emit('user:status', { userId, status: next })
+    }
+    const friendIds = await this.getFriendUserIds(userId)
+    this.emitToFriends(friendIds, 'user:status', { userId, status: next })
   }
 
   private async checkAfkParticipants() {
@@ -245,6 +315,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       .map(([chId]) => chId)
   }
 
+  private async hydrateManualPresenceFromDb(userId: string): Promise<void> {
+    const pu = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { manualStatus: true, manualStatusExpiresAt: true }
+    })
+    if (!pu?.manualStatus) {
+      this.manualPresence.delete(userId)
+      return
+    }
+    if (pu.manualStatusExpiresAt != null && pu.manualStatusExpiresAt <= new Date()) {
+      await this.prisma.user
+        .update({
+          where: { id: userId },
+          data: { manualStatus: null, manualStatusExpiresAt: null }
+        })
+        .catch(() => {})
+      this.manualPresence.delete(userId)
+      return
+    }
+    this.manualPresence.set(userId, {
+      status: pu.manualStatus,
+      expiresAt: pu.manualStatusExpiresAt
+    })
+  }
+
   async reconcileChannelRooms(serverId: string, userId: string) {
     const visibleIds = new Set(await this.getVisibleChannelIds(serverId, userId))
     const allChannels = await this.prisma.channel.findMany({
@@ -278,31 +373,45 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       include: {
         server: {
           include: {
-            channels: { select: { id: true } },
-            members: { select: { userId: true } }
+            channels: { select: { id: true } }
           }
         }
       }
     })
 
-    const serverIds: string[] = []
+    const serverIds = memberships.map((m) => m.serverId)
+
     const allMemberUserIds = new Set<string>()
+    if (serverIds.length > 0) {
+      const memberRows = await this.prisma.serverMember.findMany({
+        where: { serverId: { in: serverIds } },
+        select: { userId: true }
+      })
+      for (const r of memberRows) {
+        allMemberUserIds.add(r.userId)
+      }
+    }
+
+    const visibleByServer =
+      serverIds.length > 0
+        ? await this.roles.getVisibleChannelIdsForServers(user.id, serverIds)
+        : new Map<string, string[]>()
+
     for (const m of memberships) {
-      serverIds.push(m.serverId)
       client.join(`server:${m.serverId}`)
-      const visibleChannelIds = await this.getVisibleChannelIds(m.serverId, user.id)
-      const visibleSet = new Set(visibleChannelIds)
+      const visibleSet = new Set(visibleByServer.get(m.serverId) ?? [])
       for (const ch of m.server.channels) {
         if (visibleSet.has(ch.id)) {
           client.join(`channel:${ch.id}`)
         }
       }
-      for (const mem of m.server.members) {
-        allMemberUserIds.add(mem.userId)
-      }
     }
     ;(client.data as { serverIds?: string[] }).serverIds = serverIds
     client.join(`user:${user.id}`)
+
+    if (!user.isBot) {
+      await this.hydrateManualPresenceFromDb(user.id)
+    }
 
     if (user.isBot) {
       const dmConversations = await this.prisma.directConversationMember.findMany({
@@ -340,7 +449,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const isFirstConnection = this.addOnlineUser(user.id)
     this.userLastActivity.set(user.id, Date.now())
 
-    const isInvisible = this.manualStatus.get(user.id) === 'offline'
+    const isInvisible = this.isInvisible(user.id)
 
     const friendIds = await this.getFriendUserIds(user.id)
 
@@ -348,7 +457,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       if (isInvisible) {
         // Reconnecting during grace while invisible -- stay invisible, no broadcast
       } else {
-        const manualSt = this.manualStatus.get(user.id)
+        const manualSt = this.getActiveManualPresence(user.id)?.status
         const status = (manualSt ?? 'online') as 'online' | 'idle' | 'dnd' | 'offline'
         if (this.lastBroadcastedStatus.get(user.id) !== status) {
           this.lastBroadcastedStatus.set(user.id, status)
@@ -363,17 +472,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         }
       }
     } else if (isFirstConnection) {
-      this.lastBroadcastedStatus.set(user.id, 'online')
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { status: 'online', lastSeenAt: new Date() }
-      })
-      for (const sid of serverIds) {
-        this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
-        this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
+      if (isInvisible) {
+        this.lastBroadcastedStatus.set(user.id, 'offline')
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { lastSeenAt: new Date() }
+        })
+      } else if (this.hasActiveManualPresence(user.id)) {
+        const st = this.getActiveManualPresence(user.id)!.status as 'online' | 'idle' | 'dnd' | 'offline'
+        this.lastBroadcastedStatus.set(user.id, st)
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { status: st, lastSeenAt: new Date() }
+        })
+        for (const sid of serverIds) {
+          this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
+          this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: st })
+        }
+        this.emitToFriends(friendIds, 'user:online', { userId: user.id })
+        this.emitToFriends(friendIds, 'user:status', { userId: user.id, status: st })
+      } else {
+        this.lastBroadcastedStatus.set(user.id, 'online')
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { status: 'online', lastSeenAt: new Date() }
+        })
+        for (const sid of serverIds) {
+          this.server.to(`server:${sid}`).emit('user:online', { userId: user.id })
+          this.server.to(`server:${sid}`).emit('user:status', { userId: user.id, status: 'online' })
+        }
+        this.emitToFriends(friendIds, 'user:online', { userId: user.id })
+        this.emitToFriends(friendIds, 'user:status', { userId: user.id, status: 'online' })
       }
-      this.emitToFriends(friendIds, 'user:online', { userId: user.id })
-      this.emitToFriends(friendIds, 'user:status', { userId: user.id, status: 'online' })
     }
 
     const onlineNow = this.getOnlineUserIds().filter((id) => allMemberUserIds.has(id))
@@ -430,7 +560,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         this.disconnectGrace.delete(userId)
         if (this.onlineUsers.has(userId)) return
         this.userLastActivity.delete(userId)
-        this.manualStatus.delete(userId)
+        this.manualPresence.delete(userId)
         this.lastBroadcastedStatus.delete(userId)
         await this.prisma.user.update({
           where: { id: userId },
@@ -999,7 +1129,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   @SubscribeMessage('activity:heartbeat')
   async onActivityHeartbeat(@ConnectedSocket() client: Socket) {
     const user = (client.data as { user: WsUser }).user
-    if (this.manualStatus.has(user.id)) return { ok: true }
+    if (this.hasActiveManualPresence(user.id)) return { ok: true }
 
     this.userLastActivity.set(user.id, Date.now())
 
@@ -1023,7 +1153,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const now = Date.now()
 
     for (const [userId] of this.onlineUsers) {
-      if (this.manualStatus.has(userId)) continue
+      if (this.hasActiveManualPresence(userId)) continue
 
       const lastActivity = this.userLastActivity.get(userId)
       if (!lastActivity) continue

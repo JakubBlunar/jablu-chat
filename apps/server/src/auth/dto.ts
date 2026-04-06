@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator'
+import { IsEmail, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator'
 
 export class RegisterDto {
   @IsString()
@@ -86,9 +86,16 @@ export class ChangeEmailDto {
   password: string
 }
 
+const STATUS_DURATION_PRESETS = ['15m', '1h', '8h', '24h', '3d', 'forever'] as const
+
 export class UpdateStatusDto {
   @IsEnum(['online', 'idle', 'dnd', 'offline'])
   status: 'online' | 'idle' | 'dnd' | 'offline'
+
+  /** How long manual status applies (idle / dnd / invisible). Ignored for Online. Defaults to 1h. */
+  @IsOptional()
+  @IsIn(STATUS_DURATION_PRESETS)
+  duration?: (typeof STATUS_DURATION_PRESETS)[number]
 }
 
 export class UpdateDmPrivacyDto {

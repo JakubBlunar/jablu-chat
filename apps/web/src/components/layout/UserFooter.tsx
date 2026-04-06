@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react'
+import { useRef, useState } from 'react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { IconButton } from '@/components/ui'
+import { UserFooterStatusPopover } from './UserFooterStatusPopover'
+import { footerPresenceLabel, manualPresenceSubtitle } from '@/lib/manual-status-display'
 import { useAuthStore } from '@/stores/auth.store'
 
 function GearIcon() {
@@ -19,10 +22,21 @@ type UserFooterProps = {
 
 export function UserFooter({ onOpenSettings, className, children }: UserFooterProps) {
   const user = useAuthStore((s) => s.user)
+  const presenceHint = user ? manualPresenceSubtitle(user) : null
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false)
+  const avatarBtnRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div className={`flex shrink-0 items-center gap-2 bg-surface-overlay ${className ?? ''}`}>
-      <button type="button" onClick={() => onOpenSettings('status')} className="shrink-0 rounded-full transition hover:opacity-80">
+      <button
+        ref={avatarBtnRef}
+        type="button"
+        aria-expanded={statusPickerOpen}
+        aria-haspopup="dialog"
+        aria-label="Set status"
+        onClick={() => setStatusPickerOpen((o) => !o)}
+        className="shrink-0 rounded-full transition hover:opacity-80"
+      >
         <UserAvatar
           username={user?.username ?? 'User'}
           avatarUrl={user?.avatarUrl}
@@ -31,12 +45,28 @@ export function UserFooter({ onOpenSettings, className, children }: UserFooterPr
           status={user?.status ?? 'online'}
         />
       </button>
+      <UserFooterStatusPopover
+        open={statusPickerOpen}
+        onClose={() => setStatusPickerOpen(false)}
+        anchorRef={avatarBtnRef}
+        onEditFullSettings={() => onOpenSettings('status')}
+      />
       <button type="button" onClick={() => onOpenSettings('profile')} className="min-w-0 flex-1 text-left transition hover:opacity-80">
         <p className="truncate text-sm font-semibold text-white">
           {user?.displayName ?? user?.username ?? '…'}
         </p>
         <p className="truncate text-xs text-gray-400">
-          {user?.customStatus || <span className="capitalize">{user?.status ?? 'online'}</span>}
+          {user?.customStatus ? (
+            user.customStatus
+          ) : presenceHint && user ? (
+            <>
+              <span>{footerPresenceLabel(user)}</span>
+              <span className="text-gray-500"> · </span>
+              <span>{presenceHint}</span>
+            </>
+          ) : (
+            <span className="capitalize">{user?.status ?? 'online'}</span>
+          )}
         </p>
       </button>
       {children}
