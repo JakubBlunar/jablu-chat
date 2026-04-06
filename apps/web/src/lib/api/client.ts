@@ -17,6 +17,7 @@ import type {
   RegisterRequest,
   ResetPasswordRequest,
   ServerEvent,
+  StatusDurationPreset,
   UpdateEventInput,
   UpdateProfileInput,
   User,
@@ -334,8 +335,10 @@ export class ApiClient {
     return this.patch<User>('/api/auth/email', data)
   }
 
-  updateStatus(status: UserStatus): Promise<User> {
-    return this.patch<User>('/api/auth/status', { status })
+  updateStatus(status: UserStatus, duration?: StatusDurationPreset): Promise<User> {
+    const body: { status: UserStatus; duration?: StatusDurationPreset } = { status }
+    if (duration !== undefined) body.duration = duration
+    return this.patch<User>('/api/auth/status', body)
   }
 
   updateCustomStatus(customStatus: string | null): Promise<User> {

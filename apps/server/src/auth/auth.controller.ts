@@ -202,10 +202,17 @@ export class AuthController {
   @Patch('status')
   @UseGuards(UnifiedAuthGuard)
   async updateStatus(@CurrentUser() user: { id: string }, @Body() dto: UpdateStatusDto) {
-    const updated = await this.auth.updateStatus(user.id, dto.status)
+    const updated = await this.auth.updateStatus(user.id, dto.status, dto.duration)
+    const manualUntil =
+      updated.manualStatus == null
+        ? undefined
+        : updated.manualStatusExpiresAt == null
+          ? null
+          : updated.manualStatusExpiresAt.toISOString()
     this.events.emit('user:status', {
       userId: user.id,
-      status: dto.status
+      status: updated.status,
+      manualUntil
     })
     return updated
   }

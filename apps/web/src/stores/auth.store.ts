@@ -1,8 +1,36 @@
-import type { ChangeEmailInput, ChangePasswordInput, DmPrivacy, UpdateProfileInput, User, UserStatus } from '@chat/shared'
+import type {
+  AuthResponse,
+  ChangeEmailInput,
+  ChangePasswordInput,
+  DmPrivacy,
+  StatusDurationPreset,
+  UpdateProfileInput,
+  User,
+  UserStatus
+} from '@chat/shared'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api } from '../lib/api'
 import { unsubscribeFromPush } from '../lib/notifications'
+
+export type AuthUser = User
+
+function normalizeAuthUser(raw: User | AuthResponse['user']): AuthUser {
+  const r = raw as User
+  return {
+    ...r,
+    manualStatus: r.manualStatus ?? null,
+    manualStatusExpiresAt: r.manualStatusExpiresAt ?? null,
+    status: r.status as UserStatus,
+    dmPrivacy: (r.dmPrivacy as DmPrivacy) ?? 'everyone'
+  }
+}
+
+function manualPresenceActive(user: AuthUser | null): boolean {
+  if (!user?.manualStatus) return false
+  if (!user.manualStatusExpiresAt) return true
+  return new Date(user.manualStatusExpiresAt) > new Date()
+}
 
 function resetAllStores() {
   Promise.all([
@@ -63,8 +91,6 @@ function resetAllStores() {
   )
 }
 
-export type AuthUser = User
-
 type AuthState = {
   user: AuthUser | null
   accessToken: string | null
@@ -81,7 +107,7 @@ type AuthState = {
   deleteAvatar: () => Promise<void>
   changePassword: (data: ChangePasswordInput) => Promise<void>
   changeEmail: (data: ChangeEmailInput) => Promise<void>
-  updateStatus: (status: UserStatus) => Promise<void>
+  updateStatus: (status: UserStatus, duration?: StatusDurationPreset) => Promise<void>
   updateCustomStatus: (customStatus: string | null) => Promise<void>
   updateDmPrivacy: (dmPrivacy: DmPrivacy) => Promise<void>
   setUser: (user: AuthUser) => void
@@ -100,21 +126,25 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         const data = await api.login(email, password)
+        const u = normalizeAuthUser(data.user)
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
-          isAuthenticated: true
+          user: u,
+          isAuthenticated: true,
+          isManualStatus: manualPresenceActive(u)
         })
       },
 
       register: async (username, email, password, inviteCode?) => {
         const data = await api.register(username, email, password, inviteCode)
+        const u = normalizeAuthUser(data.user)
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
-          isAuthenticated: true
+          user: u,
+          isAuthenticated: true,
+          isManualStatus: manualPresenceActive(u)
         })
       },
 
@@ -148,33 +178,38 @@ export const useAuthStore = create<AuthState>()(
         }
         if (!rt) return
         const data = await api.refreshToken(rt)
+        const u = normalizeAuthUser(data.user)
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
-          user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
-          isAuthenticated: true
+          user: u,
+          isAuthenticated: true,
+          isManualStatus: manualPresenceActive(u)
         })
       },
 
       updateProfile: async (data) => {
         const user = await api.updateProfile(data)
-        set({ user })
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
         const { useMemberStore } = await import('@/stores/member.store')
-        useMemberStore.getState().updateUserProfile(user.id, user)
+        useMemberStore.getState().updateUserProfile(u.id, u)
       },
 
       uploadAvatar: async (file) => {
         const user = await api.uploadAvatar(file)
-        set({ user })
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
         const { useMemberStore } = await import('@/stores/member.store')
-        useMemberStore.getState().updateUserProfile(user.id, user)
+        useMemberStore.getState().updateUserProfile(u.id, u)
       },
 
       deleteAvatar: async () => {
         const user = await api.deleteAvatar()
-        set({ user })
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
         const { useMemberStore } = await import('@/stores/member.store')
-        useMemberStore.getState().updateUserProfile(user.id, user)
+        useMemberStore.getState().updateUserProfile(u.id, u)
       },
 
       changePassword: async (data) => {
@@ -183,25 +218,32 @@ export const useAuthStore = create<AuthState>()(
 
       changeEmail: async (data) => {
         const user = await api.changeEmail(data)
-        set({ user })
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
       },
 
-      updateStatus: async (status) => {
-        const user = await api.updateStatus(status)
-        set({ user, isManualStatus: status !== 'online' })
+      updateStatus: async (status, duration) => {
+        const user = await api.updateStatus(status, duration)
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
       },
 
       updateCustomStatus: async (customStatus: string | null) => {
         const user = await api.updateCustomStatus(customStatus)
-        set({ user })
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
       },
 
       updateDmPrivacy: async (dmPrivacy) => {
         const user = await api.updateDmPrivacy(dmPrivacy)
-        set({ user })
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
       },
 
-      setUser: (user) => set({ user }),
+      setUser: (user) => {
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
+      },
 
       checkAuth: async () => {
         let { accessToken, refreshToken } = get()
@@ -228,10 +270,12 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const user = await api.getProfile()
+          const u = normalizeAuthUser(user)
           set({
-            user,
+            user: u,
             isAuthenticated: true,
-            isLoading: false
+            isLoading: false,
+            isManualStatus: manualPresenceActive(u)
           })
         } catch (err: unknown) {
           const status = (err as { status?: number }).status
@@ -241,12 +285,14 @@ export const useAuthStore = create<AuthState>()(
           }
           try {
             const data = await api.refreshToken(refreshToken)
+            const u = normalizeAuthUser(data.user)
             set({
               accessToken: data.accessToken,
               refreshToken: data.refreshToken,
-              user: { ...data.user, status: data.user.status as UserStatus, dmPrivacy: (data.user.dmPrivacy as DmPrivacy) ?? 'everyone' },
+              user: u,
               isAuthenticated: true,
-              isLoading: false
+              isLoading: false,
+              isManualStatus: manualPresenceActive(u)
             })
           } catch (refreshErr: unknown) {
             const rStatus = (refreshErr as { status?: number }).status

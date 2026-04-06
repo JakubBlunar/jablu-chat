@@ -1,29 +1,12 @@
-import type { UserStatus } from '@chat/shared'
 import { useState } from 'react'
-import { StatusDot } from '@/components/ui/StatusDot'
-import { STATUS_OPTIONS } from '@/components/settings/settingsTypes'
+import { StatusPickerCore } from '@/components/user/StatusPickerCore'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function StatusSection() {
   const user = useAuthStore((s) => s.user)
-  const updateStatus = useAuthStore((s) => s.updateStatus)
   const updateCustomStatus = useAuthStore((s) => s.updateCustomStatus)
-  const [loading, setLoading] = useState<UserStatus | null>(null)
   const [customText, setCustomText] = useState(user?.customStatus ?? '')
   const [savingCustom, setSavingCustom] = useState(false)
-
-  const currentStatus = user?.status ?? 'online'
-
-  const handleChange = async (status: UserStatus) => {
-    setLoading(status)
-    try {
-      await updateStatus(status)
-    } catch {
-      // ignore
-    } finally {
-      setLoading(null)
-    }
-  }
 
   const handleCustomStatusSave = async () => {
     setSavingCustom(true)
@@ -84,28 +67,7 @@ export function StatusSection() {
 
       <div className="space-y-2">
         <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Online Status</label>
-        <p className="text-sm text-gray-400">Choose how others see you in the member list.</p>
-        <div className="space-y-1">
-          {STATUS_OPTIONS.map((opt) => {
-            const active = currentStatus === opt.value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                disabled={loading !== null}
-                onClick={() => handleChange(opt.value)}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition ${
-                  active ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
-                }`}
-              >
-                <StatusDot status={opt.value} size="md" />
-                <span className="text-sm font-medium">{opt.label}</span>
-                {active && <span className="ml-auto text-xs text-gray-400">Current</span>}
-                {loading === opt.value && <span className="ml-auto text-xs text-gray-400">...</span>}
-              </button>
-            )
-          })}
-        </div>
+        <StatusPickerCore variant="default" />
       </div>
     </div>
   )

@@ -132,33 +132,39 @@ export async function routeRestSlashCommand(gw: ChatGateway, content: string, se
  * Called once from `ChatGateway.afterInit()`.
  */
 export function registerEventListeners(gw: ChatGateway) {
-  gw.events.on('user:status', async (payload: { userId: string; status: string }) => {
-    if (payload.status === 'online') {
-      gw.manualStatus.delete(payload.userId)
-    } else {
-      gw.manualStatus.set(payload.userId, payload.status)
-    }
+  gw.events.on(
+    'user:status',
+    async (payload: { userId: string; status: string; manualUntil?: string | null }) => {
+      if (payload.manualUntil === undefined) {
+        gw.manualPresence.delete(payload.userId)
+      } else {
+        gw.manualPresence.set(payload.userId, {
+          status: payload.status,
+          expiresAt: payload.manualUntil === null ? null : new Date(payload.manualUntil)
+        })
+      }
 
-    const [memberships, friendIds] = await Promise.all([
-      gw.prisma.serverMember.findMany({
-        where: { userId: payload.userId },
-        select: { serverId: true }
-      }),
-      gw.getFriendUserIds(payload.userId)
-    ])
-    for (const m of memberships) {
-      gw.server.to(`server:${m.serverId}`).emit('user:status', {
-        userId: payload.userId,
-        status: payload.status
-      })
+      const [memberships, friendIds] = await Promise.all([
+        gw.prisma.serverMember.findMany({
+          where: { userId: payload.userId },
+          select: { serverId: true }
+        }),
+        gw.getFriendUserIds(payload.userId)
+      ])
+      for (const m of memberships) {
+        gw.server.to(`server:${m.serverId}`).emit('user:status', {
+          userId: payload.userId,
+          status: payload.status
+        })
+      }
+      for (const fid of friendIds) {
+        gw.server.to(`user:${fid}`).emit('user:status', {
+          userId: payload.userId,
+          status: payload.status
+        })
+      }
     }
-    for (const fid of friendIds) {
-      gw.server.to(`user:${fid}`).emit('user:status', {
-        userId: payload.userId,
-        status: payload.status
-      })
-    }
-  })
+  )
 
   gw.events.on('user:custom-status', async (payload: { userId: string; customStatus: string | null }) => {
     const [memberships, friendIds] = await Promise.all([

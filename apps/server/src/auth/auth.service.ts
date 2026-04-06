@@ -28,11 +28,28 @@ const PROFILE_SELECT = {
   avatarUrl: true,
   bio: true,
   status: true,
+  manualStatus: true,
+  manualStatusExpiresAt: true,
   customStatus: true,
   dmPrivacy: true,
   lastSeenAt: true,
   createdAt: true
 } as const
+
+export type StatusDurationPreset = '15m' | '1h' | '8h' | '24h' | '3d' | 'forever'
+
+/** Visible for unit tests — maps preset to DB expiry (null = no auto-expiry). */
+export function computeManualStatusExpiresAt(preset: StatusDurationPreset, now: Date): Date | null {
+  if (preset === 'forever') return null
+  const msByPreset: Record<Exclude<StatusDurationPreset, 'forever'>, number> = {
+    '15m': 15 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '8h': 8 * 60 * 60 * 1000,
+    '24h': 24 * 60 * 60 * 1000,
+    '3d': 3 * 24 * 60 * 60 * 1000
+  }
+  return new Date(now.getTime() + msByPreset[preset])
+}
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -175,10 +192,7 @@ export class AuthService implements OnModuleInit {
     }
 
     const tokens = await this.generateTokens(user.id, userAgent, ipAddress)
-    const profile = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      select: PROFILE_SELECT
-    })
+    const profile = await this.loadProfileAfterAuth(user.id)
     return { ...tokens, user: profile! }
   }
 
@@ -200,10 +214,7 @@ export class AuthService implements OnModuleInit {
       return this.generateTokensTx(tx, stored.userId, userAgent, ipAddress)
     })
 
-    const profile = await this.prisma.user.findUnique({
-      where: { id: stored.userId },
-      select: PROFILE_SELECT
-    })
+    const profile = await this.loadProfileAfterAuth(stored.userId)
     return { ...tokens, user: profile! }
   }
 
@@ -264,12 +275,37 @@ export class AuthService implements OnModuleInit {
   }
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.loadProfileAfterAuth(userId)
+    if (!user) {
+      throw new UnauthorizedException('User not found')
+    }
+    return user
+  }
+
+  /** Loads profile and clears timed manual presence if its expiry is in the past. */
+  private async loadProfileAfterAuth(userId: string) {
+    let user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: PROFILE_SELECT
     })
-    if (!user) {
-      throw new UnauthorizedException('User not found')
+    if (!user) return null
+    if (
+      user.manualStatus &&
+      user.manualStatusExpiresAt != null &&
+      user.manualStatusExpiresAt <= new Date()
+    ) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          manualStatus: null,
+          manualStatusExpiresAt: null,
+          status: 'offline'
+        }
+      })
+      user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: PROFILE_SELECT
+      })
     }
     return user
   }
@@ -373,10 +409,30 @@ export class AuthService implements OnModuleInit {
     })
   }
 
-  async updateStatus(userId: string, status: 'online' | 'idle' | 'dnd' | 'offline') {
+  async updateStatus(
+    userId: string,
+    status: 'online' | 'idle' | 'dnd' | 'offline',
+    duration?: StatusDurationPreset
+  ) {
+    const now = new Date()
+    let manualStatus: 'online' | 'idle' | 'dnd' | 'offline' | null = null
+    let manualStatusExpiresAt: Date | null = null
+
+    if (status === 'online') {
+      manualStatus = null
+      manualStatusExpiresAt = null
+    } else {
+      manualStatus = status
+      manualStatusExpiresAt = computeManualStatusExpiresAt(duration ?? '1h', now)
+    }
+
     return this.prisma.user.update({
       where: { id: userId },
-      data: { status: status as any },
+      data: {
+        status: status as any,
+        manualStatus: manualStatus as any,
+        manualStatusExpiresAt
+      },
       select: PROFILE_SELECT
     })
   }

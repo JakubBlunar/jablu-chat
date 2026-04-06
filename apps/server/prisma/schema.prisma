@@ -16,6 +16,10 @@ model User {
   avatarUrl    String?  @map("avatar_url")
   bio          String?
   status       UserStatus @default(offline)
+  /// Manual presence (idle / dnd / invisible) until expiry; null = follow automatic while connected.
+  manualStatus          UserStatus? @map("manual_status")
+  /// When manual presence ends; null with manualStatus set means until user clears or picks Online.
+  manualStatusExpiresAt DateTime?   @map("manual_status_expires_at")
   customStatus String?    @map("custom_status")
   isBot        Boolean  @default(false) @map("is_bot")
   dmPrivacy    DmPrivacy  @default(everyone) @map("dm_privacy")

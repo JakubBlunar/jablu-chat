@@ -12,7 +12,7 @@ export function registerEventBridgeHandlers(
   push: PushService,
   redis: RedisService,
   isUserOnline: (userId: string) => boolean,
-  manualStatus: Map<string, string>
+  manualPresence: Map<string, { status: string; expiresAt: Date | null }>
 ) {
   const emitToChannel = (channelId: string, event: string, data: unknown) => {
     server.to(`channel:${channelId}`).emit(event, data)
@@ -24,9 +24,9 @@ export function registerEventBridgeHandlers(
 
   events.on('user:status', async (payload: { userId: string; status: string }) => {
     if (payload.status === 'dnd') {
-      manualStatus.set(payload.userId, 'dnd')
+      manualPresence.set(payload.userId, { status: 'dnd', expiresAt: null })
     } else {
-      manualStatus.delete(payload.userId)
+      manualPresence.delete(payload.userId)
     }
 
     const memberships = await prisma.serverMember.findMany({

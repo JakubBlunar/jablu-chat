@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, UnauthorizedException } from '@
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
-import { AuthService } from './auth.service'
+import { AuthService, computeManualStatusExpiresAt } from './auth.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
@@ -52,6 +52,8 @@ describe('AuthService', () => {
     avatarUrl: null,
     bio: null,
     status: 'online',
+    manualStatus: null,
+    manualStatusExpiresAt: null,
     customStatus: null,
     dmPrivacy: 'everyone',
     lastSeenAt: null,
@@ -523,6 +525,70 @@ describe('AuthService', () => {
     it('returns the configured mode', () => {
       config.get.mockReturnValue('invite')
       expect(service.getRegistrationMode()).toEqual({ mode: 'invite' })
+    })
+  })
+
+  describe('computeManualStatusExpiresAt', () => {
+    it('returns null for forever', () => {
+      expect(computeManualStatusExpiresAt('forever', new Date('2026-06-15T12:00:00Z'))).toBeNull()
+    })
+
+    it('adds 1 hour for 1h', () => {
+      const now = new Date('2026-06-15T12:00:00Z')
+      const e = computeManualStatusExpiresAt('1h', now)!
+      expect(e.getTime() - now.getTime()).toBe(3600_000)
+    })
+
+    it('adds 15 minutes for 15m', () => {
+      const now = new Date('2026-06-15T12:00:00Z')
+      const e = computeManualStatusExpiresAt('15m', now)!
+      expect(e.getTime() - now.getTime()).toBe(15 * 60_000)
+    })
+
+    it('adds 3 days for 3d', () => {
+      const now = new Date('2026-06-15T12:00:00Z')
+      const e = computeManualStatusExpiresAt('3d', now)!
+      expect(e.getTime() - now.getTime()).toBe(3 * 24 * 3600_000)
+    })
+  })
+
+  describe('updateStatus', () => {
+    it('clears manual fields when setting online', async () => {
+      prisma.user.update.mockResolvedValue({
+        ...mockProfile,
+        status: 'online',
+        manualStatus: null,
+        manualStatusExpiresAt: null,
+      })
+
+      await service.updateStatus('user-1', 'online')
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-1' },
+          data: {
+            status: 'online',
+            manualStatus: null,
+            manualStatusExpiresAt: null,
+          },
+        }),
+      )
+    })
+
+    it('stores manual status and expiry for dnd', async () => {
+      prisma.user.update.mockResolvedValue({
+        ...mockProfile,
+        status: 'dnd',
+        manualStatus: 'dnd',
+        manualStatusExpiresAt: new Date('2026-06-15T13:00:00Z'),
+      })
+
+      await service.updateStatus('user-1', 'dnd', '1h')
+
+      const arg = prisma.user.update.mock.calls[0][0]
+      expect(arg.data.manualStatus).toBe('dnd')
+      expect(arg.data.manualStatusExpiresAt).toBeInstanceOf(Date)
+      expect(arg.data.status).toBe('dnd')
     })
   })
 

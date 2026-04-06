@@ -307,6 +307,123 @@ export class RolesService {
     return map
   }
 
+  /**
+   * Resolves VIEW_CHANNEL-visible channel ids for many servers in a small number of queries
+   * (used on WebSocket connect instead of N × getAllChannelPermissions).
+   */
+  async getVisibleChannelIdsForServers(userId: string, serverIds: string[]): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>()
+    const unique = [...new Set(serverIds)]
+    if (unique.length === 0) return out
+
+    const VIEW = Permission.VIEW_CHANNEL
+
+    const servers = await this.prisma.server.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, ownerId: true },
+    })
+    const ownerByServer = new Map(servers.map((s) => [s.id, s.ownerId]))
+
+    const channels = await this.prisma.channel.findMany({
+      where: { serverId: { in: unique } },
+      select: { id: true, serverId: true },
+    })
+    const channelsByServer = new Map<string, string[]>()
+    for (const sid of unique) channelsByServer.set(sid, [])
+    for (const ch of channels) {
+      channelsByServer.get(ch.serverId)?.push(ch.id)
+    }
+
+    const members = await this.prisma.serverMember.findMany({
+      where: { userId, serverId: { in: unique } },
+      include: { roles: { include: { role: true } } },
+    })
+    const memberByServer = new Map(members.map((m) => [m.serverId, m]))
+
+    const everyoneRoles = await this.prisma.role.findMany({
+      where: { serverId: { in: unique }, isDefault: true },
+      select: { id: true, serverId: true, permissions: true },
+    })
+    const everyoneByServer = new Map(everyoneRoles.map((r) => [r.serverId, r]))
+
+    type OverrideRow = { channelId: string; roleId: string; allow: bigint; deny: bigint }
+    const needsOverrides: {
+      serverId: string
+      channelIds: string[]
+      rolePerms: bigint
+      roleIds: string[]
+    }[] = []
+
+    for (const sid of unique) {
+      const channelIds = channelsByServer.get(sid) ?? []
+      if (channelIds.length === 0) {
+        out.set(sid, [])
+        continue
+      }
+      if (ownerByServer.get(sid) === userId) {
+        out.set(sid, [...channelIds])
+        continue
+      }
+      const member = memberByServer.get(sid)
+      if (!member) {
+        out.set(sid, [])
+        continue
+      }
+      const everyoneRole = everyoneByServer.get(sid)
+      const rolePermsList = member.roles.map((mr) => ({ permissions: mr.role.permissions }))
+      if (everyoneRole) rolePermsList.push({ permissions: everyoneRole.permissions })
+      const rolePerms = resolveMultiRolePermissions(rolePermsList)
+
+      if (hasPermission(rolePerms, Permission.ADMINISTRATOR)) {
+        out.set(sid, [...channelIds])
+        continue
+      }
+
+      const roleIds = [...member.roles.map((mr) => mr.roleId)]
+      if (everyoneRole) roleIds.push(everyoneRole.id)
+      needsOverrides.push({ serverId: sid, channelIds, rolePerms, roleIds })
+    }
+
+    if (needsOverrides.length === 0) {
+      return out
+    }
+
+    const allChannelIds = [...new Set(needsOverrides.flatMap((n) => n.channelIds))]
+    const allRoleIds = [...new Set(needsOverrides.flatMap((n) => n.roleIds))]
+
+    const overrideRows = await this.prisma.channelPermissionOverride.findMany({
+      where: { channelId: { in: allChannelIds }, roleId: { in: allRoleIds } },
+      select: { channelId: true, roleId: true, allow: true, deny: true },
+    })
+
+    const byChannel = new Map<string, OverrideRow[]>()
+    for (const o of overrideRows) {
+      const list = byChannel.get(o.channelId) ?? []
+      list.push({ channelId: o.channelId, roleId: o.roleId, allow: o.allow, deny: o.deny })
+      byChannel.set(o.channelId, list)
+    }
+
+    for (const { serverId, channelIds, rolePerms, roleIds } of needsOverrides) {
+      const roleIdSet = new Set(roleIds)
+      const visible: string[] = []
+      for (const cid of channelIds) {
+        const raw = byChannel.get(cid) ?? []
+        const chOverrides = raw.filter((o) => roleIdSet.has(o.roleId))
+        const effective =
+          chOverrides.length > 0
+            ? resolveMultiRoleChannelPermissions(
+                rolePerms,
+                chOverrides.map((o) => ({ allow: o.allow, deny: o.deny })),
+              )
+            : rolePerms
+        if (hasPermission(effective, VIEW)) visible.push(cid)
+      }
+      out.set(serverId, visible)
+    }
+
+    return out
+  }
+
   async requirePermission(serverId: string, userId: string, permission: bigint) {
     const perms = await this.getMemberPermissions(serverId, userId)
     if (!hasPermission(perms, permission)) {
