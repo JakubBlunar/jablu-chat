@@ -78,7 +78,7 @@ export function ProfileSection() {
             ref={fileInputRef}
             type="file"
             accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif"
-            className="hidden"
+            className="absolute opacity-0 w-px h-px pointer-events-none"
             onChange={handleAvatarChange}
           />
         </div>

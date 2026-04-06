@@ -126,7 +126,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                 type="file"
                 accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif"
                 onChange={handleFileSelect}
-                className="hidden"
+                className="absolute opacity-0 w-px h-px pointer-events-none"
               />
             </div>
             <div className="min-w-0 flex-1">
