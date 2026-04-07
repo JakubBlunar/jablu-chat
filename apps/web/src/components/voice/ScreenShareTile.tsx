@@ -11,12 +11,10 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 export function ScreenShareTile({
   participant,
-  publication,
-  focused
+  publication
 }: {
   participant: Participant
   publication: TrackPublication
-  focused?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasTrack, setHasTrack] = useState(false)
@@ -86,8 +84,8 @@ export function ScreenShareTile({
   useEffect(() => {
     if (participant.isLocal || !('setVideoQuality' in publication)) return
     const pub = publication as RemoteTrackPublication
-    pub.setVideoQuality(focused ? VideoQuality.HIGH : VideoQuality.LOW)
-  }, [participant, publication, focused, hasTrack])
+    pub.setVideoQuality(VideoQuality.HIGH)
+  }, [participant, publication, hasTrack])
 
   useEffect(() => {
     if (hasTrack) { setLoadTimeout(false); return }
