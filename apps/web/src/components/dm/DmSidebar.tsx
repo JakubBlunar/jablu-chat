@@ -75,7 +75,8 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
       let status: 'online' | 'offline' | 'idle' | 'dnd' = 'offline'
       if (onlineIds.has(otherId)) {
         const rt = realtimeStatuses.get(otherId)
-        status = (rt === 'idle' || rt === 'dnd') ? rt : 'online'
+        if (rt === 'offline') status = 'offline'
+        else status = rt === 'idle' || rt === 'dnd' ? rt : 'online'
       }
       return {
         name: other?.displayName ?? other?.username ?? 'Unknown',

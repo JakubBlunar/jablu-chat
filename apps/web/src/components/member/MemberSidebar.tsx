@@ -9,8 +9,9 @@ import { getTopRole, getRoleColor, useMemberStore } from '@/stores/member.store'
 import { useServerStore } from '@/stores/server.store'
 
 function resolvePresence(m: Member, onlineIds: Set<string>): UserStatus {
+  const s = m.user.status as UserStatus | undefined
+  if (s === 'offline') return 'offline'
   if (!onlineIds.has(m.userId)) return 'offline'
-  const s = m.user.status
   if (s === 'idle' || s === 'dnd' || s === 'online') return s
   return 'online'
 }

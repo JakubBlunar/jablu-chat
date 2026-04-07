@@ -36,7 +36,8 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       const patched = friends.map((f) => {
         if (!onlineUserIds.has(f.id)) return f.status === 'offline' ? f : { ...f, status: 'offline' as const }
         const rt = realtimeStatuses.get(f.id)
-        const status = (rt === 'idle' || rt === 'dnd') ? rt : 'online'
+        const status =
+          rt === 'offline' ? ('offline' as const) : rt === 'idle' || rt === 'dnd' ? rt : ('online' as const)
         return f.status === status ? f : { ...f, status: status as Friend['status'] }
       })
       set({ friends: patched })
