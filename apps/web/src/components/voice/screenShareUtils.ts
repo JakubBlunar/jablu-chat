@@ -1,6 +1,7 @@
 import { electronAPI, isElectron } from '@/lib/electron'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import type { ScreenShareSettings } from './ScreenShareDialog'
+import { resolveScreenShareMaxBitrate } from './screenShareBitrate'
 
 export type ScreenShareOptions = {
   resolution: '720p' | '1080p' | 'native'
@@ -11,12 +12,6 @@ const RESOLUTION_MAP = {
   '720p': { width: 1280, height: 720 },
   '1080p': { width: 1920, height: 1080 },
   native: { width: 0, height: 0 }
-}
-
-const BITRATE_MAP: Record<string, Record<number, number>> = {
-  '720p': { 5: 1_000_000, 15: 2_000_000, 20: 2_500_000, 30: 4_000_000 },
-  '1080p': { 5: 2_000_000, 15: 3_500_000, 20: 5_000_000, 30: 8_000_000 },
-  native: { 5: 3_000_000, 15: 6_000_000, 20: 8_000_000, 30: 14_000_000 }
 }
 
 export async function startScreenShareWithSettings(settings: ScreenShareSettings) {
@@ -78,10 +73,11 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
     videoTrack.contentHint = 'detail'
 
     const actualSettings = videoTrack.getSettings()
-    const height = actualSettings.height ?? 1080
-    const fps = actualSettings.frameRate ?? 30
-    const bitrate = BITRATE_MAP[settings.resolution]?.[settings.fps]
-      ?? (height <= 720 ? (fps <= 15 ? 2_000_000 : 4_000_000) : (fps <= 15 ? 3_500_000 : 8_000_000))
+    const fps =
+      actualSettings.frameRate && actualSettings.frameRate > 0
+        ? actualSettings.frameRate
+        : settings.fps
+    const bitrate = resolveScreenShareMaxBitrate(settings.resolution, settings.fps, actualSettings)
 
     const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
@@ -133,7 +129,6 @@ export async function publishScreenShare(
   if (!room) return
 
   const res = RESOLUTION_MAP[options.resolution]
-  const bitrate = BITRATE_MAP[options.resolution]?.[options.fps] ?? 3_000_000
 
   const mandatory: Record<string, unknown> = {
     chromeMediaSource: 'desktop',
@@ -161,13 +156,20 @@ export async function publishScreenShare(
 
     videoTrack.contentHint = 'detail'
 
+    const actualSettings = videoTrack.getSettings()
+    const fps =
+      actualSettings.frameRate && actualSettings.frameRate > 0
+        ? actualSettings.frameRate
+        : options.fps
+    const bitrate = resolveScreenShareMaxBitrate(options.resolution, options.fps, actualSettings)
+
     const videoPub = await room.localParticipant.publishTrack(videoTrack, {
       name: 'screen',
       source: 'screen_share' as unknown as undefined,
       simulcast: false,
       videoEncoding: {
         maxBitrate: bitrate,
-        maxFramerate: options.fps
+        maxFramerate: fps
       },
       degradationPreference: 'maintain-resolution'
     })

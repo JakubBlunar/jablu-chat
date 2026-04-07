@@ -166,7 +166,7 @@ function gridCols(count: number): string {
 
 function TileContent({ tile, compact, focused }: { tile: TileEntry; compact?: boolean; focused?: boolean }) {
   if (tile.kind === 'screen') {
-    return <ScreenShareTile participant={tile.participant} publication={tile.publication} focused={focused} />
+    return <ScreenShareTile participant={tile.participant} publication={tile.publication} />
   }
   return <ParticipantTile participant={tile.participant} compact={compact} focused={focused} />
 }
@@ -246,6 +246,10 @@ function FocusedLayout({
 }) {
   const fsRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const isMuted = useVoiceConnectionStore((s) => s.isMuted)
+  const isDeafened = useVoiceConnectionStore((s) => s.isDeafened)
+  const toggleMute = useVoiceConnectionStore((s) => s.toggleMute)
+  const toggleDeafen = useVoiceConnectionStore((s) => s.toggleDeafen)
   const isCoarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
 
   const enterFullscreen = useCallback(() => {
@@ -303,6 +307,48 @@ function FocusedLayout({
         </div>
 
         <div className="absolute right-3 top-3 flex items-center gap-1.5">
+          {(isFullscreen || nativeFs) && (
+            <>
+              <button
+                type="button"
+                title={isMuted ? 'Unmute' : 'Mute'}
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
+                aria-pressed={isMuted}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleMute()
+                }}
+                className={`rounded-md p-1.5 transition ${
+                  isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-200 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  {isMuted ? (
+                    <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
+                  ) : (
+                    <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+                  )}
+                </svg>
+              </button>
+              <button
+                type="button"
+                title={isDeafened ? 'Undeafen' : 'Deafen'}
+                aria-label={isDeafened ? 'Undeafen' : 'Deafen'}
+                aria-pressed={isDeafened}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleDeafen()
+                }}
+                className={`rounded-md p-1.5 transition ${
+                  isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-200 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12v4.5C2 18.43 3.57 20 5.5 20H9V12H4c0-4.42 3.58-8 8-8s8 3.58 8 8h-5v8h3.5c1.93 0 3.5-1.57 3.5-3.5V12c0-5.52-4.48-10-10-10z" />
+                </svg>
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={toggleFullscreen}
