@@ -4,6 +4,7 @@ import { Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 import { messageInclude, mapMessageToWire, type MessageWithRelations } from './message-wire'
+import { EmbedDto } from './dto/embed.dto'
 
 @Injectable()
 export class MessagesService {
@@ -187,7 +188,7 @@ export class MessagesService {
     replyToId?: string,
     attachmentIds?: string[],
     threadParentId?: string,
-    embeds?: any[]
+    embeds?: EmbedDto[]
   ) {
     await this.requireMessageChannelMember(channelId, userId)
 

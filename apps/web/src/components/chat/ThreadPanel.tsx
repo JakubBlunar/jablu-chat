@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { MessageSurface } from '@/components/chat/MessageSurface'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -36,7 +36,10 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
   const emojiArr = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
-  const customEmojiMap = emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined
+  const customEmojiMap = useMemo(
+    () => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined),
+    [emojiArr]
+  )
 
   if (!isOpen || !parentMessage || !channelId) return null
 

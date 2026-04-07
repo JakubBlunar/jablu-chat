@@ -81,8 +81,8 @@ export class LinkPreviewService {
     const urls = this.extractUrls(content)
     if (urls.length === 0) return []
 
-    const previews: {
-      id: string
+    const previewData: {
+      messageId: string
       url: string
       title: string | null
       description: string | null
@@ -93,54 +93,34 @@ export class LinkPreviewService {
     for (const url of urls) {
       try {
         if (this.isGifUrl(url)) {
-          const preview = await this.prisma.linkPreview.create({
-            data: {
-              messageId,
-              url,
-              title: 'GIF',
-              description: null,
-              imageUrl: url,
-              siteName: 'GIF'
-            }
-          })
-          previews.push(preview)
+          previewData.push({ messageId, url, title: 'GIF', description: null, imageUrl: url, siteName: 'GIF' })
           continue
         }
 
         if (this.isImageUrl(url)) {
-          const preview = await this.prisma.linkPreview.create({
-            data: {
-              messageId,
-              url,
-              title: 'Image',
-              description: null,
-              imageUrl: url,
-              siteName: 'Image'
-            }
-          })
-          previews.push(preview)
+          previewData.push({ messageId, url, title: 'Image', description: null, imageUrl: url, siteName: 'Image' })
           continue
         }
 
         const meta = await this.fetchOgMeta(url)
         if (!meta.title && !meta.description) continue
 
-        const preview = await this.prisma.linkPreview.create({
-          data: {
-            messageId,
-            url,
-            title: meta.title,
-            description: meta.description,
-            imageUrl: meta.imageUrl,
-            siteName: meta.siteName
-          }
+        previewData.push({
+          messageId,
+          url,
+          title: meta.title,
+          description: meta.description,
+          imageUrl: meta.imageUrl,
+          siteName: meta.siteName,
         })
-        previews.push(preview)
       } catch (e) {
         this.logger.warn(`Failed to fetch OG for ${url}: ${e}`)
       }
     }
 
+    if (previewData.length === 0) return []
+
+    const previews = await Promise.all(previewData.map((data) => this.prisma.linkPreview.create({ data })))
     return previews
   }
 

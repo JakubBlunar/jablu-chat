@@ -5,6 +5,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { Member } from '@/stores/member.store'
 import { resolveMediaUrl } from '@/lib/api'
+import { escapeHtml, VIDEO_ALLOWED_ATTRS, AUDIO_ALLOWED_ATTRS } from '@/lib/markdownSecurity'
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -24,8 +25,8 @@ const sanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     img: ['src', 'alt', 'title', 'width', 'height', 'loading', 'className', 'class'],
-    video: ['src', 'controls', 'autoPlay', 'muted', 'playsInline', 'className', 'class'],
-    audio: ['src', 'controls', 'autoPlay', 'className', 'class'],
+    video: [...VIDEO_ALLOWED_ATTRS],
+    audio: [...AUDIO_ALLOWED_ATTRS],
     source: ['src', 'type'],
     a: ['href', 'target', 'rel', 'className', 'class'],
     div: ['className', 'class'],
@@ -109,7 +110,9 @@ function processMentions(text: string, byUsername: Map<string, Member>): string 
 }
 
 function processSpoilers(text: string): string {
-  return text.replace(/\|\|(.+?)\|\|/gs, '<span class="spoiler" tabindex="0">$1</span>')
+  return text.replace(/\|\|(.+?)\|\|/gs, (_, inner: string) =>
+    `<span class="spoiler" tabindex="0">${escapeHtml(inner)}</span>`
+  )
 }
 
 export type CustomEmojiRef = { name: string; imageUrl: string }
@@ -120,7 +123,8 @@ function processCustomEmojis(text: string, emojiMap: Map<string, CustomEmojiRef>
     const emoji = emojiMap.get(name.toLowerCase())
     if (!emoji) return full
     const url = resolveMediaUrl(emoji.imageUrl)
-    return `<img class="custom-emoji" src="${url}" alt=":${emoji.name}:" title=":${emoji.name}:" />`
+    const safeName = escapeHtml(emoji.name)
+    return `<img class="custom-emoji" src="${url}" alt=":${safeName}:" title=":${safeName}:" />`
   })
 }
 

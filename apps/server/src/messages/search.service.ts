@@ -135,10 +135,10 @@ export class SearchService {
           }
         }
       } else {
+        const visibleByServer = await this.roles.getVisibleChannelIdsForServers(userId, memberServerIds)
         const allVisible: string[] = []
-        for (const sid of memberServerIds) {
-          const visible = await this.getVisibleChannelIds(sid, userId)
-          allVisible.push(...visible)
+        for (const channels of visibleByServer.values()) {
+          allVisible.push(...channels)
         }
         if (allVisible.length > 0) {
           channelPage = await this.searchInChannels(allVisible, tsQuery, take, skip, filters)

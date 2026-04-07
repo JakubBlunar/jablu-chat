@@ -135,6 +135,9 @@ export const MessageSurface = memo(function MessageSurface({
     <div className="relative min-h-0 flex-1">
       <div
         ref={scroll.scrollParentRef}
+        role="log"
+        aria-label="Messages"
+        aria-live="polite"
         className={`chat-scroll flex h-full flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2${scroll.settling ? ' invisible' : ''}`}
       >
         {scrollChildren}

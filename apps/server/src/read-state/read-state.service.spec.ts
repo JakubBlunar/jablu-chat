@@ -64,17 +64,18 @@ describe('ReadStateService', () => {
         'ch-2': VIEW,
         'ch-3': 0n,
       })
-      prisma.channelReadState.upsert.mockResolvedValue(undefined)
+      prisma.$executeRaw.mockResolvedValue(1)
 
       await service.ackServer(userId, serverId)
 
-      expect(prisma.channelReadState.upsert).toHaveBeenCalledTimes(2)
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+      expect(prisma.channelReadState.upsert).not.toHaveBeenCalled()
     })
 
     it('does nothing when no visible channels', async () => {
       roles.getAllChannelPermissions.mockResolvedValue({ 'ch-1': 0n })
       await service.ackServer(userId, serverId)
-      expect(prisma.channelReadState.upsert).not.toHaveBeenCalled()
+      expect(prisma.$executeRaw).not.toHaveBeenCalled()
     })
   })
 

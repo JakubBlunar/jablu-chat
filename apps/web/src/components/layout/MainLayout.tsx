@@ -27,6 +27,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
+import { useGifStore } from '@/stores/gif.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { QuickSwitcher } from '@/components/QuickSwitcher'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -179,6 +180,10 @@ export function MainLayout() {
     void fetchServers()
     if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
   }, [fetchServers])
+
+  useEffect(() => {
+    void useGifStore.getState().fetch()
+  }, [])
 
   // Auto-redirect: server view with no server → navigate to first server
   // Also redirect if the server ID in the URL doesn't match any known server

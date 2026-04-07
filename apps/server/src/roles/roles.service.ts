@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import {
   DANGEROUS_PERMISSIONS,
   DEFAULT_EVERYONE_PERMISSIONS,
@@ -179,14 +180,36 @@ export class RolesService {
 
     this.events.emit('role:deleted', { serverId, roleId })
 
-    for (const m of affectedMembers) {
-      const memberRoles = await this.loadMemberRolesWire(serverId, m.userId)
-      this.events.emit('member:updated', {
-        serverId,
-        userId: m.userId,
-        roleIds: memberRoles.map((r) => r.id),
-        roles: memberRoles,
-      })
+    const affectedUserIds = affectedMembers.map((m) => m.userId)
+    if (affectedUserIds.length > 0) {
+      const [allMemberRoles, everyoneRole] = await Promise.all([
+        this.prisma.serverMemberRole.findMany({
+          where: { serverId, userId: { in: affectedUserIds } },
+          include: { role: true },
+        }),
+        this.prisma.role.findFirst({ where: { serverId, isDefault: true } }),
+      ])
+
+      const rolesByUser = new Map<string, typeof allMemberRoles>()
+      for (const mr of allMemberRoles) {
+        const list = rolesByUser.get(mr.userId) ?? []
+        list.push(mr)
+        rolesByUser.set(mr.userId, list)
+      }
+
+      for (const m of affectedMembers) {
+        const memberRolesRaw = rolesByUser.get(m.userId) ?? []
+        const roles = memberRolesRaw.map((mr) => this.mapToWire(mr.role))
+        if (everyoneRole && !roles.some((r) => r.id === everyoneRole.id)) {
+          roles.push(this.mapToWire(everyoneRole))
+        }
+        this.events.emit('member:updated', {
+          serverId,
+          userId: m.userId,
+          roleIds: roles.map((r) => r.id),
+          roles,
+        })
+      }
     }
   }
 
@@ -218,10 +241,16 @@ export class RolesService {
       }
     }
 
-    await this.prisma.$transaction(
-      roleIds.map((id, i) =>
-        this.prisma.role.update({ where: { id }, data: { position: roleIds.length - i } }),
-      ),
+    const values = roleIds.map((id, i) =>
+      Prisma.sql`(${id}::uuid, ${roleIds.length - i}::int)`
+    )
+    await this.prisma.$executeRaw(
+      Prisma.sql`
+        UPDATE server_roles AS sr
+        SET "position" = v.pos
+        FROM (VALUES ${Prisma.join(values)}) AS v(id_val, pos)
+        WHERE sr.id = v.id_val
+      `
     )
 
     const updatedRoles = await this.getRoles(serverId)
@@ -229,35 +258,45 @@ export class RolesService {
   }
 
   async getMemberPermissions(serverId: string, userId: string): Promise<bigint> {
+    const { perms } = await this.getMemberPermissionsWithRoleIds(serverId, userId)
+    return perms
+  }
+
+  private async getMemberPermissionsWithRoleIds(
+    serverId: string,
+    userId: string,
+  ): Promise<{ perms: bigint; roleIds: string[] }> {
     const server = await this.prisma.server.findUnique({
       where: { id: serverId },
       select: { ownerId: true },
     })
     if (!server) throw new NotFoundException('Server not found')
-    if (server.ownerId === userId) return DEFAULT_OWNER_PERMISSIONS
+    if (server.ownerId === userId) return { perms: DEFAULT_OWNER_PERMISSIONS, roleIds: [] }
 
-    const member = await this.prisma.serverMember.findUnique({
-      where: { userId_serverId: { userId, serverId } },
-      include: { roles: { include: { role: true } } },
-    })
+    const [member, everyoneRole] = await Promise.all([
+      this.prisma.serverMember.findUnique({
+        where: { userId_serverId: { userId, serverId } },
+        include: { roles: { include: { role: true } } },
+      }),
+      this.prisma.role.findFirst({
+        where: { serverId, isDefault: true },
+        select: { id: true, permissions: true },
+      }),
+    ])
     if (!member) throw new ForbiddenException('You are not a member of this server')
-
-    const everyoneRole = await this.prisma.role.findFirst({
-      where: { serverId, isDefault: true },
-      select: { permissions: true },
-    })
 
     const rolePermsList = member.roles.map((mr) => ({ permissions: mr.role.permissions }))
     if (everyoneRole) rolePermsList.push({ permissions: everyoneRole.permissions })
 
-    return resolveMultiRolePermissions(rolePermsList)
+    const roleIds = member.roles.map((mr) => mr.roleId)
+    if (everyoneRole) roleIds.push(everyoneRole.id)
+
+    return { perms: resolveMultiRolePermissions(rolePermsList), roleIds }
   }
 
   async getChannelPermissions(serverId: string, channelId: string, userId: string): Promise<bigint> {
-    const rolePerms = await this.getMemberPermissions(serverId, userId)
+    const { perms: rolePerms, roleIds } = await this.getMemberPermissionsWithRoleIds(serverId, userId)
     if (hasPermission(rolePerms, Permission.ADMINISTRATOR)) return DEFAULT_OWNER_PERMISSIONS
-
-    const roleIds = await this.getMemberRoleIds(serverId, userId)
 
     const overrides = await this.prisma.channelPermissionOverride.findMany({
       where: { channelId, roleId: { in: roleIds } },
@@ -271,20 +310,16 @@ export class RolesService {
   }
 
   async getAllChannelPermissions(serverId: string, userId: string): Promise<Record<string, bigint>> {
-    const rolePerms = await this.getMemberPermissions(serverId, userId)
-
-    const channels = await this.prisma.channel.findMany({
-      where: { serverId },
-      select: { id: true },
-    })
+    const [{ perms: rolePerms, roleIds }, channels] = await Promise.all([
+      this.getMemberPermissionsWithRoleIds(serverId, userId),
+      this.prisma.channel.findMany({ where: { serverId }, select: { id: true } }),
+    ])
 
     if (hasPermission(rolePerms, Permission.ADMINISTRATOR)) {
       const map: Record<string, bigint> = {}
       for (const ch of channels) map[ch.id] = DEFAULT_OWNER_PERMISSIONS
       return map
     }
-
-    const roleIds = await this.getMemberRoleIds(serverId, userId)
 
     const overrides = await this.prisma.channelPermissionOverride.findMany({
       where: { roleId: { in: roleIds }, channelId: { in: channels.map((c) => c.id) } },

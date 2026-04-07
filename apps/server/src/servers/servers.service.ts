@@ -775,13 +775,10 @@ export class ServersService {
       const validRoles = await this.prisma.role.findMany({
         where: { id: { in: roleIds }, serverId, selfAssignable: true }
       })
-      for (const role of validRoles) {
-        await this.prisma.serverMemberRole.upsert({
-          where: { userId_serverId_roleId: { userId, serverId, roleId: role.id } },
-          create: { userId, serverId, roleId: role.id },
-          update: {}
-        })
-      }
+      await this.prisma.serverMemberRole.createMany({
+        data: validRoles.map((role) => ({ userId, serverId, roleId: role.id })),
+        skipDuplicates: true,
+      })
     }
 
     const memberRoles = await this.roles.loadMemberRolesWire(serverId, userId)

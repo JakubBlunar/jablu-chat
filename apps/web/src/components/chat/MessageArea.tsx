@@ -22,6 +22,7 @@ import { useNavigationStore } from '@/stores/navigation.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@chat/shared'
 import { useDmStore } from '@/stores/dm.store'
+import { useGifStore } from '@/stores/gif.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -66,9 +67,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isDm = mode === 'dm'
   const store = useMessageStoreAdapter(mode)
   const { messages, isLoading, hasMore, hasNewer } = store
-  const messagesError = isDm
-    ? useDmStore((s) => s.messagesError)
-    : useMessageStore((s) => s.messagesError)
+  const dmMessagesError = useDmStore((s) => s.messagesError)
+  const channelMessagesError = useMessageStore((s) => s.messagesError)
+  const messagesError = isDm ? dmMessagesError : channelMessagesError
 
   const userId = useAuthStore((s) => s.user?.id)
 
@@ -82,15 +83,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const dmConversationId = isDm ? contextId : null
   const pinned = usePinnedMessages(channelId, dmConversationId)
 
+  const currentServerId = useServerStore((s) => s.currentServerId)
   const activeChannel = useChannelStore((s) => {
     if (isDm || !s.currentChannelId) return null
     const ch = s.channels.find((c) => c.id === s.currentChannelId)
-    if (!ch || ch.serverId !== useServerStore.getState().currentServerId) return null
+    if (!ch || ch.serverId !== currentServerId) return null
     return ch
   })
 
   const [editingChannel, setEditingChannel] = useState(false)
-  const { has: hasPerm } = usePermissions(isDm ? null : useServerStore.getState().currentServerId)
+  const { has: hasPerm } = usePermissions(isDm ? null : currentServerId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_SERVER)
 
   type MemberMap = Map<string, ReturnType<typeof useMemberStore.getState>['members'][0]>
@@ -115,7 +117,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
 
   const myId = useAuthStore((s) => s.user?.id)
-  const currentServerId = useServerStore((s) => s.currentServerId)
   const myMember = useMemberStore((s) =>
     s.members.find((m) => m.userId === myId && m.serverId === currentServerId)
   )
@@ -149,27 +150,30 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     })
   }, [])
 
-  const [gifEnabled, setGifEnabled] = useState(false)
-  useEffect(() => {
-    api
-      .getGifEnabled()
-      .then((r) => setGifEnabled(r.enabled))
-      .catch(() => {})
-  }, [])
+  const gifEnabled = useGifStore((s) => s.enabled)
 
   const channelRefsRef = useRef(dm.channelRefs)
   channelRefsRef.current = dm.channelRefs
+
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+  }, [])
+  const scheduleToastDismiss = useCallback(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => setCommandToast(null), 3000)
+  }, [])
 
   const handleNick = useCallback(async (args?: string) => {
     const name = args?.trim()
     if (!name) {
       setCommandToast('Usage: /nick <display name>')
-      setTimeout(() => setCommandToast(null), 3000)
+      scheduleToastDismiss()
       return
     }
     if (name.length < 5 || name.length > 20) {
       setCommandToast('Display name must be 5–20 characters')
-      setTimeout(() => setCommandToast(null), 3000)
+      scheduleToastDismiss()
       return
     }
     try {
@@ -180,8 +184,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     } catch {
       setCommandToast('Failed to change display name')
     }
-    setTimeout(() => setCommandToast(null), 3000)
-  }, [])
+    scheduleToastDismiss()
+  }, [scheduleToastDismiss])
 
   /* ── Empty states ── */
   if (!contextId) {
@@ -311,8 +315,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         membersByUsername={membersByUsernameRef.current}
       />
 
-      <div aria-live="polite" className="px-4 py-1 text-xs text-gray-400">
-        {typingNames.length > 0 ? formatTyping(typingNames) : ''}
+      <div aria-live="polite" aria-atomic="true" className="px-4 py-1 text-xs text-gray-400">
+        {typingNames.length > 0 ? formatTyping(typingNames) : null}
       </div>
 
       {activeChannel?.isArchived ? (

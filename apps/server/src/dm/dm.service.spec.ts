@@ -177,12 +177,34 @@ describe('DmService', () => {
         { id: userB, dmPrivacy: 'friends_only' },
         { id: userC, dmPrivacy: 'everyone' },
       ])
-      friends.areFriends.mockImplementation(async (a: string, b: string) => {
-        if (a === userB && b === userC) return false
-        return true
-      })
+      // New implementation: single friendship.findMany — return only userA↔userB friendship (not userB↔userC)
+      prisma.friendship.findMany.mockResolvedValue([
+        { requesterId: userA, addresseeId: userB },
+      ])
 
       await expect(service.createGroupDm(userA, [userB, userC])).rejects.toThrow('must be friends')
+    })
+
+    it('loads all friendships in a single query (N+1 regression)', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { id: userA, dmPrivacy: 'friends_only' },
+        { id: userB, dmPrivacy: 'friends_only' },
+        { id: userC, dmPrivacy: 'friends_only' },
+      ])
+      prisma.friendship.findMany.mockResolvedValue([
+        { requesterId: userA, addresseeId: userB },
+        { requesterId: userA, addresseeId: userC },
+        { requesterId: userB, addresseeId: userC },
+      ])
+      prisma.directConversation.create.mockResolvedValue({
+        ...makeConversation({ isGroup: true }),
+        members: [],
+      })
+
+      await service.createGroupDm(userA, [userB, userC])
+
+      // Exactly ONE friendship query regardless of group size
+      expect(prisma.friendship.findMany).toHaveBeenCalledTimes(1)
     })
   })
 

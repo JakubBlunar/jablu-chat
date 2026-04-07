@@ -96,15 +96,12 @@ export class ReadStateService {
       .map(([chId]) => chId)
     if (visibleIds.length === 0) return
     const now = new Date()
-    await Promise.all(
-      visibleIds.map((chId) =>
-        this.prisma.channelReadState.upsert({
-          where: { userId_channelId: { userId, channelId: chId } },
-          update: { lastReadAt: now, mentionCount: 0 },
-          create: { userId, channelId: chId, lastReadAt: now, mentionCount: 0 }
-        })
-      )
-    )
+    await this.prisma.$executeRaw`
+      INSERT INTO channel_read_states (user_id, channel_id, last_read_at, mention_count)
+      SELECT ${userId}, unnest(${visibleIds}::text[]), ${now}, 0
+      ON CONFLICT (user_id, channel_id) DO UPDATE
+        SET last_read_at = EXCLUDED.last_read_at, mention_count = 0
+    `
   }
 
   async ackChannel(userId: string, channelId: string) {
