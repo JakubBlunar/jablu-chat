@@ -454,11 +454,14 @@ export function registerEventListeners(gw: ChatGateway) {
     'friend:accepted',
     (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
       const { friendshipId, requester, addressee } = payload
-      gw.server.to(`user:${(requester as { id: string }).id}`).emit('friend:accepted', {
+      const requesterId = (requester as { id: string }).id
+      const addresseeId = (addressee as { id: string }).id
+      gw.invalidateFriendCache(requesterId, addresseeId)
+      gw.server.to(`user:${requesterId}`).emit('friend:accepted', {
         friendshipId,
         user: addressee
       })
-      gw.server.to(`user:${(addressee as { id: string }).id}`).emit('friend:accepted', {
+      gw.server.to(`user:${addresseeId}`).emit('friend:accepted', {
         friendshipId,
         user: requester
       })
@@ -486,6 +489,7 @@ export function registerEventListeners(gw: ChatGateway) {
   gw.events.on(
     'friend:removed',
     (payload: { friendshipId: string; userId: string; otherUserId: string }) => {
+      gw.invalidateFriendCache(payload.userId, payload.otherUserId)
       gw.server.to(`user:${payload.otherUserId}`).emit('friend:removed', {
         friendshipId: payload.friendshipId,
         userId: payload.userId

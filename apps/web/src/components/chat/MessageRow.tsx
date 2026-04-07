@@ -87,7 +87,10 @@ export const MessageRow = memo(function MessageRow({
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
   const emojiArr = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
-  const customEmojiMap = emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined
+  const customEmojiMap = useMemo(
+    () => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined),
+    [emojiArr]
+  )
   const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)

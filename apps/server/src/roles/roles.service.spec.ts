@@ -116,6 +116,24 @@ describe('RolesService', () => {
       expect(perms & Permission.MANAGE_MESSAGES).toBeTruthy()
       expect(perms & Permission.SEND_MESSAGES).toBeFalsy()
     })
+
+    it('fetches roles only once per call (N+1 regression)', async () => {
+      const rolePerms = Permission.SEND_MESSAGES
+      prisma.server.findUnique.mockResolvedValue({ ownerId: 'other' })
+      prisma.serverMember.findUnique.mockResolvedValue({
+        roles: [{ roleId: 'r1', role: { permissions: rolePerms } }],
+      })
+      prisma.role.findFirst.mockResolvedValue({ id: 'everyone', permissions: 0n })
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([])
+
+      await service.getChannelPermissions(serverId, 'ch-1', userId)
+
+      // serverMemberRole.findMany must NOT be called — role IDs come from the
+      // serverMember.findUnique include in getMemberPermissionsWithRoleIds.
+      expect(prisma.serverMemberRole.findMany).not.toHaveBeenCalled()
+      // serverMember.findUnique called exactly once (not separately by getMemberRoleIds)
+      expect(prisma.serverMember.findUnique).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('requirePermission', () => {
@@ -298,6 +316,24 @@ describe('RolesService', () => {
       expect(prisma.$transaction).toHaveBeenCalled()
     })
 
+    it('loads member roles in one batch query for N affected members (N+1 regression)', async () => {
+      const affectedUserIds = ['m1', 'm2', 'm3']
+      prisma.role.findFirst
+        .mockResolvedValueOnce({ id: 'role-to-delete', serverId, isDefault: false, position: 3 })
+        .mockResolvedValue({ id: 'everyone', serverId, name: '@everyone', color: null, position: 0, permissions: 0n, isDefault: true, selfAssignable: false, isAdmin: false, createdAt: new Date() })
+      prisma.serverMemberRole.findMany
+        .mockResolvedValueOnce(affectedUserIds.map((userId) => ({ userId })))
+        .mockResolvedValueOnce([]) // batch remaining roles — empty after deletion
+
+      await service.deleteRole(serverId, 'role-to-delete', ownerId)
+
+      // serverMemberRole.findMany called exactly twice:
+      //   1. to find affected members
+      //   2. to batch-load remaining roles for all affected users
+      // NOT once per affected member (which would be 4 calls total)
+      expect(prisma.serverMemberRole.findMany).toHaveBeenCalledTimes(2)
+    })
+
     it('throws BadRequestException when trying to delete the default role', async () => {
       prisma.role.findFirst.mockResolvedValue({ id: 'default-role', serverId, isDefault: true })
 
@@ -318,7 +354,7 @@ describe('RolesService', () => {
   describe('reorderRoles', () => {
     beforeEach(() => {
       prisma.server.findUnique.mockResolvedValue({ ownerId })
-      prisma.$transaction.mockResolvedValue(undefined)
+      prisma.$executeRaw.mockResolvedValue(0)
     })
 
     it('reorders roles by updating positions', async () => {
@@ -338,7 +374,7 @@ describe('RolesService', () => {
       ])
 
       await service.reorderRoles(serverId, ownerId, ['r1', 'r2', 'r3'])
-      expect(prisma.$transaction).toHaveBeenCalled()
+      expect(prisma.$executeRaw).toHaveBeenCalled()
     })
 
     it('throws BadRequestException when role IDs mismatch', async () => {
@@ -774,10 +810,10 @@ describe('RolesService', () => {
       prisma.serverMemberRole.findMany.mockResolvedValueOnce([
         { roleId: 'owner-role', role: { id: 'owner-role', position: 100 } },
       ])
-      prisma.$transaction.mockResolvedValue(undefined)
+      prisma.$executeRaw.mockResolvedValue(0)
 
       await service.reorderRoles(serverId, ownerId, ['r1', 'r2'])
-      expect(prisma.$transaction).toHaveBeenCalled()
+      expect(prisma.$executeRaw).toHaveBeenCalled()
       expect(events.emit).toHaveBeenCalledWith(
         'roles:reordered',
         expect.objectContaining({ serverId }),

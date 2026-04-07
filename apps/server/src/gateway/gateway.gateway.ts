@@ -152,6 +152,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   async getFriendUserIds(userId: string): Promise<string[]> {
+    const cacheKey = `friends:${userId}`
+    const cached = await this.redis.client.get(cacheKey)
+    if (cached) return JSON.parse(cached) as string[]
+
     const friendships = await this.prisma.friendship.findMany({
       where: {
         status: 'accepted',
@@ -159,9 +163,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       },
       select: { requesterId: true, addresseeId: true }
     })
-    return friendships.map((f) =>
+    const ids = friendships.map((f) =>
       f.requesterId === userId ? f.addresseeId : f.requesterId
     )
+    await this.redis.client.setex(cacheKey, 60, JSON.stringify(ids))
+    return ids
+  }
+
+  invalidateFriendCache(userA: string, userB: string) {
+    void this.redis.client.del(`friends:${userA}`, `friends:${userB}`)
   }
 
   private emitToFriends(friendIds: string[], event: string, data: unknown) {
@@ -245,25 +255,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const now = Date.now()
     const serversCache = new Map<string, { afkChannelId: string | null; afkTimeout: number }>()
 
+    // Pre-load all active voice channel → serverId mappings in one query
+    const activeChannelIds = [...this.voiceParticipants.keys()]
+    if (activeChannelIds.length === 0) return
+    const channelRows = await this.prisma.channel.findMany({
+      where: { id: { in: activeChannelIds } },
+      select: { id: true, serverId: true },
+    })
+    const channelServerMap = new Map(channelRows.map((c) => [c.id, c.serverId]))
+
     for (const [channelId, participants] of this.voiceParticipants) {
       for (const [socketId, participant] of participants) {
         const lastActivity = this.voiceActivity.get(socketId)
         if (!lastActivity) continue
 
-        const channel = await this.prisma.channel.findUnique({
-          where: { id: channelId },
-          select: { serverId: true }
-        })
-        if (!channel) continue
+        const serverId = channelServerMap.get(channelId)
+        if (!serverId) continue
 
-        let serverConfig = serversCache.get(channel.serverId)
+        let serverConfig = serversCache.get(serverId)
         if (!serverConfig) {
           const server = await this.prisma.server.findUnique({
-            where: { id: channel.serverId },
+            where: { id: serverId },
             select: { afkChannelId: true, afkTimeout: true }
           })
           serverConfig = { afkChannelId: server?.afkChannelId ?? null, afkTimeout: server?.afkTimeout ?? 300 }
-          serversCache.set(channel.serverId, serverConfig)
+          serversCache.set(serverId, serverConfig)
         }
 
         if (!serverConfig.afkChannelId || channelId === serverConfig.afkChannelId) continue

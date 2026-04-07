@@ -106,6 +106,7 @@ model PasswordReset {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_resets")
 }
 
@@ -348,6 +349,7 @@ model Message {
   @@index([channelId, pinned])
   @@index([directConversationId, createdAt])
   @@index([threadParentId])
+  @@index([authorId])
   @@map("messages")
 }
 
@@ -402,6 +404,7 @@ model Attachment {
   message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+  @@index([uploaderId])
   @@map("attachments")
 }
 
@@ -674,6 +677,7 @@ model Friendship {
   addressee User @relation("FriendRequestsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
 
   @@unique([requesterId, addresseeId])
+  @@index([requesterId])
   @@index([addresseeId])
   @@map("friendships")
 }

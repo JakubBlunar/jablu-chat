@@ -34,7 +34,7 @@ export function useReadReceipts(
         setOthersReadMap(m)
       })
       .catch(() => {})
-  }, [isDm, contextId, currentConv, userId])
+  }, [isDm, contextId, userId])
 
   useEffect(() => {
     if (!isDm || !contextId) return

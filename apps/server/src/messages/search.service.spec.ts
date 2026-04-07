@@ -8,7 +8,7 @@ import { Permission } from '@chat/shared'
 describe('SearchService', () => {
   let service: SearchService
   let prisma: MockPrismaService
-  let roles: { getAllChannelPermissions: jest.Mock }
+  let roles: { getAllChannelPermissions: jest.Mock; getVisibleChannelIdsForServers: jest.Mock }
 
   const userId = 'user-1'
 
@@ -16,6 +16,7 @@ describe('SearchService', () => {
     prisma = createMockPrismaService()
     roles = {
       getAllChannelPermissions: jest.fn().mockResolvedValue({}),
+      getVisibleChannelIdsForServers: jest.fn().mockResolvedValue(new Map()),
     }
 
     ;(prisma as any).$queryRaw = jest.fn()
@@ -83,7 +84,7 @@ describe('SearchService', () => {
       prisma.serverMember.findMany.mockResolvedValue([{ serverId: 's1' }])
       prisma.directConversationMember.findMany.mockResolvedValue([])
 
-      roles.getAllChannelPermissions.mockResolvedValue({ 'ch-1': Permission.VIEW_CHANNEL })
+      roles.getVisibleChannelIdsForServers.mockResolvedValue(new Map([['s1', ['ch-1']]]))
 
       prisma.$queryRaw
         .mockResolvedValueOnce([])
@@ -97,6 +98,8 @@ describe('SearchService', () => {
       prisma.serverMember.findMany.mockResolvedValue([])
       prisma.directConversationMember.findMany.mockResolvedValue([])
 
+      roles.getVisibleChannelIdsForServers.mockResolvedValue(new Map())
+
       const result = await service.searchMessages(userId, 'test', undefined, undefined, undefined, undefined, 999)
       expect(result).toEqual({ results: [], total: 0 })
     })
@@ -104,7 +107,7 @@ describe('SearchService', () => {
     it('handles has: filters without text', async () => {
       prisma.serverMember.findMany.mockResolvedValue([{ serverId: 's1' }])
       prisma.directConversationMember.findMany.mockResolvedValue([])
-      roles.getAllChannelPermissions.mockResolvedValue({ 'ch-1': Permission.VIEW_CHANNEL })
+      roles.getVisibleChannelIdsForServers.mockResolvedValue(new Map([['s1', ['ch-1']]]))
 
       prisma.$queryRaw
         .mockResolvedValueOnce([])

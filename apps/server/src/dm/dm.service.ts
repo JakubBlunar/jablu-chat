@@ -126,14 +126,29 @@ export class DmService {
     }
 
     const privacyUsers = users.filter((u) => u.dmPrivacy === 'friends_only')
-    for (const pu of privacyUsers) {
-      for (const other of uniqueIds) {
-        if (other === pu.id) continue
-        const friends = await this.friendsService.areFriends(pu.id, other)
-        if (!friends) {
-          throw new BadRequestException(
-            'All members must be friends with each other to create this group DM'
-          )
+    if (privacyUsers.length > 0) {
+      const privacyUserIds = privacyUsers.map((u) => u.id)
+      const friendships = await this.prisma.friendship.findMany({
+        where: {
+          status: 'accepted',
+          OR: [
+            { requesterId: { in: privacyUserIds }, addresseeId: { in: uniqueIds } },
+            { requesterId: { in: uniqueIds }, addresseeId: { in: privacyUserIds } },
+          ],
+        },
+        select: { requesterId: true, addresseeId: true },
+      })
+      const pairSet = new Set(
+        friendships.map((f) => [f.requesterId, f.addresseeId].sort().join(':'))
+      )
+      for (const pu of privacyUsers) {
+        for (const other of uniqueIds) {
+          if (other === pu.id) continue
+          if (!pairSet.has([pu.id, other].sort().join(':'))) {
+            throw new BadRequestException(
+              'All members must be friends with each other to create this group DM'
+            )
+          }
         }
       }
     }
