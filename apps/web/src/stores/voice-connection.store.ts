@@ -4,6 +4,8 @@ import { isElectron } from '@/lib/electron'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { type MicMode, getMicMode, startMicMode, stopMicMode, setRoomGetter } from '@/lib/micMode'
+import { stopRnnoiseMicrophone } from '@/lib/rnnoiseMicrophone'
+import { setLocalMicTransmissionEnabled } from '@/lib/voiceLocalMic'
 import { type CameraQuality, CAMERA_PRESETS, getSavedCamera } from '@/lib/deviceSettings'
 import type { BlurHandle } from '@/lib/backgroundBlur'
 
@@ -170,6 +172,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     _blurHandle?.stop()
     _originalCameraTrack?.stop()
     if (room) {
+      void stopRnnoiseMicrophone(room)
       room.removeAllListeners()
       room.localParticipant.getTrackPublications().forEach((pub) => {
         pub.track?.mediaStreamTrack?.stop()
@@ -203,7 +206,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       stopMicMode(true)
     }
     if (room) {
-      room.localParticipant.setMicrophoneEnabled(!next).catch(() => {})
+      void setLocalMicTransmissionEnabled(room, !next)
     }
     if (!next && micMode !== 'always') {
       setTimeout(() => startMicMode(micMode), 300)
@@ -221,13 +224,13 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       if (next && !isMuted) {
         _wasMutedBeforeDeafen = false
         stopMicMode(true)
-        room.localParticipant.setMicrophoneEnabled(false).catch(() => {})
+        void setLocalMicTransmissionEnabled(room, false)
         set({ isMuted: true })
         emitVoiceState({ muted: true })
       } else if (next && isMuted) {
         _wasMutedBeforeDeafen = true
       } else if (!next && isMuted && !_wasMutedBeforeDeafen) {
-        room.localParticipant.setMicrophoneEnabled(true).catch(() => {})
+        void setLocalMicTransmissionEnabled(room, true)
         if (micMode !== 'always') {
           setTimeout(() => startMicMode(micMode), 300)
         }

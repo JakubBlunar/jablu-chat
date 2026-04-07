@@ -6,8 +6,22 @@ import {
   getSavedAudioOutput,
   setSavedAudioOutput,
   getSavedCamera,
-  setSavedCamera
+  setSavedCamera,
+  getValidatedDevices
 } from '@/lib/deviceSettings'
+import { getNoiseReductionCapabilities } from '@/lib/noiseReductionCapabilities'
+import { restartMicrophonePipeline } from '@/lib/voiceMicPipelineRestart'
+import {
+  getCaptureAutoGainControl,
+  getCaptureEchoCancellation,
+  getCaptureNoiseSuppression,
+  getNoiseReductionMode,
+  setCaptureAutoGainControl as saveCaptureAGC,
+  setCaptureEchoCancellation as saveCaptureEcho,
+  setCaptureNoiseSuppression as saveCaptureNS,
+  setNoiseReductionMode as saveNoiseReductionMode,
+  type NoiseReductionMode
+} from '@/lib/voiceProcessingSettings'
 import {
   type MicMode,
   type PttBinding,
@@ -25,6 +39,7 @@ import {
   startMicMode
 } from '@/lib/micMode'
 import { Button } from '@/components/ui'
+import { Toggle } from '@/components/ui/Toggle'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 type DeviceInfo = {
@@ -160,6 +175,58 @@ export function VoiceSettings() {
   const [recordingPtt, setRecordingPtt] = useState(false)
   const pttCleanupRef = useRef<(() => void) | null>(null)
   const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode)
+
+  const noiseCaps = useMemo(() => getNoiseReductionCapabilities(), [])
+  const [noiseMode, setNoiseMode] = useState<NoiseReductionMode>(getNoiseReductionMode)
+  const [capNoiseSuppression, setCapNoiseSuppression] = useState(getCaptureNoiseSuppression)
+  const [capAutoGain, setCapAutoGain] = useState(getCaptureAutoGainControl)
+  const [capEchoCancellation, setCapEchoCancellation] = useState(getCaptureEchoCancellation)
+
+  const applyNoisePipeline = useCallback(async () => {
+    const { room, isMuted } = useVoiceConnectionStore.getState()
+    if (!room) return
+    const { audioInput } = await getValidatedDevices()
+    await restartMicrophonePipeline(room, audioInput || undefined, !isMuted)
+  }, [])
+
+  const handleNoiseModeChange = useCallback(
+    (m: NoiseReductionMode) => {
+      if (m === 'rnnoise' && !noiseCaps.audioWorklet) {
+        window.dispatchEvent(
+          new CustomEvent('voice:error', {
+            detail: { message: 'RNNoise needs AudioWorklet support (not available in this browser).' }
+          })
+        )
+        return
+      }
+      setNoiseMode(m)
+      saveNoiseReductionMode(m)
+      void applyNoisePipeline()
+    },
+    [applyNoisePipeline, noiseCaps.audioWorklet]
+  )
+
+  const noiseModeOptions = useMemo(
+    () =>
+      [
+        { value: 'standard' as const, label: 'Standard', hint: 'Browser WebRTC noise handling.' },
+        {
+          value: 'enhanced_browser' as const,
+          label: 'Enhanced',
+          hint: noiseCaps.voiceIsolation
+            ? 'Includes voice isolation when supported (Chrome / Edge / some Electron).'
+            : 'Tunable capture; voice isolation not reported by this browser.'
+        },
+        {
+          value: 'rnnoise' as const,
+          label: 'RNNoise',
+          hint: noiseCaps.audioWorklet
+            ? 'In-app CPU denoise. May use more battery on phones.'
+            : 'Not available (no AudioWorklet).'
+        }
+      ] as const,
+    [noiseCaps.audioWorklet, noiseCaps.voiceIsolation]
+  )
 
   useEffect(() => {
     return () => {
@@ -318,6 +385,73 @@ export function VoiceSettings() {
         )}
       </div>
 
+      <div>
+        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Noise reduction</h3>
+        <div className="flex flex-wrap gap-2">
+          {noiseModeOptions.map((opt) => (
+            <Button
+              key={opt.value}
+              type="button"
+              variant={noiseMode === opt.value ? 'primary' : 'secondary'}
+              size="sm"
+              disabled={opt.value === 'rnnoise' && !noiseCaps.audioWorklet}
+              onClick={() => handleNoiseModeChange(opt.value)}
+              className={noiseMode === opt.value ? '' : 'bg-surface-darkest hover:bg-white/10'}
+            >
+              {opt.label}
+            </Button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-gray-500">
+          {noiseModeOptions.find((o) => o.value === noiseMode)?.hint}
+        </p>
+
+        <div className="mt-3 space-y-2 rounded-md bg-surface-darkest/80 p-3">
+          <p className="text-[11px] font-medium uppercase text-gray-500">Capture processing</p>
+          <label
+            className={`flex cursor-pointer items-center gap-3 ${noiseMode === 'rnnoise' ? 'opacity-60' : ''}`}
+          >
+            <Toggle
+              checked={capNoiseSuppression}
+              disabled={noiseMode === 'rnnoise'}
+              onChange={(v) => {
+                setCapNoiseSuppression(v)
+                saveCaptureNS(v)
+                void applyNoisePipeline()
+              }}
+            />
+            <span className="text-sm text-gray-200">Noise suppression</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-3">
+            <Toggle
+              checked={capAutoGain}
+              onChange={(v) => {
+                setCapAutoGain(v)
+                saveCaptureAGC(v)
+                void applyNoisePipeline()
+              }}
+            />
+            <span className="text-sm text-gray-200">Automatic gain</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-3">
+            <Toggle
+              checked={capEchoCancellation}
+              onChange={(v) => {
+                setCapEchoCancellation(v)
+                saveCaptureEcho(v)
+                void applyNoisePipeline()
+              }}
+            />
+            <span className="text-sm text-gray-200">Echo cancellation</span>
+          </label>
+          {noiseMode === 'rnnoise' && (
+            <p className="text-[11px] text-gray-500">
+              Browser noise suppression is off for RNNoise; echo cancellation and gain still apply to the raw mic.
+            </p>
+          )}
+        </div>
+      </div>
+
       {micDenied ? (
         <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
           Microphone access was denied. Grant permission in your browser&apos;s site settings to select audio devices.
@@ -340,11 +474,16 @@ export function VoiceSettings() {
               setSavedAudioInput(v)
               const { room, isMuted, micMode: currentMicMode } = useVoiceConnectionStore.getState()
               if (room) {
-                room.switchActiveDevice('audioinput', v || '').catch(() => {})
-                if (!isMuted && currentMicMode !== 'always') {
-                  stopMicMode()
-                  setTimeout(() => startMicMode(currentMicMode), 500)
-                }
+                void (async () => {
+                  await room.switchActiveDevice('audioinput', v || '').catch(() => {})
+                  if (!isMuted && getNoiseReductionMode() === 'rnnoise') {
+                    await restartMicrophonePipeline(room, v || undefined, true)
+                  }
+                  if (!isMuted && currentMicMode !== 'always') {
+                    stopMicMode()
+                    setTimeout(() => startMicMode(currentMicMode), 500)
+                  }
+                })()
               }
             }}
           />

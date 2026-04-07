@@ -2,8 +2,14 @@ import { Room, RoomEvent } from 'livekit-client'
 import { api } from '@/lib/api'
 import { getValidatedDevices } from '@/lib/deviceSettings'
 import { getNotifSettings } from '@/lib/notifications'
+import { canUseRnnoise } from '@/lib/noiseReductionCapabilities'
 import { getSocket } from '@/lib/socket'
 import { playJoinSound } from '@/lib/sounds'
+import {
+  buildAudioCaptureOptions,
+  buildAudioCaptureOptionsForMode
+} from '@/lib/voiceAudioCaptureOptions'
+import { getNoiseReductionMode } from '@/lib/voiceProcessingSettings'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 function showVoiceError(message: string) {
@@ -29,17 +35,18 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
 async function _joinVoiceChannelImpl(serverId: string, channelId: string, channelName: string) {
   const store = useVoiceConnectionStore.getState()
 
-  if (store.currentChannelId) {
-    getSocket()?.emit('voice:leave')
-    const oldRoom = store.room
-    if (oldRoom) {
-      oldRoom.removeAllListeners()
-      oldRoom.localParticipant.getTrackPublications().forEach((pub) => {
-        pub.track?.mediaStreamTrack?.stop()
-      })
-      oldRoom.disconnect().catch(() => {})
+    if (store.currentChannelId) {
+      getSocket()?.emit('voice:leave')
+      const oldRoom = store.room
+      if (oldRoom) {
+        void import('@/lib/rnnoiseMicrophone').then(({ stopRnnoiseMicrophone }) => stopRnnoiseMicrophone(oldRoom))
+        oldRoom.removeAllListeners()
+        oldRoom.localParticipant.getTrackPublications().forEach((pub) => {
+          pub.track?.mediaStreamTrack?.stop()
+        })
+        oldRoom.disconnect().catch(() => {})
+      }
     }
-  }
 
   store.setConnecting(serverId, channelId, channelName)
 
@@ -51,16 +58,12 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
       return
     }
 
+    const audioCaptureDefaults = buildAudioCaptureOptions(devices.audioInput || undefined)
+
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
-      audioCaptureDefaults: {
-        noiseSuppression: true,
-        echoCancellation: true,
-        autoGainControl: true,
-        channelCount: 1,
-        ...(devices.audioInput ? { deviceId: { exact: devices.audioInput } } : {})
-      },
+      audioCaptureDefaults,
       publishDefaults: {
         audioPreset: { maxBitrate: 128_000 },
         dtx: true,
@@ -103,13 +106,37 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
     store.setConnected(room)
     playJoinSound()
 
-    room.localParticipant.setMicrophoneEnabled(true).catch((err) => {
-      if (err instanceof DOMException && err.name === 'NotAllowedError') {
-        showVoiceError('Microphone access denied. Check your browser permissions.')
-      } else {
-        showVoiceError('Could not access microphone. Check device connections.')
+    const mode = getNoiseReductionMode()
+    const micOpts = buildAudioCaptureOptions(devices.audioInput || undefined)
+
+    if (mode === 'rnnoise' && canUseRnnoise()) {
+      void import('@/lib/rnnoiseMicrophone')
+        .then(({ startRnnoiseMicrophone }) => startRnnoiseMicrophone(room, micOpts))
+        .catch((err) => {
+          console.error('RNNoise microphone failed:', err)
+          showVoiceError('RNNoise could not start. Using standard microphone.')
+          const fallback = buildAudioCaptureOptionsForMode('standard', devices.audioInput || undefined)
+          room.options.audioCaptureDefaults = { ...room.options.audioCaptureDefaults, ...fallback }
+          room.localParticipant.setMicrophoneEnabled(true, fallback).catch((e2) => {
+            if (e2 instanceof DOMException && e2.name === 'NotAllowedError') {
+              showVoiceError('Microphone access denied. Check your browser permissions.')
+            } else {
+              showVoiceError('Could not access microphone. Check device connections.')
+            }
+          })
+        })
+    } else {
+      if (mode === 'rnnoise' && !canUseRnnoise()) {
+        showVoiceError('RNNoise needs AudioWorklet support. Using standard microphone.')
       }
-    })
+      room.localParticipant.setMicrophoneEnabled(true, micOpts).catch((err) => {
+        if (err instanceof DOMException && err.name === 'NotAllowedError') {
+          showVoiceError('Microphone access denied. Check your browser permissions.')
+        } else {
+          showVoiceError('Could not access microphone. Check device connections.')
+        }
+      })
+    }
   } catch (err) {
     if (useVoiceConnectionStore.getState().currentChannelId !== channelId) return
     console.error('Failed to join voice channel:', err)
