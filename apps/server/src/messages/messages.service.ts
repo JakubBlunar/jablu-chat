@@ -217,7 +217,13 @@ export class MessagesService {
       }
     }
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const createWithChannelInclude = {
+      ...messageInclude,
+      channel: { select: { serverId: true } }
+    } satisfies Prisma.MessageInclude
+    type MessageCreatedWithChannel = Prisma.MessageGetPayload<{ include: typeof createWithChannelInclude }>
+
+    const created = (await this.prisma.$transaction(async (tx) => {
       if (hasAttachments) {
         const found = await tx.attachment.findMany({
           where: {
@@ -240,11 +246,11 @@ export class MessagesService {
           replyToId: replyToId ?? undefined,
           threadParentId: threadParentId ?? undefined,
           attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
-          embeds: hasEmbeds ? embeds : undefined
+          embeds: hasEmbeds ? (embeds as unknown as Prisma.InputJsonValue) : undefined
         },
-        include: { ...messageInclude, channel: { select: { serverId: true } } }
+        include: createWithChannelInclude
       })
-    })
+    })) as MessageCreatedWithChannel
 
     const { channel, ...rest } = created
     const wire = this.mapToWire(rest as any, userId)
