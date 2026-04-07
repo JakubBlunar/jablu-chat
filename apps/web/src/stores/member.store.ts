@@ -192,7 +192,14 @@ export const useMemberStore = create<MemberState>((set, get) => ({
     set((s) => {
       const rt = new Map(s.realtimeStatuses)
       rt.set(userId, status)
+      const nextOnline = new Set(s.onlineUserIds)
+      if (status === 'offline') {
+        nextOnline.delete(userId)
+      } else if (status === 'online' || status === 'idle' || status === 'dnd') {
+        nextOnline.add(userId)
+      }
       return {
+        onlineUserIds: nextOnline,
         realtimeStatuses: rt,
         members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, status } } : m))
       }
@@ -221,8 +228,9 @@ export const useMemberStore = create<MemberState>((set, get) => ({
 
   resolveStatus: (userId) => {
     const { onlineUserIds, realtimeStatuses } = get()
-    if (!onlineUserIds.has(userId)) return 'offline'
     const rt = realtimeStatuses.get(userId)
+    if (rt === 'offline') return 'offline'
+    if (!onlineUserIds.has(userId)) return 'offline'
     if (rt === 'idle' || rt === 'dnd' || rt === 'online') return rt
     return 'online'
   }

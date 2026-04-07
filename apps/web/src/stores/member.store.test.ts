@@ -198,6 +198,14 @@ describe('useMemberStore', () => {
       })
       expect(useMemberStore.getState().resolveStatus('u1')).toBe('online')
     })
+
+    it('returns "offline" when realtimeStatuses is offline even if still in onlineUserIds', () => {
+      useMemberStore.setState({
+        onlineUserIds: new Set(['u1']),
+        realtimeStatuses: new Map([['u1', 'offline']])
+      })
+      expect(useMemberStore.getState().resolveStatus('u1')).toBe('offline')
+    })
   })
 
   describe('fetchMembers', () => {
@@ -235,6 +243,45 @@ describe('useMemberStore', () => {
       useMemberStore.getState().setUserOffline('u1')
       expect(useMemberStore.getState().onlineUserIds.has('u1')).toBe(false)
       expect(useMemberStore.getState().realtimeStatuses.has('u1')).toBe(false)
+    })
+  })
+
+  describe('setUserStatus', () => {
+    beforeEach(() => {
+      resetStore()
+    })
+
+    it('removes user from onlineUserIds when status is offline', () => {
+      useMemberStore.setState({ onlineUserIds: new Set(['u1']) })
+      useMemberStore.getState().setUserStatus('u1', 'offline')
+      expect(useMemberStore.getState().onlineUserIds.has('u1')).toBe(false)
+      expect(useMemberStore.getState().realtimeStatuses.get('u1')).toBe('offline')
+    })
+
+    it('adds user to onlineUserIds when returning to online', () => {
+      useMemberStore.setState({
+        onlineUserIds: new Set(),
+        realtimeStatuses: new Map([['u1', 'offline']])
+      })
+      useMemberStore.getState().setUserStatus('u1', 'online')
+      expect(useMemberStore.getState().onlineUserIds.has('u1')).toBe(true)
+      expect(useMemberStore.getState().realtimeStatuses.get('u1')).toBe('online')
+    })
+
+    it('adds user to onlineUserIds for idle and dnd', () => {
+      useMemberStore.setState({ onlineUserIds: new Set() })
+      useMemberStore.getState().setUserStatus('u1', 'idle')
+      expect(useMemberStore.getState().onlineUserIds.has('u1')).toBe(true)
+
+      useMemberStore.setState({ onlineUserIds: new Set() })
+      useMemberStore.getState().setUserStatus('u1', 'dnd')
+      expect(useMemberStore.getState().onlineUserIds.has('u1')).toBe(true)
+    })
+
+    it('updates member.user.status', () => {
+      useMemberStore.setState({ members: [makeMember()] })
+      useMemberStore.getState().setUserStatus('u1', 'dnd')
+      expect(useMemberStore.getState().members[0].user.status).toBe('dnd')
     })
   })
 })
