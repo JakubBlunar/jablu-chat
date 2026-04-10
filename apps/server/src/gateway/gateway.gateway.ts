@@ -19,6 +19,10 @@ import { MessagesService } from '../messages/messages.service'
 import { PollsService } from '../messages/polls.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
+import {
+  IN_APP_NOTIFICATION_USERS_EVENT,
+  InAppNotificationsService
+} from '../in-app-notifications/in-app-notifications.service'
 import { ReadStateService } from '../read-state/read-state.service'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
@@ -97,10 +101,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     private readonly readState: ReadStateService,
     readonly push: PushService,
     private readonly redis: RedisService,
-    readonly roles: RolesService
+    readonly roles: RolesService,
+    private readonly inApp: InAppNotificationsService
   ) {}
 
+  private readonly onInAppNotificationUsers = (data: { userIds: string[] }) => {
+    for (const uid of data.userIds) {
+      this.server?.to(`user:${uid}`).emit('in_app_notification:new', {})
+    }
+  }
+
   onModuleDestroy() {
+    this.events.off(IN_APP_NOTIFICATION_USERS_EVENT, this.onInAppNotificationUsers)
     for (const { timer } of this.disconnectGrace.values()) {
       clearTimeout(timer)
     }
@@ -195,6 +207,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   afterInit() {
     registerEventListeners(this)
+    this.events.on(IN_APP_NOTIFICATION_USERS_EVENT, this.onInAppNotificationUsers)
     this.afkInterval = setInterval(() => void this.checkAfkParticipants(), 30_000)
     this.idleCheckInterval = setInterval(() => void this.runIdleAndManualExpiryChecks(), 60_000)
   }
@@ -740,6 +753,56 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       })
     }
 
+    if (serverId && body.content && mentionedUserIds.length > 0) {
+      const ch = await this.prisma.channel.findUnique({
+        where: { id: body.channelId },
+        select: { name: true }
+      })
+      const authorName = msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone'
+      const snippet =
+        describePushPreviewText(body.content, msgRest.attachments as { type: string }[] | undefined) || 'Mention'
+      void this.inApp
+        .recordMentions(mentionedUserIds, {
+          serverId,
+          channelId: body.channelId,
+          channelName: ch?.name ?? 'channel',
+          messageId: msgRest.id,
+          authorName,
+          snippet
+        })
+        .catch((err) => this.logger.warn('In-app mention notifications failed', err?.message))
+    }
+
+    if (serverId && body.threadParentId) {
+      void (async () => {
+        try {
+          const participantIds = await this.inApp.resolveThreadParticipantUserIds(body.threadParentId, user.id)
+          if (participantIds.length === 0) return
+          const ch = await this.prisma.channel.findUnique({
+            where: { id: body.channelId },
+            select: { name: true }
+          })
+          const authorName = msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone'
+          const snippet =
+            describePushPreviewText(
+              body.content ?? '',
+              msgRest.attachments as { type: string }[] | undefined
+            ) || 'New reply'
+          await this.inApp.recordThreadActivity(participantIds, {
+            serverId,
+            channelId: body.channelId,
+            channelName: ch?.name ?? 'channel',
+            threadParentId: body.threadParentId,
+            messageId: msgRest.id,
+            authorName,
+            snippet
+          })
+        } catch (err) {
+          this.logger.warn('In-app thread notifications failed', (err as Error)?.message)
+        }
+      })()
+    }
+
     if (body.content) {
       this.linkPreviews
         .generatePreviews(msgRest.id, body.content)
@@ -1255,6 +1318,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const otherMemberIds = memberIds.filter((id) => id !== user.id)
     await this.readState.incrementDmMention(body.conversationId, otherMemberIds)
+
+    const dmAuthorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
+    const dmSnippet =
+      describePushPreviewText(body.content ?? undefined, msg.attachments as { type: string }[] | undefined) ||
+      'Message'
+    void this.inApp
+      .recordDmMessages(otherMemberIds, {
+        conversationId: body.conversationId,
+        messageId: msg.id,
+        authorName: dmAuthorName,
+        snippet: dmSnippet
+      })
+      .catch((err) => this.logger.warn('In-app DM notifications failed', err?.message))
 
     this.emitToDm(body.conversationId, 'dm:new', {
       ...msg,

@@ -3,13 +3,15 @@ import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { FriendsService } from './friends.service'
 import { EventBusService } from '../events/event-bus.service'
+import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 
 @Controller('friends')
 @UseGuards(UnifiedAuthGuard)
 export class FriendsController {
   constructor(
     private readonly friends: FriendsService,
-    private readonly events: EventBusService
+    private readonly events: EventBusService,
+    private readonly inApp: InAppNotificationsService
   ) {}
 
   @Get()
@@ -35,6 +37,15 @@ export class FriendsController {
       requester: friendship.requester,
       addressee: friendship.addressee
     })
+    const requesterName =
+      friendship.requester.displayName?.trim() || friendship.requester.username
+    void this.inApp
+      .recordFriendRequest(friendship.addresseeId, {
+        friendshipId: friendship.id,
+        requesterId: friendship.requesterId,
+        requesterName
+      })
+      .catch(() => {})
     return { ok: true, friendshipId: friendship.id }
   }
 

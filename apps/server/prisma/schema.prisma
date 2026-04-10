@@ -54,6 +54,7 @@ model User {
   friendRequestsSent     Friendship[]     @relation("FriendRequestsSent")
   friendRequestsReceived Friendship[]     @relation("FriendRequestsReceived")
   bookmarks              MessageBookmark[]
+  inAppNotifications     InAppNotification[]
   bans                   ServerBan[]      @relation("BannedUser")
   bansIssued             ServerBan[]      @relation("BanActor")
   botApplication         BotApplication?  @relation("BotUser")
@@ -519,6 +520,33 @@ enum NotifLevel {
   all
   mentions
   none
+}
+
+enum InAppNotificationKind {
+  mention
+  dm_message
+  thread_reply
+  friend_request
+}
+
+/// Directed in-app notification (not a firehose of every channel message). Bounded per user via cap enforcement.
+model InAppNotification {
+  id        String                 @id @default(uuid())
+  userId    String                 @map("user_id")
+  kind      InAppNotificationKind
+  /// Stable key for merge/upsert (e.g. thread parent id bucket). Null = one-shot row.
+  dedupeKey String?                @map("dedupe_key")
+  payload   Json                   @default("{}")
+  readAt    DateTime?              @map("read_at")
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+  @@map("in_app_notifications")
 }
 
 model RegistrationInvite {

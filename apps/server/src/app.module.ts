@@ -28,6 +28,7 @@ import { BookmarksModule } from './bookmarks/bookmarks.module'
 import { BotsModule } from './bots/bots.module'
 import { ForumModule } from './forum/forum.module'
 import { RolesModule } from './roles/roles.module'
+import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module'
 
 @Module({
   imports: [
@@ -65,7 +66,8 @@ import { RolesModule } from './roles/roles.module'
     AutoModModule,
     ForumModule,
     RolesModule,
-    BotsModule
+    BotsModule,
+    InAppNotificationsModule
   ]
 })
 export class AppModule {}

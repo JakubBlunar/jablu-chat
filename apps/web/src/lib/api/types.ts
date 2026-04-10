@@ -128,3 +128,14 @@ export type ActiveSession = {
   lastUsedAt: string | null
   createdAt: string
 }
+
+export type InAppNotificationKind = 'mention' | 'dm_message' | 'thread_reply' | 'friend_request'
+
+export type InAppNotificationDto = {
+  id: string
+  kind: InAppNotificationKind
+  payload: Record<string, unknown>
+  readAt: string | null
+  createdAt: string
+  updatedAt: string
+}

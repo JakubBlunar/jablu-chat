@@ -9,6 +9,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
+import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { createChannelHandlers } from './socket/channelHandlers'
 import { createDmHandlers } from './socket/dmHandlers'
@@ -92,6 +93,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (!document.hidden || useVoiceConnectionStore.getState().room) {
         socket.emit('activity:heartbeat')
       }
+
+      void useNotificationCenterStore.getState().fetchUnread()
     }
     const onDisconnect = () => setIsConnected(false)
     const onConnectError = async () => {
@@ -194,6 +197,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
     socket.on('bot:command-error', onBotCommandError)
 
+    const onInAppNotificationNew = () => {
+      useNotificationCenterStore.getState().applySocketBump()
+    }
+    socket.on('in_app_notification:new', onInAppNotificationNew)
+
     setIsConnected(socket.connected)
 
     return () => {
@@ -260,6 +268,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:cancelled', srv.onFriendCancelled)
       socket.off('friend:removed', srv.onFriendRemoved)
       socket.off('bot:command-error', onBotCommandError)
+      socket.off('in_app_notification:new', onInAppNotificationNew)
       if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
       if (trailingFn) { trailingFn(); trailingFn = null }
       presence.cleanup()
