@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '../prisma-client'
 import { ServersService } from './servers.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { EventBusService } from '../events/event-bus.service'

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChannelType, Prisma } from '@prisma/client'
+import { ChannelType, Prisma } from '../prisma-client'
 import { DANGEROUS_PERMISSIONS, hasPermission, Permission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'

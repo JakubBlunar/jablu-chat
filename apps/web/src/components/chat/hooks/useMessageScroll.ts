@@ -34,6 +34,7 @@ export interface ScrollState {
 export function useMessageScroll(contextId: string | null, store: ScrollStoreAdapter): ScrollState {
   const {
     messages,
+    isLoading,
     hasMore,
     hasNewer,
     scrollToMessageId,
@@ -73,16 +74,19 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   const justSnappedRef = useRef(false)
 
   useLayoutEffect(() => {
-    if (!pendingGoToBottom.current || messages.length === 0) return
+    if (!pendingGoToBottom.current) return
+    if (isLoading) return
+    if (getLoadedForId() !== contextId) return
+
     pendingGoToBottom.current = false
-    justSnappedRef.current = true
+    if (messages.length > 0) {
+      justSnappedRef.current = true
+    }
 
     const sp = scrollParentRef.current
-    if (!sp) return
-
-    sp.scrollTop = 0
+    if (sp) sp.scrollTop = 0
     setSettling(false)
-  }, [messages.length])
+  }, [messages.length, isLoading, contextId, getLoadedForId])
 
   useEffect(() => {
     if (!justSnappedRef.current) return

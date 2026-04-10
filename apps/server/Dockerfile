@@ -19,6 +19,9 @@ RUN pnpm --filter @chat/shared build
 # ─── Generate Prisma client ─────────────────────────────────────────
 FROM build-shared AS prisma-generate
 COPY apps/server/prisma/ ./apps/server/prisma/
+COPY apps/server/prisma.config.ts ./apps/server/prisma.config.ts
+# prisma.config.ts requires DATABASE_URL; generate does not connect to the DB
+ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
 RUN pnpm --filter @chat/server db:generate
 
 # ─── Build server ───────────────────────────────────────────────────
@@ -29,12 +32,7 @@ RUN pnpm --filter @chat/server build
 
 # ─── Production bundle (only server prod deps) ──────────────────────
 FROM build AS prod-bundle
-RUN pnpm --filter @chat/server deploy --prod /prod && \
-    src=$(find /app/node_modules -path '*/.prisma/client' -type d | head -1) && \
-    dest=$(find /prod/node_modules -path '*/@prisma/client' -type d | head -1) && \
-    nm_dir="$(dirname "$(dirname "$dest")")" && \
-    mkdir -p "$nm_dir/.prisma" && \
-    cp -r "$src" "$nm_dir/.prisma/client" && \
+RUN pnpm --filter @chat/server deploy --prod --no-optional /prod && \
     # Remove bulky dev/unused artifacts
     rm -rf /prod/node_modules/.pnpm/prisma@* \
            /prod/node_modules/.pnpm/typescript@* \
@@ -44,11 +42,21 @@ RUN pnpm --filter @chat/server deploy --prod /prod && \
            /prod/node_modules/prisma \
            /prod/node_modules/typescript \
            /prod/node_modules/@types && \
-    # Remove Prisma WASM engines for databases we don't use (keep only postgresql)
-    find /prod/node_modules -path '*/runtime/query_engine_bg.cockroachdb*' -delete && \
-    find /prod/node_modules -path '*/runtime/query_engine_bg.mysql*' -delete && \
-    find /prod/node_modules -path '*/runtime/query_engine_bg.sqlserver*' -delete && \
-    find /prod/node_modules -path '*/runtime/query_engine_bg.sqlite*' -delete && \
+    # Prisma 7: optional peer pulls full `prisma` CLI (Studio, PGlite, sqlite) — not used at runtime with driver adapter
+    rm -rf /prod/node_modules/.pnpm/@prisma+studio-core@* \
+           /prod/node_modules/.pnpm/@prisma+dev@* \
+           /prod/node_modules/.pnpm/@electric-sql+pglite@* \
+           /prod/node_modules/.pnpm/@electric-sql+pglite-tools@* \
+           /prod/node_modules/.pnpm/@electric-sql+pglite-socket@* \
+           /prod/node_modules/.pnpm/better-sqlite3@* && \
+    # Postgres only: drop non-PostgreSQL query compiler WASM from @prisma/client runtime (v7 file names)
+    find /prod/node_modules -path '*/node_modules/@prisma/client/runtime/*' \( \
+         -name 'query_compiler_*mysql*' -o \
+         -name 'query_compiler_*sqlite*' -o \
+         -name 'query_compiler_*sqlserver*' -o \
+         -name 'query_compiler_*cockroachdb*' \
+       \) -delete && \
+    find /prod/node_modules -path '*/node_modules/@prisma/client/runtime/*.map' -delete && \
     # Remove ffprobe-static binaries for platforms we don't run on (keep only linux-x64)
     find /prod/node_modules -path '*/ffprobe-static/bin/darwin' -type d -exec rm -rf {} + && \
     find /prod/node_modules -path '*/ffprobe-static/bin/win32' -type d -exec rm -rf {} + && \
@@ -56,9 +64,10 @@ RUN pnpm --filter @chat/server deploy --prod /prod && \
 
 # ─── Migration runner (target: migrate) ─────────────────────────────
 FROM node:22-alpine AS migrate
-RUN npm install -g prisma@6 && npm cache clean --force
+RUN npm install -g prisma@7 && npm cache clean --force
 WORKDIR /app
 COPY --from=prisma-generate /app/apps/server/prisma ./prisma
+COPY --from=prisma-generate /app/apps/server/prisma.config.ts ./prisma.config.ts
 CMD ["prisma", "migrate", "deploy"]
 
 # ─── Production image ───────────────────────────────────────────────

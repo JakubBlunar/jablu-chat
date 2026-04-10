@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { NotFoundException } from '@nestjs/common'
-import { InAppNotificationKind } from '@prisma/client'
+import { InAppNotificationKind } from '../prisma-client'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import {

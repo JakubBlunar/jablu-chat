@@ -206,7 +206,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
 
       {/* Search input */}
       <div className="border-b border-white/10 px-3 py-2">
-        <div className="flex items-center rounded bg-surface-darkest px-2">
+        <div className="composite-text-field flex items-center rounded bg-surface-darkest px-2 ring-1 ring-white/10 transition focus-within:ring-2 focus-within:ring-primary/55">
           <svg
             className="h-4 w-4 shrink-0 text-gray-500"
             fill="none"

@@ -65,7 +65,7 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
 
   return (
     <div className="relative">
-      <div className="flex items-center rounded bg-surface-darkest px-2">
+      <div className="composite-text-field flex items-center rounded bg-surface-darkest px-2 ring-1 ring-white/10 transition focus-within:ring-2 focus-within:ring-primary/55">
         <SearchIcon />
         <input
           ref={inputRef}

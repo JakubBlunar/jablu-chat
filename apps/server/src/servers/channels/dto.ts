@@ -1,4 +1,4 @@
-import { ChannelType, ForumLayout, ForumSortOrder } from '@prisma/client'
+import { ChannelType, ForumLayout, ForumSortOrder } from '../../prisma-client'
 import {
   ArrayMinSize,
   IsArray,

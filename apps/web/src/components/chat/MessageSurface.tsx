@@ -134,12 +134,12 @@ export const MessageSurface = memo(function MessageSurface({
   )
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={scroll.scrollParentRef}
         role="region"
         aria-label={t('messageListLabel')}
-        className={`chat-scroll flex h-full flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2${scroll.settling ? ' invisible' : ''}`}
+        className={`chat-scroll flex min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2${scroll.settling ? ' invisible' : ''}`}
       >
         {scrollChildren}
       </div>

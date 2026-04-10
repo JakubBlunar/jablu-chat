@@ -1,6 +1,7 @@
 import type { Channel } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ChannelNotifPrefTriggerIcon } from '@/components/channel/ChannelNotifPrefTriggerIcon'
 import { api } from '@/lib/api'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 
@@ -117,8 +118,8 @@ export function ChannelOptionsDrawer({
           {channel.type === 'text' && (
             <>
               <DrawerBtn
-                icon={notifLevel === 'none' ? <BellMutedIcon /> : <BellIcon />}
-                label="Notifications"
+                icon={<ChannelNotifPrefTriggerIcon level={notifLevel} />}
+                label="Channel alerts"
                 subtitle={LEVELS.find((l) => l.value === notifLevel)?.label}
                 onClick={() => setNotifExpanded(!notifExpanded)}
               />

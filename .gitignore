@@ -35,6 +35,10 @@ apps/desktop/release/
 
 # Generated
 apps/server/prisma/generated/
+apps/server/src/generated/
+
+# pnpm deploy scratch (local / CI experiments)
+apps/server/.deploy-test/
 
 # Test coverage
 coverage/

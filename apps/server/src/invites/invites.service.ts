@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import crypto from 'node:crypto'
 import { EventBusService } from '../events/event-bus.service'

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { ChannelNotifPrefTriggerIcon } from '@/components/channel/ChannelNotifPrefTriggerIcon'
 import { api } from '@/lib/api'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { SheetBtn } from '@/components/ui/SheetBtn'
@@ -41,8 +42,8 @@ export function NotifBellSheetBtn({ channelId, serverId, onClose }: { channelId:
   return (
     <>
       <SheetBtn
-        icon={level === 'none' ? <BellMutedIcon /> : <BellIcon />}
-        label="Notifications"
+        icon={<ChannelNotifPrefTriggerIcon level={level} />}
+        label="Channel alerts"
         subtitle={currentLabel}
         onClick={() => setSubOpen(true)}
       />

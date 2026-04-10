@@ -22,7 +22,7 @@ export function AppearanceSection() {
           id="jablu-locale-select"
           value={locale}
           onChange={(e) => setLocale(e.target.value as AppLocale)}
-          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10"
+          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
         >
           {APP_LOCALES.map((code) => (
             <option key={code} value={code}>

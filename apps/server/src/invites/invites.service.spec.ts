@@ -87,7 +87,7 @@ describe('InvitesService', () => {
     })
 
     it('retries on unique constraint violation', async () => {
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client/runtime/library') as any
+      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       const uniqueError = new PrismaClientKnownRequestError('Unique constraint', {
         code: 'P2002',
         clientVersion: '6.0.0',
@@ -108,7 +108,7 @@ describe('InvitesService', () => {
     })
 
     it('throws ConflictException after 20 failed attempts', async () => {
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client/runtime/library') as any
+      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       const uniqueError = new PrismaClientKnownRequestError('Unique constraint', {
         code: 'P2002',
         clientVersion: '6.0.0',

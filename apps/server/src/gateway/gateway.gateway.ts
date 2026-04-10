@@ -773,10 +773,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         .catch((err) => this.logger.warn('In-app mention notifications failed', err?.message))
     }
 
-    if (serverId && body.threadParentId) {
+    const threadParentIdForNotify = body.threadParentId
+    if (serverId && threadParentIdForNotify) {
       void (async () => {
         try {
-          const participantIds = await this.inApp.resolveThreadParticipantUserIds(body.threadParentId, user.id)
+          const participantIds = await this.inApp.resolveThreadParticipantUserIds(threadParentIdForNotify, user.id)
           if (participantIds.length === 0) return
           const ch = await this.prisma.channel.findUnique({
             where: { id: body.channelId },
@@ -792,7 +793,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
             serverId,
             channelId: body.channelId,
             channelName: ch?.name ?? 'channel',
-            threadParentId: body.threadParentId,
+            threadParentId: threadParentIdForNotify,
             messageId: msgRest.id,
             authorName,
             snippet

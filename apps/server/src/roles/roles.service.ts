@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '../prisma-client'
 import {
   DANGEROUS_PERMISSIONS,
   DEFAULT_EVERYONE_PERMISSIONS,

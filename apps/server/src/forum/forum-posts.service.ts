@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common'
-import { ChannelType, ForumSortOrder, Prisma } from '@prisma/client'
+import { ChannelType, ForumSortOrder, Prisma } from '../prisma-client'
 import { Permission, hasPermission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'

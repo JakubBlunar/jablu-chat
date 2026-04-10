@@ -72,7 +72,7 @@ describe('ChannelsService', () => {
 
     it('throws ConflictException on duplicate name', async () => {
       prisma.channel.aggregate.mockResolvedValue({ _max: { position: 0 } })
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client/runtime/library') as any
+      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       prisma.channel.create.mockRejectedValue(
         new PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '6.0.0' }),
       )
@@ -181,7 +181,7 @@ describe('ChannelsService', () => {
     })
 
     it('throws ConflictException on duplicate name', async () => {
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client/runtime/library') as any
+      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       prisma.channel.update.mockRejectedValue(
         new PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '6.0.0' }),
       )

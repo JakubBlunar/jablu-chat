@@ -113,6 +113,64 @@ describe('useMessageScroll', () => {
 
       expect(result.current.settling).toBe(true)
     })
+
+    it('clears settling when thread finishes loading with zero messages', async () => {
+      const state = {
+        messages: [] as Message[],
+        isLoading: true,
+        hasMore: false,
+        hasNewer: false
+      }
+      let loadedId: string | null = null
+      const adapter: ScrollStoreAdapter = {
+        get messages() {
+          return state.messages
+        },
+        get isLoading() {
+          return state.isLoading
+        },
+        get hasMore() {
+          return state.hasMore
+        },
+        get hasNewer() {
+          return state.hasNewer
+        },
+        scrollToMessageId: null,
+        scrollRequestNonce: 0,
+        fetchMessages: jest.fn(async () => {
+          await Promise.resolve()
+          state.isLoading = false
+          state.messages = []
+          loadedId = 'ch-1'
+        }),
+        fetchMessagesAround: jest.fn(async () => {}),
+        clearMessages: jest.fn(() => {
+          state.messages = []
+        }),
+        setScrollToMessageId: jest.fn(),
+        getLoadedForId: () => loadedId,
+        getSnapshot: () => ({
+          messages: state.messages,
+          isLoading: state.isLoading,
+          hasMore: state.hasMore,
+          hasNewer: state.hasNewer
+        }),
+        onContextJoin: jest.fn(),
+        onContextLeave: jest.fn()
+      }
+
+      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
+
+      expect(result.current.settling).toBe(true)
+
+      await act(async () => {
+        const p = adapter.fetchMessages.mock.results[0]?.value as Promise<void> | undefined
+        if (p) await p
+        rerender()
+      })
+
+      expect(result.current.settling).toBe(false)
+    })
   })
 
   describe('null contextId', () => {

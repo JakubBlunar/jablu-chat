@@ -4,7 +4,7 @@ import { SchedulerRegistry } from '@nestjs/schedule'
 import { CronJob } from 'cron'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
-import { ChannelType } from '@prisma/client'
+import { ChannelType } from '../prisma-client'
 import { PrismaService } from '../prisma/prisma.service'
 import { UploadsService } from '../uploads/uploads.service'
 

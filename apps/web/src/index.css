@@ -6,10 +6,32 @@ button,
   cursor: pointer;
 }
 
-/* Keyboard focus visibility (Phase 5 a11y) */
+/* Keyboard focus visibility (Phase 5 a11y) — buttons, links, etc. */
 :focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-primary) 85%, white);
   outline-offset: 2px;
+}
+
+/*
+ * Text fields use Tailwind ring (Input/Textarea and raw styled fields).
+ * Do not stack this global outline on top — it reads as a double / overly wide ring.
+ */
+input:focus-visible:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+/* Message composer: outer shell uses focus-within ring — skip duplicate outline on textarea */
+.chat-composer textarea:focus,
+.chat-composer textarea:focus-visible {
+  outline: none;
+}
+
+/* Icon + text field rows: shell uses focus-within ring — avoid outline only on the inner input */
+.composite-text-field input:focus,
+.composite-text-field input:focus-visible {
+  outline: none;
 }
 
 .skip-to-main {

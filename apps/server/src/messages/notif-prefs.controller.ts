@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { IsEnum } from 'class-validator'
-import { NotifLevel } from '@prisma/client'
+import { NotifLevel } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service'
