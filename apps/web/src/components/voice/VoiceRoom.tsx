@@ -1,5 +1,6 @@
 import { RoomEvent, Track, type Participant, type TrackPublication } from 'livekit-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { joinVoiceChannel } from '@/lib/voiceConnect'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -16,6 +17,8 @@ type TileEntry =
 export function VoiceRoom() {
   const room = useVoiceConnectionStore((s) => s.room)
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
+  const voiceNetworkDropout = useVoiceConnectionStore((s) => s.voiceNetworkDropout)
+  const isReconnecting = useVoiceConnectionStore((s) => s.isReconnecting)
   const [tiles, setTiles] = useState<TileEntry[]>([])
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [pendingFullscreen, setPendingFullscreen] = useState(false)
@@ -118,6 +121,37 @@ export function VoiceRoom() {
   }, [])
 
   if (!room) {
+    if (voiceNetworkDropout) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+          <p className="text-sm text-gray-300">Voice disconnected — {voiceNetworkDropout.channelName}</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const d = useVoiceConnectionStore.getState().voiceNetworkDropout
+                if (!d) return
+                useVoiceConnectionStore.getState().clearVoiceNetworkDropout()
+                void joinVoiceChannel(d.serverId, d.channelId, d.channelName)
+              }}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text hover:bg-primary-hover"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                useVoiceConnectionStore.getState().clearVoiceNetworkDropout()
+                useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+              }}
+              className="rounded-md bg-white/10 px-4 py-2 text-sm text-gray-200 hover:bg-white/15"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )
+    }
     return <div className="flex flex-1 items-center justify-center text-gray-400">Not connected to a voice channel</div>
   }
 
@@ -130,6 +164,12 @@ export function VoiceRoom() {
         channelName={channelName}
         participantCount={tiles.filter((t) => t.kind === 'participant').length}
       />
+
+      {isReconnecting && (
+        <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center text-[11px] text-amber-100">
+          Connection interrupted — reconnecting automatically.
+        </div>
+      )}
 
       <div className="flex flex-1 flex-col overflow-hidden p-2 md:p-4">
         {focusedTile ? (

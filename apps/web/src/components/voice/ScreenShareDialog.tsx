@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Toggle } from '@/components/ui/Toggle'
 import { isElectron } from '@/lib/electron'
+import { useSettingsStore } from '@/stores/settings.store'
 
 export type ScreenShareSettings = {
   resolution: '720p' | '1080p' | 'native'
   fps: 5 | 15 | 20 | 30
   audio: boolean
+  highQualityAudio: boolean
 }
 
 const RESOLUTION_OPTIONS = ['720p', '1080p', 'native'] as const
@@ -22,6 +24,8 @@ export function ScreenShareDialog({
   const [resolution, setResolution] = useState<ScreenShareSettings['resolution']>('1080p')
   const [fps, setFps] = useState<ScreenShareSettings['fps']>(30)
   const [audio, setAudio] = useState(false)
+  const [highQualityAudio, setHighQualityAudio] = useState(() => useSettingsStore.getState().screenShareHighQualityAudio)
+  const setScreenShareHighQualityAudio = useSettingsStore((s) => s.setScreenShareHighQualityAudio)
 
   const supportsAudio = !isElectron || /win|linux/i.test(navigator.userAgent)
 
@@ -91,6 +95,30 @@ export function ScreenShareDialog({
                 <span className="block text-[11px] text-gray-500">Share system or tab audio alongside your screen</span>
               </div>
             </div>
+            {audio && (
+              <div
+                onClick={() => {
+                  const next = !highQualityAudio
+                  setHighQualityAudio(next)
+                  setScreenShareHighQualityAudio(next)
+                }}
+                className="mt-2 flex w-full cursor-pointer items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
+              >
+                <Toggle
+                  checked={highQualityAudio}
+                  onChange={(v) => {
+                    setHighQualityAudio(v)
+                    setScreenShareHighQualityAudio(v)
+                  }}
+                />
+                <div className="text-left">
+                  <span className="block text-sm text-gray-200">Better audio for shared content</span>
+                  <span className="block text-[11px] text-gray-500">
+                    Stereo and higher bitrate for music or video. Uses more bandwidth and CPU.
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -105,7 +133,7 @@ export function ScreenShareDialog({
         </button>
         <button
           type="button"
-          onClick={() => onConfirm({ resolution, fps, audio })}
+          onClick={() => onConfirm({ resolution, fps, audio, highQualityAudio: audio ? highQualityAudio : false })}
           className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
         >
           Share Screen

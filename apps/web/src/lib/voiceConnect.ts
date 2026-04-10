@@ -1,4 +1,4 @@
-import { Room, RoomEvent } from 'livekit-client'
+import { DisconnectReason, Room, RoomEvent } from 'livekit-client'
 import { api } from '@/lib/api'
 import { getValidatedDevices } from '@/lib/deviceSettings'
 import { getNotifSettings } from '@/lib/notifications'
@@ -10,6 +10,7 @@ import {
   buildAudioCaptureOptionsForMode
 } from '@/lib/voiceAudioCaptureOptions'
 import { getNoiseReductionMode } from '@/lib/voiceProcessingSettings'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 function showVoiceError(message: string) {
@@ -18,6 +19,17 @@ function showVoiceError(message: string) {
     new Notification('Jablu', { body: message, silent: !settings.soundEnabled })
   }
   window.dispatchEvent(new CustomEvent('voice:error', { detail: { message } }))
+}
+
+function applyVoiceJoinPreferencesFromSettings() {
+  const { voiceJoinMuted, voiceJoinDeafened } = useSettingsStore.getState()
+  if (!voiceJoinMuted && !voiceJoinDeafened) return
+  queueMicrotask(() =>
+    useVoiceConnectionStore.getState().applyInitialVoiceState({
+      joinMuted: voiceJoinMuted,
+      joinDeafened: voiceJoinDeafened
+    })
+  )
 }
 
 let _joinPromise: Promise<void> | null = null
@@ -71,16 +83,39 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
       }
     })
 
-    room.on(RoomEvent.Disconnected, () => {
+    room.on(RoomEvent.Disconnected, (reason: DisconnectReason) => {
       const current = useVoiceConnectionStore.getState()
       if (current.room !== room) return
       getSocket()?.emit('voice:leave')
-      current.disconnect()
+      if (reason === DisconnectReason.CLIENT_INITIATED) {
+        current.disconnect()
+        return
+      }
+      const serverId = current.currentServerId
+      const chId = current.currentChannelId
+      const chName = current.currentChannelName
+      if (serverId && chId) {
+        showVoiceError('Voice connection dropped. You can try reconnecting.')
+        current.disconnectAfterUnexpectedClose({
+          serverId,
+          channelId: chId,
+          channelName: chName ?? 'Voice'
+        })
+      } else {
+        current.disconnect()
+      }
     })
 
     room.on(RoomEvent.Reconnecting, () => {
       const current = useVoiceConnectionStore.getState()
-      if (current.room === room) current.setReconnecting(true)
+      if (current.room === room) {
+        current.setReconnecting(true)
+        window.dispatchEvent(
+          new CustomEvent('voice:reconnecting', {
+            detail: { message: 'Reconnecting to voice…' }
+          })
+        )
+      }
     })
 
     room.on(RoomEvent.Reconnected, () => {
@@ -103,7 +138,9 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
     }
 
     getSocket()?.emit('voice:join', { channelId })
-    store.setConnected(room)
+    const { voiceJoinMuted, voiceJoinDeafened } = useSettingsStore.getState()
+    const skipMicBootstrap = voiceJoinMuted || voiceJoinDeafened
+    store.setConnected(room, { skipMicModeBootstrap: skipMicBootstrap })
     playJoinSound()
 
     const mode = getNoiseReductionMode()
@@ -112,30 +149,37 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
     if (mode === 'rnnoise' && canUseRnnoise()) {
       void import('@/lib/rnnoiseMicrophone')
         .then(({ startRnnoiseMicrophone }) => startRnnoiseMicrophone(room, micOpts))
+        .then(() => applyVoiceJoinPreferencesFromSettings())
         .catch((err) => {
           console.error('RNNoise microphone failed:', err)
           showVoiceError('RNNoise could not start. Using standard microphone.')
           const fallback = buildAudioCaptureOptionsForMode('standard', devices.audioInput || undefined)
           room.options.audioCaptureDefaults = { ...room.options.audioCaptureDefaults, ...fallback }
-          room.localParticipant.setMicrophoneEnabled(true, fallback).catch((e2) => {
-            if (e2 instanceof DOMException && e2.name === 'NotAllowedError') {
-              showVoiceError('Microphone access denied. Check your browser permissions.')
-            } else {
-              showVoiceError('Could not access microphone. Check device connections.')
-            }
-          })
+          room.localParticipant
+            .setMicrophoneEnabled(true, fallback)
+            .then(() => applyVoiceJoinPreferencesFromSettings())
+            .catch((e2) => {
+              if (e2 instanceof DOMException && e2.name === 'NotAllowedError') {
+                showVoiceError('Microphone access denied. Check your browser permissions.')
+              } else {
+                showVoiceError('Could not access microphone. Check device connections.')
+              }
+            })
         })
     } else {
       if (mode === 'rnnoise' && !canUseRnnoise()) {
         showVoiceError('RNNoise needs AudioWorklet support. Using standard microphone.')
       }
-      room.localParticipant.setMicrophoneEnabled(true, micOpts).catch((err) => {
-        if (err instanceof DOMException && err.name === 'NotAllowedError') {
-          showVoiceError('Microphone access denied. Check your browser permissions.')
-        } else {
-          showVoiceError('Could not access microphone. Check device connections.')
-        }
-      })
+      room.localParticipant
+        .setMicrophoneEnabled(true, micOpts)
+        .then(() => applyVoiceJoinPreferencesFromSettings())
+        .catch((err) => {
+          if (err instanceof DOMException && err.name === 'NotAllowedError') {
+            showVoiceError('Microphone access denied. Check your browser permissions.')
+          } else {
+            showVoiceError('Could not access microphone. Check device connections.')
+          }
+        })
     }
   } catch (err) {
     if (useVoiceConnectionStore.getState().currentChannelId !== channelId) return

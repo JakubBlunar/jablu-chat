@@ -90,8 +90,8 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
 
   const { voiceServerId, voiceChannelId } = useVoiceConnectionStore(
     useShallow((s) => ({
-      voiceServerId: s.currentServerId,
-      voiceChannelId: s.currentChannelId
+      voiceServerId: s.currentServerId ?? s.voiceNetworkDropout?.serverId ?? null,
+      voiceChannelId: s.currentChannelId ?? s.voiceNetworkDropout?.channelId ?? null
     }))
   )
 

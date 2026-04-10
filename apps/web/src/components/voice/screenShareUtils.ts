@@ -1,3 +1,4 @@
+import { AudioPresets } from 'livekit-client'
 import { electronAPI, isElectron } from '@/lib/electron'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import type { ScreenShareSettings } from './ScreenShareDialog'
@@ -6,6 +7,7 @@ import { resolveScreenShareMaxBitrate } from './screenShareBitrate'
 export type ScreenShareOptions = {
   resolution: '720p' | '1080p' | 'native'
   fps: 5 | 15 | 20 | 30
+  highQualityAudio?: boolean
 }
 
 const RESOLUTION_MAP = {
@@ -24,7 +26,19 @@ export async function startScreenShareWithSettings(settings: ScreenShareSettings
 
 /** @deprecated Use startScreenShareWithSettings */
 export async function startScreenShare() {
-  startScreenShareWithSettings({ resolution: '1080p', fps: 30, audio: false })
+  startScreenShareWithSettings({ resolution: '1080p', fps: 30, audio: false, highQualityAudio: false })
+}
+
+function screenShareAudioPublishOptions(highQuality: boolean) {
+  if (!highQuality) {
+    return { audioPreset: { maxBitrate: 128_000 }, dtx: false as const }
+  }
+  return {
+    audioPreset: AudioPresets.musicHighQualityStereo,
+    forceStereo: true,
+    dtx: false as const,
+    red: false as const
+  }
 }
 
 async function startScreenShareElectron(settings: ScreenShareSettings) {
@@ -38,7 +52,13 @@ async function startScreenShareElectron(settings: ScreenShareSettings) {
 
     window.dispatchEvent(
       new CustomEvent('voice:pick-screen', {
-        detail: { sources, audio: settings.audio, resolution: settings.resolution, fps: settings.fps }
+        detail: {
+          sources,
+          audio: settings.audio,
+          resolution: settings.resolution,
+          fps: settings.fps,
+          highQualityAudio: settings.audio ? settings.highQualityAudio : false
+        }
       })
     )
   } catch (err) {
@@ -93,11 +113,11 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
     const audioTrack = stream.getAudioTracks()[0]
     let audioPub: { track?: { stop?: () => void } | null } | null = null
     if (audioTrack) {
+      const ao = screenShareAudioPublishOptions(settings.highQualityAudio && settings.audio)
       audioPub = await room.localParticipant.publishTrack(audioTrack, {
         name: 'screen-audio',
         source: 'screen_share_audio' as unknown as undefined,
-        audioPreset: { maxBitrate: 128_000 },
-        dtx: false
+        ...ao
       })
     }
 
@@ -122,7 +142,7 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
 
 export async function publishScreenShare(
   sourceId: string,
-  options: ScreenShareOptions & { audio?: boolean }
+  options: ScreenShareOptions & { audio?: boolean; highQualityAudio?: boolean }
 ) {
   const store = useVoiceConnectionStore.getState()
   const room = store.room
@@ -177,11 +197,12 @@ export async function publishScreenShare(
     const audioTrack = stream.getAudioTracks()[0]
     let audioPub: { track?: { stop?: () => void } | null } | null = null
     if (audioTrack) {
+      const hq = Boolean(options.audio && options.highQualityAudio)
+      const ao = screenShareAudioPublishOptions(hq)
       audioPub = await room.localParticipant.publishTrack(audioTrack, {
         name: 'screen-audio',
         source: 'screen_share_audio' as unknown as undefined,
-        audioPreset: { maxBitrate: 128_000 },
-        dtx: false
+        ...ao
       })
     }
 

@@ -112,7 +112,11 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
   const pendingFriendCount = useFriendStore((s) => s.pending.length)
 
   const { viewingVoiceRoom, currentVoiceChannelId, voiceServerId } = useVoiceConnectionStore(
-    useShallow((s) => ({ viewingVoiceRoom: s.viewingVoiceRoom, currentVoiceChannelId: s.currentChannelId, voiceServerId: s.currentServerId }))
+    useShallow((s) => ({
+      viewingVoiceRoom: s.viewingVoiceRoom,
+      currentVoiceChannelId: s.currentChannelId ?? s.voiceNetworkDropout?.channelId ?? null,
+      voiceServerId: s.currentServerId ?? s.voiceNetworkDropout?.serverId ?? null
+    }))
   )
 
   const voiceParticipants = useVoiceStore((s) => s.participants)

@@ -121,7 +121,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const voiceParticipants = useVoiceStore((s) => s.participants)
   const { currentVoiceChannelId, viewingVoiceRoom } = useVoiceConnectionStore(
     useShallow((s) => ({
-      currentVoiceChannelId: s.currentChannelId,
+      currentVoiceChannelId: s.currentChannelId ?? s.voiceNetworkDropout?.channelId ?? null,
       viewingVoiceRoom: s.viewingVoiceRoom
     }))
   )
