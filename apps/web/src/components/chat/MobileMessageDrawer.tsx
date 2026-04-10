@@ -1,5 +1,6 @@
 import type { Message } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
@@ -72,6 +73,7 @@ export function MobileMessageDrawer({
   onReply,
   onOpenEmojiPicker
 }: MobileMessageDrawerProps) {
+  const { t } = useTranslation('chat')
   const isDm = mode === 'dm'
   const canDelete = isAuthor || isAdminOrOwner
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -233,7 +235,7 @@ export function MobileMessageDrawer({
           type="button"
           onClick={() => { onClose(); onOpenEmojiPicker?.() }}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-light text-gray-400 active:bg-white/10"
-          aria-label="More emojis"
+          aria-label={t('moreEmojis')}
         >
           <SmileIcon className="h-5 w-5" />
         </button>

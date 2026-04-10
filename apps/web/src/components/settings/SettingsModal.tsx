@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -42,6 +43,7 @@ function CloseIcon() {
 }
 
 export function SettingsModal({ open, onClose, initialTab }: { open: boolean; onClose: () => void; initialTab?: string }) {
+  const { t } = useTranslation('settings')
   const [tab, setTab] = useState<Tab>((initialTab as Tab) || 'account')
   const modalRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
@@ -62,22 +64,25 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
   if (!open) return null
 
-  const tabEntries: { key: Tab; label: string; show?: boolean }[] = [
-    { key: 'account', label: 'My Account' },
-    { key: 'profile', label: 'Profile' },
-    { key: 'status', label: 'Status' },
-    { key: 'appearance', label: 'Appearance' },
-    { key: 'privacy', label: 'Privacy' },
-    { key: 'voice', label: 'Voice & Video' },
-    { key: 'notifications', label: 'Notifications' },
-    { key: 'my-bots', label: 'My Bots' },
-    { key: 'sessions', label: 'Sessions' },
-    { key: 'shortcuts', label: 'Keyboard Shortcuts', show: !isMobile },
-    { key: 'server', label: 'Server Connection', show: isElectron },
-    { key: 'desktop', label: 'Desktop App', show: isElectron },
-    { key: 'downloads', label: 'Desktop App', show: !isElectron && !isMobile },
-    { key: 'install', label: 'Install App', show: !isElectron && !getIsStandalone() }
-  ]
+  const tabEntries: { key: Tab; label: string; show?: boolean }[] = useMemo(
+    () => [
+      { key: 'account', label: t('tabs.account') },
+      { key: 'profile', label: t('tabs.profile') },
+      { key: 'status', label: t('tabs.status') },
+      { key: 'appearance', label: t('tabs.appearance') },
+      { key: 'privacy', label: t('tabs.privacy') },
+      { key: 'voice', label: t('tabs.voice') },
+      { key: 'notifications', label: t('tabs.notifications') },
+      { key: 'my-bots', label: t('tabs.myBots') },
+      { key: 'sessions', label: t('tabs.sessions') },
+      { key: 'shortcuts', label: t('tabs.shortcuts'), show: !isMobile },
+      { key: 'server', label: t('tabs.server'), show: isElectron },
+      { key: 'desktop', label: t('tabs.desktop'), show: isElectron },
+      { key: 'downloads', label: t('tabs.downloads'), show: !isElectron && !isMobile },
+      { key: 'install', label: t('tabs.install'), show: !isElectron && !getIsStandalone() }
+    ],
+    [t, isMobile]
+  )
 
   const visibleTabs = tabEntries.filter((t) => t.show !== false)
   const currentLabel = visibleTabs.find((t) => t.key === tab)?.label ?? 'Settings'
@@ -103,13 +108,19 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
 
   if (isMobile) {
     return (
-      <div ref={modalRef} className="fixed inset-0 z-[100] flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" role="dialog" aria-modal="true" aria-label="Settings">
+      <div
+        ref={modalRef}
+        className="fixed inset-0 z-[100] flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('title')}
+      >
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
             onClick={onClose}
             className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label="Close settings"
+            aria-label={t('closeSettings')}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M15 19l-7-7 7-7" />
@@ -118,17 +129,20 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
           <h1 className="ml-2 text-base font-semibold text-white">{currentLabel}</h1>
         </div>
         <div className="shrink-0 overflow-x-auto border-b border-white/10 scrollbar-none">
-          <div className="flex gap-1 px-2 py-1.5">
-            {visibleTabs.map((t) => (
+          <div className="flex gap-1 px-2 py-1.5" role="tablist" aria-label={t('title')}>
+            {visibleTabs.map((te) => (
               <button
-                key={t.key}
+                key={te.key}
                 type="button"
-                onClick={() => setTab(t.key)}
+                role="tab"
+                aria-selected={tab === te.key}
+                id={`settings-tab-${te.key}`}
+                onClick={() => setTab(te.key)}
                 className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                  tab === t.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
+                  tab === te.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {t.label}
+                {te.label}
               </button>
             ))}
             <LogOutButton onClose={onClose} mobile />
@@ -142,14 +156,20 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   }
 
   return (
-    <div ref={modalRef} className="fixed inset-0 z-[100] flex bg-surface" role="dialog" aria-modal="true" aria-label="Settings">
+    <div
+      ref={modalRef}
+      className="fixed inset-0 z-[100] flex bg-surface"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('title')}
+    >
       {/* Left sidebar */}
       <div className="flex w-56 shrink-0 flex-col items-end bg-surface-dark">
-        <nav className="w-44 space-y-0.5 px-2 py-16">
-          <SectionHeading className="mb-1 px-2">USER SETTINGS</SectionHeading>
-          {visibleTabs.map((t) => (
-            <SidebarButton key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
-              {t.label}
+        <nav className="w-44 space-y-0.5 px-2 py-16" aria-label={t('userSettings')}>
+          <SectionHeading className="mb-1 px-2">{t('userSettings')}</SectionHeading>
+          {visibleTabs.map((te) => (
+            <SidebarButton key={te.key} active={tab === te.key} onClick={() => setTab(te.key)}>
+              {te.label}
             </SidebarButton>
           ))}
           <div className="my-2 border-t border-white/10" />
@@ -171,8 +191,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
               type="button"
               onClick={onClose}
               className="rounded-full p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-              title="Close"
-              aria-label="Close settings"
+              aria-label={t('closeSettings')}
             >
               <CloseIcon />
             </button>
@@ -198,6 +217,7 @@ function SidebarButton({
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={`block w-full rounded-md px-2 py-1.5 text-left text-sm font-medium transition ${
         active ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
       }`}
@@ -208,6 +228,7 @@ function SidebarButton({
 }
 
 function LogOutButton({ onClose, mobile }: { onClose: () => void; mobile?: boolean }) {
+  const { t } = useTranslation('settings')
   const logout = useAuthStore((s) => s.logout)
   return (
     <button
@@ -222,7 +243,7 @@ function LogOutButton({ onClose, mobile }: { onClose: () => void; mobile?: boole
           : 'block w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300'
       }
     >
-      Log Out
+      {t('logOut')}
     </button>
   )
 }

@@ -1,5 +1,6 @@
 import type { Friend, FriendRequest, FriendshipStatusResponse } from '@chat/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -20,6 +21,8 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export function FriendsPage() {
+  const { t } = useTranslation('nav')
+  const { t: tA11y } = useTranslation('a11y')
   const friends = useFriendStore((s) => s.friends)
   const pending = useFriendStore((s) => s.pending)
   const isLoading = useFriendStore((s) => s.isLoading)
@@ -48,7 +51,7 @@ export function FriendsPage() {
         {isMobile ? (
           <button
             type="button"
-            aria-label="Open navigation menu"
+            aria-label={tA11y('openNavigationMenu')}
             onClick={useLayoutStore.getState().openNavDrawer}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -57,7 +60,7 @@ export function FriendsPage() {
         ) : (
           <FriendsIcon />
         )}
-        <h1 className="text-base font-semibold text-white">Friends</h1>
+        <h1 className="text-base font-semibold text-white">{t('friends')}</h1>
         <div className="ml-2 flex items-center gap-1" role="tablist">
           <TabBtn active={tab === 'online'} onClick={() => { setTab('online'); setAddFriendOpen(false) }}>
             Online
@@ -284,6 +287,8 @@ function PendingRow({ request }: { request: FriendRequest }) {
 }
 
 function AddFriendSection({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('nav')
+  const { t: tCommon } = useTranslation('common')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<{ id: string; username: string; displayName: string | null; avatarUrl: string | null }[]>([])
   const [statuses, setStatuses] = useState<Map<string, FriendshipStatusResponse>>(new Map())
@@ -340,27 +345,27 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
   return (
     <div className="border-b border-white/5 bg-surface-dark px-4 py-3">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm font-medium text-white">Add Friend</p>
+        <p className="text-sm font-medium text-white">{t('addFriend')}</p>
         <button
           type="button"
           onClick={onClose}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
-          aria-label="Close"
+          aria-label={tCommon('close')}
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <p className="mb-3 text-xs text-gray-400">You can add friends by their username.</p>
+      <p className="mb-3 text-xs text-gray-400">{t('addFriendHint')}</p>
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Enter a username..."
+        placeholder={t('enterUsernamePlaceholder')}
         autoFocus
         className="w-full rounded-lg bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-gray-500 focus:ring-primary"
       />
-      {searching && <p className="mt-2 text-xs text-gray-500">Searching...</p>}
+      {searching && <p className="mt-2 text-xs text-gray-500">{t('searchingUsers')}</p>}
       {searchError && <p className="mt-2 text-xs text-red-400">{searchError}</p>}
       {sendError && <p className="mt-2 text-xs text-red-400">{sendError}</p>}
       {results.length > 0 && (

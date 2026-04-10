@@ -1,11 +1,10 @@
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { joinVoiceChannel } from '@/lib/voiceConnect'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
 import { ScreenShareDialog } from './ScreenShareDialog'
 import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
-import type { MicMode } from '@/lib/micMode'
-
 function MicIcon({ muted }: { muted: boolean }) {
   if (muted) {
     return (
@@ -77,6 +76,8 @@ function DisconnectIcon() {
 }
 
 export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void } = {}) {
+  const { t } = useTranslation('voice')
+  const { t: tCommon } = useTranslation('common')
   const channelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
   const voiceNetworkDropout = useVoiceConnectionStore((s) => s.voiceNetworkDropout)
@@ -108,7 +109,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
 
   if (!channelId && !voiceNetworkDropout) return null
 
-  const titleChannel = channelName ?? voiceNetworkDropout?.channelName ?? 'Voice'
+  const titleChannel = channelName ?? voiceNetworkDropout?.channelName ?? t('defaultChannelName')
 
   if (voiceNetworkDropout && !channelId) {
     return (
@@ -117,22 +118,22 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
           <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>
         )}
         <div className="rounded-md bg-amber-500/10 px-2 py-2 text-[11px] text-amber-200">
-          <p className="font-medium">Voice disconnected — {titleChannel}</p>
-          <p className="mt-0.5 text-amber-200/80">Check your network, then retry or dismiss.</p>
+          <p className="font-medium">{t('dropoutTitle', { channel: titleChannel })}</p>
+          <p className="mt-0.5 text-amber-200/80">{t('dropoutHint')}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleRetryVoice}
               className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-text hover:bg-primary-hover"
             >
-              Retry
+              {tCommon('retry')}
             </button>
             <button
               type="button"
               onClick={handleDismissDropout}
               className="rounded-md bg-white/10 px-3 py-1 text-xs font-medium text-gray-200 hover:bg-white/15"
             >
-              Dismiss
+              {tCommon('dismiss')}
             </button>
           </div>
         </div>
@@ -145,33 +146,37 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
       {vc.errorMsg && <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>}
       {isReconnecting && (
         <div className="mb-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200">
-          Connection interrupted — reconnecting automatically. If this lasts too long, disconnect and rejoin the channel.
+          {t('reconnectBanner')}
         </div>
       )}
       <button
         type="button"
         onClick={handleShowVoiceRoom}
         className="w-full text-left transition hover:opacity-80"
-        title="Go to voice room"
-        aria-label="Go to voice room"
+        title={t('goToVoiceRoom')}
+        aria-label={t('goToVoiceRoom')}
       >
         <div className="flex items-center gap-1.5">
           <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isConnecting || isReconnecting ? 'bg-amber-500' : 'bg-green-500'}`} />
           <span className={`min-w-0 flex-1 truncate text-xs font-medium ${isConnecting || isReconnecting ? 'text-amber-400' : 'text-green-400'}`}>
-            {isConnecting ? 'Connecting...' : isReconnecting ? 'Reconnecting...' : 'Voice Connected'}
+            {isConnecting ? t('connecting') : isReconnecting ? t('reconnecting') : t('connected')}
           </span>
         </div>
         <p className="mt-0.5 truncate text-xs text-gray-400">
           {titleChannel} &middot; {vc.timeStr}
-          {micMode !== 'always' && <span className="ml-1 text-[10px] text-gray-500">({micModeLabel(micMode)})</span>}
+          {micMode !== 'always' && (
+            <span className="ml-1 text-[10px] text-gray-500">
+              ({micMode === 'activity' ? t('micModeVad') : micMode === 'push-to-talk' ? t('micModePtt') : ''})
+            </span>
+          )}
         </p>
       </button>
 
       <div className="mt-2 flex items-center justify-center gap-1">
         <button
           type="button"
-          title={vc.isMuted ? 'Unmute' : 'Mute'}
-          aria-label={vc.isMuted ? 'Unmute' : 'Mute'}
+          title={vc.isMuted ? t('unmute') : t('mute')}
+          aria-label={vc.isMuted ? t('unmute') : t('mute')}
           aria-pressed={vc.isMuted}
           onClick={vc.toggleMute}
           className={`rounded-md p-2 transition ${
@@ -183,8 +188,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
 
         <button
           type="button"
-          title={vc.isDeafened ? 'Undeafen' : 'Deafen'}
-          aria-label={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+          title={vc.isDeafened ? t('undeafen') : t('deafen')}
+          aria-label={vc.isDeafened ? t('undeafen') : t('deafen')}
           aria-pressed={vc.isDeafened}
           onClick={vc.toggleDeafen}
           className={`rounded-md p-2 transition ${
@@ -196,8 +201,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
 
         <button
           type="button"
-          title={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
-          aria-label={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+          title={vc.isCameraOn ? t('cameraOff') : t('cameraOn')}
+          aria-label={vc.isCameraOn ? t('cameraOff') : t('cameraOn')}
           aria-pressed={vc.isCameraOn}
           onClick={vc.handleCameraClick}
           className={`rounded-md p-2 transition ${
@@ -210,8 +215,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         {vc.isCameraOn && (
           <button
             type="button"
-            title="Camera settings"
-            aria-label="Camera settings"
+            title={t('cameraSettings')}
+            aria-label={t('cameraSettings')}
             onClick={() => vc.setCameraModalMode('edit')}
             className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -222,8 +227,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         {supportsScreenShare && (
           <button
             type="button"
-            title={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
-            aria-label={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+            title={vc.isScreenSharing ? t('stopSharing') : t('shareScreen')}
+            aria-label={vc.isScreenSharing ? t('stopSharing') : t('shareScreen')}
             aria-pressed={vc.isScreenSharing}
             onClick={vc.handleScreenShare}
             className={`rounded-md p-2 transition ${
@@ -236,8 +241,8 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
 
         <button
           type="button"
-          title="Disconnect"
-          aria-label="Disconnect from voice"
+          title={t('disconnect')}
+          aria-label={t('disconnectAria')}
           onClick={vc.handleDisconnect}
           className="rounded-md p-2 text-red-400 transition hover:bg-red-500/20"
         >
@@ -258,15 +263,4 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
       )}
     </div>
   )
-}
-
-function micModeLabel(mode: MicMode): string {
-  switch (mode) {
-    case 'activity':
-      return 'VAD'
-    case 'push-to-talk':
-      return 'PTT'
-    default:
-      return ''
-  }
 }

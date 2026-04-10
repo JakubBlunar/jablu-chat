@@ -1,5 +1,6 @@
 import { RoomEvent, Track, type Participant, type TrackPublication } from 'livekit-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { joinVoiceChannel } from '@/lib/voiceConnect'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useLayoutStore } from '@/stores/layout.store'
@@ -15,6 +16,8 @@ type TileEntry =
   | { kind: 'screen'; id: string; participant: Participant; publication: TrackPublication }
 
 export function VoiceRoom() {
+  const { t } = useTranslation('voice')
+  const { t: tCommon } = useTranslation('common')
   const room = useVoiceConnectionStore((s) => s.room)
   const channelName = useVoiceConnectionStore((s) => s.currentChannelName)
   const voiceNetworkDropout = useVoiceConnectionStore((s) => s.voiceNetworkDropout)
@@ -124,7 +127,9 @@ export function VoiceRoom() {
     if (voiceNetworkDropout) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-          <p className="text-sm text-gray-300">Voice disconnected — {voiceNetworkDropout.channelName}</p>
+          <p className="text-sm text-gray-300">
+            {t('dropoutTitle', { channel: voiceNetworkDropout.channelName })}
+          </p>
           <div className="flex flex-wrap justify-center gap-2">
             <button
               type="button"
@@ -136,7 +141,7 @@ export function VoiceRoom() {
               }}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text hover:bg-primary-hover"
             >
-              Retry
+              {tCommon('retry')}
             </button>
             <button
               type="button"
@@ -146,13 +151,15 @@ export function VoiceRoom() {
               }}
               className="rounded-md bg-white/10 px-4 py-2 text-sm text-gray-200 hover:bg-white/15"
             >
-              Dismiss
+              {tCommon('dismiss')}
             </button>
           </div>
         </div>
       )
     }
-    return <div className="flex flex-1 items-center justify-center text-gray-400">Not connected to a voice channel</div>
+    return (
+      <div className="flex flex-1 items-center justify-center text-gray-400">{t('notConnected')}</div>
+    )
   }
 
   const focusedTile = focusedId ? (tiles.find((t) => t.id === focusedId) ?? null) : null
@@ -167,7 +174,7 @@ export function VoiceRoom() {
 
       {isReconnecting && (
         <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center text-[11px] text-amber-100">
-          Connection interrupted — reconnecting automatically.
+          {t('reconnectBannerShort')}
         </div>
       )}
 
@@ -222,6 +229,7 @@ function ClickableTile({
   onFullscreen?: (id: string) => void
   compact?: boolean
 }) {
+  const { t } = useTranslation('voice')
   return (
     <div className="group/tile relative w-full">
       <div
@@ -236,8 +244,8 @@ function ClickableTile({
       <div className="absolute right-2 top-2 flex items-center gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover/tile:opacity-100">
         <button
           type="button"
-          title="Focus"
-          aria-label="Focus tile"
+          title={t('focusTileTitle')}
+          aria-label={t('focusTile')}
           onClick={(e) => {
             e.stopPropagation()
             onClick(tile.id)
@@ -251,8 +259,8 @@ function ClickableTile({
         {onFullscreen && (
           <button
             type="button"
-            title="Fullscreen"
-            aria-label="Fullscreen"
+            title={t('fullscreen')}
+            aria-label={t('fullscreen')}
             onClick={(e) => {
               e.stopPropagation()
               onFullscreen(tile.id)
@@ -284,6 +292,7 @@ function FocusedLayout({
   autoFullscreen?: boolean
   onFullscreenConsumed?: () => void
 }) {
+  const { t } = useTranslation('voice')
   const fsRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const isMuted = useVoiceConnectionStore((s) => s.isMuted)
@@ -339,7 +348,7 @@ function FocusedLayout({
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onUnfocus() }}
-          aria-label="Unfocus tile"
+          aria-label={t('unfocusTile')}
         >
           <div className="h-full [&>div]:aspect-auto [&>div]:h-full [&>div]:w-full">
             <TileContent tile={focused} focused />
@@ -351,8 +360,8 @@ function FocusedLayout({
             <>
               <button
                 type="button"
-                title={isMuted ? 'Unmute' : 'Mute'}
-                aria-label={isMuted ? 'Unmute' : 'Mute'}
+                title={isMuted ? t('unmute') : t('mute')}
+                aria-label={isMuted ? t('unmute') : t('mute')}
                 aria-pressed={isMuted}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -372,8 +381,8 @@ function FocusedLayout({
               </button>
               <button
                 type="button"
-                title={isDeafened ? 'Undeafen' : 'Deafen'}
-                aria-label={isDeafened ? 'Undeafen' : 'Deafen'}
+                title={isDeafened ? t('undeafen') : t('deafen')}
+                aria-label={isDeafened ? t('undeafen') : t('deafen')}
                 aria-pressed={isDeafened}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -399,14 +408,14 @@ function FocusedLayout({
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
                 </svg>
-                Exit Fullscreen
+                {t('exitFullscreen')}
               </>
             ) : (
               <>
                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
                 </svg>
-                Fullscreen
+                {t('fullscreen')}
               </>
             )}
           </button>
@@ -420,7 +429,7 @@ function FocusedLayout({
               <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
               </svg>
-              Unfocus
+              {t('unfocus')}
             </button>
           )}
         </div>
@@ -432,6 +441,7 @@ function FocusedLayout({
 }
 
 function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick: (id: string) => void }) {
+  const { t } = useTranslation('voice')
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
@@ -471,7 +481,7 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
           <div className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 bg-gradient-to-r from-surface to-transparent" />
           <button
             type="button"
-            aria-label="Scroll left"
+            aria-label={t('scrollLeft')}
             onClick={() => scroll('left')}
             className="absolute bottom-0 left-0 top-0 z-20 flex w-8 items-center justify-center text-white/70 opacity-100 transition hover:text-white md:opacity-0 md:group-hover/carousel:opacity-100"
           >
@@ -488,7 +498,7 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
           <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-10 bg-gradient-to-l from-surface to-transparent" />
           <button
             type="button"
-            aria-label="Scroll right"
+            aria-label={t('scrollRight')}
             onClick={() => scroll('right')}
             className="absolute bottom-0 right-0 top-0 z-20 flex w-8 items-center justify-center text-white/70 opacity-100 transition hover:text-white md:opacity-0 md:group-hover/carousel:opacity-100"
           >
@@ -515,6 +525,8 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
 }
 
 function VoiceRoomHeader({ channelName, participantCount }: { channelName: string | null; participantCount: number }) {
+  const { t } = useTranslation('voice')
+  const { t: tA11y } = useTranslation('a11y')
   const vc = useVoiceControls()
   const isMobile = useIsMobile()
 
@@ -524,7 +536,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
         {isMobile && (
           <button
             type="button"
-            aria-label="Open navigation menu"
+            aria-label={tA11y('openNavigationMenu')}
             onClick={useLayoutStore.getState().openNavDrawer}
             className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -538,15 +550,15 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
         </svg>
         <span className="min-w-0 truncate text-[15px] font-semibold text-white">{channelName}</span>
         <span className="ml-2 hidden text-sm text-gray-400 md:inline">
-          {participantCount} participant{participantCount !== 1 ? 's' : ''}
+          {t('participantCount', { count: participantCount })}
         </span>
         <span className="ml-2 text-xs tabular-nums text-gray-500">{vc.timeStr}</span>
 
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            title={vc.isMuted ? 'Unmute' : 'Mute'}
-            aria-label={vc.isMuted ? 'Unmute' : 'Mute'}
+            title={vc.isMuted ? t('unmute') : t('mute')}
+            aria-label={vc.isMuted ? t('unmute') : t('mute')}
             aria-pressed={vc.isMuted}
             onClick={vc.toggleMute}
             className={`rounded-md p-1.5 transition ${
@@ -564,8 +576,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
           <button
             type="button"
-            title={vc.isDeafened ? 'Undeafen' : 'Deafen'}
-            aria-label={vc.isDeafened ? 'Undeafen' : 'Deafen'}
+            title={vc.isDeafened ? t('undeafen') : t('deafen')}
+            aria-label={vc.isDeafened ? t('undeafen') : t('deafen')}
             aria-pressed={vc.isDeafened}
             onClick={vc.toggleDeafen}
             className={`rounded-md p-1.5 transition ${
@@ -579,8 +591,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
           <button
             type="button"
-            title={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
-            aria-label={vc.isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+            title={vc.isCameraOn ? t('cameraOff') : t('cameraOn')}
+            aria-label={vc.isCameraOn ? t('cameraOff') : t('cameraOn')}
             aria-pressed={vc.isCameraOn}
             onClick={vc.handleCameraClick}
             className={`rounded-md p-1.5 transition ${
@@ -599,8 +611,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           {vc.isCameraOn && (
             <button
               type="button"
-              title="Camera settings"
-              aria-label="Camera settings"
+              title={t('cameraSettings')}
+              aria-label={t('cameraSettings')}
               onClick={() => vc.setCameraModalMode('edit')}
               className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
@@ -613,8 +625,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
           {supportsScreenShare && (
             <button
               type="button"
-              title={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
-              aria-label={vc.isScreenSharing ? 'Stop sharing' : 'Share screen'}
+              title={vc.isScreenSharing ? t('stopSharing') : t('shareScreen')}
+              aria-label={vc.isScreenSharing ? t('stopSharing') : t('shareScreen')}
               aria-pressed={vc.isScreenSharing}
               onClick={vc.handleScreenShare}
               className={`rounded-md p-1.5 transition ${
@@ -629,8 +641,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
           <button
             type="button"
-            title="Disconnect"
-            aria-label="Disconnect from voice"
+            title={t('disconnect')}
+            aria-label={t('disconnectAria')}
             onClick={vc.handleDisconnect}
             className="rounded-md p-1.5 text-red-400 transition hover:bg-red-500/20"
           >

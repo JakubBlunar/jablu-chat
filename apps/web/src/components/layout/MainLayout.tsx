@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { SkipToMainLink } from '@/components/a11y/SkipToMainLink'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
 import { Spinner } from '@/components/ui'
 import { DmSidebar } from '@/components/dm/DmSidebar'
@@ -44,6 +46,7 @@ const ScreenSharePicker = lazy(() =>
 )
 
 function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
+  const { t } = useTranslation('a11y')
   const [showReconnected, setShowReconnected] = useState(false)
   const hasConnected = useRef(false)
   const wasDisconnected = useRef(false)
@@ -68,14 +71,16 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
   if (!isConnected && hasConnected.current) {
     return (
       <div className="shrink-0 bg-amber-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">
-        Connection lost. Reconnecting...
+        {t('connectionLost')}
       </div>
     )
   }
 
   if (showReconnected) {
     return (
-      <div className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">Reconnected</div>
+      <div className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">
+        {t('reconnected')}
+      </div>
     )
   }
 
@@ -91,6 +96,8 @@ function HamburgerIcon() {
 }
 
 export function MainLayout() {
+  const { t } = useTranslation('a11y')
+  const { t: tCommon } = useTranslation('common')
   useRouteSync()
   useMessageJumpFromQuery()
   const navigate = useNavigate()
@@ -253,35 +260,36 @@ export function MainLayout() {
   if (isMobile) {
     return (
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+        <SkipToMainLink />
         <VoiceAudioManager />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
-        <div className="flex min-h-0 flex-1">
+        <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
           {viewMode === 'dm' ? (
             <MessageArea mode="dm" contextId={currentConvId} />
           ) : serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col">
               <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
-                <button type="button" aria-label="Open navigation menu" onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
+                <button type="button" aria-label={t('openNavigationMenu')} onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
                   <HamburgerIcon />
                 </button>
               </header>
               <div className="flex flex-1 flex-col items-center justify-center gap-3">
                 <Spinner size="xl" />
-                <p className="text-sm text-gray-400">Loading servers...</p>
+                <p className="text-sm text-gray-400">{tCommon('loadingServers')}</p>
               </div>
             </div>
           ) : servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col">
               <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
-                <button type="button" aria-label="Open navigation menu" onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
+                <button type="button" aria-label={t('openNavigationMenu')} onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
                   <HamburgerIcon />
                 </button>
               </header>
               <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-                <p className="text-lg font-semibold text-white">No servers yet</p>
-                <p className="max-w-md text-sm text-gray-400">Use the menu to join a server.</p>
+                <p className="text-lg font-semibold text-white">{tCommon('noServersTitle')}</p>
+                <p className="max-w-md text-sm text-gray-400">{tCommon('noServersHintMobile')}</p>
               </div>
             </div>
           ) : viewingVoiceRoom ? (
@@ -313,6 +321,7 @@ export function MainLayout() {
   if (viewMode === 'dm') {
     return (
       <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+        <SkipToMainLink />
         <VoiceAudioManager />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
@@ -320,7 +329,9 @@ export function MainLayout() {
         <div className="flex min-h-0 flex-1">
           <ServerSidebar />
           <DmSidebar onOpenSettings={openSettings} />
-          <MessageArea mode="dm" contextId={currentConvId} />
+          <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
+            <MessageArea mode="dm" contextId={currentConvId} />
+          </div>
         </div>
         <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
         {settingsOpen && (
@@ -335,6 +346,7 @@ export function MainLayout() {
   // ─── Server layout (desktop/tablet) ───
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+      <SkipToMainLink />
       <VoiceAudioManager />
       <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
@@ -342,18 +354,16 @@ export function MainLayout() {
       <div className="flex min-h-0 flex-1">
         <ServerSidebar />
         <ChannelSidebar onOpenSettings={openSettings} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
           {serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
               <Spinner size="xl" />
-              <p className="text-sm text-gray-400">Loading servers...</p>
+              <p className="text-sm text-gray-400">{tCommon('loadingServers')}</p>
             </div>
           ) : servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-              <p className="text-lg font-semibold text-white">No servers yet</p>
-              <p className="max-w-md text-sm text-gray-400">
-                Use the + button in the server list to create your first server.
-              </p>
+              <p className="text-lg font-semibold text-white">{tCommon('noServersTitle')}</p>
+              <p className="max-w-md text-sm text-gray-400">{tCommon('noServersHintDesktop')}</p>
             </div>
           ) : viewingVoiceRoom ? (
             <Suspense fallback={<Spinner size="lg" className="flex-1" />}>

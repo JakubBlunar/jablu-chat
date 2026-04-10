@@ -1,6 +1,7 @@
 import type { Channel, ChannelCategory, UserStatus } from '@chat/shared'
 import { hasPermission as hasPermFlag, Permission as SharedPermission } from '@chat/shared'
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -74,6 +75,8 @@ const EventsPanel = React.lazy(() =>
 )
 
 export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
+  const { t } = useTranslation('nav')
+  const { t: tA11y } = useTranslation('a11y')
   const user = useAuthStore((s) => s.user)
 
   const { currentServer, removeServer } = useServerStore(
@@ -443,7 +446,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
               >
                 <InviteIcon />
-                Invite People
+                {t('invitePeople')}
               </button>
               <button
                 type="button"
@@ -456,7 +459,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Events
+                {t('events')}
                 {eventCount > 0 && (
                   <span className="ml-auto rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                     {eventCount}
@@ -474,7 +477,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                Change Roles
+                {t('changeRoles')}
               </button>
               {!isOwner && (
                 <>
@@ -488,7 +491,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-400 transition hover:bg-red-500/20"
                   >
                     <LeaveIcon />
-                    Leave Server
+                    {t('leaveServerTitle')}
                   </button>
                 </>
               )}
@@ -518,7 +521,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
               <svg className="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Events
+              {t('events')}
               <span className="ml-auto rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                 {eventCount}
               </span>
@@ -529,12 +532,12 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
             <>
               <div className="group/header flex items-center justify-between px-2 pt-1">
-                <SectionHeading as="span">TEXT CHANNELS</SectionHeading>
+                <SectionHeading as="span">{t('sectionTextChannels').toUpperCase()}</SectionHeading>
                 {isAdminOrOwner && (
                   <button
                     type="button"
-                    title="Create channel"
-                    aria-label="Create text channel"
+                    title={t('createChannelTitle')}
+                    aria-label={t('createTextChannel')}
                     disabled={!currentServer}
                     onClick={() => setChannelModalOpen(true)}
                     className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
@@ -585,8 +588,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                     <span className="flex items-center gap-0.5">
                       <button
                         type="button"
-                        title="Edit category"
-                        aria-label={`Edit ${group.category.name}`}
+                        title={tA11y('editCategoryNamed', { name: group.category.name })}
+                        aria-label={tA11y('editCategoryNamed', { name: group.category.name })}
                         onClick={() => setEditingCategory(group.category)}
                         className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100"
                       >
@@ -594,8 +597,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                       </button>
                       <button
                         type="button"
-                        title="Create channel"
-                        aria-label={`Create channel in ${group.category.name}`}
+                        title={t('createChannelTitle')}
+                        aria-label={tA11y('createChannelInCategory', { category: group.category.name })}
                         disabled={!currentServer}
                         onClick={() => {
                           setCreateCategoryId(group.category.id)
@@ -685,12 +688,12 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {uncategorizedVoice.length > 0 && (
             <>
               <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
-                <SectionHeading as="span">VOICE CHANNELS</SectionHeading>
+                <SectionHeading as="span">{t('sectionVoiceChannels').toUpperCase()}</SectionHeading>
                 {isAdminOrOwner && (
                   <button
                     type="button"
-                    title="Create channel"
-                    aria-label="Create voice channel"
+                    title={t('createChannelTitle')}
+                    aria-label={t('createVoiceChannel')}
                     disabled={!currentServer}
                     onClick={() => setChannelModalOpen(true)}
                     className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
@@ -729,12 +732,12 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {uncategorizedForum.length > 0 && (
             <>
               <div className="group/header mt-3 flex items-center justify-between px-2 pt-1">
-                <SectionHeading as="span">FORUM CHANNELS</SectionHeading>
+                <SectionHeading as="span">{t('sectionForumChannels').toUpperCase()}</SectionHeading>
                 {isAdminOrOwner && (
                   <button
                     type="button"
-                    title="Create channel"
-                    aria-label="Create forum channel"
+                    title={t('createChannelTitle')}
+                    aria-label={t('createForumChannel')}
                     disabled={!currentServer}
                     onClick={() => setChannelModalOpen(true)}
                     className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/header:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
@@ -774,7 +777,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
               >
                 <ChevronDownIcon collapsed={!showArchived} />
                 <span className="text-[11px] font-semibold tracking-wide text-gray-500">
-                  ARCHIVED ({archivedChannels.length})
+                  {t('sectionArchived', { count: archivedChannels.length }).toUpperCase()}
                 </span>
               </button>
               {showArchived && (
@@ -871,9 +874,9 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
       )}
       {showLeaveConfirm && currentServer && (
         <ConfirmDialog
-          title="Leave Server"
-          description={`Leave ${currentServer.name}? You will need a new invite to rejoin.`}
-          confirmLabel="Leave"
+          title={t('leaveServerTitle')}
+          description={t('leaveServerDescription', { server: currentServer.name })}
+          confirmLabel={t('leaveServerConfirm')}
           onConfirm={handleLeaveConfirmed}
           onCancel={() => setShowLeaveConfirm(false)}
         />

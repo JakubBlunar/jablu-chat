@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useIsMobile } from '@/hooks/useMobile'
 import { IconButton } from '@/components/ui'
 
@@ -11,6 +12,8 @@ type Props = {
 }
 
 export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose }: Props) {
+  const { t } = useTranslation('nav')
+  const { t: tSearch } = useTranslation('search')
   const isMobile = useIsMobile()
   const [local, setLocal] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -48,13 +51,13 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
 
   if (isMobile) {
     return searchOpen ? (
-      <IconButton label="Close search" variant="ghost" className="text-white hover:text-white" onClick={onClose}>
+      <IconButton label={tSearch('closeSearch')} variant="ghost" className="text-white hover:text-white" onClick={onClose}>
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path d="M6 18L18 6M6 6l12 12" />
         </svg>
       </IconButton>
     ) : (
-      <IconButton label="Search" variant="ghost" onClick={() => onSearch('')}>
+      <IconButton label={tSearch('openSearch')} variant="ghost" onClick={() => onSearch('')}>
         <SearchIcon />
       </IconButton>
     )
@@ -74,13 +77,13 @@ export function SearchBar({ searchOpen, query, onQueryChange, onSearch, onClose 
           onFocus={() => {
             if (searchOpen) inputRef.current?.blur()
           }}
-          placeholder="Search..."
+          placeholder={t('searchPlaceholder')}
           className={`w-32 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-500 md:w-44 ${
             searchOpen ? 'text-gray-500 cursor-default' : 'text-gray-200'
           }`}
         />
         {searchOpen && (
-          <IconButton label="Close search" variant="ghost" size="sm" className="ml-1" onClick={onClose}>
+          <IconButton label={tSearch('closeSearch')} variant="ghost" size="sm" className="ml-1" onClick={onClose}>
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" />
             </svg>

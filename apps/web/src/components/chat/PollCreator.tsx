@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, IconButton, Input } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useMessageStore } from '@/stores/message.store'
@@ -10,6 +11,7 @@ export function PollCreator({
   channelId: string
   onClose: () => void
 }) {
+  const { t } = useTranslation('common')
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [multiSelect, setMultiSelect] = useState(false)
@@ -54,7 +56,7 @@ export function PollCreator({
     <div className="rounded-lg border border-white/10 bg-surface-dark p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">Create a Poll</h3>
-        <IconButton type="button" label="Close" size="sm" onClick={onClose}>
+        <IconButton type="button" label={t('close')} size="sm" onClick={onClose}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18 18 6M6 6l12 12" />
           </svg>

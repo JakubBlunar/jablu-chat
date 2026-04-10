@@ -1,0 +1,13 @@
+{
+  "appName": "Jablu",
+  "loading": "Načítava sa…",
+  "close": "Zavrieť",
+  "retry": "Skúsiť znova",
+  "dismiss": "Zrušiť",
+  "remove": "Odstrániť",
+  "cancel": "Zrušiť",
+  "loadingServers": "Načítavam servery…",
+  "noServersTitle": "Zatiaľ žiadne servery",
+  "noServersHintMobile": "Pripojte sa k serveru cez menu.",
+  "noServersHintDesktop": "Vytvorte prvý server pomocou tlačidla + v zozname serverov."
+}

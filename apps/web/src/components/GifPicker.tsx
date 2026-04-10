@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api, type GifResult } from '@/lib/api'
@@ -10,6 +11,9 @@ interface GifPickerProps {
 }
 
 export function GifPicker({ onSelect, onClose }: GifPickerProps) {
+  const { t } = useTranslation('chat')
+  const { t: tSearch } = useTranslation('search')
+  const { t: tCommon } = useTranslation('common')
   const isMobile = useIsMobile()
   const ref = useRef<HTMLDivElement>(null)
 
@@ -24,17 +28,19 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
     return () => document.removeEventListener('pointerdown', handleClick)
   }, [onClose, isMobile])
 
-  const content = <GifPickerContent onSelect={onSelect} onClose={onClose} />
+  const content = (
+    <GifPickerContent onSelect={onSelect} onClose={onClose} searchPlaceholder={tSearch('searchGiphyPlaceholder')} />
+  )
 
   if (isMobile) {
     return createPortal(
       <ModalOverlay onClose={onClose} zIndex="z-[110]" maxWidth="max-w-sm" noPadding className="flex max-h-[80vh] flex-col overflow-hidden">
         <div ref={ref} className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-            <span className="text-sm font-semibold text-white">GIFs</span>
+            <span className="text-sm font-semibold text-white">{t('gifPickerSheetTitle')}</span>
             <button
               type="button"
-              aria-label="Close"
+              aria-label={tCommon('close')}
               onClick={onClose}
               className="rounded-full p-1 text-gray-400 hover:bg-white/10 hover:text-white"
             >
@@ -58,7 +64,15 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
   )
 }
 
-function GifPickerContent({ onSelect, onClose }: { onSelect: (url: string) => void; onClose: () => void }) {
+function GifPickerContent({
+  onSelect,
+  onClose,
+  searchPlaceholder
+}: {
+  onSelect: (url: string) => void
+  onClose: () => void
+  searchPlaceholder: string
+}) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GifResult[]>([])
   const [nextPos, setNextPos] = useState('')
@@ -133,7 +147,7 @@ function GifPickerContent({ onSelect, onClose }: { onSelect: (url: string) => vo
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search GIPHY"
+          placeholder={searchPlaceholder}
           className="w-full rounded-md bg-surface-darkest px-3 py-1.5 text-sm text-white outline-none placeholder:text-gray-500 focus:ring-1 focus:ring-primary/50"
           autoFocus
         />

@@ -1,5 +1,6 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { DelayedRender } from '@/components/DelayedRender'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MessageSurface } from '@/components/chat/MessageSurface'
@@ -64,6 +65,9 @@ export interface MessageAreaProps {
 }
 
 export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps) {
+  const { t: tA11y } = useTranslation('a11y')
+  const { t: tChat } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
   const isMobile = useIsMobile()
   const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
@@ -148,9 +152,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     setReplyTarget({
       id: msg.id,
       content: msg.content,
-      authorName: msg.author?.displayName ?? msg.author?.username ?? 'Deleted User'
+      authorName: msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser')
     })
-  }, [])
+  }, [tChat])
 
   const gifEnabled = useGifStore((s) => s.enabled)
 
@@ -169,12 +173,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const handleNick = useCallback(async (args?: string) => {
     const name = args?.trim()
     if (!name) {
-      setCommandToast('Usage: /nick <display name>')
+      setCommandToast(tChat('commandNickUsage'))
       scheduleToastDismiss()
       return
     }
     if (name.length < 5 || name.length > 20) {
-      setCommandToast('Display name must be 5–20 characters')
+      setCommandToast(tChat('commandNickLength'))
       scheduleToastDismiss()
       return
     }
@@ -182,12 +186,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       const updated = await api.updateProfile({ displayName: name })
       useAuthStore.getState().setUser(updated)
       useMemberStore.getState().updateUserProfile(updated.id, { displayName: updated.displayName })
-      setCommandToast(`Display name changed to "${name}"`)
+      setCommandToast(tChat('commandNickSuccess', { name }))
     } catch {
-      setCommandToast('Failed to change display name')
+      setCommandToast(tChat('commandNickFailed'))
     }
     scheduleToastDismiss()
-  }, [scheduleToastDismiss])
+  }, [scheduleToastDismiss, tChat])
 
   /* ── Empty states ── */
   if (!contextId) {
@@ -200,14 +204,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           {isMobile && (
             <button
               type="button"
-              aria-label="Open navigation menu"
+              aria-label={tA11y('openNavigationMenu')}
               onClick={useLayoutStore.getState().openNavDrawer}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <HamburgerIcon />
             </button>
           )}
-          <h1 className="text-base font-semibold text-gray-400">Select a channel</h1>
+          <h1 className="text-base font-semibold text-gray-400">{tChat('selectChannel')}</h1>
         </header>
         <div className="flex min-h-0 flex-1" />
       </section>
@@ -220,18 +224,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       <div className="rounded-full bg-surface-dark p-6 text-gray-400">
         <HashChannelIcon />
       </div>
-      <p className="max-w-sm text-lg font-semibold text-white">Welcome to your server</p>
+      <p className="max-w-sm text-lg font-semibold text-white">{tChat('welcomeServerTitle')}</p>
       <p className="max-w-sm text-sm text-gray-400">
-        {isMobile
-          ? 'Open the menu to pick a channel, or join a server using an invite link.'
-          : 'Pick a text channel on the left to start chatting, or join a server using an invite link.'}
+        {isMobile ? tChat('welcomeServerHintMobile') : tChat('welcomeServerHintDesktop')}
       </p>
     </div>
   ) : isLoading && messages.length === 0 ? (
     <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
         <Spinner size="lg" />
-        <p className="text-sm text-gray-400">Loading messages...</p>
+        <p className="text-sm text-gray-400">{tChat('loadingMessages')}</p>
       </div>
     </DelayedRender>
   ) : messagesError && messages.length === 0 ? (
@@ -242,16 +244,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         onClick={() => contextId && store.fetchMessages(contextId)}
         className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary/80"
       >
-        Retry
+        {tCommon('retry')}
       </button>
     </div>
   ) : !isDm && activeChannel && messages.length === 0 ? (
     <div className="flex flex-1 flex-col justify-end pb-6">
       <div className="border-t border-white/10 pt-4">
         <h2 className="text-2xl font-bold text-white">
-          This is the beginning of <span className="text-primary">#{activeChannel.name}</span>
+          {tChat('channelBeginningLead')}{' '}
+          <span className="text-primary">#{activeChannel.name}</span>
         </h2>
-        <p className="mt-2 text-[15px] text-gray-400">Send a message to spark the conversation.</p>
+        <p className="mt-2 text-[15px] text-gray-400">{tChat('sparkConversation')}</p>
       </div>
     </div>
   ) : isDm && messages.length === 0 ? (
@@ -259,8 +262,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
       <svg className="h-10 w-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
-      <h3 className="text-sm font-medium text-gray-400">No messages yet</h3>
-      <p className="text-xs text-gray-500">Say hello to start the conversation!</p>
+      <h3 className="text-sm font-medium text-gray-400">{tChat('noMessagesYet')}</h3>
+      <p className="text-xs text-gray-500">{tChat('sayHello')}</p>
     </div>
   ) : null
 
@@ -405,7 +408,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           {isMobile ? (
             <button
               type="button"
-              aria-label="Open navigation menu"
+              aria-label={tA11y('openNavigationMenu')}
               onClick={useLayoutStore.getState().openNavDrawer}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
@@ -486,7 +489,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           )}
         </>
       ) : (
-        <h1 className="text-base font-semibold text-gray-400">Select a channel</h1>
+        <h1 className="text-base font-semibold text-gray-400">{tChat('selectChannel')}</h1>
       )}
     </header>
   ) : null
@@ -499,7 +502,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             {isMobile ? (
               <button
                 type="button"
-                aria-label="Open navigation menu"
+                aria-label={tA11y('openNavigationMenu')}
                 onClick={useLayoutStore.getState().openNavDrawer}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
               >
@@ -592,13 +595,13 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   type="button"
                   onClick={() => dm.setShowProfile(false)}
                   className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-                  aria-label="Close profile"
+                  aria-label={tChat('closeProfile')}
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                <span className="ml-2 text-sm font-semibold text-white">Profile</span>
+                <span className="ml-2 text-sm font-semibold text-white">{tChat('profileTitle')}</span>
               </div>
               <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
             </div>

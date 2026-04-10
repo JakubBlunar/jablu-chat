@@ -1,5 +1,6 @@
 import { loginSchema } from '@chat/shared'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Input, Spinner } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
@@ -7,6 +8,7 @@ import { ApiError } from '../lib/api'
 import { useAuthStore } from '../stores/auth.store'
 
 export function LoginPage() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isAuthLoading = useAuthStore((s) => s.isLoading)
@@ -42,7 +44,7 @@ export function LoginPage() {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
-        setError('Something went wrong. Please try again.')
+        setError(t('genericError'))
       }
     } finally {
       setIsSubmitting(false)
@@ -55,14 +57,14 @@ export function LoginPage() {
         <div aria-hidden>
           <Spinner size="xl" />
         </div>
-        <span className="sr-only">Checking session</span>
+        <span className="sr-only">{t('checkingSession')}</span>
       </div>
     )
   }
 
   return (
     <AuthLayout>
-      <h2 className="mb-6 text-xl font-semibold text-white">Welcome back</h2>
+      <h2 className="mb-6 text-xl font-semibold text-white">{t('welcomeBack')}</h2>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {error ? (
@@ -76,25 +78,25 @@ export function LoginPage() {
 
         <Input
           id="email"
-          label="Email"
+          label={t('email')}
           name="email"
           type="email"
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder={t('emailPlaceholder')}
           required
         />
 
         <Input
           id="password"
-          label="Password"
+          label={t('password')}
           name="password"
           type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder={t('passwordPlaceholder')}
           required
         />
 
@@ -107,21 +109,21 @@ export function LoginPage() {
           disabled={isSubmitting}
           loading={isSubmitting}
         >
-          {isSubmitting ? 'Signing in…' : 'Log In'}
+          {isSubmitting ? t('signingIn') : t('logIn')}
         </Button>
       </form>
 
       <div className="mt-6 flex flex-col gap-3 text-center text-sm">
         <Link to="/forgot-password" className="text-primary hover:underline focus:outline-none focus-visible:underline">
-          Forgot your password?
+          {t('forgotPassword')}
         </Link>
         <p className="text-gray-400">
-          Need an account?{' '}
+          {t('needAccount')}{' '}
           <Link
             to="/register"
             className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
           >
-            Register
+            {t('register')}
           </Link>
         </p>
       </div>

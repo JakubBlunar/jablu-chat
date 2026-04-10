@@ -3,6 +3,8 @@ import type { MicMode, PttBinding, VadMode } from '@/lib/micMode'
 import type { NoiseReductionMode } from '@/lib/voiceProcessingSettings'
 import { applyAccentPreset, type AccentPreset } from '@/lib/accent'
 import { electronAPI } from '@/lib/electron'
+import type { AppLocale } from '@/i18n/locales'
+import { isAppLocale } from '@/i18n/locales'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
@@ -61,6 +63,7 @@ export type SettingsSlice = {
   screenShareHighQualityAudio: boolean
   voiceJoinMuted: boolean
   voiceJoinDeafened: boolean
+  locale: AppLocale
   serverUrl: string | null
   pwaInstallDismissedAt: number | null
 }
@@ -93,6 +96,7 @@ type SettingsActions = {
   setScreenShareHighQualityAudio: (v: boolean) => void
   setVoiceJoinMuted: (v: boolean) => void
   setVoiceJoinDeafened: (v: boolean) => void
+  setLocale: (locale: AppLocale) => void
   setServerUrl: (url: string | null) => void
   clearServerUrl: () => void
   setPwaInstallDismissedAt: (ts: number | null) => void
@@ -125,6 +129,7 @@ const defaults: SettingsSlice = {
   screenShareHighQualityAudio: false,
   voiceJoinMuted: false,
   voiceJoinDeafened: false,
+  locale: 'en',
   serverUrl: null,
   pwaInstallDismissedAt: null
 }
@@ -170,6 +175,7 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
   if (typeof o.screenShareHighQualityAudio === 'boolean') out.screenShareHighQualityAudio = o.screenShareHighQualityAudio
   if (typeof o.voiceJoinMuted === 'boolean') out.voiceJoinMuted = o.voiceJoinMuted
   if (typeof o.voiceJoinDeafened === 'boolean') out.voiceJoinDeafened = o.voiceJoinDeafened
+  if (typeof o.locale === 'string' && isAppLocale(o.locale)) out.locale = o.locale
   if (o.serverUrl === null || typeof o.serverUrl === 'string') out.serverUrl = o.serverUrl
   if (o.pwaInstallDismissedAt === null || typeof o.pwaInstallDismissedAt === 'number')
     out.pwaInstallDismissedAt = o.pwaInstallDismissedAt
@@ -243,6 +249,8 @@ export const useSettingsStore = create<SettingsState>()(
       setVoiceJoinMuted: (v) => set({ voiceJoinMuted: v }),
       setVoiceJoinDeafened: (v) => set({ voiceJoinDeafened: v }),
 
+      setLocale: (locale) => set({ locale: isAppLocale(locale) ? locale : defaults.locale }),
+
       setServerUrl: (url) => {
         set({ serverUrl: url })
         if (url) void electronAPI?.setServerUrl(url).catch(() => {})
@@ -288,6 +296,7 @@ export const useSettingsStore = create<SettingsState>()(
         screenShareHighQualityAudio: s.screenShareHighQualityAudio,
         voiceJoinMuted: s.voiceJoinMuted,
         voiceJoinDeafened: s.voiceJoinDeafened,
+        locale: s.locale,
         serverUrl: s.serverUrl,
         pwaInstallDismissedAt: s.pwaInstallDismissedAt
       })

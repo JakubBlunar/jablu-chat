@@ -1,5 +1,6 @@
 import type { ServerEvent } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Badge, SectionHeading } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useEventStore } from '@/stores/event.store'
@@ -173,6 +174,8 @@ type Props = {
 }
 
 export function EventsPanel({ serverId, onClose }: Props) {
+  const { t } = useTranslation('nav')
+  const { t: tCommon } = useTranslation('common')
   const events = useEventStore((s) => s.events)
   const loadedServerId = useEventStore((s) => s.loadedServerId)
   const isLoading = useEventStore((s) => s.isLoading)
@@ -236,20 +239,20 @@ export function EventsPanel({ serverId, onClose }: Props) {
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-lg" noPadding className="flex max-h-[70vh] flex-col">
       <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-        <h2 className="text-lg font-bold text-white">Events</h2>
+        <h2 className="text-lg font-bold text-white">{t('events')}</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setShowCreate(true)}
             className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text transition hover:bg-primary/90"
           >
-            Create Event
+            {t('createEvent')}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label="Close"
+            aria-label={tCommon('close')}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" />

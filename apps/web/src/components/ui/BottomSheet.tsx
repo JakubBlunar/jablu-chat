@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 
 interface BottomSheetProps {
@@ -9,6 +10,7 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ open, onClose, children, zIndex = 100 }: BottomSheetProps) {
+  const { t } = useTranslation('common')
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
 
@@ -65,7 +67,7 @@ export function BottomSheet({ open, onClose, children, zIndex = 100 }: BottomShe
       >
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t('close')}
           onClick={close}
           className="flex shrink-0 justify-center py-3"
         >

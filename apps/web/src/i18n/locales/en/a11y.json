@@ -1,0 +1,19 @@
+{
+  "skipToContent": "Skip to main content",
+  "openNavigationMenu": "Open navigation menu",
+  "settingsNav": "User settings sections",
+  "connectionLost": "Connection lost. Reconnecting…",
+  "reconnected": "Reconnected",
+  "editChannel": "Edit channel",
+  "participantMuted": "Muted",
+  "participantDeafened": "Deafened",
+  "participantCameraOn": "Camera on",
+  "participantScreenShare": "Sharing screen",
+  "screenShareAudioVolume": "Screen share audio volume",
+  "setStatus": "Set status",
+  "dismissTokenNotice": "Dismiss token notice",
+  "newTagColor": "New tag color",
+  "removeAttachment": "Remove attachment",
+  "editCategoryNamed": "Edit {{name}}",
+  "createChannelInCategory": "Create channel in {{category}}"
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Kbd } from '@/components/ui/Kbd'
 import { useNavigate } from 'react-router-dom'
 import type { Channel } from '@chat/shared'
@@ -95,6 +96,8 @@ function ServerIcon() {
 }
 
 export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation('nav')
+  const { t: tCommon } = useTranslation('common')
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -207,14 +210,14 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Where would you like to go?"
+            placeholder={t('quickSwitcherPlaceholder')}
             className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
           />
           <button
             type="button"
             onClick={onClose}
             className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white md:hidden"
-            aria-label="Close"
+            aria-label={tCommon('close')}
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18 18 6M6 6l12 12" />
@@ -225,13 +228,14 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
 
         <div ref={listRef} className="chat-scroll max-h-[60dvh] overflow-y-auto p-2 md:max-h-80" role="listbox">
           {items.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-gray-500">No results found</p>
+            <p className="px-3 py-6 text-center text-sm text-gray-500">{t('quickSwitcherNoResults')}</p>
           )}
 
           {filteredChannels.length > 0 && (
             <>
               <p className="px-2 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                Channels{currentServer ? ` — ${currentServer.name}` : ''}
+                {t('channels')}
+                {currentServer ? ` — ${currentServer.name}` : ''}
               </p>
               {filteredChannels.map((ch, i) => (
                 <button
@@ -258,7 +262,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
           {filteredDms.length > 0 && (
             <>
               <p className="px-2 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                Direct Messages
+                {t('directMessages')}
               </p>
               {filteredDms.map((conv, i) => (
                 <button
@@ -285,7 +289,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
           {filteredServers.length > 0 && (
             <>
               <p className="px-2 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-                Servers
+                {t('servers')}
               </p>
               {filteredServers.map((srv, i) => (
                 <button
@@ -304,7 +308,9 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
                 >
                   <ServerIcon />
                   <span className="truncate">{srv.name}</span>
-                  <span className="ml-auto text-xs text-gray-500">{srv.memberCount} members</span>
+                  <span className="ml-auto text-xs text-gray-500">
+                    {t('memberCount', { count: srv.memberCount })}
+                  </span>
                 </button>
               ))}
             </>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Toggle } from '@/components/ui/Toggle'
 import { supportsBackgroundBlur } from '@/lib/backgroundBlur'
@@ -21,6 +22,7 @@ const QUALITY_OPTIONS = Object.keys(CAMERA_PRESETS) as CameraQuality[]
 const canBlur = supportsBackgroundBlur()
 
 export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
+  const { t } = useTranslation('common')
   const [quality, setQuality] = useState<CameraQuality>(getSavedCameraQuality)
   const [blur, setBlur] = useState(canBlur ? getSavedBlurEnabled() : false)
 
@@ -39,7 +41,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('close')}
             className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">

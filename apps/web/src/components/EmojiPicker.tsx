@@ -1,6 +1,7 @@
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
 import { useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -22,6 +23,8 @@ interface EmojiPickerProps {
 }
 
 export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onCustomSelect }: EmojiPickerProps) {
+  const { t } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
   const ref = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
 
@@ -67,10 +70,10 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
       <ModalOverlay onClose={onClose} zIndex="z-[110]" noPadding className="flex max-h-[80vh] flex-col items-center overflow-hidden">
         <div ref={ref} className="flex w-full flex-col items-center">
           <div className="flex w-full items-center justify-between border-b border-white/10 px-4 py-2">
-            <span className="text-sm font-semibold text-white">Emoji</span>
+            <span className="text-sm font-semibold text-white">{t('emojiPickerSheetTitle')}</span>
             <button
               type="button"
-              aria-label="Close"
+              aria-label={tCommon('close')}
               onClick={onClose}
               className="rounded-full p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
             >

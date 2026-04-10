@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 
 export type LightboxOverlayProps = {
@@ -7,6 +8,7 @@ export type LightboxOverlayProps = {
 }
 
 export function LightboxOverlay({ onClose, children }: LightboxOverlayProps) {
+  const { t } = useTranslation('common')
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -24,7 +26,7 @@ export function LightboxOverlay({ onClose, children }: LightboxOverlayProps) {
     >
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t('close')}
         onClick={onClose}
         className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
         style={{

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Toggle } from '@/components/ui/Toggle'
 import { isElectron } from '@/lib/electron'
@@ -21,6 +22,7 @@ export function ScreenShareDialog({
   onConfirm: (settings: ScreenShareSettings) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation('common')
   const [resolution, setResolution] = useState<ScreenShareSettings['resolution']>('1080p')
   const [fps, setFps] = useState<ScreenShareSettings['fps']>(30)
   const [audio, setAudio] = useState(false)
@@ -36,7 +38,7 @@ export function ScreenShareDialog({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('close')}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">

@@ -1,0 +1,30 @@
+{
+  "title": "Nastavenia",
+  "closeSettings": "Zavrieť nastavenia",
+  "userSettings": "NASTAVENIA ÚČTU",
+  "logOut": "Odhlásiť sa",
+  "appearance": {
+    "language": "Jazyk",
+    "languageHint": "Jazyk rozhrania. Ďalšie jazyky môžeme pridávať postupne.",
+    "accentTitle": "Farba zvýraznenia",
+    "accentHint": "Vyberte farbu pre tlačidlá, odkazy a aktívne prvky.",
+    "themeTitle": "Vzhľad",
+    "themeHint": "Tmavý režim je predvolený a plne podporovaný. Svetlý motív je v pláne."
+  },
+  "tabs": {
+    "account": "Môj účet",
+    "profile": "Profil",
+    "status": "Stav",
+    "appearance": "Vzhľad",
+    "privacy": "Súkromie",
+    "voice": "Hlas a video",
+    "notifications": "Oznámenia",
+    "myBots": "Moji boti",
+    "sessions": "Relácie",
+    "shortcuts": "Klávesové skratky",
+    "server": "Pripojenie k serveru",
+    "desktop": "Desktopová aplikácia",
+    "downloads": "Desktopová aplikácia",
+    "install": "Nainštalovať aplikáciu"
+  }
+}

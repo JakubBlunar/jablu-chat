@@ -1,5 +1,6 @@
 import type { Attachment } from '@chat/shared'
 import { memo, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { resolveMediaUrl } from '@/lib/api'
 
@@ -8,6 +9,7 @@ interface AttachmentPreviewProps {
 }
 
 function LightboxOverlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const { t } = useTranslation('common')
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -20,7 +22,7 @@ function LightboxOverlay({ onClose, children }: { onClose: () => void; children:
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80" role="dialog" aria-modal="true" onClick={onClose}>
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t('close')}
         onClick={onClose}
         className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
         style={{ marginTop: 'env(safe-area-inset-top, 0px)', marginRight: 'env(safe-area-inset-right, 0px)' }}

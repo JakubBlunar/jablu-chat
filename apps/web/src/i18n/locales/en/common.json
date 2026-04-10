@@ -1,0 +1,13 @@
+{
+  "appName": "Jablu",
+  "loading": "Loading…",
+  "close": "Close",
+  "retry": "Retry",
+  "dismiss": "Dismiss",
+  "remove": "Remove",
+  "cancel": "Cancel",
+  "loadingServers": "Loading servers…",
+  "noServersTitle": "No servers yet",
+  "noServersHintMobile": "Use the menu to join a server.",
+  "noServersHintDesktop": "Use the + button in the server list to create your first server."
+}
