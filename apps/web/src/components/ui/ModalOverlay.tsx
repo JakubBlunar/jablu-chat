@@ -9,6 +9,11 @@ type Props = {
   zIndex?: string
   className?: string
   noPadding?: boolean
+  /**
+   * When false, the dialog shell does not scroll (`overflow-hidden`); use inner regions
+   * (e.g. SimpleBar) as the only scroll containers. Default true scrolls the whole panel.
+   */
+  dialogBodyScroll?: boolean
 }
 
 export function ModalOverlay({
@@ -17,7 +22,8 @@ export function ModalOverlay({
   maxWidth = 'max-w-md',
   zIndex = 'z-50',
   className = '',
-  noPadding = false
+  noPadding = false,
+  dialogBodyScroll = true
 }: Props) {
   const isMobile = useIsMobile()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -53,7 +59,9 @@ export function ModalOverlay({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className={`w-full max-h-[90vh] overflow-y-auto overscroll-contain rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10 ${maxWidth} ${noPadding ? '' : 'p-6'} ${className}`}
+        className={`w-full max-h-[90vh] overscroll-contain rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10 ${maxWidth} ${
+          dialogBodyScroll ? 'overflow-y-auto' : 'min-h-0 overflow-hidden'
+        } ${noPadding ? '' : 'p-6'} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

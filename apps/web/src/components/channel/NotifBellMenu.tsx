@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ChannelNotifPrefTriggerIcon } from '@/components/channel/ChannelNotifPrefTriggerIcon'
+import { IconButton } from '@/components/ui/IconButton'
+import { cn } from '@/lib/cn'
 import { api } from '@/lib/api'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 
@@ -72,20 +75,22 @@ export function NotifBellMenu({ channelId, serverId }: { channelId: string; serv
 
   return (
     <>
-      <button
+      <IconButton
         ref={btnRef}
-        type="button"
-        title="Notification settings"
+        size="lg"
+        label="Channel notification settings"
         onClick={(e) => {
           e.stopPropagation()
           setOpen((p) => !p)
         }}
-        className={`rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white ${
-          isMuted ? 'text-gray-500' : isMentions ? 'text-yellow-500' : ''
-        }`}
+        className={cn(
+          'relative h-10 w-10 shrink-0',
+          isMuted && 'text-gray-500',
+          isMentions && 'text-yellow-500'
+        )}
       >
-        {isMuted ? <BellMutedIcon /> : <BellIcon />}
-      </button>
+        <ChannelNotifPrefTriggerIcon level={level} />
+      </IconButton>
 
       {open &&
         createPortal(
@@ -114,25 +119,6 @@ export function NotifBellMenu({ channelId, serverId }: { channelId: string; serv
           document.body
         )}
     </>
-  )
-}
-
-function BellIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  )
-}
-
-function BellMutedIcon() {
-  return (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      <line x1="1" y1="1" x2="23" y2="23" />
-    </svg>
   )
 }
 

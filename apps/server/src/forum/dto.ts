@@ -1,4 +1,4 @@
-import { ForumLayout, ForumSortOrder } from '@prisma/client'
+import { ForumLayout, ForumSortOrder } from '../prisma-client'
 import {
   ArrayMaxSize,
   IsArray,

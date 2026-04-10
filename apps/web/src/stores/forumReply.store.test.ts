@@ -137,15 +137,19 @@ describe('forumReply.store', () => {
   })
 
   describe('clearMessages', () => {
-    it('clears messages and resets pagination flags', () => {
+    it('clears messages, resets pagination flags, and clears loadedForPostId', () => {
       useForumReplyStore.setState({
-        messages: makeMessages(5), hasMore: true, hasNewer: true
+        messages: makeMessages(5),
+        hasMore: true,
+        hasNewer: true,
+        loadedForPostId: 'post-1'
       })
       useForumReplyStore.getState().clearMessages()
       const state = useForumReplyStore.getState()
       expect(state.messages).toEqual([])
       expect(state.hasMore).toBe(false)
       expect(state.hasNewer).toBe(false)
+      expect(state.loadedForPostId).toBeNull()
     })
   })
 

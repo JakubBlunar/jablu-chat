@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '../prisma-client'
 import { ForumTagsService } from './forum-tags.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'

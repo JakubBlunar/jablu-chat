@@ -496,8 +496,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   if (isDm) {
     return (
-      <div className="relative flex min-w-0 flex-1 bg-surface">
-        <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 bg-surface">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
             {isMobile ? (
               <button
@@ -570,7 +570,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               </>
             )}
           </header>
-          {messageList}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
         </div>
         {searchOpen ? (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">

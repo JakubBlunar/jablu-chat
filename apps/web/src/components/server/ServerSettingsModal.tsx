@@ -88,7 +88,13 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   }
 
   return (
-    <ModalOverlay onClose={onClose} maxWidth="max-w-[720px]" noPadding className="flex h-[80vh] overflow-hidden">
+    <ModalOverlay
+      onClose={onClose}
+      maxWidth="max-w-[720px]"
+      noPadding
+      dialogBodyScroll={false}
+      className="flex h-[80vh] min-h-0"
+    >
       <SimpleBar className="w-44 shrink-0 bg-surface-darkest p-3">
         <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('serverSettings')}</h2>
         <nav className="flex flex-col gap-0.5">

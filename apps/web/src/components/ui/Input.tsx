@@ -1,7 +1,8 @@
 import { forwardRef } from 'react'
 import { cn } from '@/lib/cn'
 
-const inputBase =
+/** Shared by `<Input />` and raw `<input />` that should match settings/forms focus. */
+export const inputFieldClassNames =
   'w-full rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-500 focus:ring-2 focus:ring-primary disabled:opacity-50'
 
 export type InputProps = {
@@ -26,7 +27,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       <input
         ref={ref}
         id={id}
-        className={cn(inputBase, error && 'ring-red-500 focus:ring-red-500', className)}
+        className={cn(inputFieldClassNames, error && 'ring-red-500 focus:ring-red-500', className)}
         {...rest}
       />
       {error && (

@@ -86,13 +86,13 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
     void useForumReplyStore.getState().fetchMessages()
   }, [currentPostId, channelId])
 
-  /* ── Keep forum post list reply count in sync ── */
+  /* ── Keep forum post list reply count in sync (only after thread fetch completed for this post) ── */
   const replyMessages = useForumReplyStore((s) => s.messages)
+  const loadedForPostId = useForumReplyStore((s) => s.loadedForPostId)
   useEffect(() => {
-    if (currentPostId && replyMessages.length >= 0) {
-      useForumStore.getState().updateReplyCount(currentPostId, replyMessages.length)
-    }
-  }, [currentPostId, replyMessages.length])
+    if (!currentPostId || loadedForPostId !== currentPostId) return
+    useForumStore.getState().updateReplyCount(currentPostId, replyMessages.length)
+  }, [currentPostId, loadedForPostId, replyMessages.length])
 
   /* ── Live event handlers ── */
   useEffect(() => {

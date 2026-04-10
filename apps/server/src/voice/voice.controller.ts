@@ -12,7 +12,7 @@ import {
   UseGuards
 } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
-import { ChannelType } from '@prisma/client'
+import { ChannelType } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service'

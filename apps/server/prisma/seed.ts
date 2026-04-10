@@ -1,4 +1,12 @@
-import { PrismaClient, ChannelType, AttachmentType } from '@prisma/client'
+import 'dotenv/config'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient, ChannelType, AttachmentType } from '../src/generated/prisma/client'
+
+function createPrisma(): PrismaClient {
+  const url = process.env.DATABASE_URL
+  if (!url) throw new Error('DATABASE_URL is required for seed')
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+}
 import { DEFAULT_OWNER_PERMISSIONS, DEFAULT_EVERYONE_PERMISSIONS } from '@chat/shared'
 import { faker } from '@faker-js/faker'
 import * as bcrypt from 'bcryptjs'
@@ -7,7 +15,7 @@ import { randomUUID, randomFillSync } from 'crypto'
 import { mkdirSync, existsSync, statSync } from 'fs'
 import { join, resolve } from 'path'
 
-const prisma = new PrismaClient()
+const prisma = createPrisma()
 
 const SEED_SERVER_NAME = '[Seed] Test Server'
 const SEED_EMAIL_DOMAIN = '@seed.local'

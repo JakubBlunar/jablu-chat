@@ -162,7 +162,10 @@ export const useForumStore = create<ForumState>((set, get) => ({
     set({ currentPostId: postId })
   },
 
-  closePost: () => set({ currentPostId: null }),
+  closePost: () => {
+    useForumReplyStore.getState().clearMessages()
+    set({ currentPostId: null })
+  },
 
   addPost: (post) => {
     set((s) => {

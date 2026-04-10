@@ -17,7 +17,7 @@ import {
   UseGuards
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ChannelType } from '@prisma/client'
+import { ChannelType } from '../prisma-client'
 import * as crypto from 'crypto'
 import { MailService } from '../auth/mail.service'
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service'

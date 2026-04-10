@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common'
-import { ChannelType, Prisma } from '@prisma/client'
+import { ChannelType, Prisma } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'

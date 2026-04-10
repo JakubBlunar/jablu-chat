@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { inputFieldClassNames } from '@/components/ui/Input'
 import { StatusPickerCore } from '@/components/user/StatusPickerCore'
+import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function StatusSection() {
@@ -42,7 +44,7 @@ export function StatusSection() {
             onChange={(e) => setCustomText(e.target.value)}
             maxLength={128}
             placeholder="Playing a game, In a meeting..."
-            className="flex-1 rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white outline-none focus:border-primary"
+            className={cn(inputFieldClassNames, 'min-w-0 flex-1')}
           />
           <button
             type="button"

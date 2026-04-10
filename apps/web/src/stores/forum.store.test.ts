@@ -180,12 +180,13 @@ describe('forum.store', () => {
       expect(mockClearMessages).not.toHaveBeenCalled()
     })
 
-    it('closes post', () => {
+    it('closes post and clears forum reply state', () => {
       useForumStore.setState({ currentPostId: 'p1' })
 
       useForumStore.getState().closePost()
 
       expect(useForumStore.getState().currentPostId).toBeNull()
+      expect(mockClearMessages).toHaveBeenCalled()
     })
   })
 

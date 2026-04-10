@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { AutoModType } from '@prisma/client'
+import { AutoModType } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'

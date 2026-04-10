@@ -465,7 +465,10 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   )
 
   return (
-    <div ref={wrapperRef} className="relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-primary/60">
+    <div
+      ref={wrapperRef}
+      className="chat-composer relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-2 focus-within:ring-primary/55"
+    >
       {popupOpen && popupMode === 'mention' && (
         <MentionPopup members={filteredMembers} selectedIdx={selectedIdx} onSelect={insertMention} />
       )}

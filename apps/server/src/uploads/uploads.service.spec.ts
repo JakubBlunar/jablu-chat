@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common'
-import { AttachmentType } from '@prisma/client'
+import { AttachmentType } from '../prisma-client'
 import { UploadsService } from './uploads.service'
 
 jest.mock('fs', () => ({

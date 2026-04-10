@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ChannelType } from '@prisma/client'
+import { ChannelType } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import { randomUUID } from 'node:crypto'
 import { EventBusService } from '../events/event-bus.service'

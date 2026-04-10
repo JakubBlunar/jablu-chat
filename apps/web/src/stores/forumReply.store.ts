@@ -123,7 +123,13 @@ export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
     }
   },
 
-  clearMessages: () => set({ messages: [], hasMore: false, hasNewer: false }),
+  clearMessages: () =>
+    set({
+      messages: [],
+      hasMore: false,
+      hasNewer: false,
+      loadedForPostId: null
+    }),
 
   setScrollToMessageId: (id) =>
     set((s) => ({

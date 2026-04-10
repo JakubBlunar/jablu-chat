@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AttachmentType } from '@prisma/client';
+import { AttachmentType } from '../prisma-client'
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { extname, join, resolve } from 'path';
 import sharp from 'sharp';
