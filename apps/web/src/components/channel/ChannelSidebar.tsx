@@ -43,7 +43,7 @@ const RolePickerModal = React.lazy(() =>
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
-import { useLayoutStore } from '@/stores/layout.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
@@ -84,21 +84,19 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
     })
   )
   const { orchestratedGoToChannel } = useAppNavigate()
-  const {
-    channelsLoading,
-    channels,
-    categories,
-    currentChannelId,
-    collapsedCategories,
-    toggleCategoryCollapsed
-  } = useChannelStore(
+  const { channelsLoading, channels, categories, currentChannelId } = useChannelStore(
     useShallow((s) => ({
       channelsLoading: s.isLoading,
       channels: s.channels,
       categories: s.categories,
-      currentChannelId: s.currentChannelId,
-      collapsedCategories: s.collapsedCategories,
-      toggleCategoryCollapsed: s.toggleCategoryCollapsed
+      currentChannelId: s.currentChannelId
+    }))
+  )
+
+  const { collapsedCategoryIds, toggleCollapsedCategory } = useSettingsStore(
+    useShallow((s) => ({
+      collapsedCategoryIds: s.collapsedCategoryIds,
+      toggleCollapsedCategory: s.toggleCollapsedCategory
     }))
   )
 
@@ -286,8 +284,8 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
     }
   }, [currentServer, removeServer])
 
-  const sidebarWidth = useLayoutStore((s) => s.channelSidebarWidth)
-  const setSidebarWidth = useLayoutStore((s) => s.setChannelSidebarWidth)
+  const sidebarWidth = useSettingsStore((s) => s.channelSidebarWidth)
+  const setSidebarWidth = useSettingsStore((s) => s.setChannelSidebarWidth)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -314,7 +312,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
     (e: React.MouseEvent) => {
       e.preventDefault()
       const startX = e.clientX
-      const startW = useLayoutStore.getState().channelSidebarWidth
+      const startW = useSettingsStore.getState().channelSidebarWidth
 
       const onMove = (ev: MouseEvent) => {
         const delta = ev.clientX - startX
@@ -568,14 +566,14 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
 
           {/* Category groups */}
           {categoryGroups.map((group) => {
-            const isCollapsed = collapsedCategories.has(group.category.id)
+            const isCollapsed = collapsedCategoryIds.includes(group.category.id)
             const hasChannels = group.textChannels.length > 0 || group.voiceChannels.length > 0 || group.forumChannels.length > 0
             return (
               <div key={group.category.id} className="mt-1">
                 <div className="group/header flex items-center justify-between px-1 pt-1">
                   <button
                     type="button"
-                    onClick={() => toggleCategoryCollapsed(group.category.id)}
+                    onClick={() => toggleCollapsedCategory(group.category.id)}
                     className="flex min-w-0 flex-1 items-center gap-0.5 text-left"
                   >
                     <ChevronDownIcon collapsed={isCollapsed} />

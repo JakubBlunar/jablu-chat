@@ -1,6 +1,7 @@
 export type MicMode = 'always' | 'activity' | 'push-to-talk'
 
 import { Track } from 'livekit-client'
+import { useSettingsStore } from '@/stores/settings.store'
 
 type RoomGetter = () => import('livekit-client').Room | null
 let _getRoom: RoomGetter = () => null
@@ -11,36 +12,22 @@ export function setRoomGetter(fn: RoomGetter) {
 
 export type PttBinding = { type: 'key'; key: string } | { type: 'mouse'; button: number }
 
-const MIC_MODE_KEY = 'chat:voice:mic-mode'
-const PTT_KEY_KEY = 'chat:voice:ptt-key'
-const VAD_THRESHOLD_KEY = 'chat:voice:vad-threshold'
-const VAD_AUTO_KEY = 'chat:voice:vad-auto'
-
 export type VadMode = 'auto' | 'manual'
 
-const VALID_MIC_MODES: MicMode[] = ['always', 'activity', 'push-to-talk']
-
 export function getMicMode(): MicMode {
-  const v = localStorage.getItem(MIC_MODE_KEY)
-  return v && VALID_MIC_MODES.includes(v as MicMode) ? (v as MicMode) : 'always'
+  return useSettingsStore.getState().micMode
 }
 
 export function setMicMode(mode: MicMode) {
-  localStorage.setItem(MIC_MODE_KEY, mode)
+  useSettingsStore.getState().setMicMode(mode)
 }
 
 export function getPttBinding(): PttBinding {
-  const raw = localStorage.getItem(PTT_KEY_KEY)
-  if (!raw) return { type: 'key', key: ' ' }
-  try {
-    return JSON.parse(raw) as PttBinding
-  } catch {
-    return { type: 'key', key: raw }
-  }
+  return useSettingsStore.getState().pttBinding
 }
 
 export function setPttBinding(binding: PttBinding) {
-  localStorage.setItem(PTT_KEY_KEY, JSON.stringify(binding))
+  useSettingsStore.getState().setPttBinding(binding)
 }
 
 export function pttBindingLabel(binding: PttBinding): string {
@@ -60,23 +47,19 @@ export function pttBindingLabel(binding: PttBinding): string {
 }
 
 export function getVadThreshold(): number {
-  const v = localStorage.getItem(VAD_THRESHOLD_KEY)
-  if (!v) return 18
-  const n = Number(v)
-  return Number.isFinite(n) ? n : 18
+  return useSettingsStore.getState().vadThreshold
 }
 
 export function setVadThreshold(threshold: number) {
-  localStorage.setItem(VAD_THRESHOLD_KEY, String(threshold))
+  useSettingsStore.getState().setVadThreshold(threshold)
 }
 
 export function getVadMode(): VadMode {
-  const v = localStorage.getItem(VAD_AUTO_KEY)
-  return v === 'auto' || v === 'manual' ? v : 'auto'
+  return useSettingsStore.getState().vadMode
 }
 
 export function setVadMode(mode: VadMode) {
-  localStorage.setItem(VAD_AUTO_KEY, mode)
+  useSettingsStore.getState().setVadMode(mode)
 }
 
 let vadCleanup: ((skipUnmute?: boolean) => void) | null = null

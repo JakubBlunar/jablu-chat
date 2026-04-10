@@ -50,7 +50,6 @@ function resetStores() {
   useChannelStore.setState({
     channels: [],
     categories: [],
-    collapsedCategories: new Set(),
     currentChannelId: null,
     isLoading: false,
     loadedServerId: null

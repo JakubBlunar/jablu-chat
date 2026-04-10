@@ -1,6 +1,6 @@
 import { io, type Socket } from 'socket.io-client'
 import { api } from './api'
-import { getStoredServerUrl } from '@/components/settings/ServerUrlScreen'
+import { getStoredServerUrl } from '@/stores/settings.store'
 import { isElectron } from './electron'
 
 let socket: Socket | null = null

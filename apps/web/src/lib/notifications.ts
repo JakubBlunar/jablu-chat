@@ -1,25 +1,26 @@
-const NOTIF_SETTINGS_KEY = 'jablu-notif-settings'
+import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
+import { useSettingsStore } from '@/stores/settings.store'
+
+export type { NotifSoundKind }
 
 type NotifSettings = {
   enabled: boolean
   soundEnabled: boolean
 }
 
-const defaults: NotifSettings = { enabled: true, soundEnabled: true }
-
 export function getNotifSettings(): NotifSettings {
-  try {
-    const raw = localStorage.getItem(NOTIF_SETTINGS_KEY)
-    if (!raw) return defaults
-    return { ...defaults, ...JSON.parse(raw) }
-  } catch {
-    return defaults
+  const s = useSettingsStore.getState()
+  return {
+    enabled: s.notifEnabled,
+    soundEnabled: s.notifSoundEnabled
   }
 }
 
-export function saveNotifSettings(s: Partial<NotifSettings>) {
-  const current = getNotifSettings()
-  localStorage.setItem(NOTIF_SETTINGS_KEY, JSON.stringify({ ...current, ...s }))
+export function saveNotifSettings(p: Partial<NotifSettings>) {
+  useSettingsStore.getState().patchNotifSettings({
+    enabled: p.enabled,
+    soundEnabled: p.soundEnabled
+  })
 }
 
 export async function requestPermission(): Promise<boolean> {
@@ -29,10 +30,6 @@ export async function requestPermission(): Promise<boolean> {
   const result = await Notification.requestPermission()
   return result === 'granted'
 }
-
-import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
-
-export type { NotifSoundKind }
 
 export function showNotification(
   title: string,

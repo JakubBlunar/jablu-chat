@@ -29,6 +29,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useLayoutStore } from '@/stores/layout.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useReadStateStore } from '@/stores/readState.store'
@@ -68,13 +69,18 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
     useShallow((s) => ({ viewMode: s.viewMode, servers: s.servers, currentServerId: s.currentServerId, removeServer: s.removeServer }))
   )
 
-  const { channels, currentChannelId, storeCategories, collapsedCategories, toggleCategoryCollapsed } = useChannelStore(
+  const { channels, currentChannelId, storeCategories } = useChannelStore(
     useShallow((s) => ({
       channels: s.channels,
       currentChannelId: s.currentChannelId,
-      storeCategories: s.categories,
-      collapsedCategories: s.collapsedCategories,
-      toggleCategoryCollapsed: s.toggleCategoryCollapsed
+      storeCategories: s.categories
+    }))
+  )
+
+  const { collapsedCategoryIds, toggleCollapsedCategory } = useSettingsStore(
+    useShallow((s) => ({
+      collapsedCategoryIds: s.collapsedCategoryIds,
+      toggleCollapsedCategory: s.toggleCollapsedCategory
     }))
   )
 
@@ -422,12 +428,12 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
                 {/* Category groups */}
                 {categoryGroups.map((group) => {
-                  const isCollapsed = collapsedCategories.has(group.category.id)
+                  const isCollapsed = collapsedCategoryIds.includes(group.category.id)
                   return (
                     <div key={group.category.id} className="mt-2">
                       <button
                         type="button"
-                        onClick={() => toggleCategoryCollapsed(group.category.id)}
+                        onClick={() => toggleCollapsedCategory(group.category.id)}
                         className="mb-1 flex w-full items-center gap-1 px-2 text-left"
                       >
                         <svg className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg>
