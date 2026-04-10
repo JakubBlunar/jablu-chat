@@ -14,9 +14,9 @@
     "electron-updater": "^6.8.3"
   },
   "devDependencies": {
-    "electron": "^35.0.0",
+    "electron": "^39.0.0",
     "electron-builder": "^26.0.12",
-    "typescript": "~5.8.0"
+    "typescript": "~5.9.3"
   },
   "build": {
     "appId": "com.jablu.desktop",

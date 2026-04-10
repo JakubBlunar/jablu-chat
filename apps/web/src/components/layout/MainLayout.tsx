@@ -18,6 +18,7 @@ import { useAppBadge } from '@/hooks/useAppBadge'
 import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
+import { useChannelSocketSync } from '@/hooks/useChannelSocketSync'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
@@ -103,6 +104,7 @@ export function MainLayout() {
   const navigate = useNavigate()
 
   const { socket, isConnected } = useSocket()
+  useChannelSocketSync(isConnected)
   const isMobile = useIsMobile()
 
   const openNavDrawer = useLayoutStore((s) => s.openNavDrawer)

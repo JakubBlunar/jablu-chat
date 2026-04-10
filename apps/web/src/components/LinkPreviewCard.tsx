@@ -23,7 +23,9 @@ export function isGifUrl(lp: LinkPreview): boolean {
     if (u.hostname === 'media.tenor.com') return true
     if (/^media\d*\.giphy\.com$/i.test(u.hostname)) return true
     if (u.hostname === 'i.giphy.com') return true
-  } catch {}
+  } catch {
+    /* invalid URL */
+  }
   return false
 }
 
@@ -35,7 +37,9 @@ export function isImageUrl(lp: LinkPreview): boolean {
     const path = new URL(lp.url).pathname.toLowerCase()
     const ext = path.slice(path.lastIndexOf('.'))
     return IMAGE_EXTS.has(ext)
-  } catch {}
+  } catch {
+    /* invalid URL */
+  }
   return false
 }
 

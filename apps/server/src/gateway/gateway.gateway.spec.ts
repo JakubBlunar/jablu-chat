@@ -150,9 +150,7 @@ describe('ChatGateway', () => {
       const channels = ['ch-1', 'ch-2', 'ch-3']
       for (const chId of channels) {
         const participantMap = new Map([['socket-a', { userId: 'u1', username: 'alice' }]])
-        // @ts-ignore access private map
         gateway['voiceParticipants'].set(chId, participantMap)
-        // @ts-ignore
         gateway['voiceActivity'].set('socket-a', Date.now() - 9999999) // very idle
       }
 
@@ -163,7 +161,6 @@ describe('ChatGateway', () => {
       ])
       prisma.server.findUnique.mockResolvedValue({ afkChannelId: null, afkTimeout: 300 })
 
-      // @ts-ignore call private method
       await gateway['checkAfkParticipants']()
 
       // channel lookup must be ONE findMany, not N findUnique calls

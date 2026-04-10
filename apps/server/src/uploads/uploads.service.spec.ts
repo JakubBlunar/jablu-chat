@@ -1,4 +1,6 @@
 import { BadRequestException } from '@nestjs/common'
+import * as fs from 'fs'
+import ffprobe from 'ffprobe'
 import { AttachmentType } from '../prisma-client'
 import { UploadsService } from './uploads.service'
 
@@ -25,7 +27,9 @@ jest.mock('sharp', () => {
 jest.mock('ffprobe', () => jest.fn())
 jest.mock('ffprobe-static', () => ({ path: '/mock/ffprobe' }))
 
-jest.mock('uuid', () => ({ v4: () => 'test-uuid' }))
+jest.mock('node:crypto', () => ({
+  randomUUID: jest.fn(() => 'test-uuid')
+}))
 
 const mockConfig = {
   get: jest.fn((key: string, fallback?: any) => {
@@ -121,8 +125,8 @@ describe('UploadsService', () => {
     })
 
     it('classifies video correctly', async () => {
-      const ffprobe = require('ffprobe') as jest.Mock
-      ffprobe.mockResolvedValue({ streams: [{ codec_type: 'video', width: 1920, height: 1080 }] })
+      const ffMock = ffprobe as unknown as jest.Mock
+      ffMock.mockResolvedValue({ streams: [{ codec_type: 'video', width: 1920, height: 1080 }] })
 
       const file = makeFile({ mimetype: 'video/mp4', originalname: 'clip.mp4' })
       const result = await service.saveAttachment(file)
@@ -133,8 +137,8 @@ describe('UploadsService', () => {
     })
 
     it('returns null dimensions when ffprobe fails for video', async () => {
-      const ffprobe = require('ffprobe') as jest.Mock
-      ffprobe.mockRejectedValue(new Error('ffprobe missing'))
+      const ffMock = ffprobe as unknown as jest.Mock
+      ffMock.mockRejectedValue(new Error('ffprobe missing'))
 
       const file = makeFile({ mimetype: 'video/mp4', originalname: 'clip.mp4' })
       const result = await service.saveAttachment(file)
@@ -161,7 +165,7 @@ describe('UploadsService', () => {
   })
 
   describe('deleteFile', () => {
-    const { unlinkSync } = require('fs') as { unlinkSync: jest.Mock }
+    const unlinkSync = fs.unlinkSync as unknown as jest.Mock
 
     it('deletes a file within the upload directory', () => {
       service.deleteFile('/api/uploads/attachments/test.png')

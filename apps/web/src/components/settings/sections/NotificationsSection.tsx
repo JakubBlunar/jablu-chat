@@ -67,9 +67,9 @@ export function NotificationsSection() {
         const sub = await reg.pushManager.getSubscription()
         setPushStatus(sub ? 'active' : 'error')
         setPushError(sub ? null : 'Push subscription failed. See troubleshooting below.')
-      } catch (e: any) {
+      } catch (e: unknown) {
         setPushStatus('error')
-        setPushError(e?.message ?? 'Push subscription failed')
+        setPushError(e instanceof Error ? e.message : 'Push subscription failed')
       }
     }
   }
@@ -83,9 +83,9 @@ export function NotificationsSection() {
       const sub = await reg.pushManager.getSubscription()
       setPushStatus(sub ? 'active' : 'error')
       if (!sub) setPushError('Push subscription failed. See troubleshooting below.')
-    } catch (e: any) {
+    } catch (e: unknown) {
       setPushStatus('error')
-      setPushError(e?.message ?? 'Push subscription failed')
+      setPushError(e instanceof Error ? e.message : 'Push subscription failed')
     }
   }
 

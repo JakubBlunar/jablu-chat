@@ -62,8 +62,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  if (!open) return null
-
   const tabEntries: { key: Tab; label: string; show?: boolean }[] = useMemo(
     () => [
       { key: 'account', label: t('tabs.account') },
@@ -83,6 +81,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     ],
     [t, isMobile]
   )
+
+  if (!open) return null
 
   const visibleTabs = tabEntries.filter((t) => t.show !== false)
   const currentLabel = visibleTabs.find((t) => t.key === tab)?.label ?? 'Settings'

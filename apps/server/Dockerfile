@@ -64,7 +64,7 @@ RUN pnpm --filter @chat/server deploy --prod --no-optional /prod && \
 
 # ─── Migration runner (target: migrate) ─────────────────────────────
 FROM node:22-alpine AS migrate
-RUN npm install -g prisma@7 && npm cache clean --force
+RUN npm install -g prisma@7.7 && npm cache clean --force
 WORKDIR /app
 COPY --from=prisma-generate /app/apps/server/prisma ./prisma
 COPY --from=prisma-generate /app/apps/server/prisma.config.ts ./prisma.config.ts

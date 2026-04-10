@@ -21,12 +21,12 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "socket.io-client": "^4.8.0",
-    "better-sqlite3": "^11.0.0"
+    "socket.io-client": "^4.8.3",
+    "better-sqlite3": "^12.8.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.8.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.3"
   }
 }

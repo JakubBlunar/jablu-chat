@@ -8,7 +8,6 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
-import { useThreadStore } from '@/stores/thread.store'
 
 // ── heavy sub-components ──────────────────────────────────────────────────────
 jest.mock('@/components/chat/MessageSurface', () => ({ MessageSurface: () => null }))

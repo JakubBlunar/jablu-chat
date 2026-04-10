@@ -67,7 +67,8 @@ describe('ServersService', () => {
 
       expect(prisma.server.create).toHaveBeenCalled()
       expect(roles.createDefaultRoles).toHaveBeenCalledWith('srv-new', userId)
-      expect(result.name).toBe('My Server')
+      expect(result).not.toBeNull()
+      expect(result!.name).toBe('My Server')
     })
   })
 

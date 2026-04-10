@@ -101,7 +101,8 @@ function PwaUpdateBanner() {
         type="button"
         size="sm"
         onClick={() => {
-          ;(window as any).__updateSW?.(true)
+          const w = window as typeof window & { __updateSW?: (reload?: boolean) => void }
+          w.__updateSW?.(true)
         }}
         className="rounded-md text-xs font-semibold"
       >

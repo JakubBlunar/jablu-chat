@@ -256,7 +256,9 @@ export function AutoModTab({ server }: { server: Server }) {
       try {
         const updated = await api.updateAutoModRule(server.id, type, enabled, rule.config)
         setRules((prev) => prev.map((r) => (r.type === type ? updated : r)))
-      } catch {}
+      } catch {
+        /* rule update failed */
+      }
       setSaving(null)
     },
     [server.id, rules]
@@ -270,7 +272,9 @@ export function AutoModTab({ server }: { server: Server }) {
       try {
         const updated = await api.updateAutoModRule(server.id, type, rule.enabled, config)
         setRules((prev) => prev.map((r) => (r.type === type ? updated : r)))
-      } catch {}
+      } catch {
+        /* config update failed */
+      }
       setSaving(null)
     },
     [server.id, rules]

@@ -123,13 +123,21 @@ export function MobileMessageDrawer({
 
   const handleCopy = useCallback(() => {
     if (message.content) {
-      try { navigator.clipboard.writeText(message.content) } catch {}
+      try {
+        void navigator.clipboard.writeText(message.content)
+      } catch {
+        /* clipboard unavailable */
+      }
     }
     close()
   }, [message.content, close])
 
   const handleCopyLink = useCallback((url: string) => {
-    try { navigator.clipboard.writeText(url) } catch {}
+    try {
+      void navigator.clipboard.writeText(url)
+    } catch {
+      /* clipboard unavailable */
+    }
     close()
   }, [close])
 

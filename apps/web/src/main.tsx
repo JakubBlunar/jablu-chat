@@ -34,7 +34,7 @@ const updateSW = registerSW({
   }
 })
 
-;(window as any).__updateSW = updateSW
+;(window as typeof window & { __updateSW: typeof updateSW }).__updateSW = updateSW
 
 void initI18n().then(() => {
   createRoot(document.getElementById('root')!).render(<App />)

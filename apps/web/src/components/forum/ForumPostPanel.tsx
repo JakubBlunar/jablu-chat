@@ -334,7 +334,7 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
               {(post.attachments?.length ?? 0) > 0 && (
                 <div className="mt-2 flex flex-col gap-1">
                   {post.attachments.map((att) => (
-                    <AttachmentPreview key={(att as { id: string }).id} attachment={att as any} />
+                    <AttachmentPreview key={att.id} attachment={att} />
                   ))}
                 </div>
               )}

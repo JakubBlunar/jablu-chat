@@ -132,7 +132,9 @@ export class LinkPreviewService {
       if (u.hostname === 'media.tenor.com' && /\.(gif|mp4)$/i.test(path)) return true
       if (/^media\d*\.giphy\.com$/i.test(u.hostname)) return true
       if (u.hostname === 'i.giphy.com') return true
-    } catch {}
+    } catch {
+      /* invalid URL */
+    }
     return false
   }
 
@@ -144,7 +146,9 @@ export class LinkPreviewService {
       const path = u.pathname.toLowerCase()
       const ext = path.slice(path.lastIndexOf('.'))
       return LinkPreviewService.IMAGE_EXTS.has(ext)
-    } catch {}
+    } catch {
+      /* invalid URL */
+    }
     return false
   }
 

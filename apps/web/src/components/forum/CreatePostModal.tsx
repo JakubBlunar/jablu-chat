@@ -92,7 +92,7 @@ export function CreatePostModal({
         setBusy(false)
         return
       }
-      const attachmentIds = finalFiles.filter((f) => f.uploadedId).map((f) => f.uploadedId!) // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const attachmentIds = finalFiles.flatMap((f) => (f.uploadedId ? [f.uploadedId] : []))
       if (!content.trim() && attachmentIds.length === 0) {
         setError('Post content or at least one successfully uploaded attachment is required')
         setBusy(false)
