@@ -15,6 +15,7 @@ import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
 import { useAppBadge } from '@/hooks/useAppBadge'
 import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
@@ -91,6 +92,7 @@ function HamburgerIcon() {
 
 export function MainLayout() {
   useRouteSync()
+  useMessageJumpFromQuery()
   const navigate = useNavigate()
 
   const { socket, isConnected } = useSocket()

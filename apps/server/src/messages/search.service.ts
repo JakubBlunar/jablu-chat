@@ -13,7 +13,34 @@ interface ParsedQuery {
   hasLink: boolean
   hasPoll: boolean
   hasPinned: boolean
+  hasAttachment: boolean
+  hasVideo: boolean
+  inThreadOnly: boolean
+  inRootOnly: boolean
+  forumTagNames: string[]
+  createdAfter: Date | null
+  createdBefore: Date | null
   fromUsername: string | null
+}
+
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** Parses YYYY-MM-DD as UTC midnight; returns exclusive end for `before:` semantics. */
+function parseFilterDate(raw: string): { dayStart: Date } | null {
+  const m = raw.match(ISO_DATE_RE)
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const da = Number(m[3])
+  const dayStart = new Date(Date.UTC(y, mo - 1, da))
+  if (
+    dayStart.getUTCFullYear() !== y ||
+    dayStart.getUTCMonth() !== mo - 1 ||
+    dayStart.getUTCDate() !== da
+  ) {
+    return null
+  }
+  return { dayStart }
 }
 
 function parseSearchQuery(raw: string): ParsedQuery {
@@ -25,16 +52,50 @@ function parseSearchQuery(raw: string): ParsedQuery {
     hasLink: false,
     hasPoll: false,
     hasPinned: false,
+    hasAttachment: false,
+    hasVideo: false,
+    inThreadOnly: false,
+    inRootOnly: false,
+    forumTagNames: [],
+    createdAfter: null,
+    createdBefore: null,
     fromUsername: null
   }
 
-  text = text.replace(/has:(image|file|link|poll|pin(?:ned)?)/gi, (_, type: string) => {
+  text = text.replace(/has:(image|file|link|poll|pin(?:ned)?|attachment|video)/gi, (_, type: string) => {
     const t = type.toLowerCase()
     if (t === 'image') filters.hasImage = true
     else if (t === 'file') filters.hasFile = true
     else if (t === 'link') filters.hasLink = true
     else if (t === 'poll') filters.hasPoll = true
     else if (t === 'pin' || t === 'pinned') filters.hasPinned = true
+    else if (t === 'attachment') filters.hasAttachment = true
+    else if (t === 'video') filters.hasVideo = true
+    return ''
+  })
+
+  text = text.replace(/\bin:(thread|root)\b/gi, (_, kind: string) => {
+    const k = kind.toLowerCase()
+    if (k === 'thread') filters.inThreadOnly = true
+    else if (k === 'root') filters.inRootOnly = true
+    return ''
+  })
+
+  text = text.replace(/after:(\S+)/gi, (_, d: string) => {
+    const parsed = parseFilterDate(d)
+    if (parsed) filters.createdAfter = parsed.dayStart
+    return ''
+  })
+
+  text = text.replace(/before:(\S+)/gi, (_, d: string) => {
+    const parsed = parseFilterDate(d)
+    if (parsed) filters.createdBefore = parsed.dayStart
+    return ''
+  })
+
+  text = text.replace(/tag:(\S+)/gi, (_, name: string) => {
+    const trimmed = name.replace(/^@/, '').trim()
+    if (trimmed.length > 0 && trimmed.length <= 64) filters.forumTagNames.push(trimmed)
     return ''
   })
 
@@ -76,7 +137,21 @@ export class SearchService {
       .map((w) => `${w}:*`)
       .join(' & ')
 
-    const hasFiltersOnly = !tsQuery && (parsed.hasImage || parsed.hasFile || parsed.hasLink || parsed.hasPoll || parsed.hasPinned || parsed.fromUsername)
+    const hasFiltersOnly =
+      !tsQuery &&
+      (parsed.hasImage ||
+        parsed.hasFile ||
+        parsed.hasLink ||
+        parsed.hasPoll ||
+        parsed.hasPinned ||
+        parsed.hasAttachment ||
+        parsed.hasVideo ||
+        parsed.inThreadOnly ||
+        parsed.inRootOnly ||
+        parsed.forumTagNames.length > 0 ||
+        parsed.createdAfter !== null ||
+        parsed.createdBefore !== null ||
+        parsed.fromUsername)
     if (!tsQuery && !hasFiltersOnly) return { results: [], total: 0 }
 
     let fromUserId: string | null = null
@@ -231,6 +306,37 @@ export class SearchService {
     if (filters.hasPoll) {
       joins.push(Prisma.sql`INNER JOIN polls p ON p.message_id = m.id`)
     }
+    if (filters.hasAttachment) {
+      fragments.push(
+        Prisma.sql`AND EXISTS (SELECT 1 FROM attachments a_any WHERE a_any.message_id = m.id)`
+      )
+    }
+    if (filters.hasVideo) {
+      joins.push(
+        Prisma.sql`INNER JOIN attachments av ON av.message_id = m.id AND av.mime_type LIKE 'video/%'`
+      )
+    }
+    if (filters.inThreadOnly) {
+      fragments.push(Prisma.sql`AND m.thread_parent_id IS NOT NULL`)
+    }
+    if (filters.inRootOnly) {
+      fragments.push(Prisma.sql`AND m.thread_parent_id IS NULL`)
+    }
+    if (filters.createdAfter) {
+      fragments.push(Prisma.sql`AND m.created_at >= ${filters.createdAfter}`)
+    }
+    if (filters.createdBefore) {
+      fragments.push(Prisma.sql`AND m.created_at < ${filters.createdBefore}`)
+    }
+    filters.forumTagNames.forEach((tagName, i) => {
+      const fpt = `fpt_tag_${i}`
+      const ft = `ft_tag_${i}`
+      joins.push(Prisma.sql`
+        INNER JOIN forum_post_tags ${Prisma.raw(fpt)} ON ${Prisma.raw(fpt)}.message_id = m.id
+        INNER JOIN forum_tags ${Prisma.raw(ft)} ON ${Prisma.raw(ft)}.id = ${Prisma.raw(fpt)}.tag_id
+          AND lower(${Prisma.raw(ft)}.name) = lower(${tagName})
+      `)
+    })
 
     return { fragments, joins }
   }

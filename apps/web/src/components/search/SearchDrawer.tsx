@@ -261,18 +261,33 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         <div className="border-b border-white/10 px-3 py-2">
           <p className="mb-1 text-[11px] font-medium text-gray-500">Search filters</p>
           <div className="flex flex-wrap gap-1">
-            {['has:image', 'has:file', 'has:link', 'has:poll', 'has:pinned', 'from:username'].map((f) => (
+            {(
+              [
+                { label: 'has:image', insert: 'has:image ' },
+                { label: 'has:file', insert: 'has:file ' },
+                { label: 'has:attachment', insert: 'has:attachment ' },
+                { label: 'has:video', insert: 'has:video ' },
+                { label: 'has:link', insert: 'has:link ' },
+                { label: 'has:poll', insert: 'has:poll ' },
+                { label: 'has:pinned', insert: 'has:pinned ' },
+                { label: 'in:thread', insert: 'in:thread ' },
+                { label: 'in:root', insert: 'in:root ' },
+                { label: 'from:username', insert: 'from:' },
+                { label: 'tag:name', insert: 'tag:' },
+                { label: 'after:date', insert: 'after:' },
+                { label: 'before:date', insert: 'before:' },
+              ] as const
+            ).map((f) => (
               <button
-                key={f}
+                key={f.label}
                 type="button"
                 onClick={() => {
-                  const prefix = f === 'from:username' ? 'from:' : f + ' '
-                  setLocalQuery((prev) => prev + prefix)
+                  setLocalQuery((prev) => prev + f.insert)
                   inputRef.current?.focus()
                 }}
                 className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-gray-400 transition hover:bg-white/10 hover:text-gray-300"
               >
-                {f}
+                {f.label}
               </button>
             ))}
           </div>
