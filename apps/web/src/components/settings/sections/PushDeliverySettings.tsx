@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { ToggleRow } from '@/components/settings/ToggleRow'
-import { Button, Input } from '@/components/ui'
+import { Button } from '@/components/ui'
+import { inputFieldClassNames } from '@/components/ui/Input'
+import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/stores/auth.store'
+
+/** Native time controls: dark scheme + visible clock icon on dark backgrounds (esp. WebKit). */
+const timeFieldClass = cn(
+  inputFieldClassNames,
+  'scheme-dark [color-scheme:dark]',
+  '[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-90 [&::-webkit-calendar-picker-indicator]:invert'
+)
 
 const DEFAULT_START = 22 * 60
 const DEFAULT_END = 8 * 60
@@ -35,9 +44,11 @@ function useTimeZoneOptions(): string[] {
  * Server-side push delivery rules (silence all, quiet hours). Same UI for mobile and desktop — only the settings shell differs.
  */
 export function PushDeliverySettings() {
+  const tzFieldId = useId()
   const user = useAuthStore((s) => s.user)
   const updatePushPrefs = useAuthStore((s) => s.updatePushPrefs)
   const zones = useTimeZoneOptions()
+  const sortedZones = useMemo(() => [...zones].sort((a, b) => a.localeCompare(b)), [zones])
 
   const [suppressAll, setSuppressAll] = useState(false)
   const [quietEnabled, setQuietEnabled] = useState(false)
@@ -118,23 +129,25 @@ export function PushDeliverySettings() {
       {quietEnabled && !suppressAll && (
         <div className="space-y-3 border-t border-white/10 pt-3">
           <div>
-            <label htmlFor="push-tz" className="mb-1 block text-xs font-medium text-gray-400">
+            <label htmlFor={tzFieldId} className="mb-1 block text-xs font-medium text-gray-400">
               Timezone
             </label>
-            <Input
-              id="push-tz"
-              list="jablu-tz-options"
+            {/* Native <select> so the menu is not clipped inside settings scroll (SimpleBar); datalist often fails there. */}
+            <select
+              id={tzFieldId}
               value={tz}
               onChange={(e) => setTz(e.target.value)}
-              placeholder="e.g. Europe/Prague"
-              className="w-full"
-              autoComplete="off"
-            />
-            <datalist id="jablu-tz-options">
-              {zones.map((z) => (
-                <option key={z} value={z} />
+              className={cn(inputFieldClassNames, 'w-full cursor-pointer')}
+            >
+              {!sortedZones.includes(tz) && tz ? (
+                <option value={tz}>{tz} (unlisted — pick a replacement)</option>
+              ) : null}
+              {sortedZones.map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
@@ -146,7 +159,7 @@ export function PushDeliverySettings() {
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white"
+                className={cn(timeFieldClass, 'w-full')}
               />
             </div>
             <div className="flex-1">
@@ -158,7 +171,7 @@ export function PushDeliverySettings() {
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full rounded-md border border-white/10 bg-surface-darkest px-3 py-2 text-sm text-white"
+                className={cn(timeFieldClass, 'w-full')}
               />
             </div>
           </div>

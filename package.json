@@ -19,7 +19,8 @@
     "desktop": "pnpm --filter @chat/desktop start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "setup": "bash setup.sh"
+    "setup": "bash setup.sh",
+    "local:sync-env": "node scripts/sync-env-development.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
