@@ -100,7 +100,7 @@ export class InAppNotificationsService {
         take: excess
       })
       let ids = readRows.map((r) => r.id)
-      let need = excess - ids.length
+      const need = excess - ids.length
       if (need > 0) {
         const unread = await tx.inAppNotification.findMany({
           where: { userId, readAt: null },

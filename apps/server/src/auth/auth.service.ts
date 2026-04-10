@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import { CronJob } from 'cron'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID } from 'node:crypto'
 import { EventBusService } from '../events/event-bus.service'
 import { FriendsService } from '../friends/friends.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -239,7 +239,7 @@ export class AuthService implements OnModuleInit {
       data: { used: true }
     })
 
-    const token = uuidv4()
+    const token = randomUUID()
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
     await this.prisma.passwordReset.create({
@@ -588,7 +588,7 @@ export class AuthService implements OnModuleInit {
   ) {
     const accessToken = this.jwt.sign({ sub: userId })
 
-    const refreshTokenValue = uuidv4()
+    const refreshTokenValue = randomUUID()
     const refreshExpiresAt = new Date(
       Date.now() + 90 * 24 * 60 * 60 * 1000 // 90 days
     )

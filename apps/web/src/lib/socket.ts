@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { io, type Socket } from 'socket.io-client'
 import { api } from './api'
 import { getStoredServerUrl } from '@/stores/settings.store'

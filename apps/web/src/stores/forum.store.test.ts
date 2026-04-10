@@ -227,6 +227,33 @@ describe('forum.store', () => {
     })
   })
 
+  describe('updateReplyCount', () => {
+    it('updates reply count without changing lastActivityAt when omitted', () => {
+      const lastActivityAt = '2025-01-01T00:00:00.000Z'
+      useForumStore.setState({
+        posts: [{ id: 'p1', replyCount: 0, lastActivityAt } as any]
+      })
+
+      useForumStore.getState().updateReplyCount('p1', 7)
+
+      const p = useForumStore.getState().posts[0] as { replyCount: number; lastActivityAt: string }
+      expect(p.replyCount).toBe(7)
+      expect(p.lastActivityAt).toBe(lastActivityAt)
+    })
+
+    it('updates lastActivityAt when a server timestamp is provided', () => {
+      useForumStore.setState({
+        posts: [{ id: 'p1', replyCount: 0, lastActivityAt: '2025-01-01T00:00:00.000Z' } as any]
+      })
+
+      useForumStore.getState().updateReplyCount('p1', 2, '2026-04-10T15:00:00.000Z')
+
+      const p = useForumStore.getState().posts[0] as { replyCount: number; lastActivityAt: string }
+      expect(p.replyCount).toBe(2)
+      expect(p.lastActivityAt).toBe('2026-04-10T15:00:00.000Z')
+    })
+  })
+
   describe('toggleTag', () => {
     it('adds and removes tag from active list', () => {
       mockGet.mockResolvedValue({ posts: [], hasMore: false })

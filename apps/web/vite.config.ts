@@ -7,8 +7,9 @@ import path from 'path'
 
 const isElectronBuild = process.env.ELECTRON === '1'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: isElectronBuild ? './' : '/',
+  esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
   plugins: [
     react(),
     tailwindcss(),
@@ -58,15 +59,10 @@ export default defineConfig({
   ],
   build: {
     sourcemap: false,
-    rolldownOptions: {
+    minify: 'esbuild',
+    rollupOptions: {
       output: {
-        minify: {
-          compress: {
-            dropConsole: true,
-            dropDebugger: true
-          }
-        },
-        manualChunks(id) {
+        manualChunks(id: string) {
           if (!id.includes('node_modules')) return undefined
           if (id.includes('react-syntax-highlighter')) return 'syntax-highlighter'
           if (
@@ -116,4 +112,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

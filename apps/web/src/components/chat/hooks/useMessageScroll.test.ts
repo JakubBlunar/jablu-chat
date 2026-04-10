@@ -122,6 +122,12 @@ describe('useMessageScroll', () => {
         hasNewer: false
       }
       let loadedId: string | null = null
+      const fetchMessagesSpy = jest.fn(async () => {
+        await Promise.resolve()
+        state.isLoading = false
+        state.messages = []
+        loadedId = 'ch-1'
+      })
       const adapter: ScrollStoreAdapter = {
         get messages() {
           return state.messages
@@ -137,12 +143,7 @@ describe('useMessageScroll', () => {
         },
         scrollToMessageId: null,
         scrollRequestNonce: 0,
-        fetchMessages: jest.fn(async () => {
-          await Promise.resolve()
-          state.isLoading = false
-          state.messages = []
-          loadedId = 'ch-1'
-        }),
+        fetchMessages: fetchMessagesSpy,
         fetchMessagesAround: jest.fn(async () => {}),
         clearMessages: jest.fn(() => {
           state.messages = []
@@ -164,7 +165,7 @@ describe('useMessageScroll', () => {
       expect(result.current.settling).toBe(true)
 
       await act(async () => {
-        const p = adapter.fetchMessages.mock.results[0]?.value as Promise<void> | undefined
+        const p = fetchMessagesSpy.mock.results[0]?.value as Promise<void> | undefined
         if (p) await p
         rerender()
       })

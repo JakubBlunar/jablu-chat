@@ -175,7 +175,6 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     return () => {
       if (contextId) storeRef.current.onContextLeave?.(contextId)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextId, clearMessages, fetchMessages, getLoadedForId])
 
   /* ── Load older messages (top sentinel) ── */

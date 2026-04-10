@@ -14,7 +14,9 @@ import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.
 import { createMockRedisService, MockRedisService } from '../__mocks__/redis.mock'
 
 jest.mock('bcryptjs')
-jest.mock('uuid', () => ({ v4: () => 'mock-uuid-1234' }))
+jest.mock('node:crypto', () => ({
+  randomUUID: jest.fn(() => 'mock-uuid-1234')
+}))
 
 const mockBcrypt = bcrypt as jest.Mocked<typeof bcrypt>
 

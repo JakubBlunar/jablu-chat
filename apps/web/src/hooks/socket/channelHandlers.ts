@@ -138,10 +138,28 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
   const onThreadUpdate = (payload: {
     parentId: string
     threadCount: number
-    lastThreadReply?: { content: string | null; author: { id: string; username: string; displayName?: string | null; avatarUrl: string | null } | null; createdAt: string }
+    lastThreadReply?: {
+      content: string | null
+      author: { id: string; username: string; displayName?: string | null; avatarUrl: string | null } | null
+      createdAt: string | Date
+    }
   }) => {
-    useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount, payload.lastThreadReply ?? undefined)
-    useForumStore.getState().updateReplyCount(payload.parentId, payload.threadCount)
+    const raw = payload.lastThreadReply
+    const lastThreadReply: Message['lastThreadReply'] =
+      raw == null
+        ? undefined
+        : {
+            content: raw.content,
+            author: raw.author,
+            createdAt:
+              typeof raw.createdAt === 'string'
+                ? raw.createdAt
+                : raw.createdAt instanceof Date
+                  ? raw.createdAt.toISOString()
+                  : String(raw.createdAt)
+          }
+    useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount, lastThreadReply)
+    useForumStore.getState().updateReplyCount(payload.parentId, payload.threadCount, lastThreadReply?.createdAt)
   }
 
   const onNewMessageForThread = (msg: Message) => {

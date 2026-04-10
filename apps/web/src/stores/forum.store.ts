@@ -29,7 +29,8 @@ interface ForumState {
   closePost: () => void
   addPost: (post: ForumPost) => void
   updatePost: (post: ForumPost) => void
-  updateReplyCount: (postId: string, replyCount: number) => void
+  /** Sync reply count from loaded thread or socket. Pass `lastActivityAt` only when known (e.g. `lastThreadReply.createdAt`). */
+  updateReplyCount: (postId: string, replyCount: number, lastActivityAt?: string) => void
   removePost: (postId: string) => void
   reset: () => void
 }
@@ -180,10 +181,12 @@ export const useForumStore = create<ForumState>((set, get) => ({
     }))
   },
 
-  updateReplyCount: (postId, replyCount) => {
+  updateReplyCount: (postId, replyCount, lastActivityAt) => {
     set((s) => ({
       posts: s.posts.map((p) =>
-        p.id === postId ? { ...p, replyCount, lastActivityAt: new Date().toISOString() } : p
+        p.id === postId
+          ? { ...p, replyCount, ...(lastActivityAt !== undefined ? { lastActivityAt } : {}) }
+          : p
       )
     }))
   },

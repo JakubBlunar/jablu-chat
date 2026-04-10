@@ -3,6 +3,14 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { getSavedCameraQuality } from '@/lib/deviceSettings'
 
+type HTMLMediaElementWithSinkId = HTMLMediaElement & {
+  setSinkId?: (sinkId: string) => Promise<void>
+}
+
+type AudioContextWithSinkId = AudioContext & {
+  setSinkId?: (sinkId: string) => Promise<void>
+}
+
 type AudioEntry = {
   audio: HTMLAudioElement
   gain: GainNode
@@ -76,8 +84,9 @@ export function VoiceAudioManager() {
       gain.gain.value = state.isDeafened ? 0 : (state.volumeOverrides[key] ?? 100) / 100
 
       const outputId = state.audioOutputDeviceId
-      if (outputId && 'setSinkId' in audio) {
-        ;(audio as any).setSinkId(outputId).catch(() => {})
+      const media = audio as HTMLMediaElementWithSinkId
+      if (outputId && typeof media.setSinkId === 'function') {
+        void media.setSinkId(outputId).catch(() => {})
       }
 
       document.body.appendChild(audio)
@@ -221,13 +230,14 @@ export function VoiceAudioManager() {
 
   useEffect(() => {
     for (const [, entry] of nodesRef.current) {
-      if ('setSinkId' in entry.audio) {
-        ;(entry.audio as any).setSinkId(audioOutputDeviceId || '').catch(() => {})
+      const media = entry.audio as HTMLMediaElementWithSinkId
+      if (typeof media.setSinkId === 'function') {
+        void media.setSinkId(audioOutputDeviceId || '').catch(() => {})
       }
     }
-    const ctx = _audioCtx
-    if (ctx && ctx.state !== 'closed' && 'setSinkId' in ctx) {
-      ;(ctx as any).setSinkId(audioOutputDeviceId || '').catch(() => {})
+    const ctx = _audioCtx as AudioContextWithSinkId | null
+    if (ctx && ctx.state !== 'closed' && typeof ctx.setSinkId === 'function') {
+      void ctx.setSinkId(audioOutputDeviceId || '').catch(() => {})
     }
   }, [audioOutputDeviceId])
 

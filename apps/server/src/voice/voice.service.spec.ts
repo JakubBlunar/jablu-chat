@@ -1,3 +1,4 @@
+import { AccessToken } from 'livekit-server-sdk'
 import { VoiceService } from './voice.service'
 
 jest.mock('livekit-server-sdk', () => ({
@@ -51,24 +52,23 @@ describe('VoiceService', () => {
     })
 
     it('creates an AccessToken with correct identity and name', async () => {
-      const { AccessToken } = require('livekit-server-sdk')
       const service = new VoiceService(makeConfig())
 
       await service.generateToken('user1', 'alice', 'ch-voice')
 
-      expect(AccessToken).toHaveBeenCalledWith('key123', 'secret456', {
+      expect(AccessToken as unknown as jest.Mock).toHaveBeenCalledWith('key123', 'secret456', {
         identity: 'user1',
         name: 'alice'
       })
     })
 
     it('grants the correct room permissions', async () => {
-      const { AccessToken } = require('livekit-server-sdk')
       const service = new VoiceService(makeConfig())
+      const AccessTokenMock = AccessToken as unknown as jest.Mock
 
       await service.generateToken('user1', 'alice', 'ch-voice')
 
-      const instance = AccessToken.mock.instances[AccessToken.mock.instances.length - 1]
+      const instance = AccessTokenMock.mock.instances[AccessTokenMock.mock.instances.length - 1]
       expect(instance.addGrant).toHaveBeenCalledWith({
         room: 'voice:ch-voice',
         roomJoin: true,

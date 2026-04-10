@@ -1,3 +1,5 @@
+import type { Attachment } from './message.js'
+
 export type ChannelType = 'text' | 'voice' | 'forum'
 
 export type ForumSortOrder = 'latest_activity' | 'newest'
@@ -38,7 +40,7 @@ export interface ForumPost {
   createdAt: string
   editedAt: string | null
   author: { id: string; username: string; displayName: string | null; avatarUrl: string | null } | null
-  attachments: unknown[]
+  attachments: Attachment[]
   tags: ForumTag[]
   reactions: { emoji: string; count: number; userIds: string[]; isCustom: boolean }[]
   replyCount: number

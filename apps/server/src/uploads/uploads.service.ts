@@ -4,7 +4,7 @@ import { AttachmentType } from '../prisma-client'
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { extname, join, resolve } from 'path';
 import sharp from 'sharp';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ffprobe = require('ffprobe') as (
@@ -71,7 +71,7 @@ export class UploadsService {
 
   async saveAvatar(file: Express.Multer.File): Promise<string> {
     const ext = 'webp';
-    const filename = `${uuidv4()}.${ext}`;
+    const filename = `${randomUUID()}.${ext}`;
     const dest = join(this.uploadDir, 'avatars', filename);
 
     await sharp(file.buffer)
@@ -112,7 +112,7 @@ export class UploadsService {
     const attachType = this.classifyMime(mime);
     let savedExt = extname(file.originalname).toLowerCase() || this.mimeToExt(mime);
     let savedMime = mime;
-    const id = uuidv4();
+    const id = randomUUID();
 
     let width: number | null = null;
     let height: number | null = null;
@@ -212,7 +212,7 @@ export class UploadsService {
 
   async saveEmoji(file: Express.Multer.File): Promise<string> {
     const ext = 'webp';
-    const filename = `${uuidv4()}.${ext}`;
+    const filename = `${randomUUID()}.${ext}`;
     const dest = join(this.uploadDir, 'emoji', filename);
 
     await sharp(file.buffer)
