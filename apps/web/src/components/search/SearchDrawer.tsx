@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Message } from '@chat/shared'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -21,6 +22,9 @@ type Props = {
 }
 
 export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'server', conversationId }: Props) {
+  const { t } = useTranslation('search')
+  const { t: tNav } = useTranslation('nav')
+  const { t: tCommon } = useTranslation('common')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
   const channels = useChannelStore((s) => s.channels)
@@ -192,8 +196,8 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     <aside className="flex h-full w-full shrink-0 flex-col border-l border-white/10 bg-surface-dark md:w-80">
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4">
-        <h2 className="text-sm font-semibold text-white">Search Results</h2>
-        <IconButton label="Close search" variant="ghost" size="md" onClick={onClose}>
+        <h2 className="text-sm font-semibold text-white">{t('resultsTitle')}</h2>
+        <IconButton label={t('closeSearch')} variant="ghost" size="md" onClick={onClose}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -219,7 +223,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
             value={localQuery}
             onChange={(e) => handleLocalChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search..."
+            placeholder={tNav('searchPlaceholder')}
             className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-200 outline-none placeholder:text-gray-500"
           />
         </div>
@@ -230,13 +234,13 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         {defaultScope === 'conversation' ? (
           <>
             <ScopeBtn active={scope === 'conversation'} onClick={() => handleScopeChange('conversation')}>
-              This conversation
+              {t('scopeThisConversation')}
             </ScopeBtn>
             <ScopeBtn active={scope === 'dm'} onClick={() => handleScopeChange('dm')}>
-              All DMs
+              {t('scopeAllDms')}
             </ScopeBtn>
             <ScopeBtn active={scope === 'all'} onClick={() => handleScopeChange('all')}>
-              Everywhere
+              {t('scopeEverywhere')}
             </ScopeBtn>
           </>
         ) : (
@@ -247,10 +251,10 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
               </ScopeBtn>
             )}
             <ScopeBtn active={scope === 'server'} onClick={() => handleScopeChange('server')}>
-              Server
+              {t('scopeServer')}
             </ScopeBtn>
             <ScopeBtn active={scope === 'all'} onClick={() => handleScopeChange('all')}>
-              Everywhere
+              {t('scopeEverywhere')}
             </ScopeBtn>
           </>
         )}
@@ -259,7 +263,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       {/* Filter hints */}
       {!query.trim() && (
         <div className="border-b border-white/10 px-3 py-2">
-          <p className="mb-1 text-[11px] font-medium text-gray-500">Search filters</p>
+          <p className="mb-1 text-[11px] font-medium text-gray-500">{t('searchFilters')}</p>
           <div className="flex flex-wrap gap-1">
             {(
               [
@@ -298,7 +302,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       {query.trim() && !loading && (
         <div className="border-b border-white/10 px-3 py-1.5">
           <span className="text-xs text-gray-500">
-            {total} {total === 1 ? 'result' : 'results'}
+            {t('resultCount', { count: total })}
           </span>
         </div>
       )}
@@ -311,19 +315,19 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
           </div>
         ) : error ? (
           <div className="px-3 py-8 text-center text-sm text-gray-400">
-            <p>Search failed</p>
+            <p>{t('searchFailed')}</p>
             <button
               type="button"
               className="mt-2 text-xs text-primary hover:underline"
               onClick={() => doSearch(query, scope, offset)}
             >
-              Try again
+              {tCommon('retry')}
             </button>
           </div>
         ) : results.length === 0 && query.trim() ? (
-          <p className="px-3 py-8 text-center text-sm text-gray-400">No results found</p>
+          <p className="px-3 py-8 text-center text-sm text-gray-400">{t('noResults')}</p>
         ) : results.length === 0 && !query.trim() ? (
-          <p className="px-3 py-8 text-center text-sm text-gray-500">Type to search</p>
+          <p className="px-3 py-8 text-center text-sm text-gray-500">{t('typeToSearch')}</p>
         ) : (
           <div className="py-1">
             {results.map((r) => (
@@ -348,7 +352,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                     {r.channel ? (
                       <span className="shrink-0 text-[11px] text-gray-500">#{r.channel.name}</span>
                     ) : r.dmConversationId ? (
-                      <span className="shrink-0 text-[11px] text-gray-500">DM</span>
+                      <span className="shrink-0 text-[11px] text-gray-500">{t('dmBadge')}</span>
                     ) : null}
                   </div>
                   {r.title && (
@@ -372,7 +376,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
             onClick={() => setOffset(offset - PAGE_SIZE)}
             className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
           >
-            Previous
+            {t('previous')}
           </button>
           <span className="text-xs text-gray-500">
             {currentPage} / {totalPages}
@@ -383,7 +387,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
             onClick={() => setOffset(offset + PAGE_SIZE)}
             className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
           >
-            Next
+            {t('next')}
           </button>
         </div>
       )}

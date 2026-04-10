@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useIsMobile } from '@/hooks/useMobile'
 
 type Props = {
@@ -19,6 +20,8 @@ export function ModalOverlay({
   noPadding = false
 }: Props) {
   const isMobile = useIsMobile()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, true)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -47,6 +50,7 @@ export function ModalOverlay({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         className={`w-full max-h-[90vh] overflow-y-auto overscroll-contain rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10 ${maxWidth} ${noPadding ? '' : 'p-6'} ${className}`}

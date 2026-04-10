@@ -11,6 +11,7 @@ import {
   useState
 } from 'react'
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
+import { useTranslation } from 'react-i18next'
 import { useIsMobile } from '@/hooks/useMobile'
 import { resolveMediaUrl } from '@/lib/api'
 import {
@@ -139,6 +140,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [gifOpen, setGifOpen] = useState(false)
   const [showToolbar, setShowToolbar] = useState(false)
+  const { t } = useTranslation('chat')
 
   const wrapSelection = useCallback((prefix: string, suffix: string) => {
     const ta = taRef.current
@@ -496,7 +498,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               onClick={() => fileRef.current?.click()}
               className="shrink-0 p-3 text-gray-400 transition hover:text-white"
               title="Attach file"
-              aria-label="Attach file"
+              aria-label={t('attachFile')}
             >
               <PlusCircleIcon />
             </button>
@@ -519,6 +521,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           value={value}
           placeholder={placeholder}
           disabled={disabled}
+          aria-label={t('messageComposer')}
           enterKeyHint={isMobile ? 'send' : undefined}
           className="max-h-[240px] min-h-[44px] flex-1 resize-none bg-transparent py-3 text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
           onFocus={() => setShowToolbar(true)}
@@ -543,7 +546,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             }}
             className="shrink-0 px-1.5 py-3 text-gray-400 transition hover:text-white"
             title="GIF"
-            aria-label="GIF picker"
+            aria-label={t('gifPicker')}
           >
             <GifIcon />
           </button>
@@ -557,7 +560,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           }}
           className="shrink-0 pl-1.5 pr-3 py-3 text-gray-400 transition hover:text-white"
           title="Emoji"
-          aria-label="Emoji picker"
+          aria-label={t('emojiPicker')}
         >
           <SmileIcon className="h-5 w-5" />
         </button>
@@ -569,7 +572,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               if (value.length <= MAX_MESSAGE_LENGTH) onSend()
             }}
             className={`shrink-0 text-primary transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'pr-3 py-3'}`}
-            aria-label="Send message"
+            aria-label={t('sendMessage')}
           >
             <svg className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
@@ -630,6 +633,7 @@ function MentionPopup({
   selectedIdx: number
   onSelect: (m: MentionMember) => void
 }) {
+  const { t } = useTranslation('chat')
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -641,7 +645,7 @@ function MentionPopup({
     <div
       ref={listRef}
       role="listbox"
-      aria-label="Mentions"
+      aria-label={t('mentionSuggestions')}
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {members.map((m, i) => {
@@ -706,6 +710,7 @@ function ChannelPopup({
   selectedIdx: number
   onSelect: (c: MentionChannel) => void
 }) {
+  const { t } = useTranslation('chat')
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -717,7 +722,7 @@ function ChannelPopup({
     <div
       ref={listRef}
       role="listbox"
-      aria-label="Channels"
+      aria-label={t('channelSuggestions')}
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {channels.map((c, i) => (
@@ -756,6 +761,7 @@ function CommandPopup({
   selectedIdx: number
   onSelect: (c: CommandItem) => void
 }) {
+  const { t } = useTranslation('chat')
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -767,7 +773,7 @@ function CommandPopup({
     <div
       ref={listRef}
       role="listbox"
-      aria-label="Commands"
+      aria-label={t('commandSuggestions')}
       className="absolute bottom-full left-0 z-50 mb-1 max-h-64 w-80 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {commands.map((c, i) => (
@@ -813,6 +819,7 @@ function CustomEmojiPopup({
   selectedIdx: number
   onSelect: (e: CustomEmojiItem) => void
 }) {
+  const { t } = useTranslation('chat')
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -824,7 +831,7 @@ function CustomEmojiPopup({
     <div
       ref={listRef}
       role="listbox"
-      aria-label="Custom Emoji"
+      aria-label={t('customEmojiSuggestions')}
       className="absolute bottom-full left-0 z-50 mb-1 max-h-52 w-72 overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {emojis.map((e, i) => (

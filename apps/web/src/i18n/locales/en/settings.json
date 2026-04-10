@@ -1,0 +1,30 @@
+{
+  "title": "Settings",
+  "closeSettings": "Close settings",
+  "userSettings": "USER SETTINGS",
+  "logOut": "Log Out",
+  "appearance": {
+    "language": "Language",
+    "languageHint": "Interface language. More locales can be added over time.",
+    "accentTitle": "Accent Color",
+    "accentHint": "Choose a color that highlights buttons, links, and active elements.",
+    "themeTitle": "Theme",
+    "themeHint": "Dark mode is the default and only fully supported theme. A light theme is planned for the future."
+  },
+  "tabs": {
+    "account": "My Account",
+    "profile": "Profile",
+    "status": "Status",
+    "appearance": "Appearance",
+    "privacy": "Privacy",
+    "voice": "Voice & Video",
+    "notifications": "Notifications",
+    "myBots": "My Bots",
+    "sessions": "Sessions",
+    "shortcuts": "Keyboard Shortcuts",
+    "server": "Server Connection",
+    "desktop": "Desktop App",
+    "downloads": "Desktop App",
+    "install": "Install App"
+  }
+}

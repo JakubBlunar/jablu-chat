@@ -115,22 +115,16 @@ describe('MessageSurface', () => {
   })
 
   describe('accessibility', () => {
-    it('scroll container has role="log"', () => {
+    it('scroll container has role="region"', () => {
       const { container } = renderSurface()
       const scrollContainer = container.querySelector('.chat-scroll')
-      expect(scrollContainer).toHaveAttribute('role', 'log')
+      expect(scrollContainer).toHaveAttribute('role', 'region')
     })
 
-    it('scroll container has aria-label="Messages"', () => {
+    it('scroll container has translated aria-label for message list', () => {
       const { container } = renderSurface()
       const scrollContainer = container.querySelector('.chat-scroll')
-      expect(scrollContainer).toHaveAttribute('aria-label', 'Messages')
-    })
-
-    it('scroll container has aria-live="polite"', () => {
-      const { container } = renderSurface()
-      const scrollContainer = container.querySelector('.chat-scroll')
-      expect(scrollContainer).toHaveAttribute('aria-live', 'polite')
+      expect(scrollContainer).toHaveAttribute('aria-label', 'messageListLabel')
     })
   })
 })

@@ -19,6 +19,7 @@ const config: Config = {
     ]
   },
   testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/src/test/jest-setup-i18n.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@chat/shared$': '<rootDir>/../../packages/shared/dist/cjs/index.js'

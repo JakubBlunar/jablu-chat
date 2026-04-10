@@ -83,11 +83,11 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
       }
     })
 
-    room.on(RoomEvent.Disconnected, (reason: DisconnectReason) => {
+    room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
       const current = useVoiceConnectionStore.getState()
       if (current.room !== room) return
       getSocket()?.emit('voice:leave')
-      if (reason === DisconnectReason.CLIENT_INITIATED) {
+      if (reason === undefined || reason === DisconnectReason.CLIENT_INITIATED) {
         current.disconnect()
         return
       }

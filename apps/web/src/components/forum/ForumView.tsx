@@ -1,6 +1,7 @@
 import type { Channel, ForumPost } from '@chat/shared'
 import { TagChip } from '@/components/ui/TagChip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { useForumStore } from '@/stores/forum.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -118,6 +119,8 @@ export function ForumView({
   channelId: string
   onOpenNav?: () => void
 }) {
+  const { t } = useTranslation('nav')
+  const { t: tA11y } = useTranslation('a11y')
   const channel = useChannelStore((s) => s.channels.find((c) => c.id === channelId)) as Channel | undefined
   const isMobile = useIsMobile()
 
@@ -184,7 +187,7 @@ export function ForumView({
         {isMobile && onOpenNav && (
           <button
             type="button"
-            aria-label="Open navigation menu"
+            aria-label={tA11y('openNavigationMenu')}
             onClick={onOpenNav}
             className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -198,7 +201,7 @@ export function ForumView({
             <path d="M4 4h16a2 2 0 012 2v8a2 2 0 01-2 2h-5.17L10 19.17V16H4a2 2 0 01-2-2V6a2 2 0 012-2zm2 4h12v2H6V8zm0 3h8v2H6v-2z" />
           </svg>
         )}
-        <h2 className="text-[15px] font-semibold text-white">{channel?.name ?? 'Forum'}</h2>
+        <h2 className="text-[15px] font-semibold text-white">{channel?.name ?? t('forumDefaultName')}</h2>
       </header>
 
       <SimpleBar className="flex min-h-0 flex-1 flex-col">
@@ -211,7 +214,7 @@ export function ForumView({
               </svg>
               <input
                 type="text"
-                placeholder="Search posts..."
+                placeholder={t('searchPostsPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-md border-0 bg-surface-darkest py-2 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
@@ -225,7 +228,7 @@ export function ForumView({
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6v-2z" />
               </svg>
-              New Post
+              {t('newForumPost')}
             </button>
           </div>
 

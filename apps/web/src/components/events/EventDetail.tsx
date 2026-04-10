@@ -1,6 +1,7 @@
 import type { ServerEvent, UpdateEventInput } from '@chat/shared'
 import { Permission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Badge, Button, IconButton, Input, Textarea } from '@/components/ui'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
@@ -30,6 +31,7 @@ type Props = {
 }
 
 export function EventDetail({ event, serverId, onBack, onClose }: Props) {
+  const { t } = useTranslation('common')
   const userId = useAuthStore((s) => s.user?.id)
 
   const [interestedUsers, setInterestedUsers] = useState<
@@ -143,7 +145,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
           </IconButton>
           <h2 className="text-base font-bold text-white">Event Details</h2>
         </div>
-        <IconButton type="button" label="Close" onClick={onClose} size="lg" className="rounded-lg">
+        <IconButton type="button" label={t('close')} onClick={onClose} size="lg" className="rounded-lg">
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18L18 6M6 6l12 12" />
           </svg>

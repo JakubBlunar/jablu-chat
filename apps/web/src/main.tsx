@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
+import { initI18n } from '@/i18n/config'
 import App from './App.tsx'
 
 let visibilityTriggered = false
@@ -35,4 +36,6 @@ const updateSW = registerSW({
 
 ;(window as any).__updateSW = updateSW
 
-createRoot(document.getElementById('root')!).render(<App />)
+void initI18n().then(() => {
+  createRoot(document.getElementById('root')!).render(<App />)
+})

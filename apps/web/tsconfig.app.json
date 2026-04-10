@@ -19,6 +19,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "resolveJsonModule": true,
 
     /* Linting */
     "strict": true,
@@ -29,5 +30,5 @@
     "noUncheckedSideEffectImports": true
   },
   "include": ["src"],
-  "exclude": ["src/sw.ts", "src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["src/sw.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "src/test/jest-setup-i18n.ts"]
 }

@@ -1,0 +1,21 @@
+{
+  "resultsTitle": "Výsledky vyhľadávania",
+  "closeSearch": "Zavrieť vyhľadávanie",
+  "openSearch": "Hľadať",
+  "scopeThisConversation": "Táto konverzácia",
+  "scopeAllDms": "Všetky SS",
+  "scopeEverywhere": "Všade",
+  "scopeServer": "Server",
+  "searchFilters": "Filtre vyhľadávania",
+  "searchFailed": "Vyhľadávanie zlyhalo",
+  "noResults": "Nič sa nenašlo",
+  "typeToSearch": "Píšte pre vyhľadávanie",
+  "previous": "Predchádzajúce",
+  "next": "Ďalšie",
+  "resultCount_one": "{{count}} výsledok",
+  "resultCount_few": "{{count}} výsledky",
+  "resultCount_many": "{{count}} výsledkov",
+  "resultCount_other": "{{count}} výsledkov",
+  "dmBadge": "SS",
+  "searchGiphyPlaceholder": "Hľadať na GIPHY"
+}

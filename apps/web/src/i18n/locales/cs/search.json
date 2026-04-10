@@ -1,0 +1,21 @@
+{
+  "resultsTitle": "Výsledky hledání",
+  "closeSearch": "Zavřít vyhledávání",
+  "openSearch": "Hledat",
+  "scopeThisConversation": "Tato konverzace",
+  "scopeAllDms": "Všechny SZ",
+  "scopeEverywhere": "Všude",
+  "scopeServer": "Server",
+  "searchFilters": "Filtry hledání",
+  "searchFailed": "Hledání selhalo",
+  "noResults": "Nic nenalezeno",
+  "typeToSearch": "Pište pro hledání",
+  "previous": "Předchozí",
+  "next": "Další",
+  "resultCount_one": "{{count}} výsledek",
+  "resultCount_few": "{{count}} výsledky",
+  "resultCount_many": "{{count}} výsledků",
+  "resultCount_other": "{{count}} výsledků",
+  "dmBadge": "SZ",
+  "searchGiphyPlaceholder": "Hledat na GIPHY"
+}

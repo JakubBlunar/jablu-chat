@@ -1,0 +1,19 @@
+{
+  "skipToContent": "Přeskočit na hlavní obsah",
+  "openNavigationMenu": "Otevřít navigační menu",
+  "settingsNav": "Sekce nastavení účtu",
+  "connectionLost": "Spojení ztraceno. Obnovuji připojení…",
+  "reconnected": "Znovu připojeno",
+  "editChannel": "Upravit kanál",
+  "participantMuted": "Ztlumeno",
+  "participantDeafened": "Ztlumeno výstup",
+  "participantCameraOn": "Kamera zapnutá",
+  "participantScreenShare": "Sdílení obrazovky",
+  "screenShareAudioVolume": "Hlasitost zvuku sdílené obrazovky",
+  "setStatus": "Nastavit stav",
+  "dismissTokenNotice": "Zavřít upozornění na token",
+  "newTagColor": "Nová barva štítku",
+  "removeAttachment": "Odebrat přílohu",
+  "editCategoryNamed": "Upravit {{name}}",
+  "createChannelInCategory": "Vytvořit kanál v {{category}}"
+}

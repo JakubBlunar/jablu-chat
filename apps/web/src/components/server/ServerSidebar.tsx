@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { JoinInviteModal } from '@/components/server/JoinInviteModal'
@@ -29,6 +30,7 @@ function JoinIcon() {
 }
 
 export function ServerSidebar() {
+  const { t } = useTranslation('nav')
   const { servers, currentServerId, viewMode, isLoading } = useServerStore(
     useShallow((s) => ({
       servers: s.servers,
@@ -75,8 +77,8 @@ export function ServerSidebar() {
         <div className="relative">
           <button
             type="button"
-            title="Direct Messages"
-            aria-label="Direct Messages"
+            title={t('directMessages')}
+            aria-label={t('directMessages')}
             onClick={handleDmClick}
             className={`group relative flex h-12 w-12 shrink-0 items-center justify-center transition-all duration-200 ease-out ${
               viewMode === 'dm'
@@ -154,8 +156,8 @@ export function ServerSidebar() {
 
         <button
           type="button"
-          title="Join a server"
-          aria-label="Join a server"
+          title={t('joinServer')}
+          aria-label={t('joinServer')}
           onClick={() => setJoinOpen(true)}
           className="group flex h-12 w-12 shrink-0 items-center justify-center rounded-[24px] bg-surface text-success transition-all duration-200 ease-out hover:rounded-2xl hover:bg-success hover:text-white"
         >

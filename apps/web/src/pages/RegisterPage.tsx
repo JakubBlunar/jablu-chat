@@ -1,5 +1,6 @@
 import { registerSchema } from '@chat/shared'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, Input } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
@@ -7,6 +8,7 @@ import { api, ApiError } from '../lib/api'
 import { useAuthStore } from '../stores/auth.store'
 
 export function RegisterPage() {
+  const { t } = useTranslation('auth')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -42,12 +44,12 @@ export function RegisterPage() {
     setError(null)
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('passwordsMismatch'))
       return
     }
 
     if (regMode === 'invite' && !inviteCode.trim()) {
-      setError('An invite code is required to register')
+      setError(t('inviteRequired'))
       return
     }
 
@@ -71,7 +73,7 @@ export function RegisterPage() {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
-        setError('Something went wrong. Please try again.')
+        setError(t('genericError'))
       }
     } finally {
       setIsSubmitting(false)
@@ -82,14 +84,14 @@ export function RegisterPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-auth-bg">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
-        <span className="sr-only">Checking session</span>
+        <span className="sr-only">{t('checkingSession')}</span>
       </div>
     )
   }
 
   return (
     <AuthLayout>
-      <h2 className="mb-6 text-xl font-semibold text-white">Create an account</h2>
+      <h2 className="mb-6 text-xl font-semibold text-white">{t('createAccountTitle')}</h2>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {error ? (
@@ -103,50 +105,50 @@ export function RegisterPage() {
 
         <Input
           id="username"
-          label="Username"
+          label={t('username')}
           name="username"
           type="text"
           autoComplete="username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           maxLength={20}
-          placeholder="cool_nickname"
+          placeholder={t('usernamePlaceholder')}
           required
         />
 
         <Input
           id="email"
-          label="Email"
+          label={t('email')}
           name="email"
           type="email"
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder={t('emailPlaceholder')}
           required
         />
 
         <Input
           id="password"
-          label="Password"
+          label={t('password')}
           name="password"
           type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 8 characters"
+          placeholder={t('passwordMinPlaceholder')}
           required
         />
 
         <Input
           id="confirmPassword"
-          label="Confirm Password"
+          label={t('confirmPassword')}
           name="confirmPassword"
           type="password"
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          placeholder="Repeat your password"
+          placeholder={t('confirmPasswordPlaceholder')}
           required
         />
 
@@ -154,16 +156,16 @@ export function RegisterPage() {
           <div className="space-y-1.5">
             <Input
               id="inviteCode"
-              label="Invite Code"
+              label={t('inviteCode')}
               name="inviteCode"
               type="text"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
               className="font-mono tracking-widest"
-              placeholder="XXXXXXXX"
+              placeholder={t('inviteCodePlaceholder')}
               required
             />
-            <p className="text-xs text-gray-500">Enter the code you received from an administrator.</p>
+            <p className="text-xs text-gray-500">{t('inviteCodeHint')}</p>
           </div>
         )}
 
@@ -176,17 +178,17 @@ export function RegisterPage() {
           disabled={isSubmitting}
           loading={isSubmitting}
         >
-          {isSubmitting ? 'Creating account…' : 'Create Account'}
+          {isSubmitting ? t('creatingAccount') : t('createAccount')}
         </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-400">
-        Already have an account?{' '}
+        {t('alreadyHaveAccount')}{' '}
         <Link
           to="/login"
           className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
         >
-          Log in
+          {t('logInLink')}
         </Link>
       </p>
     </AuthLayout>

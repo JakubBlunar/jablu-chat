@@ -1,0 +1,19 @@
+{
+  "resultsTitle": "Search Results",
+  "closeSearch": "Close search",
+  "openSearch": "Search",
+  "scopeThisConversation": "This conversation",
+  "scopeAllDms": "All DMs",
+  "scopeEverywhere": "Everywhere",
+  "scopeServer": "Server",
+  "searchFilters": "Search filters",
+  "searchFailed": "Search failed",
+  "noResults": "No results found",
+  "typeToSearch": "Type to search",
+  "previous": "Previous",
+  "next": "Next",
+  "resultCount_one": "{{count}} result",
+  "resultCount_other": "{{count}} results",
+  "dmBadge": "DM",
+  "searchGiphyPlaceholder": "Search GIPHY"
+}

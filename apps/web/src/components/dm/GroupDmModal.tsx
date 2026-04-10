@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { Button, Input } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
@@ -18,6 +19,9 @@ export function GroupDmModal({
   onCreated: (conv: DmConversation) => void
   onExisting: (convId: string) => void
 }) {
+  const { t } = useTranslation('nav')
+  const { t: tChat } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [results, setResults] = useState<
@@ -77,7 +81,7 @@ export function GroupDmModal({
       const conv = selected.length === 1 ? await api.createDm(selected[0]) : await api.createGroupDm(selected)
       onCreated(conv)
     } catch {
-      setError('Failed to create conversation. Please try again.')
+      setError(tChat('groupDmCreateError'))
     }
     setCreating(false)
   }
@@ -89,8 +93,8 @@ export function GroupDmModal({
   return (
     <ModalOverlay onClose={onClose}>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">New Message</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-white">
+        <h2 className="text-lg font-bold text-white">{t('newMessage')}</h2>
+        <button type="button" onClick={onClose} aria-label={tCommon('close')} className="text-gray-400 hover:text-white">
           ✕
         </button>
       </div>
@@ -100,7 +104,7 @@ export function GroupDmModal({
             id="group-dm-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search users..."
+            placeholder={t('searchUsersPlaceholder')}
           />
         </div>
 

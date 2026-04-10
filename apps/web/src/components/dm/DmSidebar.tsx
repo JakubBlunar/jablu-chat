@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -15,6 +16,7 @@ import { CountBadge } from '@/components/ui'
 import { GroupDmModal } from './GroupDmModal'
 
 export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
+  const { t } = useTranslation('nav')
   const user = useAuthStore((s) => s.user)
   const {
     conversations,
@@ -122,11 +124,11 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col bg-surface-dark">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
-        <span className="text-[15px] font-semibold text-white">Direct Messages</span>
+        <span className="text-[15px] font-semibold text-white">{t('directMessages')}</span>
         <button
           type="button"
-          title="New Message"
-          aria-label="New Message"
+          title={t('newMessage')}
+          aria-label={t('newMessage')}
           onClick={() => setGroupDmOpen(true)}
           className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
@@ -145,7 +147,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
           }`}
         >
           <FriendsNavIcon />
-          Friends
+          {t('friends')}
           <CountBadge count={pendingCount} variant="danger" className="ml-auto" />
         </button>
       </div>
@@ -154,7 +156,7 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Find a conversation"
+          placeholder={t('findConversation')}
           className="w-full rounded bg-surface-darkest px-2.5 py-1.5 text-sm text-white outline-none placeholder:text-gray-500"
         />
       </div>
@@ -170,9 +172,9 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
             ))}
           </div>
         ) : conversations.length === 0 ? (
-          <p className="px-2 text-sm text-gray-400">No conversations yet. Click on a user to start a DM.</p>
+          <p className="px-2 text-sm text-gray-400">{t('noConversationsYet')}</p>
         ) : filteredConversations.length === 0 ? (
-          <p className="px-2 text-sm text-gray-400">No matching conversations</p>
+          <p className="px-2 text-sm text-gray-400">{t('noMatchingConversations')}</p>
         ) : (
           filteredConversations.map((conv) => {
             const info = getDisplayInfo(conv)
@@ -226,8 +228,8 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
                   ))}
                 <button
                   type="button"
-                  title="Close conversation"
-                  aria-label="Close conversation"
+                  title={t('closeConversation')}
+                  aria-label={t('closeConversation')}
                   onClick={(e) => {
                     e.stopPropagation()
                     void closeConversation(conv.id)

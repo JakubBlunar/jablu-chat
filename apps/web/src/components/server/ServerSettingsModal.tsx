@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -21,6 +22,8 @@ import { WelcomeTab } from './server-settings/tabs/WelcomeTab'
 import { AfkTab } from './server-settings/tabs/AfkTab'
 
 export function ServerSettingsModal({ server, onClose }: { server: Server; onClose: () => void }) {
+  const { t } = useTranslation('nav')
+  const { t: tCommon } = useTranslation('common')
   const [tab, setTab] = useState<Tab>('overview')
   const isMobile = useIsMobile()
 
@@ -47,13 +50,13 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
 
   if (isMobile) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label="Server Settings">
+      <div className="fixed inset-0 z-50 flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label={t('serverSettings')}>
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
             onClick={onClose}
             className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label="Close server settings"
+            aria-label={t('closeServerSettings')}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M15 19l-7-7 7-7" />
@@ -87,7 +90,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-[720px]" noPadding className="flex h-[80vh] overflow-hidden">
       <SimpleBar className="w-44 shrink-0 bg-surface-darkest p-3">
-        <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Server Settings</h2>
+        <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('serverSettings')}</h2>
         <nav className="flex flex-col gap-0.5">
           {SERVER_TABS.map((t) => (
             <button
@@ -107,7 +110,12 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
           <h1 className="text-lg font-semibold text-white">{currentLabel}</h1>
-          <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 transition hover:text-white">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 transition hover:text-white"
+            aria-label={tCommon('close')}
+          >
             <XIcon />
           </button>
         </div>
