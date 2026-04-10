@@ -41,7 +41,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     webPush.setVapidDetails(`mailto:admin@${serverHost}`, publicKey, privateKey)
     this.enabled = true
     this.logger.log('Web Push initialized')
-    this.startWorker()
+    void this.startWorker()
   }
 
   async onModuleDestroy() {
@@ -107,10 +107,23 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private startWorker() {
+  /**
+   * Dedicated client for BLPOP. Must not inherit `enableOfflineQueue: false` from the shared
+   * Redis client — the duplicate is not writable until TCP connects; queuing (or waiting) avoids
+   * "Stream isn't writeable and enableOfflineQueue options is false" on module init in prod.
+   */
+  private async startWorker() {
     this.running = true
-    this.workerClient = this.redis.client.duplicate()
+    this.workerClient = this.redis.client.duplicate({
+      enableOfflineQueue: true,
+      maxRetriesPerRequest: null
+    })
     this.workerClient.on('error', (err) => this.logger.warn('Push worker Redis error', err.message))
+    try {
+      await this.workerClient.ping()
+    } catch (err) {
+      this.logger.warn('Push worker Redis ping failed; poll loop will retry', err)
+    }
     void this.pollLoop()
   }
 
