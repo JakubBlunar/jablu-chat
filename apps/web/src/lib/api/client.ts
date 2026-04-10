@@ -20,6 +20,7 @@ import type {
   StatusDurationPreset,
   UpdateEventInput,
   UpdateProfileInput,
+  UpdatePushPrefsInput,
   User,
   UserStatus,
   Webhook
@@ -343,6 +344,10 @@ export class ApiClient {
 
   updateCustomStatus(customStatus: string | null): Promise<User> {
     return this.patch<User>('/api/auth/custom-status', { customStatus })
+  }
+
+  updatePushPrefs(data: UpdatePushPrefsInput): Promise<User> {
+    return this.patch<User>('/api/auth/push-preferences', data)
   }
 
   getUploadConfig(): Promise<{ maxSizeMb: number }> {

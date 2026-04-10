@@ -56,6 +56,11 @@ describe('AuthService', () => {
     manualStatusExpiresAt: null,
     customStatus: null,
     dmPrivacy: 'everyone',
+    pushSuppressAll: false,
+    pushQuietHoursEnabled: false,
+    pushQuietHoursTz: null,
+    pushQuietHoursStartMin: 1320,
+    pushQuietHoursEndMin: 480,
     lastSeenAt: null,
     createdAt: new Date('2024-01-01'),
   }
@@ -490,6 +495,97 @@ describe('AuthService', () => {
         userId: 'user-1',
         displayName: 'New Name',
       })
+    })
+  })
+
+  describe('updatePushPrefs', () => {
+    it('enables quiet hours and normalizes timezone', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        pushSuppressAll: false,
+        pushQuietHoursEnabled: false,
+        pushQuietHoursTz: null,
+        pushQuietHoursStartMin: 1320,
+        pushQuietHoursEndMin: 480
+      })
+      const updated = {
+        ...mockProfile,
+        pushQuietHoursEnabled: true,
+        pushQuietHoursTz: 'UTC',
+        pushQuietHoursStartMin: 600,
+        pushQuietHoursEndMin: 720
+      }
+      prisma.user.update.mockResolvedValue(updated)
+
+      const result = await service.updatePushPrefs('user-1', {
+        pushQuietHoursEnabled: true,
+        pushQuietHoursTz: 'UTC',
+        pushQuietHoursStartMin: 600,
+        pushQuietHoursEndMin: 720
+      })
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: expect.objectContaining({
+          pushQuietHoursEnabled: true,
+          pushQuietHoursTz: 'UTC',
+          pushQuietHoursStartMin: 600,
+          pushQuietHoursEndMin: 720
+        }),
+        select: expect.any(Object)
+      })
+      expect(result.pushQuietHoursEnabled).toBe(true)
+    })
+
+    it('defaults timezone to UTC when enabling without tz', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        pushSuppressAll: false,
+        pushQuietHoursEnabled: false,
+        pushQuietHoursTz: null,
+        pushQuietHoursStartMin: 1320,
+        pushQuietHoursEndMin: 480
+      })
+      prisma.user.update.mockResolvedValue({ ...mockProfile, pushQuietHoursEnabled: true, pushQuietHoursTz: 'UTC' })
+
+      await service.updatePushPrefs('user-1', { pushQuietHoursEnabled: true })
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ pushQuietHoursTz: 'UTC' })
+        })
+      )
+    })
+
+    it('clears timezone when quiet hours disabled', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        pushSuppressAll: false,
+        pushQuietHoursEnabled: true,
+        pushQuietHoursTz: 'Europe/Berlin',
+        pushQuietHoursStartMin: 1320,
+        pushQuietHoursEndMin: 480
+      })
+      prisma.user.update.mockResolvedValue({ ...mockProfile, pushQuietHoursEnabled: false, pushQuietHoursTz: null })
+
+      await service.updatePushPrefs('user-1', { pushQuietHoursEnabled: false })
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ pushQuietHoursEnabled: false, pushQuietHoursTz: null })
+        })
+      )
+    })
+
+    it('rejects invalid timezone', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        pushSuppressAll: false,
+        pushQuietHoursEnabled: false,
+        pushQuietHoursTz: null,
+        pushQuietHoursStartMin: 1320,
+        pushQuietHoursEndMin: 480
+      })
+
+      await expect(
+        service.updatePushPrefs('user-1', { pushQuietHoursEnabled: true, pushQuietHoursTz: 'Invalid/Zone' })
+      ).rejects.toThrow(BadRequestException)
     })
   })
 

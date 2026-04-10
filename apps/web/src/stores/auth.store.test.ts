@@ -1,3 +1,4 @@
+import type { User } from '@chat/shared'
 import { useAuthStore } from './auth.store'
 
 jest.mock('../lib/api', () => ({
@@ -13,6 +14,7 @@ jest.mock('../lib/api', () => ({
     updateStatus: jest.fn(),
     updateCustomStatus: jest.fn(),
     updateDmPrivacy: jest.fn(),
+    updatePushPrefs: jest.fn(),
     uploadAvatar: jest.fn(),
     deleteAvatar: jest.fn()
   }
@@ -48,18 +50,23 @@ jest.mock('./channel-permissions.store', () => ({ useChannelPermissionsStore: no
 
 import { api } from '../lib/api'
 
-const mockUser = {
+const mockUser: User = {
   id: 'user-1',
   username: 'testuser',
   displayName: null,
   email: 'test@example.com',
   avatarUrl: null,
   bio: null,
-  status: 'online' as const,
-  manualStatus: null as const,
-  manualStatusExpiresAt: null as const,
+  status: 'online',
+  manualStatus: null,
+  manualStatusExpiresAt: null,
   customStatus: null,
-  dmPrivacy: 'everyone' as const,
+  dmPrivacy: 'everyone',
+  pushSuppressAll: false,
+  pushQuietHoursEnabled: false,
+  pushQuietHoursTz: null,
+  pushQuietHoursStartMin: 1320,
+  pushQuietHoursEndMin: 480,
   lastSeenAt: null,
   createdAt: '2025-01-01T00:00:00Z'
 }

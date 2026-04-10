@@ -9,6 +9,7 @@ import {
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
+import { PushDeliverySettings } from '@/components/settings/sections/PushDeliverySettings'
 
 export function NotificationsSection() {
   const [settings, setSettings] = useState(getNotifSettings)
@@ -183,6 +184,8 @@ export function NotificationsSection() {
           onChange={() => toggle('soundEnabled')}
         />
       </div>
+
+      <PushDeliverySettings />
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import * as webPush from 'web-push'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
+import { filterUserIdsForWebPush } from './push-user-allow'
 
 const PUSH_QUEUE_KEY = 'push:queue'
 const MAX_RETRIES = 3
@@ -71,12 +72,18 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
 
   async sendToUser(userId: string, payload: { title: string; body: string; url?: string }) {
-    await this.enqueue([userId], payload)
+    if (!this.enabled) return
+    const allowed = await filterUserIdsForWebPush(this.prisma, [userId])
+    if (allowed.length === 0) return
+    await this.enqueue(allowed, payload)
   }
 
   async sendToUsers(userIds: string[], payload: { title: string; body: string; url?: string }) {
     if (userIds.length === 0) return
-    await this.enqueue(userIds, payload)
+    if (!this.enabled) return
+    const allowed = await filterUserIdsForWebPush(this.prisma, userIds)
+    if (allowed.length === 0) return
+    await this.enqueue(allowed, payload)
   }
 
   async sendToAll(payload: { title: string; body: string; url?: string }) {
@@ -84,11 +91,13 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const subs = await this.prisma.pushSubscription.findMany({ select: { userId: true } })
     const uniqueIds = [...new Set(subs.map((s) => s.userId))]
     if (uniqueIds.length === 0) return
-    await this.enqueue(uniqueIds, payload)
+    const allowed = await filterUserIdsForWebPush(this.prisma, uniqueIds)
+    if (allowed.length === 0) return
+    await this.enqueue(allowed, payload)
   }
 
   private async enqueue(userIds: string[], payload: { title: string; body: string; url?: string }) {
-    if (!this.enabled) return
+    if (!this.enabled || userIds.length === 0) return
     const job: PushJob = { userIds, payload, attempt: 0 }
     try {
       await this.redis.client.rpush(PUSH_QUEUE_KEY, JSON.stringify(job))

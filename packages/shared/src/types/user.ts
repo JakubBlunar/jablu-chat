@@ -17,6 +17,13 @@ export interface User {
   manualStatusExpiresAt: string | null
   customStatus: string | null
   dmPrivacy: DmPrivacy
+  /** Server-side: no web push when true. */
+  pushSuppressAll: boolean
+  pushQuietHoursEnabled: boolean
+  pushQuietHoursTz: string | null
+  /** Minutes from midnight [0, 1439] in pushQuietHoursTz. */
+  pushQuietHoursStartMin: number
+  pushQuietHoursEndMin: number
   lastSeenAt: string | null
   createdAt: string
 }
