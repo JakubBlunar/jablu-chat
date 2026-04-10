@@ -4,6 +4,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { Member } from '@/stores/member.store'
+import { processMentions, type RoleMentionRef } from '@/lib/markdownMentions'
 import { resolveMediaUrl } from '@/lib/api'
 import { escapeHtml, VIDEO_ALLOWED_ATTRS, AUDIO_ALLOWED_ATTRS } from '@/lib/markdownSecurity'
 
@@ -98,16 +99,7 @@ function buildChannelLookup(channels: ChannelRef[]) {
   return byName
 }
 
-function processMentions(text: string, byUsername: Map<string, Member>): string {
-  return text.replace(/@(\w+)/g, (full, name: string) => {
-    if (name.toLowerCase() === 'everyone') return `[@everyone](mention:everyone)`
-    if (name.toLowerCase() === 'here') return `[@here](mention:here)`
-    const member = byUsername.get(name.toLowerCase())
-    if (!member) return full
-    const display = member.user.displayName ?? member.user.username
-    return `[@${display}](mention:${member.user.username})`
-  })
-}
+export type { RoleMentionRef } from '@/lib/markdownMentions'
 
 function processSpoilers(text: string): string {
   return text.replace(/\|\|(.+?)\|\|/gs, (_, inner: string) =>
@@ -224,6 +216,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   channels,
   onChannelClick,
   membersByUsername,
+  rolesByLowerName,
   customEmojiMap
 }: {
   content: string
@@ -232,6 +225,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   channels?: ChannelRef[]
   onChannelClick?: (serverId: string, channelId: string) => void
   membersByUsername?: Map<string, Member>
+  rolesByLowerName?: Map<string, RoleMentionRef>
   customEmojiMap?: Map<string, CustomEmojiRef>
 }) {
   const byUsername = membersByUsername ?? EMPTY_MEMBERS_MAP
@@ -242,12 +236,12 @@ export const MarkdownContent = memo(function MarkdownContent({
     let text = convertEmoticons(content)
     text = processSpoilers(text)
     text = processCustomEmojis(text, emojiMap)
-    text = processMentions(text, byUsername)
+    text = processMentions(text, byUsername, rolesByLowerName)
     if (byChannelName.size > 0) {
       text = processChannelMentions(text, byChannelName)
     }
     return text
-  }, [content, byUsername, byChannelName, emojiMap])
+  }, [content, byUsername, byChannelName, emojiMap, rolesByLowerName])
 
   const components = useMemo(
     () => ({
@@ -274,7 +268,28 @@ export const MarkdownContent = memo(function MarkdownContent({
       pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
       a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
         if (href?.startsWith('mention:')) {
-          const username = href.slice('mention:'.length)
+          const rest = href.slice('mention:'.length)
+          if (rest.startsWith('role:')) {
+            const roleId = rest.slice('role:'.length)
+            const role = rolesByLowerName
+              ? [...rolesByLowerName.values()].find((r) => r.id === roleId)
+              : undefined
+            const hex = role?.color?.trim()
+            const solid = hex && /^#[0-9A-Fa-f]{6}$/i.test(hex) ? hex : null
+            return (
+              <span
+                className="rounded px-1 font-medium"
+                style={
+                  solid
+                    ? { backgroundColor: `${solid}33`, color: solid }
+                    : { backgroundColor: 'rgba(99,102,241,0.25)', color: 'rgb(199,210,254)' }
+                }
+              >
+                {children}
+              </span>
+            )
+          }
+          const username = rest
           const isBroadcast = username === 'everyone' || username === 'here'
           return (
             <span
@@ -409,7 +424,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         return <span className={className}>{children}</span>
       }
     }),
-    [onMentionClick, onChannelClick]
+    [onMentionClick, onChannelClick, rolesByLowerName]
   )
 
   return (

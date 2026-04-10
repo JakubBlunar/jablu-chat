@@ -1,4 +1,20 @@
 import { escapeHtml, VIDEO_ALLOWED_ATTRS, AUDIO_ALLOWED_ATTRS } from '@/lib/markdownSecurity'
+import { processMentions, type RoleMentionRef } from '@/lib/markdownMentions'
+import type { Member } from '@/stores/member.store'
+
+function member(
+  id: string,
+  username: string,
+  displayName: string | null = null
+): Member {
+  return {
+    userId: id,
+    serverId: 's1',
+    roleIds: [],
+    joinedAt: '',
+    user: { id, username, displayName, avatarUrl: null, bio: null }
+  }
+}
 
 describe('escapeHtml', () => {
   it('escapes ampersands', () => {
@@ -46,6 +62,31 @@ describe('video sanitize attributes', () => {
     expect([...VIDEO_ALLOWED_ATTRS]).toContain('controls')
     expect([...VIDEO_ALLOWED_ATTRS]).toContain('muted')
     expect([...VIDEO_ALLOWED_ATTRS]).toContain('playsInline')
+  })
+})
+
+describe('processMentions', () => {
+  it('links @word to user when present in map', () => {
+    const map = new Map<string, Member>([['alice', member('1', 'alice', null)]])
+    expect(processMentions('hi @alice', map)).toContain('](mention:alice)')
+  })
+
+  it('links @word to role when no user match', () => {
+    const byUser = new Map<string, Member>()
+    const roles = new Map<string, RoleMentionRef>([
+      ['mods', { id: 'r1', name: 'Mods', color: '#ff0000' }]
+    ])
+    expect(processMentions('hi @Mods', byUser, roles)).toBe('hi [@Mods](mention:role:r1)')
+  })
+
+  it('prefers quoted display name over role name', () => {
+    const map = new Map<string, Member>([['alice', member('1', 'alice', 'Team')]])
+    const roles = new Map<string, RoleMentionRef>([
+      ['team', { id: 'r1', name: 'Team', color: null }]
+    ])
+    const out = processMentions('@"Team" meetup', map, roles)
+    expect(out).toContain('](mention:alice)')
+    expect(out).not.toContain('mention:role:')
   })
 })
 
