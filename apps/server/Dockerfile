@@ -28,6 +28,8 @@ RUN pnpm --filter @chat/server db:generate
 FROM prisma-generate AS build
 COPY apps/server/src/ ./apps/server/src/
 COPY apps/server/nest-cli.json apps/server/tsconfig.json apps/server/tsconfig.build.json ./apps/server/
+# COPY can overlay partial/stale `src/generated` from the host; always regenerate before `nest build`.
+RUN pnpm --filter @chat/server db:generate
 RUN pnpm --filter @chat/server build
 
 # ─── Production bundle (only server prod deps) ──────────────────────
