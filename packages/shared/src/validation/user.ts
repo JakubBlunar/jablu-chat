@@ -24,6 +24,15 @@ export const changeEmailSchema = z.object({
 
 export const userStatusSchema = z.enum(['online', 'idle', 'dnd', 'offline'])
 
+export const updatePushPrefsSchema = z.object({
+  pushSuppressAll: z.boolean().optional(),
+  pushQuietHoursEnabled: z.boolean().optional(),
+  pushQuietHoursTz: z.string().max(80).nullable().optional(),
+  pushQuietHoursStartMin: z.number().int().min(0).max(1439).optional(),
+  pushQuietHoursEndMin: z.number().int().min(0).max(1439).optional()
+})
+
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+export type UpdatePushPrefsInput = z.infer<typeof updatePushPrefsSchema>
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>
 export type ChangeEmailInput = z.infer<typeof changeEmailSchema>

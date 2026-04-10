@@ -117,6 +117,22 @@ describe('PushService', () => {
       await service.sendToUsers([], { title: 'T', body: 'B' })
       expect(redis.client.rpush).not.toHaveBeenCalled()
     })
+
+    it('does not enqueue when push is suppressed for all recipients', async () => {
+      service.onModuleInit()
+      prisma.user.findMany.mockResolvedValue([
+        {
+          id: 'u1',
+          pushSuppressAll: true,
+          pushQuietHoursEnabled: false,
+          pushQuietHoursTz: null,
+          pushQuietHoursStartMin: 0,
+          pushQuietHoursEndMin: 0
+        }
+      ])
+      await service.sendToUsers(['u1'], { title: 'T', body: 'B' })
+      expect(redis.client.rpush).not.toHaveBeenCalled()
+    })
   })
 
   describe('onModuleInit', () => {
@@ -144,6 +160,19 @@ describe('PushService', () => {
   describe('processJob (via enqueue inline fallback)', () => {
     beforeEach(() => {
       service.onModuleInit()
+      prisma.user.findMany.mockImplementation((args: { where?: { id?: { in: string[] } } }) => {
+        const ids = args?.where?.id?.in ?? []
+        return Promise.resolve(
+          ids.map((id) => ({
+            id,
+            pushSuppressAll: false,
+            pushQuietHoursEnabled: false,
+            pushQuietHoursTz: null,
+            pushQuietHoursStartMin: 0,
+            pushQuietHoursEndMin: 0
+          }))
+        )
+      })
     })
 
     it('cleans up stale subscriptions on 410', async () => {

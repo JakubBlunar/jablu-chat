@@ -5,6 +5,7 @@ import type {
   DmPrivacy,
   StatusDurationPreset,
   UpdateProfileInput,
+  UpdatePushPrefsInput,
   User,
   UserStatus
 } from '@chat/shared'
@@ -22,7 +23,12 @@ function normalizeAuthUser(raw: User | AuthResponse['user']): AuthUser {
     manualStatus: r.manualStatus ?? null,
     manualStatusExpiresAt: r.manualStatusExpiresAt ?? null,
     status: r.status as UserStatus,
-    dmPrivacy: (r.dmPrivacy as DmPrivacy) ?? 'everyone'
+    dmPrivacy: (r.dmPrivacy as DmPrivacy) ?? 'everyone',
+    pushSuppressAll: r.pushSuppressAll ?? false,
+    pushQuietHoursEnabled: r.pushQuietHoursEnabled ?? false,
+    pushQuietHoursTz: r.pushQuietHoursTz ?? null,
+    pushQuietHoursStartMin: r.pushQuietHoursStartMin ?? 22 * 60,
+    pushQuietHoursEndMin: r.pushQuietHoursEndMin ?? 8 * 60
   }
 }
 
@@ -110,6 +116,7 @@ type AuthState = {
   updateStatus: (status: UserStatus, duration?: StatusDurationPreset) => Promise<void>
   updateCustomStatus: (customStatus: string | null) => Promise<void>
   updateDmPrivacy: (dmPrivacy: DmPrivacy) => Promise<void>
+  updatePushPrefs: (data: UpdatePushPrefsInput) => Promise<void>
   setUser: (user: AuthUser) => void
   isManualStatus: boolean
 }
@@ -236,6 +243,12 @@ export const useAuthStore = create<AuthState>()(
 
       updateDmPrivacy: async (dmPrivacy) => {
         const user = await api.updateDmPrivacy(dmPrivacy)
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
+      },
+
+      updatePushPrefs: async (data) => {
+        const user = await api.updatePushPrefs(data)
         const u = normalizeAuthUser(user)
         set({ user: u, isManualStatus: manualPresenceActive(u) })
       },

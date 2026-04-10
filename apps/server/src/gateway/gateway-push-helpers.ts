@@ -94,8 +94,8 @@ export async function getChannelNotifPrefs(
  * 3. Batch DB query: combine the serverMember + channelNotifPref lookups
  *    into a single raw SQL join to halve the DB round-trips.
  *
- * 4. User-level DND / quiet hours: check a global user preference before
- *    sending, so users can silence all push during certain time windows.
+ * 4. User-level DND / quiet hours: enforced in PushService.sendToUsers (filters
+ *    recipients by User.pushSuppressAll and push quiet-hour window + timezone).
  *
  * At current scale (<20 concurrent users) the indexed queries are
  * sub-millisecond and the simple approach is appropriate.

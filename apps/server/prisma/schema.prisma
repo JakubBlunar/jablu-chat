@@ -21,6 +21,14 @@ model User {
   /// When manual presence ends; null with manualStatus set means until user clears or picks Online.
   manualStatusExpiresAt DateTime?   @map("manual_status_expires_at")
   customStatus String?    @map("custom_status")
+  /// When true, the server never sends web push to this user.
+  pushSuppressAll       Boolean @default(false) @map("push_suppress_all")
+  pushQuietHoursEnabled Boolean @default(false) @map("push_quiet_hours_enabled")
+  /// IANA timezone for quiet hours (e.g. Europe/Prague). Null/invalid treated as no quiet window.
+  pushQuietHoursTz      String? @map("push_quiet_hours_tz")
+  /// Minutes from midnight [0, 1439] in pushQuietHoursTz.
+  pushQuietHoursStartMin Int @default(1320) @map("push_quiet_hours_start_min")
+  pushQuietHoursEndMin   Int @default(480) @map("push_quiet_hours_end_min")
   isBot        Boolean  @default(false) @map("is_bot")
   dmPrivacy    DmPrivacy  @default(everyone) @map("dm_privacy")
   lastSeenAt   DateTime?  @map("last_seen_at")

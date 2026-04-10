@@ -1,4 +1,19 @@
-import { IsEmail, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator'
+import { Type } from 'class-transformer'
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength
+} from 'class-validator'
 
 export class RegisterDto {
   @IsString()
@@ -108,4 +123,33 @@ export class UpdateCustomStatusDto {
   @IsString()
   @MaxLength(128)
   customStatus: string | null
+}
+
+export class UpdatePushPrefsDto {
+  @IsOptional()
+  @IsBoolean()
+  pushSuppressAll?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  pushQuietHoursEnabled?: boolean
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  pushQuietHoursTz?: string | null
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1439)
+  pushQuietHoursStartMin?: number
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1439)
+  pushQuietHoursEndMin?: number
 }

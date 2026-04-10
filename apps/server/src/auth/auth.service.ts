@@ -19,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { MailService } from './mail.service'
+import { assertValidIanaTimeZone } from '../push/push-user-allow'
 
 const PROFILE_SELECT = {
   id: true,
@@ -32,6 +33,11 @@ const PROFILE_SELECT = {
   manualStatusExpiresAt: true,
   customStatus: true,
   dmPrivacy: true,
+  pushSuppressAll: true,
+  pushQuietHoursEnabled: true,
+  pushQuietHoursTz: true,
+  pushQuietHoursStartMin: true,
+  pushQuietHoursEndMin: true,
   lastSeenAt: true,
   createdAt: true
 } as const
@@ -317,6 +323,60 @@ export class AuthService implements OnModuleInit {
       select: PROFILE_SELECT
     })
     this.events.emit('user:profile', { userId, ...data })
+    return user
+  }
+
+  async updatePushPrefs(
+    userId: string,
+    dto: {
+      pushSuppressAll?: boolean
+      pushQuietHoursEnabled?: boolean
+      pushQuietHoursTz?: string | null
+      pushQuietHoursStartMin?: number
+      pushQuietHoursEndMin?: number
+    }
+  ) {
+    const current = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        pushSuppressAll: true,
+        pushQuietHoursEnabled: true,
+        pushQuietHoursTz: true,
+        pushQuietHoursStartMin: true,
+        pushQuietHoursEndMin: true
+      }
+    })
+    if (!current) {
+      throw new UnauthorizedException('User not found')
+    }
+
+    const nextEnabled = dto.pushQuietHoursEnabled ?? current.pushQuietHoursEnabled
+    let nextTz =
+      dto.pushQuietHoursTz !== undefined ? dto.pushQuietHoursTz : current.pushQuietHoursTz
+
+    if (nextEnabled) {
+      const tz = (nextTz?.trim() || 'UTC').trim()
+      try {
+        assertValidIanaTimeZone(tz)
+      } catch {
+        throw new BadRequestException('Invalid timezone')
+      }
+      nextTz = tz
+    } else {
+      nextTz = null
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        pushSuppressAll: dto.pushSuppressAll ?? current.pushSuppressAll,
+        pushQuietHoursEnabled: nextEnabled,
+        pushQuietHoursTz: nextEnabled ? nextTz : null,
+        pushQuietHoursStartMin: dto.pushQuietHoursStartMin ?? current.pushQuietHoursStartMin,
+        pushQuietHoursEndMin: dto.pushQuietHoursEndMin ?? current.pushQuietHoursEndMin
+      },
+      select: PROFILE_SELECT
+    })
     return user
   }
 

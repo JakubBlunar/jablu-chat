@@ -34,6 +34,7 @@ import {
   UpdateCustomStatusDto,
   UpdateDmPrivacyDto,
   UpdateProfileDto,
+  UpdatePushPrefsDto,
   UpdateStatusDto
 } from './dto'
 
@@ -232,6 +233,12 @@ export class AuthController {
   @UseGuards(UnifiedAuthGuard)
   async updateDmPrivacy(@CurrentUser() user: { id: string }, @Body() dto: UpdateDmPrivacyDto) {
     return this.auth.updateDmPrivacy(user.id, dto.dmPrivacy)
+  }
+
+  @Patch('push-preferences')
+  @UseGuards(UnifiedAuthGuard)
+  async updatePushPrefs(@CurrentUser() user: { id: string }, @Body() dto: UpdatePushPrefsDto) {
+    return this.auth.updatePushPrefs(user.id, dto)
   }
 
   @Get('users/search')
