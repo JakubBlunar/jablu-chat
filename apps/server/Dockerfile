@@ -34,7 +34,8 @@ RUN pnpm --filter @chat/server build
 
 # ─── Production bundle (only server prod deps) ──────────────────────
 FROM build AS prod-bundle
-RUN pnpm --filter @chat/server deploy --prod --no-optional /prod && \
+# Do not use deploy --no-optional: sharp needs @img/sharp-linuxmusl-x64 (+ libvips) on Alpine.
+RUN pnpm --filter @chat/server deploy --prod /prod && \
     # Remove bulky dev/unused artifacts
     rm -rf /prod/node_modules/.pnpm/prisma@* \
            /prod/node_modules/.pnpm/typescript@* \
