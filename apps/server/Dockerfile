@@ -1,5 +1,5 @@
 # ─── Dependencies ────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:24.14.1-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 
@@ -63,7 +63,7 @@ RUN pnpm --filter @chat/server deploy --prod --no-optional /prod && \
     find /prod/node_modules -path '*/ffprobe-static/bin/linux/ia32' -type d -exec rm -rf {} +
 
 # ─── Migration runner (target: migrate) ─────────────────────────────
-FROM node:22-alpine AS migrate
+FROM node:24.14.1-alpine AS migrate
 RUN npm install -g prisma@7.7 && npm cache clean --force
 WORKDIR /app
 COPY --from=prisma-generate /app/apps/server/prisma ./prisma
@@ -71,7 +71,7 @@ COPY --from=prisma-generate /app/apps/server/prisma.config.ts ./prisma.config.ts
 CMD ["prisma", "migrate", "deploy"]
 
 # ─── Production image ───────────────────────────────────────────────
-FROM node:22-alpine AS production
+FROM node:24.14.1-alpine AS production
 RUN apk add --no-cache su-exec && \
     addgroup -S app && adduser -S app -G app && \
     mkdir -p /data/uploads /data/updates /data/downloads

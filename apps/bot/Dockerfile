@@ -1,5 +1,5 @@
 # ─── Dependencies ────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:24.14.1-alpine AS deps
 RUN apk add --no-cache python3 make g++
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
@@ -35,7 +35,7 @@ FROM build AS prod-bundle
 RUN pnpm --filter @chat/bot deploy --prod /prod
 
 # ─── Production image ───────────────────────────────────────────────
-FROM node:22-alpine
+FROM node:24.14.1-alpine
 WORKDIR /app
 COPY --from=prod-bundle /prod/node_modules ./node_modules
 COPY --from=prod-bundle /prod/package.json ./

@@ -1,5 +1,5 @@
 # ─── Dependencies ────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:24.14.1-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 
