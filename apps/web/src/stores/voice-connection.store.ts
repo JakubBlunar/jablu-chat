@@ -19,6 +19,12 @@ function emitVoiceState(state: { muted?: boolean; deafened?: boolean; camera?: b
   getSocket()?.emit('voice:state', state)
 }
 
+export type VoiceNetworkDropout = {
+  serverId: string
+  channelId: string
+  channelName: string
+}
+
 export type VoiceConnectionState = {
   currentServerId: string | null
   currentChannelId: string | null
@@ -38,10 +44,14 @@ export type VoiceConnectionState = {
   _originalCameraTrack: MediaStreamTrack | null
   volumeOverrides: Record<string, number>
   audioOutputDeviceId: string
+  voiceNetworkDropout: VoiceNetworkDropout | null
 
   setConnecting: (serverId: string, channelId: string, channelName: string) => void
-  setConnected: (room: Room) => void
+  setConnected: (room: Room, options?: { skipMicModeBootstrap?: boolean }) => void
   disconnect: () => void
+  disconnectAfterUnexpectedClose: (info: VoiceNetworkDropout) => void
+  clearVoiceNetworkDropout: () => void
+  applyInitialVoiceState: (opts: { joinMuted: boolean; joinDeafened: boolean }) => void
   toggleMute: () => void
   toggleDeafen: () => void
   startCamera: (quality: CameraQuality, blur: boolean) => void
@@ -139,6 +149,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   _originalCameraTrack: null,
   volumeOverrides: {},
   audioOutputDeviceId: '',
+  voiceNetworkDropout: null,
 
   setConnecting: (serverId, channelId, channelName) =>
     set({
@@ -146,13 +157,14 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       currentChannelId: channelId,
       currentChannelName: channelName,
       isConnecting: true,
-      viewingVoiceRoom: true
+      viewingVoiceRoom: true,
+      voiceNetworkDropout: null
     }),
 
-  setConnected: (room) => {
+  setConnected: (room, options) => {
     set({ room, isConnecting: false, connectedAt: Date.now() })
     const mode = get().micMode
-    if (mode !== 'always') {
+    if (mode !== 'always' && !options?.skipMicModeBootstrap) {
       let attempts = 0
       const poll = setInterval(() => {
         const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
@@ -195,8 +207,72 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       isBlurEnabled: false,
       _blurHandle: null,
       _originalCameraTrack: null,
-      volumeOverrides: {}
+      volumeOverrides: {},
+      voiceNetworkDropout: null
     })
+  },
+
+  disconnectAfterUnexpectedClose: (info) => {
+    const { room, _blurHandle, _originalCameraTrack } = get()
+    if (_saveTimer) clearTimeout(_saveTimer)
+    stopMicMode()
+    _blurHandle?.stop()
+    _originalCameraTrack?.stop()
+    if (room) {
+      void stopRnnoiseMicrophone(room)
+      room.removeAllListeners()
+      room.localParticipant.getTrackPublications().forEach((pub) => {
+        pub.track?.mediaStreamTrack?.stop()
+      })
+      room.disconnect().catch(() => {})
+    }
+    set({
+      currentServerId: null,
+      currentChannelId: null,
+      currentChannelName: null,
+      room: null,
+      isMuted: false,
+      isDeafened: false,
+      isCameraOn: false,
+      isScreenSharing: false,
+      isConnecting: false,
+      isReconnecting: false,
+      connectedAt: null,
+      viewingVoiceRoom: true,
+      isBlurEnabled: false,
+      _blurHandle: null,
+      _originalCameraTrack: null,
+      volumeOverrides: {},
+      voiceNetworkDropout: info
+    })
+  },
+
+  clearVoiceNetworkDropout: () => set({ voiceNetworkDropout: null }),
+
+  applyInitialVoiceState: ({ joinMuted, joinDeafened }) => {
+    const { room } = get()
+    if (!room || (!joinMuted && !joinDeafened)) return
+
+    if (joinMuted) {
+      stopMicMode(true)
+      void setLocalMicTransmissionEnabled(room, false)
+      set({ isMuted: true })
+      emitVoiceState({ muted: true })
+    }
+
+    if (joinDeafened) {
+      set({ isDeafened: true })
+      emitVoiceState({ deafened: true })
+      if (!joinMuted) {
+        _wasMutedBeforeDeafen = false
+        stopMicMode(true)
+        void setLocalMicTransmissionEnabled(room, false)
+        set({ isMuted: true })
+        emitVoiceState({ muted: true })
+      } else {
+        _wasMutedBeforeDeafen = true
+      }
+    }
   },
 
   toggleMute: () => {

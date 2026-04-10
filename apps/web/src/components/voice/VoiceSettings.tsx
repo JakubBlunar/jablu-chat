@@ -40,6 +40,7 @@ import {
 } from '@/lib/micMode'
 import { Button } from '@/components/ui'
 import { Toggle } from '@/components/ui/Toggle'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 type DeviceInfo = {
@@ -176,6 +177,11 @@ export function VoiceSettings() {
   const pttCleanupRef = useRef<(() => void) | null>(null)
   const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode)
 
+  const voiceJoinMuted = useSettingsStore((s) => s.voiceJoinMuted)
+  const voiceJoinDeafened = useSettingsStore((s) => s.voiceJoinDeafened)
+  const setVoiceJoinMuted = useSettingsStore((s) => s.setVoiceJoinMuted)
+  const setVoiceJoinDeafened = useSettingsStore((s) => s.setVoiceJoinDeafened)
+
   const noiseCaps = useMemo(() => getNoiseReductionCapabilities(), [])
   const [noiseMode, setNoiseMode] = useState<NoiseReductionMode>(getNoiseReductionMode)
   const [capNoiseSuppression, setCapNoiseSuppression] = useState(getCaptureNoiseSuppression)
@@ -293,6 +299,26 @@ export function VoiceSettings() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">When joining voice</h3>
+        <div className="space-y-2 rounded-md bg-surface-darkest/80 p-3">
+          <label className="flex cursor-pointer items-center gap-3">
+            <Toggle checked={voiceJoinMuted} onChange={(v) => setVoiceJoinMuted(v)} />
+            <div>
+              <span className="block text-sm text-gray-200">Join muted</span>
+              <span className="block text-[11px] text-gray-500">Microphone stays off until you unmute.</span>
+            </div>
+          </label>
+          <label className="flex cursor-pointer items-center gap-3">
+            <Toggle checked={voiceJoinDeafened} onChange={(v) => setVoiceJoinDeafened(v)} />
+            <div>
+              <span className="block text-sm text-gray-200">Join deafened</span>
+              <span className="block text-[11px] text-gray-500">Mutes your mic and silences others until you undeafen.</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Microphone Mode</h3>
         <div className="flex gap-2">

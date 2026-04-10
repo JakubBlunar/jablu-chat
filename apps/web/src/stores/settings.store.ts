@@ -58,6 +58,9 @@ export type SettingsSlice = {
   notifSoundEnabled: boolean
   screenShareResolution: ScreenShareResolution
   screenShareFps: ScreenShareFps
+  screenShareHighQualityAudio: boolean
+  voiceJoinMuted: boolean
+  voiceJoinDeafened: boolean
   serverUrl: string | null
   pwaInstallDismissedAt: number | null
 }
@@ -87,6 +90,9 @@ type SettingsActions = {
   patchNotifSettings: (p: Partial<{ enabled: boolean; soundEnabled: boolean }>) => void
   setScreenShareResolution: (r: ScreenShareResolution) => void
   setScreenShareFps: (f: ScreenShareFps) => void
+  setScreenShareHighQualityAudio: (v: boolean) => void
+  setVoiceJoinMuted: (v: boolean) => void
+  setVoiceJoinDeafened: (v: boolean) => void
   setServerUrl: (url: string | null) => void
   clearServerUrl: () => void
   setPwaInstallDismissedAt: (ts: number | null) => void
@@ -116,6 +122,9 @@ const defaults: SettingsSlice = {
   notifSoundEnabled: true,
   screenShareResolution: '1080p',
   screenShareFps: 15,
+  screenShareHighQualityAudio: false,
+  voiceJoinMuted: false,
+  voiceJoinDeafened: false,
   serverUrl: null,
   pwaInstallDismissedAt: null
 }
@@ -158,6 +167,9 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
     out.screenShareResolution = o.screenShareResolution as ScreenShareResolution
   if (typeof o.screenShareFps === 'number' && VALID_SS_FPS.includes(o.screenShareFps as ScreenShareFps))
     out.screenShareFps = o.screenShareFps as ScreenShareFps
+  if (typeof o.screenShareHighQualityAudio === 'boolean') out.screenShareHighQualityAudio = o.screenShareHighQualityAudio
+  if (typeof o.voiceJoinMuted === 'boolean') out.voiceJoinMuted = o.voiceJoinMuted
+  if (typeof o.voiceJoinDeafened === 'boolean') out.voiceJoinDeafened = o.voiceJoinDeafened
   if (o.serverUrl === null || typeof o.serverUrl === 'string') out.serverUrl = o.serverUrl
   if (o.pwaInstallDismissedAt === null || typeof o.pwaInstallDismissedAt === 'number')
     out.pwaInstallDismissedAt = o.pwaInstallDismissedAt
@@ -227,6 +239,10 @@ export const useSettingsStore = create<SettingsState>()(
       setScreenShareFps: (f) =>
         set({ screenShareFps: VALID_SS_FPS.includes(f) ? f : defaults.screenShareFps }),
 
+      setScreenShareHighQualityAudio: (v) => set({ screenShareHighQualityAudio: v }),
+      setVoiceJoinMuted: (v) => set({ voiceJoinMuted: v }),
+      setVoiceJoinDeafened: (v) => set({ voiceJoinDeafened: v }),
+
       setServerUrl: (url) => {
         set({ serverUrl: url })
         if (url) void electronAPI?.setServerUrl(url).catch(() => {})
@@ -269,6 +285,9 @@ export const useSettingsStore = create<SettingsState>()(
         notifSoundEnabled: s.notifSoundEnabled,
         screenShareResolution: s.screenShareResolution,
         screenShareFps: s.screenShareFps,
+        screenShareHighQualityAudio: s.screenShareHighQualityAudio,
+        voiceJoinMuted: s.voiceJoinMuted,
+        voiceJoinDeafened: s.voiceJoinDeafened,
         serverUrl: s.serverUrl,
         pwaInstallDismissedAt: s.pwaInstallDismissedAt
       })

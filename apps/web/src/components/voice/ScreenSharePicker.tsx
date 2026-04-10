@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { Toggle } from '@/components/ui/Toggle'
+import { isElectron } from '@/lib/electron'
 import { type ScreenShareOptions, publishScreenShare } from './screenShareUtils'
 import { useSettingsStore } from '@/stores/settings.store'
 
@@ -22,15 +24,21 @@ export function ScreenSharePicker() {
     useSettingsStore.getState().screenShareResolution
   )
   const [fps, setFps] = useState<ScreenShareOptions['fps']>(() => useSettingsStore.getState().screenShareFps)
+  const [highQualityAudio, setHighQualityAudio] = useState(() => useSettingsStore.getState().screenShareHighQualityAudio)
+  const [includeAudio, setIncludeAudio] = useState(false)
 
   useEffect(() => {
-    function handleEvent(e: Event) {
-      const detail = (e as CustomEvent<{ sources: ScreenSource[] }>).detail
+    function handleEvent(
+      e: Event
+    ) {
+      const detail = (e as CustomEvent<{ sources: ScreenSource[]; audio?: boolean; highQualityAudio?: boolean }>).detail
       setSources(detail.sources)
       setSelectedSource(null)
       const s = useSettingsStore.getState()
       setResolution(s.screenShareResolution)
       setFps(s.screenShareFps)
+      setIncludeAudio(Boolean(detail.audio))
+      setHighQualityAudio(detail.highQualityAudio ?? s.screenShareHighQualityAudio)
       setOpen(true)
     }
     window.addEventListener('voice:pick-screen', handleEvent)
@@ -39,14 +47,30 @@ export function ScreenSharePicker() {
 
   const setScreenShareResolution = useSettingsStore((st) => st.setScreenShareResolution)
   const setScreenShareFps = useSettingsStore((st) => st.setScreenShareFps)
+  const setScreenShareHighQualityAudio = useSettingsStore((st) => st.setScreenShareHighQualityAudio)
 
   const handleStart = useCallback(() => {
     if (!selectedSource) return
     setScreenShareResolution(resolution)
     setScreenShareFps(fps)
+    if (includeAudio) setScreenShareHighQualityAudio(highQualityAudio)
     setOpen(false)
-    void publishScreenShare(selectedSource, { resolution, fps })
-  }, [selectedSource, resolution, fps, setScreenShareResolution, setScreenShareFps])
+    void publishScreenShare(selectedSource, {
+      resolution,
+      fps,
+      audio: includeAudio,
+      highQualityAudio: includeAudio && highQualityAudio
+    })
+  }, [
+    selectedSource,
+    resolution,
+    fps,
+    includeAudio,
+    highQualityAudio,
+    setScreenShareResolution,
+    setScreenShareFps,
+    setScreenShareHighQualityAudio
+  ])
 
   if (!open || sources.length === 0) return null
 
@@ -94,7 +118,30 @@ export function ScreenSharePicker() {
         </SimpleBar>
 
         {/* Quality options + Start button */}
-        <div className="flex items-center gap-6 border-t border-white/5 px-6 py-4">
+        <div className="flex flex-col gap-3 border-t border-white/5 px-6 py-4">
+          {includeAudio && (!isElectron || /win|linux/i.test(navigator.userAgent)) && (
+            <div
+              onClick={() => {
+                const next = !highQualityAudio
+                setHighQualityAudio(next)
+                setScreenShareHighQualityAudio(next)
+              }}
+              className="flex w-full max-w-md cursor-pointer items-center gap-3 rounded-md bg-surface-darkest px-3 py-2 transition hover:bg-white/5"
+            >
+              <Toggle
+                checked={highQualityAudio}
+                onChange={(v) => {
+                  setHighQualityAudio(v)
+                  setScreenShareHighQualityAudio(v)
+                }}
+              />
+              <div className="text-left">
+                <span className="block text-xs font-medium text-gray-200">Better audio for shared content</span>
+                <span className="block text-[10px] text-gray-500">Stereo / higher bitrate — more bandwidth and CPU.</span>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-gray-400">Resolution</span>
             <div className="flex gap-1">
@@ -146,6 +193,7 @@ export function ScreenSharePicker() {
             >
               Start Sharing
             </button>
+          </div>
           </div>
         </div>
     </ModalOverlay>
