@@ -1,5 +1,7 @@
 node_modules
 dist
+# Never ship host Prisma output into the image; Dockerfile runs `db:generate` after COPY.
+apps/server/src/generated
 .turbo
 *.tsbuildinfo
 .git
