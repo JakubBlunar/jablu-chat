@@ -12,6 +12,7 @@ import { WsJwtGuard } from './ws-jwt.guard'
 import { EventBusService } from '../events/event-bus.service'
 import { ReadStateService } from '../read-state/read-state.service'
 import { PushService } from '../push/push.service'
+import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 import { createMockRedisService, MockRedisService } from '../__mocks__/redis.mock'
 
@@ -38,6 +39,12 @@ function makeDeps(prisma: MockPrismaService, redis: MockRedisService) {
     prisma,
     redis,
     events_obj: events,
+    inApp: {
+      recordMentions: jest.fn().mockResolvedValue(undefined),
+      recordThreadActivity: jest.fn().mockResolvedValue(undefined),
+      recordDmMessages: jest.fn().mockResolvedValue(undefined),
+      resolveThreadParticipantUserIds: jest.fn().mockResolvedValue([]),
+    } as unknown as InAppNotificationsService,
   }
 }
 
@@ -67,6 +74,7 @@ describe('ChatGateway', () => {
         { provide: EventBusService, useValue: deps.events_obj },
         { provide: ReadStateService, useValue: deps.readState },
         { provide: PushService, useValue: deps.push },
+        { provide: InAppNotificationsService, useValue: deps.inApp },
       ],
     })
       .overrideGuard(WsJwtGuard)

@@ -36,6 +36,7 @@ import { useReadReceipts } from '@/components/chat/hooks/useReadReceipts'
 import { useDmContext, dmMentionChannels } from '@/components/dm/hooks/useDmContext'
 
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
+import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
 import { SearchBar } from '@/components/SearchBar'
 const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then((m) => ({ default: m.SearchDrawer })))
 const EditChannelModal = lazy(() =>
@@ -426,6 +427,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
             </div>
           )}
+          {isMobile && <InAppNotificationBell className="shrink-0" />}
           {!isMobile && (
             <>
               <IconButton
@@ -449,6 +451,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               >
                 <BookmarkIcon className="h-5 w-5" />
               </IconButton>
+              <InAppNotificationBell className="shrink-0" />
               <NotifBellMenu channelId={activeChannel.id} serverId={activeChannel.serverId} />
               {isAdminOrOwner && (
                 <IconButton
@@ -516,6 +519,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             ) : (
               <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
             )}
+            {isMobile && <InAppNotificationBell className="shrink-0" />}
             {!isMobile && (
               <>
                 {dm.otherMember && !dm.currentConv?.isGroup && (
@@ -544,6 +548,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 >
                   <BookmarkIcon className="h-5 w-5" />
                 </IconButton>
+                <InAppNotificationBell className="shrink-0" />
                 <div className="shrink-0">
                   <SearchBar
                     searchOpen={searchOpen}

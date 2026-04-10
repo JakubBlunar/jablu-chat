@@ -26,6 +26,7 @@ jest.mock('@/components/dm/FriendsPage', () => ({ FriendsPage: () => <div data-t
 jest.mock('@/components/dm/DmInfoSheet', () => ({ DmInfoSheet: () => null }))
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }))
 jest.mock('@/components/channel/NotifBellMenu', () => ({ NotifBellMenu: () => null }))
+jest.mock('@/components/notifications/InAppNotificationBell', () => ({ InAppNotificationBell: () => null }))
 jest.mock('@/components/channel/EditChannelModal', () => ({ EditChannelModal: () => null }))
 jest.mock('@/components/SearchBar', () => ({ SearchBar: () => null }))
 jest.mock('@/components/search/SearchDrawer', () => ({ SearchDrawer: () => null }))

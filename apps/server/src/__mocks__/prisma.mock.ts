@@ -79,6 +79,7 @@ export type MockPrismaService = {
   forumPostTag: MockModel
   botApplication: MockModel
   botCommand: MockModel
+  inAppNotification: MockModel
   $transaction: jest.Mock
   $executeRaw: jest.Mock
   $queryRaw: jest.Mock
@@ -126,6 +127,7 @@ export function createMockPrismaService(): MockPrismaService {
     forumPostTag: createMockModel(),
     botApplication: createMockModel(),
     botCommand: createMockModel(),
+    inAppNotification: createMockModel(),
     $transaction: jest.fn((fn: (prisma: any) => Promise<any>) => fn(createMockPrismaService())),
     $executeRaw: jest.fn().mockResolvedValue(0),
     $queryRaw: jest.fn().mockResolvedValue([]),

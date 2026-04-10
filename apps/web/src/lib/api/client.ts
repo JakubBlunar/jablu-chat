@@ -38,7 +38,8 @@ import type {
   GifSearchResult,
   OnboardingConfig,
   SearchResult,
-  ServerInsights
+  ServerInsights,
+  InAppNotificationDto
 } from './types'
 
 export class ApiClient {
@@ -1000,5 +1001,28 @@ export class ApiClient {
 
   getBotUserCommands(botUserId: string): Promise<BotCommandWithBot[]> {
     return this.get(`/api/bots/user/${botUserId}/commands`)
+  }
+
+  getInAppNotifications(params?: { limit?: number; cursor?: string }): Promise<{
+    items: InAppNotificationDto[]
+    nextCursor?: string
+  }> {
+    const qs = new URLSearchParams()
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.cursor) qs.set('cursor', params.cursor)
+    const s = qs.toString()
+    return this.get(`/api/notifications${s ? `?${s}` : ''}`)
+  }
+
+  getInAppNotificationUnreadCount(): Promise<{ count: number }> {
+    return this.get('/api/notifications/unread-count')
+  }
+
+  markInAppNotificationRead(id: string): Promise<InAppNotificationDto> {
+    return this.patch(`/api/notifications/${id}/read`, {})
+  }
+
+  markAllInAppNotificationsRead(): Promise<{ updated: number }> {
+    return this.post('/api/notifications/read-all', {})
   }
 }
