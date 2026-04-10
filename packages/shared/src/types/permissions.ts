@@ -70,7 +70,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   MANAGE_ROLES:     'Manage Roles',
   MANAGE_SERVER:    'Manage Server',
   SEND_MESSAGES:    'Send Messages',
-  MENTION_EVERYONE: 'Mention @everyone',
+  MENTION_EVERYONE: 'Mention @everyone, @here, and roles',
   MANAGE_EMOJIS:    'Manage Emojis',
   MANAGE_EVENTS:    'Manage Events',
   MANAGE_WEBHOOKS:  'Manage Webhooks',

@@ -166,8 +166,9 @@ export class ReadStateService {
    * that are members of the given server.
    *
    * Supports: @username, @DisplayName (single word), @"Display Name" (quoted, multi-word),
-   * @everyone (all members), @here (online members only).
-   * @everyone and @here are restricted to admin/owner roles.
+   * @everyone (all members), @here (online members only),
+   * @RoleName / @"Role Name" (all members with that role; excludes the default @everyone role).
+   * @everyone, @here, and @role are restricted to users with Mention Everyone or Administrator.
    */
   async resolveMentions(
     content: string,
@@ -180,7 +181,7 @@ export class ReadStateService {
     const quotedPattern = /@"([^"]+)"/g
     let match: RegExpExecArray | null
     while ((match = quotedPattern.exec(content)) !== null) {
-      mentions.add(match[1].toLowerCase())
+      mentions.add(match[1].trim().toLowerCase())
     }
 
     const wordPattern = /@(\w+)/g
@@ -201,7 +202,11 @@ export class ReadStateService {
       where: { serverId },
       include: {
         user: { select: { id: true, username: true, displayName: true } },
-        roles: { include: { role: { select: { permissions: true } } } }
+        roles: {
+          include: {
+            role: { select: { id: true, name: true, permissions: true, isDefault: true } }
+          }
+        }
       }
     })
 
@@ -216,6 +221,7 @@ export class ReadStateService {
 
     const onlineSet = onlineUserIds ? new Set(onlineUserIds) : null
     const userIdSet = new Set<string>()
+    const consumedTokens = new Set<string>()
 
     for (const m of members) {
       if (m.userId === excludeUserId) continue
@@ -230,11 +236,30 @@ export class ReadStateService {
         continue
       }
 
-      if (
-        mentions.has(m.user.username.toLowerCase()) ||
-        (m.user.displayName && mentions.has(m.user.displayName.toLowerCase()))
-      ) {
+      const un = m.user.username.toLowerCase()
+      const dn = m.user.displayName?.trim().toLowerCase()
+      if (mentions.has(un)) {
         userIdSet.add(m.userId)
+        consumedTokens.add(un)
+      }
+      if (dn && mentions.has(dn)) {
+        userIdSet.add(m.userId)
+        consumedTokens.add(dn)
+      }
+    }
+
+    if (senderIsPrivileged && !resolvedEveryone && !resolvedHere) {
+      for (const token of mentions) {
+        if (consumedTokens.has(token)) continue
+        for (const m of members) {
+          if (m.userId === excludeUserId) continue
+          const inRole = m.roles.some(
+            (mr) => !mr.role.isDefault && mr.role.name.toLowerCase() === token
+          )
+          if (inRole) {
+            userIdSet.add(m.userId)
+          }
+        }
       }
     }
 

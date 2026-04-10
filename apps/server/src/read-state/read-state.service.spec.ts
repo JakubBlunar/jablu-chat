@@ -105,18 +105,28 @@ describe('ReadStateService', () => {
       {
         userId: 'u-alice',
         user: { id: 'u-alice', username: 'alice', displayName: 'Alice Smith' },
-        roles: [{ role: { permissions: 0n } }],
+        roles: [
+          { role: { id: 'r-mem', permissions: 0n, name: 'Member', isDefault: true } }
+        ]
       },
       {
         userId: 'u-bob',
         user: { id: 'u-bob', username: 'bob', displayName: null },
-        roles: [{ role: { permissions: 0n } }],
+        roles: [
+          { role: { id: 'r-mem', permissions: 0n, name: 'Member', isDefault: true } },
+          { role: { id: 'r-mod', permissions: 0n, name: 'Moderators', isDefault: false } }
+        ]
       },
       {
         userId: 'u-admin',
         user: { id: 'u-admin', username: 'admin', displayName: null },
-        roles: [{ role: { permissions: (1n << 11n) } }], // ADMINISTRATOR
+        roles: [{ role: { id: 'r-adm', permissions: 1n << 11n, name: 'Admin', isDefault: false } }] // ADMINISTRATOR
       },
+      {
+        userId: 'u-plain',
+        user: { id: 'u-plain', username: 'plain', displayName: null },
+        roles: [{ role: { id: 'r-mem2', permissions: 0n, name: 'Member', isDefault: true } }]
+      }
     ]
 
     beforeEach(() => {
@@ -155,6 +165,7 @@ describe('ReadStateService', () => {
       expect(result.everyone).toBe(true)
       expect(result.userIds).toContain('u-alice')
       expect(result.userIds).toContain('u-bob')
+      expect(result.userIds).toContain('u-plain')
       expect(result.userIds).not.toContain('u-admin')
     })
 
@@ -179,6 +190,29 @@ describe('ReadStateService', () => {
       const result = await service.resolveMentions('hey @here', serverId, 'u-bob', ['u-alice'])
       expect(result.here).toBe(false)
       expect(result.userIds).toEqual([])
+    })
+
+    it('@role resolves members with that role for privileged senders', async () => {
+      const result = await service.resolveMentions('ping @Moderators', serverId, 'u-admin')
+      expect(result.everyone).toBe(false)
+      expect(result.userIds).toContain('u-bob')
+      expect(result.userIds).not.toContain('u-admin')
+      expect(result.userIds).not.toContain('u-alice')
+    })
+
+    it('@role does not resolve for members without mention-everyone permission', async () => {
+      const result = await service.resolveMentions('ping @Moderators', serverId, 'u-plain')
+      expect(result.userIds).toEqual([])
+    })
+
+    it('quoted @"Role Name" resolves as role when no display name match', async () => {
+      const result = await service.resolveMentions('hi @"Moderators"', serverId, 'u-admin')
+      expect(result.userIds).toContain('u-bob')
+    })
+
+    it('user display name wins over same-shaped role in quoted mentions', async () => {
+      const result = await service.resolveMentions('hey @"Alice Smith"', serverId, 'u-bob')
+      expect(result.userIds).toEqual(['u-alice'])
     })
   })
 })

@@ -91,6 +91,10 @@ export function UnifiedInput({
 
   const allBotCommands = useBotCommands(serverId, isDm ? null : contextId, dmBotUserId)
   const { has: hasPerm } = usePermissions(serverId)
+  const canPingBroadcast =
+    !isDm &&
+    !!serverId &&
+    (hasPerm(Permission.MENTION_EVERYONE) || hasPerm(Permission.ADMINISTRATOR))
   const botCommands = useMemo(() =>
     allBotCommands.filter((cmd) => {
       if (!cmd.requiredPermission) return true
@@ -131,7 +135,7 @@ export function UnifiedInput({
             avatarUrl: m.avatarUrl
           }))
       }
-      return useMemberStore.getState().members
+      const userRows = useMemberStore.getState().members
         .filter((m) => m.userId !== userId)
         .map((m) => ({
           userId: m.userId,
@@ -139,6 +143,25 @@ export function UnifiedInput({
           displayName: m.user.displayName,
           avatarUrl: m.user.avatarUrl
         }))
+      if (!canPingBroadcast) {
+        return userRows
+      }
+      const seenRole = new Set<string>()
+      const roleRows: MentionMember[] = []
+      for (const m of useMemberStore.getState().members) {
+        for (const r of m.roles ?? []) {
+          if (r.isDefault || seenRole.has(r.id)) continue
+          seenRole.add(r.id)
+          roleRows.push({
+            userId: `__role__:${r.id}`,
+            username: r.name,
+            displayName: null,
+            avatarUrl: null
+          })
+        }
+      }
+      roleRows.sort((a, b) => a.username.localeCompare(b.username))
+      return [...userRows, ...roleRows]
     }
     const buildChannels = () => {
       if (isDm) return channels ?? []
@@ -154,7 +177,7 @@ export function UnifiedInput({
       ...(isDm ? [useDmStore.subscribe(() => { mentionMembersRef.current = buildMembers() })] : [])
     ]
     return () => unsubs.forEach((fn) => fn())
-  }, [isDm, userId, channels, contextId])
+  }, [isDm, userId, channels, contextId, canPingBroadcast])
   const mentionMembers = mentionMembersRef.current
   const mentionChannels = mentionChannelsRef.current
 

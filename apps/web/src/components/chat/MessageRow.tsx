@@ -3,6 +3,7 @@ import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
+import type { RoleMentionRef } from '@/lib/markdownMentions'
 import { MessageActions } from '@/components/chat/MessageActions'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
@@ -67,11 +68,24 @@ export const MessageRow = memo(function MessageRow({
     ? message.webhook!.name
     : (message.author?.displayName ?? message.author?.username ?? 'Deleted User')
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
-  const authorRoleColor = useMemberStore((s) => {
-    const member = s.members.find((m) => m.userId === message.authorId)
+  const storeMembers = useMemberStore((s) => s.members)
+  const authorRoleColor = useMemo(() => {
+    const member = storeMembers.find((m) => m.userId === message.authorId)
     if (!member) return null
     return getRoleColor(member)
-  })
+  }, [storeMembers, message.authorId])
+
+  const rolesByLowerName = useMemo(() => {
+    if (isDm) return undefined
+    const map = new Map<string, RoleMentionRef>()
+    for (const m of storeMembers) {
+      for (const r of m.roles ?? []) {
+        if (r.isDefault) continue
+        map.set(r.name.toLowerCase(), { id: r.id, name: r.name, color: r.color })
+      }
+    }
+    return map
+  }, [isDm, storeMembers])
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
   const linkPreviews = message.linkPreviews ?? []
@@ -439,6 +453,7 @@ export const MessageRow = memo(function MessageRow({
               channels={channels}
               onChannelClick={onChannelClick}
               membersByUsername={membersByUsername}
+              rolesByLowerName={rolesByLowerName}
               customEmojiMap={customEmojiMap}
             />
             {!showHead && message.editedAt ? <span className="ml-1.5 text-xs text-gray-500">(edited)</span> : null}

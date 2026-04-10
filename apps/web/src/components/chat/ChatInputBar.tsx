@@ -176,10 +176,15 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     if ('here'.startsWith(q)) {
       broadcastEntries.push({ userId: '__here__', username: 'here', displayName: 'here', avatarUrl: null })
     }
-    const memberResults = members
+    const roleEntries = members.filter((m) => m.userId.startsWith('__role__:'))
+    const userEntries = members.filter((m) => !m.userId.startsWith('__role__:'))
+    const roleResults = roleEntries
+      .filter((m) => m.username.toLowerCase().includes(q))
+      .slice(0, 6)
+    const userResults = userEntries
       .filter((m) => m.username.toLowerCase().includes(q) || (m.displayName && m.displayName.toLowerCase().includes(q)))
-      .slice(0, 10 - broadcastEntries.length)
-    return [...broadcastEntries, ...memberResults]
+      .slice(0, Math.max(0, 10 - broadcastEntries.length - roleResults.length))
+    return [...broadcastEntries, ...roleResults, ...userResults]
   }, [popupMode, query, members])
 
   const filteredChannels = useMemo(() => {
@@ -298,7 +303,22 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       if (!el) return
       const before = value.slice(0, triggerStart)
       const after = value.slice(el.selectionStart)
-      const insert = `@${member.username} `
+      let insert: string
+      if (member.userId === '__everyone__') {
+        insert = '@everyone '
+      } else if (member.userId === '__here__') {
+        insert = '@here '
+      } else if (member.userId.startsWith('__role__:')) {
+        const rawName = member.username
+        if (/^\w+$/.test(rawName)) {
+          insert = `@${rawName} `
+        } else {
+          const safe = rawName.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+          insert = `@"${safe}" `
+        }
+      } else {
+        insert = `@${member.username} `
+      }
       const next = before + insert + after
       onChange(next)
       setPopupMode('none')
@@ -626,6 +646,7 @@ function MentionPopup({
     >
       {members.map((m, i) => {
         const isBroadcast = m.userId === '__everyone__' || m.userId === '__here__'
+        const isRole = m.userId.startsWith('__role__:')
         return (
           <button
             key={m.userId}
@@ -644,11 +665,19 @@ function MentionPopup({
               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-500/20">
                 <span className="text-xs text-yellow-300">@</span>
               </div>
+            ) : isRole ? (
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/25">
+                <span className="text-[10px] font-semibold text-indigo-200">R</span>
+              </div>
             ) : (
               <UserAvatar username={m.username} avatarUrl={m.avatarUrl} size="sm" />
             )}
             <div className="min-w-0 flex-1">
-              <span className={`block truncate text-sm font-medium ${isBroadcast ? 'text-yellow-300' : ''}`}>
+              <span
+                className={`block truncate text-sm font-medium ${
+                  isBroadcast ? 'text-yellow-300' : isRole ? 'text-indigo-200' : ''
+                }`}
+              >
                 @{m.username}
               </span>
               {isBroadcast && (
@@ -656,7 +685,8 @@ function MentionPopup({
                   {m.userId === '__everyone__' ? 'Notify all members' : 'Notify online members'}
                 </span>
               )}
-              {!isBroadcast && m.displayName && m.displayName !== m.username && (
+              {isRole && <span className="block truncate text-xs text-gray-500">Notify everyone with this role</span>}
+              {!isBroadcast && !isRole && m.displayName && m.displayName !== m.username && (
                 <span className="block truncate text-xs text-gray-500">@{m.username}</span>
               )}
             </div>
