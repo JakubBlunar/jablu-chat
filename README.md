@@ -109,15 +109,22 @@ docker compose up -d
 # 1. Install dependencies
 pnpm install
 
-# 2. Start infrastructure (PostgreSQL, Redis, Mailpit)
+# 2. Create `.env` from the example (or run ./setup.sh)
+cp .env.example .env
+# ./setup.sh creates `.env.development` once from `.env`’s DATABASE_URL (host → 127.0.0.1).
+# If the API later fails with P1000 / wrong password, refresh: `pnpm local:sync-env`
+
+# 3. Start infrastructure (PostgreSQL, Redis, Mailpit)
 docker compose -f docker-compose.dev.yml up -d
 
-# 3. Run database migrations
+# 4. Run database migrations
 pnpm db:migrate:dev
 
-# 4. Start all apps in dev mode
+# 5. Start all apps in dev mode
 pnpm dev
 ```
+
+`.env.development` points `DATABASE_URL` and `REDIS_URL` at `127.0.0.1` so the API and Prisma (on your host) reach Docker-published ports. The default `.env` uses hostnames `postgres` / `redis`, which only work **inside** the full production Compose stack.
 
 The API runs on `http://localhost:3001` and the web app on `http://localhost:5173` (Vite proxies `/api` to the backend).
 

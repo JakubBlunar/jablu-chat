@@ -9,6 +9,8 @@ services:
       - '5432:5432'
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-chat}
+      # Default `dev` matches long-standing local volumes (`pgdata-dev`). Set `POSTGRES_PASSWORD`
+      # in `.env` (e.g. `changeme` from `.env.example`) — Compose passes it in and matches new DBs.
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-dev}
       - POSTGRES_DB=${POSTGRES_DB:-chat}
     volumes:

@@ -1,11 +1,13 @@
 import 'dotenv/config'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 import { PrismaClient, ChannelType, AttachmentType } from '../src/generated/prisma/client'
 
-function createPrisma(): PrismaClient {
+function createPrisma(): { prisma: PrismaClient; pool: Pool } {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required for seed')
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+  const pool = new Pool({ connectionString: url })
+  return { prisma: new PrismaClient({ adapter: new PrismaPg(pool) }), pool }
 }
 import { DEFAULT_OWNER_PERMISSIONS, DEFAULT_EVERYONE_PERMISSIONS } from '@chat/shared'
 import { faker } from '@faker-js/faker'
@@ -15,7 +17,7 @@ import { randomUUID, randomFillSync } from 'crypto'
 import { mkdirSync, existsSync, statSync } from 'fs'
 import { join, resolve } from 'path'
 
-const prisma = createPrisma()
+const { prisma, pool: seedPgPool } = createPrisma()
 
 const SEED_SERVER_NAME = '[Seed] Test Server'
 const SEED_EMAIL_DOMAIN = '@seed.local'
@@ -427,4 +429,7 @@ main()
     console.error('Seed failed:', e)
     process.exit(1)
   })
-  .finally(() => prisma.$disconnect())
+  .finally(async () => {
+    await prisma.$disconnect()
+    await seedPgPool.end()
+  })

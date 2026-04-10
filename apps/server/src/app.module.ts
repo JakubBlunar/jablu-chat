@@ -34,9 +34,13 @@ import { InAppNotificationsModule } from './in-app-notifications/in-app-notifica
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // First match wins for duplicate keys — put overrides before base `.env` so hybrid
+      // local dev (`pnpm dev` + docker-compose.dev.yml) can use 127.0.0.1 in `.env.development`.
       envFilePath: [
-        resolve(process.cwd(), '../../.env'),
+        resolve(process.cwd(), '../../.env.local'),
         resolve(process.cwd(), '../../.env.development'),
+        resolve(process.cwd(), '../../.env'),
+        resolve(process.cwd(), '.env.local'),
         resolve(process.cwd(), '.env')
       ]
     }),
