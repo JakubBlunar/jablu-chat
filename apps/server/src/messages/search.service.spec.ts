@@ -116,5 +116,18 @@ describe('SearchService', () => {
       const result = await service.searchMessages(userId, 'has:image')
       expect(result).toEqual({ results: [], total: 0 })
     })
+
+    it('handles in:thread and date filters without text', async () => {
+      prisma.serverMember.findMany.mockResolvedValue([{ serverId: 's1' }])
+      prisma.directConversationMember.findMany.mockResolvedValue([])
+      roles.getVisibleChannelIdsForServers.mockResolvedValue(new Map([['s1', ['ch-1']]]))
+
+      prisma.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ count: 0n }])
+
+      const result = await service.searchMessages(userId, 'in:thread after:2024-01-01 before:2025-12-31')
+      expect(result).toEqual({ results: [], total: 0 })
+    })
   })
 })

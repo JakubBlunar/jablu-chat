@@ -8,19 +8,26 @@ import { IconButton } from '@/components/ui/IconButton'
 import {
   BookmarkIcon,
   EditIcon,
+  ForwardIcon,
+  LinkIcon,
+  ShareIcon,
   MessagePinIcon,
   ReplyIcon,
   SmileIcon,
   ThreadIcon,
   TrashIcon,
 } from '@/components/chat/chatIcons'
+import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
+import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useShallow } from 'zustand/react/shallow'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
+import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
+import { showToast } from '@/stores/toast.store'
 import { useThreadStore } from '@/stores/thread.store'
 
 interface MessageActionsProps {
@@ -42,6 +49,10 @@ export function MessageActions({
 }: MessageActionsProps) {
   const userId = useAuthStore((s) => s.user?.id)
   const serverId = useServerStore((s) => s.currentServerId)
+  const channelLabel = useChannelStore((s) => {
+    const ch = s.channels.find((c) => c.id === channelId)
+    return ch ? `#${ch.name}` : '#channel'
+  })
   const { has: hasPerm } = usePermissions(serverId)
   const isAuthor = message.authorId === userId
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
@@ -53,6 +64,7 @@ export function MessageActions({
     }))
   )
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showForwardModal, setShowForwardModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const btnRef = useRef<HTMLDivElement>(null)
   const deleteBtnRef = useRef<HTMLButtonElement>(null)
@@ -63,6 +75,34 @@ export function MessageActions({
   const handleReply = useCallback(() => {
     onReply?.()
   }, [onReply])
+
+  const shareableUrl =
+    serverId != null
+      ? getMessageShareUrl(
+          buildMessageJumpPath('channel', { serverId, channelId, messageId: message.id })
+        )
+      : null
+
+  const copyMessageLink = useCallback(() => {
+    if (!shareableUrl) return
+    void navigator.clipboard.writeText(shareableUrl).then(
+      () => showToast('Link copied', 'Anyone with this link can jump to the message after signing in.'),
+      () => showToast('Copy failed', 'Could not copy to clipboard.')
+    )
+  }, [shareableUrl])
+
+  const shareMessage = useCallback(async () => {
+    if (!shareableUrl) return
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: `Message in ${channelLabel}`, url: shareableUrl })
+        return
+      } catch (e) {
+        if ((e as { name?: string }).name === 'AbortError') return
+      }
+    }
+    copyMessageLink()
+  }, [shareableUrl, channelLabel, copyMessageLink])
 
   const handleDelete = useCallback(() => {
     getSocket()?.emit('message:delete', { messageId: message.id }, (res?: { ok?: boolean }) => {
@@ -157,6 +197,21 @@ export function MessageActions({
         <IconButton label="Reply" onClick={handleReply}>
           <ReplyIcon />
         </IconButton>
+        {shareableUrl && (
+          <IconButton label="Copy message link" onClick={copyMessageLink}>
+            <LinkIcon className="h-4 w-4" />
+          </IconButton>
+        )}
+        {shareableUrl && (
+          <IconButton label="Share message" onClick={() => void shareMessage()}>
+            <ShareIcon />
+          </IconButton>
+        )}
+        {serverId && (
+          <IconButton label="Forward to channel" onClick={() => setShowForwardModal(true)}>
+            <ForwardIcon />
+          </IconButton>
+        )}
         {!message.threadParentId && (
           <IconButton
             label={message.threadCount ? 'View Thread' : 'Reply in Thread'}
@@ -194,6 +249,13 @@ export function MessageActions({
           anchorRef={deleteBtnRef}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+      {showForwardModal && (
+        <ForwardMessageModal
+          message={message}
+          sourceChannelId={channelId}
+          onClose={() => setShowForwardModal(false)}
         />
       )}
       {showEmojiPicker && pickerPos && createPortal(

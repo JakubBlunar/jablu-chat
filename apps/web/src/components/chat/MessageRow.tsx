@@ -20,11 +20,15 @@ import { useAuthStore } from '@/stores/auth.store'
 import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
+import { showToast } from '@/stores/toast.store'
+import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { ConfirmDialog, IconButton } from '@/components/ui'
 import {
   EditIcon,
+  LinkIcon,
   MessagePinIcon,
   ReplyIcon,
+  ShareIcon,
   SmileIcon,
   TrashIcon,
 } from '@/components/chat/chatIcons'
@@ -104,6 +108,42 @@ export const MessageRow = memo(function MessageRow({
   const customEmojiMap = useMemo(
     () => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined),
     [emojiArr]
+  )
+
+  const dmShareUrl = useMemo(() => {
+    if (!isDm) return null
+    return getMessageShareUrl(
+      buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id })
+    )
+  }, [isDm, contextId, message.id])
+
+  const copyDmMessageLink = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!dmShareUrl) return
+      void navigator.clipboard.writeText(dmShareUrl).then(
+        () => showToast('Link copied', 'Anyone with this link can jump to the message after signing in.'),
+        () => showToast('Copy failed', 'Could not copy to clipboard.')
+      )
+    },
+    [dmShareUrl]
+  )
+
+  const shareDmMessage = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!dmShareUrl) return
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ title: 'Direct message', url: dmShareUrl })
+          return
+        } catch (err) {
+          if ((err as { name?: string }).name === 'AbortError') return
+        }
+      }
+      copyDmMessageLink(e)
+    },
+    [dmShareUrl, copyDmMessageLink]
   )
   const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
@@ -271,6 +311,16 @@ export const MessageRow = memo(function MessageRow({
               >
                 <ReplyIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} />
               </IconButton>
+              {dmShareUrl && (
+                <IconButton label="Copy message link" onClick={copyDmMessageLink}>
+                  <LinkIcon className="h-4 w-4" />
+                </IconButton>
+              )}
+              {dmShareUrl && (
+                <IconButton label="Share message" onClick={(e) => void shareDmMessage(e)}>
+                  <ShareIcon />
+                </IconButton>
+              )}
               <IconButton
                 label={message.pinned ? 'Unpin' : 'Pin'}
                 onClick={(e) => {

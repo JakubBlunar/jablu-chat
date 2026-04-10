@@ -1,20 +1,26 @@
 import type { Message } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
+import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
+import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { SheetBtn } from '@/components/ui/SheetBtn'
 import { useShallow } from 'zustand/react/shallow'
 import { useBookmarkStore } from '@/stores/bookmark.store'
+import { useServerStore } from '@/stores/server.store'
+import { showToast } from '@/stores/toast.store'
 import { useThreadStore } from '@/stores/thread.store'
 import {
   BookmarkIcon,
   CopyIcon,
   DownloadIcon,
   EditIcon,
+  ForwardIcon,
   LinkIcon,
   MessagePinIcon,
   ReplyIcon,
+  ShareIcon,
   SmileIcon,
   ThreadIcon,
   TrashIcon,
@@ -69,6 +75,22 @@ export function MobileMessageDrawer({
   const isDm = mode === 'dm'
   const canDelete = isAuthor || isAdminOrOwner
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [forwardOpen, setForwardOpen] = useState(false)
+  const serverId = useServerStore((s) => s.currentServerId)
+
+  const messageJumpUrl = useMemo(() => {
+    if (isDm) {
+      return getMessageShareUrl(
+        buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id })
+      )
+    }
+    if (serverId) {
+      return getMessageShareUrl(
+        buildMessageJumpPath('channel', { serverId, channelId: contextId, messageId: message.id })
+      )
+    }
+    return null
+  }, [isDm, serverId, contextId, message.id])
   const links = useMemo(() => {
     const contentLinks = extractLinks(message.content)
     const previewLinks = (message.linkPreviews ?? []).map((lp) => lp.url)
@@ -108,6 +130,34 @@ export function MobileMessageDrawer({
     try { navigator.clipboard.writeText(url) } catch {}
     close()
   }, [close])
+
+  const handleCopyMessageJumpLink = useCallback(() => {
+    if (!messageJumpUrl) return
+    void navigator.clipboard.writeText(messageJumpUrl).then(
+      () => {
+        showToast('Link copied', 'Anyone with this link can jump to the message after signing in.')
+        close()
+      },
+      () => showToast('Copy failed', 'Could not copy to clipboard.')
+    )
+  }, [messageJumpUrl, close])
+
+  const handleShareMessageJump = useCallback(async () => {
+    if (!messageJumpUrl) return
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: isDm ? 'Direct message' : 'Message', url: messageJumpUrl })
+        close()
+        return
+      } catch (e) {
+        if ((e as { name?: string }).name === 'AbortError') {
+          close()
+          return
+        }
+      }
+    }
+    handleCopyMessageJumpLink()
+  }, [messageJumpUrl, isDm, close, handleCopyMessageJumpLink])
 
   const handleDownload = useCallback((url: string, filename: string) => {
     const a = document.createElement('a')
@@ -154,6 +204,17 @@ export function MobileMessageDrawer({
     )
   }
 
+  if (forwardOpen && !isDm) {
+    return (
+      <ForwardMessageModal
+        message={message}
+        sourceChannelId={contextId}
+        onClose={() => setForwardOpen(false)}
+        onForwarded={close}
+      />
+    )
+  }
+
   return (
     <BottomSheet open onClose={close}>
       {/* Quick emoji row */}
@@ -188,6 +249,19 @@ export function MobileMessageDrawer({
             label={(message.threadCount ?? 0) > 0 ? 'View Thread' : 'Reply in Thread'}
             onClick={handleThread}
           />
+        )}
+        {!isDm && serverId && (
+          <SheetBtn
+            icon={<ForwardIcon className="h-5 w-5" />}
+            label="Forward to channel"
+            onClick={() => setForwardOpen(true)}
+          />
+        )}
+        {messageJumpUrl && (
+          <SheetBtn icon={<LinkIcon />} label="Copy message link" onClick={handleCopyMessageJumpLink} />
+        )}
+        {messageJumpUrl && (
+          <SheetBtn icon={<ShareIcon className="h-5 w-5" />} label="Share message" onClick={() => void handleShareMessageJump()} />
         )}
         {message.content && (
           <SheetBtn icon={<CopyIcon />} label="Copy Text" onClick={handleCopy} />

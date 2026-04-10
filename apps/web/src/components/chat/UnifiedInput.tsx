@@ -19,6 +19,7 @@ import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { usePermissions } from '@/hooks/usePermissions'
 import { XSmallIcon } from '@/components/chat/chatIcons'
+import { useComposerPrefillStore } from '@/stores/composer-prefill.store'
 
 const TEXT_COMMANDS: Record<string, (rest: string) => string> = {
   shrug: (rest) => `${rest} ¯\\_(ツ)_/¯`.trim(),
@@ -114,6 +115,16 @@ export function UnifiedInput({
     setTargetBot(null)
     setFiles([])
   }, [contextId])
+
+  const threadComposerKey = threadParentId ?? null
+  useEffect(() => {
+    const text = useComposerPrefillStore.getState().consumePrefill(contextId, threadComposerKey)
+    if (!text) return
+    setValue(text)
+    setTargetBot(null)
+    setFiles([])
+    queueMicrotask(() => inputRef.current?.focus())
+  }, [contextId, threadComposerKey])
 
   useEffect(() => {
     if (replyTarget) inputRef.current?.focus()
