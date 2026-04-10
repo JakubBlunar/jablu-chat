@@ -63,12 +63,15 @@ RUN pnpm --filter @chat/server deploy --prod --no-optional /prod && \
     find /prod/node_modules -path '*/ffprobe-static/bin/linux/ia32' -type d -exec rm -rf {} +
 
 # ─── Migration runner (target: migrate) ─────────────────────────────
+# Local `prisma` is required so `prisma.config.ts` can resolve `prisma/config` (global CLI alone does not).
 FROM node:24.14.1-alpine AS migrate
-RUN npm install -g prisma@7.7 && npm cache clean --force
 WORKDIR /app
+RUN printf '%s\n' '{"name":"jablu-migrate","private":true,"dependencies":{"prisma":"7.7.0"}}' > package.json \
+  && npm install --omit=dev \
+  && npm cache clean --force
 COPY --from=prisma-generate /app/apps/server/prisma ./prisma
 COPY --from=prisma-generate /app/apps/server/prisma.config.ts ./prisma.config.ts
-CMD ["prisma", "migrate", "deploy"]
+CMD ["npx", "prisma", "migrate", "deploy"]
 
 # ─── Production image ───────────────────────────────────────────────
 FROM node:24.14.1-alpine AS production
