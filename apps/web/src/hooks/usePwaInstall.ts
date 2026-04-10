@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { isElectron } from '@/lib/electron'
+import { useSettingsStore } from '@/stores/settings.store'
 
 export type BrowserName = 'chrome' | 'edge' | 'firefox' | 'safari' | 'samsung' | 'unknown'
 
@@ -88,14 +89,13 @@ export function usePwaInstall() {
   return { canPrompt, isInstalled, browserName, isMobile, isIOS, triggerInstall, showInstallUi }
 }
 
-const DISMISS_KEY = 'pwa-install-dismissed'
 const RESHOW_MS = 14 * 24 * 60 * 60 * 1000
 
 export function isDismissed(): boolean {
   try {
-    const ts = localStorage.getItem(DISMISS_KEY)
-    if (!ts) return false
-    return Date.now() - Number(ts) < RESHOW_MS
+    const ts = useSettingsStore.getState().pwaInstallDismissedAt
+    if (ts == null) return false
+    return Date.now() - ts < RESHOW_MS
   } catch {
     return false
   }
@@ -103,7 +103,7 @@ export function isDismissed(): boolean {
 
 export function dismissBanner() {
   try {
-    localStorage.setItem(DISMISS_KEY, String(Date.now()))
+    useSettingsStore.getState().setPwaInstallDismissedAt(Date.now())
   } catch {
     /* ignore */
   }

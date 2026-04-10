@@ -1,5 +1,4 @@
 import {
-  migrateSettings,
   getSavedAudioInput,
   setSavedAudioInput,
   getSavedAudioOutput,
@@ -12,24 +11,14 @@ import {
   setSavedBlurEnabled,
   validateDeviceId,
   getValidatedDevices,
-  CAMERA_PRESETS
+  CAMERA_PRESETS,
+  type CameraQuality
 } from './deviceSettings'
+import { useSettingsStore } from '@/stores/settings.store'
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear()
-})
-
-describe('migrateSettings', () => {
-  it('stamps version on fresh install', () => {
-    migrateSettings()
-    expect(localStorage.getItem('chat:settings-version')).toBe('1')
-  })
-
-  it('no-ops when already at current version', () => {
-    localStorage.setItem('chat:settings-version', '1')
-    migrateSettings()
-    expect(localStorage.getItem('chat:settings-version')).toBe('1')
-  })
+  await useSettingsStore.persist.rehydrate()
 })
 
 describe('audio input get/set', () => {
@@ -75,8 +64,9 @@ describe('camera quality', () => {
     expect(getSavedCameraQuality()).toBe('1080p')
   })
 
-  it('returns 720p for invalid stored value', () => {
-    localStorage.setItem('chat:voice:camera-quality', 'invalid')
+  it('falls back to default when setter receives invalid quality', () => {
+    setSavedCameraQuality('1080p')
+    useSettingsStore.getState().setCameraQuality('invalid' as CameraQuality)
     expect(getSavedCameraQuality()).toBe('720p')
   })
 })
@@ -124,9 +114,7 @@ describe('validateDeviceId', () => {
   it('returns empty string when device no longer exists', async () => {
     Object.defineProperty(navigator, 'mediaDevices', {
       value: {
-        enumerateDevices: jest.fn().mockResolvedValue([
-          { kind: 'audioinput', deviceId: 'other' }
-        ])
+        enumerateDevices: jest.fn().mockResolvedValue([{ kind: 'audioinput', deviceId: 'other' }])
       },
       configurable: true
     })

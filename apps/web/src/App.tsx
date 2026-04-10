@@ -8,9 +8,8 @@ import { ServerUrlScreen, getStoredServerUrl } from './components/settings/Serve
 import { UpdateBanner } from './components/UpdateBanner'
 import { isElectron } from './lib/electron'
 import { api } from './lib/api'
-import './stores/theme.store'
+import './stores/settings.store'
 import { showToast } from './stores/toast.store'
-import { migrateSettings } from './lib/deviceSettings'
 import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
 import { Spinner } from '@/components/ui'
 import { LoginPage } from './pages/LoginPage'
@@ -26,8 +25,6 @@ const ForgotPasswordPage = lazy(() =>
 const ResetPasswordPage = lazy(() =>
   import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage }))
 )
-
-migrateSettings()
 
 // Best-effort portrait lock via Screen Orientation API (works on Android PWA, no-op on iOS)
 const _orient = screen?.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined

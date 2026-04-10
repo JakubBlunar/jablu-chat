@@ -1,8 +1,9 @@
-import { ACCENT_OPTIONS, useThemeStore } from '@/stores/theme.store'
+import { ACCENT_OPTIONS } from '@/lib/accent'
+import { useSettingsStore } from '@/stores/settings.store'
 
 export function AppearanceSection() {
-  const accent = useThemeStore((s) => s.accent)
-  const setAccent = useThemeStore((s) => s.setAccent)
+  const accent = useSettingsStore((s) => s.accent)
+  const setAccent = useSettingsStore((s) => s.setAccent)
 
   return (
     <div className="space-y-6">

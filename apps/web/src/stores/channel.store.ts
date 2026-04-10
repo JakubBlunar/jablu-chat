@@ -2,24 +2,9 @@ import type { Channel, ChannelCategory } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 
-const COLLAPSED_KEY = 'chat:collapsed-categories'
-
-function loadCollapsed(): Set<string> {
-  try {
-    const raw = localStorage.getItem(COLLAPSED_KEY)
-    if (raw) return new Set(JSON.parse(raw))
-  } catch { /* ignore */ }
-  return new Set()
-}
-
-function saveCollapsed(ids: Set<string>) {
-  localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...ids]))
-}
-
 type ChannelState = {
   channels: Channel[]
   categories: ChannelCategory[]
-  collapsedCategories: Set<string>
   currentChannelId: string | null
   isLoading: boolean
   loadedServerId: string | null
@@ -38,8 +23,6 @@ type ChannelState = {
   updateCategory: (category: ChannelCategory) => void
   removeCategory: (categoryId: string) => void
   applyCategoryReorder: (categoryIds: string[]) => void
-  toggleCategoryCollapsed: (categoryId: string) => void
-  isCategoryCollapsed: (categoryId: string) => boolean
 }
 
 function byPosition(a: { position: number }, b: { position: number }): number {
@@ -49,7 +32,6 @@ function byPosition(a: { position: number }, b: { position: number }): number {
 export const useChannelStore = create<ChannelState>((set, get) => ({
   channels: [],
   categories: [],
-  collapsedCategories: loadCollapsed(),
   currentChannelId: null,
   isLoading: false,
   loadedServerId: null,
@@ -150,15 +132,5 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
         const idx = categoryIds.indexOf(c.id)
         return idx >= 0 ? { ...c, position: idx } : c
       })
-    })),
-
-  toggleCategoryCollapsed: (categoryId) => {
-    const next = new Set(get().collapsedCategories)
-    if (next.has(categoryId)) next.delete(categoryId)
-    else next.add(categoryId)
-    saveCollapsed(next)
-    set({ collapsedCategories: next })
-  },
-
-  isCategoryCollapsed: (categoryId) => get().collapsedCategories.has(categoryId)
+    }))
 }))

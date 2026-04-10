@@ -1,4 +1,5 @@
 import { useChannelStore } from './channel.store'
+import { useSettingsStore } from './settings.store'
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -8,8 +9,6 @@ jest.mock('@/lib/api', () => ({
 
 import { api } from '@/lib/api'
 const mockGet = jest.mocked(api.get)
-
-const COLLAPSED_KEY = 'chat:collapsed-categories'
 
 function makeChannel(overrides: Record<string, unknown> = {}) {
   return {
@@ -29,17 +28,18 @@ function resetStore() {
   useChannelStore.setState({
     channels: [],
     categories: [],
-    collapsedCategories: new Set(),
     currentChannelId: null,
     isLoading: false,
     loadedServerId: null
   })
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   resetStore()
-  jest.clearAllMocks()
   localStorage.clear()
+  await useSettingsStore.persist.rehydrate()
+  useSettingsStore.setState({ collapsedCategoryIds: [] })
+  jest.clearAllMocks()
 })
 
 describe('channel.store', () => {
@@ -179,14 +179,13 @@ describe('channel.store', () => {
     })
   })
 
-  describe('toggleCategoryCollapsed', () => {
-    it('toggles and persists to localStorage', () => {
-      useChannelStore.getState().toggleCategoryCollapsed('cat-1')
-      expect(useChannelStore.getState().isCategoryCollapsed('cat-1')).toBe(true)
-      expect(JSON.parse(localStorage.getItem(COLLAPSED_KEY)!)).toContain('cat-1')
+  describe('collapsed categories (settings store)', () => {
+    it('toggles via settings store', () => {
+      useSettingsStore.getState().toggleCollapsedCategory('cat-1')
+      expect(useSettingsStore.getState().isCategoryCollapsed('cat-1')).toBe(true)
 
-      useChannelStore.getState().toggleCategoryCollapsed('cat-1')
-      expect(useChannelStore.getState().isCategoryCollapsed('cat-1')).toBe(false)
+      useSettingsStore.getState().toggleCollapsedCategory('cat-1')
+      expect(useSettingsStore.getState().isCategoryCollapsed('cat-1')).toBe(false)
     })
   })
 })

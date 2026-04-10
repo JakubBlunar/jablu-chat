@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { type ScreenShareOptions, publishScreenShare } from './screenShareUtils'
+import { useSettingsStore } from '@/stores/settings.store'
 
 type ScreenSource = {
   id: string
@@ -13,44 +14,39 @@ type ScreenSource = {
 const RESOLUTION_OPTIONS = ['720p', '1080p', 'native'] as const
 const FPS_OPTIONS = [5, 15, 20, 30] as const
 
-const SS_RES_KEY = 'chat:voice:ss-resolution'
-const SS_FPS_KEY = 'chat:voice:ss-fps'
-
-function getSavedRes(): ScreenShareOptions['resolution'] {
-  return (localStorage.getItem(SS_RES_KEY) as ScreenShareOptions['resolution']) || '1080p'
-}
-function getSavedFps(): ScreenShareOptions['fps'] {
-  const v = localStorage.getItem(SS_FPS_KEY)
-  return v ? (Number(v) as ScreenShareOptions['fps']) : 15
-}
-
 export function ScreenSharePicker() {
   const [sources, setSources] = useState<ScreenSource[]>([])
   const [open, setOpen] = useState(false)
   const [selectedSource, setSelectedSource] = useState<string | null>(null)
-  const [resolution, setResolution] = useState<ScreenShareOptions['resolution']>(getSavedRes)
-  const [fps, setFps] = useState<ScreenShareOptions['fps']>(getSavedFps)
+  const [resolution, setResolution] = useState<ScreenShareOptions['resolution']>(() =>
+    useSettingsStore.getState().screenShareResolution
+  )
+  const [fps, setFps] = useState<ScreenShareOptions['fps']>(() => useSettingsStore.getState().screenShareFps)
 
   useEffect(() => {
     function handleEvent(e: Event) {
       const detail = (e as CustomEvent<{ sources: ScreenSource[] }>).detail
       setSources(detail.sources)
       setSelectedSource(null)
-      setResolution(getSavedRes())
-      setFps(getSavedFps())
+      const s = useSettingsStore.getState()
+      setResolution(s.screenShareResolution)
+      setFps(s.screenShareFps)
       setOpen(true)
     }
     window.addEventListener('voice:pick-screen', handleEvent)
     return () => window.removeEventListener('voice:pick-screen', handleEvent)
   }, [])
 
+  const setScreenShareResolution = useSettingsStore((st) => st.setScreenShareResolution)
+  const setScreenShareFps = useSettingsStore((st) => st.setScreenShareFps)
+
   const handleStart = useCallback(() => {
     if (!selectedSource) return
-    localStorage.setItem(SS_RES_KEY, resolution)
-    localStorage.setItem(SS_FPS_KEY, String(fps))
+    setScreenShareResolution(resolution)
+    setScreenShareFps(fps)
     setOpen(false)
     void publishScreenShare(selectedSource, { resolution, fps })
-  }, [selectedSource, resolution, fps])
+  }, [selectedSource, resolution, fps, setScreenShareResolution, setScreenShareFps])
 
   if (!open || sources.length === 0) return null
 
@@ -108,7 +104,7 @@ export function ScreenSharePicker() {
                   type="button"
                   onClick={() => {
                     setResolution(r)
-                    localStorage.setItem(SS_RES_KEY, r)
+                    setScreenShareResolution(r)
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
                     resolution === r ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
@@ -129,7 +125,7 @@ export function ScreenSharePicker() {
                   type="button"
                   onClick={() => {
                     setFps(f)
-                    localStorage.setItem(SS_FPS_KEY, String(f))
+                    setScreenShareFps(f)
                   }}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
                     fps === f ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'

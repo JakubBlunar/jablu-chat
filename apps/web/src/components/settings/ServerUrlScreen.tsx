@@ -1,19 +1,11 @@
 import { useState } from 'react'
 import { electronAPI } from '@/lib/electron'
+import { clearServerUrl, getStoredServerUrl, setStoredServerUrl } from '@/stores/settings.store'
 
-const STORAGE_KEY = 'chat:server-url'
-
-export function getStoredServerUrl(): string | null {
-  return localStorage.getItem(STORAGE_KEY)
-}
-
-export function setStoredServerUrl(url: string) {
-  localStorage.setItem(STORAGE_KEY, url)
-  electronAPI?.setServerUrl(url).catch(() => {})
-}
+export { clearServerUrl, getStoredServerUrl, setStoredServerUrl }
 
 export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => void }) {
-  const [url, setUrl] = useState(getStoredServerUrl() ?? 'http://')
+  const [url, setUrl] = useState(() => getStoredServerUrl() ?? 'http://')
   const [error, setError] = useState('')
   const [testing, setTesting] = useState(false)
 
@@ -74,7 +66,7 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
         <button
           type="button"
           onClick={() => {
-            localStorage.removeItem(STORAGE_KEY)
+            clearServerUrl()
             setUrl('http://')
           }}
           className="mt-3 w-full text-center text-xs text-gray-500 hover:text-gray-300"

@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
@@ -461,7 +462,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               <IconButton
                 label="Toggle member list"
                 size="lg"
-                onClick={useLayoutStore.getState().toggleMemberSidebar}
+                onClick={() => useSettingsStore.getState().toggleMemberSidebarVisible()}
               >
                 <MembersIcon />
               </IconButton>

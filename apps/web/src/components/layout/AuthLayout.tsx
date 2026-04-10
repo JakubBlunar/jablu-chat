@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { isElectron } from '@/lib/electron'
-import { getStoredServerUrl } from '@/components/settings/ServerUrlScreen'
+import { clearServerUrl, getStoredServerUrl } from '@/stores/settings.store'
 import { api } from '@/lib/api'
 
 type AuthLayoutProps = {
@@ -11,7 +11,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const serverUrl = isElectron ? getStoredServerUrl() : null
 
   function handleChangeServer() {
-    localStorage.removeItem('chat:server-url')
+    clearServerUrl()
     api.baseUrl = ''
     window.location.reload()
   }

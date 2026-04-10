@@ -21,6 +21,7 @@ import { useSocket } from '@/hooks/useSocket'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -96,7 +97,7 @@ export function MainLayout() {
   const isMobile = useIsMobile()
 
   const openNavDrawer = useLayoutStore((s) => s.openNavDrawer)
-  const memberSidebarVisible = useLayoutStore((s) => s.memberSidebarVisible)
+  const memberSidebarVisible = useSettingsStore((s) => s.memberSidebarVisible)
 
   useActivityReporter(socket)
   useAppBadge()

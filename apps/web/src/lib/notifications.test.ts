@@ -10,13 +10,16 @@ jest.mock('@/stores/toast.store', () => ({
 
 import { playNotifSound } from '@/lib/sounds'
 import { showToast } from '@/stores/toast.store'
+import { useSettingsStore } from '@/stores/settings.store'
 
 const mockPlayNotifSound = jest.mocked(playNotifSound)
 const mockShowToast = jest.mocked(showToast)
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks()
   localStorage.clear()
+  await useSettingsStore.persist.rehydrate()
+  useSettingsStore.setState({ notifEnabled: true, notifSoundEnabled: true })
 })
 
 describe('getNotifSettings', () => {
@@ -26,18 +29,11 @@ describe('getNotifSettings', () => {
   })
 
   it('returns stored settings merged with defaults', () => {
-    localStorage.setItem('jablu-notif-settings', JSON.stringify({ soundEnabled: false }))
+    useSettingsStore.setState({ notifSoundEnabled: false })
 
     const settings = getNotifSettings()
     expect(settings.enabled).toBe(true)
     expect(settings.soundEnabled).toBe(false)
-  })
-
-  it('returns defaults on corrupted storage', () => {
-    localStorage.setItem('jablu-notif-settings', 'not-json')
-
-    const settings = getNotifSettings()
-    expect(settings).toEqual({ enabled: true, soundEnabled: true })
   })
 })
 
@@ -45,9 +41,8 @@ describe('saveNotifSettings', () => {
   it('persists partial settings merged with current', () => {
     saveNotifSettings({ soundEnabled: false })
 
-    const stored = JSON.parse(localStorage.getItem('jablu-notif-settings')!)
-    expect(stored.enabled).toBe(true)
-    expect(stored.soundEnabled).toBe(false)
+    expect(useSettingsStore.getState().notifEnabled).toBe(true)
+    expect(useSettingsStore.getState().notifSoundEnabled).toBe(false)
   })
 })
 
