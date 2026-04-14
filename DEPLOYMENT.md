@@ -397,6 +397,28 @@ docker compose logs -f nginx
 docker compose logs -f livekit
 ```
 
+### Email alerts on log errors (optional)
+
+The **log-watcher** service polls `docker compose logs` for matching lines (by default Nest `ERROR [` and `WARN [` plus `Exception`, `Unhandled`, `FATAL`; override with `LOG_WATCHER_PATTERNS`) and emails a summary. It uses Docker Compose **profile** `log-watcher` and the same root `.env` as the API for SMTP.
+
+1. Add `LOG_WATCHER_ALERT_TO` (and reuse your existing `SMTP_*` values) to the repo `.env`. See [`apps/log-watcher/.env.example`](apps/log-watcher/.env.example).
+2. From the machine where the repo lives, run:
+
+```bash
+bash apps/log-watcher/deploy.sh setup
+```
+
+Updates and day-two commands match the bot pattern:
+
+```bash
+bash apps/log-watcher/deploy.sh update
+bash apps/log-watcher/deploy.sh logs
+bash apps/log-watcher/deploy.sh stop
+bash apps/log-watcher/deploy.sh warnings   # security / ops caveats only
+```
+
+`deploy.sh setup` and `deploy.sh update` print **warnings** about the Docker socket mount and `COMPOSE_PROJECT_NAME` before changing anything. `stop` stops only log-watcher, not the rest of the stack.
+
 ### Check resource usage
 
 ```bash

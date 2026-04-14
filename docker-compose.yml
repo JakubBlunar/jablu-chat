@@ -164,6 +164,38 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ─── Log watcher (optional): poll `docker compose logs`, email on matches ─
+  # Usage: docker compose --profile log-watcher up -d
+  # Set LOG_WATCHER_ALERT_TO and SMTP_* in `.env`. COMPOSE_PROJECT_NAME must match
+  # your compose project (default: directory name, often `chat`).
+  log-watcher:
+    profiles:
+      - log-watcher
+    build:
+      context: .
+      dockerfile: apps/log-watcher/Dockerfile
+    restart: unless-stopped
+    environment:
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-chat}
+      - COMPOSE_FILE=/compose/docker-compose.yml
+      - WATCH_SERVICES=${LOG_WATCHER_SERVICES:-api,nginx}
+      - LOG_WATCHER_POLL_MS=${LOG_WATCHER_POLL_MS:-120000}
+      - LOG_WATCHER_LOG_SINCE=${LOG_WATCHER_LOG_SINCE:-3m}
+      - LOG_WATCHER_PATTERNS=${LOG_WATCHER_PATTERNS:-ERROR [,WARN [,Exception,Unhandled,FATAL}
+      - LOG_WATCHER_ALERT_TO=${LOG_WATCHER_ALERT_TO:-}
+      - LOG_WATCHER_DRY_RUN=${LOG_WATCHER_DRY_RUN:-}
+      - LOG_WATCHER_MAX_EMAILS_PER_HOUR=${LOG_WATCHER_MAX_EMAILS_PER_HOUR:-5}
+      - LOG_WATCHER_START_DELAY_MS=${LOG_WATCHER_START_DELAY_MS:-30000}
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@chat.local}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker-compose.yml:/compose/docker-compose.yml:ro
+      - log-watcher-state:/data
+
   # ─── Mailpit (dev only) ────────────────────────────────────────────
   mailpit:
     image: axllent/mailpit
@@ -182,3 +214,4 @@ volumes:
   web-dist:
   letsencrypt:
   certbot-webroot:
+  log-watcher-state:
