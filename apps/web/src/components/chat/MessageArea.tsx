@@ -43,7 +43,7 @@ const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then(
 const EditChannelModal = lazy(() =>
   import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
 )
-import { ChannelInfoSheet } from '@/components/chat/ChannelInfoSheet'
+import { ChannelInfoPanel } from '@/components/chat/ChannelInfoPanel'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
 import {
@@ -90,6 +90,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const pinned = usePinnedMessages(channelId, dmConversationId)
 
   const currentServerId = useServerStore((s) => s.currentServerId)
+  const channelServer = useServerStore((s) =>
+    s.currentServerId ? s.servers.find((sv) => sv.id === s.currentServerId) ?? null : null
+  )
   const activeChannel = useChannelStore((s) => {
     if (isDm || !s.currentChannelId) return null
     const ch = s.channels.find((c) => c.id === s.currentChannelId)
@@ -135,7 +138,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [showPollCreator, setShowPollCreator] = useState(false)
   const [commandToast, setCommandToast] = useState<string | null>(null)
   const [savedOpen, setSavedOpen] = useState(false)
-  const [channelSheetOpen, setChannelSheetOpen] = useState(false)
+  const [channelInfoOpen, setChannelInfoOpen] = useState(false)
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
 
   const [replyTarget, setReplyTarget] = useState<{
@@ -146,6 +149,10 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   useEffect(() => {
     setReplyTarget(null)
+  }, [contextId])
+
+  useEffect(() => {
+    setChannelInfoOpen(false)
   }, [contextId])
 
   const handleReply = useCallback((msg: Message) => {
@@ -420,7 +427,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           {isMobile ? (
             <button
               type="button"
-              onClick={() => setChannelSheetOpen(true)}
+              onClick={() => setChannelInfoOpen(true)}
               className="min-w-0 flex-1 text-left"
             >
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
@@ -655,17 +662,36 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           <EditChannelModal channel={activeChannel} onClose={() => setEditingChannel(false)} />
         </Suspense>
       )}
-      {channelSheetOpen && activeChannel && (
-        <ChannelInfoSheet
+      {isMobile && channelInfoOpen && activeChannel && channelServer && (
+        <ChannelInfoPanel
+          open={channelInfoOpen}
+          onClose={() => setChannelInfoOpen(false)}
+          channelName={activeChannel.name}
           channelId={activeChannel.id}
+          serverId={activeChannel.serverId}
+          serverName={channelServer.name}
+          vanityCode={channelServer.vanityCode ?? null}
           pinnedCount={activeChannel.pinnedCount ?? 0}
           isAdmin={isAdminOrOwner}
-          onClose={() => setChannelSheetOpen(false)}
-          onSearch={() => { setChannelSheetOpen(false); setSearchOpen(true) }}
-          onPinned={() => { setChannelSheetOpen(false); void pinned.handleOpenPinned() }}
-          onSaved={() => { setChannelSheetOpen(false); setSavedOpen(true) }}
-          onMembers={() => { setChannelSheetOpen(false); useLayoutStore.getState().openMemberDrawer() }}
-          onSettings={() => { setChannelSheetOpen(false); setEditingChannel(true) }}
+          onSearch={() => {
+            setChannelInfoOpen(false)
+            setSearchOpen(true)
+          }}
+          onSaved={() => {
+            setChannelInfoOpen(false)
+            setSavedOpen(true)
+          }}
+          onSettings={() => {
+            setChannelInfoOpen(false)
+            setEditingChannel(true)
+          }}
+          loadPinned={pinned.loadPinned}
+          pinnedMessages={pinned.pinnedMessages}
+          pinnedLoading={pinned.pinnedLoading}
+          canUnpin={isAdminOrOwner}
+          onJumpToMessage={(messageId) => {
+            void scroll.handleJumpToMessage(messageId)
+          }}
         />
       )}
     </section>

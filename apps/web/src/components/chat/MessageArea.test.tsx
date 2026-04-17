@@ -16,7 +16,7 @@ jest.mock('@/components/chat/PinnedPanel', () => ({ PinnedPanel: () => null }))
 jest.mock('@/components/chat/SavedMessagesPanel', () => ({ SavedMessagesPanel: () => null }))
 jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: () => null }))
 jest.mock('@/components/chat/PollCreator', () => ({ PollCreator: () => null }))
-jest.mock('@/components/chat/ChannelInfoSheet', () => ({ ChannelInfoSheet: () => null }))
+jest.mock('@/components/chat/ChannelInfoPanel', () => ({ ChannelInfoPanel: () => null }))
 jest.mock('@/components/dm/DmProfilePanel', () => ({
   DmProfilePanel: () => null,
   UserProfileIcon: () => null,
@@ -84,6 +84,8 @@ jest.mock('@/components/chat/hooks/usePinnedMessages', () => ({
     setPinnedOpen: jest.fn(),
     pinnedMessages: [],
     pinnedLoading: false,
+    handleOpenPinned: jest.fn(),
+    loadPinned: jest.fn(),
   }),
 }))
 

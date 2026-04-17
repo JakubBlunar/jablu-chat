@@ -5,7 +5,8 @@ import SimpleBar from 'simplebar-react'
 import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 import { GroupDmModal } from '@/components/dm/GroupDmModal'
 import { MobileDrawer } from '@/components/layout/MobileDrawer'
-import { DmIcon, HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
+import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
+import { HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
 const CreateChannelModal = React.lazy(() =>
@@ -23,7 +24,7 @@ const ServerSettingsModal = React.lazy(() =>
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { SectionHeading } from '@/components/ui/SectionHeading'
-import { api, resolveMediaUrl } from '@/lib/api'
+import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useAuthStore } from '@/stores/auth.store'
@@ -35,6 +36,7 @@ import { useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 import { type Server, useServerStore } from '@/stores/server.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore } from '@/stores/voice.store'
@@ -67,9 +69,17 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   const { orchestratedGoToChannel, goToDms, goToDm } = useAppNavigate()
 
-  const { viewMode, servers, currentServerId, removeServer } = useServerStore(
-    useShallow((s) => ({ viewMode: s.viewMode, servers: s.servers, currentServerId: s.currentServerId, removeServer: s.removeServer }))
+  const { viewMode, servers, currentServerId, removeServer, isLoading: serversLoading } = useServerStore(
+    useShallow((s) => ({
+      viewMode: s.viewMode,
+      servers: s.servers,
+      currentServerId: s.currentServerId,
+      removeServer: s.removeServer,
+      isLoading: s.isLoading
+    }))
   )
+
+  const navigatingToServerId = useNavigationStore((s) => s.navigatingToServerId)
 
   const { channels, currentChannelId, storeCategories } = useChannelStore(
     useShallow((s) => ({
@@ -308,59 +318,21 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   return (
     <>
-      <MobileDrawer open={open} onClose={close} side="left" width="w-72">
-        <div className="flex h-full flex-col bg-surface-dark" onContextMenu={(e) => e.preventDefault()}>
-          {/* Server row */}
-          <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-black/20 px-3 py-2">
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={handleDmClick}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                  viewMode === 'dm'
-                    ? 'bg-primary text-primary-text'
-                    : 'bg-surface text-gray-300 hover:bg-primary hover:text-primary-text'
-                }`}
-              >
-                <DmIcon />
-              </button>
-              {hasDmUnread && viewMode !== 'dm' && (
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500" />
-              )}
-            </div>
-            <div className="h-6 w-px shrink-0 bg-white/15" />
-            {servers.map((s) => {
-              const active = viewMode === 'server' && s.id === currentServerId
-              const badge = active ? null : computeServerBadgeFn(s.id)
-              return (
-                <div key={s.id} className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleServerClick(s)}
-                    title={s.name}
-                    className={`flex h-10 w-10 items-center justify-center overflow-hidden text-xs font-semibold text-white transition ${
-                      active ? 'rounded-xl bg-primary' : 'rounded-full bg-surface hover:rounded-xl hover:bg-primary'
-                    }`}
-                  >
-                    {s.iconUrl ? (
-                      <img src={resolveMediaUrl(s.iconUrl)} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      s.name.charAt(0).toUpperCase()
-                    )}
-                  </button>
-                  {badge && badge.mentions > 0 && (
-                    <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-dark bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white">
-                      {badge.mentions > 10 ? '10+' : badge.mentions}
-                    </span>
-                  )}
-                  {badge && badge.unread && badge.mentions === 0 && (
-                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface-dark bg-red-500" />
-                  )}
-                </div>
-              )
-            })}
-          </div>
+      <MobileDrawer open={open} onClose={close} side="left" width="w-[min(100vw,28rem)]">
+        <div className="flex h-full min-h-0 flex-row bg-surface-dark" onContextMenu={(e) => e.preventDefault()}>
+          <MobileNavServerRail
+            viewMode={viewMode}
+            servers={servers}
+            currentServerId={currentServerId}
+            isLoading={serversLoading}
+            hasDmUnread={hasDmUnread}
+            navigatingToServerId={navigatingToServerId}
+            computeServerBadge={computeServerBadgeFn}
+            onDmClick={handleDmClick}
+            onServerClick={handleServerClick}
+          />
 
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-dark">
           {/* Server name + dropdown trigger */}
           {viewMode === 'server' && currentServer && (
             <button
@@ -731,6 +703,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
               </svg>
             </IconButton>
           </UserFooter>
+          </div>
         </div>
       </MobileDrawer>
 

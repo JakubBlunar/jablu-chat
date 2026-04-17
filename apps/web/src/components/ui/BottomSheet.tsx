@@ -7,9 +7,23 @@ interface BottomSheetProps {
   onClose: () => void
   children: React.ReactNode
   zIndex?: number
+  /** Max height in dvh. Default 70. */
+  maxHeightDvh?: number
+  /**
+   * When true (default), the sheet body scrolls as one block.
+   * When false, the body is a flex column with overflow hidden so children can own scrolling (e.g. tall channel panel).
+   */
+  bodyScrollable?: boolean
 }
 
-export function BottomSheet({ open, onClose, children, zIndex = 100 }: BottomSheetProps) {
+export function BottomSheet({
+  open,
+  onClose,
+  children,
+  zIndex = 100,
+  maxHeightDvh = 70,
+  bodyScrollable = true
+}: BottomSheetProps) {
   const { t } = useTranslation('common')
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
@@ -61,8 +75,16 @@ export function BottomSheet({ open, onClose, children, zIndex = 100 }: BottomShe
       }}
     >
       <div
-        className={`flex w-full max-w-lg flex-col rounded-t-2xl bg-surface-dark pb-4 shadow-2xl ring-1 ring-white/10 transition-transform duration-200 ${visible ? 'translate-y-0' : 'translate-y-full'}`}
-        style={{ maxHeight: '70dvh', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        className={`flex w-full max-w-lg flex-col rounded-t-2xl bg-surface-dark pb-4 shadow-2xl ring-1 ring-white/10 transition-transform duration-200 ${visible ? 'translate-y-0' : 'translate-y-full'} ${bodyScrollable ? '' : 'overflow-hidden'}`}
+        style={{
+          maxHeight: `${maxHeightDvh}dvh`,
+          ...(bodyScrollable
+            ? {}
+            : {
+                height: `min(${maxHeightDvh}dvh, calc(100dvh - env(safe-area-inset-bottom, 0px)))`
+              }),
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -73,9 +95,11 @@ export function BottomSheet({ open, onClose, children, zIndex = 100 }: BottomShe
         >
           <div className="h-1 w-10 rounded-full bg-gray-600" />
         </button>
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-          {children}
-        </div>
+        {bodyScrollable ? (
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">{children}</div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+        )}
       </div>
     </div>,
     document.body
