@@ -167,6 +167,149 @@ export class InAppNotificationsService {
     this.emitUsers(targets)
   }
 
+  /**
+   * Coalesced "new message in channel" row, one per (userId, channelId).
+   * Used for non-mention activity in channels where the user has notifLevel === 'all'.
+   * Skips users whose effective channel pref is 'none' or 'mentions' (mention rows are
+   * handled separately by recordMentions).
+   */
+  async recordChannelMessage(
+    recipientIds: string[],
+    input: {
+      serverId: string
+      channelId: string
+      channelName: string
+      messageId: string
+      authorName: string
+      snippet: string
+    }
+  ): Promise<void> {
+    if (recipientIds.length === 0) return
+
+    const targets: string[] = []
+    for (const uid of recipientIds) {
+      const pref = await this.effectiveChannelPref(uid, input.channelId)
+      if (pref !== 'all') continue
+      targets.push(uid)
+    }
+    if (targets.length === 0) return
+
+    const dedupeKey = `channel:${input.channelId}`
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const userId of targets) {
+        const existing = await tx.inAppNotification.findUnique({
+          where: { userId_dedupeKey: { userId, dedupeKey } }
+        })
+        const prev = (existing?.payload as Record<string, unknown> | null) ?? {}
+        const prevCount =
+          existing && existing.readAt === null && typeof prev.count === 'number' ? prev.count : 0
+        const nextPayload: Prisma.InputJsonValue = {
+          serverId: input.serverId,
+          channelId: input.channelId,
+          channelName: input.channelName,
+          messageId: input.messageId,
+          authorName: input.authorName,
+          snippet: input.snippet,
+          count: prevCount + 1
+        }
+        await tx.inAppNotification.upsert({
+          where: { userId_dedupeKey: { userId, dedupeKey } },
+          create: {
+            userId,
+            kind: InAppNotificationKind.channel_message,
+            dedupeKey,
+            payload: {
+              serverId: input.serverId,
+              channelId: input.channelId,
+              channelName: input.channelName,
+              messageId: input.messageId,
+              authorName: input.authorName,
+              snippet: input.snippet,
+              count: 1
+            }
+          },
+          update: { payload: nextPayload, readAt: null }
+        })
+        await this.applyTtlAndCap(tx, userId)
+      }
+    })
+
+    this.emitUsers(targets)
+  }
+
+  /** Mark coalesced channel/thread/mention rows for a given channel as read. */
+  async markChannelRead(userId: string, channelId: string): Promise<void> {
+    const res = await this.prisma.inAppNotification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        OR: [
+          { dedupeKey: `channel:${channelId}` },
+          {
+            kind: InAppNotificationKind.mention,
+            payload: { path: ['channelId'], equals: channelId }
+          },
+          {
+            kind: InAppNotificationKind.thread_reply,
+            payload: { path: ['channelId'], equals: channelId }
+          }
+        ]
+      },
+      data: { readAt: new Date() }
+    })
+    if (res.count > 0) this.emitUsers([userId])
+  }
+
+  /** Mark all channel-scoped rows for an entire server as read for a single user. */
+  async markServerChannelsRead(userId: string, channelIds: string[]): Promise<void> {
+    if (channelIds.length === 0) return
+    const channelDedupeKeys = channelIds.map((id) => `channel:${id}`)
+    const dedupeRes = await this.prisma.inAppNotification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        dedupeKey: { in: channelDedupeKeys }
+      },
+      data: { readAt: new Date() }
+    })
+    let crossKindAffected = 0
+    for (const channelId of channelIds) {
+      const res = await this.prisma.inAppNotification.updateMany({
+        where: {
+          userId,
+          readAt: null,
+          OR: [
+            {
+              kind: InAppNotificationKind.mention,
+              payload: { path: ['channelId'], equals: channelId }
+            },
+            {
+              kind: InAppNotificationKind.thread_reply,
+              payload: { path: ['channelId'], equals: channelId }
+            }
+          ]
+        },
+        data: { readAt: new Date() }
+      })
+      crossKindAffected += res.count
+    }
+    if (dedupeRes.count + crossKindAffected > 0) this.emitUsers([userId])
+  }
+
+  /** Mark the coalesced DM row for a given conversation as read. */
+  async markDmRead(userId: string, conversationId: string): Promise<void> {
+    const res = await this.prisma.inAppNotification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        dedupeKey: `dm:${conversationId}`
+      },
+      data: { readAt: new Date() }
+    })
+    if (res.count > 0) this.emitUsers([userId])
+  }
+
   async recordDmMessages(
     recipientIds: string[],
     input: {

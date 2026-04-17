@@ -129,7 +129,12 @@ export type ActiveSession = {
   createdAt: string
 }
 
-export type InAppNotificationKind = 'mention' | 'dm_message' | 'thread_reply' | 'friend_request'
+export type InAppNotificationKind =
+  | 'mention'
+  | 'dm_message'
+  | 'thread_reply'
+  | 'friend_request'
+  | 'channel_message'
 
 export type InAppNotificationDto = {
   id: string

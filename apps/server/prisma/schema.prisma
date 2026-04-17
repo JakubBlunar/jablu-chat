@@ -528,6 +528,7 @@ enum InAppNotificationKind {
   dm_message
   thread_reply
   friend_request
+  channel_message
 }
 
 /// Directed in-app notification (not a firehose of every channel message). Bounded per user via cap enforcement.

@@ -46,6 +46,11 @@ import {
   sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx,
   sendPushToThreadParticipants as sendPushToThreadParticipantsWithCtx
 } from './gateway-push-helpers'
+import {
+  deliverChannelMessage,
+  deliverDmMessage,
+  type MessageNotificationsContext
+} from './message-notifications'
 import { WsExceptionFilter } from './ws-exception.filter'
 import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 import { WsThrottle, WsThrottleGuard } from './ws-throttle.guard'
@@ -158,9 +163,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return this.getActiveManualPresence(userId)?.status === 'offline'
   }
 
+  /**
+   * Presence-style check: true if the user has any live socket OR is inside the
+   * 5-minute disconnect grace window. Used for friend list / member list display
+   * so brief reconnects don't flicker.
+   */
   isUserOnline(userId: string): boolean {
     if (this.isInvisible(userId)) return false
     return this.onlineUsers.has(userId) || this.disconnectGrace.has(userId)
+  }
+
+  /**
+   * Strict check: true only if the user has at least one live socket. Used for
+   * push gating — during the disconnect-grace window the user has no live socket
+   * and would not receive WS events, so push must still fire.
+   */
+  hasActiveSocket(userId: string): boolean {
+    if (this.isInvisible(userId)) return false
+    return this.onlineUsers.has(userId)
   }
 
   async getFriendUserIds(userId: string): Promise<string[]> {
@@ -704,143 +724,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const { serverId, threadUpdate, ...msgRest } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
 
-    let mentionedUserIds: string[] = []
-    let mentionEveryone = false
-    let mentionHere = false
-    if (body.content && serverId) {
-      const result = await this.readState.resolveMentions(
-        body.content,
+    if (serverId) {
+      await deliverChannelMessage(this.messageNotificationsContext(), {
         serverId,
-        user.id,
-        this.getOnlineUserIds()
-      )
-      mentionEveryone = result.everyone
-      mentionHere = result.here
-
-      const filtered: string[] = []
-      for (const uid of result.userIds) {
-        try {
-          const perms = await this.roles.getChannelPermissions(serverId, body.channelId, uid)
-          if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
-            filtered.push(uid)
-          }
-        } catch { /* not a member, skip */ }
-      }
-      mentionedUserIds = filtered
-
-      if (mentionedUserIds.length > 0) {
-        await this.readState.incrementMention(body.channelId, mentionedUserIds)
-      }
-    }
-
-    this.emitToChannel(body.channelId, 'message:new', {
-      ...msgRest,
-      serverId,
-      mentionedUserIds,
-      mentionEveryone,
-      mentionHere
-    })
-
-    if (threadUpdate) {
-      this.emitToChannel(body.channelId, 'message:thread-update', {
-        parentId: threadUpdate.parentId,
-        threadCount: threadUpdate.threadCount,
-        lastThreadReply: {
-          content: msgRest.content ?? null,
-          author: msgRest.author ?? null,
-          createdAt: msgRest.createdAt
-        }
+        channelId: body.channelId,
+        message: {
+          ...msgRest,
+          threadParentId: body.threadParentId ?? null
+        },
+        senderId: user.id,
+        threadUpdate
       })
-    }
-
-    if (serverId && body.content && mentionedUserIds.length > 0) {
-      const ch = await this.prisma.channel.findUnique({
-        where: { id: body.channelId },
-        select: { name: true }
+    } else {
+      this.emitToChannel(body.channelId, 'message:new', {
+        ...msgRest,
+        mentionedUserIds: [],
+        mentionEveryone: false,
+        mentionHere: false
       })
-      const authorName = msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone'
-      const snippet =
-        describePushPreviewText(body.content, msgRest.attachments as { type: string }[] | undefined) || 'Mention'
-      void this.inApp
-        .recordMentions(mentionedUserIds, {
-          serverId,
-          channelId: body.channelId,
-          channelName: ch?.name ?? 'channel',
-          messageId: msgRest.id,
-          authorName,
-          snippet
-        })
-        .catch((err) => this.logger.warn('In-app mention notifications failed', err?.message))
-    }
-
-    const threadParentIdForNotify = body.threadParentId
-    if (serverId && threadParentIdForNotify) {
-      void (async () => {
-        try {
-          const participantIds = await this.inApp.resolveThreadParticipantUserIds(threadParentIdForNotify, user.id)
-          if (participantIds.length === 0) return
-          const ch = await this.prisma.channel.findUnique({
-            where: { id: body.channelId },
-            select: { name: true }
-          })
-          const authorName = msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone'
-          const snippet =
-            describePushPreviewText(
-              body.content ?? '',
-              msgRest.attachments as { type: string }[] | undefined
-            ) || 'New reply'
-          await this.inApp.recordThreadActivity(participantIds, {
-            serverId,
-            channelId: body.channelId,
-            channelName: ch?.name ?? 'channel',
-            threadParentId: threadParentIdForNotify,
-            messageId: msgRest.id,
-            authorName,
-            snippet
-          })
-        } catch (err) {
-          this.logger.warn('In-app thread notifications failed', (err as Error)?.message)
-        }
-      })()
-    }
-
-    if (body.content) {
-      this.linkPreviews
-        .generatePreviews(msgRest.id, body.content)
-        .then((previews) => {
-          if (previews.length > 0) {
-            this.emitToChannel(body.channelId, 'message:link-previews', {
-              messageId: msgRest.id,
-              linkPreviews: previews
-            })
-          }
-        })
-        .catch((err) => this.logger.warn('Link preview fetch failed', err?.message))
-    }
-
-    if (serverId && !body.threadParentId) {
-      this.sendPushToOfflineMembers(
-        serverId,
-        user.id,
-        msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone',
-        body.content,
-        `/channels/${serverId}/${body.channelId}`,
-        body.channelId,
-        mentionedUserIds,
-        msgRest.attachments
-      ).catch((err) => this.logger.warn('Push notification failed', err?.message))
-    }
-
-    if (threadUpdate && serverId) {
-      this.sendPushToThreadParticipants(
-        threadUpdate.parentId,
-        body.channelId,
-        serverId,
-        user.id,
-        msgRest.author?.displayName ?? msgRest.author?.username ?? 'Someone',
-        body.content,
-        msgRest.attachments
-      ).catch((err) => this.logger.warn('Thread push notification failed', err?.message))
     }
 
     if (body.content?.startsWith('/') && serverId) {
@@ -1317,54 +1218,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
     }
 
-    const otherMemberIds = memberIds.filter((id) => id !== user.id)
-    await this.readState.incrementDmMention(body.conversationId, otherMemberIds)
-
-    const dmAuthorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
-    const dmSnippet =
-      describePushPreviewText(body.content ?? undefined, msg.attachments as { type: string }[] | undefined) ||
-      'Message'
-    void this.inApp
-      .recordDmMessages(otherMemberIds, {
-        conversationId: body.conversationId,
-        messageId: msg.id,
-        authorName: dmAuthorName,
-        snippet: dmSnippet
-      })
-      .catch((err) => this.logger.warn('In-app DM notifications failed', err?.message))
-
-    this.emitToDm(body.conversationId, 'dm:new', {
-      ...msg,
-      conversationId: body.conversationId
+    await deliverDmMessage(this.messageNotificationsContext(), {
+      conversationId: body.conversationId,
+      message: msg,
+      senderId: user.id
     })
-
-    if (body.content) {
-      this.linkPreviews
-        .generatePreviews(msg.id, body.content)
-        .then((previews) => {
-          if (previews.length > 0) {
-            this.emitToDm(body.conversationId, 'dm:link-previews', {
-              messageId: msg.id,
-              conversationId: body.conversationId,
-              linkPreviews: previews
-            })
-          }
-        })
-        .catch((err) => this.logger.warn('DM link preview fetch failed', err?.message))
-    }
-
-    const offlineDmMembers = otherMemberIds.filter((id) => !this.isUserOnline(id))
-    if (offlineDmMembers.length > 0) {
-      const authorName = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
-      const preview = this.describePushPreview(body.content, msg.attachments)
-      this.push
-        .sendToUsers(offlineDmMembers, {
-          title: `DM from ${authorName}`,
-          body: preview,
-          url: `/channels/@me/${body.conversationId}`
-        })
-        .catch((err) => this.logger.warn('DM push notification failed', err?.message))
-    }
 
     if (body.content?.startsWith('/')) {
       void this.routeDmSlashCommand(body.content, body.conversationId, memberIds, user, client, body.targetBotAppId)
@@ -1557,6 +1415,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return describePushPreviewText(content, attachments)
   }
 
+  /** Built once per call; captures gateway state needed by the unified delivery helpers. */
+  messageNotificationsContext(): MessageNotificationsContext {
+    return {
+      prisma: this.prisma,
+      push: this.push,
+      redis: this.redis,
+      roles: this.roles,
+      inApp: this.inApp,
+      readState: this.readState,
+      linkPreviews: this.linkPreviews,
+      dm: this.dm,
+      hasActiveSocket: this.hasActiveSocket.bind(this),
+      getOnlineUserIds: this.getOnlineUserIds.bind(this),
+      emitToChannel: this.emitToChannel.bind(this),
+      emitToDm: this.emitToDm.bind(this),
+      logger: this.logger
+    }
+  }
+
   async sendPushToOfflineMembers(
     serverId: string,
     senderId: string,
@@ -1573,7 +1450,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         push: this.push,
         redis: this.redis,
         roles: this.roles,
-        isUserOnline: this.isUserOnline.bind(this)
+        isUserOnline: this.hasActiveSocket.bind(this)
       },
       serverId,
       senderId,
@@ -1601,7 +1478,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         push: this.push,
         redis: this.redis,
         roles: this.roles,
-        isUserOnline: this.isUserOnline.bind(this)
+        isUserOnline: this.hasActiveSocket.bind(this)
       },
       parentId,
       channelId,
