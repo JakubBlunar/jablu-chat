@@ -16,13 +16,8 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
     setPinnedMessages([])
   }, [activeId])
 
-  const handleOpenPinned = useCallback(async () => {
+  const loadPinned = useCallback(async () => {
     if (!activeId) return
-    if (pinnedOpen) {
-      setPinnedOpen(false)
-      return
-    }
-    setPinnedOpen(true)
     setPinnedLoading(true)
     try {
       const msgs = isDm
@@ -34,10 +29,20 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
     } finally {
       setPinnedLoading(false)
     }
-  }, [activeId, pinnedOpen, isDm])
+  }, [activeId, isDm])
+
+  const handleOpenPinned = useCallback(async () => {
+    if (!activeId) return
+    if (pinnedOpen) {
+      setPinnedOpen(false)
+      return
+    }
+    setPinnedOpen(true)
+    await loadPinned()
+  }, [activeId, pinnedOpen, loadPinned])
 
   useEffect(() => {
-    if (!pinnedOpen || !activeId) return
+    if (!activeId) return
     const socket = getSocket()
     if (!socket) return
 
@@ -76,7 +81,7 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
       socket.off('message:pin', onPin)
       socket.off('message:unpin', onUnpin)
     }
-  }, [pinnedOpen, activeId, isDm])
+  }, [activeId, isDm])
 
   useEffect(() => {
     const handler = () => {
@@ -86,5 +91,5 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
     return () => window.removeEventListener('open-pinned', handler)
   }, [activeId, pinnedOpen, handleOpenPinned])
 
-  return { pinnedOpen, pinnedMessages, pinnedLoading, handleOpenPinned, setPinnedOpen, isDm }
+  return { pinnedOpen, pinnedMessages, pinnedLoading, handleOpenPinned, setPinnedOpen, loadPinned, isDm }
 }

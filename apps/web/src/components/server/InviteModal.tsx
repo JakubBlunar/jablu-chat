@@ -10,9 +10,11 @@ interface InviteModalProps {
   serverName: string
   vanityCode?: string | null
   onClose: () => void
+  /** When opened above another overlay (e.g. channel bottom sheet). */
+  overlayZIndex?: string
 }
 
-export function InviteModal({ serverId, serverName, vanityCode, onClose }: InviteModalProps) {
+export function InviteModal({ serverId, serverName, vanityCode, onClose, overlayZIndex }: InviteModalProps) {
   const [invites, setInvites] = useState<Invite[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -77,7 +79,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose }: Invit
   }, [])
 
   return (
-    <ModalOverlay onClose={onClose} maxWidth="max-w-lg">
+    <ModalOverlay onClose={onClose} maxWidth="max-w-lg" zIndex={overlayZIndex ?? 'z-50'}>
       <div ref={dialogRef} tabIndex={-1} className="outline-none" aria-label={`Invite to ${serverName}`}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Invite to {serverName}</h2>
