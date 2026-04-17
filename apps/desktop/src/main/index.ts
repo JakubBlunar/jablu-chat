@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, Tray, Menu, nativeImage, net, protocol, session } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, Tray, Menu, nativeImage, net, protocol, session, shell } from 'electron'
 import { autoUpdater, UpdateInfo } from 'electron-updater'
 import log from 'electron-log/main'
 import { createPublicKey, verify } from 'crypto'
@@ -83,6 +83,9 @@ function createWindow() {
     // Allow all display media requests (the picker is handled in the renderer via IPC)
     callback({ video: undefined as unknown as Electron.DesktopCapturerSource })
   })
+
+  // Clear taskbar flash once the user focuses the window.
+  mainWindow.on('focus', () => mainWindow?.flashFrame(false))
 
   if (isDev) {
     loadDevUrl(mainWindow)
@@ -241,22 +244,67 @@ function getManifestFilename(): string {
   }
 }
 
-async function verifyManifestSignature(feedUrl: string, manifestName: string): Promise<void> {
+// Cap manifest/signature downloads at 1 MiB. latest*.yml is ~1 KB and the
+// signature is 64 B; anything larger is either misconfiguration or an attempt
+// to RAM-starve the main process.
+const MAX_MANIFEST_BYTES = 1024 * 1024
+const MANIFEST_FETCH_TIMEOUT_MS = 10_000
+
+async function fetchCappedBuffer(url: string, label: string): Promise<Buffer> {
+  const resp = await net.fetch(url, {
+    cache: 'no-cache',
+    signal: AbortSignal.timeout(MANIFEST_FETCH_TIMEOUT_MS)
+  })
+  if (!resp.ok) throw new Error(`Failed to fetch ${label}: HTTP ${resp.status}`)
+  const len = Number(resp.headers.get('content-length') ?? '0')
+  if (Number.isFinite(len) && len > MAX_MANIFEST_BYTES) {
+    throw new Error(`${label} exceeds ${MAX_MANIFEST_BYTES} bytes (got ${len})`)
+  }
+  const buf = Buffer.from(await resp.arrayBuffer())
+  if (buf.byteLength > MAX_MANIFEST_BYTES) {
+    throw new Error(`${label} exceeds ${MAX_MANIFEST_BYTES} bytes (got ${buf.byteLength})`)
+  }
+  return buf
+}
+
+// Minimal extractor for the `version:` top-level key from a latest*.yml
+// manifest. electron-builder emits this as a simple scalar at column 0, so a
+// regex is sufficient and avoids pulling a YAML parser into the main process.
+function extractManifestVersion(yml: string): string | null {
+  const m = /^version:\s*['"]?([^'"\r\n]+?)['"]?\s*$/m.exec(yml)
+  return m ? m[1].trim() : null
+}
+
+async function verifyManifestSignature(
+  feedUrl: string,
+  manifestName: string,
+  expectedVersion: string
+): Promise<void> {
   if (!UPDATE_PUBLIC_KEY_PEM) {
     throw new Error(UPDATE_SIGNING_DISABLED_REASON ?? 'Update signing key is not configured.')
   }
 
-  const ymlResp = await net.fetch(`${feedUrl}/${manifestName}`, { cache: 'no-cache' })
-  if (!ymlResp.ok) throw new Error(`Failed to fetch ${manifestName}: HTTP ${ymlResp.status}`)
-  const ymlBytes = Buffer.from(await ymlResp.arrayBuffer())
-
-  const sigResp = await net.fetch(`${feedUrl}/${manifestName}.sig`, { cache: 'no-cache' })
-  if (!sigResp.ok) throw new Error(`Failed to fetch ${manifestName}.sig: HTTP ${sigResp.status}`)
-  const sigBytes = Buffer.from(await sigResp.arrayBuffer())
+  const ymlBytes = await fetchCappedBuffer(`${feedUrl}/${manifestName}`, manifestName)
+  const sigBytes = await fetchCappedBuffer(`${feedUrl}/${manifestName}.sig`, `${manifestName}.sig`)
 
   const pubKey = createPublicKey({ key: UPDATE_PUBLIC_KEY_PEM, format: 'pem' })
   const ok = verify(null, ymlBytes, pubKey, sigBytes)
   if (!ok) throw new Error('Signature verification failed for update manifest')
+
+  // Guard against a TOCTOU where electron-updater consumed manifest A to drive
+  // the download, but by the time we re-fetch for signature verification the
+  // server serves manifest B (different version) signed correctly. Refusing to
+  // install unless the signed manifest describes the same version we just
+  // downloaded closes that hole.
+  const signedVersion = extractManifestVersion(ymlBytes.toString('utf-8'))
+  if (!signedVersion) {
+    throw new Error(`Could not parse version from signed ${manifestName}`)
+  }
+  if (signedVersion !== expectedVersion) {
+    throw new Error(
+      `Signed manifest version (${signedVersion}) does not match downloaded version (${expectedVersion})`
+    )
+  }
 }
 
 function setupAutoUpdater() {
@@ -312,7 +360,7 @@ function setupAutoUpdater() {
       })
       return
     }
-    verifyManifestSignature(feedUrl, manifestName)
+    verifyManifestSignature(feedUrl, manifestName, info.version)
       .then(() => {
         log.info(`Signature verified for ${manifestName}; install is allowed`)
         autoUpdater.autoInstallOnAppQuit = true
@@ -471,7 +519,72 @@ app.on('before-quit', () => {
   isQuitting = true
 })
 
+// ─── Single-instance lock ────────────────────────────────────
+// Prevents a second launch from spawning another window + tray + auto-updater.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+  process.exit(0)
+}
+
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
+
+// ─── Renderer navigation lockdown ────────────────────────────
+// Refuse to navigate the main window off-origin and refuse to spawn new
+// BrowserWindows. Anything that would open a new window is deferred to the
+// user's default browser.
+function isAllowedNavigation(url: string): boolean {
+  try {
+    const u = new URL(url)
+    if (isDev) return u.origin === DEV_URL
+    return u.protocol === `${CUSTOM_SCHEME}:`
+  } catch {
+    return false
+  }
+}
+
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url) || /^mailto:/i.test(url)) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  contents.on('will-navigate', (event, url) => {
+    if (!isAllowedNavigation(url)) {
+      event.preventDefault()
+      if (/^https?:/i.test(url)) void shell.openExternal(url)
+    }
+  })
+
+  contents.on('will-attach-webview', (event) => {
+    event.preventDefault()
+  })
+})
+
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    // Required on Windows for correct notification source name and taskbar
+    // pinning of the installed app.
+    app.setAppUserModelId('com.jablu.desktop')
+  }
+
+  // Restrict renderer permission requests to the ones Jablu actually uses.
+  const ALLOWED_PERMISSIONS: readonly string[] = [
+    'media',
+    'display-capture',
+    'notifications',
+    'clipboard-sanitized-write'
+  ]
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.includes(permission))
+  })
+
   if (!isDev) registerAppProtocol()
   registerIpcHandlers()
   createWindow()

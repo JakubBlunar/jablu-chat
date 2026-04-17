@@ -23,7 +23,8 @@
 //   your VPS credentials.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { createPrivateKey, createPublicKey, sign, verify, randomBytes } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -106,6 +107,35 @@ required('UPDATE_PUBLIC_KEY_PEM')
 
 if (!existsSync(process.env.UPDATE_SIGNING_KEY_PATH)) {
   console.error(`[release] Private key not found at ${process.env.UPDATE_SIGNING_KEY_PATH}`)
+  process.exit(1)
+}
+
+// Fail fast if the embedded public key and the signing private key are not a
+// matching Ed25519 pair. Otherwise we happily ship binaries whose clients
+// silently reject every update until we rebuild with the right public key.
+try {
+  const privKey = createPrivateKey(readFileSync(process.env.UPDATE_SIGNING_KEY_PATH))
+  if (privKey.asymmetricKeyType !== 'ed25519') {
+    console.error(
+      `[release] Private key at UPDATE_SIGNING_KEY_PATH must be Ed25519 (got ${privKey.asymmetricKeyType}).`
+    )
+    process.exit(1)
+  }
+  const pubKey = createPublicKey({ key: process.env.UPDATE_PUBLIC_KEY_PEM, format: 'pem' })
+  if (pubKey.asymmetricKeyType !== 'ed25519') {
+    console.error(`[release] UPDATE_PUBLIC_KEY_PEM must be Ed25519 (got ${pubKey.asymmetricKeyType}).`)
+    process.exit(1)
+  }
+  const probe = randomBytes(32)
+  const sig = sign(null, probe, privKey)
+  if (!verify(null, probe, pubKey, sig)) {
+    console.error('[release] UPDATE_PUBLIC_KEY_PEM is not the public counterpart of UPDATE_SIGNING_KEY_PATH.')
+    console.error('[release] Rebuilding with these values would brick auto-update for every user.')
+    process.exit(1)
+  }
+  console.log('[release] Signing keypair verified (Ed25519, public/private match).')
+} catch (err) {
+  console.error('[release] Failed to validate signing keypair:', err?.message ?? err)
   process.exit(1)
 }
 

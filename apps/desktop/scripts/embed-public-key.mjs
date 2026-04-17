@@ -4,6 +4,7 @@
 // disables auto-update at runtime so we can't accidentally ship an
 // unsigned-update build.
 
+import { createPublicKey } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,6 +29,22 @@ export const UPDATE_SIGNING_DISABLED_REASON: string | null =
 
 if (!pem.includes('BEGIN PUBLIC KEY') || !pem.includes('END PUBLIC KEY')) {
   console.error('[embed-public-key] UPDATE_PUBLIC_KEY_PEM does not look like a PEM public key.')
+  process.exit(1)
+}
+
+// We only sign manifests with Ed25519 (see sign-release.mjs). Embedding the
+// wrong key type here ships a build whose clients will silently fail every
+// signature check on first update, so catch it at build time.
+try {
+  const parsed = createPublicKey({ key: pem, format: 'pem' })
+  if (parsed.asymmetricKeyType !== 'ed25519') {
+    console.error(
+      `[embed-public-key] UPDATE_PUBLIC_KEY_PEM must be an Ed25519 key, got ${parsed.asymmetricKeyType}.`
+    )
+    process.exit(1)
+  }
+} catch (err) {
+  console.error('[embed-public-key] UPDATE_PUBLIC_KEY_PEM failed to parse:', err?.message ?? err)
   process.exit(1)
 }
 
