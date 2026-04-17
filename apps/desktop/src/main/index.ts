@@ -1,11 +1,15 @@
 import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, Tray, Menu, nativeImage, net, protocol, session } from 'electron'
 import { autoUpdater, UpdateInfo } from 'electron-updater'
-import { readFileSync, existsSync, statSync } from 'fs'
+import log from 'electron-log/main'
+import { createPublicKey, verify } from 'crypto'
+import { readFileSync, existsSync, statSync, unlinkSync } from 'fs'
 import { join, extname } from 'path'
 import { pathToFileURL } from 'url'
+import { UPDATE_PUBLIC_KEY_PEM, UPDATE_SIGNING_DISABLED_REASON } from './updateSigningKey.generated'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let isQuitting = false
 
 const DEV_URL = 'http://localhost:5173'
 const isDev = !app.isPackaged
@@ -68,7 +72,7 @@ function createWindow() {
   })
 
   mainWindow.on('close', (e) => {
-    if (tray) {
+    if (tray && !isQuitting) {
       e.preventDefault()
       mainWindow?.hide()
     }
@@ -101,6 +105,7 @@ function createTray() {
     {
       label: 'Quit',
       click: () => {
+        isQuitting = true
         tray = null
         app.quit()
       }
@@ -187,7 +192,22 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('install-update', () => {
+    if (!pendingUpdateManifestName) {
+      mainWindow?.webContents.send('update-error', {
+        message: 'Cannot install update: signature has not been verified.'
+      })
+      return
+    }
+    isQuitting = true
     autoUpdater.quitAndInstall(false, true)
+  })
+
+  ipcMain.handle('get-update-status', () => {
+    return {
+      lastCheckedAt: lastUpdateCheckAt,
+      lastError: lastUpdateError,
+      feedConfigured: !!getStoredServerUrl()
+    }
   })
 }
 
@@ -206,12 +226,54 @@ function getStoredServerUrl(): string | null {
   return null
 }
 
+let lastUpdateCheckAt: number | null = null
+let lastUpdateError: string | null = null
+let pendingUpdateManifestName: string | null = null
+
+function getManifestFilename(): string {
+  switch (process.platform) {
+    case 'darwin':
+      return 'latest-mac.yml'
+    case 'linux':
+      return 'latest-linux.yml'
+    default:
+      return 'latest.yml'
+  }
+}
+
+async function verifyManifestSignature(feedUrl: string, manifestName: string): Promise<void> {
+  if (!UPDATE_PUBLIC_KEY_PEM) {
+    throw new Error(UPDATE_SIGNING_DISABLED_REASON ?? 'Update signing key is not configured.')
+  }
+
+  const ymlResp = await net.fetch(`${feedUrl}/${manifestName}`, { cache: 'no-cache' })
+  if (!ymlResp.ok) throw new Error(`Failed to fetch ${manifestName}: HTTP ${ymlResp.status}`)
+  const ymlBytes = Buffer.from(await ymlResp.arrayBuffer())
+
+  const sigResp = await net.fetch(`${feedUrl}/${manifestName}.sig`, { cache: 'no-cache' })
+  if (!sigResp.ok) throw new Error(`Failed to fetch ${manifestName}.sig: HTTP ${sigResp.status}`)
+  const sigBytes = Buffer.from(await sigResp.arrayBuffer())
+
+  const pubKey = createPublicKey({ key: UPDATE_PUBLIC_KEY_PEM, format: 'pem' })
+  const ok = verify(null, ymlBytes, pubKey, sigBytes)
+  if (!ok) throw new Error('Signature verification failed for update manifest')
+}
+
 function setupAutoUpdater() {
   if (isDev) return
 
+  log.transports.file.fileName = 'update.log'
+  log.transports.file.level = 'info'
   autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.logger = null
+  // Defer auto-install until the manifest signature has been verified.
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.logger = log
+
+  if (!UPDATE_PUBLIC_KEY_PEM) {
+    log.warn(`Auto-update disabled: ${UPDATE_SIGNING_DISABLED_REASON ?? 'unknown reason'}`)
+    lastUpdateError = UPDATE_SIGNING_DISABLED_REASON
+    return
+  }
 
   const serverUrl = getStoredServerUrl()
   if (serverUrl) {
@@ -241,34 +303,106 @@ function setupAutoUpdater() {
   })
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-    mainWindow?.webContents.send('update-downloaded', {
-      version: info.version
-    })
+    const manifestName = getManifestFilename()
+    const feedUrl = currentFeedUrl()
+    if (!feedUrl) {
+      log.error('update-downloaded: no feed URL configured; cannot verify signature')
+      mainWindow?.webContents.send('update-error', {
+        message: 'Update downloaded but cannot verify: server URL is not configured.'
+      })
+      return
+    }
+    verifyManifestSignature(feedUrl, manifestName)
+      .then(() => {
+        log.info(`Signature verified for ${manifestName}; install is allowed`)
+        autoUpdater.autoInstallOnAppQuit = true
+        pendingUpdateManifestName = manifestName
+        mainWindow?.webContents.send('update-downloaded', { version: info.version })
+      })
+      .catch((err: Error) => {
+        log.error('Signature verification failed', err)
+        autoUpdater.autoInstallOnAppQuit = false
+        pendingUpdateManifestName = null
+        // Remove the untrusted installer so autoInstallOnAppQuit can't accidentally run it.
+        const dlPath = (info as UpdateInfo & { downloadedFile?: string }).downloadedFile
+        if (dlPath) {
+          try {
+            unlinkSync(dlPath)
+            log.info(`Deleted untrusted installer at ${dlPath}`)
+          } catch (unlinkErr) {
+            log.warn(`Could not delete untrusted installer at ${dlPath}`, unlinkErr)
+          }
+        }
+        lastUpdateError = err.message
+        mainWindow?.webContents.send('update-error', {
+          message: `Update rejected: ${err.message}`
+        })
+      })
   })
 
   autoUpdater.on('error', (err) => {
-    mainWindow?.webContents.send('update-error', {
-      message: err?.message ?? 'Update check failed'
-    })
+    const message = err?.message ?? 'Update check failed'
+    lastUpdateError = message
+    log.error('auto-updater error', err)
+    mainWindow?.webContents.send('update-error', { message })
+  })
+
+  autoUpdater.on('checking-for-update', () => {
+    lastUpdateCheckAt = Date.now()
+    lastUpdateError = null
   })
 
   setTimeout(() => void checkForUpdates(), 5000)
   setInterval(() => void checkForUpdates(), 4 * 60 * 60 * 1000)
 }
 
-async function checkForUpdates() {
+function currentFeedUrl(): string | null {
   const serverUrl = getStoredServerUrl()
-  if (!serverUrl) return
+  return serverUrl ? `${serverUrl}/api/updates` : null
+}
 
-  autoUpdater.setFeedURL({
-    provider: 'generic',
-    url: `${serverUrl}/api/updates`
-  })
+interface CompatResponse {
+  supported: boolean
+  minClient: string
+  maxClient: string | null
+  clientVersion: string | null
+  reason: 'client-too-old' | 'client-too-new' | null
+}
+
+async function fetchCompat(feedUrl: string): Promise<CompatResponse | null> {
+  try {
+    const version = app.getVersion()
+    const resp = await net.fetch(`${feedUrl}/compat?client=${encodeURIComponent(version)}`, {
+      cache: 'no-cache',
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!resp.ok) return null
+    return (await resp.json()) as CompatResponse
+  } catch (err) {
+    log.warn('compat fetch failed', err)
+    return null
+  }
+}
+
+async function checkForUpdates() {
+  if (!UPDATE_PUBLIC_KEY_PEM) return
+  const feedUrl = currentFeedUrl()
+  if (!feedUrl) return
+
+  const compat = await fetchCompat(feedUrl)
+  if (compat && !compat.supported) {
+    lastUpdateError = `Server is not compatible with this client (reason: ${compat.reason ?? 'unknown'}).`
+    log.warn('Skipping update check due to compat failure', compat)
+    mainWindow?.webContents.send('update-incompatible', compat)
+    return
+  }
+
+  autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl })
 
   try {
     await autoUpdater.checkForUpdates()
-  } catch {
-    // silently ignore
+  } catch (err) {
+    log.warn('checkForUpdates threw', err)
   }
 }
 
@@ -332,6 +466,10 @@ function registerAppProtocol() {
     })
   })
 }
+
+app.on('before-quit', () => {
+  isQuitting = true
+})
 
 app.whenReady().then(() => {
   if (!isDev) registerAppProtocol()

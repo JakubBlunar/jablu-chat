@@ -4,13 +4,22 @@
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {
-    "start": "tsc -p tsconfig.json && electron dist/main/index.js",
+    "start": "node scripts/embed-public-key.mjs && tsc -p tsconfig.json && electron dist/main/index.js",
+    "prebuild": "node scripts/embed-public-key.mjs",
     "build": "tsc -p tsconfig.json",
     "pack": "electron-builder --dir",
-    "predist": "tsc -p tsconfig.json",
-    "dist": "electron-builder"
+    "predist": "node scripts/embed-public-key.mjs && tsc -p tsconfig.json",
+    "dist": "electron-builder",
+    "postdist": "node scripts/sign-release.mjs",
+    "keygen": "node scripts/keygen.mjs",
+    "release": "node scripts/release.mjs",
+    "release:win": "node scripts/release.mjs --targets=win",
+    "release:linux": "node scripts/release.mjs --targets=linux",
+    "deploy": "node scripts/run-local.mjs deploy",
+    "rollback": "node scripts/run-local.mjs rollback"
   },
   "dependencies": {
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3"
   },
   "devDependencies": {
@@ -51,11 +60,13 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "resources/icon-512.png"
+      "icon": "resources/icon.ico"
     },
     "nsis": {
       "allowToChangeInstallationDirectory": false,
-      "oneClick": true
+      "oneClick": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
     },
     "linux": {
       "target": "AppImage",

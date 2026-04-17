@@ -18,6 +18,11 @@ type ElectronAPI = {
   setAutoLaunch: (enabled: boolean) => Promise<boolean>
   checkForUpdates: () => Promise<void>
   installUpdate: () => Promise<void>
+  getUpdateStatus: () => Promise<{
+    lastCheckedAt: number | null
+    lastError: string | null
+    feedConfigured: boolean
+  }>
   onUpdateAvailable: (cb: (info: { version: string }) => void) => () => void
   onUpdateNotAvailable: (cb: () => void) => () => void
   onUpdateDownloadProgress: (
@@ -25,6 +30,13 @@ type ElectronAPI = {
   ) => () => void
   onUpdateDownloaded: (cb: (info: { version: string }) => void) => () => void
   onUpdateError: (cb: (err: { message: string }) => void) => () => void
+  onUpdateIncompatible: (
+    cb: (info: {
+      reason: 'client-too-old' | 'client-too-new' | null
+      minClient: string
+      maxClient: string | null
+    }) => void
+  ) => () => void
 }
 
 export const electronAPI: ElectronAPI | undefined = (window as unknown as { electronAPI?: ElectronAPI }).electronAPI

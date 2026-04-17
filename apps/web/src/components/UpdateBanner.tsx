@@ -8,6 +8,7 @@ type UpdateState =
   | { status: 'downloading'; percent: number }
   | { status: 'ready'; version: string }
   | { status: 'error'; message: string }
+  | { status: 'incompatible'; reason: 'client-too-old' | 'client-too-new' | null; minClient: string; maxClient: string | null }
 
 function ElectronUpdateBanner() {
   const [state, setState] = useState<UpdateState>({ status: 'idle' })
@@ -30,16 +31,28 @@ function ElectronUpdateBanner() {
       }),
       electronAPI.onUpdateError((err) => {
         setState({ status: 'error', message: err.message })
+      }),
+      electronAPI.onUpdateIncompatible((info) => {
+        setState({ status: 'incompatible', reason: info.reason, minClient: info.minClient, maxClient: info.maxClient })
+        setDismissed(false)
       })
     ]
 
     return () => unsubs.forEach((fn) => fn())
   }, [])
 
-  if (dismissed || state.status === 'idle' || state.status === 'error') return null
+  if (dismissed || state.status === 'idle') return null
+
+  const isError = state.status === 'error'
+  const isIncompatible = state.status === 'incompatible'
+  const isWarn = isError || isIncompatible
 
   return (
-    <div className="flex items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm text-gray-300">
+    <div
+      className={`flex items-center gap-3 border-b px-4 py-2 text-sm ${
+        isWarn ? 'border-red-500/30 bg-red-950/40 text-red-200' : 'border-white/5 bg-surface-raised text-gray-300'
+      }`}
+    >
       {state.status === 'available' && (
         <>
           <span>A new version ({state.version}) is being downloaded...</span>
@@ -72,6 +85,47 @@ function ElectronUpdateBanner() {
             className="ml-auto text-xs text-gray-500 transition hover:text-gray-300"
           >
             Later
+          </button>
+        </>
+      )}
+      {isError && state.status === 'error' && (
+        <>
+          <span className="min-w-0 flex-1 truncate">Update failed: {state.message}</span>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setState({ status: 'idle' })
+              electronAPI?.checkForUpdates()
+            }}
+            className="rounded-md text-xs font-semibold"
+          >
+            Retry
+          </Button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="text-xs text-red-300/70 transition hover:text-red-100"
+          >
+            Dismiss
+          </button>
+        </>
+      )}
+      {isIncompatible && state.status === 'incompatible' && (
+        <>
+          <span className="min-w-0 flex-1 truncate">
+            {state.reason === 'client-too-new'
+              ? `This app is newer than the server supports (max ${state.maxClient ?? '?'}). Ask your server admin to upgrade.`
+              : state.reason === 'client-too-old'
+                ? `This app is older than the server requires (min ${state.minClient}). Please update manually from the Downloads page.`
+                : 'This app is not compatible with the configured server.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="text-xs text-red-300/70 transition hover:text-red-100"
+          >
+            Dismiss
           </button>
         </>
       )}

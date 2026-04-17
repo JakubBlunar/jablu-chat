@@ -37,6 +37,15 @@ apps/desktop/release/
 # Generated
 apps/server/prisma/generated/
 apps/server/src/generated/
+apps/desktop/src/main/updateSigningKey.generated.ts
+
+# Per-deployment update-signing private keys (must never be committed)
+*.pem
+updater-private.pem
+
+# Per-deployment deploy scripts (contain VPS credentials)
+apps/desktop/scripts/deploy.mjs
+apps/desktop/scripts/rollback.mjs
 
 # pnpm deploy scratch (local / CI experiments)
 apps/server/.deploy-test/
@@ -47,6 +56,6 @@ coverage/
 # TLS certs
 docker/nginx/certs/
 
-# Local scripts
-scripts/
+# Local scratch scripts at the repo root only
+/scripts/
 .playwright-mcp
