@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { hasPermission, Permission } from '@chat/shared'
+import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 
@@ -8,6 +9,7 @@ export class ReadStateService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roles: RolesService,
+    private readonly inApp: InAppNotificationsService,
   ) {}
 
   async getAllForUser(userId: string) {
@@ -102,6 +104,7 @@ export class ReadStateService {
       ON CONFLICT (user_id, channel_id) DO UPDATE
         SET last_read_at = EXCLUDED.last_read_at, mention_count = 0
     `
+    await this.inApp.markServerChannelsRead(userId, visibleIds).catch(() => {})
   }
 
   async ackChannel(userId: string, channelId: string) {
@@ -110,6 +113,7 @@ export class ReadStateService {
       update: { lastReadAt: new Date(), mentionCount: 0 },
       create: { userId, channelId, lastReadAt: new Date(), mentionCount: 0 }
     })
+    await this.inApp.markChannelRead(userId, channelId).catch(() => {})
   }
 
   async ackDm(userId: string, conversationId: string) {
@@ -123,6 +127,7 @@ export class ReadStateService {
         mentionCount: 0
       }
     })
+    await this.inApp.markDmRead(userId, conversationId).catch(() => {})
   }
 
   async incrementMention(channelId: string, userIds: string[]) {

@@ -2,12 +2,18 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { ReadStateService } from './read-state.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
+import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('ReadStateService', () => {
   let service: ReadStateService
   let prisma: MockPrismaService
   let roles: { getAllChannelPermissions: jest.Mock }
+  let inApp: {
+    markChannelRead: jest.Mock
+    markServerChannelsRead: jest.Mock
+    markDmRead: jest.Mock
+  }
 
   const userId = 'user-1'
   const serverId = 'server-1'
@@ -17,12 +23,18 @@ describe('ReadStateService', () => {
     roles = {
       getAllChannelPermissions: jest.fn().mockResolvedValue({}),
     }
+    inApp = {
+      markChannelRead: jest.fn().mockResolvedValue(undefined),
+      markServerChannelsRead: jest.fn().mockResolvedValue(undefined),
+      markDmRead: jest.fn().mockResolvedValue(undefined),
+    }
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReadStateService,
         { provide: PrismaService, useValue: prisma },
         { provide: RolesService, useValue: roles },
+        { provide: InAppNotificationsService, useValue: inApp },
       ],
     }).compile()
 

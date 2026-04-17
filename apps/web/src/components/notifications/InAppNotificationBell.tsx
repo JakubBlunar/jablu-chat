@@ -28,6 +28,12 @@ function titleFor(n: InAppNotificationDto): string {
       const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} replies` : 'Thread reply'
       return `${name} in #${ch} — ${c}`
     }
+    case 'channel_message': {
+      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
+      const ch = typeof p.channelName === 'string' ? p.channelName : 'channel'
+      const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} new messages` : 'New message'
+      return `${name} in #${ch} — ${c}`
+    }
     case 'friend_request': {
       const name = typeof p.requesterName === 'string' ? p.requesterName : 'Someone'
       return `${name} sent a friend request`
@@ -117,6 +123,13 @@ export function InAppNotificationBell({ className = '' }: { className?: string }
               const parent = res.messages.find((m) => m.id === threadParentId)
               if (parent) openWithParent(parent)
             }
+          }
+        } else if (n.kind === 'channel_message') {
+          const serverId = typeof p.serverId === 'string' ? p.serverId : null
+          const channelId = typeof p.channelId === 'string' ? p.channelId : null
+          const messageId = typeof p.messageId === 'string' ? p.messageId : null
+          if (serverId && channelId) {
+            await orchestratedGoToChannel(serverId, channelId, messageId ?? undefined)
           }
         } else if (n.kind === 'friend_request') {
           navigate('/channels/@me')
