@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  getUpdateStatus: () =>
+    ipcRenderer.invoke('get-update-status') as Promise<{
+      lastCheckedAt: number | null
+      lastError: string | null
+      feedConfigured: boolean
+    }>,
 
   onUpdateAvailable: (cb: (info: { version: string }) => void) => {
     const listener = (_: unknown, info: { version: string }) => cb(info)
@@ -68,6 +74,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-error', listener)
     return () => {
       ipcRenderer.removeListener('update-error', listener)
+    }
+  },
+  onUpdateIncompatible: (
+    cb: (info: { reason: 'client-too-old' | 'client-too-new' | null; minClient: string; maxClient: string | null }) => void
+  ) => {
+    const listener = (
+      _: unknown,
+      info: { reason: 'client-too-old' | 'client-too-new' | null; minClient: string; maxClient: string | null }
+    ) => cb(info)
+    ipcRenderer.on('update-incompatible', listener)
+    return () => {
+      ipcRenderer.removeListener('update-incompatible', listener)
     }
   }
 })

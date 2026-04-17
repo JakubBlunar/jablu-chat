@@ -22,7 +22,7 @@ const PLATFORM_MAP: Record<string, string> = {
   '.snap': 'linux'
 }
 
-const IGNORED_EXTENSIONS = new Set(['.yml', '.yaml', '.blockmap', '.json'])
+const IGNORED_EXTENSIONS = new Set(['.yml', '.yaml', '.blockmap', '.json', '.sig'])
 
 @Controller('downloads')
 export class DownloadsController {
