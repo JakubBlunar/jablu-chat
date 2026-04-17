@@ -72,20 +72,29 @@ if (installers.length > 0) {
   ])
 }
 
-run('pscp', [
-  '-batch',
-  '-pw',
-  PASSWORD,
-  ...manifests.map((f) => join(releaseDir, f)),
-  `${USER}@${HOST}:${UPDATES_PATH}/`
-])
+// Upload manifests and signatures to a `.new` staging name first, then rename
+// them into place back-to-back on the server. Without staging, a client that
+// fetches mid-upload can see a new latest.yml paired with the old
+// latest.yml.sig (or vice versa) for seconds at a time and hit a
+// signature-verification error. With staging, the vulnerable window collapses
+// to the sub-millisecond gap between two successive `mv` calls, which the
+// client's retry loop absorbs cleanly.
+for (const f of manifests) {
+  run('pscp', [
+    '-batch',
+    '-pw',
+    PASSWORD,
+    join(releaseDir, f),
+    `${USER}@${HOST}:${UPDATES_PATH}/${f}.new`
+  ])
+}
 
-run('plink', [
-  '-batch',
-  '-pw',
-  PASSWORD,
-  `${USER}@${HOST}`,
-  `echo 'Deploy complete: ' $(ls -1 ${UPDATES_PATH}/latest*.yml | wc -l) ' manifests, ' $(ls -1 ${DOWNLOADS_PATH}/*.exe ${DOWNLOADS_PATH}/*.AppImage 2>/dev/null | wc -l) ' installers'`
-])
+const promoteCmd = [
+  `cd ${UPDATES_PATH}`,
+  ...manifests.map((f) => `mv -f ${f}.new ${f}`),
+  `echo 'Deploy complete: ' $(ls -1 latest*.yml 2>/dev/null | wc -l) ' manifests, ' $(ls -1 ${DOWNLOADS_PATH}/*.exe ${DOWNLOADS_PATH}/*.AppImage 2>/dev/null | wc -l) ' installers'`
+].join('; ')
+
+run('plink', ['-batch', '-pw', PASSWORD, `${USER}@${HOST}`, promoteCmd])
 
 console.log('\n[deploy] Done.')
