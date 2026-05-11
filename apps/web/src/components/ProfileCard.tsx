@@ -280,6 +280,7 @@ function ProfileCardContent({
         )}
 
         <RoleBadges userId={user.id} />
+        <XpProgressSection userId={user.id} />
         <VoiceVolumeSlider userId={user.id} />
         {!user.isBot && (
           <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={setFriendshipStatus} />
@@ -537,6 +538,61 @@ function RoleBadges({ userId }: { userId: string }) {
         {roles.map((role) => (
           <RoleBadge key={role.id} name={role.name} color={role.color} size="md" />
         ))}
+      </div>
+    </div>
+  )
+}
+
+function XpProgressSection({ userId }: { userId: string }) {
+  const currentServer = useServerStore((s) =>
+    s.currentServerId ? s.servers.find((sv) => sv.id === s.currentServerId) ?? null : null
+  )
+  const [progress, setProgress] = useState<{
+    xp: number
+    level: number
+    xpIntoLevel: number
+    xpNeededForLevel: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!currentServer?.id || !currentServer.xpEnabled) {
+      setProgress(null)
+      return
+    }
+    let cancelled = false
+    api
+      .getMemberXpProgress(currentServer.id, userId)
+      .then((res) => {
+        if (!cancelled) setProgress(res)
+      })
+      .catch(() => {
+        if (!cancelled) setProgress(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [currentServer?.id, currentServer?.xpEnabled, userId])
+
+  if (!currentServer?.xpEnabled || !progress) return null
+
+  const pct =
+    progress.xpNeededForLevel > 0
+      ? Math.min(100, Math.round((progress.xpIntoLevel / progress.xpNeededForLevel) * 100))
+      : 0
+
+  return (
+    <div className="mb-3">
+      <SectionHeading className="mb-1">LEVEL</SectionHeading>
+      <div className="rounded-md bg-white/5 p-2">
+        <div className="flex items-baseline justify-between text-sm">
+          <span className="font-semibold text-white">Level {progress.level}</span>
+          <span className="text-xs text-gray-400 tabular-nums">
+            {progress.xpIntoLevel.toLocaleString()} / {progress.xpNeededForLevel.toLocaleString()} XP
+          </span>
+        </div>
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+        </div>
       </div>
     </div>
   )

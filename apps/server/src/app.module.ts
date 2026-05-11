@@ -29,6 +29,7 @@ import { BotsModule } from './bots/bots.module'
 import { ForumModule } from './forum/forum.module'
 import { RolesModule } from './roles/roles.module'
 import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module'
+import { XpModule } from './xp/xp.module'
 
 @Module({
   imports: [
@@ -71,7 +72,8 @@ import { InAppNotificationsModule } from './in-app-notifications/in-app-notifica
     ForumModule,
     RolesModule,
     BotsModule,
-    InAppNotificationsModule
+    InAppNotificationsModule,
+    XpModule
   ]
 })
 export class AppModule {}

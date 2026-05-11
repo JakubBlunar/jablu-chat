@@ -141,6 +141,10 @@ export class SendMessageDto {
   @ValidateNested({ each: true })
   @Type(() => EmbedDto)
   embeds?: EmbedDto[]
+
+  @IsOptional()
+  @IsUUID()
+  forwardFromMessageId?: string
 }
 
 export class EditMessageDto {

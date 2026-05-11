@@ -1,4 +1,4 @@
-export type Tab = 'overview' | 'welcome' | 'afk' | 'roles' | 'members' | 'bans' | 'webhooks' | 'bots' | 'emoji-stats' | 'automod' | 'audit' | 'insights' | 'onboarding' | 'danger'
+export type Tab = 'overview' | 'welcome' | 'afk' | 'roles' | 'members' | 'bans' | 'webhooks' | 'bots' | 'emoji-stats' | 'automod' | 'audit' | 'insights' | 'onboarding' | 'leveling' | 'danger'
 
 export const SERVER_TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -14,6 +14,7 @@ export const SERVER_TABS: { key: Tab; label: string }[] = [
   { key: 'audit', label: 'Audit Log' },
   { key: 'insights', label: 'Insights' },
   { key: 'onboarding', label: 'Onboarding' },
+  { key: 'leveling', label: 'Leveling' },
   { key: 'danger', label: 'Danger Zone' }
 ]
 

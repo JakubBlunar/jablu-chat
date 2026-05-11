@@ -138,6 +138,7 @@ export class ServersService {
     welcomeMessage?: string | null
     afkChannelId?: string | null
     afkTimeout?: number
+    xpEnabled?: boolean
   }) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
 
@@ -180,6 +181,10 @@ export class ServersService {
     if (data.afkTimeout !== undefined) {
       updateData.afkTimeout = data.afkTimeout
     }
+    if (data.xpEnabled !== undefined) {
+      updateData.xpEnabled = data.xpEnabled
+      details.push(data.xpEnabled ? 'Leveling enabled' : 'Leveling disabled')
+    }
 
     if (Object.keys(updateData).length === 0) {
       return this.getServer(serverId, userId)
@@ -206,6 +211,7 @@ export class ServersService {
       if (data.welcomeMessage !== undefined) patch.welcomeMessage = result.welcomeMessage
       if (data.afkChannelId !== undefined) patch.afkChannelId = result.afkChannelId
       if (data.afkTimeout !== undefined) patch.afkTimeout = result.afkTimeout
+      if (data.xpEnabled !== undefined) patch.xpEnabled = result.xpEnabled
       if (Object.keys(patch).length > 1) {
         this.events.emit('server:updated', patch)
       }
@@ -365,7 +371,13 @@ export class ServersService {
     this.events.emit('member:removed', { serverId, userId: targetUserId })
   }
 
-  async timeoutMember(serverId: string, actorId: string, targetUserId: string, durationSeconds: number) {
+  async timeoutMember(
+    serverId: string,
+    actorId: string,
+    targetUserId: string,
+    durationSeconds: number,
+    reason?: string
+  ) {
     await this.roles.requirePermission(serverId, actorId, Permission.MUTE_MEMBERS)
     const server = await this.getServerOrThrow(serverId)
     if (targetUserId === server.ownerId) {
@@ -379,14 +391,34 @@ export class ServersService {
     })
     if (!target) throw new NotFoundException('Member not found')
 
+    const trimmedReason = reason?.trim() || null
     const mutedUntil = new Date(Date.now() + durationSeconds * 1000)
     await this.prisma.serverMember.update({
       where: { userId_serverId: { userId: targetUserId, serverId } },
-      data: { mutedUntil }
+      data: {
+        mutedUntil,
+        mutedReason: trimmedReason,
+        mutedById: actorId
+      }
     })
-    await this.auditLog.log(serverId, actorId, 'member.timeout', 'user', targetUserId, `${durationSeconds}s`)
-    this.events.emit('member:updated', { serverId, userId: targetUserId, mutedUntil: mutedUntil.toISOString() })
-    return { mutedUntil: mutedUntil.toISOString() }
+    await this.auditLog.log(
+      serverId,
+      actorId,
+      'member.timeout',
+      'user',
+      targetUserId,
+      trimmedReason ? `${durationSeconds}s: ${trimmedReason}` : `${durationSeconds}s`
+    )
+    const payload = {
+      serverId,
+      userId: targetUserId,
+      mutedUntil: mutedUntil.toISOString(),
+      mutedReason: trimmedReason,
+      mutedById: actorId
+    }
+    this.events.emit('member:updated', payload)
+    this.events.emit('member:timeout', payload)
+    return { mutedUntil: mutedUntil.toISOString(), mutedReason: trimmedReason, mutedById: actorId }
   }
 
   async removeTimeout(serverId: string, actorId: string, targetUserId: string) {
@@ -398,10 +430,18 @@ export class ServersService {
 
     await this.prisma.serverMember.update({
       where: { userId_serverId: { userId: targetUserId, serverId } },
-      data: { mutedUntil: null }
+      data: { mutedUntil: null, mutedReason: null, mutedById: null }
     })
     await this.auditLog.log(serverId, actorId, 'member.timeout.remove', 'user', targetUserId)
-    this.events.emit('member:updated', { serverId, userId: targetUserId, mutedUntil: null })
+    const payload = {
+      serverId,
+      userId: targetUserId,
+      mutedUntil: null,
+      mutedReason: null,
+      mutedById: null
+    }
+    this.events.emit('member:updated', payload)
+    this.events.emit('member:timeout', payload)
   }
 
   async isUserMuted(serverId: string, userId: string): Promise<boolean> {

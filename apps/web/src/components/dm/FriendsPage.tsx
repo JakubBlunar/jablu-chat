@@ -42,6 +42,12 @@ export function FriendsPage() {
     if (tab === 'pending' && pending.length === 0) setTab('online')
   }, [tab, pending.length])
 
+  useEffect(() => {
+    const open = () => setAddFriendOpen(true)
+    window.addEventListener('open-add-friend', open)
+    return () => window.removeEventListener('open-add-friend', open)
+  }, [])
+
   const onlineFriends = useMemo(() => friends.filter((f) => f.status !== 'offline'), [friends])
   const displayedFriends = tab === 'online' ? onlineFriends : friends
 

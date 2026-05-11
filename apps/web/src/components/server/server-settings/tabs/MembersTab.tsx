@@ -105,12 +105,16 @@ export function MembersTab({ server }: { server: Server }) {
 
   const handleTimeout = useCallback(
     async (member: Member, duration: number) => {
+      const name = member.user.displayName ?? member.user.username
+      const reasonInput = prompt(`Timeout ${name}. Optional reason:`)
+      if (reasonInput === null) return
+      const reason = reasonInput.trim()
       setMemberError(null)
       try {
-        await api.timeoutMember(server.id, member.userId, duration)
+        await api.timeoutMember(server.id, member.userId, duration, reason || undefined)
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to timeout ${member.user.displayName ?? member.user.username}`)
+        setMemberError(`Failed to timeout ${name}`)
       }
     },
     [server.id, fetchMembers]
@@ -161,8 +165,12 @@ export function MembersTab({ server }: { server: Server }) {
                 <RoleBadge key={r.id} name={r.name} color={r.color} size="sm" />
               ))}
               {isMuted && (
-                <span className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400">
+                <span
+                  className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400"
+                  title={m.mutedReason ?? undefined}
+                >
                   Timed out {timeLeft && `· ${timeLeft}`}
+                  {m.mutedReason ? ' · with reason' : ''}
                 </span>
               )}
             </div>

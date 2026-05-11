@@ -1,20 +1,94 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { ChannelType, Prisma } from '../prisma-client'
 import { Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
+import { XpService } from '../xp/xp.service'
 import { messageInclude, mapMessageToWire, type MessageWithRelations } from './message-wire'
 import { EmbedDto } from './dto/embed.dto'
 
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name)
+
   constructor(
     private readonly prisma: PrismaService,
-    private readonly roles: RolesService
+    private readonly roles: RolesService,
+    private readonly xp: XpService
   ) {}
 
   mapToWire(m: MessageWithRelations, requestingUserId?: string) {
     return mapMessageToWire(m, requestingUserId)
+  }
+
+  /**
+   * Read the source message for a forward and return a snapshot suitable to
+   * splat into a Prisma create payload. We deliberately denormalize (author
+   * name, content, createdAt, channel name) so the forwarded card renders
+   * without joins and survives source edits or channel renames/deletions.
+   */
+  async buildForwardSnapshot(
+    sourceMessageId: string,
+    viewerUserId: string
+  ): Promise<{
+    forwardedFromId: string
+    forwardedFromChannelId: string | null
+    forwardedFromDmId: string | null
+    forwardedFromAuthorId: string | null
+    forwardedFromAuthorName: string | null
+    forwardedFromChannelName: string | null
+    forwardedFromContent: string | null
+    forwardedFromCreatedAt: Date
+  }> {
+    const source = await this.prisma.message.findUnique({
+      where: { id: sourceMessageId },
+      include: {
+        author: { select: { id: true, username: true, displayName: true } },
+        channel: { select: { id: true, name: true, serverId: true } },
+        directConversation: { select: { id: true, isGroup: true, groupName: true } }
+      }
+    })
+    if (!source || source.deleted) {
+      throw new BadRequestException('Source message not found')
+    }
+
+    if (source.channel) {
+      await this.requireMessageChannelMember(source.channel.id, viewerUserId)
+    } else if (source.directConversation) {
+      const member = await this.prisma.directConversationMember.findUnique({
+        where: {
+          conversationId_userId: {
+            conversationId: source.directConversation.id,
+            userId: viewerUserId
+          }
+        }
+      })
+      if (!member) {
+        throw new ForbiddenException('You do not have access to the source message')
+      }
+    } else {
+      throw new BadRequestException('Source message is not forwardable')
+    }
+
+    const authorName =
+      source.author?.displayName?.trim() || source.author?.username?.trim() || null
+
+    const channelName = source.channel
+      ? source.channel.name
+      : source.directConversation?.isGroup
+        ? source.directConversation.groupName ?? 'Group'
+        : 'Direct message'
+
+    return {
+      forwardedFromId: source.id,
+      forwardedFromChannelId: source.channel?.id ?? null,
+      forwardedFromDmId: source.directConversation?.id ?? null,
+      forwardedFromAuthorId: source.author?.id ?? null,
+      forwardedFromAuthorName: authorName,
+      forwardedFromChannelName: channelName,
+      forwardedFromContent: source.content ?? null,
+      forwardedFromCreatedAt: source.createdAt
+    }
   }
 
   private async requireMessageChannelMember(channelId: string, userId: string) {
@@ -188,14 +262,16 @@ export class MessagesService {
     replyToId?: string,
     attachmentIds?: string[],
     threadParentId?: string,
-    embeds?: EmbedDto[]
+    embeds?: EmbedDto[],
+    forwardFromMessageId?: string
   ) {
     await this.requireMessageChannelMember(channelId, userId)
 
     const trimmed = content?.trim()
     const hasAttachments = !!attachmentIds?.length
     const hasEmbeds = !!embeds?.length
-    if (!trimmed && !hasAttachments && !hasEmbeds) {
+    const hasForward = !!forwardFromMessageId
+    if (!trimmed && !hasAttachments && !hasEmbeds && !hasForward) {
       throw new BadRequestException('Message must have content, at least one attachment, or embeds')
     }
 
@@ -216,6 +292,10 @@ export class MessagesService {
         throw new BadRequestException('Invalid threadParentId')
       }
     }
+
+    const forwardSnapshot = hasForward
+      ? await this.buildForwardSnapshot(forwardFromMessageId!, userId)
+      : null
 
     const createWithChannelInclude = {
       ...messageInclude,
@@ -246,7 +326,8 @@ export class MessagesService {
           replyToId: replyToId ?? undefined,
           threadParentId: threadParentId ?? undefined,
           attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
-          embeds: hasEmbeds ? (embeds as unknown as Prisma.InputJsonValue) : undefined
+          embeds: hasEmbeds ? (embeds as unknown as Prisma.InputJsonValue) : undefined,
+          ...(forwardSnapshot ?? {})
         },
         include: createWithChannelInclude
       })
@@ -261,6 +342,14 @@ export class MessagesService {
         where: { threadParentId, deleted: false }
       })
       threadUpdate = { parentId: threadParentId, threadCount }
+    }
+
+    // Fire-and-forget XP award. We don't want leveling bugs (or Redis hiccups)
+    // to block message delivery — errors are already logged inside XpService.
+    if (channel?.serverId) {
+      void this.xp
+        .tryAwardForMessage(channel.serverId, userId)
+        .catch((err) => this.logger.warn(`XP award failed: ${(err as Error).message}`))
     }
 
     return { ...wire, serverId: channel!.serverId, threadUpdate }

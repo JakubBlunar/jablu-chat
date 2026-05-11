@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '../prisma-client'
 import { FriendsService } from '../friends/friends.service'
+import { MessagesService } from '../messages/messages.service'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   dmMessageInclude as messageInclude,
@@ -28,7 +29,8 @@ const memberSelect = {
 export class DmService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly friendsService: FriendsService
+    private readonly friendsService: FriendsService,
+    private readonly messages: MessagesService
   ) {}
 
   mapToWire(m: MessageWithRelations) {
@@ -371,13 +373,15 @@ export class DmService {
     userId: string,
     content?: string,
     replyToId?: string,
-    attachmentIds?: string[]
+    attachmentIds?: string[],
+    forwardFromMessageId?: string
   ) {
     await this.requireMembership(conversationId, userId)
 
     const trimmed = content?.trim()
     const hasAttachments = !!attachmentIds?.length
-    if (!trimmed && !hasAttachments) {
+    const hasForward = !!forwardFromMessageId
+    if (!trimmed && !hasAttachments && !hasForward) {
       throw new BadRequestException('Message must have content or at least one attachment')
     }
 
@@ -389,6 +393,10 @@ export class DmService {
         throw new BadRequestException('Invalid replyToId')
       }
     }
+
+    const forwardSnapshot = hasForward
+      ? await this.messages.buildForwardSnapshot(forwardFromMessageId!, userId)
+      : null
 
     const created = await this.prisma.$transaction(async (tx) => {
       if (hasAttachments) {
@@ -411,7 +419,8 @@ export class DmService {
           authorId: userId,
           content: trimmed ?? null,
           replyToId: replyToId ?? undefined,
-          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined
+          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
+          ...(forwardSnapshot ?? {})
         },
         include: messageInclude
       })

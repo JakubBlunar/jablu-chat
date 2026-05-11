@@ -12,7 +12,8 @@ export const keyboardShortcuts: ShortcutGroup[] = [
   {
     category: 'General',
     shortcuts: [
-      { keys: ['Ctrl', 'K'], description: 'Open quick-switcher' },
+      { keys: ['Ctrl', 'K'], description: 'Open command palette' },
+      { keys: ['?'], description: 'Open keyboard shortcuts' },
       { keys: ['Ctrl', '/'], description: 'Open keyboard shortcuts' },
       { keys: ['Escape'], description: 'Close any open modal, panel, or popover' }
     ]

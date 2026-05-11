@@ -29,7 +29,7 @@ export function createServerHandlers() {
     }
   }
 
-  const onMemberUpdated = (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: Role[]; mutedUntil?: string | null; onboardingCompleted?: boolean }) => {
+  const onMemberUpdated = (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: Role[]; mutedUntil?: string | null; mutedReason?: string | null; mutedById?: string | null; onboardingCompleted?: boolean }) => {
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId !== currentServerId) return
     if (payload.roleIds) {
@@ -41,11 +41,33 @@ export function createServerHandlers() {
       }
     }
     if (payload.mutedUntil !== undefined) {
-      useMemberStore.getState().updateMemberTimeout(payload.serverId, payload.userId, payload.mutedUntil ?? null)
+      useMemberStore
+        .getState()
+        .updateMemberTimeout(
+          payload.serverId,
+          payload.userId,
+          payload.mutedUntil ?? null,
+          payload.mutedReason,
+          payload.mutedById
+        )
     }
     if (payload.onboardingCompleted !== undefined) {
       useMemberStore.getState().updateMemberOnboarding(payload.serverId, payload.userId, payload.onboardingCompleted)
     }
+  }
+
+  const onMemberTimeout = (payload: { serverId: string; userId: string; mutedUntil: string | null; mutedReason?: string | null; mutedById?: string | null }) => {
+    const currentServerId = useServerStore.getState().currentServerId
+    if (payload.serverId !== currentServerId) return
+    useMemberStore
+      .getState()
+      .updateMemberTimeout(
+        payload.serverId,
+        payload.userId,
+        payload.mutedUntil,
+        payload.mutedReason ?? null,
+        payload.mutedById ?? null
+      )
   }
 
   const onRoleCreated = (payload: { serverId: string; role: Role }) => {
@@ -185,6 +207,7 @@ export function createServerHandlers() {
     onEventInterest,
     onMemberLeft,
     onMemberUpdated,
+    onMemberTimeout,
     onChannelPermissionsUpdated,
     onChannelCreated,
     onChannelUpdated,

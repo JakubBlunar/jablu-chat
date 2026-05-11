@@ -4,6 +4,7 @@ import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import type { RoleMentionRef } from '@/lib/markdownMentions'
+import { ForwardedCard } from '@/components/chat/ForwardedCard'
 import { MessageActions } from '@/components/chat/MessageActions'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
@@ -509,6 +510,8 @@ export const MessageRow = memo(function MessageRow({
             {!showHead && message.editedAt ? <span className="ml-1.5 text-xs text-gray-500">(edited)</span> : null}
           </div>
         ) : null}
+
+        {message.forwardedFrom && <ForwardedCard snapshot={message.forwardedFrom} />}
 
         {message.embeds && message.embeds.length > 0 && (
           <div className="mt-1.5 flex flex-col gap-1.5">

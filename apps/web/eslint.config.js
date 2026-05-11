@@ -4,6 +4,10 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig([
   globalIgnores(['dist']),
@@ -17,7 +21,12 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser
+      globals: globals.browser,
+      parserOptions: {
+        // Pin the parser to this app so tseslint doesn't try to auto-pick
+        // between apps/server and apps/web when ESLint is run from the repo root.
+        tsconfigRootDir: __dirname
+      }
     },
     rules: {
       // react-hooks 7 compiler-style rules: many false positives for refs, impure render helpers, etc.

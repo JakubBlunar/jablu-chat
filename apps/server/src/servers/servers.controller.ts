@@ -143,7 +143,7 @@ export class ServersController {
     @CurrentUser() user: { id: string },
     @Body() dto: TimeoutMemberDto
   ) {
-    return this.servers.timeoutMember(id, user.id, targetUserId, dto.duration)
+    return this.servers.timeoutMember(id, user.id, targetUserId, dto.duration, dto.reason)
   }
 
   @Delete(':id/members/:userId/timeout')

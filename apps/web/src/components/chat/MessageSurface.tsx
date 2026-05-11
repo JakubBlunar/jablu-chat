@@ -1,6 +1,5 @@
 import type { Message } from '@chat/shared'
 import { memo, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { MessageRow } from '@/components/chat/MessageRow'
 import { type ChannelRef } from '@/components/MarkdownContent'
@@ -77,7 +76,6 @@ export const MessageSurface = memo(function MessageSurface({
   hidePinAction,
   hideBookmarkAction
 }: MessageSurfaceProps) {
-  const { t } = useTranslation('chat')
   const renderedItems = useMemo(() => {
     const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -134,12 +132,13 @@ export const MessageSurface = memo(function MessageSurface({
   )
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="relative min-h-0 flex-1">
       <div
         ref={scroll.scrollParentRef}
-        role="region"
-        aria-label={t('messageListLabel')}
-        className={`chat-scroll flex min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2${scroll.settling ? ' invisible' : ''}`}
+        role="log"
+        aria-label="Messages"
+        aria-live="polite"
+        className={`chat-scroll flex h-full flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2${scroll.settling ? ' invisible' : ''}`}
       >
         {scrollChildren}
       </div>
