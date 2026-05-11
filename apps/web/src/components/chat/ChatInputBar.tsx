@@ -2,7 +2,6 @@ import type { BotCommandWithBot } from '@chat/shared'
 import {
   Suspense,
   forwardRef,
-  lazy,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -14,6 +13,10 @@ import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
 import { useIsMobile } from '@/hooks/useMobile'
 import { resolveMediaUrl } from '@/lib/api'
+import { lazyWithRetry } from '@/lib/lazyWithRetry'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Spinner } from '@/components/ui'
+import { showToast } from '@/stores/toast.store'
 import {
   EyeSlashIcon,
   GifIcon,
@@ -23,9 +26,17 @@ import {
   SmileIcon,
 } from '@/components/chat/chatIcons'
 
-const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
-const GifPicker = lazy(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
+const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+const GifPicker = lazyWithRetry(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
 import { UserAvatar } from '@/components/UserAvatar'
+
+function PickerLoading() {
+  return (
+    <div className="flex h-24 w-[340px] max-w-[80vw] items-center justify-center rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10">
+      <Spinner size="md" />
+    </div>
+  )
+}
 
 export type CustomEmojiItem = {
   id: string
@@ -596,31 +607,47 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
       {gifOpen && onGifSelect && (
         <div className="absolute bottom-full right-0 z-50 mb-2">
-          <Suspense fallback={null}>
-            <GifPicker
-              onSelect={(url) => {
-                onGifSelect(url)
-                setGifOpen(false)
-              }}
-              onClose={() => setGifOpen(false)}
-            />
-          </Suspense>
+          <ErrorBoundary
+            fallback={null}
+            onError={() => {
+              setGifOpen(false)
+              showToast(t('gifPicker'), t('pickerLoadFailed'))
+            }}
+          >
+            <Suspense fallback={<PickerLoading />}>
+              <GifPicker
+                onSelect={(url) => {
+                  onGifSelect(url)
+                  setGifOpen(false)
+                }}
+                onClose={() => setGifOpen(false)}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       )}
 
       {emojiOpen && (
         <div className="absolute bottom-full right-0 z-50 mb-2">
-          <Suspense fallback={null}>
-            <EmojiPicker
-              onSelect={(emoji) => {
-                onChange(value + emoji)
-                setEmojiOpen(false)
-                taRef.current?.focus()
-              }}
-              onClose={() => setEmojiOpen(false)}
-              customEmojis={customEmojis}
-            />
-          </Suspense>
+          <ErrorBoundary
+            fallback={null}
+            onError={() => {
+              setEmojiOpen(false)
+              showToast(t('emojiPicker'), t('pickerLoadFailed'))
+            }}
+          >
+            <Suspense fallback={<PickerLoading />}>
+              <EmojiPicker
+                onSelect={(emoji) => {
+                  onChange(value + emoji)
+                  setEmojiOpen(false)
+                  taRef.current?.focus()
+                }}
+                onClose={() => setEmojiOpen(false)}
+                customEmojis={customEmojis}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       )}
     </div>

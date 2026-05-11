@@ -1,8 +1,19 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { lazyWithRetry } from '@/lib/lazyWithRetry'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Spinner } from '@/components/ui'
 
-const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+
+function PickerLoading() {
+  return (
+    <div className="flex h-24 w-[340px] max-w-[80vw] items-center justify-center rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10">
+      <Spinner size="md" />
+    </div>
+  )
+}
 import { ConfirmDialog } from '@/components/ui'
 import { IconButton } from '@/components/ui/IconButton'
 import {
@@ -268,15 +279,23 @@ export function MessageActions({
             bottom: pickerAbove ? window.innerHeight - pickerPos.top : undefined
           }}
         >
-          <Suspense fallback={null}>
-            <EmojiPicker
-              onSelect={handleEmojiSelect}
-              onClose={() => setShowEmojiPicker(false)}
-              customEmojis={customEmojis}
-              reactionMode
-              onCustomSelect={handleCustomReaction}
-            />
-          </Suspense>
+          <ErrorBoundary
+            fallback={null}
+            onError={() => {
+              setShowEmojiPicker(false)
+              showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+            }}
+          >
+            <Suspense fallback={<PickerLoading />}>
+              <EmojiPicker
+                onSelect={handleEmojiSelect}
+                onClose={() => setShowEmojiPicker(false)}
+                customEmojis={customEmojis}
+                reactionMode
+                onCustomSelect={handleCustomReaction}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </div>,
         document.body
       )}
