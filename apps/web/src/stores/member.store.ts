@@ -8,6 +8,8 @@ export type Member = {
   roleIds: string[]
   joinedAt: string
   mutedUntil?: string | null
+  mutedReason?: string | null
+  mutedById?: string | null
   onboardingCompleted?: boolean
   roles?: Role[]
   user: {
@@ -46,7 +48,13 @@ type MemberState = {
   addMember: (member: Member) => void
   removeMember: (serverId: string, userId: string) => void
   updateMemberRoles: (serverId: string, userId: string, roleIds: string[], roles?: Role[]) => void
-  updateMemberTimeout: (serverId: string, userId: string, mutedUntil: string | null) => void
+  updateMemberTimeout: (
+    serverId: string,
+    userId: string,
+    mutedUntil: string | null,
+    mutedReason?: string | null,
+    mutedById?: string | null
+  ) => void
   updateMemberOnboarding: (serverId: string, userId: string, completed: boolean) => void
   updateRoleInMembers: (role: Role) => void
   removeRoleFromMembers: (serverId: string, roleId: string) => void
@@ -129,10 +137,19 @@ export const useMemberStore = create<MemberState>((set, get) => ({
       )
     })),
 
-  updateMemberTimeout: (serverId, userId, mutedUntil) =>
+  updateMemberTimeout: (serverId, userId, mutedUntil, mutedReason, mutedById) =>
     set((s) => ({
       members: s.members.map((m) =>
-        m.serverId === serverId && m.userId === userId ? { ...m, mutedUntil } : m
+        m.serverId === serverId && m.userId === userId
+          ? {
+              ...m,
+              mutedUntil,
+              // Only overwrite reason/actor when the caller provides them so
+              // callers that just refresh the expiry don't wipe metadata.
+              ...(mutedReason !== undefined ? { mutedReason } : {}),
+              ...(mutedById !== undefined ? { mutedById } : {})
+            }
+          : m
       )
     })),
 

@@ -719,7 +719,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       body.content,
       body.replyToId,
       body.attachmentIds,
-      body.threadParentId
+      body.threadParentId,
+      undefined,
+      body.forwardFromMessageId
     )
 
     const { serverId, threadUpdate, ...msgRest } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
@@ -1203,7 +1205,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       user.id,
       body.content,
       body.replyToId,
-      body.attachmentIds
+      body.attachmentIds,
+      body.forwardFromMessageId
     )
 
     const memberIds = await this.dm.getConversationMemberIds(body.conversationId)

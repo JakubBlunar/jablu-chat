@@ -1,6 +1,5 @@
 import { Permission, hasPermission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
-import { deliverChannelMessage, deliverDmMessage } from './message-notifications'
 
 export async function routeDmSlashCommand(
   gw: ChatGateway,
@@ -191,20 +190,26 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'webhook:message',
-    (payload: { channelId: string; message: any; serverId?: string; webhookName?: string }) => {
-      if (!payload.serverId) {
-        gw.emitToChannel(payload.channelId, 'message:new', {
-          ...(payload.message as object)
-        })
-        return
-      }
-      void deliverChannelMessage(gw.messageNotificationsContext(), {
-        serverId: payload.serverId,
-        channelId: payload.channelId,
-        message: payload.message,
-        senderId: null,
-        senderDisplayName: payload.webhookName ?? 'Webhook'
+    (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
+      gw.emitToChannel(payload.channelId, 'message:new', {
+        ...(payload.message as object),
+        ...(payload.serverId ? { serverId: payload.serverId } : {})
       })
+
+      if (payload.serverId && payload.webhookName) {
+        const content = (payload.message as { content?: string })?.content
+        gw
+          .sendPushToOfflineMembers(
+            payload.serverId,
+            '',
+            payload.webhookName,
+            content,
+            `/channels/${payload.serverId}/${payload.channelId}`,
+            payload.channelId,
+            []
+          )
+          .catch(() => {})
+      }
     }
   )
 
@@ -319,18 +324,7 @@ export function registerEventListeners(gw: ChatGateway) {
             linkPreviews: true
           }
         })
-        // Welcome messages are intentionally silent: real-time fan-out only,
-        // no push, no notification-center entry, no link previews.
-        await deliverChannelMessage(gw.messageNotificationsContext(), {
-          serverId,
-          channelId: server.welcomeChannelId,
-          message: welcomeMsg,
-          senderId: null,
-          senderDisplayName: server.name,
-          skipPush: true,
-          skipInApp: true,
-          skipLinkPreviews: true
-        })
+        gw.emitToChannel(server.welcomeChannelId, 'message:new', welcomeMsg)
       }
     } catch {
       // Don't break join flow for welcome message failures
@@ -444,7 +438,7 @@ export function registerEventListeners(gw: ChatGateway) {
         createdAt: new Date().toISOString()
       })
 
-      if (!gw.hasActiveSocket(addresseeId)) {
+      if (!gw.isUserOnline(addresseeId)) {
         gw.push
           .sendToUsers([addresseeId], {
             title: 'Friend Request',
@@ -533,27 +527,20 @@ export function registerEventListeners(gw: ChatGateway) {
   gw.events.on(
     'rest:message:created',
     (payload: { channelId: string; message: any; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
-      if (!payload.serverId) {
-        gw.emitToChannel(payload.channelId, 'message:new', { ...payload.message })
-        return
-      }
-      const senderId =
-        typeof payload.message?.authorId === 'string'
-          ? payload.message.authorId
-          : typeof payload.message?.author?.id === 'string'
-            ? payload.message.author.id
-            : null
-      void deliverChannelMessage(gw.messageNotificationsContext(), {
-        serverId: payload.serverId,
-        channelId: payload.channelId,
-        message: payload.message,
-        senderId,
-        threadUpdate: payload.threadUpdate
+      gw.emitToChannel(payload.channelId, 'message:new', {
+        ...payload.message,
+        ...(payload.serverId ? { serverId: payload.serverId } : {})
       })
+      if (payload.threadUpdate) {
+        gw.emitToChannel(payload.channelId, 'message:thread-update', {
+          parentId: payload.threadUpdate.parentId,
+          threadCount: payload.threadUpdate.threadCount
+        })
+      }
 
       const content = payload.message?.content
-      if (typeof content === 'string' && content.startsWith('/')) {
-        void routeRestSlashCommand(gw, content, payload.serverId, payload.channelId, senderId ?? undefined)
+      if (typeof content === 'string' && content.startsWith('/') && payload.serverId) {
+        void routeRestSlashCommand(gw, content, payload.serverId, payload.channelId, payload.message?.authorId)
       }
     }
   )
@@ -608,38 +595,31 @@ export function registerEventListeners(gw: ChatGateway) {
     'rest:dm:created',
     async (payload: { conversationId: string; message: any }) => {
       const roomName = `dm:${payload.conversationId}`
-      const memberRows = await gw.prisma.directConversationMember.findMany({
+      const memberIds = await gw.prisma.directConversationMember.findMany({
         where: { conversationId: payload.conversationId },
         select: { userId: true }
       })
-      for (const { userId } of memberRows) {
+      for (const { userId } of memberIds) {
         const sockets = await gw.server.in(`user:${userId}`).fetchSockets()
         for (const s of sockets) s.join(roomName)
       }
 
-      const senderId =
-        typeof payload.message?.authorId === 'string'
-          ? payload.message.authorId
-          : typeof payload.message?.author?.id === 'string'
-            ? payload.message.author.id
-            : null
-
-      await deliverDmMessage(gw.messageNotificationsContext(), {
-        conversationId: payload.conversationId,
-        message: payload.message,
-        senderId
+      gw.emitToDm(payload.conversationId, 'dm:new', {
+        ...payload.message,
+        conversationId: payload.conversationId
       })
 
       const content = payload.message?.content
       if (typeof content === 'string' && content.startsWith('/')) {
-        const members = memberRows.map((m) => m.userId)
-        const otherMembers = senderId ? members.filter((id) => id !== senderId) : members
+        const members = memberIds.map((m) => m.userId)
+        const authorId = payload.message?.authorId
+        const otherMembers = members.filter((id) => id !== authorId)
         const botMember = otherMembers.length > 0 ? await gw.prisma.user.findFirst({
           where: { id: { in: otherMembers }, isBot: true },
         }) : null
-        if (botMember && senderId) {
+        if (botMember && authorId) {
           const invoker = await gw.prisma.user.findUnique({
-            where: { id: senderId },
+            where: { id: authorId },
             select: { id: true, username: true, displayName: true }
           })
           if (invoker) {

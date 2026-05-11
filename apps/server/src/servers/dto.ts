@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator'
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator'
 import { Transform } from 'class-transformer'
 
 export class CreateServerDto {
@@ -41,6 +41,10 @@ export class UpdateServerDto {
   @Min(60)
   @Max(3600)
   afkTimeout?: number
+
+  @IsOptional()
+  @IsBoolean()
+  xpEnabled?: boolean
 }
 
 export class UpdateMemberRolesDto {
@@ -54,6 +58,11 @@ export class TimeoutMemberDto {
   @Min(1)
   @Max(2_419_200) // 28 days in seconds
   duration: number
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  reason?: string
 }
 
 export class UpdateOnboardingDto {

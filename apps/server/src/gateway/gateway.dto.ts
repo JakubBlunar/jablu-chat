@@ -36,6 +36,10 @@ export class WsSendMessageDto {
   @IsOptional()
   @IsUUID()
   targetBotAppId?: string
+
+  @IsOptional()
+  @IsUUID()
+  forwardFromMessageId?: string
 }
 
 export class WsEditMessageDto {
@@ -110,6 +114,10 @@ export class WsDmSendDto {
   @IsOptional()
   @IsUUID()
   targetBotAppId?: string
+
+  @IsOptional()
+  @IsUUID()
+  forwardFromMessageId?: string
 }
 
 export class WsDmEditDto {

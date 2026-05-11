@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { MessagesService } from './messages.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
+import { XpService } from '../xp/xp.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('MessagesService', () => {
@@ -59,6 +60,7 @@ describe('MessagesService', () => {
         MessagesService,
         { provide: PrismaService, useValue: prisma },
         { provide: RolesService, useValue: roles },
+        { provide: XpService, useValue: { tryAwardForMessage: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile()
 

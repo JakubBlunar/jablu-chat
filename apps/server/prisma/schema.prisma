@@ -58,6 +58,7 @@ model User {
   inAppNotifications     InAppNotification[]
   bans                   ServerBan[]      @relation("BannedUser")
   bansIssued             ServerBan[]      @relation("BanActor")
+  timeoutsIssued         ServerMember[]   @relation("ServerMemberMutedBy")
   botApplication         BotApplication?  @relation("BotUser")
   ownedBots              BotApplication[] @relation("BotOwner")
 
@@ -132,6 +133,7 @@ model Server {
   afkTimeout           Int      @default(300) @map("afk_timeout")
   onboardingEnabled    Boolean  @default(false) @map("onboarding_enabled")
   onboardingMessage    String?  @map("onboarding_message")
+  xpEnabled            Boolean  @default(false) @map("xp_enabled")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
@@ -158,15 +160,22 @@ model ServerMember {
   serverId   String      @map("server_id")
   notifLevel NotifLevel? @map("notif_level")
   mutedUntil          DateTime?   @map("muted_until")
+  mutedReason         String?     @map("muted_reason")
+  mutedById           String?     @map("muted_by_id")
   onboardingCompleted Boolean     @default(true) @map("onboarding_completed")
+  xp                  Int         @default(0) @map("xp")
+  level               Int         @default(0) @map("level")
+  lastXpAt            DateTime?   @map("last_xp_at")
   joinedAt            DateTime    @default(now()) @map("joined_at")
 
-  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  server Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  roles  ServerMemberRole[]
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  server   Server             @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  roles    ServerMemberRole[]
+  mutedBy  User?              @relation("ServerMemberMutedBy", fields: [mutedById], references: [id], onDelete: SetNull)
 
   @@id([userId, serverId])
   @@index([serverId])
+  @@index([serverId, xp(sort: Desc)])
   @@map("server_members")
 }
 
@@ -340,6 +349,17 @@ model Message {
   createdAt              DateTime @default(now()) @map("created_at")
   editedAt               DateTime? @map("edited_at")
 
+  /// Source message ID for forwards (self-relation). Null for non-forwards; SetNull on delete so forwards survive.
+  forwardedFromId         String?   @map("forwarded_from_id")
+  forwardedFromChannelId  String?   @map("forwarded_from_channel_id")
+  forwardedFromDmId       String?   @map("forwarded_from_dm_id")
+  forwardedFromAuthorId   String?   @map("forwarded_from_author_id")
+  /// Snapshot at forward time so renders don't need joins and survive source edits.
+  forwardedFromAuthorName String?   @map("forwarded_from_author_name")
+  forwardedFromChannelName String?  @map("forwarded_from_channel_name")
+  forwardedFromContent    String?   @map("forwarded_from_content")
+  forwardedFromCreatedAt  DateTime? @map("forwarded_from_created_at")
+
   author             User?               @relation(fields: [authorId], references: [id], onDelete: SetNull)
   channel            Channel?            @relation(fields: [channelId], references: [id], onDelete: Cascade)
   directConversation DirectConversation? @relation(fields: [directConversationId], references: [id], onDelete: Cascade)
@@ -347,6 +367,8 @@ model Message {
   replies            Message[]           @relation("MessageReplies")
   threadParent       Message?            @relation("MessageThreads", fields: [threadParentId], references: [id], onDelete: SetNull)
   threadMessages     Message[]           @relation("MessageThreads")
+  forwardedFrom      Message?            @relation("MessageForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
+  forwardsOfThis     Message[]           @relation("MessageForwards")
   webhook            Webhook?            @relation(fields: [webhookId], references: [id], onDelete: SetNull)
   attachments        Attachment[]
   reactions          Reaction[]
@@ -360,6 +382,7 @@ model Message {
   @@index([directConversationId, createdAt])
   @@index([threadParentId])
   @@index([authorId])
+  @@index([forwardedFromId])
   @@map("messages")
 }
 

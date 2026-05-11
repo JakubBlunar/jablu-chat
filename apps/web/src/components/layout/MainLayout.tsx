@@ -34,7 +34,7 @@ import { useServerStore } from '@/stores/server.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useGifStore } from '@/stores/gif.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
-import { QuickSwitcher } from '@/components/QuickSwitcher'
+import { CommandPalette } from '@/components/CommandPalette'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { OnboardingWizard } from '@/components/server/OnboardingWizard'
 
@@ -158,7 +158,7 @@ export function MainLayout() {
     if (tab) setSettingsInitialTab(tab)
     setSettingsOpen(true)
   }, [])
-  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -179,7 +179,21 @@ export function MainLayout() {
       }
       if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
-        setQuickSwitcherOpen((prev) => !prev)
+        setCommandPaletteOpen((prev) => !prev)
+      }
+      // Shift+? anywhere (outside inputs) opens the shortcut cheat-sheet.
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const target = e.target as HTMLElement | null
+        const isEditable =
+          target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable)
+        if (!isEditable) {
+          e.preventDefault()
+          setSettingsInitialTab('shortcuts')
+          setSettingsOpen(true)
+        }
       }
     }
     window.addEventListener('keydown', handler)
@@ -304,12 +318,12 @@ export function MainLayout() {
             <MessageArea mode="channel" contextId={currentChannelId} />
           )}
         </div>
-        <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)} />
+        <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
         <MemberDrawer />
         <Suspense fallback={null}>
           <ScreenSharePicker />
         </Suspense>
-        <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
+        <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
@@ -335,7 +349,7 @@ export function MainLayout() {
             <MessageArea mode="dm" contextId={currentConvId} />
           </div>
         </div>
-        <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
+        <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
@@ -385,7 +399,7 @@ export function MainLayout() {
           <ScreenSharePicker />
         </Suspense>
       </div>
-      <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
+      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
       {settingsOpen && (
         <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
           <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />

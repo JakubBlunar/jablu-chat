@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
@@ -66,6 +66,12 @@ export function ServerSidebar() {
   )
 
   const [joinOpen, setJoinOpen] = useState(false)
+
+  useEffect(() => {
+    const open = () => setJoinOpen(true)
+    window.addEventListener('open-join-server', open)
+    return () => window.removeEventListener('open-join-server', open)
+  }, [])
 
   const handleDmClick = () => {
     goToDms()

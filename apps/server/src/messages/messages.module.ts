@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { RolesModule } from '../roles/roles.module'
+import { XpModule } from '../xp/xp.module'
 import { LinkPreviewService } from './link-preview.service'
 import { MessagesController } from './messages.controller'
 import { MessagesService } from './messages.service'
@@ -10,7 +11,7 @@ import { SearchController } from './search.controller'
 import { SearchService } from './search.service'
 
 @Module({
-  imports: [RolesModule],
+  imports: [RolesModule, XpModule],
   controllers: [MessagesController, PollsController, SearchController, NotifPrefsController, BulkNotifPrefsController, ServerNotifPrefsController],
   providers: [MessagesService, PollsService, LinkPreviewService, SearchService],
   exports: [MessagesService, PollsService, LinkPreviewService]

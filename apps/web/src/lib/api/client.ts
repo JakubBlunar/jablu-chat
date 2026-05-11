@@ -705,7 +705,7 @@ export class ApiClient {
     return this.delete(`/api/webhooks/${webhookId}`)
   }
 
-  updateServer(serverId: string, data: { name?: string; vanityCode?: string | null; welcomeChannelId?: string | null; welcomeMessage?: string | null; afkChannelId?: string | null; afkTimeout?: number }): Promise<unknown> {
+  updateServer(serverId: string, data: { name?: string; vanityCode?: string | null; welcomeChannelId?: string | null; welcomeMessage?: string | null; afkChannelId?: string | null; afkTimeout?: number; xpEnabled?: boolean }): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}`, data)
   }
 
@@ -719,6 +719,43 @@ export class ApiClient {
 
   deleteServer(serverId: string): Promise<void> {
     return this.request<void>('DELETE', `/api/servers/${serverId}`)
+  }
+
+  getXpLeaderboard(serverId: string, limit?: number): Promise<Array<{
+    rank: number
+    userId: string
+    xp: number
+    level: number
+    user: {
+      id: string
+      username: string
+      displayName: string | null
+      avatarUrl: string | null
+      isBot: boolean
+    }
+  }>> {
+    const qs = limit ? `?limit=${limit}` : ''
+    return this.get(`/api/servers/${serverId}/xp/leaderboard${qs}`)
+  }
+
+  getMyXpProgress(serverId: string): Promise<{
+    xp: number
+    level: number
+    xpIntoLevel: number
+    xpNeededForLevel: number
+    nextLevelAt: number
+  }> {
+    return this.get(`/api/servers/${serverId}/xp/me`)
+  }
+
+  getMemberXpProgress(serverId: string, userId: string): Promise<{
+    xp: number
+    level: number
+    xpIntoLevel: number
+    xpNeededForLevel: number
+    nextLevelAt: number
+  }> {
+    return this.get(`/api/servers/${serverId}/members/${userId}/xp`)
   }
 
   leaveServer(serverId: string): Promise<void> {
@@ -743,8 +780,16 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/bans/${userId}`)
   }
 
-  timeoutMember(serverId: string, userId: string, duration: number): Promise<{ mutedUntil: string }> {
-    return this.post(`/api/servers/${serverId}/members/${userId}/timeout`, { duration })
+  timeoutMember(
+    serverId: string,
+    userId: string,
+    duration: number,
+    reason?: string
+  ): Promise<{ mutedUntil: string }> {
+    return this.post(`/api/servers/${serverId}/members/${userId}/timeout`, {
+      duration,
+      ...(reason ? { reason } : {})
+    })
   }
 
   removeTimeout(serverId: string, userId: string): Promise<void> {

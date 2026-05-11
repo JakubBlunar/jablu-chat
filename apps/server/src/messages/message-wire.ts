@@ -90,13 +90,83 @@ export function groupReactions(
   return [...map.values()]
 }
 
+type ForwardedFromFields = {
+  forwardedFromId: string | null
+  forwardedFromChannelId: string | null
+  forwardedFromDmId: string | null
+  forwardedFromAuthorId: string | null
+  forwardedFromAuthorName: string | null
+  forwardedFromChannelName: string | null
+  forwardedFromContent: string | null
+  forwardedFromCreatedAt: Date | string | null
+}
+
+type ForwardedFromWire = {
+  id: string | null
+  channelId: string | null
+  dmId: string | null
+  authorId: string | null
+  authorName: string | null
+  channelName: string | null
+  content: string | null
+  createdAt: string | null
+} | null
+
+function buildForwardedFrom(m: ForwardedFromFields): ForwardedFromWire {
+  if (!m.forwardedFromAuthorName && !m.forwardedFromContent && !m.forwardedFromCreatedAt) {
+    return null
+  }
+  const createdAt =
+    m.forwardedFromCreatedAt instanceof Date
+      ? m.forwardedFromCreatedAt.toISOString()
+      : m.forwardedFromCreatedAt ?? null
+  return {
+    id: m.forwardedFromId ?? null,
+    channelId: m.forwardedFromChannelId ?? null,
+    dmId: m.forwardedFromDmId ?? null,
+    authorId: m.forwardedFromAuthorId ?? null,
+    authorName: m.forwardedFromAuthorName ?? null,
+    channelName: m.forwardedFromChannelName ?? null,
+    content: m.forwardedFromContent ?? null,
+    createdAt
+  }
+}
+
 export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: string) {
-  const { reactions, webhookName, webhookAvatarUrl, poll, _count, threadMessages, embeds: rawEmbeds, ...rest } = m
+  const {
+    reactions,
+    webhookName,
+    webhookAvatarUrl,
+    poll,
+    _count,
+    threadMessages,
+    embeds: rawEmbeds,
+    forwardedFromId,
+    forwardedFromChannelId,
+    forwardedFromDmId,
+    forwardedFromAuthorId,
+    forwardedFromAuthorName,
+    forwardedFromChannelName,
+    forwardedFromContent,
+    forwardedFromCreatedAt,
+    ...rest
+  } = m
   const embeds = Array.isArray(rawEmbeds) && rawEmbeds.length > 0 ? rawEmbeds : undefined
   const lastReply = threadMessages?.[0] ?? null
+  const forwardedFrom = buildForwardedFrom({
+    forwardedFromId,
+    forwardedFromChannelId,
+    forwardedFromDmId,
+    forwardedFromAuthorId,
+    forwardedFromAuthorName,
+    forwardedFromChannelName,
+    forwardedFromContent,
+    forwardedFromCreatedAt
+  })
   return {
     ...rest,
     embeds,
+    forwardedFrom,
     threadCount: _count?.threadMessages ?? 0,
     lastThreadReply: lastReply
       ? {
@@ -133,6 +203,27 @@ export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: str
 }
 
 export function mapDmMessageToWire(m: DmMessageWithRelations) {
-  const { reactions, ...rest } = m
-  return { ...rest, reactions: groupReactions(reactions) }
+  const {
+    reactions,
+    forwardedFromId,
+    forwardedFromChannelId,
+    forwardedFromDmId,
+    forwardedFromAuthorId,
+    forwardedFromAuthorName,
+    forwardedFromChannelName,
+    forwardedFromContent,
+    forwardedFromCreatedAt,
+    ...rest
+  } = m
+  const forwardedFrom = buildForwardedFrom({
+    forwardedFromId,
+    forwardedFromChannelId,
+    forwardedFromDmId,
+    forwardedFromAuthorId,
+    forwardedFromAuthorName,
+    forwardedFromChannelName,
+    forwardedFromContent,
+    forwardedFromCreatedAt
+  })
+  return { ...rest, forwardedFrom, reactions: groupReactions(reactions) }
 }

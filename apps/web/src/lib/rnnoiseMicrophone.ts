@@ -59,7 +59,7 @@ export async function startRnnoiseMicrophone(room: Room, audioDefaults: AudioCap
     await audioContext.audioWorklet.addModule(noiseWorkletUrl as string)
 
     source = audioContext.createMediaStreamSource(rawStream)
-    worklet = new AudioWorkletNode(audioContext, NoiseSuppressorWorklet_Name)
+    worklet = new AudioWorkletNode(audioContext, NoiseSuppressorWorklet_Name, { outputChannelCount: [1] })
     dest = audioContext.createMediaStreamDestination()
     source.connect(worklet)
     worklet.connect(dest)

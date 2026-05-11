@@ -20,6 +20,7 @@ import { OnboardingTab } from './server-settings/tabs/OnboardingTab'
 import { DangerTab } from './server-settings/tabs/DangerTab'
 import { WelcomeTab } from './server-settings/tabs/WelcomeTab'
 import { AfkTab } from './server-settings/tabs/AfkTab'
+import { LevelingTab } from './server-settings/tabs/LevelingTab'
 
 export function ServerSettingsModal({ server, onClose }: { server: Server; onClose: () => void }) {
   const { t } = useTranslation('nav')
@@ -44,6 +45,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
       {tab === 'audit' && <AuditLogTab server={server} />}
       {tab === 'insights' && <InsightsTab server={server} />}
       {tab === 'onboarding' && <OnboardingTab server={server} />}
+      {tab === 'leveling' && <LevelingTab server={server} />}
       {tab === 'danger' && <DangerTab server={server} onClose={onClose} />}
     </>
   )

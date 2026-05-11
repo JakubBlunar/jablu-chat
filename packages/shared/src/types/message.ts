@@ -33,6 +33,23 @@ export interface Message {
   } | null
   webhook?: { name: string; avatarUrl: string | null } | null
   poll?: import('./poll.js').Poll | null
+  /**
+   * Denormalized snapshot of the source message at forward time. Populated for
+   * messages that were forwarded; null otherwise.
+   */
+  forwardedFrom?: ForwardedFromSnapshot | null
+}
+
+export interface ForwardedFromSnapshot {
+  /** Original message ID. May be null if the source has been hard-deleted. */
+  id: string | null
+  channelId: string | null
+  dmId: string | null
+  authorId: string | null
+  authorName: string | null
+  channelName: string | null
+  content: string | null
+  createdAt: string | null
 }
 
 export interface MessagePreview {

@@ -12,6 +12,7 @@ export interface Server {
   afkTimeout?: number
   onboardingEnabled?: boolean
   onboardingMessage?: string | null
+  xpEnabled?: boolean
   createdAt: string
   roles?: Role[]
 }

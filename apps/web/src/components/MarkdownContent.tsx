@@ -4,9 +4,9 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import type { Member } from '@/stores/member.store'
-import { processMentions, type RoleMentionRef } from '@/lib/markdownMentions'
 import { resolveMediaUrl } from '@/lib/api'
 import { escapeHtml, VIDEO_ALLOWED_ATTRS, AUDIO_ALLOWED_ATTRS } from '@/lib/markdownSecurity'
+import { processMentions, type RoleMentionRef } from '@/lib/markdownMentions'
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -68,7 +68,7 @@ const TEXT_EMOTICONS: [RegExp, string][] = [
   [/(?<!\w):\((?!\w)/g, '😞'],
   [/(?<!\w):D(?!\w)/g, '😄'],
   [/(?<!\w):P(?!\w)/gi, '😛'],
-  [/(?<!\w);[)]/g, '😉'],
+  [/(?<!\w);[\)]/g, '😉'],
   [/(?<!\w):O(?!\w)/gi, '😮'],
   [/(?<!\w)<3(?!\w)/g, '❤️'],
   [/(?<!\w):'\((?!\w)/g, '😢'],
@@ -98,8 +98,6 @@ function buildChannelLookup(channels: ChannelRef[]) {
   }
   return byName
 }
-
-export type { RoleMentionRef } from '@/lib/markdownMentions'
 
 function processSpoilers(text: string): string {
   return text.replace(/\|\|(.+?)\|\|/gs, (_, inner: string) =>
@@ -232,6 +230,16 @@ export const MarkdownContent = memo(function MarkdownContent({
   const byChannelName = useMemo(() => buildChannelLookup(channels ?? []), [channels])
   const emojiMap = customEmojiMap ?? EMPTY_EMOJI_MAP
 
+  // Build an id→role lookup so the `<a>` renderer can color role-mention pills
+  // without re-scanning the (lowercase-name keyed) source map on every click.
+  const rolesById = useMemo(() => {
+    const map = new Map<string, RoleMentionRef>()
+    if (rolesByLowerName) {
+      for (const r of rolesByLowerName.values()) map.set(r.id, r)
+    }
+    return map
+  }, [rolesByLowerName])
+
   const processed = useMemo(() => {
     let text = convertEmoticons(content)
     text = processSpoilers(text)
@@ -267,29 +275,28 @@ export const MarkdownContent = memo(function MarkdownContent({
       },
       pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
       a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+        if (href?.startsWith('mention:role:')) {
+          const roleId = href.slice('mention:role:'.length)
+          const role = rolesById.get(roleId)
+          const color = role?.color ?? null
+          // When the role has a custom color we tint both text and a faint
+          // background using the same hex; otherwise we fall back to the
+          // primary-themed pill so the mention still reads as interactive.
+          return color ? (
+            <span
+              className="rounded px-1 font-medium"
+              style={{ color, backgroundColor: `${color}26` }}
+            >
+              {children}
+            </span>
+          ) : (
+            <span className="rounded bg-primary/20 px-1 font-medium text-primary">
+              {children}
+            </span>
+          )
+        }
         if (href?.startsWith('mention:')) {
-          const rest = href.slice('mention:'.length)
-          if (rest.startsWith('role:')) {
-            const roleId = rest.slice('role:'.length)
-            const role = rolesByLowerName
-              ? [...rolesByLowerName.values()].find((r) => r.id === roleId)
-              : undefined
-            const hex = role?.color?.trim()
-            const solid = hex && /^#[0-9A-Fa-f]{6}$/i.test(hex) ? hex : null
-            return (
-              <span
-                className="rounded px-1 font-medium"
-                style={
-                  solid
-                    ? { backgroundColor: `${solid}33`, color: solid }
-                    : { backgroundColor: 'rgba(99,102,241,0.25)', color: 'rgb(199,210,254)' }
-                }
-              >
-                {children}
-              </span>
-            )
-          }
-          const username = rest
+          const username = href.slice('mention:'.length)
           const isBroadcast = username === 'everyone' || username === 'here'
           return (
             <span
@@ -424,7 +431,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         return <span className={className}>{children}</span>
       }
     }),
-    [onMentionClick, onChannelClick, rolesByLowerName]
+    [onMentionClick, onChannelClick, rolesById]
   )
 
   return (

@@ -36,10 +36,8 @@ function createMockModel(): MockModel {
   }
 }
 
-type AnyMethod = (...args: never[]) => unknown
-
 export type MockPrismaService = {
-  [K in keyof PrismaService]: PrismaService[K] extends AnyMethod ? jest.Mock : unknown
+  [K in keyof PrismaService]: PrismaService[K] extends Function ? jest.Mock : unknown
 } & {
   user: MockModel
   refreshToken: MockModel
@@ -81,7 +79,6 @@ export type MockPrismaService = {
   forumPostTag: MockModel
   botApplication: MockModel
   botCommand: MockModel
-  inAppNotification: MockModel
   $transaction: jest.Mock
   $executeRaw: jest.Mock
   $queryRaw: jest.Mock
@@ -129,7 +126,6 @@ export function createMockPrismaService(): MockPrismaService {
     forumPostTag: createMockModel(),
     botApplication: createMockModel(),
     botCommand: createMockModel(),
-    inAppNotification: createMockModel(),
     $transaction: jest.fn((fn: (prisma: any) => Promise<any>) => fn(createMockPrismaService())),
     $executeRaw: jest.fn().mockResolvedValue(0),
     $queryRaw: jest.fn().mockResolvedValue([]),

@@ -1,13 +1,14 @@
 import type { Message } from '@chat/shared'
 import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@chat/shared'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
-import { buildForwardQuoteBlock, buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { getSocket } from '@/lib/socket'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
-import { useComposerPrefillStore } from '@/stores/composer-prefill.store'
+import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
+import { showToast } from '@/stores/toast.store'
 
 type Props = {
   message: Message
@@ -17,12 +18,12 @@ type Props = {
   onForwarded?: () => void
 }
 
-export function ForwardMessageModal({ message, sourceChannelId, onClose, onForwarded }: Props) {
+export function ForwardMessageModal({ message, sourceChannelId: _sourceChannelId, onClose, onForwarded }: Props) {
   const currentServerId = useServerStore((s) => s.currentServerId)
   const channels = useChannelStore((s) => s.channels)
-  const sourceChannelName = channels.find((c) => c.id === sourceChannelId)?.name ?? 'channel'
   const permissionsMap = useChannelPermissionsStore((s) => s.permissionsMap)
   const { orchestratedGoToChannel } = useAppNavigate()
+  const [sendingTo, setSendingTo] = useState<string | null>(null)
 
   const destinations = useMemo(() => {
     if (!currentServerId) return []
@@ -40,42 +41,64 @@ export function ForwardMessageModal({ message, sourceChannelId, onClose, onForwa
   }, [channels, currentServerId, permissionsMap])
 
   async function pickChannel(targetId: string) {
-    if (!currentServerId) return
-    const path = buildMessageJumpPath('channel', {
-      serverId: currentServerId,
-      channelId: sourceChannelId,
-      messageId: message.id
-    })
-    const url = getMessageShareUrl(path)
-    const label = `#${sourceChannelName.replace(/^#/, '')}`
-    const quote = buildForwardQuoteBlock(message, label, url)
-    useComposerPrefillStore.getState().setPrefill(targetId, null, quote)
-    onClose()
-    onForwarded?.()
-    await orchestratedGoToChannel(currentServerId, targetId)
+    if (!currentServerId || sendingTo) return
+    setSendingTo(targetId)
+    const socket = getSocket()
+    if (!socket) {
+      setSendingTo(null)
+      showToast('Forward failed', 'Not connected to server.')
+      return
+    }
+    socket.emit(
+      'message:send',
+      {
+        channelId: targetId,
+        forwardFromMessageId: message.id
+      },
+      (res: { ok?: boolean; message?: Message; error?: string }) => {
+        setSendingTo(null)
+        if (res?.ok) {
+          // The socket broadcast will deliver the message to open listeners;
+          // still add directly if we happen to have the target channel open.
+          if (res.message && useMessageStore.getState().loadedForChannelId === targetId) {
+            useMessageStore.getState().addMessage(res.message)
+          }
+          onClose()
+          onForwarded?.()
+          void orchestratedGoToChannel(currentServerId, targetId)
+        } else {
+          showToast('Forward failed', res?.error ?? 'Could not forward message.')
+        }
+      }
+    )
   }
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-sm" zIndex="z-[140]">
       <h2 className="mb-1 text-lg font-bold text-white">Forward message</h2>
-      <p className="mb-3 text-sm text-gray-400">Pick a channel. The composer will open with a quote and link to the original.</p>
+      <p className="mb-3 text-sm text-gray-400">Pick a channel. The message will be posted as a forwarded card.</p>
       <div className="max-h-64 overflow-y-auto rounded border border-white/10">
         {destinations.length === 0 ? (
           <p className="p-3 text-sm text-gray-500">No text channels available.</p>
         ) : (
           <ul className="divide-y divide-white/5">
-            {destinations.map((ch) => (
-              <li key={ch.id}>
-                <button
-                  type="button"
-                  onClick={() => void pickChannel(ch.id)}
-                  className="flex w-full px-3 py-2.5 text-left text-sm text-gray-200 transition hover:bg-white/5"
-                >
-                  <span className="text-gray-500">#</span>
-                  {ch.name}
-                </button>
-              </li>
-            ))}
+            {destinations.map((ch) => {
+              const busy = sendingTo === ch.id
+              return (
+                <li key={ch.id}>
+                  <button
+                    type="button"
+                    disabled={sendingTo !== null}
+                    onClick={() => void pickChannel(ch.id)}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-200 transition hover:bg-white/5 disabled:opacity-50"
+                  >
+                    <span className="text-gray-500">#</span>
+                    <span className="flex-1">{ch.name}</span>
+                    {busy && <span className="text-xs text-gray-400">Sending…</span>}
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

@@ -118,7 +118,13 @@ describe('onMemberUpdated', () => {
   it('updates timeout', () => {
     handlers.onMemberUpdated({ serverId: 's1', userId: 'other', mutedUntil: '2025-01-01' })
 
-    expect(useMemberStore.getState().updateMemberTimeout).toHaveBeenCalledWith('s1', 'other', '2025-01-01')
+    expect(useMemberStore.getState().updateMemberTimeout).toHaveBeenCalledWith(
+      's1',
+      'other',
+      '2025-01-01',
+      undefined,
+      undefined
+    )
   })
 
   it('updates onboarding status', () => {

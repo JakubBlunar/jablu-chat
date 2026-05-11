@@ -20,6 +20,9 @@ const InviteModal = React.lazy(() =>
 const ServerSettingsModal = React.lazy(() =>
   import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
 )
+const LeaderboardModal = React.lazy(() =>
+  import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
+)
 import { UserFooter } from '@/components/layout/UserFooter'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -155,6 +158,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
@@ -168,6 +172,32 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
+
+  // Command palette hooks: allow global commands to open the sidebar's modals
+  // without duplicating the modal ownership elsewhere.
+  const canManageServer = isOwner || hasPerm(Permission.MANAGE_SERVER)
+  useEffect(() => {
+    if (!currentServer) return
+    const openChannel = () => {
+      if (!isAdminOrOwner) return
+      setCreateCategoryId(null)
+      setChannelModalOpen(true)
+    }
+    const openServerSettings = () => {
+      if (canManageServer) setServerSettingsOpen(true)
+    }
+    const openLeaderboard = () => {
+      if (currentServer?.xpEnabled) setLeaderboardOpen(true)
+    }
+    window.addEventListener('open-create-channel', openChannel)
+    window.addEventListener('open-server-settings', openServerSettings)
+    window.addEventListener('open-leaderboard', openLeaderboard)
+    return () => {
+      window.removeEventListener('open-create-channel', openChannel)
+      window.removeEventListener('open-server-settings', openServerSettings)
+      window.removeEventListener('open-leaderboard', openLeaderboard)
+    }
+  }, [currentServer, isAdminOrOwner, canManageServer])
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -408,6 +438,21 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
                 >
                   <PlusSmallIcon />
                   Create Category
+                </button>
+              )}
+              {currentServer.xpEnabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setLeaderboardOpen(true)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8M12 17v4M5 4h14v4a7 7 0 11-14 0V4zM5 8a3 3 0 01-3-3V4h3m14 4a3 3 0 003-3V4h-3" />
+                  </svg>
+                  Leaderboard
                 </button>
               )}
               <button
@@ -823,6 +868,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
       {serverSettingsOpen && currentServer && (
         <Suspense fallback={null}>
           <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
+        </Suspense>
+      )}
+      {leaderboardOpen && currentServer && (
+        <Suspense fallback={null}>
+          <LeaderboardModal serverId={currentServer.id} onClose={() => setLeaderboardOpen(false)} />
         </Suspense>
       )}
       {editingChannel && (
