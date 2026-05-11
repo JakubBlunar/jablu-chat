@@ -194,6 +194,21 @@ export function UnifiedInput({
   const mentionMembers = mentionMembersRef.current
   const mentionChannels = mentionChannelsRef.current
 
+  const editLastOwnMessage = useCallback(() => {
+    if (!userId) return
+    const list: Message[] = threadParentId
+      ? useThreadStore.getState().messages
+      : isDm
+        ? useDmStore.getState().messages
+        : useMessageStore.getState().messages
+    const last = list[list.length - 1]
+    if (!last) return
+    if (last.deleted) return
+    if (last.authorId !== userId) return
+    if (!last.content || !last.content.trim()) return
+    window.dispatchEvent(new CustomEvent('edit-message-intent', { detail: last.id }))
+  }, [userId, isDm, threadParentId])
+
   const handleGifSelect = useCallback(
     (url: string) => {
       if (isDm) {
@@ -467,6 +482,7 @@ export function UnifiedInput({
             botCommands={botCommands}
             onBotCommandPick={setTargetBot}
             customEmojis={customEmojis}
+            onEditLastMessage={editLastOwnMessage}
           />
         </div>
       </div>

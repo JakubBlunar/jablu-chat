@@ -178,6 +178,16 @@ export const MessageRow = memo(function MessageRow({
     setEditing(true)
   }, [message.content])
 
+  useEffect(() => {
+    if (!isAuthor) return
+    const onIntent = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      if (id === message.id) handleStartEdit()
+    }
+    window.addEventListener('edit-message-intent', onIntent)
+    return () => window.removeEventListener('edit-message-intent', onIntent)
+  }, [isAuthor, message.id, handleStartEdit])
+
   const handleSaveEdit = useCallback(() => {
     const trimmed = editValue.trim()
     if (!trimmed || trimmed === message.content) {
