@@ -1,20 +1,31 @@
-# Example release workflow for the Jablu desktop app.
-#
-# This file is NOT enabled by default. Each deployment signs with its own
-# keypair, so there is no single repo-wide release workflow that makes sense.
-# Copy this file to `.github/workflows/release.yml` in YOUR fork, add the
-# secrets below, and push tags like `v1.2.3` to cut releases.
-#
-# Required secrets:
-#   UPDATE_SIGNING_KEY   - full contents of the Ed25519 private PEM
-#   UPDATE_PUBLIC_KEY    - full contents of the Ed25519 public PEM
-#
-# Optional secrets (for rsync-to-server deploy):
-#   DEPLOY_HOST          - user@example.com
-#   DEPLOY_SSH_KEY       - private SSH key
-#   DEPLOY_UPDATES_PATH  - e.g. /var/lib/jablu/updates
-#   DEPLOY_DOWNLOADS_PATH - e.g. /var/lib/jablu/downloads
+# Example release workflow for the Jablu desktop app
 
+This file is **not** a real workflow on purpose — it lives outside
+`.github/workflows/` so GitHub Actions does not try to run it.
+
+Each deployment signs releases with its own keypair, so there is no single
+repo-wide release workflow that makes sense to ship enabled. To use this in
+your fork:
+
+1. Copy the YAML block below into `.github/workflows/release.yml` in your fork.
+2. Add the required secrets (see below).
+3. Push a tag like `v1.2.3` to cut a release.
+
+## Required secrets
+
+- `UPDATE_SIGNING_KEY` — full contents of the Ed25519 private PEM.
+- `UPDATE_PUBLIC_KEY` — full contents of the Ed25519 public PEM.
+
+## Optional secrets (for rsync-to-server deploy)
+
+- `DEPLOY_HOST` — e.g. `user@example.com`
+- `DEPLOY_SSH_KEY` — private SSH key
+- `DEPLOY_UPDATES_PATH` — e.g. `/var/lib/jablu/updates`
+- `DEPLOY_DOWNLOADS_PATH` — e.g. `/var/lib/jablu/downloads`
+
+## Workflow
+
+```yaml
 name: release-desktop
 
 on:
@@ -99,3 +110,4 @@ jobs:
           cd apps/desktop/release
           rsync -av -e "ssh ${SSH_OPTS}" *.exe *.AppImage "${DEPLOY_HOST}:${DEPLOY_DOWNLOADS_PATH}/" || true
           rsync -av -e "ssh ${SSH_OPTS}" latest*.yml latest*.yml.sig "${DEPLOY_HOST}:${DEPLOY_UPDATES_PATH}/" || true
+```

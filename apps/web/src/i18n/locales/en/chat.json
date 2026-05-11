@@ -4,6 +4,7 @@
   "attachFile": "Attach file",
   "gifPicker": "GIF picker",
   "emojiPicker": "Emoji picker",
+  "pickerLoadFailed": "Failed to load. Please check your connection and try again.",
   "sendMessage": "Send message",
   "mentionSuggestions": "User mention suggestions",
   "channelSuggestions": "Channel mention suggestions",

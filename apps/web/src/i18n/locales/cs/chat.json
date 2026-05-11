@@ -4,6 +4,7 @@
   "attachFile": "Přiložit soubor",
   "gifPicker": "Výběr GIF",
   "emojiPicker": "Výběr emoji",
+  "pickerLoadFailed": "Nepodařilo se načíst. Zkontrolujte připojení a zkuste to znovu.",
   "sendMessage": "Odeslat zprávu",
   "mentionSuggestions": "Návrhy zmínek uživatelů",
   "channelSuggestions": "Návrhy zmínek kanálů",

@@ -1,5 +1,8 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazyWithRetry } from '@/lib/lazyWithRetry'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Spinner } from '@/components/ui'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
@@ -34,7 +37,15 @@ import {
   TrashIcon,
 } from '@/components/chat/chatIcons'
 
-const EmojiPicker = lazy(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+
+function ReactionPickerLoading() {
+  return (
+    <div className="flex h-24 w-[340px] max-w-[80vw] items-center justify-center rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10">
+      <Spinner size="md" />
+    </div>
+  )
+}
 
 export const MessageRow = memo(function MessageRow({
   mode,
@@ -369,15 +380,23 @@ export const MessageRow = memo(function MessageRow({
             )}
             {emojiOpen && (
               <div className={`absolute right-0 z-50 ${pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
-                <Suspense fallback={null}>
-                  <EmojiPicker
-                    onSelect={(emoji) => {
-                      getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji })
-                      setEmojiOpen(false)
-                    }}
-                    onClose={() => setEmojiOpen(false)}
-                  />
-                </Suspense>
+                <ErrorBoundary
+                  fallback={null}
+                  onError={() => {
+                    setEmojiOpen(false)
+                    showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+                  }}
+                >
+                  <Suspense fallback={<ReactionPickerLoading />}>
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji })
+                        setEmojiOpen(false)
+                      }}
+                      onClose={() => setEmojiOpen(false)}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             )}
           </div>
@@ -645,14 +664,22 @@ function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; o
   )
 
   return (
-    <Suspense fallback={null}>
-      <EmojiPicker
-        onSelect={handleReaction}
-        onClose={onClose}
-        customEmojis={customEmojis}
-        reactionMode
-        onCustomSelect={handleCustomReaction}
-      />
-    </Suspense>
+    <ErrorBoundary
+      fallback={null}
+      onError={() => {
+        onClose()
+        showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+      }}
+    >
+      <Suspense fallback={<ReactionPickerLoading />}>
+        <EmojiPicker
+          onSelect={handleReaction}
+          onClose={onClose}
+          customEmojis={customEmojis}
+          reactionMode
+          onCustomSelect={handleCustomReaction}
+        />
+      </Suspense>
+    </ErrorBoundary>
   )
 }

@@ -197,8 +197,10 @@ installed. Pass `--targets=win` to skip the Linux build if you don't need it.
 
 ## Using CI instead of a local machine
 
-See `.github/workflows/release.example.yml` for a starting point. Note that CI
-will need:
+See [`.github/release-workflow-example.md`](../../.github/release-workflow-example.md)
+for a starting point. (It lives outside `.github/workflows/` on purpose so
+GitHub Actions does not try to run the example here — copy the YAML block
+into `.github/workflows/release.yml` in your fork.) Note that CI will need:
 
 - `UPDATE_PUBLIC_KEY_PEM` as a secret (public, but convenient to store here).
 - `UPDATE_SIGNING_KEY` as a secret (private PEM contents). The example workflow
