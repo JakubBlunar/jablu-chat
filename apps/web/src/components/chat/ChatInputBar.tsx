@@ -79,6 +79,7 @@ export type ChatInputBarProps = {
   botCommands?: BotCommandWithBot[]
   onBotCommandPick?: (info: { botAppId: string; commandName: string } | null) => void
   customEmojis?: CustomEmojiItem[]
+  onEditLastMessage?: () => void
 }
 
 type PopupMode = 'none' | 'mention' | 'channel' | 'command' | 'emoji'
@@ -139,7 +140,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onCommand,
     botCommands,
     onBotCommandPick,
-    customEmojis
+    customEmojis,
+    onEditLastMessage
   },
   ref
 ) {
@@ -440,6 +442,19 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           return
         }
       }
+      if (
+        e.key === 'ArrowUp' &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        value.length === 0 &&
+        onEditLastMessage
+      ) {
+        e.preventDefault()
+        onEditLastMessage()
+        return
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (value.length <= MAX_MESSAGE_LENGTH) onSend()
@@ -471,7 +486,8 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       executeCommand,
       onSend,
       value,
-      wrapSelection
+      wrapSelection,
+      onEditLastMessage
     ]
   )
 
