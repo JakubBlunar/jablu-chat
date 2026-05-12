@@ -22,6 +22,8 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { XSmallIcon } from '@/components/chat/chatIcons'
 import { useComposerPrefillStore } from '@/stores/composer-prefill.store'
 
+const EDIT_LOOKBACK = 10
+
 const TEXT_COMMANDS: Record<string, (rest: string) => string> = {
   shrug: (rest) => `${rest} ¯\\_(ツ)_/¯`.trim(),
   tableflip: (rest) => `${rest} (╯°□°)╯︵ ┻━┻`.trim(),
@@ -201,12 +203,16 @@ export function UnifiedInput({
       : isDm
         ? useDmStore.getState().messages
         : useMessageStore.getState().messages
-    const last = list[list.length - 1]
-    if (!last) return
-    if (last.deleted) return
-    if (last.authorId !== userId) return
-    if (!last.content || !last.content.trim()) return
-    window.dispatchEvent(new CustomEvent('edit-message-intent', { detail: last.id }))
+    const start = list.length - 1
+    const stop = Math.max(0, list.length - EDIT_LOOKBACK)
+    for (let i = start; i >= stop; i--) {
+      const m = list[i]
+      if (m.deleted) continue
+      if (m.authorId !== userId) continue
+      if (!m.content || !m.content.trim()) continue
+      window.dispatchEvent(new CustomEvent('edit-message-intent', { detail: m.id }))
+      return
+    }
   }, [userId, isDm, threadParentId])
 
   const handleGifSelect = useCallback(
