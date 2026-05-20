@@ -103,6 +103,43 @@ describe('navigation.store', () => {
       expect(path).toBe('/channels/s1')
     })
 
+    // Regression: clicking the "Voice Connected" pill in MobileNavDrawer
+    // invokes orchestratedGoToChannel(serverId, voiceChannelId). Without the
+    // voice/forum guard, navigateToChannel would call GET
+    // /api/channels/{voiceId}/messages, which the server rejects with 403
+    // because messages are only available in text or forum channels.
+    it('does not fetch messages when navigating to a voice channel', async () => {
+      const fetchMessagesSpy = jest.fn().mockResolvedValue(undefined)
+      const fetchMessagesAroundSpy = jest.fn().mockResolvedValue(undefined)
+      const clearMessagesSpy = jest.fn()
+      useMessageStore.setState({
+        fetchMessages: fetchMessagesSpy,
+        fetchMessagesAround: fetchMessagesAroundSpy,
+        clearMessages: clearMessagesSpy
+      } as any)
+
+      useServerStore.setState({ currentServerId: 's1', viewMode: 'server' as any })
+      useChannelStore.setState({
+        channels: [
+          { id: 'ch-text', serverId: 's1', name: 'general', type: 'text', position: 0 } as any,
+          { id: 'ch-voice', serverId: 's1', name: 'General', type: 'voice', position: 1 } as any
+        ],
+        currentChannelId: 'ch-text',
+        loadedServerId: 's1'
+      })
+
+      const path = await useNavigationStore.getState().navigateToChannel({
+        serverId: 's1',
+        channelId: 'ch-voice'
+      })
+
+      expect(path).toBe('/channels/s1/ch-voice')
+      expect(fetchMessagesSpy).not.toHaveBeenCalled()
+      expect(fetchMessagesAroundSpy).not.toHaveBeenCalled()
+      expect(clearMessagesSpy).not.toHaveBeenCalled()
+      expect(useChannelStore.getState().currentChannelId).toBe('ch-voice')
+    })
+
     it('short-circuits scroll-to-message for same channel', async () => {
       useServerStore.setState({ currentServerId: 's1', viewMode: 'server' as any })
       useChannelStore.setState({
