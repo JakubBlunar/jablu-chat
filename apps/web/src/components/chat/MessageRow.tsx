@@ -12,8 +12,8 @@ import { MessageActions } from '@/components/chat/MessageActions'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
 import { PollDisplay } from '@/components/chat/PollDisplay'
-import { resolveMediaUrl } from '@/lib/api'
-import type { CustomEmoji } from '@/lib/api/types'
+import { ReactionPill } from '@/components/chat/ReactionPill'
+import { ReactionDetailsModal } from '@/components/chat/ReactionDetailsModal'
 import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -172,6 +172,7 @@ export const MessageRow = memo(function MessageRow({
   const longPressFired = useRef(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mobileEmojiPicker, setMobileEmojiPicker] = useState(false)
+  const [reactorsEmoji, setReactorsEmoji] = useState<string | null>(null)
 
   const handleStartEdit = useCallback(() => {
     setEditValue(message.content ?? '')
@@ -597,61 +598,33 @@ export const MessageRow = memo(function MessageRow({
 
         {reactions.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
-            {reactions.map((r) => {
-              const isMine = userId ? r.userIds.includes(userId) : false
-              return (
-                <button
-                  key={r.emoji}
-                  type="button"
-                  aria-pressed={isMine}
-                  aria-label={`${r.emoji} ${r.count}`}
-                  onClick={() => {
-                    getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji: r.emoji, isCustom: r.isCustom })
-                  }}
-                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${
-                    isMine
-                      ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
-                      : 'bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover'
-                  }`}
-                >
-                  <ReactionEmoji emoji={r.emoji} isCustom={r.isCustom} customEmojiMap={customEmojiMap} />
-                  <span className="font-medium">{r.count}</span>
-                </button>
-              )
-            })}
+            {reactions.map((r) => (
+              <ReactionPill
+                key={r.emoji}
+                reaction={r}
+                messageId={message.id}
+                mode={mode}
+                contextId={contextId}
+                customEmojiMap={customEmojiMap}
+                onShowReactors={setReactorsEmoji}
+              />
+            ))}
           </div>
+        )}
+        {reactorsEmoji && (
+          <ReactionDetailsModal
+            reactions={reactions}
+            initialEmoji={reactorsEmoji}
+            mode={mode}
+            contextId={contextId}
+            customEmojiMap={customEmojiMap}
+            onClose={() => setReactorsEmoji(null)}
+          />
         )}
       </div>
     </div>
   )
 })
-
-
-function ReactionEmoji({
-  emoji,
-  isCustom,
-  customEmojiMap
-}: {
-  emoji: string
-  isCustom: boolean
-  customEmojiMap?: Map<string, CustomEmoji>
-}) {
-  const customEmoji = isCustom ? customEmojiMap?.get(emoji.toLowerCase()) : undefined
-
-  if (isCustom && customEmoji) {
-    return (
-      <img
-        src={resolveMediaUrl(customEmoji.imageUrl)}
-        alt={`:${emoji}:`}
-        title={`:${emoji}:`}
-        className="h-4 w-4 object-contain"
-        loading="lazy"
-      />
-    )
-  }
-
-  return <span>{emoji}</span>
-}
 
 function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const serverId = useServerStore((s) => s.currentServerId)
