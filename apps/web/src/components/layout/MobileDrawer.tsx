@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
+import { useIsMobile } from '@/hooks/useMobile'
 
 type Props = {
   open: boolean
@@ -16,8 +18,10 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children }: 
   const touchStartRef = useRef<number | null>(null)
   const touchDeltaRef = useRef(0)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
 
   useFocusTrap(drawerRef, open)
+  useBackGestureClose(open, onClose, isMobile)
 
   useEffect(() => {
     if (open) {
