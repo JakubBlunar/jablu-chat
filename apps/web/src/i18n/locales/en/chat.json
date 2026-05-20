@@ -46,5 +46,9 @@
   "channelInfoActionNotifications": "Alerts",
   "groupDmCreateError": "Failed to create conversation. Please try again.",
   "emojiPickerSheetTitle": "Emoji",
-  "gifPickerSheetTitle": "GIFs"
+  "gifPickerSheetTitle": "GIFs",
+  "newMessagesDivider": "New Messages",
+  "newMessagesPill_one": "{{count}} new message since {{time}}",
+  "newMessagesPill_other": "{{count}} new messages since {{time}}",
+  "markAsRead": "Mark As Read"
 }

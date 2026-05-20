@@ -41,6 +41,68 @@ describe('ReadStateService', () => {
     service = module.get(ReadStateService)
   })
 
+  describe('getAllForUser', () => {
+    const VIEW = 4096n // Permission.VIEW_CHANNEL
+
+    it('includes firstUnreadMessageId for channels and DMs', async () => {
+      prisma.$queryRaw
+        .mockResolvedValueOnce([
+          {
+            channel_id: 'ch-1',
+            last_read_at: new Date('2025-01-01T00:00:00Z'),
+            mention_count: 1,
+            server_id: 'server-1',
+            unread_count: 3n,
+            first_unread_message_id: 'msg-100',
+          },
+          {
+            channel_id: 'ch-2',
+            last_read_at: new Date('2025-01-01T00:00:00Z'),
+            mention_count: 0,
+            server_id: 'server-1',
+            unread_count: 0n,
+            first_unread_message_id: null,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            conversation_id: 'conv-1',
+            last_read_at: new Date('2025-01-01T00:00:00Z'),
+            mention_count: 2,
+            unread_count: 5n,
+            first_unread_message_id: 'msg-dm-200',
+          },
+        ])
+
+      roles.getAllChannelPermissions.mockResolvedValue({
+        'ch-1': VIEW,
+        'ch-2': VIEW,
+      })
+
+      const result = await service.getAllForUser(userId)
+
+      expect(result.channels).toEqual([
+        expect.objectContaining({
+          channelId: 'ch-1',
+          unreadCount: 3,
+          firstUnreadMessageId: 'msg-100',
+        }),
+        expect.objectContaining({
+          channelId: 'ch-2',
+          unreadCount: 0,
+          firstUnreadMessageId: null,
+        }),
+      ])
+      expect(result.dms).toEqual([
+        expect.objectContaining({
+          conversationId: 'conv-1',
+          unreadCount: 5,
+          firstUnreadMessageId: 'msg-dm-200',
+        }),
+      ])
+    })
+  })
+
   describe('ackChannel', () => {
     it('upserts with zero mentions and current timestamp', async () => {
       prisma.channelReadState.upsert.mockResolvedValue(undefined)

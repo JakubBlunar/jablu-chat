@@ -98,7 +98,7 @@ describe('onMessageNew', () => {
 
     handlers.onMessageNew({ ...baseMsg, serverId: 's1' } as any)
 
-    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', false, 's1')
+    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', false, 's1', 'm1')
   })
 
   it('counts mentions when user is mentioned', () => {
@@ -110,7 +110,7 @@ describe('onMessageNew', () => {
       mentionedUserIds: ['me'],
     } as any)
 
-    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', true, 's1')
+    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', true, 's1', 'm1')
   })
 
   it('counts @everyone as mention', () => {
@@ -122,7 +122,7 @@ describe('onMessageNew', () => {
       mentionEveryone: true,
     } as any)
 
-    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', true, 's1')
+    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', true, 's1', 'm1')
   })
 
   it('sends notification for non-viewed channels', () => {

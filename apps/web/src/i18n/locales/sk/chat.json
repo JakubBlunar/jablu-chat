@@ -38,5 +38,10 @@
   "pinnedEmptyChannel": "V tomto kanáli nie sú pripnuté správy.",
   "groupDmCreateError": "Vytvorenie konverzácie zlyhalo. Skúste to znova.",
   "emojiPickerSheetTitle": "Emoji",
-  "gifPickerSheetTitle": "GIFy"
+  "gifPickerSheetTitle": "GIFy",
+  "newMessagesDivider": "Nové správy",
+  "newMessagesPill_one": "{{count}} nová správa od {{time}}",
+  "newMessagesPill_few": "{{count}} nové správy od {{time}}",
+  "newMessagesPill_other": "{{count}} nových správ od {{time}}",
+  "markAsRead": "Označiť ako prečítané"
 }

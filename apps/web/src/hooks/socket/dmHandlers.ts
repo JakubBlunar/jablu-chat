@@ -19,7 +19,7 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
       dmState.addMessage(payload)
       throttledAck(() => useReadStateStore.getState().ackDm(currentConvId!))
     } else if (payload.authorId !== myId) {
-      useReadStateStore.getState().incrementDm(payload.conversationId)
+      useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
       const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
       const preview = notifBody(payload)
       const url = `/channels/@me/${payload.conversationId}`

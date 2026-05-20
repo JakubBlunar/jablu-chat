@@ -71,7 +71,7 @@ describe('onDmNew', () => {
 
     handlers.onDmNew(basePayload as any)
 
-    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1')
+    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1', 'dm-msg-1')
     expect(mockNotify).toHaveBeenCalledWith(
       'DM from Bob',
       'Hey!',
@@ -86,7 +86,7 @@ describe('onDmNew', () => {
 
     handlers.onDmNew(basePayload as any)
 
-    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1')
+    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1', 'dm-msg-1')
   })
 
   it('does not increment unread for own messages', () => {

@@ -8,6 +8,14 @@ export interface ScrollStoreAdapter {
   hasNewer: boolean
   scrollToMessageId: string | null
   scrollRequestNonce: number
+  /**
+   * Optional: when set and no explicit scrollToMessageId is pending, the
+   * initial fetch on context switch will be routed through
+   * fetchMessagesAround(initialAnchorMessageId) and the view will land on
+   * that message instead of snapping to bottom. Used to implement Discord's
+   * "open channel at first unread" behavior.
+   */
+  initialAnchorMessageId?: string | null
   fetchMessages: (id: string, before?: string) => Promise<void>
   fetchMessagesAround: (id: string, messageId: string) => Promise<void>
   fetchNewerMessages?: (id: string) => Promise<void>
@@ -353,7 +361,25 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         if (!hasScrollToTarget) setAtBottom(true)
       }
 
-      if (!alreadyLoaded && !hasScrollToTarget) {
+      const initialAnchorId = storeRef.current.initialAnchorMessageId ?? null
+
+      if (!alreadyLoaded && !hasScrollToTarget && initialAnchorId) {
+        // Open the channel at the first unread message instead of snapping to
+        // bottom. We piggyback on the existing scroll-to-message effect by
+        // fetching the around-window and then setting the scrollTo target.
+        setSettling(true)
+        hasInitialSnappedRef.current = false
+        pendingGoToBottom.current = false
+        setAtBottom(false)
+        clearMessages()
+        void storeRef.current.fetchMessagesAround(contextId, initialAnchorId).then(() => {
+          if (storeRef.current.getLoadedForId() !== contextId) return
+          storeRef.current.setScrollToMessageId(initialAnchorId)
+          setSettling(false)
+        }).catch(() => {
+          setSettling(false)
+        })
+      } else if (!alreadyLoaded && !hasScrollToTarget) {
         setSettling(true)
         pendingGoToBottom.current = true
         clearMessages()

@@ -133,10 +133,9 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   )
   const speakingUsers = useSpeakingUsers()
 
-  const { channelReadStates, ackChannel, ackServer } = useReadStateStore(
+  const { channelReadStates, ackServer } = useReadStateStore(
     useShallow((s) => ({
       channelReadStates: s.channels,
-      ackChannel: s.ackChannel,
       ackServer: s.ackServer
     }))
   )
@@ -278,17 +277,6 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
     },
     [user?.id, members, onlineUserIds]
   )
-
-  useEffect(() => {
-    if (currentChannelId && !viewingVoiceRoom) {
-      ackChannel(currentChannelId)
-    }
-    return () => {
-      if (currentChannelId && !viewingVoiceRoom) {
-        ackChannel(currentChannelId)
-      }
-    }
-  }, [currentChannelId, viewingVoiceRoom, ackChannel])
 
   const handleVoiceChannelClick = useCallback(
     (ch: Channel) => {
