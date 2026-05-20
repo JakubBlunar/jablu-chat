@@ -50,5 +50,10 @@
   "newMessagesDivider": "New Messages",
   "newMessagesPill_one": "{{count}} new message since {{time}}",
   "newMessagesPill_other": "{{count}} new messages since {{time}}",
-  "markAsRead": "Mark As Read"
+  "markAsRead": "Mark As Read",
+  "reactionsTitle": "Reactions",
+  "reactedBy": "reacted by",
+  "andOthers_one": "and 1 other",
+  "andOthers_other": "and {{count}} others",
+  "unknownUser": "Unknown user"
 }

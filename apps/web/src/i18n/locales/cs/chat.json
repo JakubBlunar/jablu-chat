@@ -43,5 +43,11 @@
   "newMessagesPill_one": "{{count}} nová zpráva od {{time}}",
   "newMessagesPill_few": "{{count}} nové zprávy od {{time}}",
   "newMessagesPill_other": "{{count}} nových zpráv od {{time}}",
-  "markAsRead": "Označit jako přečtené"
+  "markAsRead": "Označit jako přečtené",
+  "reactionsTitle": "Reakce",
+  "reactedBy": "reagovali",
+  "andOthers_one": "a 1 další",
+  "andOthers_few": "a {{count}} další",
+  "andOthers_other": "a {{count}} dalších",
+  "unknownUser": "Neznámý uživatel"
 }
