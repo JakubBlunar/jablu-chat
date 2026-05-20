@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { DmService } from './dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { FriendsService } from '../friends/friends.service'
+import { MessagesService } from '../messages/messages.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('DmService', () => {
@@ -58,6 +59,7 @@ describe('DmService', () => {
         DmService,
         { provide: PrismaService, useValue: prisma },
         { provide: FriendsService, useValue: friends },
+        { provide: MessagesService, useValue: {} },
       ],
     }).compile()
 
