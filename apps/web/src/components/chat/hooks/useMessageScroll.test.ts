@@ -100,6 +100,110 @@ describe('useMessageScroll', () => {
       expect(adapter.onContextLeave).toHaveBeenCalledWith('ch-1')
     })
 
+    // Regression: navigation.store pre-fetches messages for the target channel
+    // before flipping the channel id, so when MessageArea re-renders with the
+    // new contextId, getLoadedForId() already returns the new id (alreadyLoaded
+    // is true). Previously this caused the snap-to-bottom logic to be skipped
+    // entirely, leaving the user at scrollTop=0; the briefly-visible top
+    // sentinel then triggered load-older and stranded them mid-list.
+    it('does not refetch but still snaps on context switch when target is already loaded', () => {
+      let loadedId: string | null = 'ch-1'
+      const adapter = makeAdapter({ getLoadedForId: () => loadedId })
+
+      const { result, rerender } = renderHook(
+        ({ contextId }) => useMessageScroll(contextId, adapter),
+        { initialProps: { contextId: 'ch-1' } }
+      )
+
+      expect(result.current.settling).toBe(false)
+
+      loadedId = 'ch-2'
+      rerender({ contextId: 'ch-2' })
+
+      // The snap happens synchronously inline (no settling flash, no refetch)
+      // because the data is already in the store.
+      expect(result.current.settling).toBe(false)
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('initial mount with pre-loaded data', () => {
+    // Regression: when MessageArea remounts (e.g. after leaving a voice room
+    // in the same channel) the message store still has data for the current
+    // channel. The fresh scroll container starts at scrollTop=0; we must
+    // synchronously snap to the bottom inside the context-switch effect,
+    // otherwise the user lands at the top of the channel.
+    it('snaps to bottom on initial mount when data is already loaded', () => {
+      const adapter = makeAdapter({ getLoadedForId: () => 'ch-1' })
+      const { result } = renderHook(() => useMessageScroll('ch-1', adapter))
+
+      // No refetch, no settling flash.
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
+      expect(result.current.settling).toBe(false)
+      expect(result.current.atBottom).toBe(true)
+    })
+  })
+
+  describe('scroll to message + context switch', () => {
+    // Regression: switching channel via a search result sets scrollToMessageId
+    // and contextId in the same navigation step. The context-switch effect
+    // must NOT auto-snap to bottom in that case — that would fight the
+    // scroll-to-message useEffect's scrollIntoView and the force-bottom
+    // window would yank the user back to the bottom after image loads.
+    it('does not auto-snap or arm force-bottom when scrollToMessageId is pending', () => {
+      let loadedId: string | null = 'ch-1'
+      const adapter = makeAdapter({
+        scrollToMessageId: 'msg-target',
+        getLoadedForId: () => loadedId
+      })
+
+      const { rerender } = renderHook(
+        ({ contextId }) => useMessageScroll(contextId, adapter),
+        { initialProps: { contextId: 'ch-1' } }
+      )
+
+      loadedId = 'ch-2'
+      rerender({ contextId: 'ch-2' })
+
+      // No refetch (data is already loaded for ch-2).
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+      // No clear (we want to keep the data for scroll-to-message).
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('load older suppression', () => {
+    // Regression: the top sentinel briefly intersects after a context switch
+    // because the new scroll container starts at scrollTop=0. Until the
+    // pendingGoToBottom snap fires, load-older requests must be suppressed.
+    it('does not fire load-older immediately after a context switch with pre-loaded data', async () => {
+      let loadedId: string | null = 'ch-1'
+      const adapter = makeAdapter({
+        hasMore: true,
+        messages: [
+          { id: 'm1', authorId: 'u1', content: 'first', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' } as Message
+        ],
+        getLoadedForId: () => loadedId
+      })
+
+      const { rerender } = renderHook(
+        ({ contextId }) => useMessageScroll(contextId, adapter),
+        { initialProps: { contextId: 'ch-1' } }
+      )
+
+      loadedId = 'ch-2'
+      ;(adapter.fetchMessages as jest.Mock).mockClear()
+      rerender({ contextId: 'ch-2' })
+
+      // fetchMessages should not be called as part of load-older during the
+      // initial settle window for the new context (alreadyLoaded is true so no
+      // initial fetch either).
+      await Promise.resolve()
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+    })
+
     it('settling is true during context switch and remains until messages arrive', () => {
       const adapter = makeAdapter({
         getLoadedForId: jest.fn(() => null),

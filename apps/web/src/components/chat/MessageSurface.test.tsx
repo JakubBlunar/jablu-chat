@@ -114,6 +114,23 @@ describe('MessageSurface', () => {
     expect(scrollContainer?.className).not.toContain('invisible')
   })
 
+  it('renders messages in chronological DOM order (oldest first, newest last)', () => {
+    const msgs = makeMessages(3)
+    const { container } = renderSurface({ messages: msgs })
+    const renderedIds = Array.from(container.querySelectorAll('[data-testid^="msg-"]')).map(
+      (el) => el.getAttribute('data-testid')
+    )
+    expect(renderedIds).toEqual([`msg-${msgs[0].id}`, `msg-${msgs[1].id}`, `msg-${msgs[2].id}`])
+  })
+
+  it('scroll container disables browser scroll anchoring and is not flex-col-reverse', () => {
+    const { container } = renderSurface({ messages: makeMessages(2) })
+    const scrollContainer = container.querySelector('.chat-scroll')
+    expect(scrollContainer).not.toBeNull()
+    expect(scrollContainer?.className).not.toContain('flex-col-reverse')
+    expect(scrollContainer?.className).toMatch(/overflow-anchor/)
+  })
+
   describe('accessibility', () => {
     it('scroll container has role="log"', () => {
       const { container } = renderSurface()

@@ -78,7 +78,7 @@ export const MessageSurface = memo(function MessageSurface({
 }: MessageSurfaceProps) {
   const renderedItems = useMemo(() => {
     const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
-    for (let i = messages.length - 1; i >= 0; i--) {
+    for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
       const prev = i > 0 ? messages[i - 1] : undefined
       const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
@@ -91,11 +91,15 @@ export const MessageSurface = memo(function MessageSurface({
 
   const scrollChildren = (
     <>
+      {headerContent}
       {emptyState ?? (
         <>
-          <div ref={scroll.bottomSentinelRef} className="h-1 shrink-0" />
-          {hasNewer && <div ref={scroll.newerSentinelRef} className="h-1 shrink-0" />}
-          <div className="h-6 shrink-0" />
+          {hasMore && <div ref={scroll.topSentinelRef} className="h-1 shrink-0" />}
+          {isLoading && messages.length === 0 && (
+            <div className="flex justify-center py-3">
+              <Spinner size="md" />
+            </div>
+          )}
           {renderedItems.map(({ msg, showHead, newDay, isLastOwn }) => (
             <div key={msg.id} className="pb-0.5">
               {newDay && <DateSeparator date={msg.createdAt} />}
@@ -119,15 +123,11 @@ export const MessageSurface = memo(function MessageSurface({
               )}
             </div>
           ))}
-          {hasMore && <div ref={scroll.topSentinelRef} className="h-1 shrink-0" />}
-          {isLoading && messages.length === 0 && (
-            <div className="flex justify-center py-3">
-              <Spinner size="md" />
-            </div>
-          )}
+          <div className="h-6 shrink-0" />
+          {hasNewer && <div ref={scroll.newerSentinelRef} className="h-1 shrink-0" />}
+          <div ref={scroll.bottomSentinelRef} className="h-1 shrink-0" />
         </>
       )}
-      {headerContent}
     </>
   )
 
@@ -138,9 +138,9 @@ export const MessageSurface = memo(function MessageSurface({
         role="log"
         aria-label="Messages"
         aria-live="polite"
-        className={`chat-scroll flex h-full flex-col-reverse overflow-y-auto overscroll-contain px-4 py-2${scroll.settling ? ' invisible' : ''}`}
+        className={`chat-scroll h-full overflow-y-auto overscroll-contain px-4 py-2 [overflow-anchor:none]${scroll.settling ? ' invisible' : ''}`}
       >
-        {scrollChildren}
+        <div className="flex flex-col [overflow-anchor:none]">{scrollChildren}</div>
       </div>
 
       <ScrollToBottomButton

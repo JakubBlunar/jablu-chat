@@ -57,12 +57,20 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
         return `/channels/${serverId}`
       }
 
+      // Voice channels don't have a message history. The server returns 403
+      // for /api/channels/{id}/messages on non-text/forum channels, so we
+      // skip the pre-fetch entirely. MainLayout will render the VoiceRoom
+      // when viewingVoiceRoom is true (set by the caller, e.g. the "Voice
+      // Connected" pill in MobileNavDrawer) and MessageArea never mounts.
+      const targetChannel = channels.find((c) => c.id === targetChannelId)
+      const targetIsMessageable = targetChannel ? targetChannel.type === 'text' || targetChannel.type === 'forum' : true
+
       const oldChannelId = useChannelStore.getState().currentChannelId
       const inServerView = useServerStore.getState().viewMode === 'server'
       const sameChannel = inServerView && !serverChanged && targetChannelId === oldChannelId
 
       if (sameChannel) {
-        if (scrollToMessageId) {
+        if (scrollToMessageId && targetIsMessageable) {
           const msgs = useMessageStore.getState().messages
           if (!msgs.some((m) => m.id === scrollToMessageId)) {
             await useMessageStore.getState().fetchMessagesAround(targetChannelId, scrollToMessageId)
@@ -80,17 +88,19 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       }
       socket?.emit('channel:join', { channelId: targetChannelId })
 
-      useMessageStore.getState().clearMessages()
-      if (scrollToMessageId) {
-        await useMessageStore.getState().fetchMessagesAround(targetChannelId, scrollToMessageId)
-      } else {
-        await useMessageStore.getState().fetchMessages(targetChannelId)
-      }
+      if (targetIsMessageable) {
+        useMessageStore.getState().clearMessages()
+        if (scrollToMessageId) {
+          await useMessageStore.getState().fetchMessagesAround(targetChannelId, scrollToMessageId)
+        } else {
+          await useMessageStore.getState().fetchMessages(targetChannelId)
+        }
 
-      if (get().activeNavId !== navId) return null
+        if (get().activeNavId !== navId) return null
 
-      if (scrollToMessageId) {
-        useMessageStore.getState().setScrollToMessageId(scrollToMessageId)
+        if (scrollToMessageId) {
+          useMessageStore.getState().setScrollToMessageId(scrollToMessageId)
+        }
       }
 
       useServerStore.getState().setCurrentServer(serverId)

@@ -308,7 +308,7 @@ export function MainLayout() {
                 <p className="max-w-md text-sm text-gray-400">{tCommon('noServersHintMobile')}</p>
               </div>
             </div>
-          ) : viewingVoiceRoom ? (
+          ) : viewingVoiceRoom || currentChannelType === 'voice' ? (
             <Suspense fallback={<Spinner size="lg" className="flex-1" />}>
               <VoiceRoom />
             </Suspense>
@@ -381,7 +381,7 @@ export function MainLayout() {
               <p className="text-lg font-semibold text-white">{tCommon('noServersTitle')}</p>
               <p className="max-w-md text-sm text-gray-400">{tCommon('noServersHintDesktop')}</p>
             </div>
-          ) : viewingVoiceRoom ? (
+          ) : viewingVoiceRoom || currentChannelType === 'voice' ? (
             <Suspense fallback={<Spinner size="lg" className="flex-1" />}>
               <VoiceRoom />
             </Suspense>
