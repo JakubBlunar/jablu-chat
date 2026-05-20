@@ -5,6 +5,7 @@ import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScrol
 import { getSocket } from '@/lib/socket'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
+import { useReadStateStore } from '@/stores/readState.store'
 
 export type { ScrollStoreAdapter as MessageStoreData } from '@/components/chat/hooks/useMessageScroll'
 
@@ -12,8 +13,24 @@ const EMPTY: Message[] = []
 const NOOP_FETCH = async () => {}
 const NOOP_CLEAR = () => {}
 
-export function useMessageStoreAdapter(mode: 'channel' | 'dm'): ScrollStoreAdapter {
+export function useMessageStoreAdapter(
+  mode: 'channel' | 'dm',
+  contextId: string | null
+): ScrollStoreAdapter {
   const isDm = mode === 'dm'
+
+  // Anchor used by useMessageScroll to land on the first unread message
+  // instead of snapping to bottom. Prefer the session snapshot (taken on
+  // open and preserved across the in-channel ack); fall back to live read
+  // state for the initial paint before useChannelAck captures the snapshot.
+  const initialAnchorMessageId = useReadStateStore((s) => {
+    if (!contextId) return null
+    const snap = isDm ? s.dmViewSnapshots.get(contextId) : s.channelViewSnapshots.get(contextId)
+    if (snap) return snap.firstUnreadMessageId
+    const live = isDm ? s.dms.get(contextId) : s.channels.get(contextId)
+    if (!live || live.unreadCount === 0) return null
+    return live.firstUnreadMessageId ?? null
+  })
 
   const ch = useMessageStore(
     useShallow((s) =>
@@ -107,6 +124,7 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm'): ScrollStoreAdapt
       hasNewer: src.hasNewer,
       scrollToMessageId: src.scrollToMessageId,
       scrollRequestNonce: src.scrollRequestNonce,
+      initialAnchorMessageId,
       fetchMessages: src.fetchMessages,
       fetchMessagesAround: src.fetchMessagesAround,
       fetchNewerMessages: src.fetchNewerMessages,
@@ -126,6 +144,7 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm'): ScrollStoreAdapt
     hasNewer: false,
     scrollToMessageId: null,
     scrollRequestNonce: 0,
+    initialAnchorMessageId,
     fetchMessages: NOOP_FETCH,
     fetchMessagesAround: NOOP_FETCH,
     clearMessages: NOOP_CLEAR,

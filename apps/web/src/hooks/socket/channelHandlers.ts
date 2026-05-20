@@ -32,7 +32,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       const isMentioned = myId
         ? (msg.mentionedUserIds ?? []).includes(myId) || !!msg.mentionEveryone || !!msg.mentionHere
         : false
-      useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned, msg.serverId)
+      useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned, msg.serverId, msg.id)
 
       const level = useNotifPrefStore.getState().getEffective(msg.channelId, msg.serverId)
       if (level !== 'none' && (level !== 'mentions' || isMentioned)) {

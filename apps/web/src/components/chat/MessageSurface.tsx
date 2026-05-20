@@ -1,9 +1,10 @@
 import type { Message } from '@chat/shared'
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { MessageRow } from '@/components/chat/MessageRow'
 import { type ChannelRef } from '@/components/MarkdownContent'
-import { formatDateSeparator, isDifferentDay } from '@/lib/format-time'
+import { formatDateSeparator, formatTimeOnly, isDifferentDay } from '@/lib/format-time'
 import { Spinner } from '@/components/ui'
 import type { ScrollState } from '@/components/chat/hooks/useMessageScroll'
 import type { Member } from '@/stores/member.store'
@@ -26,6 +27,22 @@ function DateSeparator({ date }: { date: string }) {
     </div>
   )
 }
+
+const NewMessagesDivider = ({
+  label,
+  innerRef
+}: {
+  label: string
+  innerRef?: React.Ref<HTMLDivElement>
+}) => (
+  <div ref={innerRef} data-testid="new-messages-divider" className="my-2 flex items-center gap-3">
+    <div className="h-px flex-1 bg-red-500/60" />
+    <span className="rounded bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-red-400">
+      {label}
+    </span>
+    <div className="h-px flex-1 bg-red-500/60" />
+  </div>
+)
 
 export interface MessageSurfaceProps {
   scroll: ScrollState
@@ -52,6 +69,17 @@ export interface MessageSurfaceProps {
   hideThreadAction?: boolean
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
+
+  /** First unread message id from the channel-open snapshot. Renders the divider and pill. */
+  firstUnreadId?: string | null
+  /** Number of new messages at channel-open time. */
+  unreadCount?: number
+  /** Timestamp of last read (used to render "since hh:mm" in the pill). */
+  unreadSince?: string | null
+  /** Called when the user clicks the top pill body to jump to the divider. */
+  onJumpToUnread?: () => void
+  /** Called when the user clicks "Mark As Read" on the pill. */
+  onMarkAsRead?: () => void
 }
 
 export const MessageSurface = memo(function MessageSurface({
@@ -74,8 +102,14 @@ export const MessageSurface = memo(function MessageSurface({
   membersByUsername,
   hideThreadAction,
   hidePinAction,
-  hideBookmarkAction
+  hideBookmarkAction,
+  firstUnreadId = null,
+  unreadCount = 0,
+  unreadSince = null,
+  onJumpToUnread,
+  onMarkAsRead
 }: MessageSurfaceProps) {
+  const { t: tChat } = useTranslation('chat')
   const renderedItems = useMemo(() => {
     const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
     for (let i = 0; i < messages.length; i++) {
@@ -88,6 +122,38 @@ export const MessageSurface = memo(function MessageSurface({
     }
     return items
   }, [messages, lastOwnMsgId])
+
+  // True only when the divider message is present in the rendered list AND the
+  // divider element is above the visible viewport (i.e. user has already
+  // scrolled past it). In that case we hide the pill — they've seen the marker.
+  const dividerRef = useRef<HTMLDivElement | null>(null)
+  const [passedDivider, setPassedDivider] = useState(false)
+  const dividerInList = firstUnreadId != null && messages.some((m) => m.id === firstUnreadId)
+  const showPill = dividerInList && unreadCount > 0 && !passedDivider
+  useEffect(() => {
+    setPassedDivider(false)
+  }, [firstUnreadId])
+  useEffect(() => {
+    const el = dividerRef.current
+    const sp = scroll.scrollParentRef.current
+    if (!el || !sp || !dividerInList) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        const rect = entry.boundingClientRect
+        const rootRect = entry.rootBounds
+        if (!rootRect) return
+        // Divider is considered "passed" once it's above the top of the viewport.
+        setPassedDivider(!entry.isIntersecting && rect.bottom <= rootRect.top + 4)
+      },
+      { root: sp, threshold: 0 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [dividerInList, scroll.scrollParentRef])
+
+  const pillTimeLabel = unreadSince ? formatTimeOnly(unreadSince) : ''
 
   const scrollChildren = (
     <>
@@ -103,6 +169,9 @@ export const MessageSurface = memo(function MessageSurface({
           {renderedItems.map(({ msg, showHead, newDay, isLastOwn }) => (
             <div key={msg.id} className="pb-0.5">
               {newDay && <DateSeparator date={msg.createdAt} />}
+              {firstUnreadId === msg.id && (
+                <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />
+              )}
               <MessageRow
                 mode={mode}
                 message={msg}
@@ -142,6 +211,42 @@ export const MessageSurface = memo(function MessageSurface({
       >
         <div className="flex flex-col [overflow-anchor:none]">{scrollChildren}</div>
       </div>
+
+      {showPill && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center px-3 pt-2">
+          <button
+            type="button"
+            data-testid="new-messages-pill"
+            onClick={onJumpToUnread}
+            className="pointer-events-auto flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text shadow-lg ring-1 ring-black/10 transition hover:bg-primary/90"
+          >
+            <span className="truncate">
+              {tChat('newMessagesPill', { count: unreadCount, time: pillTimeLabel })}
+            </span>
+            {onMarkAsRead && (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={tChat('markAsRead')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMarkAsRead()
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onMarkAsRead()
+                  }
+                }}
+                className="cursor-pointer rounded px-1 text-[11px] uppercase tracking-wide opacity-90 hover:opacity-100"
+              >
+                {tChat('markAsRead')}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
       <ScrollToBottomButton
         atBottom={scroll.atBottom}

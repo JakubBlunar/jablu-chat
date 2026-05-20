@@ -16,7 +16,9 @@ function resetStore() {
   useReadStateStore.setState({
     channels: new Map(),
     dms: new Map(),
-    channelToServer: new Map()
+    channelToServer: new Map(),
+    channelViewSnapshots: new Map(),
+    dmViewSnapshots: new Map()
   })
 }
 
@@ -30,11 +32,11 @@ describe('readState.store', () => {
     it('populates channels, dms, and channelToServer maps', async () => {
       mockGetReadStates.mockResolvedValueOnce({
         channels: [
-          { channelId: 'ch-1', serverId: 's1', unreadCount: 3, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z' },
-          { channelId: 'ch-2', serverId: 's1', unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z' }
+          { channelId: 'ch-1', serverId: 's1', unreadCount: 3, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-10' },
+          { channelId: 'ch-2', serverId: 's1', unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }
         ],
         dms: [
-          { conversationId: 'dm-1', unreadCount: 2, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z' }
+          { conversationId: 'dm-1', unreadCount: 2, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'dm-m-5' }
         ]
       })
 
@@ -43,8 +45,10 @@ describe('readState.store', () => {
       const state = useReadStateStore.getState()
       expect(state.channels.size).toBe(2)
       expect(state.channels.get('ch-1')!.unreadCount).toBe(3)
+      expect(state.channels.get('ch-1')!.firstUnreadMessageId).toBe('m-10')
       expect(state.dms.size).toBe(1)
       expect(state.dms.get('dm-1')!.mentionCount).toBe(2)
+      expect(state.dms.get('dm-1')!.firstUnreadMessageId).toBe('dm-m-5')
       expect(state.channelToServer.get('ch-1')).toBe('s1')
     })
   })
@@ -52,7 +56,7 @@ describe('readState.store', () => {
   describe('ackChannel', () => {
     it('zeros out unread and mention counts', () => {
       useReadStateStore.setState({
-        channels: new Map([['ch-1', { unreadCount: 5, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z' }]])
+        channels: new Map([['ch-1', { unreadCount: 5, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-1' }]])
       })
 
       useReadStateStore.getState().ackChannel('ch-1')
@@ -60,6 +64,7 @@ describe('readState.store', () => {
       const rs = useReadStateStore.getState().channels.get('ch-1')!
       expect(rs.unreadCount).toBe(0)
       expect(rs.mentionCount).toBe(0)
+      expect(rs.firstUnreadMessageId).toBeNull()
     })
   })
 
@@ -67,9 +72,9 @@ describe('readState.store', () => {
     it('zeros out all channels belonging to the server', () => {
       useReadStateStore.setState({
         channels: new Map([
-          ['ch-1', { unreadCount: 3, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z' }],
-          ['ch-2', { unreadCount: 5, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z' }],
-          ['ch-3', { unreadCount: 2, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z' }]
+          ['ch-1', { unreadCount: 3, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-1' }],
+          ['ch-2', { unreadCount: 5, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-2' }],
+          ['ch-3', { unreadCount: 2, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-3' }]
         ]),
         channelToServer: new Map([['ch-1', 's1'], ['ch-2', 's1'], ['ch-3', 's2']])
       })
@@ -86,7 +91,7 @@ describe('readState.store', () => {
   describe('ackDm', () => {
     it('zeros out unread for the DM', () => {
       useReadStateStore.setState({
-        dms: new Map([['dm-1', { unreadCount: 3, mentionCount: 3, lastReadAt: '2025-01-01T00:00:00Z' }]])
+        dms: new Map([['dm-1', { unreadCount: 3, mentionCount: 3, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-1' }]])
       })
 
       useReadStateStore.getState().ackDm('dm-1')
@@ -98,7 +103,7 @@ describe('readState.store', () => {
   describe('incrementChannel', () => {
     it('increments unread count', () => {
       useReadStateStore.setState({
-        channels: new Map([['ch-1', { unreadCount: 1, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z' }]])
+        channels: new Map([['ch-1', { unreadCount: 1, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }]])
       })
 
       useReadStateStore.getState().incrementChannel('ch-1', false)
@@ -108,7 +113,7 @@ describe('readState.store', () => {
 
     it('increments mention count when isMention is true', () => {
       useReadStateStore.setState({
-        channels: new Map([['ch-1', { unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z' }]])
+        channels: new Map([['ch-1', { unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }]])
       })
 
       useReadStateStore.getState().incrementChannel('ch-1', true)
@@ -126,7 +131,7 @@ describe('readState.store', () => {
   describe('incrementDm', () => {
     it('increments both unread and mention for DMs', () => {
       useReadStateStore.setState({
-        dms: new Map([['dm-1', { unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z' }]])
+        dms: new Map([['dm-1', { unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }]])
       })
 
       useReadStateStore.getState().incrementDm('dm-1')
@@ -137,13 +142,88 @@ describe('readState.store', () => {
     })
   })
 
+  describe('captureChannelView', () => {
+    it('captures a snapshot from the live channel state', () => {
+      useReadStateStore.setState({
+        channels: new Map([
+          ['ch-1', { unreadCount: 4, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-42' }]
+        ])
+      })
+
+      useReadStateStore.getState().captureChannelView('ch-1')
+
+      const snap = useReadStateStore.getState().channelViewSnapshots.get('ch-1')!
+      expect(snap.unreadCount).toBe(4)
+      expect(snap.firstUnreadMessageId).toBe('m-42')
+      expect(snap.lastReadAt).toBe('2025-01-01T00:00:00Z')
+    })
+
+    it('is idempotent - subsequent captures do not overwrite (e.g. after ack)', () => {
+      useReadStateStore.setState({
+        channels: new Map([
+          ['ch-1', { unreadCount: 4, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-42' }]
+        ])
+      })
+      useReadStateStore.getState().captureChannelView('ch-1')
+      useReadStateStore.getState().ackChannel('ch-1')
+      useReadStateStore.getState().captureChannelView('ch-1')
+
+      const snap = useReadStateStore.getState().channelViewSnapshots.get('ch-1')!
+      expect(snap.unreadCount).toBe(4)
+      expect(snap.firstUnreadMessageId).toBe('m-42')
+    })
+
+    it('does nothing when there is no unread', () => {
+      useReadStateStore.setState({
+        channels: new Map([
+          ['ch-1', { unreadCount: 0, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }]
+        ])
+      })
+
+      useReadStateStore.getState().captureChannelView('ch-1')
+      expect(useReadStateStore.getState().channelViewSnapshots.has('ch-1')).toBe(false)
+    })
+  })
+
+  describe('captureDmView', () => {
+    it('captures snapshot for DM', () => {
+      useReadStateStore.setState({
+        dms: new Map([
+          ['dm-1', { unreadCount: 2, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-7' }]
+        ])
+      })
+      useReadStateStore.getState().captureDmView('dm-1')
+      const snap = useReadStateStore.getState().dmViewSnapshots.get('dm-1')!
+      expect(snap.firstUnreadMessageId).toBe('m-7')
+    })
+  })
+
+  describe('clearChannelView / clearDmView', () => {
+    it('removes the snapshot', () => {
+      useReadStateStore.setState({
+        channelViewSnapshots: new Map([
+          ['ch-1', { unreadCount: 3, firstUnreadMessageId: 'm-1', lastReadAt: '2025-01-01T00:00:00Z' }]
+        ]),
+        dmViewSnapshots: new Map([
+          ['dm-1', { unreadCount: 2, firstUnreadMessageId: 'm-9', lastReadAt: '2025-01-01T00:00:00Z' }]
+        ])
+      })
+
+      useReadStateStore.getState().clearChannelView('ch-1')
+      useReadStateStore.getState().clearDmView('dm-1')
+
+      expect(useReadStateStore.getState().channelViewSnapshots.size).toBe(0)
+      expect(useReadStateStore.getState().dmViewSnapshots.size).toBe(0)
+    })
+  })
+
   describe('getServerUnread', () => {
     beforeEach(() => {
       useReadStateStore.setState({
         channels: new Map([
-          ['ch-1', { unreadCount: 5, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z' }],
-          ['ch-2', { unreadCount: 3, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z' }],
-          ['ch-3', { unreadCount: 1, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z' }]
+          ['ch-1', { unreadCount: 5, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }],
+          ['ch-2', { unreadCount: 3, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }],
+          ['ch-3', { unreadCount: 1, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: null }]
         ]),
         channelToServer: new Map([['ch-1', 's1'], ['ch-2', 's1'], ['ch-3', 's2']])
       })

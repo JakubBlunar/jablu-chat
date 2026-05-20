@@ -68,6 +68,10 @@ jest.mock('@/components/chat/hooks/useMessageScroll', () => ({
   }),
 }))
 
+jest.mock('@/components/chat/hooks/useChannelAck', () => ({
+  useChannelAck: jest.fn(),
+}))
+
 jest.mock('@/components/chat/hooks/useProfileCard', () => ({
   useProfileCard: () => ({
     cardUser: null,

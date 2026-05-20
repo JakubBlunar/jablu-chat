@@ -38,5 +38,10 @@
   "pinnedEmptyChannel": "V tomto kanálu nejsou připnuté zprávy.",
   "groupDmCreateError": "Vytvoření konverzace se nezdařilo. Zkuste to znovu.",
   "emojiPickerSheetTitle": "Emoji",
-  "gifPickerSheetTitle": "GIFy"
+  "gifPickerSheetTitle": "GIFy",
+  "newMessagesDivider": "Nové zprávy",
+  "newMessagesPill_one": "{{count}} nová zpráva od {{time}}",
+  "newMessagesPill_few": "{{count}} nové zprávy od {{time}}",
+  "newMessagesPill_other": "{{count}} nových zpráv od {{time}}",
+  "markAsRead": "Označit jako přečtené"
 }

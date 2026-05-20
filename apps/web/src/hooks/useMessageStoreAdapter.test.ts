@@ -34,21 +34,21 @@ describe('useMessageStoreAdapter', () => {
         messages: msgs, isLoading: false, hasMore: true, hasNewer: false
       })
 
-      const { result } = renderHook(() => useMessageStoreAdapter('channel'))
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       expect(result.current.messages).toHaveLength(3)
       expect(result.current.hasMore).toBe(true)
       expect(result.current.isLoading).toBe(false)
     })
 
     it('setScrollToMessageId targets channel store', () => {
-      const { result } = renderHook(() => useMessageStoreAdapter('channel'))
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       act(() => result.current.setScrollToMessageId('msg-5'))
       expect(useMessageStore.getState().scrollToMessageId).toBe('msg-5')
     })
 
     it('getLoadedForId returns channel store loadedForChannelId', () => {
       useMessageStore.setState({ loadedForChannelId: 'ch-42' })
-      const { result } = renderHook(() => useMessageStoreAdapter('channel'))
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       expect(result.current.getLoadedForId()).toBe('ch-42')
     })
 
@@ -56,7 +56,7 @@ describe('useMessageStoreAdapter', () => {
       const mockSocket = { connected: true, emit: jest.fn() }
       mockGetSocket.mockReturnValue(mockSocket as any)
 
-      const { result } = renderHook(() => useMessageStoreAdapter('channel'))
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       result.current.onContextJoin!('ch-1')
       expect(mockSocket.emit).toHaveBeenCalledWith('channel:join', { channelId: 'ch-1' })
     })
@@ -65,7 +65,7 @@ describe('useMessageStoreAdapter', () => {
       const mockSocket = { connected: true, emit: jest.fn() }
       mockGetSocket.mockReturnValue(mockSocket as any)
 
-      const { result } = renderHook(() => useMessageStoreAdapter('channel'))
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       result.current.onContextLeave!('ch-1')
       expect(mockSocket.emit).toHaveBeenCalledWith('channel:leave', { channelId: 'ch-1' })
     })
@@ -78,21 +78,21 @@ describe('useMessageStoreAdapter', () => {
         messages: msgs, isLoading: true, hasMore: false, hasNewer: true
       })
 
-      const { result } = renderHook(() => useMessageStoreAdapter('dm'))
+      const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       expect(result.current.messages).toHaveLength(2)
       expect(result.current.isLoading).toBe(true)
       expect(result.current.hasNewer).toBe(true)
     })
 
     it('setScrollToMessageId targets DM store', () => {
-      const { result } = renderHook(() => useMessageStoreAdapter('dm'))
+      const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       act(() => result.current.setScrollToMessageId('dm-msg-3'))
       expect(useDmStore.getState().scrollToMessageId).toBe('dm-msg-3')
     })
 
     it('getLoadedForId returns DM store loadedForConvId', () => {
       useDmStore.setState({ loadedForConvId: 'conv-99' })
-      const { result } = renderHook(() => useMessageStoreAdapter('dm'))
+      const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       expect(result.current.getLoadedForId()).toBe('conv-99')
     })
 
@@ -100,7 +100,7 @@ describe('useMessageStoreAdapter', () => {
       const mockSocket = { connected: true, emit: jest.fn() }
       mockGetSocket.mockReturnValue(mockSocket as any)
 
-      const { result } = renderHook(() => useMessageStoreAdapter('dm'))
+      const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       result.current.onContextJoin!('conv-1')
       expect(mockSocket.emit).toHaveBeenCalledWith('dm:join', { conversationId: 'conv-1' })
     })
@@ -109,7 +109,7 @@ describe('useMessageStoreAdapter', () => {
       const mockSocket = { connected: true, emit: jest.fn() }
       mockGetSocket.mockReturnValue(mockSocket as any)
 
-      const { result } = renderHook(() => useMessageStoreAdapter('dm'))
+      const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       result.current.onContextLeave!('conv-1')
       expect(mockSocket.emit).not.toHaveBeenCalled()
     })
@@ -119,7 +119,7 @@ describe('useMessageStoreAdapter', () => {
     it('returns current channel snapshot', () => {
       const msgs = makeMessages(4)
       useMessageStore.setState({ messages: msgs, isLoading: false, hasMore: true, hasNewer: false })
-      const { result } = renderHook(() => useMessageStoreAdapter('channel'))
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       const snap = result.current.getSnapshot()
       expect(snap.messages).toHaveLength(4)
       expect(snap.hasMore).toBe(true)
@@ -128,10 +128,11 @@ describe('useMessageStoreAdapter', () => {
     it('returns current DM snapshot', () => {
       const msgs = makeMessages(2)
       useDmStore.setState({ messages: msgs, isLoading: true, hasMore: false, hasNewer: true })
-      const { result } = renderHook(() => useMessageStoreAdapter('dm'))
+      const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       const snap = result.current.getSnapshot()
       expect(snap.messages).toHaveLength(2)
       expect(snap.isLoading).toBe(true)
     })
   })
 })
+

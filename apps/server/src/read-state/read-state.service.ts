@@ -21,6 +21,7 @@ export class ReadStateService {
           mention_count: number
           server_id: string
           unread_count: bigint
+          first_unread_message_id: string | null
         }[]
       >`
         SELECT crs.channel_id, crs.last_read_at, crs.mention_count, c.server_id,
@@ -32,7 +33,16 @@ export class ReadStateService {
               AND m.author_id != ${userId}
               AND m.thread_parent_id IS NULL
             LIMIT 100
-          ) sub) AS unread_count
+          ) sub) AS unread_count,
+          (SELECT m.id FROM messages m
+            WHERE m.channel_id = crs.channel_id
+              AND m.created_at > crs.last_read_at
+              AND m.deleted = false
+              AND m.author_id != ${userId}
+              AND m.thread_parent_id IS NULL
+            ORDER BY m.created_at ASC
+            LIMIT 1
+          ) AS first_unread_message_id
         FROM channel_read_states crs
         JOIN channels c ON c.id = crs.channel_id
         WHERE crs.user_id = ${userId}
@@ -43,6 +53,7 @@ export class ReadStateService {
           last_read_at: Date
           mention_count: number
           unread_count: bigint
+          first_unread_message_id: string | null
         }[]
       >`
         SELECT drs.conversation_id, drs.last_read_at, drs.mention_count,
@@ -53,7 +64,15 @@ export class ReadStateService {
               AND m.deleted = false
               AND m.author_id != ${userId}
             LIMIT 100
-          ) sub) AS unread_count
+          ) sub) AS unread_count,
+          (SELECT m.id FROM messages m
+            WHERE m.direct_conversation_id = drs.conversation_id
+              AND m.created_at > drs.last_read_at
+              AND m.deleted = false
+              AND m.author_id != ${userId}
+            ORDER BY m.created_at ASC
+            LIMIT 1
+          ) AS first_unread_message_id
         FROM dm_read_states drs
         WHERE drs.user_id = ${userId}
       `
@@ -64,7 +83,8 @@ export class ReadStateService {
       lastReadAt: r.last_read_at.toISOString(),
       mentionCount: Number(r.mention_count),
       serverId: r.server_id,
-      unreadCount: Number(r.unread_count)
+      unreadCount: Number(r.unread_count),
+      firstUnreadMessageId: r.first_unread_message_id
     }))
 
     const serverIds = [...new Set(allChannels.map((c) => c.serverId))]
@@ -85,7 +105,8 @@ export class ReadStateService {
       conversationId: r.conversation_id,
       lastReadAt: r.last_read_at.toISOString(),
       mentionCount: Number(r.mention_count),
-      unreadCount: Number(r.unread_count)
+      unreadCount: Number(r.unread_count),
+      firstUnreadMessageId: r.first_unread_message_id
     }))
 
     return { channels, dms }

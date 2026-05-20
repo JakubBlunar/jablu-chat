@@ -26,9 +26,11 @@ import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@c
 import { useDmStore } from '@/stores/dm.store'
 import { useGifStore } from '@/stores/gif.store'
 import { useMessageStore } from '@/stores/message.store'
+import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
 
+import { useChannelAck } from '@/components/chat/hooks/useChannelAck'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
 import { useProfileCard } from '@/components/chat/hooks/useProfileCard'
 import { usePinnedMessages } from '@/components/chat/hooks/usePinnedMessages'
@@ -72,7 +74,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isMobile = useIsMobile()
   const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
-  const store = useMessageStoreAdapter(mode)
+  const store = useMessageStoreAdapter(mode, contextId)
   const { messages, isLoading, hasMore, hasNewer } = store
   const dmMessagesError = useDmStore((s) => s.messagesError)
   const channelMessagesError = useMessageStore((s) => s.messagesError)
@@ -81,6 +83,39 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const userId = useAuthStore((s) => s.user?.id)
 
   const scroll = useMessageScroll(contextId, store)
+  useChannelAck(mode, contextId)
+  const unreadSnapshot = useReadStateStore((s) => {
+    if (!contextId) return null
+    const snap = isDm ? s.dmViewSnapshots.get(contextId) : s.channelViewSnapshots.get(contextId)
+    if (snap) return snap
+    const live = isDm ? s.dms.get(contextId) : s.channels.get(contextId)
+    if (!live || live.unreadCount === 0 || !live.firstUnreadMessageId) return null
+    return {
+      unreadCount: live.unreadCount,
+      firstUnreadMessageId: live.firstUnreadMessageId,
+      lastReadAt: live.lastReadAt
+    }
+  })
+
+  const handleJumpToUnread = useCallback(() => {
+    if (unreadSnapshot?.firstUnreadMessageId) {
+      scroll.handleJumpToMessage(unreadSnapshot.firstUnreadMessageId)
+    }
+  }, [unreadSnapshot?.firstUnreadMessageId, scroll])
+
+  const handleMarkAsRead = useCallback(() => {
+    if (!contextId) return
+    const rs = useReadStateStore.getState()
+    if (isDm) {
+      rs.clearDmView(contextId)
+      rs.ackDm(contextId)
+    } else {
+      rs.clearChannelView(contextId)
+      rs.ackChannel(contextId)
+    }
+    scroll.stickToBottom()
+  }, [isDm, contextId, scroll])
+
   const dm = useDmContext(isDm, userId)
   const { cardUser, cardRect, closeCard, handleUserClick, handleMentionClick } = useProfileCard(isDm, dm.currentConv)
   const typingNames = useTypingIndicators(isDm, contextId, userId)
@@ -326,6 +361,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         channels={channelRefsRef.current}
         onChannelClick={dm.handleChannelClick}
         membersByUsername={membersByUsernameRef.current}
+        firstUnreadId={unreadSnapshot?.firstUnreadMessageId ?? null}
+        unreadCount={unreadSnapshot?.unreadCount ?? 0}
+        unreadSince={unreadSnapshot?.lastReadAt ?? null}
+        onJumpToUnread={handleJumpToUnread}
+        onMarkAsRead={handleMarkAsRead}
       />
 
       <div aria-live="polite" aria-atomic="true" className="px-4 py-1 text-xs text-gray-400">

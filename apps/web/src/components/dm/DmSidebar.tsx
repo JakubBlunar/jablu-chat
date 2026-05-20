@@ -41,7 +41,6 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
     }))
   )
   const dmReadStates = useReadStateStore((s) => s.dms)
-  const ackDm = useReadStateStore((s) => s.ackDm)
   const pendingCount = useFriendStore((s) => s.pending.length)
   useEffect(() => {
     fetchConversations()
@@ -54,13 +53,6 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
       goToDms()
     }
   }, [currentConvId, conversations, isLoading, goToDms])
-
-  useEffect(() => {
-    if (currentConvId) ackDm(currentConvId)
-    return () => {
-      if (currentConvId) ackDm(currentConvId)
-    }
-  }, [currentConvId, ackDm])
 
   const getDisplayInfo = useCallback(
     (conv: (typeof conversations)[0]) => {
