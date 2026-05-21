@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { useMessageScroll, type ScrollStoreAdapter } from './useMessageScroll'
-import { makeMessages, resetMsgSeq } from '@/test/factories'
+import { makeMessage, makeMessages, resetMsgSeq } from '@/test/factories'
 import type { Message } from '@chat/shared'
 
 function makeAdapter(overrides: Partial<ScrollStoreAdapter> = {}): ScrollStoreAdapter {
@@ -30,6 +30,23 @@ function makeAdapter(overrides: Partial<ScrollStoreAdapter> = {}): ScrollStoreAd
 
 beforeEach(() => {
   resetMsgSeq()
+})
+
+beforeAll(() => {
+  class FakeObserver {
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+  }
+  // jsdom doesn't implement these; the hook only uses them as
+  // best-effort mutation/resize listeners that complement the
+  // synchronous useLayoutEffect snap.
+  const g = global as unknown as {
+    ResizeObserver?: typeof FakeObserver
+    IntersectionObserver?: typeof FakeObserver
+  }
+  if (!g.ResizeObserver) g.ResizeObserver = FakeObserver
+  if (!g.IntersectionObserver) g.IntersectionObserver = FakeObserver
 })
 
 describe('useMessageScroll', () => {
@@ -91,10 +108,9 @@ describe('useMessageScroll', () => {
 
     it('calls onContextLeave when switching contexts', () => {
       const adapter = makeAdapter({ getLoadedForId: jest.fn(() => null) })
-      const { rerender } = renderHook(
-        ({ contextId }) => useMessageScroll(contextId, adapter),
-        { initialProps: { contextId: 'ch-1' } }
-      )
+      const { rerender } = renderHook(({ contextId }) => useMessageScroll(contextId, adapter), {
+        initialProps: { contextId: 'ch-1' }
+      })
 
       rerender({ contextId: 'ch-2' })
       expect(adapter.onContextLeave).toHaveBeenCalledWith('ch-1')
@@ -110,10 +126,9 @@ describe('useMessageScroll', () => {
       let loadedId: string | null = 'ch-1'
       const adapter = makeAdapter({ getLoadedForId: () => loadedId })
 
-      const { result, rerender } = renderHook(
-        ({ contextId }) => useMessageScroll(contextId, adapter),
-        { initialProps: { contextId: 'ch-1' } }
-      )
+      const { result, rerender } = renderHook(({ contextId }) => useMessageScroll(contextId, adapter), {
+        initialProps: { contextId: 'ch-1' }
+      })
 
       expect(result.current.settling).toBe(false)
 
@@ -159,10 +174,9 @@ describe('useMessageScroll', () => {
         getLoadedForId: () => loadedId
       })
 
-      const { rerender } = renderHook(
-        ({ contextId }) => useMessageScroll(contextId, adapter),
-        { initialProps: { contextId: 'ch-1' } }
-      )
+      const { rerender } = renderHook(({ contextId }) => useMessageScroll(contextId, adapter), {
+        initialProps: { contextId: 'ch-1' }
+      })
 
       loadedId = 'ch-2'
       rerender({ contextId: 'ch-2' })
@@ -183,15 +197,20 @@ describe('useMessageScroll', () => {
       const adapter = makeAdapter({
         hasMore: true,
         messages: [
-          { id: 'm1', authorId: 'u1', content: 'first', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' } as Message
+          {
+            id: 'm1',
+            authorId: 'u1',
+            content: 'first',
+            createdAt: '2024-01-01T00:00:00Z',
+            updatedAt: '2024-01-01T00:00:00Z'
+          } as any as Message
         ],
         getLoadedForId: () => loadedId
       })
 
-      const { rerender } = renderHook(
-        ({ contextId }) => useMessageScroll(contextId, adapter),
-        { initialProps: { contextId: 'ch-1' } }
-      )
+      const { rerender } = renderHook(({ contextId }) => useMessageScroll(contextId, adapter), {
+        initialProps: { contextId: 'ch-1' }
+      })
 
       loadedId = 'ch-2'
       ;(adapter.fetchMessages as jest.Mock).mockClear()
@@ -210,10 +229,7 @@ describe('useMessageScroll', () => {
         messages: []
       })
 
-      const { result } = renderHook(
-        ({ adapter: a }) => useMessageScroll('ch-1', a),
-        { initialProps: { adapter } }
-      )
+      const { result } = renderHook(({ adapter: a }) => useMessageScroll('ch-1', a), { initialProps: { adapter } })
 
       expect(result.current.settling).toBe(true)
     })
@@ -285,6 +301,163 @@ describe('useMessageScroll', () => {
 
       expect(adapter.fetchMessages).not.toHaveBeenCalled()
       expect(adapter.clearMessages).not.toHaveBeenCalled()
+    })
+  })
+
+  // Regression: after the flex-col-reverse → flex-col rework, the browser no
+  // longer keeps the scroll pinned to the bottom when content grows below
+  // the viewport. The hook must explicitly snap to the new bottom whenever
+  // a message is appended while the user is already at the bottom (or the
+  // post-send force-bottom window is still active). Without this, the user
+  // sends a message and stares at the previous bottom while their just-sent
+  // message sits hidden below the visible area.
+  describe('snap to bottom on new bottom message', () => {
+    function attachScrollContainer(scrollHeight: number, clientHeight = 400) {
+      const sp = document.createElement('div')
+      Object.defineProperty(sp, 'scrollHeight', { value: scrollHeight, configurable: true, writable: true })
+      Object.defineProperty(sp, 'clientHeight', { value: clientHeight, configurable: true, writable: true })
+      sp.scrollTop = 0
+      return sp
+    }
+
+    it('snaps scrollTop to scrollHeight when a new message id appears at the bottom', () => {
+      const state = {
+        messages: [makeMessage({ id: 'm1' })],
+        isLoading: false,
+        hasMore: false,
+        hasNewer: false
+      }
+      const adapter: ScrollStoreAdapter = {
+        get messages() {
+          return state.messages
+        },
+        get isLoading() {
+          return state.isLoading
+        },
+        get hasMore() {
+          return state.hasMore
+        },
+        get hasNewer() {
+          return state.hasNewer
+        },
+        scrollToMessageId: null,
+        scrollRequestNonce: 0,
+        fetchMessages: jest.fn(async () => {}),
+        fetchMessagesAround: jest.fn(async () => {}),
+        clearMessages: jest.fn(),
+        setScrollToMessageId: jest.fn(),
+        getLoadedForId: () => 'ch-1',
+        getSnapshot: () => ({ ...state }),
+        onContextJoin: jest.fn(),
+        onContextLeave: jest.fn()
+      }
+
+      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
+
+      const sp = attachScrollContainer(800)
+      ;(result.current.scrollParentRef as { current: HTMLDivElement | null }).current = sp
+
+      act(() => {
+        state.messages = [...state.messages, makeMessage({ id: 'm2' })]
+        Object.defineProperty(sp, 'scrollHeight', { value: 1200, configurable: true, writable: true })
+        rerender()
+      })
+
+      expect(sp.scrollTop).toBe(1200)
+    })
+
+    it('does not snap when a load-older prepend grows the list (last id unchanged)', () => {
+      const state = {
+        messages: [makeMessage({ id: 'm5' }), makeMessage({ id: 'm6' })],
+        isLoading: false,
+        hasMore: true,
+        hasNewer: false
+      }
+      const adapter: ScrollStoreAdapter = {
+        get messages() {
+          return state.messages
+        },
+        get isLoading() {
+          return state.isLoading
+        },
+        get hasMore() {
+          return state.hasMore
+        },
+        get hasNewer() {
+          return state.hasNewer
+        },
+        scrollToMessageId: null,
+        scrollRequestNonce: 0,
+        fetchMessages: jest.fn(async () => {}),
+        fetchMessagesAround: jest.fn(async () => {}),
+        clearMessages: jest.fn(),
+        setScrollToMessageId: jest.fn(),
+        getLoadedForId: () => 'ch-1',
+        getSnapshot: () => ({ ...state }),
+        onContextJoin: jest.fn(),
+        onContextLeave: jest.fn()
+      }
+
+      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
+
+      const sp = attachScrollContainer(800)
+      sp.scrollTop = 200
+      ;(result.current.scrollParentRef as { current: HTMLDivElement | null }).current = sp
+
+      act(() => {
+        state.messages = [makeMessage({ id: 'm3' }), makeMessage({ id: 'm4' }), ...state.messages]
+        Object.defineProperty(sp, 'scrollHeight', { value: 1200, configurable: true, writable: true })
+        rerender()
+      })
+
+      expect(sp.scrollTop).toBe(200)
+    })
+
+    it('does not snap when a scroll-to-message request is pending', () => {
+      const state = {
+        messages: [makeMessage({ id: 'm1' })],
+        isLoading: false,
+        hasMore: false,
+        hasNewer: false
+      }
+      const adapter: ScrollStoreAdapter = {
+        get messages() {
+          return state.messages
+        },
+        get isLoading() {
+          return state.isLoading
+        },
+        get hasMore() {
+          return state.hasMore
+        },
+        get hasNewer() {
+          return state.hasNewer
+        },
+        scrollToMessageId: 'm-target',
+        scrollRequestNonce: 0,
+        fetchMessages: jest.fn(async () => {}),
+        fetchMessagesAround: jest.fn(async () => {}),
+        clearMessages: jest.fn(),
+        setScrollToMessageId: jest.fn(),
+        getLoadedForId: () => 'ch-1',
+        getSnapshot: () => ({ ...state }),
+        onContextJoin: jest.fn(),
+        onContextLeave: jest.fn()
+      }
+
+      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
+
+      const sp = attachScrollContainer(800)
+      sp.scrollTop = 100
+      ;(result.current.scrollParentRef as { current: HTMLDivElement | null }).current = sp
+
+      act(() => {
+        state.messages = [...state.messages, makeMessage({ id: 'm2' })]
+        Object.defineProperty(sp, 'scrollHeight', { value: 1200, configurable: true, writable: true })
+        rerender()
+      })
+
+      expect(sp.scrollTop).toBe(100)
     })
   })
 

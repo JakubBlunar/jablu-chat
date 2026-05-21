@@ -146,7 +146,7 @@ describe('ReactionPill', () => {
       expect(mockEmit).not.toHaveBeenCalled()
     })
 
-    it('hides the tooltip when the pointer leaves', () => {
+    it('hides the tooltip when the pointer leaves (after the close delay)', () => {
       render(
         <ReactionPill
           reaction={reaction({ userIds: ['u1'], count: 1 })}
@@ -164,7 +164,47 @@ describe('ReactionPill', () => {
       })
       expect(screen.getByRole('tooltip')).toBeInTheDocument()
 
-      fireEvent.pointerLeave(wrapper)
+      fireEvent.pointerLeave(wrapper, { pointerType: 'mouse' })
+      expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+      act(() => {
+        jest.advanceTimersByTime(200)
+      })
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+
+    it('keeps the tooltip open when the pointer moves from the chip onto the tooltip', () => {
+      render(
+        <ReactionPill
+          reaction={reaction({ emoji: '😂', userIds: ['u1', 'u2', 'u3', 'u4'], count: 4 })}
+          messageId="msg-1"
+          mode="channel"
+          contextId="ch-1"
+          onShowReactors={jest.fn()}
+        />
+      )
+
+      const wrapper = screen.getByRole('button').parentElement!
+      fireEvent.pointerEnter(wrapper, { pointerType: 'mouse' })
+      act(() => {
+        jest.advanceTimersByTime(300)
+      })
+      const tip = screen.getByRole('tooltip')
+      expect(tip).toBeInTheDocument()
+
+      fireEvent.pointerLeave(wrapper, { pointerType: 'mouse' })
+      fireEvent.pointerEnter(tip)
+
+      act(() => {
+        jest.advanceTimersByTime(500)
+      })
+
+      expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+      fireEvent.pointerLeave(tip)
+      act(() => {
+        jest.advanceTimersByTime(200)
+      })
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     })
   })

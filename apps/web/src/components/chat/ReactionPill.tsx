@@ -10,6 +10,7 @@ import { useMemberStore } from '@/stores/member.store'
 import { useIsMobile } from '@/hooks/useMobile'
 
 const HOVER_DELAY_MS = 250
+const HOVER_CLOSE_DELAY_MS = 120
 const LONG_PRESS_MS = 500
 const TOOLTIP_NAME_LIMIT = 3
 
@@ -36,7 +37,8 @@ export function ReactionPill({
   const isMine = userId ? reaction.userIds.includes(userId) : false
 
   const [tooltipOpen, setTooltipOpen] = useState(false)
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
 
@@ -46,12 +48,37 @@ export function ReactionPill({
   const visible = reactors.slice(0, TOOLTIP_NAME_LIMIT)
   const remaining = Math.max(reactors.length - visible.length, 0)
 
-  const cancelHover = useCallback(() => {
-    if (hoverTimer.current) {
-      clearTimeout(hoverTimer.current)
-      hoverTimer.current = null
+  const cancelOpen = useCallback(() => {
+    if (openTimer.current) {
+      clearTimeout(openTimer.current)
+      openTimer.current = null
     }
   }, [])
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+  }, [])
+
+  const scheduleOpen = useCallback(() => {
+    cancelClose()
+    if (openTimer.current) return
+    openTimer.current = setTimeout(() => {
+      openTimer.current = null
+      setTooltipOpen(true)
+    }, HOVER_DELAY_MS)
+  }, [cancelClose])
+
+  const scheduleClose = useCallback(() => {
+    cancelOpen()
+    cancelClose()
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null
+      setTooltipOpen(false)
+    }, HOVER_CLOSE_DELAY_MS)
+  }, [cancelOpen, cancelClose])
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -60,36 +87,54 @@ export function ReactionPill({
     }
   }, [])
 
-  useEffect(() => () => {
-    cancelHover()
-    cancelLongPress()
-  }, [cancelHover, cancelLongPress])
+  useEffect(
+    () => () => {
+      cancelOpen()
+      cancelClose()
+      cancelLongPress()
+    },
+    [cancelOpen, cancelClose, cancelLongPress]
+  )
 
   const handlePointerEnter = useCallback(
     (e: React.PointerEvent) => {
       if (isMobile) return
       if (e.pointerType === 'touch') return
-      cancelHover()
-      hoverTimer.current = setTimeout(() => setTooltipOpen(true), HOVER_DELAY_MS)
+      scheduleOpen()
     },
-    [isMobile, cancelHover]
+    [isMobile, scheduleOpen]
   )
 
-  const handlePointerLeave = useCallback(() => {
+  const handlePointerLeave = useCallback(
+    (e: React.PointerEvent) => {
+      if (isMobile) return
+      if (e.pointerType === 'touch') return
+      scheduleClose()
+    },
+    [isMobile, scheduleClose]
+  )
+
+  const handleTooltipPointerEnter = useCallback(() => {
     if (isMobile) return
-    cancelHover()
-    setTooltipOpen(false)
-  }, [isMobile, cancelHover])
+    cancelClose()
+    setTooltipOpen(true)
+  }, [isMobile, cancelClose])
+
+  const handleTooltipPointerLeave = useCallback(() => {
+    if (isMobile) return
+    scheduleClose()
+  }, [isMobile, scheduleClose])
 
   const handleFocus = useCallback(() => {
     if (isMobile) return
+    cancelClose()
     setTooltipOpen(true)
-  }, [isMobile])
+  }, [isMobile, cancelClose])
 
   const handleBlur = useCallback(() => {
     if (isMobile) return
-    setTooltipOpen(false)
-  }, [isMobile])
+    scheduleClose()
+  }, [isMobile, scheduleClose])
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
@@ -135,10 +180,12 @@ export function ReactionPill({
   const handleOthersClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
+      cancelOpen()
+      cancelClose()
       setTooltipOpen(false)
       onShowReactors(reaction.emoji)
     },
-    [onShowReactors, reaction.emoji]
+    [cancelOpen, cancelClose, onShowReactors, reaction.emoji]
   )
 
   return (
@@ -170,9 +217,11 @@ export function ReactionPill({
       {tooltipOpen && !isMobile && reactors.length > 0 && (
         <div
           role="tooltip"
-          className="pointer-events-auto absolute bottom-full left-1/2 z-40 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg bg-surface-dark px-3 py-2 text-xs text-gray-200 shadow-xl ring-1 ring-white/10"
+          onPointerEnter={handleTooltipPointerEnter}
+          onPointerLeave={handleTooltipPointerLeave}
+          className="pointer-events-auto absolute bottom-full left-1/2 z-40 -translate-x-1/2 pb-1.5"
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-surface-dark px-3 py-2 text-xs text-gray-200 shadow-xl ring-1 ring-white/10">
             <span className="shrink-0">
               <ReactionEmoji emoji={reaction.emoji} isCustom={reaction.isCustom} customEmojiMap={customEmojiMap} />
             </span>
