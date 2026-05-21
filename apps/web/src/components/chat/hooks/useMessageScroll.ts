@@ -228,6 +228,36 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     setSettling(false)
   }, [messages.length, isLoading, contextId, getLoadedForId, armForceBottom])
 
+  /* ── Snap to bottom when a NEW bottom message is appended ──
+   * With the chronological flex layout (no flex-col-reverse) the browser
+   * does NOT keep us pinned to the bottom when content grows below the
+   * viewport. A new message arriving via socket grows scrollHeight while
+   * scrollTop stays put, which would otherwise leave the user staring at
+   * the previous bottom while their just-sent message sits hidden below.
+   *
+   * We track the id of the last message and, on every commit where it
+   * changed (i.e. a message was actually appended to the bottom — not a
+   * load-older prepend, not an edit), synchronously re-snap to the bottom
+   * before paint. The same gates as elsewhere apply: skip when an initial
+   * load or scroll-to-message is in flight, and only snap when the user
+   * is currently at the bottom (or just sent a message and the
+   * force-bottom window is still active). */
+  const prevLastMsgIdRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null
+    const changed = lastId !== null && lastId !== prevLastMsgIdRef.current
+    prevLastMsgIdRef.current = lastId
+    if (!changed) return
+    if (pendingGoToBottom.current) return
+    if (storeRef.current.scrollToMessageId !== null) return
+
+    const sp = scrollParentRef.current
+    if (!sp) return
+    if (!atBottomRef.current && Date.now() >= forceBottomUntilRef.current) return
+
+    sp.scrollTop = sp.scrollHeight
+  }, [messages])
+
   useEffect(() => {
     if (!justSnappedRef.current) return
     justSnappedRef.current = false
