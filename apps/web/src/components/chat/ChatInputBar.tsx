@@ -67,7 +67,7 @@ export type ChatInputBarProps = {
   onChange: (value: string) => void
   onSend: () => void
   onTyping?: () => void
-  onFilesPicked?: (files: FileList) => void
+  onFilesPicked?: (files: File[]) => void
   onPaste?: (e: React.ClipboardEvent) => void
   placeholder: string
   disabled?: boolean
@@ -148,7 +148,6 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const taRef = useRef<HTMLTextAreaElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
 
-  const fileRef = useRef<HTMLInputElement>(null)
   const isMobile = useIsMobile()
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [gifOpen, setGifOpen] = useState(false)
@@ -522,27 +521,28 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
       <div className="flex items-end">
         {onFilesPicked && (
-          <>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="shrink-0 p-3 text-gray-400 transition hover:text-white"
-              title="Attach file"
-              aria-label={t('attachFile')}
-            >
-              <PlusCircleIcon />
-            </button>
+          <label
+            className="shrink-0 cursor-pointer p-3 text-gray-400 transition hover:text-white"
+            title="Attach file"
+            aria-label={t('attachFile')}
+          >
+            <PlusCircleIcon />
             <input
-              ref={fileRef}
               type="file"
               multiple
-              className="absolute opacity-0 w-px h-px pointer-events-none"
+              className="sr-only"
               onChange={(e) => {
-                if (e.target.files?.length) onFilesPicked(e.target.files)
-                e.target.value = ''
+                const picked = e.target.files
+                if (picked && picked.length > 0) {
+                  const snapshot = Array.from(picked)
+                  e.target.value = ''
+                  onFilesPicked(snapshot)
+                } else {
+                  e.target.value = ''
+                }
               }}
             />
-          </>
+          </label>
         )}
 
         <textarea
