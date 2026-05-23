@@ -480,6 +480,7 @@ export function UnifiedInput({
             onPaste={handlePaste}
             placeholder={placeholder}
             disabled={!contextId}
+            hasAttachments={files.length > 0}
             members={mentionMembers.length > 0 ? mentionMembers : undefined}
             channels={mentionChannels}
             gifEnabled={gifEnabled}

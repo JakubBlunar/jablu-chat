@@ -71,6 +71,7 @@ export type ChatInputBarProps = {
   onPaste?: (e: React.ClipboardEvent) => void
   placeholder: string
   disabled?: boolean
+  hasAttachments?: boolean
   members?: MentionMember[]
   channels?: MentionChannel[]
   gifEnabled?: boolean
@@ -133,6 +134,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     onPaste,
     placeholder,
     disabled,
+    hasAttachments,
     members,
     channels,
     gifEnabled,
@@ -595,7 +597,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           <SmileIcon className="h-5 w-5" />
         </button>
 
-        {value.trim().length > 0 && (
+        {(value.trim().length > 0 || hasAttachments) && (
           <button
             type="button"
             onClick={() => {
