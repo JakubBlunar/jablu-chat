@@ -68,7 +68,7 @@ export function ChannelOptionsDrawer({
   return createPortal(
     <div
       className={`fixed inset-0 z-[120] flex flex-col justify-end bg-black/60 transition-opacity duration-200 ${
-        visible ? 'opacity-100' : 'opacity-0'
+        visible ? 'opacity-100' : 'pointer-events-none opacity-0'
       }`}
       onTouchEnd={(e) => {
         if (e.target === e.currentTarget) {

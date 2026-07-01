@@ -69,17 +69,20 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children }: 
   const translate = animating ? 'translate-x-0' : side === 'left' ? '-translate-x-full' : 'translate-x-full'
 
   return createPortal(
-    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" onContextMenu={(e) => e.preventDefault()}>
+    // The container is non-interactive by default so a transparent (opacity-0) backdrop
+    // can never swallow touches — critical on iOS standalone PWA where the close timer
+    // can be throttled, leaving an invisible full-screen layer that blocks all input.
+    <div className="pointer-events-none fixed inset-0 z-[80]" role="dialog" aria-modal="true" onContextMenu={(e) => e.preventDefault()}>
       <div
         className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${
-          animating ? 'opacity-100' : 'opacity-0'
+          animating ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
         }`}
         onClick={onClose}
         aria-hidden="true"
       />
       <div
         ref={drawerRef}
-        className={`absolute top-0 ${side === 'left' ? 'left-0' : 'right-0'} h-full ${width} transform transition-transform duration-200 ease-out ${translate}`}
+        className={`pointer-events-auto absolute top-0 ${side === 'left' ? 'left-0' : 'right-0'} h-full ${width} transform transition-transform duration-200 ease-out ${translate}`}
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

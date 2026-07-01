@@ -58,11 +58,12 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-darkest p-4">
-      <form
-        onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-sm rounded-lg bg-surface-dark p-8 shadow-2xl ring-1 ring-white/10"
-      >
+    <div className="h-full overflow-y-auto bg-surface-darkest">
+      <div className="flex min-h-full items-center justify-center p-4">
+        <form
+          onSubmit={(e) => void handleSubmit(e)}
+          className="w-full max-w-sm rounded-lg bg-surface-dark p-8 shadow-2xl ring-1 ring-white/10"
+        >
         <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
         <p className="mt-2 text-sm text-gray-400">Enter your superadmin credentials to continue.</p>
         <div className="mt-5">
@@ -103,7 +104,8 @@ export function AdminLogin({ onLogin }: { onLogin: () => void }) {
         >
           {busy ? 'Checking…' : isLocked ? 'Locked' : 'Login'}
         </Button>
-      </form>
+        </form>
+      </div>
     </div>
   )
 }
