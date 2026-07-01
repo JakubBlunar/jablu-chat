@@ -3,6 +3,7 @@ import { TagChip } from '@/components/ui/TagChip'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ProfileCard } from '@/components/ProfileCard'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
+import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MessageSurface } from '@/components/chat/MessageSurface'
 import { useProfileCard } from '@/components/chat/hooks/useProfileCard'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
@@ -332,11 +333,13 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
                 </div>
               )}
               {(post.attachments?.length ?? 0) > 0 && (
-                <div className="mt-2 flex flex-col gap-1">
-                  {post.attachments.map((att) => (
-                    <AttachmentPreview key={att.id} attachment={att} />
-                  ))}
-                </div>
+                <MessageMediaProvider attachments={post.attachments}>
+                  <div className="mt-2 flex flex-col gap-1">
+                    {post.attachments.map((att) => (
+                      <AttachmentPreview key={att.id} attachment={att} />
+                    ))}
+                  </div>
+                </MessageMediaProvider>
               )}
             </div>
           </div>

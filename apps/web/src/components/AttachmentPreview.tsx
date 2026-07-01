@@ -1,40 +1,11 @@
 import type { Attachment } from '@chat/shared'
-import { memo, useEffect, useState } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createPortal } from 'react-dom'
 import { resolveMediaUrl } from '@/lib/api'
+import { useMessageMedia } from '@/components/media/MessageMediaGallery'
 
 interface AttachmentPreviewProps {
   attachment: Attachment
-}
-
-function LightboxOverlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
-  const { t } = useTranslation('common')
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
-  return createPortal(
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80" role="dialog" aria-modal="true" onClick={onClose}>
-      <button
-        type="button"
-        aria-label={t('close')}
-        onClick={onClose}
-        className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
-        style={{ marginTop: 'env(safe-area-inset-top, 0px)', marginRight: 'env(safe-area-inset-right, 0px)' }}
-      >
-        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M6 18 18 6M6 6l12 12" />
-        </svg>
-      </button>
-      <div onClick={(e) => e.stopPropagation()}>{children}</div>
-    </div>,
-    document.body
-  )
 }
 
 function constrainedDims(w: number | null, h: number | null, maxW = 448, maxH = 300) {
@@ -44,38 +15,28 @@ function constrainedDims(w: number | null, h: number | null, maxW = 448, maxH = 
 }
 
 export const AttachmentPreview = memo(function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
-  const [lightbox, setLightbox] = useState(false)
+  const { t } = useTranslation('common')
+  const { openByKey } = useMessageMedia()
   const { width: aw, height: ah } = attachment
 
   if (attachment.type === 'image' || attachment.type === 'gif') {
     const dims = constrainedDims(aw, ah)
     return (
-      <>
-        <button
-          type="button"
-          className="mt-1 block overflow-hidden rounded-lg"
-          style={dims ? { width: dims.width, maxWidth: '100%', aspectRatio: `${dims.width} / ${dims.height}` } : undefined}
-          onClick={() => setLightbox(true)}
-        >
-          <img
-            src={resolveMediaUrl(attachment.url)}
-            alt={attachment.filename}
-            width={dims?.width}
-            height={dims?.height}
-            className="h-full w-full rounded-lg object-contain"
-            loading="lazy"
-          />
-        </button>
-        {lightbox && (
-          <LightboxOverlay onClose={() => setLightbox(false)}>
-            <img
-              src={resolveMediaUrl(attachment.url)}
-              alt={attachment.filename}
-              className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
-            />
-          </LightboxOverlay>
-        )}
-      </>
+      <button
+        type="button"
+        className="mt-1 block overflow-hidden rounded-lg"
+        style={dims ? { width: dims.width, maxWidth: '100%', aspectRatio: `${dims.width} / ${dims.height}` } : undefined}
+        onClick={() => openByKey(attachment.id)}
+      >
+        <img
+          src={resolveMediaUrl(attachment.url)}
+          alt={attachment.filename}
+          width={dims?.width}
+          height={dims?.height}
+          className="h-full w-full rounded-lg object-contain"
+          loading="lazy"
+        />
+      </button>
     )
   }
 
@@ -83,15 +44,25 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
     const vDims = constrainedDims(aw, ah)
     return (
       <div className="mt-1" style={vDims ? { width: vDims.width, maxWidth: '100%' } : { maxWidth: 448 }}>
-        <video
-          src={resolveMediaUrl(attachment.url)}
-          controls
-          preload="metadata"
-          style={vDims ? { width: '100%', aspectRatio: `${vDims.width} / ${vDims.height}` } : { aspectRatio: '16 / 9', width: '100%' }}
-          className="rounded-lg"
-        >
-          <track kind="captions" />
-        </video>
+        <div className="group relative">
+          <video
+            src={resolveMediaUrl(attachment.url)}
+            controls
+            preload="metadata"
+            style={vDims ? { width: '100%', aspectRatio: `${vDims.width} / ${vDims.height}` } : { aspectRatio: '16 / 9', width: '100%' }}
+            className="rounded-lg"
+          >
+            <track kind="captions" />
+          </video>
+          <button
+            type="button"
+            aria-label={t('expand')}
+            onClick={() => openByKey(attachment.id)}
+            className="absolute right-2 top-2 rounded-md bg-black/50 p-1.5 text-white opacity-0 transition hover:bg-black/70 focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <ExpandIcon />
+          </button>
+        </div>
         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
           <span className="truncate">{attachment.filename}</span>
           <span className="shrink-0">({formatBytes(attachment.sizeBytes)})</span>
@@ -134,6 +105,14 @@ function FileIcon() {
     >
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
+    </svg>
+  )
+}
+
+function ExpandIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5" />
     </svg>
   )
 }
