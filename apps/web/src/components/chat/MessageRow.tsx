@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
+import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import type { RoleMentionRef } from '@/lib/markdownMentions'
 import { ForwardedCard } from '@/components/chat/ForwardedCard'
@@ -551,21 +552,23 @@ export const MessageRow = memo(function MessageRow({
           </div>
         )}
 
-        {attachments.length > 0 && (
-          <div className="flex flex-col gap-1">
-            {attachments.map((att) => (
-              <AttachmentPreview key={att.id} attachment={att} />
-            ))}
-          </div>
-        )}
+        <MessageMediaProvider attachments={attachments} linkPreviews={linkPreviews}>
+          {attachments.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {attachments.map((att) => (
+                <AttachmentPreview key={att.id} attachment={att} />
+              ))}
+            </div>
+          )}
 
-        {linkPreviews.length > 0 && (
-          <div className="mt-1.5 flex flex-col gap-1.5">
-            {linkPreviews.map((lp) => (
-              <LinkPreviewCard key={lp.id} lp={lp} />
-            ))}
-          </div>
-        )}
+          {linkPreviews.length > 0 && (
+            <div className="mt-1.5 flex flex-col gap-1.5">
+              {linkPreviews.map((lp) => (
+                <LinkPreviewCard key={lp.id} lp={lp} />
+              ))}
+            </div>
+          )}
+        </MessageMediaProvider>
 
         {message.poll && <PollDisplay poll={message.poll} />}
 

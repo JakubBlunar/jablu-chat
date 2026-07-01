@@ -1,75 +1,30 @@
 import type { LinkPreview } from '@chat/shared'
 import { memo, useState } from 'react'
-import { LightboxOverlay } from '@/components/ui'
+import { extractYouTubeId, isGifUrl, isImageUrl } from '@/lib/mediaUrl'
+import { useMessageMedia } from '@/components/media/MessageMediaGallery'
 
-const YOUTUBE_PATTERNS = [
-  /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-]
-
-function extractYouTubeId(url: string): string | null {
-  for (const pattern of YOUTUBE_PATTERNS) {
-    const m = url.match(pattern)
-    if (m?.[1]) return m[1]
-  }
-  return null
-}
-
-export function isGifUrl(lp: LinkPreview): boolean {
-  if (lp.siteName === 'GIF') return true
-  try {
-    const u = new URL(lp.url)
-    const path = u.pathname.toLowerCase()
-    if (path.endsWith('.gif')) return true
-    if (u.hostname === 'media.tenor.com') return true
-    if (/^media\d*\.giphy\.com$/i.test(u.hostname)) return true
-    if (u.hostname === 'i.giphy.com') return true
-  } catch {
-    /* invalid URL */
-  }
-  return false
-}
-
-const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif', '.svg'])
-
-export function isImageUrl(lp: LinkPreview): boolean {
-  if (lp.siteName === 'Image') return true
-  try {
-    const path = new URL(lp.url).pathname.toLowerCase()
-    const ext = path.slice(path.lastIndexOf('.'))
-    return IMAGE_EXTS.has(ext)
-  } catch {
-    /* invalid URL */
-  }
-  return false
-}
+export { isGifUrl, isImageUrl }
 
 function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
-  const [lightbox, setLightbox] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const { openByKey } = useMessageMedia()
   const imgUrl = lp.imageUrl ?? lp.url
 
   return (
-    <>
-      <button
-        type="button"
-        className="mt-1 block max-w-md overflow-hidden rounded-lg"
-        style={!loaded ? { aspectRatio: '4 / 3', width: 300, maxWidth: '100%' } : undefined}
-        onClick={() => setLightbox(true)}
-      >
-        <img
-          src={imgUrl}
-          alt={lp.title ?? label}
-          className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
-          loading="lazy"
-          onLoad={() => setLoaded(true)}
-        />
-      </button>
-      {lightbox && (
-        <LightboxOverlay onClose={() => setLightbox(false)}>
-          <img src={imgUrl} alt={lp.title ?? label} className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain" />
-        </LightboxOverlay>
-      )}
-    </>
+    <button
+      type="button"
+      className="mt-1 block max-w-md overflow-hidden rounded-lg"
+      style={!loaded ? { aspectRatio: '4 / 3', width: 300, maxWidth: '100%' } : undefined}
+      onClick={() => openByKey(lp.id)}
+    >
+      <img
+        src={imgUrl}
+        alt={lp.title ?? label}
+        className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+      />
+    </button>
   )
 }
 

@@ -2,6 +2,7 @@ import type { Message } from '@chat/shared'
 import { useCallback } from 'react'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard } from '@/components/LinkPreviewCard'
+import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
@@ -75,21 +76,23 @@ export function PinnedMessagesList({
                   </div>
                 )}
 
-                {attachments.length > 0 && (
-                  <div className="mt-1 flex flex-col gap-1 [&_img]:max-h-40 [&_video]:max-h-40">
-                    {attachments.map((att) => (
-                      <AttachmentPreview key={att.id} attachment={att} />
-                    ))}
-                  </div>
-                )}
+                <MessageMediaProvider attachments={attachments} linkPreviews={linkPreviews}>
+                  {attachments.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-1 [&_img]:max-h-40 [&_video]:max-h-40">
+                      {attachments.map((att) => (
+                        <AttachmentPreview key={att.id} attachment={att} />
+                      ))}
+                    </div>
+                  )}
 
-                {linkPreviews.length > 0 && (
-                  <div className="mt-1 flex flex-col gap-1">
-                    {linkPreviews.map((lp) => (
-                      <LinkPreviewCard key={lp.id} lp={lp} />
-                    ))}
-                  </div>
-                )}
+                  {linkPreviews.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {linkPreviews.map((lp) => (
+                        <LinkPreviewCard key={lp.id} lp={lp} />
+                      ))}
+                    </div>
+                  )}
+                </MessageMediaProvider>
 
                 {!m.content && attachments.length === 0 && (
                   <p className="mt-0.5 text-sm italic text-gray-500">[empty message]</p>
