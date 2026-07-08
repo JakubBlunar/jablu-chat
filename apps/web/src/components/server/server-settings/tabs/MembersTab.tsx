@@ -134,10 +134,11 @@ export function MembersTab({ server }: { server: Server }) {
   )
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {memberError && (
-        <InlineAlert variant="error" className="mb-2">{memberError}</InlineAlert>
+        <InlineAlert variant="error">{memberError}</InlineAlert>
       )}
+      <div className="flex flex-col gap-2">
       {members.map((m) => {
         const presence: UserStatus = onlineIds.has(m.userId) ? ((m.user.status as UserStatus) ?? 'online') : 'offline'
         const isSelf = m.userId === currentUser?.id
@@ -149,34 +150,42 @@ export function MembersTab({ server }: { server: Server }) {
         const showActions = !isSelf && !isMemberOwner
 
         return (
-          <div key={m.userId} className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-white/[0.04]">
-            <UserAvatar
-              username={m.user.username}
-              avatarUrl={m.user.avatarUrl}
-              size="md"
-              showStatus
-              status={presence}
-            />
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-              <span className="text-sm font-medium" style={roleColor ? { color: roleColor } : { color: '#9ca3af' }}>
+          <div key={m.userId} className="flex flex-col gap-2 rounded-lg border border-white/5 bg-white/[0.02] p-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <UserAvatar
+                username={m.user.username}
+                avatarUrl={m.user.avatarUrl}
+                size="md"
+                showStatus
+                status={presence}
+              />
+              <span
+                className="min-w-0 flex-1 truncate text-sm font-medium"
+                style={roleColor ? { color: roleColor } : { color: '#9ca3af' }}
+              >
                 {m.user.displayName ?? m.user.username}
               </span>
-              {memberRoles.map((r) => (
-                <RoleBadge key={r.id} name={r.name} color={r.color} size="sm" />
-              ))}
-              {isMuted && (
-                <span
-                  className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400"
-                  title={m.mutedReason ?? undefined}
-                >
-                  Timed out {timeLeft && `· ${timeLeft}`}
-                  {m.mutedReason ? ' · with reason' : ''}
-                </span>
-              )}
             </div>
 
+            {(memberRoles.length > 0 || isMuted) && (
+              <div className="flex flex-wrap items-center gap-1">
+                {memberRoles.map((r) => (
+                  <RoleBadge key={r.id} name={r.name} color={r.color} size="sm" />
+                ))}
+                {isMuted && (
+                  <span
+                    className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400"
+                    title={m.mutedReason ?? undefined}
+                  >
+                    Timed out {timeLeft && `· ${timeLeft}`}
+                    {m.mutedReason ? ' · with reason' : ''}
+                  </span>
+                )}
+              </div>
+            )}
+
             {showActions && (
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-white/5 pt-2">
                 {canManageRoles && roles.length > 0 && (
                   <RoleDropdown
                     roles={roles.filter((r) => !r.isDefault)}
@@ -237,6 +246,7 @@ export function MembersTab({ server }: { server: Server }) {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }
@@ -271,7 +281,10 @@ function RoleDropdown({
   const handleToggle = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, left: rect.right })
+      const PANEL_W = 200
+      const left = Math.max(8, Math.min(rect.right - PANEL_W, window.innerWidth - PANEL_W - 8))
+      const top = Math.min(rect.bottom + 4, window.innerHeight - 8)
+      setPos({ top, left })
     }
     setOpen((v) => !v)
   }
@@ -301,8 +314,8 @@ function RoleDropdown({
       {open && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-[200] min-w-[180px] overflow-hidden rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
-          style={{ top: pos.top, left: pos.left, transform: 'translateX(-100%)' }}
+          className="fixed z-[200] max-h-[60vh] w-[200px] overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
+          style={{ top: pos.top, left: pos.left }}
         >
           {roles.map((r) => {
             const isActive = activeIds.includes(r.id)
