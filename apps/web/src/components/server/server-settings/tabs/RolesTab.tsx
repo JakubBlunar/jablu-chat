@@ -190,8 +190,8 @@ export function RolesTab({ server }: { server: Server }) {
   const canEditSelected = canManage && selected != null && (isOwner || selected.position < actorTopPos)
 
   return (
-    <div className="flex gap-4">
-      <div className="w-48 shrink-0 space-y-1">
+    <div className="flex flex-col gap-4 md:flex-row">
+      <div className="w-full space-y-1 md:w-48 md:shrink-0">
         {canManage && draggableRoles.length > 1 ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void handleDragEnd(e)}>
             <SortableContext items={draggableRoles.map((r) => r.id)} strategy={verticalListSortingStrategy}>

@@ -82,7 +82,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
             ))}
           </div>
         </div>
-        <SimpleBar className="min-w-0 flex-1">
+        <SimpleBar className="min-h-0 flex-1">
           <div className="px-4 py-4">{tabContent}</div>
         </SimpleBar>
       </div>

@@ -80,7 +80,7 @@ export function OverviewTab({ server }: { server: Server }) {
   return (
     <div className="space-y-6">
       {error && <InlineAlert variant="error">{error}</InlineAlert>}
-      <div className="flex items-start gap-6">
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
         <div className="flex flex-col items-center gap-2">
           <button
             type="button"
@@ -110,8 +110,8 @@ export function OverviewTab({ server }: { server: Server }) {
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex gap-2">
+        <div className="w-full min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
               <Input
                 id="overview-server-name"
@@ -121,16 +121,15 @@ export function OverviewTab({ server }: { server: Server }) {
                 maxLength={100}
               />
             </div>
-            <div className="flex shrink-0 items-end">
-              <Button
-                type="button"
-                disabled={!name.trim() || name === server.name}
-                loading={saving}
-                onClick={saveName}
-              >
-                Save
-              </Button>
-            </div>
+            <Button
+              type="button"
+              disabled={!name.trim() || name === server.name}
+              loading={saving}
+              onClick={saveName}
+              className="w-full sm:w-auto"
+            >
+              Save
+            </Button>
           </div>
         </div>
       </div>
@@ -138,9 +137,9 @@ export function OverviewTab({ server }: { server: Server }) {
       <div className="space-y-2">
         <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Vanity URL</label>
         <p className="text-xs text-gray-500">A custom invite link for your server. 3-32 lowercase characters, numbers, and hyphens.</p>
-        <div className="flex gap-2">
-          <div className="flex flex-1 items-center rounded-md border border-white/10 bg-surface-darkest text-sm">
-            <span className="shrink-0 pl-3 text-gray-500">{window.location.origin}/invite/</span>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex min-w-0 flex-1 items-center rounded-md border border-white/10 bg-surface-darkest text-sm">
+            <span className="min-w-0 truncate pl-3 text-gray-500">{window.location.origin}/invite/</span>
             <input
               value={vanityCode}
               onChange={(e) => setVanityCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
@@ -150,6 +149,7 @@ export function OverviewTab({ server }: { server: Server }) {
             />
           </div>
           <Button
+            className="w-full sm:w-auto"
             disabled={savingVanity || vanityCode === (server.vanityCode ?? '')}
             loading={savingVanity}
             onClick={async () => {
