@@ -8,6 +8,7 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
+import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -55,6 +56,29 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         }
       }
     }
+
+    // Server-icon unread badges depend on `message:new` arriving in the `channel:` room,
+    // but the client leaves those rooms on navigation, so background servers never update.
+    // `in_app_notification:new` rides the always-joined `user:` room, so use it to resync
+    // authoritative read state (throttled + trailing to coalesce bursts).
+    let lastReadSyncTs = 0
+    let readSyncTimer: ReturnType<typeof setTimeout> | null = null
+    const throttledReadStateSync = () => {
+      const now = Date.now()
+      if (now - lastReadSyncTs > 1500) {
+        lastReadSyncTs = now
+        if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }
+        void useReadStateStore.getState().fetchAll()
+      } else if (!readSyncTimer) {
+        const remaining = 1500 - (now - lastReadSyncTs)
+        readSyncTimer = setTimeout(() => {
+          readSyncTimer = null
+          lastReadSyncTs = Date.now()
+          void useReadStateStore.getState().fetchAll()
+        }, remaining)
+      }
+    }
+
     const onConnect = () => {
       setIsConnected(true)
       const channelId = useChannelStore.getState().currentChannelId
@@ -200,6 +224,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onInAppNotificationNew = () => {
       useNotificationCenterStore.getState().applySocketBump()
+      throttledReadStateSync()
     }
     socket.on('in_app_notification:new', onInAppNotificationNew)
 
@@ -273,6 +298,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('in_app_notification:new', onInAppNotificationNew)
       if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
       if (trailingFn) { trailingFn(); trailingFn = null }
+      if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }
       presence.cleanup()
       disconnectSocket()
       setIsConnected(false)
