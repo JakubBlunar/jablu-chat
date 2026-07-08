@@ -377,6 +377,27 @@ describe('RolesService', () => {
       expect(prisma.$executeRaw).toHaveBeenCalled()
     })
 
+    // Regression: server_roles.id is a text column, so casting the VALUES ids to
+    // ::uuid throws `operator does not exist: text = uuid` on Postgres.
+    it('casts role ids to text (not uuid) in the reorder query', async () => {
+      prisma.role.findMany
+        .mockResolvedValueOnce([
+          { id: 'r1', position: 5, isDefault: false },
+          { id: 'r2', position: 3, isDefault: false },
+        ])
+        .mockResolvedValueOnce([])
+      prisma.serverMemberRole.findMany.mockResolvedValueOnce([
+        { roleId: 'owner-role', role: { id: 'owner-role', position: 100 } },
+      ])
+
+      await service.reorderRoles(serverId, ownerId, ['r1', 'r2'])
+
+      const sql = prisma.$executeRaw.mock.calls[0][0] as { strings: string[] }
+      const rawSql = sql.strings.join('')
+      expect(rawSql).toContain('::text')
+      expect(rawSql).not.toContain('::uuid')
+    })
+
     it('throws BadRequestException when role IDs mismatch', async () => {
       prisma.role.findMany.mockResolvedValue([{ id: 'r1' }])
 
