@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Message } from '@chat/shared'
+import type { Attachment, Message } from '@chat/shared'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
-import { api, type SearchResult } from '@/lib/api'
+import { api, resolveMediaUrl, type SearchResult } from '@/lib/api'
+import { MessageMediaProvider, useMessageMedia } from '@/components/media/MessageMediaGallery'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
@@ -330,39 +331,59 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
           <p className="px-3 py-8 text-center text-sm text-gray-500">{t('typeToSearch')}</p>
         ) : (
           <div className="py-1">
-            {results.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => handleResultClick(r)}
-                className={`flex w-full items-start gap-3 px-3 py-2.5 text-left transition hover:bg-white/5 ${
-                  activeId === r.id ? 'bg-white/[0.08]' : ''
-                }`}
-              >
-                <UserAvatar
-                  username={r.author?.username ?? 'Deleted User'}
-                  avatarUrl={r.author?.avatarUrl ?? null}
-                  size="sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="truncate text-sm font-medium text-white">
-                      {r.author?.displayName ?? r.author?.username ?? 'Deleted User'}
-                    </span>
-                    {r.channel ? (
-                      <span className="shrink-0 text-[11px] text-gray-500">#{r.channel.name}</span>
-                    ) : r.dmConversationId ? (
-                      <span className="shrink-0 text-[11px] text-gray-500">{t('dmBadge')}</span>
-                    ) : null}
-                  </div>
-                  {r.title && (
-                    <p className="mt-0.5 text-xs font-semibold text-gray-200">{r.title}</p>
+            {results.map((r) => {
+              const mediaAtts = (r.attachments ?? []).filter(
+                (a) => a.type === 'image' || a.type === 'gif'
+              )
+              return (
+                <div
+                  key={r.id}
+                  className={`px-3 py-2.5 transition hover:bg-white/5 ${
+                    activeId === r.id ? 'bg-white/[0.08]' : ''
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleResultClick(r)}
+                    className="flex w-full items-start gap-3 text-left"
+                  >
+                    <UserAvatar
+                      username={r.author?.username ?? 'Deleted User'}
+                      avatarUrl={r.author?.avatarUrl ?? null}
+                      size="sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="truncate text-sm font-medium text-white">
+                          {r.author?.displayName ?? r.author?.username ?? 'Deleted User'}
+                        </span>
+                        {r.channel ? (
+                          <span className="shrink-0 text-[11px] text-gray-500">#{r.channel.name}</span>
+                        ) : r.dmConversationId ? (
+                          <span className="shrink-0 text-[11px] text-gray-500">{t('dmBadge')}</span>
+                        ) : null}
+                      </div>
+                      {r.title && (
+                        <p className="mt-0.5 text-xs font-semibold text-gray-200">{r.title}</p>
+                      )}
+                      {r.content && (
+                        <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-300">{r.content}</p>
+                      )}
+                      <time className="mt-1 block text-[10px] text-gray-500">{formatSmartTimestamp(r.createdAt)}</time>
+                    </div>
+                  </button>
+                  {mediaAtts.length > 0 && (
+                    <MessageMediaProvider attachments={mediaAtts}>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5 pl-11">
+                        {mediaAtts.map((att) => (
+                          <SearchResultThumb key={att.id} attachment={att} />
+                        ))}
+                      </div>
+                    </MessageMediaProvider>
                   )}
-                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-300">{r.content}</p>
-                  <time className="mt-1 block text-[10px] text-gray-500">{formatSmartTimestamp(r.createdAt)}</time>
                 </div>
-              </button>
-            ))}
+              )
+            })}
           </div>
         )}
       </SimpleBar>
@@ -392,6 +413,25 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         </div>
       )}
     </aside>
+  )
+}
+
+function SearchResultThumb({ attachment }: { attachment: Attachment }) {
+  const { openByKey } = useMessageMedia()
+  const src = resolveMediaUrl(attachment.thumbnailUrl ?? attachment.url) ?? attachment.url
+  return (
+    <button
+      type="button"
+      onClick={() => openByKey(attachment.id)}
+      className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-black/30"
+    >
+      <img
+        src={src}
+        alt={attachment.filename}
+        loading="lazy"
+        className="h-full w-full object-cover transition hover:opacity-90"
+      />
+    </button>
   )
 }
 

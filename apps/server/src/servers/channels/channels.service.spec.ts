@@ -14,7 +14,12 @@ describe('ChannelsService', () => {
   let events: { emit: jest.Mock }
   let uploads: { deleteFile: jest.Mock }
   let auditLog: { log: jest.Mock }
-  let roles: { requirePermission: jest.Mock; requireMembership: jest.Mock; getAllChannelPermissions: jest.Mock }
+  let roles: {
+    requirePermission: jest.Mock
+    requireMembership: jest.Mock
+    requireChannelPermission: jest.Mock
+    getAllChannelPermissions: jest.Mock
+  }
 
   const serverId = 'server-1'
   const userId = 'user-1'
@@ -28,6 +33,7 @@ describe('ChannelsService', () => {
     roles = {
       requirePermission: jest.fn().mockResolvedValue(0n),
       requireMembership: jest.fn().mockResolvedValue({ server: {}, membership: {} }),
+      requireChannelPermission: jest.fn().mockResolvedValue(0n),
       getAllChannelPermissions: jest.fn().mockResolvedValue({}),
     }
 
@@ -124,6 +130,14 @@ describe('ChannelsService', () => {
       const createData = prisma.channel.create.mock.calls[0][0].data
       expect(createData.defaultLayout).toBeUndefined()
     })
+
+    it('persists description when provided', async () => {
+      prisma.channel.aggregate.mockResolvedValue({ _max: { position: 0 } })
+      prisma.channel.create.mockResolvedValue({ id: 'ch-new' })
+
+      await service.createChannel(serverId, userId, 'general', 'text' as any, null, undefined, 'Team updates')
+      expect(prisma.channel.create.mock.calls[0][0].data.description).toBe('Team updates')
+    })
   })
 
   describe('getChannels', () => {
@@ -189,6 +203,56 @@ describe('ChannelsService', () => {
       await expect(
         service.updateChannel(serverId, channelId, userId, { name: 'dup' }),
       ).rejects.toThrow(ConflictException)
+    })
+
+    it('updates description', async () => {
+      prisma.channel.update.mockResolvedValue({ id: channelId, description: 'New topic' })
+
+      await service.updateChannel(serverId, channelId, userId, { description: 'New topic' })
+      expect(prisma.channel.update.mock.calls[0][0].data.description).toBe('New topic')
+    })
+
+    it('clears description when set to null', async () => {
+      prisma.channel.update.mockResolvedValue({ id: channelId, description: null })
+
+      await service.updateChannel(serverId, channelId, userId, { description: null })
+      expect(prisma.channel.update.mock.calls[0][0].data.description).toBeNull()
+    })
+  })
+
+  describe('getChannelAttachments', () => {
+    beforeEach(() => {
+      prisma.channel.findFirst.mockResolvedValue({ id: channelId })
+    })
+
+    it('filters by media types and paginates', async () => {
+      const items = [{ id: 'a-1', type: 'image' }]
+      prisma.$transaction.mockResolvedValue([items, 42])
+
+      const result = await service.getChannelAttachments(serverId, channelId, userId, 'media', 1, 30)
+      expect(result).toEqual({ items, total: 42 })
+      expect(roles.requireChannelPermission).toHaveBeenCalled()
+
+      const findManyArgs = prisma.attachment.findMany.mock.calls[0][0]
+      expect(findManyArgs.where.type.in).toEqual(['image', 'gif', 'video'])
+      expect(findManyArgs.skip).toBe(30)
+      expect(findManyArgs.take).toBe(30)
+      expect(findManyArgs.where.message.is).toEqual({ channelId, deleted: false })
+    })
+
+    it('filters by file type for files kind', async () => {
+      prisma.$transaction.mockResolvedValue([[], 0])
+
+      await service.getChannelAttachments(serverId, channelId, userId, 'files', 0, 30)
+      const findManyArgs = prisma.attachment.findMany.mock.calls[0][0]
+      expect(findManyArgs.where.type.in).toEqual(['file'])
+    })
+
+    it('throws when channel not found', async () => {
+      prisma.channel.findFirst.mockResolvedValue(null)
+      await expect(
+        service.getChannelAttachments(serverId, channelId, userId, 'media', 0, 30),
+      ).rejects.toThrow(NotFoundException)
     })
   })
 

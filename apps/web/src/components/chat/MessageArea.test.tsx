@@ -17,6 +17,7 @@ jest.mock('@/components/chat/SavedMessagesPanel', () => ({ SavedMessagesPanel: (
 jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: () => null }))
 jest.mock('@/components/chat/PollCreator', () => ({ PollCreator: () => null }))
 jest.mock('@/components/chat/ChannelInfoPanel', () => ({ ChannelInfoPanel: () => null }))
+jest.mock('@/components/chat/ChannelInfoDrawer', () => ({ ChannelInfoDrawer: () => null }))
 jest.mock('@/components/dm/DmProfilePanel', () => ({
   DmProfilePanel: () => null,
   UserProfileIcon: () => null,
@@ -114,8 +115,12 @@ jest.mock('@/components/dm/hooks/useDmContext', () => ({
 }))
 
 jest.mock('@/stores/layout.store', () => ({
-  useLayoutStore: Object.assign(jest.fn(() => jest.fn()), {
-    getState: () => ({ openNavDrawer: jest.fn() }),
+  useLayoutStore: Object.assign(jest.fn(() => false), {
+    getState: () => ({
+      openNavDrawer: jest.fn(),
+      closeChannelInfoDrawer: jest.fn(),
+      toggleChannelInfoDrawer: jest.fn(),
+    }),
     setState: jest.fn(),
     subscribe: jest.fn(),
   }),

@@ -46,6 +46,7 @@ const EditChannelModal = lazy(() =>
   import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
 )
 import { ChannelInfoPanel } from '@/components/chat/ChannelInfoPanel'
+import { ChannelInfoDrawer } from '@/components/chat/ChannelInfoDrawer'
 import { TimeoutBanner } from '@/components/chat/TimeoutBanner'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
@@ -187,8 +188,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     setReplyTarget(null)
   }, [contextId])
 
+  const channelInfoDrawerOpen = useLayoutStore((s) => s.channelInfoDrawerOpen)
+
   useEffect(() => {
     setChannelInfoOpen(false)
+    useLayoutStore.getState().closeChannelInfoDrawer()
   }, [contextId])
 
   const handleReply = useCallback((msg: Message) => {
@@ -468,6 +472,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             >
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
             </button>
+          ) : activeChannel.type === 'text' ? (
+            <button
+              type="button"
+              onClick={() => useLayoutStore.getState().toggleChannelInfoDrawer()}
+              className="min-w-0 flex-1 text-left"
+            >
+              <h1 className="truncate text-base font-semibold text-white transition hover:text-gray-200">{activeChannel.name}</h1>
+            </button>
           ) : (
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
@@ -690,7 +702,18 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             </Suspense>
           </div>
         )}
-        {!threadOpen && !searchOpen && memberSidebar}
+        {!threadOpen && !searchOpen &&
+          (!isMobile && channelInfoDrawerOpen && activeChannel && !isDm && activeChannel.type === 'text' ? (
+            <ChannelInfoDrawer
+              onClose={() => useLayoutStore.getState().closeChannelInfoDrawer()}
+              channelName={activeChannel.name}
+              channelDescription={activeChannel.description}
+              channelId={activeChannel.id}
+              serverId={activeChannel.serverId}
+            />
+          ) : (
+            memberSidebar
+          ))}
       </div>
 
       {editingChannel && activeChannel && (
@@ -703,6 +726,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           open={channelInfoOpen}
           onClose={() => setChannelInfoOpen(false)}
           channelName={activeChannel.name}
+          channelDescription={activeChannel.description}
+          channelType={activeChannel.type}
           channelId={activeChannel.id}
           serverId={activeChannel.serverId}
           serverName={channelServer.name}

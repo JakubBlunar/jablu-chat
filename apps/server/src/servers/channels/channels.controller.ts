@@ -9,12 +9,18 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards
 } from '@nestjs/common'
 import { CurrentUser } from '../../auth/current-user.decorator'
 import { UnifiedAuthGuard } from '../../auth/unified-auth.guard'
 import { ChannelsService } from './channels.service'
-import { CreateChannelDto, ReorderChannelsDto, UpdateChannelDto } from './dto'
+import {
+  ChannelAttachmentsQueryDto,
+  CreateChannelDto,
+  ReorderChannelsDto,
+  UpdateChannelDto
+} from './dto'
 
 @Controller('servers/:serverId/channels')
 @UseGuards(UnifiedAuthGuard)
@@ -27,12 +33,20 @@ export class ChannelsController {
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: CreateChannelDto
   ) {
-    return this.channels.createChannel(serverId, user.id, dto.name, dto.type, dto.categoryId, {
-      defaultSortOrder: dto.defaultSortOrder,
-      defaultLayout: dto.defaultLayout,
-      postGuidelines: dto.postGuidelines,
-      requireTags: dto.requireTags
-    })
+    return this.channels.createChannel(
+      serverId,
+      user.id,
+      dto.name,
+      dto.type,
+      dto.categoryId,
+      {
+        defaultSortOrder: dto.defaultSortOrder,
+        defaultLayout: dto.defaultLayout,
+        postGuidelines: dto.postGuidelines,
+        requireTags: dto.requireTags
+      },
+      dto.description
+    )
   }
 
   @Get()
@@ -41,6 +55,19 @@ export class ChannelsController {
     @CurrentUser() user: { id: string; username: string; email: string }
   ) {
     return this.channels.getChannels(serverId, user.id)
+  }
+
+  @Get(':id/attachments')
+  attachments(
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
+    @CurrentUser() user: { id: string; username: string; email: string },
+    @Query() query: ChannelAttachmentsQueryDto
+  ) {
+    const kind = query.kind === 'files' ? 'files' : 'media'
+    const limit = Math.min(Math.max(query.limit ?? 30, 1), 100)
+    const page = Math.max(query.page ?? 0, 0)
+    return this.channels.getChannelAttachments(serverId, channelId, user.id, kind, page, limit)
   }
 
   @Patch('reorder')

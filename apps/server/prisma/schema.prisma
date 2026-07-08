@@ -261,6 +261,7 @@ model Channel {
   serverId   String      @map("server_id")
   categoryId String?     @map("category_id")
   name       String
+  description String?
   type       ChannelType @default(text)
   position   Int         @default(0)
   isArchived Boolean     @default(false) @map("is_archived")

@@ -33,7 +33,8 @@ export class ChannelsService {
     name: string,
     type: ChannelType,
     categoryId?: string | null,
-    forumOpts?: { defaultSortOrder?: string; defaultLayout?: string; postGuidelines?: string | null; requireTags?: boolean }
+    forumOpts?: { defaultSortOrder?: string; defaultLayout?: string; postGuidelines?: string | null; requireTags?: boolean },
+    description?: string | null
   ) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_CHANNELS)
     const maxPos = await this.prisma.channel.aggregate({
@@ -42,6 +43,7 @@ export class ChannelsService {
     })
     const position = (maxPos._max.position ?? -1) + 1
     const data: any = { serverId, name, type, position, categoryId: categoryId || null }
+    if (description !== undefined) data.description = description || null
     if (type === ChannelType.forum && forumOpts) {
       if (forumOpts.defaultSortOrder) data.defaultSortOrder = forumOpts.defaultSortOrder
       if (forumOpts.defaultLayout) data.defaultLayout = forumOpts.defaultLayout
@@ -88,6 +90,52 @@ export class ChannelsService {
       }))
   }
 
+  async getChannelAttachments(
+    serverId: string,
+    channelId: string,
+    userId: string,
+    kind: 'media' | 'files',
+    page: number,
+    limit: number
+  ) {
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, serverId },
+      select: { id: true }
+    })
+    if (!channel) {
+      throw new NotFoundException('Channel not found')
+    }
+    await this.roles.requireChannelPermission(serverId, channelId, userId, Permission.VIEW_CHANNEL)
+
+    const types = kind === 'files' ? ['file'] : ['image', 'gif', 'video']
+    const where: Prisma.AttachmentWhereInput = {
+      type: { in: types as any },
+      message: { is: { channelId, deleted: false } }
+    }
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.attachment.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: page * limit,
+        take: limit,
+        select: {
+          id: true,
+          messageId: true,
+          filename: true,
+          url: true,
+          type: true,
+          mimeType: true,
+          sizeBytes: true,
+          width: true,
+          height: true,
+          thumbnailUrl: true
+        }
+      }),
+      this.prisma.attachment.count({ where })
+    ])
+    return { items, total }
+  }
+
   async updateChannel(
     serverId: string,
     channelId: string,
@@ -95,6 +143,7 @@ export class ChannelsService {
     data: {
       name?: string
       position?: number
+      description?: string | null
       categoryId?: string | null
       isArchived?: boolean
       defaultSortOrder?: string
@@ -124,6 +173,7 @@ export class ChannelsService {
     if (
       data.name === undefined &&
       data.position === undefined &&
+      data.description === undefined &&
       data.categoryId === undefined &&
       data.isArchived === undefined &&
       !hasForumSettingUpdate
@@ -134,6 +184,7 @@ export class ChannelsService {
       const updateData: Prisma.ChannelUpdateInput = {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.position !== undefined && { position: data.position }),
+        ...(data.description !== undefined && { description: data.description }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
         ...(data.categoryId !== undefined && {
           category: data.categoryId

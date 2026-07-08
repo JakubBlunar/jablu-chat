@@ -108,6 +108,7 @@ export function MainLayout() {
   const isMobile = useIsMobile()
 
   const openNavDrawer = useLayoutStore((s) => s.openNavDrawer)
+  const channelInfoDrawerOpen = useLayoutStore((s) => s.channelInfoDrawerOpen)
   const memberSidebarVisible = useSettingsStore((s) => s.memberSidebarVisible)
 
   useActivityReporter(socket)
@@ -270,7 +271,7 @@ export function MainLayout() {
     isNavigating
   ])
 
-  const showMemberSidebar = !isMobile && memberSidebarVisible
+  const showMemberSidebar = !isMobile && memberSidebarVisible && !channelInfoDrawerOpen
 
   // ─── Mobile layout ───
   if (isMobile) {

@@ -35,6 +35,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
   const { goToChannel } = useAppNavigate()
 
   const [rawName, setRawName] = useState('')
+  const [description, setDescription] = useState('')
   const [type, setType] = useState<ChannelType>('text')
   const [categoryId, setCategoryId] = useState<string | null>(defaultCategoryId ?? null)
   const [defaultLayout, setDefaultLayout] = useState<ForumLayout>('list')
@@ -63,6 +64,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
     setError(null)
     try {
       const body: Record<string, unknown> = { name, type, categoryId: categoryId || undefined }
+      if (type === 'text' && description.trim()) body.description = description.trim()
       if (type === 'forum') {
         body.defaultLayout = defaultLayout
         if (postGuidelines.trim()) body.postGuidelines = postGuidelines.trim()
@@ -86,6 +88,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
         goToChannel(currentServerId, created.id)
       }
       setRawName('')
+      setDescription('')
       setType('text')
       setCategoryId(null)
       setDefaultLayout('list')
@@ -123,6 +126,21 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
             Will be created as <span className="text-gray-300">#{name}</span>
           </p>
         ) : null}
+
+        {type === 'text' && (
+          <div className="mt-5">
+            <Label htmlFor="create-channel-description">Description (optional)</Label>
+            <textarea
+              id="create-channel-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What is this channel about?"
+              maxLength={500}
+              rows={2}
+              className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        )}
 
         <Label className="mt-5 block">Channel type</Label>
         <div className="mt-2 flex flex-col gap-2">
@@ -276,6 +294,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
         <ModalFooter
           onCancel={() => {
             setRawName('')
+            setDescription('')
             setError(null)
             setType('text')
             setCategoryId(null)
