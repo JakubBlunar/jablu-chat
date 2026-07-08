@@ -241,8 +241,11 @@ export class RolesService {
       }
     }
 
+    // `server_roles.id` is a text column (String @id, no @db.Uuid), so the VALUES
+    // ids must be cast to text — casting to ::uuid triggers `operator does not
+    // exist: text = uuid` on Postgres.
     const values = roleIds.map((id, i) =>
-      Prisma.sql`(${id}::uuid, ${roleIds.length - i}::int)`
+      Prisma.sql`(${id}::text, ${roleIds.length - i}::int)`
     )
     await this.prisma.$executeRaw(
       Prisma.sql`
