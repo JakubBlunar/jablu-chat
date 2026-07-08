@@ -813,6 +813,7 @@ export class ApiClient {
     data: {
       name?: string
       position?: number
+      description?: string | null
       categoryId?: string | null
       isArchived?: boolean
       defaultSortOrder?: 'latest_activity' | 'newest'
@@ -822,6 +823,17 @@ export class ApiClient {
     }
   ): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}/channels/${channelId}`, data)
+  }
+
+  getChannelAttachments(
+    serverId: string,
+    channelId: string,
+    kind: 'media' | 'files',
+    page: number,
+    limit = 30
+  ): Promise<{ items: Attachment[]; total: number }> {
+    const params = new URLSearchParams({ kind, page: String(page), limit: String(limit) })
+    return this.get(`/api/servers/${serverId}/channels/${channelId}/attachments?${params}`)
   }
 
   getForumTags(channelId: string): Promise<ForumTag[]> {

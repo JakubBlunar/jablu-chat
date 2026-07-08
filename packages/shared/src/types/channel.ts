@@ -10,6 +10,7 @@ export interface Channel {
   serverId: string
   categoryId?: string | null
   name: string
+  description?: string | null
   type: ChannelType
   position: number
   isArchived?: boolean

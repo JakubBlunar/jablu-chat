@@ -28,6 +28,12 @@ export class CreateChannelDto {
   type: ChannelType
 
   @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @Transform(({ value }) => (value === '' ? null : value))
+  description?: string | null
+
+  @IsOptional()
   @IsUUID('4')
   @Transform(({ value }) => (value === '' ? null : value))
   categoryId?: string | null
@@ -67,6 +73,12 @@ export class UpdateChannelDto {
   position?: number
 
   @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @Transform(({ value }) => (value === '' ? null : value))
+  description?: string | null
+
+  @IsOptional()
   @IsUUID('4')
   @Transform(({ value }) => (value === '' ? null : value))
   categoryId?: string | null
@@ -99,6 +111,24 @@ export class ReorderChannelsDto {
   @ArrayMinSize(1)
   @IsUUID('4', { each: true })
   channelIds!: string[]
+}
+
+export class ChannelAttachmentsQueryDto {
+  @IsOptional()
+  @IsString()
+  kind?: 'media' | 'files'
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  @Min(0)
+  page?: number
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsInt()
+  @Min(1)
+  limit?: number
 }
 
 export class CreateCategoryDto {

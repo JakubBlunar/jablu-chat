@@ -11,17 +11,22 @@ import type { Member } from '@/stores/member.store'
 import { getTopRole, getRoleColor, useMemberStore } from '@/stores/member.store'
 import { useServerStore } from '@/stores/server.store'
 import { PinnedMessagesList } from '@/components/chat/PinnedMessagesList'
+import { ChannelDescriptionBlock } from '@/components/channel/ChannelDescriptionBlock'
+import { ChannelMediaGrid } from '@/components/channel/ChannelMediaGrid'
+import { ChannelFilesList } from '@/components/channel/ChannelFilesList'
 
 const InviteModal = React.lazy(() =>
   import('@/components/server/InviteModal').then((m) => ({ default: m.InviteModal }))
 )
 
-type TabId = 'members' | 'pins'
+type TabId = 'info' | 'members' | 'pins' | 'images' | 'files'
 
 export function ChannelInfoPanel({
   open,
   onClose,
   channelName,
+  channelDescription,
+  channelType,
   channelId,
   serverId,
   serverName,
@@ -40,6 +45,8 @@ export function ChannelInfoPanel({
   open: boolean
   onClose: () => void
   channelName: string
+  channelDescription?: string | null
+  channelType?: string
   channelId: string
   serverId: string
   serverName: string
@@ -67,6 +74,8 @@ export function ChannelInfoPanel({
   const ownerId = useServerStore((s) => s.servers.find((sv) => sv.id === serverId)?.ownerId)
 
   const listMembers = useMemo(() => members.filter((m) => m.serverId === serverId), [members, serverId])
+
+  const showMedia = channelType === 'text'
 
   useEffect(() => {
     if (!open) {
@@ -161,43 +170,40 @@ export function ChannelInfoPanel({
             </div>
           </div>
 
-          <div className="flex shrink-0 gap-1 border-b border-black/20 px-2">
-            <button
-              type="button"
-              onClick={() => setTab('members')}
-              className={`relative flex-1 py-2.5 text-center text-sm font-semibold transition ${
-                tab === 'members' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {t('channelInfoTabMembers')}
-              {tab === 'members' && (
-                <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('pins')}
-              className={`relative flex-1 py-2.5 text-center text-sm font-semibold transition ${
-                tab === 'pins' ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <span className="inline-flex items-center justify-center gap-1.5">
-                {t('channelInfoTabPins')}
-                {pinnedCount > 0 && (
-                  <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-text">
-                    {pinnedCount > 99 ? '99+' : pinnedCount}
-                  </span>
-                )}
-              </span>
-              {tab === 'pins' && (
-                <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary" />
-              )}
-            </button>
+          <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto border-b border-black/20 px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {showMedia && (
+              <TabButton id="info" active={tab === 'info'} onSelect={setTab} label={t('channelInfoTabInfo')} />
+            )}
+            <TabButton id="members" active={tab === 'members'} onSelect={setTab} label={t('channelInfoTabMembers')} />
+            <TabButton
+              id="pins"
+              active={tab === 'pins'}
+              onSelect={setTab}
+              label={t('channelInfoTabPins')}
+              badge={pinnedCount > 0 ? (pinnedCount > 99 ? '99+' : String(pinnedCount)) : undefined}
+            />
+            {showMedia && (
+              <>
+                <TabButton id="images" active={tab === 'images'} onSelect={setTab} label={t('channelInfoTabImages')} />
+                <TabButton id="files" active={tab === 'files'} onSelect={setTab} label={t('channelInfoTabFiles')} />
+              </>
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden">
+            {tab === 'images' ? (
+              <ChannelMediaGrid serverId={serverId} channelId={channelId} />
+            ) : tab === 'files' ? (
+              <ChannelFilesList serverId={serverId} channelId={channelId} />
+            ) : (
             <SimpleBar className="h-full max-h-full" style={{ maxHeight: '100%' }}>
-              {tab === 'members' ? (
+              {tab === 'info' ? (
+                <ChannelDescriptionBlock
+                  channelName={channelName}
+                  description={channelDescription}
+                  className="px-3 py-4"
+                />
+              ) : tab === 'members' ? (
                 <div className="px-2 py-3">
                   <button
                     type="button"
@@ -238,6 +244,7 @@ export function ChannelInfoPanel({
                 />
               )}
             </SimpleBar>
+            )}
           </div>
         </div>
       </BottomSheet>
@@ -255,6 +262,40 @@ export function ChannelInfoPanel({
       )}
       {cardUser && <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />}
     </>
+  )
+}
+
+function TabButton({
+  id,
+  active,
+  onSelect,
+  label,
+  badge
+}: {
+  id: TabId
+  active: boolean
+  onSelect: (id: TabId) => void
+  label: string
+  badge?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(id)}
+      className={`relative shrink-0 whitespace-nowrap px-4 py-2.5 text-center text-sm font-semibold transition ${
+        active ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
+      }`}
+    >
+      <span className="inline-flex items-center justify-center gap-1.5">
+        {label}
+        {badge && (
+          <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-text">
+            {badge}
+          </span>
+        )}
+      </span>
+      {active && <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary" />}
+    </button>
   )
 }
 

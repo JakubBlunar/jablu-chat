@@ -185,7 +185,21 @@ export class SearchService {
           }
         },
         channel: { select: { id: true, name: true, serverId: true, type: true } },
-        directConversation: { select: { id: true } }
+        directConversation: { select: { id: true } },
+        attachments: {
+          select: {
+            id: true,
+            messageId: true,
+            filename: true,
+            url: true,
+            type: true,
+            mimeType: true,
+            sizeBytes: true,
+            width: true,
+            height: true,
+            thumbnailUrl: true
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -201,7 +215,8 @@ export class SearchService {
         channelId: m.channelId,
         channel: m.channel,
         dmConversationId: m.directConversationId,
-        createdAt: m.createdAt
+        createdAt: m.createdAt,
+        attachments: m.attachments
       })),
       total
     }

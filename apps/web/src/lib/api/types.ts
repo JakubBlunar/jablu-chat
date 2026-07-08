@@ -1,3 +1,5 @@
+import type { Attachment } from '@chat/shared'
+
 export type GifResult = {
   id: string
   title: string
@@ -28,6 +30,7 @@ export type SearchResult = {
   channel: { id: string; name: string; serverId: string; type?: string } | null
   dmConversationId: string | null
   createdAt: string
+  attachments?: Attachment[]
 }
 
 export type AuditLogEntry = {

@@ -65,6 +65,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const { goToServer } = useAppNavigate()
 
   const [rawName, setRawName] = useState(channel.name)
+  const [description, setDescription] = useState(channel.description ?? '')
   const [categoryId, setCategoryId] = useState<string | null>(channel.categoryId ?? null)
   const [isArchived, setIsArchived] = useState(channel.isArchived ?? false)
   const [defaultSortOrder, setDefaultSortOrder] = useState<ForumSortOrder>(channel.defaultSortOrder ?? 'latest_activity')
@@ -91,6 +92,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const name = normalizeChannelName(rawName)
 
   const nameChanged = name !== channel.name
+  const descriptionChanged = description.trim() !== (channel.description ?? '')
   const categoryChanged = categoryId !== (channel.categoryId ?? null)
   const archivedChanged = isArchived !== (channel.isArchived ?? false)
   const sortChanged = channel.type === 'forum' && defaultSortOrder !== (channel.defaultSortOrder ?? 'latest_activity')
@@ -98,7 +100,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
   const guidelinesChanged = channel.type === 'forum' && postGuidelines !== (channel.postGuidelines ?? '')
   const requireTagsChanged = channel.type === 'forum' && requireTags !== (channel.requireTags ?? false)
   const hasChanges =
-    nameChanged || categoryChanged || archivedChanged || sortChanged || layoutChanged || guidelinesChanged || requireTagsChanged
+    nameChanged || descriptionChanged || categoryChanged || archivedChanged || sortChanged || layoutChanged || guidelinesChanged || requireTagsChanged
 
   useEffect(() => {
     if (!showPermissions || !currentServerId) return
@@ -244,6 +246,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     try {
       const patch: {
         name?: string
+        description?: string | null
         categoryId?: string | null
         isArchived?: boolean
         defaultSortOrder?: ForumSortOrder
@@ -252,6 +255,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
         requireTags?: boolean
       } = {}
       if (nameChanged) patch.name = name
+      if (descriptionChanged) patch.description = description.trim() || null
       if (categoryChanged) patch.categoryId = categoryId
       if (archivedChanged) patch.isArchived = isArchived
       if (sortChanged) patch.defaultSortOrder = defaultSortOrder
@@ -270,6 +274,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     currentServerId,
     channel,
     name,
+    description,
     categoryId,
     isArchived,
     defaultSortOrder,
@@ -277,6 +282,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
     postGuidelines,
     requireTags,
     nameChanged,
+    descriptionChanged,
     categoryChanged,
     archivedChanged,
     sortChanged,
@@ -338,6 +344,23 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             Will be renamed to <span className="text-gray-300">#{name}</span>
           </p>
         ) : null}
+
+        {channel.type === 'text' && (
+          <div className="mt-5">
+            <label htmlFor="edit-channel-description" className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Description (optional)
+            </label>
+            <textarea
+              id="edit-channel-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What is this channel about?"
+              maxLength={500}
+              rows={2}
+              className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        )}
 
         {categories.length > 0 && (
           <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-gray-400">

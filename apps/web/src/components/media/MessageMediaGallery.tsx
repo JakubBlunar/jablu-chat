@@ -69,6 +69,7 @@ export function MessageMediaProvider({ attachments, linkPreviews, children }: Me
         zoom={{ maxZoomPixelRatio: 3 }}
         video={{ autoPlay: true }}
         counter={{ container: { style: { top: 'unset', bottom: 0 } } }}
+        styles={{ container: { backgroundColor: 'rgba(0, 0, 0, 0.8)' } }}
       />
     </MessageMediaContext.Provider>
   )

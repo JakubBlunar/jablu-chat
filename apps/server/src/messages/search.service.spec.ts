@@ -72,12 +72,18 @@ describe('SearchService', () => {
           channel: { id: 'ch-1', name: 'general', serverId: 's1', type: 'text' },
           directConversationId: null,
           createdAt: new Date(),
+          attachments: [{ id: 'att-1', type: 'image', url: '/uploads/x.png', thumbnailUrl: '/uploads/x-thumb.webp' }],
         },
       ])
 
       const result = await service.searchMessages(userId, 'hello', 's1', 'ch-1')
       expect(result.results).toHaveLength(1)
       expect(result.total).toBe(1)
+      expect(result.results[0].attachments).toEqual([
+        { id: 'att-1', type: 'image', url: '/uploads/x.png', thumbnailUrl: '/uploads/x-thumb.webp' },
+      ])
+      const includeArg = prisma.message.findMany.mock.calls[0][0].include
+      expect(includeArg.attachments).toBeDefined()
     })
 
     it('searches across all servers when no scope specified', async () => {
