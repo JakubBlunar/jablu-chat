@@ -76,6 +76,22 @@ describe('buildMessageMediaSlides', () => {
     expect(indexByKey.get('v1')).toBe(0)
   })
 
+  it('omits the source type for quicktime (.mov) so the browser sniffs the codec instead of skipping it', () => {
+    const { slides } = buildMessageMediaSlides([
+      att({
+        id: 'v2',
+        type: 'video',
+        filename: 'clip.mov',
+        url: '/uploads/v2.mov',
+        mimeType: 'video/quicktime'
+      })
+    ])
+
+    const source = (slides[0] as { sources: readonly { src: string; type?: string }[] }).sources[0]
+    expect(source.src).toBe('/uploads/v2.mov')
+    expect(source.type).toBeUndefined()
+  })
+
   it('excludes file attachments', () => {
     const { slides, indexByKey } = buildMessageMediaSlides([
       att({ id: 'f1', type: 'file', filename: 'doc.pdf', url: '/uploads/f1.pdf' })
