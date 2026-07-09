@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -75,13 +76,15 @@ export function BansTab({ server }: { server: Server }) {
                 Banned by {ban.bannedBy.displayName ?? ban.bannedBy.username}
               </p>
             </div>
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
               onClick={() => void handleUnban(ban)}
-              className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-gray-400 transition hover:bg-red-500/10 hover:text-red-400"
+              className="shrink-0 hover:bg-red-500/10 hover:text-red-400"
             >
               Unban
-            </button>
+            </Button>
           </div>
         ))}
       </div>

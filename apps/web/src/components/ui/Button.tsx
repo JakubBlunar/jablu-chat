@@ -2,7 +2,7 @@ import { forwardRef } from 'react'
 import { cn } from '@/lib/cn'
 
 const base =
-  'inline-flex items-center justify-center font-medium transition disabled:cursor-not-allowed disabled:opacity-50'
+  'inline-flex items-center justify-center font-medium transition disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap'
 
 const variants = {
   primary:
@@ -16,10 +16,10 @@ const variants = {
 } as const
 
 const sizes = {
-  xs: 'rounded px-3 py-1 text-xs',
-  sm: 'rounded-md px-3 py-1.5 text-sm',
-  md: 'rounded-md px-4 py-2 text-sm',
-  lg: 'rounded-md px-4 py-2.5 text-sm font-semibold',
+  xs: 'h-7 rounded px-3 text-xs',
+  sm: 'h-8 rounded-md px-3 text-sm',
+  md: 'h-9 rounded-md px-4 text-sm',
+  lg: 'h-10 rounded-md px-4 text-sm font-semibold',
 } as const
 
 export type ButtonProps = {

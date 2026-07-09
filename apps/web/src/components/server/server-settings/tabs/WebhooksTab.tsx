@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Input, InlineAlert } from '@/components/ui'
+import { Button, Input, InlineAlert, Select } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import type { Server } from '@/stores/server.store'
@@ -90,19 +90,18 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
               placeholder="My Webhook"
             />
           </div>
-          <div className="w-40 space-y-1">
-            <label className="text-xs text-gray-400">Channel</label>
-            <select
+          <div className="w-40">
+            <Select
+              label="Channel"
               value={channelId}
               onChange={(e) => setChannelId(e.target.value)}
-              className="w-full rounded border border-white/10 bg-surface-darkest px-2 py-2 text-sm text-white outline-none"
             >
               {textChannels.map((ch) => (
                 <option key={ch.id} value={ch.id}>
                   #{ch.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <Button
             type="button"

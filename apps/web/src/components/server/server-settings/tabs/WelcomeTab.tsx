@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Button, InlineAlert, Textarea } from '@/components/ui'
+import { Button, InlineAlert, Select, Textarea } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -77,19 +77,16 @@ export function WelcomeTab({ server }: { server: Server }) {
       {success && <InlineAlert variant="success">Welcome settings saved!</InlineAlert>}
 
       <div className="space-y-4">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Welcome Channel
-          <select
-            value={channelId}
-            onChange={(e) => setChannelId(e.target.value)}
-            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
-          >
-            <option value="">Disabled — no welcome messages</option>
-            {textChannels.map((ch) => (
-              <option key={ch.id} value={ch.id}>#{ch.name}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Welcome Channel"
+          value={channelId}
+          onChange={(e) => setChannelId(e.target.value)}
+        >
+          <option value="">Disabled — no welcome messages</option>
+          {textChannels.map((ch) => (
+            <option key={ch.id} value={ch.id}>#{ch.name}</option>
+          ))}
+        </Select>
 
         <Textarea
           id="welcome-message"

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Input, Spinner, Toggle } from '@/components/ui'
+import { Button, Input, Select, Spinner, Toggle } from '@/components/ui'
 import { api, type AutoModRule } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 
@@ -59,24 +59,26 @@ function WordFilterConfig({
     <div className="space-y-3">
       <div className="flex items-center gap-3 mb-1">
         <label className="text-xs text-gray-400">Action:</label>
-        <select
+        <Select
+          size="sm"
+          wrapperClassName="w-auto"
           value={action}
           onChange={(e) => onSave({ words, action: e.target.value })}
-          className="rounded-md border border-white/10 bg-surface px-2 py-1 text-xs text-white outline-none"
         >
           <option value="block">Block message</option>
           <option value="flag">Flag for review</option>
-        </select>
+        </Select>
       </div>
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
           <Input
             type="text"
+            size="sm"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addWord()}
             placeholder="Add a word..."
-            className="bg-surface py-1.5"
+            className="bg-surface"
           />
         </div>
         <Button type="button" size="sm" onClick={addWord}>
@@ -139,11 +141,12 @@ function LinkFilterConfig({
             <div className="min-w-0 flex-1">
               <Input
                 type="text"
+                size="sm"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addDomain()}
                 placeholder="e.g. youtube.com"
-                className="bg-surface py-1.5"
+                className="bg-surface"
               />
             </div>
             <Button type="button" size="sm" onClick={addDomain}>
