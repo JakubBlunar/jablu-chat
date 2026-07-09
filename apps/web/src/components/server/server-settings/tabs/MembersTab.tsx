@@ -1,13 +1,14 @@
 import type { UserStatus } from '@chat/shared'
 import { Permission } from '@chat/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { createPortal } from 'react-dom'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
-import { ColorDot } from '@/components/ui/ColorDot'
+import { Button } from '@/components/ui/Button'
 import { InlineAlert } from '@/components/ui/InlineAlert'
+import { MultiSelect } from '@/components/ui/MultiSelect'
 import { RoleBadge } from '@/components/ui/RoleBadge'
+import { Select } from '@/components/ui/Select'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Member } from '@/stores/member.store'
@@ -57,15 +58,11 @@ export function MembersTab({ server }: { server: Server }) {
 
   const [memberError, setMemberError] = useState<string | null>(null)
 
-  const handleRoleToggle = useCallback(
-    async (member: Member, roleId: string) => {
+  const handleRolesChange = useCallback(
+    async (member: Member, nextRoleIds: string[]) => {
       setMemberError(null)
-      const defaultIds = new Set((member.roles ?? []).filter((r) => r.isDefault).map((r) => r.id))
-      const current = new Set((member.roleIds ?? []).filter((id) => !defaultIds.has(id)))
-      if (current.has(roleId)) current.delete(roleId)
-      else current.add(roleId)
       try {
-        await api.assignRoles(server.id, member.userId, Array.from(current))
+        await api.assignRoles(server.id, member.userId, nextRoleIds)
         fetchMembers(server.id)
       } catch {
         setMemberError(`Failed to change roles for ${member.user.displayName ?? member.user.username}`)
@@ -133,6 +130,8 @@ export function MembersTab({ server }: { server: Server }) {
     [server.id, fetchMembers]
   )
 
+  const assignableRoles = roles.filter((r) => !r.isDefault)
+
   return (
     <div className="space-y-2">
       {memberError && (
@@ -186,25 +185,32 @@ export function MembersTab({ server }: { server: Server }) {
 
             {showActions && (
               <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-white/5 pt-2">
-                {canManageRoles && roles.length > 0 && (
-                  <RoleDropdown
-                    roles={roles.filter((r) => !r.isDefault)}
-                    activeIds={m.roleIds ?? []}
-                    onToggle={(roleId) => handleRoleToggle(m, roleId)}
+                {canManageRoles && assignableRoles.length > 0 && (
+                  <MultiSelect
+                    size="sm"
+                    buttonLabel="Roles"
+                    icon={<RolesIcon />}
+                    options={assignableRoles.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
+                    value={(m.roleIds ?? []).filter((id) => assignableRoles.some((r) => r.id === id))}
+                    onChange={(next) => handleRolesChange(m, next)}
                   />
                 )}
                 {canMute && (
                   isMuted ? (
-                    <button
+                    <Button
                       type="button"
+                      size="sm"
+                      variant="ghost"
                       onClick={() => handleRemoveTimeout(m)}
                       title="Remove timeout"
-                      className="rounded px-2 py-1 text-xs text-yellow-400 transition hover:bg-yellow-500/20"
+                      className="text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-400"
                     >
                       Untimeout
-                    </button>
+                    </Button>
                   ) : (
-                    <select
+                    <Select
+                      size="sm"
+                      wrapperClassName="w-28"
                       defaultValue=""
                       onChange={(e) => {
                         const val = Number(e.target.value)
@@ -212,34 +218,37 @@ export function MembersTab({ server }: { server: Server }) {
                         e.target.value = ''
                       }}
                       title="Timeout member"
-                      className="rounded border border-white/10 bg-surface-darkest px-2 py-1 text-xs text-yellow-400 outline-none"
                     >
                       <option value="" disabled>Timeout</option>
                       {TIMEOUT_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
-                    </select>
+                    </Select>
                   )
                 )}
                 {canKick && (
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
                     onClick={() => handleKick(m)}
                     title="Kick member"
-                    className="rounded p-1 text-red-400 transition hover:bg-red-500/20"
+                    className="px-2 text-red-400 hover:bg-red-500/20 hover:text-red-400"
                   >
                     <KickIcon />
-                  </button>
+                  </Button>
                 )}
                 {canBan && (
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
                     onClick={() => handleBan(m)}
                     title="Ban member"
-                    className="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/20"
+                    className="text-red-400 hover:bg-red-500/20 hover:text-red-400"
                   >
                     Ban
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -251,98 +260,10 @@ export function MembersTab({ server }: { server: Server }) {
   )
 }
 
-function RoleDropdown({
-  roles,
-  activeIds,
-  onToggle
-}: {
-  roles: import('@chat/shared').Role[]
-  activeIds: string[]
-  onToggle: (roleId: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const btnRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (
-        btnRef.current?.contains(e.target as Node) ||
-        panelRef.current?.contains(e.target as Node)
-      ) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [open])
-
-  const handleToggle = () => {
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      const PANEL_W = 200
-      const left = Math.max(8, Math.min(rect.right - PANEL_W, window.innerWidth - PANEL_W - 8))
-      const top = Math.min(rect.bottom + 4, window.innerHeight - 8)
-      setPos({ top, left })
-    }
-    setOpen((v) => !v)
-  }
-
-  const activeCount = roles.filter((r) => activeIds.includes(r.id)).length
-
+function RolesIcon() {
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={handleToggle}
-        className="flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-gray-300 transition hover:bg-white/5"
-      >
-        <svg className="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        Roles
-        {activeCount > 0 && (
-          <span className="rounded-full bg-primary/20 px-1.5 text-[10px] font-semibold text-primary">{activeCount}</span>
-        )}
-        <svg className={`h-3 w-3 text-gray-500 transition ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          className="fixed z-[200] max-h-[60vh] w-[200px] overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
-          style={{ top: pos.top, left: pos.left }}
-        >
-          {roles.map((r) => {
-            const isActive = activeIds.includes(r.id)
-            return (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => onToggle(r.id)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-white/5"
-              >
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                  isActive ? 'border-primary bg-primary' : 'border-gray-600'
-                }`}>
-                  {isActive && (
-                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </span>
-                <ColorDot color={r.color} size="sm" />
-                <span className={`truncate ${isActive ? 'text-white' : 'text-gray-400'}`}>{r.name}</span>
-              </button>
-            )
-          })}
-        </div>,
-        document.body
-      )}
-    </>
+    <svg className="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
   )
 }

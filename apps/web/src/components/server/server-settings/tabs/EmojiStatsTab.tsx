@@ -1,6 +1,6 @@
 import { Permission } from '@chat/shared'
 import { useEffect, useRef, useState } from 'react'
-import { InlineAlert, Spinner } from '@/components/ui'
+import { Button, InlineAlert, Input, Spinner } from '@/components/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api, resolveMediaUrl, type CustomEmoji, type EmojiStat } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -130,23 +130,24 @@ export function EmojiStatsTab({ server }: { server: Server }) {
               />
             </div>
             <div className="min-w-0 flex-1">
-              <label className="mb-1 block text-xs text-gray-400">Name</label>
-              <input
+              <Input
+                label="Name"
                 type="text"
                 value={uploadName}
                 onChange={(e) => setUploadName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase().slice(0, 32))}
                 placeholder="emoji_name"
-                className="w-full rounded-md bg-surface px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-primary"
+                className="bg-surface"
               />
             </div>
-            <button
+            <Button
               type="button"
               onClick={() => void handleUpload()}
               disabled={!uploadFile || !uploadName.trim() || uploading}
-              className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
+              loading={uploading}
+              className="shrink-0"
             >
-              {uploading ? 'Uploading...' : 'Upload'}
-            </button>
+              Upload
+            </Button>
           </div>
           <p className="text-[11px] text-gray-500">PNG, JPG, GIF, or WebP. Max 200 KB. Will be resized to 128x128.</p>
         </div>
@@ -171,17 +172,19 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                     className="h-8 w-8 shrink-0 object-contain"
                   />
                   {isRenaming ? (
-                    <input
-                      type="text"
-                      value={renameValue}
-                      onChange={(ev) => setRenameValue(ev.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase().slice(0, 32))}
-                      onKeyDown={(ev) => {
-                        if (ev.key === 'Enter') void handleRename(e.id)
-                        if (ev.key === 'Escape') setRenamingId(null)
-                      }}
-                      autoFocus
-                      className="min-w-0 flex-1 rounded bg-surface-darkest px-2 py-1 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-primary"
-                    />
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        size="sm"
+                        type="text"
+                        value={renameValue}
+                        onChange={(ev) => setRenameValue(ev.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase().slice(0, 32))}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter') void handleRename(e.id)
+                          if (ev.key === 'Escape') setRenamingId(null)
+                        }}
+                        autoFocus
+                      />
+                    </div>
                   ) : (
                     <div className="min-w-0 flex-1">
                       <span className="text-sm font-medium text-white">:{e.name}:</span>
@@ -196,20 +199,23 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                     <div className="flex shrink-0 items-center gap-1">
                       {isRenaming ? (
                         <>
-                          <button
+                          <Button
                             type="button"
+                            size="sm"
+                            variant="ghost"
                             onClick={() => void handleRename(e.id)}
-                            className="rounded px-2 py-1 text-xs text-primary transition hover:bg-primary/10"
+                            className="text-primary hover:bg-primary/10 hover:text-primary"
                           >
                             Save
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            size="sm"
+                            variant="ghost"
                             onClick={() => setRenamingId(null)}
-                            className="rounded px-2 py-1 text-xs text-gray-400 transition hover:bg-white/5"
                           >
                             Cancel
-                          </button>
+                          </Button>
                         </>
                       ) : (
                         <>

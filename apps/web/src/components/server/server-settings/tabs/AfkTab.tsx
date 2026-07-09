@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Button, InlineAlert } from '@/components/ui'
+import { Button, InlineAlert, Select } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -78,32 +78,26 @@ export function AfkTab({ server }: { server: Server }) {
       {success && <InlineAlert variant="success">AFK settings saved!</InlineAlert>}
 
       <div className="space-y-4">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          AFK Channel
-          <select
-            value={channelId}
-            onChange={(e) => setChannelId(e.target.value)}
-            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
-          >
-            <option value="">Disabled — no AFK channel</option>
-            {voiceChannels.map((ch) => (
-              <option key={ch.id} value={ch.id}>🔊 {ch.name}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="AFK Channel"
+          value={channelId}
+          onChange={(e) => setChannelId(e.target.value)}
+        >
+          <option value="">Disabled — no AFK channel</option>
+          {voiceChannels.map((ch) => (
+            <option key={ch.id} value={ch.id}>🔊 {ch.name}</option>
+          ))}
+        </Select>
 
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
-          AFK Timeout
-          <select
-            value={timeout}
-            onChange={(e) => setTimeout_(Number(e.target.value))}
-            className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
-          >
-            {TIMEOUT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="AFK Timeout"
+          value={timeout}
+          onChange={(e) => setTimeout_(Number(e.target.value))}
+        >
+          {TIMEOUT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </Select>
       </div>
 
       <div className="flex gap-2">

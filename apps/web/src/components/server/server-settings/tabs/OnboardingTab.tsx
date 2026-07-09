@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Spinner } from '@/components/ui'
+import { Button, Spinner } from '@/components/ui'
 import { api, type OnboardingConfig } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 import { useServerStore } from '@/stores/server.store'
@@ -129,14 +129,9 @@ export function OnboardingTab({ server }: { server: Server }) {
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
-      >
-        {saving ? 'Saving...' : 'Save Changes'}
-      </button>
+      <Button type="button" onClick={handleSave} disabled={saving} loading={saving}>
+        Save Changes
+      </Button>
     </div>
   )
 }

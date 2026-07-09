@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { InlineAlert } from '@/components/ui/InlineAlert'
 import { api, type AuditLogEntry } from '@/lib/api'
 import { formatFullDateTime } from '@/lib/format-time'
@@ -66,13 +67,17 @@ export function AuditLogTab({ server }: { server: Server }) {
       )}
       {loading && <p className="text-center text-sm text-gray-400">Loading…</p>}
       {hasMore && !loading && (
-        <button
-          type="button"
-          onClick={loadMore}
-          className="mx-auto block rounded bg-surface-dark px-4 py-2 text-xs text-gray-300 ring-1 ring-white/10 hover:bg-surface-selected"
-        >
-          Load more
-        </button>
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={loadMore}
+            className="bg-surface-dark ring-1 ring-white/10 hover:bg-surface-selected"
+          >
+            Load more
+          </Button>
+        </div>
       )}
     </div>
   )
