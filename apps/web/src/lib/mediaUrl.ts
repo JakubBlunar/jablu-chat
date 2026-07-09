@@ -4,6 +4,19 @@ const YOUTUBE_PATTERNS = [
   /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
 ]
 
+/**
+ * Resolves the `type` to put on a `<source>` for a video attachment.
+ * QuickTime `.mov` is returned as `undefined` (i.e. no `type` attribute) so the browser
+ * sniffs the actual codec instead of skipping the source — labeling it `video/quicktime`
+ * makes Chrome/Firefox discard it even though the H.264 stream is playable. Standard
+ * types (mp4/webm/…) are passed through as a normal playback hint.
+ */
+export function videoSourceType(mime?: string | null): string | undefined {
+  if (!mime) return undefined
+  if (mime.toLowerCase() === 'video/quicktime') return undefined
+  return mime
+}
+
 export function extractYouTubeId(url: string): string | null {
   for (const pattern of YOUTUBE_PATTERNS) {
     const m = url.match(pattern)

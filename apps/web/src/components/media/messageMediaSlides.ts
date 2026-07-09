@@ -1,7 +1,7 @@
 import type { Attachment, LinkPreview } from '@chat/shared'
 import type { Slide } from 'yet-another-react-lightbox'
 import { resolveMediaUrl } from '@/lib/api'
-import { extractYouTubeId, isGifUrl, isImageUrl } from '@/lib/mediaUrl'
+import { extractYouTubeId, isGifUrl, isImageUrl, videoSourceType } from '@/lib/mediaUrl'
 
 export interface BuiltMessageMedia {
   slides: Slide[]
@@ -35,12 +35,17 @@ export function buildMessageMediaSlides(
       })
     } else if (att.type === 'video') {
       indexByKey.set(att.id, slides.length)
+      const srcType = videoSourceType(att.mimeType)
       slides.push({
         type: 'video',
         ...(att.width ? { width: att.width } : {}),
         ...(att.height ? { height: att.height } : {}),
         ...(att.thumbnailUrl ? { poster: resolveMediaUrl(att.thumbnailUrl) } : {}),
-        sources: [{ src: resolveMediaUrl(att.url) ?? att.url, type: att.mimeType }]
+        // Omit `type` for unrecognized/quicktime sources so the browser sniffs the codec.
+        sources: [{ src: resolveMediaUrl(att.url) ?? att.url, ...(srcType ? { type: srcType } : {}) }] as {
+          src: string
+          type: string
+        }[]
       })
     }
     // 'file' attachments are not viewable media and are excluded.
