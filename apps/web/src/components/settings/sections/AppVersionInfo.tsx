@@ -91,24 +91,14 @@ export function AppVersionInfo() {
           {installing ? 'Restarting...' : `Restart & Update to ${readyVersion}`}
         </button>
       ) : (
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleCheck}
-            disabled={checking}
-            className="text-xs text-gray-400 transition hover:text-white disabled:opacity-50"
-          >
-            {checking ? 'Checking...' : 'Check for updates'}
-          </button>
-          <span className="text-gray-700">·</span>
-          <button
-            type="button"
-            onClick={() => void electronAPI?.restartApp()}
-            className="text-xs text-gray-400 transition hover:text-white"
-          >
-            Restart app
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleCheck}
+          disabled={checking}
+          className="text-xs text-gray-400 transition hover:text-white disabled:opacity-50"
+        >
+          {checking ? 'Checking...' : 'Check for updates'}
+        </button>
       )}
       {status && <p className="text-[11px] text-gray-400">{status}</p>}
       {error && <p className="text-[11px] text-red-400">Update error: {error}</p>}
