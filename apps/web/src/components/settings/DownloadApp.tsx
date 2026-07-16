@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 interface DownloadEntry {
   filename: string
   platform: string
+  version: string | null
   size: number
   updatedAt: string
 }
@@ -78,7 +79,10 @@ export function DownloadAppSection() {
           >
             <span className="text-xl">{PLATFORM_ICONS[d.platform] ?? '💻'}</span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{PLATFORM_LABELS[d.platform] ?? d.platform}</p>
+              <p className="truncate text-sm font-medium text-white">
+                {PLATFORM_LABELS[d.platform] ?? d.platform}
+                {d.version && <span className="ml-1.5 font-normal text-gray-500">v{d.version}</span>}
+              </p>
               <p className="text-xs text-gray-500">
                 {formatSize(d.size)} &middot; {d.filename}
               </p>

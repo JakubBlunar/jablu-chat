@@ -7,8 +7,29 @@ import { resolve, join, extname } from 'path'
 interface DownloadEntry {
   filename: string
   platform: string
+  version: string | null
   size: number
   updatedAt: string
+}
+
+/** Extracts a semver (e.g. `1.0.2`) from an installer filename, if present. */
+function parseVersion(filename: string): [number, number, number] | null {
+  const m = filename.match(/(\d+)\.(\d+)\.(\d+)/)
+  if (!m) return null
+  return [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
+}
+
+/** True when `a` is a newer release than `b` (by version, falling back to mtime). */
+function isNewer(a: DownloadEntry, b: DownloadEntry): boolean {
+  const va = parseVersion(a.filename)
+  const vb = parseVersion(b.filename)
+  if (va && vb) {
+    for (let i = 0; i < 3; i++) {
+      if (va[i] !== vb[i]) return va[i] > vb[i]
+    }
+  }
+  // Same version or unversioned: newer file wins.
+  return a.updatedAt > b.updatedAt
 }
 
 const PLATFORM_MAP: Record<string, string> = {
@@ -38,7 +59,9 @@ export class DownloadsController {
       return []
     }
 
-    const entries: DownloadEntry[] = []
+    // Keep only the newest installer per platform, so shipping additional OS
+    // builds later just adds one entry each rather than listing every version.
+    const latestByPlatform = new Map<string, DownloadEntry>()
 
     for (const name of readdirSync(this.downloadsDir)) {
       const ext = extname(name).toLowerCase()
@@ -51,18 +74,24 @@ export class DownloadsController {
       try {
         const s = statSync(fullPath)
         if (!s.isFile()) continue
-        entries.unshift({
+        const version = parseVersion(name)
+        const entry: DownloadEntry = {
           filename: name,
           platform,
+          version: version ? version.join('.') : null,
           size: s.size,
           updatedAt: s.mtime.toISOString()
-        })
+        }
+        const existing = latestByPlatform.get(platform)
+        if (!existing || isNewer(entry, existing)) {
+          latestByPlatform.set(platform, entry)
+        }
       } catch {
         continue
       }
     }
 
-    return entries
+    return [...latestByPlatform.values()]
   }
 
   @Get(':filename')

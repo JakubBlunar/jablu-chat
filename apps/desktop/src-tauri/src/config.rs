@@ -39,6 +39,38 @@ pub fn set_server_url(app: AppHandle, url: String) -> Result<(), String> {
     fs::write(path, url.trim()).map_err(|e| e.to_string())
 }
 
+/// Path to the file storing the "start minimized on login" preference.
+fn start_minimized_path(app: &AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_config_dir().ok()?;
+    Some(dir.join("start-minimized.txt"))
+}
+
+/// Whether a login-launched instance should stay in the tray. Defaults to `true`
+/// (start hidden) when the user hasn't chosen otherwise.
+pub fn get_stored_start_minimized(app: &AppHandle) -> bool {
+    let Some(path) = start_minimized_path(app) else {
+        return true;
+    };
+    match fs::read_to_string(path) {
+        Ok(contents) => contents.trim() != "false",
+        Err(_) => true,
+    }
+}
+
+#[tauri::command]
+pub fn get_start_minimized(app: AppHandle) -> bool {
+    get_stored_start_minimized(&app)
+}
+
+#[tauri::command]
+pub fn set_start_minimized(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let path = start_minimized_path(&app).ok_or("could not resolve app config dir")?;
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(path, if enabled { "true" } else { "false" }).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn test_server_url(url: String) -> bool {
     let target = format!("{}/api/health", url.trim().trim_end_matches('/'));

@@ -21,6 +21,7 @@ updates, global push-to-talk, auto-start, tray, and web-hosted installer downloa
    Keep the private key secret. Before building, export it:
 
    ```bash
+   $env:UPDATE_PUBLIC_URL = "https://chat.jablu.sk"
    $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw tauri-signing.key
    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<the password you chose>"
    ```
