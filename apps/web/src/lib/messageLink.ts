@@ -1,4 +1,5 @@
 import { isElectron } from '@/lib/electron'
+import { getStoredServerUrl } from '@/stores/settings.store'
 import type { Message } from '@chat/shared'
 
 export function buildMessageJumpPath(
@@ -27,12 +28,14 @@ export function buildMessageJumpPath(
   return `/channels/@me/${conversationId}?m=${encodeURIComponent(messageId)}`
 }
 
-/** Absolute URL that opens the app at the given in-app path (hash-aware for Electron). */
+/** Absolute URL that opens the app at the given in-app path. On desktop this points
+ * at the configured server's web origin so the link is shareable with others. */
 export function getMessageShareUrl(appPath: string): string {
   const path = appPath.startsWith('/') ? appPath : `/${appPath}`
   if (isElectron) {
-    const base = window.location.href.replace(/#.*$/, '')
-    return `${base}#${path}`
+    const serverUrl = getStoredServerUrl()
+    if (serverUrl) return `${serverUrl.replace(/\/+$/, '')}${path}`
+    return `${window.location.origin}${path}`
   }
   return `${window.location.origin}${path}`
 }

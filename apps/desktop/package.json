@@ -2,79 +2,14 @@
   "name": "@chat/desktop",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/main/index.js",
   "scripts": {
-    "start": "node scripts/embed-public-key.mjs && tsc -p tsconfig.json && electron dist/main/index.js",
-    "prebuild": "node scripts/embed-public-key.mjs",
-    "build": "tsc -p tsconfig.json",
-    "pack": "electron-builder --dir",
-    "predist": "node scripts/embed-public-key.mjs && tsc -p tsconfig.json",
-    "dist": "electron-builder",
-    "postdist": "node scripts/sign-release.mjs",
-    "keygen": "node scripts/keygen.mjs",
-    "release": "node scripts/release.mjs",
-    "release:win": "node scripts/release.mjs --targets=win",
-    "release:linux": "node scripts/release.mjs --targets=linux",
-    "deploy": "node scripts/run-local.mjs deploy",
-    "rollback": "node scripts/run-local.mjs rollback"
-  },
-  "dependencies": {
-    "electron-log": "^5.4.3",
-    "electron-updater": "^6.8.3"
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "icons": "tauri icon resources/icon.ico",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
-    "electron": "^39.0.0",
-    "electron-builder": "^26.0.12",
-    "typescript": "~5.9.3"
-  },
-  "build": {
-    "appId": "com.jablu.desktop",
-    "productName": "Jablu",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "resources/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "../web/dist",
-        "to": "web",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "resources",
-        "to": ".",
-        "filter": [
-          "*.png",
-          "*.ico"
-        ]
-      }
-    ],
-    "publish": {
-      "provider": "generic",
-      "url": "https://your-server.example.com/api/updates"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "resources/icon.ico"
-    },
-    "nsis": {
-      "allowToChangeInstallationDirectory": false,
-      "oneClick": true,
-      "installerIcon": "resources/icon.ico",
-      "uninstallerIcon": "resources/icon.ico"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "resources/icon-512.png"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "resources/icon-512.png"
-    }
+    "@tauri-apps/cli": "^2.9.0"
   }
 }

@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { getStoredServerUrl, setStoredServerUrl } from '@/components/settings/ServerUrlScreen'
-import { api } from '@/lib/api'
-import { electronAPI, isElectron } from '@/lib/electron'
+import { electronAPI } from '@/lib/electron'
 
 export function ServerConnectionSection() {
   const currentUrl = getStoredServerUrl() ?? ''
@@ -32,8 +31,8 @@ export function ServerConnectionSection() {
         if (!resp.ok) throw new Error('Server error')
       }
 
+      // setStoredServerUrl updates api.baseUrl on desktop via the settings store.
       setStoredServerUrl(trimmed)
-      if (!isElectron) api.baseUrl = trimmed
       setMessage({ type: 'success', text: 'Server updated. Please log in again to apply the change.' })
     } catch {
       setMessage({ type: 'error', text: 'Could not connect. Check the URL and try again.' })

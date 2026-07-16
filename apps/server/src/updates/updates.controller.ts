@@ -79,6 +79,9 @@ export class UpdatesController {
 
     if (safe.endsWith('.yml') || safe.endsWith('.yaml')) {
       res.setHeader('Content-Type', 'text/yaml; charset=utf-8')
+    } else if (safe.endsWith('.json')) {
+      // Tauri updater manifest (latest.json)
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
     } else if (safe.endsWith('.sig')) {
       res.setHeader('Content-Type', 'application/octet-stream')
     }

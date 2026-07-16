@@ -1,242 +1,176 @@
 #!/usr/bin/env node
-// End-to-end local release driver for @chat/desktop.
+// Jablu desktop release helper (Tauri, Windows).
 //
 // Usage:
-//   pnpm --filter @chat/desktop release [--bump=patch|minor|major] [--targets=win,linux] [--git-tag]
+//   node scripts/release.mjs [--bump <patch|minor|major|x.y.z>] [--notes "..."] [--upload]
 //
-// Flags:
-//   --bump=LEVEL       Run `npm version <LEVEL> --no-git-tag-version` on apps/desktop
-//                      before building (LEVEL = patch | minor | major).
-//   --git-tag          When used with --bump, also create the git commit + tag.
-//   --targets=LIST     Comma-separated platforms to build. Default: win,linux
-//                      (on Windows) or just `linux` (on Linux). `win` on Linux
-//                      is silently skipped with a warning.
+// What it does:
+//   1. (optional) bumps the version in tauri.conf.json, package.json and Cargo.toml
+//   2. builds the web app + the Tauri NSIS installer (requires TAURI_SIGNING_PRIVATE_KEY)
+//   3. stages the artifacts into apps/desktop/release-artifacts/ and writes latest.json
+//   4. prints exactly which files to upload to which server directory
+//   5. (optional, --upload) delegates to the gitignored scripts/upload.mjs for scp
 //
-// Required env:
-//   UPDATE_SIGNING_KEY_PATH   Path to Ed25519 private PEM (from keygen.mjs).
-//   UPDATE_PUBLIC_KEY_PEM     PEM-encoded Ed25519 public key (baked into build).
-//
-// Deploy:
-//   If apps/desktop/scripts/deploy.mjs exists, it is invoked at the end.
-//   If not, release.mjs prints the artifact paths and exits cleanly.
-//   Copy apps/desktop/scripts/deploy.mjs.example to deploy.mjs and fill in
-//   your VPS credentials.
+// Env:
+//   TAURI_SIGNING_PRIVATE_KEY           required for a signed updater build
+//   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  password for the signing key (if set)
+//   UPDATE_PUBLIC_URL                   public base URL of the server that will host
+//                                       updates, e.g. https://chat.example.com
+//                                       (used to build the installer URL in latest.json)
 
-import { spawnSync } from 'node:child_process'
-import { createPrivateKey, createPublicKey, sign, verify, randomBytes } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { resolve, dirname, join } from 'node:path'
+import { execSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, copyFileSync, readdirSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const here = dirname(fileURLToPath(import.meta.url))
-const desktopDir = resolve(here, '..')
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const desktopDir = resolve(__dirname, '..')
 const repoRoot = resolve(desktopDir, '..', '..')
+const srcTauriDir = join(desktopDir, 'src-tauri')
+const artifactsDir = join(desktopDir, 'release-artifacts')
 
-// ─── Arg parsing ────────────────────────────────────────────────────────
-
-const args = process.argv.slice(2)
-const flags = Object.fromEntries(
-  args
-    .filter((a) => a.startsWith('--'))
-    .map((a) => {
-      const eq = a.indexOf('=')
-      return eq === -1 ? [a.slice(2), 'true'] : [a.slice(2, eq), a.slice(eq + 1)]
-    })
-)
-
-const bumpLevel = flags.bump
-if (bumpLevel && !['patch', 'minor', 'major'].includes(bumpLevel)) {
-  console.error(`[release] --bump must be patch, minor, or major (got: ${bumpLevel})`)
-  process.exit(1)
-}
-const gitTag = flags['git-tag'] === 'true'
-const onWindows = process.platform === 'win32'
-const onLinux = process.platform === 'linux'
-
-const defaultTargets = onWindows ? ['win', 'linux'] : ['linux']
-const targets = (flags.targets ?? '')
-  .split(',')
-  .map((t) => t.trim())
-  .filter(Boolean)
-const activeTargets = targets.length > 0 ? targets : defaultTargets
-
-for (const t of activeTargets) {
-  if (!['win', 'linux'].includes(t)) {
-    console.error(`[release] Unknown target: ${t}. Expected win or linux.`)
-    process.exit(1)
+function parseArgs(argv) {
+  const args = { bump: null, notes: '', upload: false }
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--upload') args.upload = true
+    else if (a === '--bump') args.bump = argv[++i]
+    else if (a.startsWith('--bump=')) args.bump = a.slice('--bump='.length)
+    else if (a === '--notes') args.notes = argv[++i] ?? ''
+    else if (a.startsWith('--notes=')) args.notes = a.slice('--notes='.length)
   }
+  return args
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────
+function readJson(path) {
+  return JSON.parse(readFileSync(path, 'utf-8'))
+}
 
-function run(cmd, cmdArgs, opts = {}) {
-  console.log(`\n$ ${cmd} ${cmdArgs.join(' ')}`)
-  const result = spawnSync(cmd, cmdArgs, {
-    stdio: 'inherit',
-    shell: onWindows,
-    ...opts
-  })
-  if (result.status !== 0) {
-    console.error(`[release] Command failed with exit code ${result.status}`)
-    process.exit(result.status ?? 1)
+function computeVersion(current, bump) {
+  if (!bump) return current
+  if (/^\d+\.\d+\.\d+$/.test(bump)) return bump
+  const [maj, min, pat] = current.split('.').map((n) => parseInt(n, 10))
+  if (bump === 'major') return `${maj + 1}.0.0`
+  if (bump === 'minor') return `${maj}.${min + 1}.0`
+  if (bump === 'patch') return `${maj}.${min}.${pat + 1}`
+  throw new Error(`Invalid --bump value: ${bump} (use patch|minor|major|x.y.z)`)
+}
+
+function setVersion(version) {
+  // tauri.conf.json
+  const confPath = join(srcTauriDir, 'tauri.conf.json')
+  const conf = readJson(confPath)
+  conf.version = version
+  writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n')
+
+  // package.json
+  const pkgPath = join(desktopDir, 'package.json')
+  const pkg = readJson(pkgPath)
+  pkg.version = version
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+
+  // Cargo.toml (first version = "..." under [package])
+  const cargoPath = join(srcTauriDir, 'Cargo.toml')
+  let cargo = readFileSync(cargoPath, 'utf-8')
+  cargo = cargo.replace(/^version = ".*"$/m, `version = "${version}"`)
+  writeFileSync(cargoPath, cargo)
+}
+
+function run(cmd) {
+  console.log(`\n$ ${cmd}`)
+  execSync(cmd, { stdio: 'inherit', cwd: repoRoot })
+}
+
+function findInstaller() {
+  const nsisDir = join(srcTauriDir, 'target', 'release', 'bundle', 'nsis')
+  if (!existsSync(nsisDir)) throw new Error(`NSIS output not found at ${nsisDir}`)
+  const exe = readdirSync(nsisDir).find((f) => f.endsWith('-setup.exe'))
+  if (!exe) throw new Error(`No *-setup.exe found in ${nsisDir}`)
+  const exePath = join(nsisDir, exe)
+  const sigPath = `${exePath}.sig`
+  if (!existsSync(sigPath)) {
+    throw new Error(`Signature ${sigPath} not found. Did you set TAURI_SIGNING_PRIVATE_KEY?`)
   }
+  return { exe, exePath, sigPath }
 }
 
-function required(name) {
-  const v = process.env[name]
-  if (!v || !v.trim()) {
-    console.error(`[release] Missing required env var: ${name}`)
-    process.exit(1)
-  }
-  return v
-}
+function main() {
+  const args = parseArgs(process.argv.slice(2))
 
-function toWslPath(winPath) {
-  // F:\Projects\chat -> /mnt/f/Projects/chat
-  const m = /^([a-zA-Z]):[\\/](.*)$/.exec(winPath)
-  if (!m) return winPath
-  const drive = m[1].toLowerCase()
-  const rest = m[2].replace(/\\/g, '/')
-  return `/mnt/${drive}/${rest}`
-}
+  const confPath = join(srcTauriDir, 'tauri.conf.json')
+  const currentVersion = readJson(confPath).version
+  const version = computeVersion(currentVersion, args.bump)
 
-// ─── Validate env ───────────────────────────────────────────────────────
-
-required('UPDATE_SIGNING_KEY_PATH')
-required('UPDATE_PUBLIC_KEY_PEM')
-
-if (!existsSync(process.env.UPDATE_SIGNING_KEY_PATH)) {
-  console.error(`[release] Private key not found at ${process.env.UPDATE_SIGNING_KEY_PATH}`)
-  process.exit(1)
-}
-
-// Fail fast if the embedded public key and the signing private key are not a
-// matching Ed25519 pair. Otherwise we happily ship binaries whose clients
-// silently reject every update until we rebuild with the right public key.
-try {
-  const privKey = createPrivateKey(readFileSync(process.env.UPDATE_SIGNING_KEY_PATH))
-  if (privKey.asymmetricKeyType !== 'ed25519') {
-    console.error(
-      `[release] Private key at UPDATE_SIGNING_KEY_PATH must be Ed25519 (got ${privKey.asymmetricKeyType}).`
-    )
-    process.exit(1)
-  }
-  const pubKey = createPublicKey({ key: process.env.UPDATE_PUBLIC_KEY_PEM, format: 'pem' })
-  if (pubKey.asymmetricKeyType !== 'ed25519') {
-    console.error(`[release] UPDATE_PUBLIC_KEY_PEM must be Ed25519 (got ${pubKey.asymmetricKeyType}).`)
-    process.exit(1)
-  }
-  const probe = randomBytes(32)
-  const sig = sign(null, probe, privKey)
-  if (!verify(null, probe, pubKey, sig)) {
-    console.error('[release] UPDATE_PUBLIC_KEY_PEM is not the public counterpart of UPDATE_SIGNING_KEY_PATH.')
-    console.error('[release] Rebuilding with these values would brick auto-update for every user.')
-    process.exit(1)
-  }
-  console.log('[release] Signing keypair verified (Ed25519, public/private match).')
-} catch (err) {
-  console.error('[release] Failed to validate signing keypair:', err?.message ?? err)
-  process.exit(1)
-}
-
-process.env.UPDATE_SIGNING_STRICT = '1'
-
-// ─── Step 0: bump version ──────────────────────────────────────────────
-
-if (bumpLevel) {
-  console.log(`[release] Bumping apps/desktop version (${bumpLevel})...`)
-  const versionArgs = ['version', bumpLevel]
-  if (!gitTag) versionArgs.push('--no-git-tag-version')
-  run('npm', versionArgs, { cwd: desktopDir })
-}
-
-// ─── Step 1: web build ─────────────────────────────────────────────────
-
-console.log('[release] Building web assets for Electron (ELECTRON=1)...')
-run('pnpm', ['--filter', '@chat/web', 'build'], {
-  cwd: repoRoot,
-  env: { ...process.env, ELECTRON: '1' }
-})
-
-// ─── Step 2: desktop build(s) ──────────────────────────────────────────
-
-const wantWin = activeTargets.includes('win')
-const wantLinux = activeTargets.includes('linux')
-
-if (wantWin) {
-  if (!onWindows) {
-    console.warn('[release] Skipping Windows target: cannot build NSIS installer from non-Windows host.')
+  if (version !== currentVersion) {
+    console.log(`Bumping version ${currentVersion} -> ${version}`)
+    setVersion(version)
   } else {
-    console.log('[release] Building Windows installer (electron-builder --win)...')
-    run('pnpm', ['--filter', '@chat/desktop', 'exec', 'electron-builder', '--win'], { cwd: repoRoot })
+    console.log(`Building current version ${version}`)
   }
-}
 
-if (wantLinux) {
-  if (onLinux) {
-    console.log('[release] Building Linux AppImage (electron-builder --linux)...')
-    run('pnpm', ['--filter', '@chat/desktop', 'exec', 'electron-builder', '--linux', 'AppImage'], { cwd: repoRoot })
-  } else if (onWindows) {
-    const wslRepoRoot = toWslPath(repoRoot)
-    const privKeyWsl = toWslPath(process.env.UPDATE_SIGNING_KEY_PATH)
-    console.log('[release] Building Linux AppImage inside WSL...')
-    // Verify WSL availability up front with a clear message.
-    const check = spawnSync('wsl.exe', ['--status'], { stdio: 'pipe' })
-    if (check.status !== 0) {
-      console.error('[release] WSL is not available. Install WSL (`wsl --install`) or run with --targets=win to skip Linux.')
+  if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
+    console.warn(
+      '\nWARNING: TAURI_SIGNING_PRIVATE_KEY is not set. The build will fail to produce updater\n' +
+        'artifacts (.sig). Generate a key once with:  pnpm --filter @chat/desktop tauri signer generate -w tauri-signing.key\n' +
+        'then export TAURI_SIGNING_PRIVATE_KEY (and its password) before releasing.\n'
+    )
+  }
+
+  run('pnpm --filter @chat/web build')
+  run('pnpm --filter @chat/desktop build')
+
+  const { exe, exePath, sigPath } = findInstaller()
+
+  const publicUrl = (process.env.UPDATE_PUBLIC_URL ?? 'https://your-server.example.com').replace(/\/+$/, '')
+  const signature = readFileSync(sigPath, 'utf-8').trim()
+  const latest = {
+    version,
+    notes: args.notes || `Jablu ${version}`,
+    pub_date: new Date().toISOString(),
+    platforms: {
+      'windows-x86_64': {
+        signature,
+        url: `${publicUrl}/api/updates/${exe}`
+      }
+    }
+  }
+
+  // Stage artifacts
+  rmSync(artifactsDir, { recursive: true, force: true })
+  mkdirSync(artifactsDir, { recursive: true })
+  copyFileSync(exePath, join(artifactsDir, exe))
+  copyFileSync(sigPath, join(artifactsDir, `${exe}.sig`))
+  const latestPath = join(artifactsDir, 'latest.json')
+  writeFileSync(latestPath, JSON.stringify(latest, null, 2) + '\n')
+
+  console.log('\n=== Release staged ===')
+  console.log(`Version:   ${version}`)
+  console.log(`Artifacts: ${artifactsDir}`)
+  console.log('\nUpload the following to your server:')
+  console.log(`  DOWNLOADS_DIR  <-  ${exe}`)
+  console.log(`  UPDATES_DIR    <-  latest.json`)
+  console.log(`  UPDATES_DIR    <-  ${exe}`)
+  console.log(`  UPDATES_DIR    <-  ${exe}.sig`)
+  if (process.env.UPDATE_PUBLIC_URL == null) {
+    console.log('\nNOTE: UPDATE_PUBLIC_URL was not set; latest.json url uses a placeholder host.')
+  }
+
+  if (args.upload) {
+    const uploaderPath = join(__dirname, 'upload.mjs')
+    if (!existsSync(uploaderPath)) {
+      console.error(
+        '\n--upload requested but scripts/upload.mjs does not exist.\n' +
+          'Copy scripts/upload.mjs.example to scripts/upload.mjs and fill in your SSH details.'
+      )
       process.exit(1)
     }
-    const script = [
-      `set -euo pipefail`,
-      `cd ${wslRepoRoot}`,
-      // pnpm install inside WSL is a one-time cost; it's idempotent.
-      `pnpm install --frozen-lockfile`,
-      `export UPDATE_PUBLIC_KEY_PEM=${JSON.stringify(process.env.UPDATE_PUBLIC_KEY_PEM)}`,
-      `export UPDATE_SIGNING_KEY_PATH=${JSON.stringify(privKeyWsl)}`,
-      `export UPDATE_SIGNING_STRICT=1`,
-      `export ELECTRON=1`,
-      `pnpm --filter @chat/web build`,
-      `pnpm --filter @chat/desktop exec electron-builder --linux AppImage`
-    ].join(' && ')
-    run('wsl.exe', ['-e', 'bash', '-lc', script])
-  } else {
-    console.warn('[release] Skipping Linux target on this platform.')
+    const mod = await import(pathToFileURL(uploaderPath).href)
+    await mod.upload({
+      artifactsDir,
+      installer: exe,
+      files: [exe, `${exe}.sig`, 'latest.json']
+    })
   }
 }
 
-// ─── Inventory ─────────────────────────────────────────────────────────
-
-const releaseDir = join(desktopDir, 'release')
-if (!existsSync(releaseDir)) {
-  console.error(`[release] ${releaseDir} was not created; the build produced no artifacts.`)
-  process.exit(1)
-}
-
-const artifacts = readdirSync(releaseDir).filter((name) => {
-  const s = statSync(join(releaseDir, name))
-  if (!s.isFile()) return false
-  return /\.(exe|msi|dmg|pkg|AppImage|deb|rpm|snap|yml|yaml|sig|blockmap)$/i.test(name)
-})
-
-console.log('\n[release] Produced artifacts in release/:')
-for (const a of artifacts) {
-  const s = statSync(join(releaseDir, a))
-  console.log(`  - ${a} (${(s.size / 1024 / 1024).toFixed(1)} MB)`)
-}
-
-// ─── Step 3: delegate to local deploy.mjs if present ──────────────────
-
-const deployScript = join(here, 'deploy.mjs')
-if (existsSync(deployScript)) {
-  console.log(`\n[release] Running local deploy script: ${deployScript}`)
-  await import(pathToFileURL(deployScript).href)
-} else {
-  console.log('\n[release] No deploy step configured.')
-  console.log('[release] Copy the example to enable automatic upload:')
-  console.log('  apps/desktop/scripts/deploy.mjs.example   -> apps/desktop/scripts/deploy.mjs')
-  console.log('  apps/desktop/scripts/rollback.mjs.example -> apps/desktop/scripts/rollback.mjs')
-  console.log('  (then edit the HOST / USER / PASSWORD / *_PATH constants at the top)')
-  console.log(`\n[release] Artifacts left in: ${releaseDir}`)
-}
-
-console.log('\n[release] Done.')
+await main()

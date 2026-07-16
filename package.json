@@ -16,7 +16,8 @@
     "db:migrate:deploy": "pnpm --filter @chat/server db:migrate:deploy",
     "db:generate": "pnpm --filter @chat/server db:generate",
     "db:studio": "pnpm --filter @chat/server db:studio",
-    "desktop": "pnpm --filter @chat/desktop start",
+    "desktop": "pnpm --filter @chat/desktop dev",
+    "desktop:build": "pnpm --filter @chat/desktop build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "setup": "bash setup.sh",
@@ -37,8 +38,6 @@
       "sharp",
       "esbuild",
       "@swc/core",
-      "electron",
-      "electron-winstaller",
       "better-sqlite3"
     ]
   }

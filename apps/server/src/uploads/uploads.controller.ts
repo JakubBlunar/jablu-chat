@@ -161,6 +161,14 @@ export class UploadsController {
     return this.serveFromSubdir('thumbnails', filename, res);
   }
 
+  @Get('emoji/:filename')
+  serveEmoji(
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    return this.serveFromSubdir('emoji', filename, res);
+  }
+
   private serveFromSubdir(subdir: string, filename: string, res: Response) {
     const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '');
     const baseDir = resolve(this.uploads.getUploadDir(), subdir);
@@ -169,6 +177,13 @@ export class UploadsController {
     if (!fullPath.startsWith(baseDir) || !existsSync(fullPath)) {
       return res.status(404).json({ message: 'File not found' });
     }
+
+    // These files are embedded as <img>/<video> subresources by clients served
+    // from a different origin (the Tauri desktop shell runs on tauri.localhost,
+    // not the API origin). Such no-cors loads are governed by CORP, not CORS, so
+    // helmet's default `same-origin` policy would block them. Relax it to
+    // `cross-origin` for public media only; the JSON API keeps the stricter policy.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
     return res.sendFile(fullPath);
   }
