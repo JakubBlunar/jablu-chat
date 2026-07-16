@@ -1,0 +1,39 @@
+// Personal SSH uploader for Jablu desktop releases.
+//
+// Copy this file to `upload.mjs` (which is gitignored) and fill in your server
+// details. `release.mjs --upload` imports it and calls `upload(...)`.
+//
+// This uses the system `scp`/`ssh` binaries so it works without extra deps.
+
+import { execFileSync } from 'node:child_process'
+import { join } from 'node:path'
+
+// ─── Configure me ─────────────────────────────────────────────
+const SSH_HOST = 'user@your-server.example.com'
+const SSH_KEY = '' // optional: absolute path to a private key, or '' to use the default
+const REMOTE_DOWNLOADS_DIR = '/data/downloads'
+const REMOTE_UPDATES_DIR = '/data/updates'
+// ──────────────────────────────────────────────────────────────
+
+function scp(localPath, remotePath) {
+  const args = []
+  if (SSH_KEY) args.push('-i', SSH_KEY)
+  args.push(localPath, `${SSH_HOST}:${remotePath}`)
+  console.log(`scp ${localPath} -> ${SSH_HOST}:${remotePath}`)
+  execFileSync('scp', args, { stdio: 'inherit' })
+}
+
+/**
+ * @param {{ artifactsDir: string, installer: string, files: string[] }} ctx
+ */
+export async function upload({ artifactsDir, installer }) {
+  // Installer goes to the public downloads dir (first-install from the web).
+  scp(join(artifactsDir, installer), `${REMOTE_DOWNLOADS_DIR}/${installer}`)
+
+  // Updater feed: manifest + installer + signature.
+  scp(join(artifactsDir, 'latest.json'), `${REMOTE_UPDATES_DIR}/latest.json`)
+  scp(join(artifactsDir, installer), `${REMOTE_UPDATES_DIR}/${installer}`)
+  scp(join(artifactsDir, `${installer}.sig`), `${REMOTE_UPDATES_DIR}/${installer}.sig`)
+
+  console.log('\nUpload complete.')
+}

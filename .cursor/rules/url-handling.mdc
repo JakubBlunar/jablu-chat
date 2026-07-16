@@ -1,17 +1,17 @@
 ---
-description: URL handling conventions across Web, PWA, and Electron platforms
+description: URL handling conventions across Web, PWA, and Tauri desktop platforms
 alwaysApply: false
-globs: apps/web/**/*.{ts,tsx}, apps/desktop/**/*.ts
+globs: apps/web/**/*.{ts,tsx}, apps/desktop/**/*.rs
 ---
 
-# URL Handling: Web, PWA & Electron
+# URL Handling: Web, PWA & Tauri Desktop
 
 The app runs on three platforms with different URL behaviors:
 
 | Platform | Origin | API calls | Static assets | Server media |
 |----------|--------|-----------|---------------|--------------|
 | **Web/PWA** | Same as server | Relative (`/api/...`) | Absolute (`/assets/...`) | Relative (`/api/uploads/...`) |
-| **Electron** | `app://jablu` | Proxied by protocol handler | Served locally by protocol handler | Proxied by protocol handler |
+| **Tauri desktop** | `http://tauri.localhost` | Absolute via `api.baseUrl` = configured server URL | Served locally by the app | Absolute via `resolveMediaUrl()` |
 
 ## Key Rules
 
@@ -19,43 +19,39 @@ The app runs on three platforms with different URL behaviors:
 Use `import.meta.env.BASE_URL` to prefix public directory assets:
 
 ```tsx
-// ❌ BAD — breaks in Electron (file:// or app:// origin)
-<img src="/favicon.svg" />
-
-// ✅ GOOD — resolves to "/" on web, "./" on Electron build
+// ✅ GOOD — resolves correctly on web and in the desktop shell
 <img src={`${import.meta.env.BASE_URL}favicon.svg`} />
 ```
 
-### 2. Keep `api.baseUrl` empty in Electron
-The `app://` protocol handler proxies `/api/` and `/uploads/` to the server. Never set `api.baseUrl` in Electron — all API paths stay relative.
+### 2. On desktop, `api.baseUrl` is set to the configured server URL
+The desktop app calls the server directly (absolute URLs) with CORS. The settings
+store sets `api.baseUrl` to the stored server URL on hydration and whenever it
+changes (see `apps/web/src/stores/settings.store.ts`). On web it stays empty
+(relative, same-origin). Never assume a proxy layer.
 
 ### 3. Use `resolveMediaUrl()` for server-provided media URLs
 Avatars, attachments, and icons from the API are paths like `/api/uploads/...`. Wrap them with `resolveMediaUrl()` from `@/lib/api`:
 
 ```tsx
-// ❌ BAD — won't resolve to server in Electron if baseUrl fallback needed
-<img src={user.avatarUrl} />
-
 // ✅ GOOD
 <img src={resolveMediaUrl(user.avatarUrl)} />
 ```
 
 ### 4. WebSocket connects directly to the server
-The protocol handler cannot proxy WebSockets. Socket.io reads the server URL from `getStoredServerUrl()` in Electron, and uses same-origin on web.
+Socket.io uses `api.baseUrl` when set (desktop) and same-origin on web
+(see `apps/web/src/lib/socket.ts`).
 
-### 5. Electron builds require `ELECTRON=1` env var
-This sets `base: "./"` in Vite so asset paths are relative. Without it, paths like `/assets/index.js` break on `file://` or `app://`.
+### 5. Desktop detection is runtime, via the desktop abstraction
+Use `isDesktop` / `desktopAPI` from `@/lib/desktop` (re-exported as
+`isElectron` / `electronAPI` from `@/lib/electron` for legacy call sites).
+Detection is `'__TAURI_INTERNALS__' in window`. The desktop reuses the standard
+web build (no special `base`); it uses `HashRouter` and native APIs via Tauri
+commands/events.
 
-```bash
-# Web build (default base: "/")
-pnpm --filter @chat/web build
+### 6. Server allowlist for the desktop origin
+The server CORS + Socket.IO allowlist must include `http://tauri.localhost` and
+`https://tauri.localhost` (see `apps/server/src/gateway/ws-adapter.ts`).
 
-# Electron build (base: "./")
-ELECTRON=1 pnpm --filter @chat/web build
-```
-
-### 6. MIME types in protocol handler
-When adding new static asset types to the web app, also add their MIME type to `MIME_TYPES` in `apps/desktop/src/main/index.ts`. Missing entries cause silent load failures (e.g., `.mjs`, `.wasm`).
-
-### 7. External links in PWA
-Always use `target="_blank" rel="noopener noreferrer"` on links to external URLs. Without this, iOS PWA navigates away from the app entirely.
+### 7. External links
+Always use `target="_blank" rel="noopener noreferrer"` on links to external URLs.
+In the desktop shell, external navigations are opened in the system browser.

@@ -5,10 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 import path from 'path'
 
-const isElectronBuild = process.env.ELECTRON === '1'
-
 export default defineConfig(({ command }) => ({
-  base: isElectronBuild ? './' : '/',
+  // The Tauri desktop shell serves the standard web build from tauri.localhost,
+  // so a single base ("/") works for both web and desktop.
+  base: '/',
   esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
   plugins: [
     react(),

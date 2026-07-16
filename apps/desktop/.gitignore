@@ -1,0 +1,14 @@
+# Rust / Tauri build output
+src-tauri/target
+src-tauri/gen/schemas
+
+# Release staging
+release-artifacts
+
+# Personal, machine-specific uploader (see upload.mjs.example)
+scripts/upload.mjs
+
+# Tauri updater signing keys — NEVER commit these
+*.key
+tauri-signing.key
+tauri-signing.key.pub

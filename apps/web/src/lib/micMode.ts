@@ -2,6 +2,7 @@ export type MicMode = 'always' | 'activity' | 'push-to-talk'
 
 import { Track } from 'livekit-client'
 import { useSettingsStore } from '@/stores/settings.store'
+import { desktopAPI, isDesktop } from '@/lib/desktop'
 
 type RoomGetter = () => import('livekit-client').Room | null
 let _getRoom: RoomGetter = () => null
@@ -179,10 +180,25 @@ function startVAD(): () => void {
   }
 }
 
-function startPTT(): () => void {
+function startPTT(): (skipUnmute?: boolean) => void {
   const binding = getPttBinding()
 
   setTrackMuted(true)
+
+  // On desktop, use the global (system-wide) push-to-talk listener so PTT works
+  // even when the app window is not focused.
+  if (isDesktop && desktopAPI) {
+    const api = desktopAPI
+    void api.setPttBinding(binding).catch(() => {})
+    const off = api.onPtt((state) => {
+      setTrackMuted(state === 'up')
+    })
+    return (skipUnmute?: boolean) => {
+      off()
+      void api.clearPtt().catch(() => {})
+      if (!skipUnmute) setTrackMuted(false)
+    }
+  }
 
   if (binding.type === 'mouse') {
     const onMouseDown = (e: MouseEvent) => {

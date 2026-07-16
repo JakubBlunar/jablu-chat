@@ -7,7 +7,14 @@ export function buildAllowedOrigins(config: ConfigService): string[] {
   const serverHost = config.get<string>('SERVER_HOST', 'localhost')
   const tlsMode = config.get<string>('TLS_MODE', 'off')
   const proto = tlsMode === 'off' ? 'http' : 'https'
-  return [`${proto}://${serverHost}`, 'http://localhost:5173', 'http://localhost:4173']
+  return [
+    `${proto}://${serverHost}`,
+    'http://localhost:5173',
+    'http://localhost:4173',
+    // Tauri desktop app origins (WebView2 serves the frontend from tauri.localhost)
+    'http://tauri.localhost',
+    'https://tauri.localhost'
+  ]
 }
 
 export class WsAdapter extends IoAdapter {

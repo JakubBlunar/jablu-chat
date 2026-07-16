@@ -2,7 +2,9 @@ import type { CameraQuality } from '@/lib/deviceSettings'
 import type { MicMode, PttBinding, VadMode } from '@/lib/micMode'
 import type { NoiseReductionMode } from '@/lib/voiceProcessingSettings'
 import { applyAccentPreset, type AccentPreset } from '@/lib/accent'
+import { api } from '@/lib/api'
 import { electronAPI } from '@/lib/electron'
+import { isDesktop } from '@/lib/desktop'
 import type { AppLocale } from '@/i18n/locales'
 import { isAppLocale } from '@/i18n/locales'
 import { create } from 'zustand'
@@ -253,11 +255,14 @@ export const useSettingsStore = create<SettingsState>()(
 
       setServerUrl: (url) => {
         set({ serverUrl: url })
+        // On desktop the app calls the server directly via an absolute base URL.
+        if (isDesktop) api.baseUrl = url ?? ''
         if (url) void electronAPI?.setServerUrl(url).catch(() => {})
       },
 
       clearServerUrl: () => {
         set({ serverUrl: null })
+        if (isDesktop) api.baseUrl = ''
         void electronAPI?.setServerUrl('').catch(() => {})
       },
 
@@ -304,13 +309,21 @@ export const useSettingsStore = create<SettingsState>()(
   )
 )
 
+function syncDesktopBaseUrl() {
+  if (isDesktop) {
+    api.baseUrl = useSettingsStore.getState().serverUrl ?? ''
+  }
+}
+
 useSettingsStore.persist.onFinishHydration(() => {
   const { accent } = useSettingsStore.getState()
   applyAccentPreset(accent)
+  syncDesktopBaseUrl()
 })
 
 if (useSettingsStore.persist.hasHydrated()) {
   applyAccentPreset(useSettingsStore.getState().accent)
+  syncDesktopBaseUrl()
 }
 
 export function getStoredServerUrl(): string | null {

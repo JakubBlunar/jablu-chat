@@ -1,44 +1,10 @@
-type ElectronAPI = {
-  isElectron: true
-  platform: string
-  appVersion: string
-  getSources: () => Promise<
-    Array<{
-      id: string
-      name: string
-      thumbnail: string
-      appIcon: string | null
-    }>
-  >
-  showNotification: (title: string, body: string) => Promise<void>
-  setTrayUnread: (count: number) => Promise<void>
-  setServerUrl: (url: string) => Promise<void>
-  testServerUrl: (url: string) => Promise<{ ok: boolean }>
-  getAutoLaunch: () => Promise<boolean>
-  setAutoLaunch: (enabled: boolean) => Promise<boolean>
-  checkForUpdates: () => Promise<void>
-  installUpdate: () => Promise<void>
-  getUpdateStatus: () => Promise<{
-    lastCheckedAt: number | null
-    lastError: string | null
-    feedConfigured: boolean
-  }>
-  onUpdateAvailable: (cb: (info: { version: string }) => void) => () => void
-  onUpdateNotAvailable: (cb: () => void) => () => void
-  onUpdateDownloadProgress: (
-    cb: (progress: { percent: number; transferred: number; total: number }) => void
-  ) => () => void
-  onUpdateDownloaded: (cb: (info: { version: string }) => void) => () => void
-  onUpdateError: (cb: (err: { message: string }) => void) => () => void
-  onUpdateIncompatible: (
-    cb: (info: {
-      reason: 'client-too-old' | 'client-too-new' | null
-      minClient: string
-      maxClient: string | null
-    }) => void
-  ) => () => void
-}
+// Backwards-compatibility shim. The desktop app is now built with Tauri; this
+// module re-exports the Tauri-backed bridge under the historical
+// `electronAPI` / `isElectron` names so existing call sites keep working.
+import { desktopAPI, isDesktop, type DesktopAPI } from './desktop'
 
-export const electronAPI: ElectronAPI | undefined = (window as unknown as { electronAPI?: ElectronAPI }).electronAPI
+export type ElectronAPI = DesktopAPI
 
-export const isElectron = !!electronAPI
+export const electronAPI: ElectronAPI | undefined = desktopAPI
+
+export const isElectron = isDesktop

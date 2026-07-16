@@ -20,6 +20,7 @@
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@headlessui/react": "^2.2.10",
+    "@tauri-apps/api": "^2.9.0",
     "@timephy/rnnoise-wasm": "^1.0.0",
     "i18next": "^26.0.4",
     "livekit-client": "^2.18.1",

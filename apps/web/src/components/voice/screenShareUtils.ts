@@ -1,5 +1,4 @@
 import { AudioPresets } from 'livekit-client'
-import { electronAPI, isElectron } from '@/lib/electron'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import type { ScreenShareSettings } from './ScreenShareDialog'
 import { resolveScreenShareMaxBitrate } from './screenShareBitrate'
@@ -17,11 +16,9 @@ const RESOLUTION_MAP = {
 }
 
 export async function startScreenShareWithSettings(settings: ScreenShareSettings) {
-  if (isElectron) {
-    await startScreenShareElectron(settings)
-  } else {
-    await startScreenShareWeb(settings)
-  }
+  // Both web and the Tauri desktop shell (WebView2) use the standard
+  // getDisplayMedia picker; the Electron desktopCapturer flow is gone.
+  await startScreenShareWeb(settings)
 }
 
 /** @deprecated Use startScreenShareWithSettings */
@@ -38,31 +35,6 @@ function screenShareAudioPublishOptions(highQuality: boolean) {
     forceStereo: true,
     dtx: false as const,
     red: false as const
-  }
-}
-
-async function startScreenShareElectron(settings: ScreenShareSettings) {
-  const store = useVoiceConnectionStore.getState()
-  const room = store.room
-  if (!room || !electronAPI) return
-
-  try {
-    const sources = await electronAPI.getSources()
-    if (sources.length === 0) return
-
-    window.dispatchEvent(
-      new CustomEvent('voice:pick-screen', {
-        detail: {
-          sources,
-          audio: settings.audio,
-          resolution: settings.resolution,
-          fps: settings.fps,
-          highQualityAudio: settings.audio ? settings.highQualityAudio : false
-        }
-      })
-    )
-  } catch (err) {
-    console.error('Failed to get screen sources:', err)
   }
 }
 
