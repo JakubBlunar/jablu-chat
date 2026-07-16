@@ -34,6 +34,7 @@ import { useServerStore } from '@/stores/server.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useGifStore } from '@/stores/gif.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
+import { UpdateBanner } from '@/components/UpdateBanner'
 import { CommandPalette } from '@/components/CommandPalette'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { OnboardingWizard } from '@/components/server/OnboardingWizard'
@@ -282,6 +283,7 @@ export function MainLayout() {
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
+        <UpdateBanner />
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
           {viewMode === 'dm' ? (
             <MessageArea mode="dm" contextId={currentConvId} />
@@ -343,6 +345,7 @@ export function MainLayout() {
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
+        <UpdateBanner />
         <div className="flex min-h-0 flex-1">
           <ServerSidebar />
           <DmSidebar onOpenSettings={openSettings} />
@@ -368,6 +371,7 @@ export function MainLayout() {
       <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
       <PwaInstallBanner />
+      <UpdateBanner />
       <div className="flex min-h-0 flex-1">
         <ServerSidebar />
         <ChannelSidebar onOpenSettings={openSettings} />

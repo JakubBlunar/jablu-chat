@@ -1,4 +1,5 @@
 mod config;
+mod logging;
 mod notifications;
 mod permissions;
 mod ptt;
@@ -41,6 +42,13 @@ fn show_notification(app: AppHandle, title: String, body: String, url: Option<St
             let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
         }
     }
+}
+
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    // Relaunches the app. Handy for applying a downloaded update or recovering
+    // from a bad state without hunting for the exe.
+    app.restart();
 }
 
 #[tauri::command]
@@ -117,7 +125,9 @@ fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    logging::init();
+
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main_window(app);
         }))
@@ -135,8 +145,10 @@ pub fn run() {
             update: Mutex::new(updater::UpdateState::default()),
         })
         .setup(|app| {
+            logging::log("setup: begin");
             let handle = app.handle().clone();
             setup_tray(&handle)?;
+            logging::log("setup: tray ready");
 
             if let Some(window) = app.get_webview_window("main") {
                 let hide_target = window.clone();
@@ -148,21 +160,27 @@ pub fn run() {
                     }
                 });
 
+                // Show the window before touching WebView2 permissions so a slow or
+                // failing permission call can never leave the user with no window.
+                let _ = window.show();
+                let _ = window.set_focus();
+                logging::log("setup: window shown");
+
                 // Silently allow the WebView2 mic/camera prompts so voice/video
                 // works without the user clicking "grant access" each session.
                 permissions::auto_grant_media(&window);
-
-                let _ = window.show();
-                let _ = window.set_focus();
+                logging::log("setup: permissions configured");
             }
 
             updater::start_auto_update(handle);
+            logging::log("setup: done");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_platform,
             get_version,
             show_notification,
+            restart_app,
             set_tray_unread,
             get_auto_launch,
             set_auto_launch,
@@ -175,8 +193,12 @@ pub fn run() {
             ptt::set_ptt_binding,
             ptt::clear_ptt
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(e) = result {
+        logging::log(&format!("FATAL: error while running tauri application: {e:?}"));
+        panic!("error while running tauri application: {e:?}");
+    }
 }
 
 /// Re-exported for the notification click handler wiring (currently unused on
