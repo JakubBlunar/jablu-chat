@@ -131,13 +131,24 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main_window(app);
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                // Restore size/position/maximized, but never visibility — we decide
+                // whether to show the window in `setup` (hidden on autostart).
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        .difference(tauri_plugin_window_state::StateFlags::VISIBLE),
+                )
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            // Login-launched instances get this flag so we can start hidden in the
+            // tray; a manual launch has no args and shows the window normally.
+            Some(vec!["--minimized"]),
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
@@ -150,6 +161,13 @@ pub fn run() {
             setup_tray(&handle)?;
             logging::log("setup: tray ready");
 
+            // On login the autostart entry passes `--minimized`. Whether we actually
+            // stay in the tray then is up to the user's preference (default: yes). The
+            // webview still initializes below, so the app connects and shows
+            // notifications without a visible window.
+            let start_minimized = std::env::args().any(|arg| arg == "--minimized")
+                && config::get_stored_start_minimized(&handle);
+
             if let Some(window) = app.get_webview_window("main") {
                 let hide_target = window.clone();
                 window.on_window_event(move |event| {
@@ -160,11 +178,15 @@ pub fn run() {
                     }
                 });
 
-                // Show the window before touching WebView2 permissions so a slow or
-                // failing permission call can never leave the user with no window.
-                let _ = window.show();
-                let _ = window.set_focus();
-                logging::log("setup: window shown");
+                if start_minimized {
+                    logging::log("setup: starting minimized to tray");
+                } else {
+                    // Show the window before touching WebView2 permissions so a slow or
+                    // failing permission call can never leave the user with no window.
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    logging::log("setup: window shown");
+                }
 
                 // Silently allow the WebView2 mic/camera prompts so voice/video
                 // works without the user clicking "grant access" each session.
@@ -187,6 +209,8 @@ pub fn run() {
             config::set_server_url,
             config::get_server_url,
             config::test_server_url,
+            config::get_start_minimized,
+            config::set_start_minimized,
             updater::check_for_updates,
             updater::install_update,
             updater::get_update_status,

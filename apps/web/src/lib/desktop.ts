@@ -21,6 +21,8 @@ export type DesktopAPI = {
   testServerUrl: (url: string) => Promise<{ ok: boolean }>
   getAutoLaunch: () => Promise<boolean>
   setAutoLaunch: (enabled: boolean) => Promise<boolean>
+  getStartMinimized: () => Promise<boolean>
+  setStartMinimized: (enabled: boolean) => Promise<void>
   checkForUpdates: () => Promise<void>
   installUpdate: () => Promise<void>
   getUpdateStatus: () => Promise<{
@@ -91,6 +93,8 @@ function buildDesktopAPI(): DesktopAPI {
     testServerUrl: async (url) => ({ ok: await invoke<boolean>('test_server_url', { url }) }),
     getAutoLaunch: () => invoke<boolean>('get_auto_launch'),
     setAutoLaunch: (enabled) => invoke<boolean>('set_auto_launch', { enabled }),
+    getStartMinimized: () => invoke<boolean>('get_start_minimized'),
+    setStartMinimized: (enabled) => invoke('set_start_minimized', { enabled }),
     checkForUpdates: () => invoke('check_for_updates'),
     installUpdate: () => invoke('install_update'),
     getUpdateStatus: () =>
