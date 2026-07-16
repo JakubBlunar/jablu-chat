@@ -5,7 +5,6 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { MainLayout } from './components/layout/MainLayout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { ServerUrlScreen, getStoredServerUrl } from './components/settings/ServerUrlScreen'
-import { UpdateBanner } from './components/UpdateBanner'
 import { isElectron } from './lib/electron'
 import { api } from './lib/api'
 import './stores/settings.store'
@@ -124,7 +123,6 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ElectronUrlGate>
-        <UpdateBanner />
         <Router>
           <LocaleSync>
             <AuthBootstrap />

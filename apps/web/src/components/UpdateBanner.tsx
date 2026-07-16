@@ -49,7 +49,7 @@ function ElectronUpdateBanner() {
 
   return (
     <div
-      className={`flex items-center gap-3 border-b px-4 py-2 text-sm ${
+      className={`flex shrink-0 items-center gap-3 border-b px-4 py-2 text-sm ${
         isWarn ? 'border-red-500/30 bg-red-950/40 text-red-200' : 'border-white/5 bg-surface-raised text-gray-300'
       }`}
     >
@@ -149,7 +149,7 @@ function PwaUpdateBanner() {
   if (!updateAvailable || dismissed) return null
 
   return (
-    <div className="flex items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm text-gray-300">
+    <div className="flex shrink-0 items-center gap-3 border-b border-white/5 bg-surface-raised px-4 py-2 text-sm text-gray-300">
       <span>A new version is available!</span>
       <Button
         type="button"

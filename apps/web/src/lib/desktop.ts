@@ -14,6 +14,7 @@ export type DesktopAPI = {
     Array<{ id: string; name: string; thumbnail: string; appIcon: string | null }>
   >
   showNotification: (title: string, body: string, url?: string) => Promise<void>
+  restartApp: () => Promise<void>
   onNavigate: (cb: (url: string) => void) => () => void
   setTrayUnread: (count: number) => Promise<void>
   setServerUrl: (url: string) => Promise<void>
@@ -83,6 +84,7 @@ function buildDesktopAPI(): DesktopAPI {
     },
     getSources: () => Promise.resolve([]),
     showNotification: (title, body, url) => invoke('show_notification', { title, body, url }),
+    restartApp: () => invoke('restart_app'),
     onNavigate: (cb) => on<string>('navigate', (url) => cb(url)),
     setTrayUnread: (count) => invoke('set_tray_unread', { count }),
     setServerUrl: (url) => invoke('set_server_url', { url }),

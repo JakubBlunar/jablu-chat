@@ -51,7 +51,7 @@ export class DownloadsController {
       try {
         const s = statSync(fullPath)
         if (!s.isFile()) continue
-        entries.push({
+        entries.unshift({
           filename: name,
           platform,
           size: s.size,
