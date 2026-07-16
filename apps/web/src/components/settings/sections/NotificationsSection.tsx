@@ -10,6 +10,7 @@ import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 import { PushDeliverySettings } from '@/components/settings/sections/PushDeliverySettings'
+import { isDesktop } from '@/lib/desktop'
 
 export function NotificationsSection() {
   const [settings, setSettings] = useState(getNotifSettings)
@@ -95,7 +96,7 @@ export function NotificationsSection() {
     <div className="space-y-6">
       <p className="text-sm text-gray-400">Control how Jablu notifies you about new messages.</p>
 
-      {permStatus !== 'granted' && permStatus !== 'unsupported' && (
+      {!isDesktop && permStatus !== 'granted' && permStatus !== 'unsupported' && (
         <div className="rounded-lg bg-surface-dark p-4">
           <p className="text-sm text-gray-300">
             Browser notifications are {permStatus === 'denied' ? 'blocked' : 'not enabled'}.
@@ -113,7 +114,7 @@ export function NotificationsSection() {
         </div>
       )}
 
-      {permStatus === 'granted' && (
+      {!isDesktop && permStatus === 'granted' && (
         <div className="rounded-lg bg-surface-dark p-4">
           <div className="flex items-center gap-2">
             <span
@@ -149,7 +150,7 @@ export function NotificationsSection() {
         </div>
       )}
 
-      {permStatus === 'granted' && pushStatus !== 'active' && pushStatus !== 'checking' && (
+      {!isDesktop && permStatus === 'granted' && pushStatus !== 'active' && pushStatus !== 'checking' && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
           <p className="text-sm font-medium text-yellow-400">Troubleshooting</p>
           <ul className="mt-2 space-y-1.5 text-xs text-gray-400">

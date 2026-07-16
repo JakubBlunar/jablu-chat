@@ -1,4 +1,5 @@
 mod config;
+mod notifications;
 mod permissions;
 mod ptt;
 mod updater;
@@ -10,7 +11,6 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WindowEvent,
 };
-use tauri_plugin_notification::NotificationExt;
 
 /// Shared application state, accessible from Tauri commands via `State<AppState>`.
 pub struct AppState {
@@ -32,18 +32,15 @@ fn get_version(app: AppHandle) -> String {
 
 #[tauri::command]
 fn show_notification(app: AppHandle, title: String, body: String, url: Option<String>) {
-    let _ = app.notification().builder().title(title).body(body).show();
+    // The toast's own click handler focuses the window and emits `navigate`, so
+    // deep-linking works when the user clicks the notification (see notifications.rs).
+    notifications::show(&app, &title, &body, url);
 
     if let Some(window) = app.get_webview_window("main") {
         if !window.is_focused().unwrap_or(false) {
             let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
         }
     }
-
-    // Click-to-navigate on Windows toast notifications is not reliably supported
-    // by the notification plugin; the `navigate` event stays available for future
-    // use but is intentionally not emitted here.
-    let _ = url;
 }
 
 #[tauri::command]
