@@ -81,11 +81,18 @@ function run(cmd) {
   execSync(cmd, { stdio: 'inherit', cwd: repoRoot })
 }
 
-function findInstaller() {
+function findInstaller(version) {
   const nsisDir = join(srcTauriDir, 'target', 'release', 'bundle', 'nsis')
   if (!existsSync(nsisDir)) throw new Error(`NSIS output not found at ${nsisDir}`)
-  const exe = readdirSync(nsisDir).find((f) => f.endsWith('-setup.exe'))
-  if (!exe) throw new Error(`No *-setup.exe found in ${nsisDir}`)
+  const candidates = readdirSync(nsisDir).filter((f) => f.endsWith('-setup.exe'))
+  // The NSIS output dir accumulates installers from earlier runs, so match the
+  // version we just built rather than picking the first (possibly stale) one.
+  const exe = candidates.find((f) => f.includes(`_${version}_`))
+  if (!exe) {
+    throw new Error(
+      `No installer for version ${version} found in ${nsisDir}. Found: ${candidates.join(', ') || '(none)'}`
+    )
+  }
   const exePath = join(nsisDir, exe)
   const sigPath = `${exePath}.sig`
   if (!existsSync(sigPath)) {
@@ -94,7 +101,7 @@ function findInstaller() {
   return { exe, exePath, sigPath }
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2))
 
   const confPath = join(srcTauriDir, 'tauri.conf.json')
@@ -119,7 +126,7 @@ function main() {
   run('pnpm --filter @chat/web build')
   run('pnpm --filter @chat/desktop build')
 
-  const { exe, exePath, sigPath } = findInstaller()
+  const { exe, exePath, sigPath } = findInstaller(version)
 
   const publicUrl = (process.env.UPDATE_PUBLIC_URL ?? 'https://your-server.example.com').replace(/\/+$/, '')
   const signature = readFileSync(sigPath, 'utf-8').trim()
