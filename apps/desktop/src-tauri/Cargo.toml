@@ -1,6 +1,6 @@
 [package]
 name = "jablu-desktop"
-version = "1.0.0"
+version = "1.0.1"
 description = "Jablu Desktop"
 authors = ["Jablu"]
 edition = "2021"
@@ -34,6 +34,11 @@ rdev = "0.5"
 # versions Tauri/wry already resolve so the ICoreWebView2 COM types line up.
 webview2-com = "0.38"
 windows = "0.61"
+# Native Windows toasts with an in-process click handler so notification clicks
+# can focus the window and deep-link. `tauri-plugin-notification` (via notify_rust)
+# already pulls this in, but it doesn't expose the activation callback, so we use
+# it directly. Same version already in the tree — no extra resolution.
+tauri-winrt-notification = "0.7"
 
 [features]
 # by default Tauri runs in production mode
