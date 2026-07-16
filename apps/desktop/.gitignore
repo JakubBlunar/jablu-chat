@@ -8,6 +8,9 @@ release-artifacts
 # Personal, machine-specific uploader (see upload.mjs.example)
 scripts/upload.mjs
 
+# Server-side deploy helper (deployment-specific paths/hosts) — kept out of the repo
+scripts/deploy-to-docker.sh
+
 # Tauri updater signing keys — NEVER commit these
 *.key
 tauri-signing.key
