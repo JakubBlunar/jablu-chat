@@ -8,6 +8,8 @@ import { MobileDrawer } from '@/components/layout/MobileDrawer'
 import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
 import { HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
 import { UserFooter } from '@/components/layout/UserFooter'
+import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
+import { isDesktop } from '@/lib/desktop'
 import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
@@ -691,9 +693,10 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
             onOpenSettings={(tab) => { close(); onOpenSettings(tab) }}
             className="border-t border-black/20 px-3 py-2"
           >
+            {!isDesktop && <InAppNotificationBell size="sm" />}
             <IconButton
               label="Quick switcher"
-              size="lg"
+              size="md"
               onClick={() => { close(); onOpenQuickSwitcher() }}
               className="rounded-md"
             >

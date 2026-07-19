@@ -12,11 +12,18 @@ use tauri::{
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WindowEvent,
 };
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 /// Shared application state, accessible from Tauri commands via `State<AppState>`.
 pub struct AppState {
     pub ptt: Mutex<ptt::PttState>,
     pub update: Mutex<updater::UpdateState>,
+}
+
+/// Window state we persist. Everything except VISIBLE — we decide whether to show
+/// the window ourselves in `setup` (it starts hidden on autostart).
+fn persisted_state_flags() -> StateFlags {
+    StateFlags::all().difference(StateFlags::VISIBLE)
 }
 
 #[tauri::command]
@@ -98,7 +105,13 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                // The window is hidden (not destroyed) on close, so the window-state
+                // plugin's on-destroy save never runs. Persist explicitly before exit
+                // so size/position survive across restarts.
+                let _ = app.save_window_state(persisted_state_flags());
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -141,6 +154,21 @@ pub fn run() {
                 )
                 .build(),
         )
+        // Frameless chrome: overlays themeable min/max/close controls while keeping
+        // native Windows Snap Layouts, aero snap, and edge resizing. `auto_titlebar`
+        // applies it to the main window automatically; the close button routes through
+        // our CloseRequested handler above (hide-to-tray).
+        .plugin(
+            tauri_plugin_frame::FramePluginBuilder::new()
+                .auto_titlebar(true)
+                .titlebar_height(32)
+                // The app is always dark; pin the caption-button hover background
+                // so it stays visible even when Windows is in light mode (the
+                // plugin otherwise picks a near-invisible light-mode hover).
+                .button_hover_bg("rgba(255,255,255,0.12)")
+                .close_hover_bg("rgba(232,17,35,0.9)")
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -169,11 +197,22 @@ pub fn run() {
                 && config::get_stored_start_minimized(&handle);
 
             if let Some(window) = app.get_webview_window("main") {
+                // Belt-and-suspenders: the custom title bar (tauri-plugin-frame)
+                // requires a borderless window. `decorations: false` is set in the
+                // config, but enforce it at runtime too so a stale build can never
+                // leave the native title bar stacked above our custom one.
+                let _ = window.set_decorations(false);
+
                 let hide_target = window.clone();
                 window.on_window_event(move |event| {
                     // Hide to tray instead of quitting when the user closes the window.
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
+                        // Capture the current size/position before hiding, so it is
+                        // preserved even if the process is later killed while in tray.
+                        let _ = hide_target
+                            .app_handle()
+                            .save_window_state(persisted_state_flags());
                         let _ = hide_target.hide();
                     }
                 });

@@ -1,6 +1,6 @@
 [package]
 name = "jablu-desktop"
-version = "1.0.2"
+version = "1.0.3"
 description = "Jablu Desktop"
 authors = ["Jablu"]
 edition = "2021"
@@ -22,6 +22,11 @@ tauri-plugin-updater = "2"
 tauri-plugin-store = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-opener = "2"
+# Frameless window chrome on Windows: keeps native Snap Layouts, aero snap, edge
+# resize, and drag while overlaying themeable window controls. No-op on other
+# platforms. We render our own title bar content and reserve space for the
+# controls via the `--tauri-frame-controls-width` CSS variable it exposes.
+tauri-plugin-frame = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["time"] }

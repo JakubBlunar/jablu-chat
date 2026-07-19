@@ -34,6 +34,30 @@ select:focus-visible {
   outline: none;
 }
 
+/*
+ * Window caption controls (minimize / maximize / close) are injected by
+ * tauri-plugin-frame into this transparent bar. Their icons render with
+ * `currentColor`, which otherwise inherits an unset (near-black) color and
+ * disappears on our dark title bar — so give them our title-bar foreground,
+ * brightening to white on hover (the plugin only sets the hover *background*).
+ */
+[data-tauri-frame-tb] {
+  color: #c7ccd4;
+}
+[data-tauri-frame-tb] button:hover {
+  color: #ffffff;
+}
+/*
+ * The plugin sets an inline `cursor: default`; override to a pointer cursor.
+ * Only minimize/close are plain DOM buttons. The maximize button is a native
+ * snap-layout hit region (HTMAXBUTTON) whose cursor is owned by Windows and
+ * always shows the arrow — so we leave it out to avoid a pointer/arrow flicker.
+ */
+#frame-tb-minimize,
+#frame-tb-close {
+  cursor: pointer !important;
+}
+
 .skip-to-main {
   position: fixed;
   left: 0.75rem;

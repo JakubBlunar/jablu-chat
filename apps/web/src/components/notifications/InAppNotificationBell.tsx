@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { InAppNotificationDto } from '@/lib/api/types'
 import { api } from '@/lib/api'
@@ -48,8 +48,20 @@ function snippetFor(n: InAppNotificationDto): string {
   return typeof s === 'string' ? s : ''
 }
 
-export function InAppNotificationBell({ className = '' }: { className?: string }) {
+export function InAppNotificationBell({
+  className = '',
+  size = 'md'
+}: {
+  className?: string
+  size?: 'sm' | 'md'
+}) {
   const [open, setOpen] = useState(false)
+  const [panelPos, setPanelPos] = useState<{
+    left: number
+    top?: number
+    bottom?: number
+    maxHeight: number
+  } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const unreadCount = useNotificationCenterStore((s) => s.unreadCount)
@@ -70,6 +82,34 @@ export function InAppNotificationBell({ className = '' }: { className?: string }
     if (!open) return
     void fetchList()
   }, [open, fetchList])
+
+  // Anchor the dropdown to the button and clamp it within the viewport so it
+  // works from the title bar, server rail, or mobile footer alike. Flips upward
+  // when the trigger sits too low to fit the panel below.
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return
+    const reposition = () => {
+      const rect = btnRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const margin = 8
+      const gap = 6
+      const panelWidth = Math.min(window.innerWidth - 16, 380)
+      const maxLeft = window.innerWidth - panelWidth - margin
+      const left = Math.max(margin, Math.min(rect.right - panelWidth, maxLeft))
+
+      const spaceBelow = window.innerHeight - rect.bottom - margin
+      const spaceAbove = rect.top - margin
+      const openDown = spaceBelow >= 320 || spaceBelow >= spaceAbove
+      if (openDown) {
+        setPanelPos({ left, top: rect.bottom + gap, maxHeight: spaceBelow })
+      } else {
+        setPanelPos({ left, bottom: window.innerHeight - rect.top + gap, maxHeight: spaceAbove })
+      }
+    }
+    reposition()
+    window.addEventListener('resize', reposition)
+    return () => window.removeEventListener('resize', reposition)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -144,28 +184,31 @@ export function InAppNotificationBell({ className = '' }: { className?: string }
 
   const panel =
     open &&
+    panelPos &&
     createPortal(
       <div
         ref={panelRef}
-        className="fixed z-[140] w-[min(100vw-16px,380px)] rounded-lg border border-white/10 bg-surface-dark py-2 shadow-xl ring-1 ring-black/40"
+        className="fixed z-[140] flex w-[min(100vw-16px,380px)] flex-col rounded-lg border border-white/10 bg-surface-dark py-2 shadow-xl ring-1 ring-black/40"
         style={{
-          top: btnRef.current ? btnRef.current.getBoundingClientRect().bottom + 6 : 48,
-          right: 8
+          left: panelPos.left,
+          top: panelPos.top,
+          bottom: panelPos.bottom,
+          maxHeight: panelPos.maxHeight
         }}
       >
-        <div className="flex items-center justify-between border-b border-white/10 px-3 pb-2">
-          <span className="text-sm font-semibold text-white">Notifications</span>
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 pb-2">
+          <span className="text-sm font-semibold text-white">Inbox</span>
           {unreadCount > 0 && (
             <button
               type="button"
               className="text-xs font-medium text-primary hover:underline"
               onClick={() => void markAllRead()}
             >
-              Mark all read
+              Mark all as seen
             </button>
           )}
         </div>
-        <div className="max-h-[min(70vh,420px)] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {listLoading && items.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-gray-500">Loading…</p>
           ) : items.length === 0 ? (
@@ -209,18 +252,22 @@ export function InAppNotificationBell({ className = '' }: { className?: string }
       document.body
     )
 
+  const buttonSize = size === 'sm' ? 'h-7 w-7' : 'h-10 w-10'
+  const iconSize = size === 'sm' ? 'h-[18px] w-[18px]' : 'h-5 w-5'
+
   return (
     <>
       <button
         ref={btnRef}
         type="button"
-        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-        title="Notifications"
+        aria-label={`Inbox${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+        title="Inbox"
         onClick={() => setOpen((o) => !o)}
-        className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white ${className}`}
+        className={`relative flex ${buttonSize} shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white ${className}`}
       >
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        <svg className={iconSize} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+          <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
         </svg>
         <CountBadge
           count={unreadCount}

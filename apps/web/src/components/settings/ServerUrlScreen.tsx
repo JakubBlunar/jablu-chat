@@ -39,7 +39,7 @@ export function ServerUrlScreen({ onConnect }: { onConnect: (url: string) => voi
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
+    <div className="flex min-h-full items-center justify-center bg-surface">
       <form onSubmit={(e) => void handleSubmit(e)} className="w-full max-w-md rounded-lg bg-surface-dark p-8 shadow-xl">
         <h1 className="mb-2 text-center text-2xl font-bold text-white">Connect to Server</h1>
         <p className="mb-6 text-center text-sm text-gray-400">Enter the address of your Jablu server</p>

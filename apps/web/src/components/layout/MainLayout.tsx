@@ -339,7 +339,7 @@ export function MainLayout() {
   // ─── DM layout (desktop/tablet) ───
   if (viewMode === 'dm') {
     return (
-      <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+      <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
         <VoiceAudioManager />
         <ToastContainer />
@@ -365,7 +365,7 @@ export function MainLayout() {
 
   // ─── Server layout (desktop/tablet) ───
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+    <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <SkipToMainLink />
       <VoiceAudioManager />
       <ToastContainer />

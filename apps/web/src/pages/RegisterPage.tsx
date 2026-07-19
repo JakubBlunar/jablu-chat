@@ -82,7 +82,7 @@ export function RegisterPage() {
 
   if (isAuthLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-auth-bg">
+      <div className="flex min-h-full items-center justify-center bg-auth-bg">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
         <span className="sr-only">{t('checkingSession')}</span>
       </div>

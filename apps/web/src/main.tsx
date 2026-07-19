@@ -6,18 +6,9 @@ import App from './App.tsx'
 
 let visibilityTriggered = false
 
-// In the desktop shell the X mouse buttons (Mouse 4 / Mouse 5) are commonly bound
-// to push-to-talk. WebView2 would otherwise treat them as browser back/forward and
-// navigate the SPA on every press, so we suppress that default here. Global PTT
-// detection happens natively (rdev) and is unaffected by this.
-if (isDesktop) {
-  const suppressSideButtonNav = (e: MouseEvent) => {
-    if (e.button === 3 || e.button === 4) e.preventDefault()
-  }
-  window.addEventListener('mousedown', suppressSideButtonNav, { capture: true })
-  window.addEventListener('mouseup', suppressSideButtonNav, { capture: true })
-  window.addEventListener('auxclick', suppressSideButtonNav, { capture: true })
-}
+// Mouse 4 / Mouse 5 behavior on desktop (browser-style back/forward, unless the
+// button is bound to push-to-talk) is handled by `useSideButtonNavigation`, which
+// needs the router. WebView2's default navigation is suppressed there too.
 
 // The Tauri desktop shell serves assets from tauri.localhost and updates via the
 // native updater, so the PWA service worker is skipped there.

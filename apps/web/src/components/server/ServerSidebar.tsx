@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { JoinInviteModal } from '@/components/server/JoinInviteModal'
+import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
+import { isDesktop } from '@/lib/desktop'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { useReadStateStore } from '@/stores/readState.store'
@@ -159,6 +161,11 @@ export function ServerSidebar() {
             )}
           </div>
         </SimpleBar>
+
+        {/* Inbox lives in the custom title bar on desktop; show it here on web only. */}
+        {!isDesktop && (
+          <InAppNotificationBell className="rounded-[24px] bg-surface text-gray-300 hover:rounded-2xl hover:bg-white/10" />
+        )}
 
         <button
           type="button"
