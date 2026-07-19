@@ -6,7 +6,7 @@
     "node": ">=24.14.1 <25"
   },
   "scripts": {
-    "dev": "turbo dev --filter=!@chat/bot",
+    "dev": "turbo dev --filter=!@chat/bot --filter=!@chat/desktop",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",

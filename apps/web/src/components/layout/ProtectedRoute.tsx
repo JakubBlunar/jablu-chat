@@ -13,7 +13,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface">
+      <div className="flex min-h-full items-center justify-center bg-surface">
         <div aria-hidden>
           <Spinner size="xl" />
         </div>

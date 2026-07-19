@@ -69,10 +69,12 @@ export function UserFooter({ onOpenSettings, className, children }: UserFooterPr
           )}
         </p>
       </button>
-      {children}
-      <IconButton label="User settings" onClick={() => onOpenSettings()}>
-        <GearIcon />
-      </IconButton>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {children}
+        <IconButton label="User settings" onClick={() => onOpenSettings()}>
+          <GearIcon />
+        </IconButton>
+      </div>
     </div>
   )
 }

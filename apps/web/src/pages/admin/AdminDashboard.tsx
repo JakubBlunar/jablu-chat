@@ -65,7 +65,7 @@ export function AdminDashboard() {
   ]
 
   return (
-    <div className="flex h-screen flex-col bg-surface-darkest text-white">
+    <div className="flex h-full flex-col bg-surface-darkest text-white">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-3">
         <h1 className="text-lg font-bold">Admin Panel</h1>

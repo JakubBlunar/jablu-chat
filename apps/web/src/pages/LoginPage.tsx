@@ -53,7 +53,7 @@ export function LoginPage() {
 
   if (isAuthLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-auth-bg">
+      <div className="flex min-h-full items-center justify-center bg-auth-bg">
         <div aria-hidden>
           <Spinner size="xl" />
         </div>
