@@ -1,3 +1,5 @@
+import type { ActivityDefaultSharing } from './activity.js'
+
 export type DmPrivacy = 'everyone' | 'friends_only'
 
 /** How long a manual status (idle / dnd / invisible) stays before reverting to automatic. */
@@ -25,6 +27,16 @@ export interface User {
   pushQuietHoursStartMin: number
   pushQuietHoursEndMin: number
   lastSeenAt: string | null
+  /** Master toggle for sharing game/music activity. Off by default. */
+  activityShareEnabled: boolean
+  /** Notify friends when coming online. Off by default. */
+  activityShareOnline: boolean
+  /** Default recipient scope for activity when joining a new server. */
+  activityDefaultSharing: ActivityDefaultSharing
+  /** Sub-filter: share game activity. */
+  activityShareGames: boolean
+  /** Sub-filter: share music activity. */
+  activityShareMusic: boolean
   createdAt: string
 }
 

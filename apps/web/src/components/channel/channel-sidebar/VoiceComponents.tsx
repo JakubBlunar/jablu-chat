@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { RoomEvent, type Participant } from 'livekit-client'
+import type { UserStatus } from '@chat/shared'
 import { UserAvatar } from '@/components/UserAvatar'
+import { ActivityLine } from '@/components/user/ActivityLine'
+import { useActivityStore } from '@/stores/activity.store'
 import { type VoiceParticipant } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
-import type { Member } from '@/stores/member.store'
+import { useMemberStore, type Member } from '@/stores/member.store'
 
 export function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   const icons: React.ReactNode[] = []
@@ -95,6 +98,9 @@ export function VoiceParticipantRow({
   isSpeaking: boolean
   onClick: (e: React.MouseEvent) => void
 }) {
+  const activity = useActivityStore((s) => s.activities.get(participant.userId))
+  const status = useMemberStore((s) => s.resolveStatus(participant.userId)) as UserStatus
+
   return (
     <li
       role="button"
@@ -113,18 +119,23 @@ export function VoiceParticipantRow({
           username={participant.username}
           avatarUrl={member?.user.avatarUrl}
           size="sm"
+          showStatus
+          status={status}
         />
         {isSpeaking && (
           <div className="absolute -inset-[3px] rounded-full ring-2 ring-emerald-500/80" />
         )}
       </div>
-      <span
-        className={`min-w-0 flex-1 truncate text-[13px] font-medium transition-colors ${
-          isSpeaking ? 'text-emerald-400' : 'text-gray-300 group-hover/vp:text-gray-100'
-        }`}
-      >
-        {member?.user.displayName || participant.username}
-      </span>
+      <div className="min-w-0 flex-1">
+        <span
+          className={`block truncate text-[13px] font-medium transition-colors ${
+            isSpeaking ? 'text-emerald-400' : 'text-gray-300 group-hover/vp:text-gray-100'
+          }`}
+        >
+          {member?.user.displayName || participant.username}
+        </span>
+        {activity ? <ActivityLine activity={activity} /> : null}
+      </div>
       <VoiceStatusIcons participant={participant} />
     </li>
   )

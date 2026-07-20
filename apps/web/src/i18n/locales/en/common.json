@@ -16,5 +16,7 @@
   "loadingServers": "Loading servers…",
   "noServersTitle": "No servers yet",
   "noServersHintMobile": "Use the menu to join a server.",
-  "noServersHintDesktop": "Use the + button in the server list to create your first server."
+  "noServersHintDesktop": "Use the + button in the server list to create your first server.",
+  "activityPlaying": "Playing",
+  "activityListeningTo": "Listening to"
 }

@@ -19,6 +19,8 @@ import { AppVersionInfo } from '@/components/settings/sections/AppVersionInfo'
 import { DesktopAppSection } from '@/components/settings/sections/DesktopAppSection'
 import { NotificationsSection } from '@/components/settings/sections/NotificationsSection'
 import { PrivacySection } from '@/components/settings/sections/PrivacySection'
+import { ActivityPrivacySection } from '@/components/settings/sections/ActivityPrivacySection'
+import { RegisteredGamesSection } from '@/components/settings/sections/RegisteredGamesSection'
 import { ProfileSection } from '@/components/settings/sections/ProfileSection'
 import { ServerConnectionSection } from '@/components/settings/sections/ServerConnectionSection'
 import { AppearanceSection } from '@/components/settings/sections/AppearanceSection'
@@ -71,6 +73,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       { key: 'privacy', label: t('tabs.privacy') },
       { key: 'voice', label: t('tabs.voice') },
       { key: 'notifications', label: t('tabs.notifications') },
+      { key: 'activity-privacy', label: t('tabs.activityStatus'), show: isElectron },
+      { key: 'activity-games', label: t('tabs.registeredGames'), show: isElectron },
       { key: 'my-bots', label: t('tabs.myBots') },
       { key: 'sessions', label: t('tabs.sessions') },
       { key: 'shortcuts', label: t('tabs.shortcuts'), show: !isMobile },
@@ -96,6 +100,8 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       {tab === 'privacy' && <PrivacySection />}
       {tab === 'voice' && <VoiceSettings />}
       {tab === 'notifications' && <NotificationsSection />}
+      {tab === 'activity-privacy' && <ActivityPrivacySection />}
+      {tab === 'activity-games' && <RegisteredGamesSection />}
       {tab === 'my-bots' && <MyBotsSection />}
       {tab === 'sessions' && <ActiveSessionsSection />}
       {tab === 'shortcuts' && <KeyboardShortcutsSection />}
@@ -110,7 +116,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     return (
       <div
         ref={modalRef}
-        className="fixed inset-0 z-[100] flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+        className={`fixed inset-x-0 bottom-0 z-[100] flex flex-col bg-surface pb-[env(safe-area-inset-bottom)] ${
+          isElectron ? 'top-8' : 'top-0 pt-[env(safe-area-inset-top)]'
+        }`}
         role="dialog"
         aria-modal="true"
         aria-label={t('title')}
@@ -158,7 +166,9 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   return (
     <div
       ref={modalRef}
-      className="fixed inset-0 z-[100] flex bg-surface"
+      // On the desktop app, start below the custom title bar (h-8) so its drag
+      // region and toolbar buttons stay usable while settings are open.
+      className={`fixed z-[100] flex bg-surface ${isElectron ? 'inset-x-0 bottom-0 top-8' : 'inset-0'}`}
       role="dialog"
       aria-modal="true"
       aria-label={t('title')}

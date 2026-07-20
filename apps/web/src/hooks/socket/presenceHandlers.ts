@@ -1,3 +1,5 @@
+import type { UserActivity } from '@chat/shared'
+import { useActivityStore } from '@/stores/activity.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useFriendStore } from '@/stores/friend.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -56,6 +58,14 @@ export function createPresenceHandlers() {
     }
   }
 
+  const onUserActivity = (payload: { userId: string; activity: UserActivity | null }) => {
+    useActivityStore.getState().setUserActivity(payload.userId, payload.activity)
+  }
+
+  const onActivityInit = (payload: { activities: Record<string, UserActivity> }) => {
+    useActivityStore.getState().initActivities(payload.activities)
+  }
+
   const onPresenceInit = (payload: { onlineUserIds: string[] }) => {
     useMemberStore.getState().initOnlineUsers(payload.onlineUserIds)
     useReadStateStore.getState().fetchAll()
@@ -98,6 +108,8 @@ export function createPresenceHandlers() {
     onUserOffline,
     onUserStatus,
     onUserCustomStatus,
+    onUserActivity,
+    onActivityInit,
     onPresenceInit,
     onFriendsPresence,
     onMemberJoined,

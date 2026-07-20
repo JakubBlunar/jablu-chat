@@ -1,6 +1,6 @@
 [package]
 name = "jablu-desktop"
-version = "1.0.3"
+version = "1.0.4"
 description = "Jablu Desktop"
 authors = ["Jablu"]
 edition = "2021"
@@ -34,11 +34,29 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 url = "2"
 rdev = "0.5"
 
+# Process enumeration for non-Steam game detection. Windows-only usage, but the
+# crate is cross-platform so it lives in the shared table.
+sysinfo = "0.30"
+
 [target.'cfg(windows)'.dependencies]
 # Auto-approve WebView2 microphone/camera permission prompts. Pinned to the same
 # versions Tauri/wry already resolve so the ICoreWebView2 COM types line up.
 webview2-com = "0.38"
-windows = "0.61"
+# Steam running-game detection via the registry, exe-icon extraction, and SMTC
+# (Spotify) now-playing all use the Windows APIs below.
+winreg = "0.52"
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png"] }
+windows = { version = "0.61", features = [
+    "Media_Control",
+    "Foundation",
+    "Storage_Streams",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+] }
 # Native Windows toasts with an in-process click handler so notification clicks
 # can focus the window and deep-link. `tauri-plugin-notification` (via notify_rust)
 # already pulls this in, but it doesn't expose the activation callback, so we use

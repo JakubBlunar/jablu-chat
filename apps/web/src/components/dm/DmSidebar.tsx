@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
+import { ActivityLine } from '@/components/user/ActivityLine'
+import { useActivityStore } from '@/stores/activity.store'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -61,7 +63,8 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
           name: conv.groupName || conv.members.map((m) => m.displayName ?? m.username).join(', '),
           avatarUrl: null,
           status: 'online' as const,
-          isGroup: true
+          isGroup: true,
+          userId: null as string | null
         }
       }
       const other = conv.members.find((m) => m.userId !== user?.id)
@@ -76,7 +79,8 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
         name: other?.displayName ?? other?.username ?? 'Unknown',
         avatarUrl: other?.avatarUrl ?? null,
         status,
-        isGroup: false
+        isGroup: false,
+        userId: otherId
       }
     },
     [user?.id, onlineIds, realtimeStatuses]
@@ -204,9 +208,10 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
                   )}
                   <div className="min-w-0 flex-1 text-left">
                     <p className="truncate text-sm font-medium">{info.name}</p>
-                    {conv.lastMessage && (
-                      <p className="truncate text-xs text-gray-400">{conv.lastMessage.content ?? 'attachment'}</p>
-                    )}
+                    <DmRowSubtitle
+                      userId={info.userId}
+                      lastMessage={conv.lastMessage ? conv.lastMessage.content ?? 'attachment' : null}
+                    />
                   </div>
                 </button>
                 {hasUnread &&
@@ -259,6 +264,13 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
       )}
     </aside>
   )
+}
+
+function DmRowSubtitle({ userId, lastMessage }: { userId: string | null; lastMessage: string | null }) {
+  const activity = useActivityStore((s) => (userId ? s.activities.get(userId) : undefined))
+  if (activity) return <ActivityLine activity={activity} />
+  if (lastMessage) return <p className="truncate text-xs text-gray-400">{lastMessage}</p>
+  return null
 }
 
 function CloseIcon() {

@@ -67,6 +67,11 @@ const mockUser: User = {
   pushQuietHoursTz: null,
   pushQuietHoursStartMin: 1320,
   pushQuietHoursEndMin: 480,
+  activityShareEnabled: false,
+  activityShareOnline: false,
+  activityDefaultSharing: 'friends_all',
+  activityShareGames: true,
+  activityShareMusic: true,
   lastSeenAt: null,
   createdAt: '2025-01-01T00:00:00Z'
 }

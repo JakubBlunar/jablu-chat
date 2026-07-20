@@ -10,6 +10,7 @@ import {
   WebSocketServer
 } from '@nestjs/websockets'
 import { Permission, hasPermission } from '@chat/shared'
+import type { UserActivity } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
 import { AutoModService } from '../automod/automod.service'
 import { DmService } from '../dm/dm.service'
@@ -38,6 +39,7 @@ import {
   WsMessageIdDto,
   WsPollVoteDto,
   WsReactionToggleDto,
+  WsActivityUpdateDto,
   WsSendMessageDto,
   WsVoiceStateDto
 } from './gateway.dto'
@@ -75,6 +77,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   /** userId -> last activity timestamp (ms) from any of their sockets */
   private readonly userLastActivity = new Map<string, number>()
+
+  /** userId -> current shared rich activity (game / music). Desktop-reported. */
+  private readonly userActivities = new Map<string, UserActivity>()
 
   /** channelId -> Set of participants in voice channel */
   private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
@@ -565,6 +570,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
     client.emit('friends:presence', { onlineFriendIds, friendStatuses })
 
+    // Snapshot of rich activities for people this user can see (server members + friends).
+    if (this.userActivities.size > 0) {
+      const visible = new Set<string>([...allMemberUserIds, ...friendIds])
+      const activities: Record<string, UserActivity> = {}
+      for (const [uid, act] of this.userActivities) {
+        if (visible.has(uid)) activities[uid] = act
+      }
+      if (Object.keys(activities).length > 0) {
+        client.emit('activity:init', { activities })
+      }
+    }
+
     const dmConversations = await this.prisma.directConversationMember.findMany({
       where: { userId: user.id },
       select: { conversationId: true }
@@ -611,6 +628,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         this.userLastActivity.delete(userId)
         this.manualPresence.delete(userId)
         this.lastBroadcastedStatus.delete(userId)
+        if (this.userActivities.delete(userId)) {
+          await this.broadcastActivity(userId, null).catch(() => {})
+        }
         await this.prisma.user.update({
           where: { id: userId },
           data: { status: 'offline', lastSeenAt: new Date() }
@@ -1128,6 +1148,114 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
       const friendIds = await this.getFriendUserIds(user.id)
       this.emitToFriends(friendIds, 'user:status', { userId: user.id, status: 'online' })
+    }
+    return { ok: true }
+  }
+
+  /**
+   * Resolves who should receive a user's activity: always friends (when sharing
+   * is enabled) plus servers permitted by the user's default sharing scope and
+   * per-server overrides.
+   */
+  private async getActivityScope(userId: string): Promise<{
+    shareEnabled: boolean
+    shareGames: boolean
+    shareMusic: boolean
+    serverIds: string[]
+    friendIds: string[]
+  }> {
+    const [user, memberships, friendIds] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          activityShareEnabled: true,
+          activityShareGames: true,
+          activityShareMusic: true,
+          activityDefaultSharing: true
+        }
+      }),
+      this.prisma.serverMember.findMany({
+        where: { userId },
+        select: {
+          serverId: true,
+          shareActivity: true,
+          server: { select: { _count: { select: { members: true } } } }
+        }
+      }),
+      this.getFriendUserIds(userId)
+    ])
+
+    const def = user?.activityDefaultSharing ?? 'friends_all'
+    const serverIds: string[] = []
+    for (const m of memberships) {
+      let include: boolean
+      if (m.shareActivity === true) include = true
+      else if (m.shareActivity === false) include = false
+      else if (def === 'friends_all') include = true
+      else if (def === 'friends_small') include = (m.server?._count.members ?? 0) <= 200
+      else include = false
+      if (include) serverIds.push(m.serverId)
+    }
+
+    return {
+      shareEnabled: user?.activityShareEnabled ?? false,
+      shareGames: user?.activityShareGames ?? true,
+      shareMusic: user?.activityShareMusic ?? true,
+      serverIds,
+      friendIds
+    }
+  }
+
+  /** Fan out a user's activity (or null to clear) to friends + eligible servers. */
+  private async broadcastActivity(userId: string, activity: UserActivity | null) {
+    const scope = await this.getActivityScope(userId)
+    const payload = { userId, activity }
+    for (const sid of scope.serverIds) {
+      this.server.to(`server:${sid}`).emit('user:activity', payload)
+    }
+    this.emitToFriends(scope.friendIds, 'user:activity', payload)
+  }
+
+  @WsThrottle(4, 10)
+  @SubscribeMessage('activity:update')
+  async onActivityUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: WsActivityUpdateDto
+  ) {
+    const user = (client.data as { user: WsUser }).user
+    if (user.isBot) return { ok: false }
+
+    const scope = await this.getActivityScope(user.id)
+    const allowed =
+      scope.shareEnabled && (body.kind === 'game' ? scope.shareGames : scope.shareMusic)
+    if (!allowed) {
+      // Sharing disabled for this category; ensure any prior activity is cleared.
+      if (this.userActivities.delete(user.id)) {
+        await this.broadcastActivity(user.id, null)
+      }
+      return { ok: true }
+    }
+
+    const activity: UserActivity = {
+      kind: body.kind,
+      name: body.name,
+      details: body.details ?? null,
+      state: body.state ?? null,
+      iconUrl: body.iconUrl ?? null,
+      startedAt: body.startedAt ?? new Date().toISOString()
+    }
+    this.userActivities.set(user.id, activity)
+    await this.broadcastActivity(user.id, activity)
+    return { ok: true }
+  }
+
+  @WsThrottle(4, 10)
+  @SubscribeMessage('activity:clear')
+  async onActivityClear(@ConnectedSocket() client: Socket) {
+    const user = (client.data as { user: WsUser }).user
+    if (user.isBot) return { ok: false }
+    if (this.userActivities.delete(user.id)) {
+      await this.broadcastActivity(user.id, null)
     }
     return { ok: true }
   }

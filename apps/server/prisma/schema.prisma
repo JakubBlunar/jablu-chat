@@ -32,6 +32,16 @@ model User {
   pushQuietHoursEndMin   Int @default(480) @map("push_quiet_hours_end_min")
   isBot        Boolean  @default(false) @map("is_bot")
   dmPrivacy    DmPrivacy  @default(everyone) @map("dm_privacy")
+  /// Master toggle for sharing game/music activity. Off by default for privacy.
+  activityShareEnabled  Boolean @default(false) @map("activity_share_enabled")
+  /// Notify friends when this user comes online. Off by default for privacy.
+  activityShareOnline   Boolean @default(false) @map("activity_share_online")
+  /// Default recipient scope for activity when joining a new server.
+  activityDefaultSharing ActivityDefaultSharing @default(friends_all) @map("activity_default_sharing")
+  /// Sub-filter: share game activity when master toggle is on.
+  activityShareGames    Boolean @default(true) @map("activity_share_games")
+  /// Sub-filter: share music activity when master toggle is on.
+  activityShareMusic    Boolean @default(true) @map("activity_share_music")
   lastSeenAt   DateTime?  @map("last_seen_at")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -61,6 +71,7 @@ model User {
   timeoutsIssued         ServerMember[]   @relation("ServerMemberMutedBy")
   botApplication         BotApplication?  @relation("BotUser")
   ownedBots              BotApplication[] @relation("BotOwner")
+  registeredGames        RegisteredGame[]
 
   @@map("users")
 }
@@ -75,6 +86,42 @@ enum UserStatus {
 enum DmPrivacy {
   everyone
   friends_only
+}
+
+enum ActivityDefaultSharing {
+  friends_all
+  friends_small
+  friends_only
+}
+
+enum ActivitySource {
+  steam
+  process
+  smtc
+  manual
+}
+
+model RegisteredGame {
+  id           String         @id @default(uuid())
+  userId       String         @map("user_id")
+  name         String
+  source       ActivitySource @default(manual)
+  /// Lowercased executable file name for non-Steam process matching.
+  executable   String?
+  steamAppId   String?        @map("steam_app_id")
+  iconUrl      String?        @map("icon_url")
+  /// True when detected automatically (matchable), false for manual entries.
+  verified     Boolean        @default(false)
+  /// When true, this game is never shared as activity.
+  hidden       Boolean        @default(false)
+  lastPlayedAt DateTime?      @map("last_played_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("registered_games")
 }
 
 model RefreshToken {
@@ -166,6 +213,8 @@ model ServerMember {
   xp                  Int         @default(0) @map("xp")
   level               Int         @default(0) @map("level")
   lastXpAt            DateTime?   @map("last_xp_at")
+  /// Per-server activity sharing override; null = follow user's default sharing.
+  shareActivity       Boolean?    @map("share_activity")
   joinedAt            DateTime    @default(now()) @map("joined_at")
 
   user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)

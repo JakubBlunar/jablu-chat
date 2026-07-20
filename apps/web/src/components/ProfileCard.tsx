@@ -5,7 +5,10 @@ import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
+import { ActivityLine } from '@/components/user/ActivityLine'
 import { resolveMediaUrl } from '@/lib/api'
+import { useActivityStore } from '@/stores/activity.store'
+import { useProfileCardStore } from '@/stores/profileCard.store'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useIsMobile } from '@/hooks/useMobile'
 import { api } from '@/lib/api'
@@ -161,31 +164,32 @@ function ProfileCardContent({
   const [mutualServers, setMutualServers] = useState<MutualServer[]>([])
   const [mutualFriends, setMutualFriends] = useState<MutualFriend[]>([])
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatusResponse | null>(null)
+  const activity = useActivityStore((s) => s.activities.get(user.id))
   const { orchestratedGoToChannel } = useAppNavigate()
 
   useEffect(() => {
     if (!user.id || user.id === currentUserId) return
     let cancelled = false
-    api
-      .getMutualServers(user.id)
-      .then((res) => {
-        if (!cancelled) setMutualServers(res.servers)
+
+    // Serve any cached detail synchronously so the card never "pops in".
+    const cached = useProfileCardStore.getState().peek(user.id)
+    if (cached) {
+      setMutualServers(cached.mutualServers)
+      setMutualFriends(cached.mutualFriends)
+      setFriendshipStatus(cached.friendshipStatus)
+    }
+
+    void useProfileCardStore
+      .getState()
+      .load(user.id, { isBot: user.isBot })
+      .then((detail) => {
+        if (cancelled) return
+        setMutualServers(detail.mutualServers)
+        setMutualFriends(detail.mutualFriends)
+        setFriendshipStatus(detail.friendshipStatus)
       })
       .catch(() => {})
-    if (!user.isBot) {
-      api
-        .getMutualFriends(user.id)
-        .then((res) => {
-          if (!cancelled) setMutualFriends(res.friends)
-        })
-        .catch(() => {})
-      api
-        .getFriendshipStatus(user.id)
-        .then((res) => {
-          if (!cancelled) setFriendshipStatus(res)
-        })
-        .catch(() => {})
-    }
+
     return () => {
       cancelled = true
     }
@@ -218,6 +222,15 @@ function ProfileCardContent({
         <p className="text-xs text-gray-400">{statusLabel[user.status]}</p>
         {user.customStatus && (
           <p className="mt-0.5 text-xs text-gray-300 italic">{user.customStatus}</p>
+        )}
+
+        {activity && (
+          <div className="mt-3 rounded-md bg-black/20 p-2.5">
+            <SectionHeading className="mb-1.5">
+              {activity.kind === 'music' ? 'LISTENING TO SPOTIFY' : 'PLAYING A GAME'}
+            </SectionHeading>
+            <ActivityLine activity={activity} variant="card" />
+          </div>
         )}
 
         <div className="my-3 border-t border-white/10" />

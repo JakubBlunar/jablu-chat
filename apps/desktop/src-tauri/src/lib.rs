@@ -1,3 +1,4 @@
+mod activity;
 mod config;
 mod logging;
 mod notifications;
@@ -18,6 +19,7 @@ use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 pub struct AppState {
     pub ptt: Mutex<ptt::PttState>,
     pub update: Mutex<updater::UpdateState>,
+    pub activity: Mutex<activity::ActivityState>,
 }
 
 /// Window state we persist. Everything except VISIBLE — we decide whether to show
@@ -182,6 +184,7 @@ pub fn run() {
         .manage(AppState {
             ptt: Mutex::new(ptt::PttState::default()),
             update: Mutex::new(updater::UpdateState::default()),
+            activity: Mutex::new(activity::ActivityState::default()),
         })
         .setup(|app| {
             logging::log("setup: begin");
@@ -254,7 +257,10 @@ pub fn run() {
             updater::install_update,
             updater::get_update_status,
             ptt::set_ptt_binding,
-            ptt::clear_ptt
+            ptt::clear_ptt,
+            activity::set_activity_detection_enabled,
+            activity::get_detected_activities,
+            activity::set_custom_detectables
         ])
         .run(tauri::generate_context!());
 

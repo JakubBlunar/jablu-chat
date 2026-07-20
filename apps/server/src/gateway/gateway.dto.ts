@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
@@ -144,6 +145,36 @@ export class WsDmMessageDto {
 export class WsConversationIdDto {
   @IsUUID()
   conversationId!: string
+}
+
+export class WsActivityUpdateDto {
+  @IsEnum(['game', 'music'])
+  kind!: 'game' | 'music'
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  name!: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  details?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  state?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  iconUrl?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  startedAt?: string
 }
 
 export class WsVoiceStateDto {
