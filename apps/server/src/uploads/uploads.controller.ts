@@ -169,6 +169,14 @@ export class UploadsController {
     return this.serveFromSubdir('emoji', filename, res);
   }
 
+  @Get('activity-icons/:filename')
+  serveActivityIcon(
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    return this.serveFromSubdir('activity-icons', filename, res);
+  }
+
   private serveFromSubdir(subdir: string, filename: string, res: Response) {
     const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '');
     const baseDir = resolve(this.uploads.getUploadDir(), subdir);

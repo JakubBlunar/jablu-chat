@@ -30,6 +30,7 @@ import { ForumModule } from './forum/forum.module'
 import { RolesModule } from './roles/roles.module'
 import { InAppNotificationsModule } from './in-app-notifications/in-app-notifications.module'
 import { XpModule } from './xp/xp.module'
+import { ActivityModule } from './activity/activity.module'
 
 @Module({
   imports: [
@@ -73,7 +74,8 @@ import { XpModule } from './xp/xp.module'
     RolesModule,
     BotsModule,
     InAppNotificationsModule,
-    XpModule
+    XpModule,
+    ActivityModule
   ]
 })
 export class AppModule {}

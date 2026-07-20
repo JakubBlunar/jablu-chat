@@ -11,6 +11,9 @@ scripts/upload.mjs
 # Server-side deploy helper (deployment-specific paths/hosts) — kept out of the repo
 scripts/deploy-to-docker.sh
 
+# Personal release wrapper (holds secrets: signing-key + VPS passwords)
+scripts/release.local.ps1
+
 # Tauri updater signing keys — NEVER commit these
 *.key
 tauri-signing.key

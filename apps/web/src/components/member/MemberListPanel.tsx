@@ -2,6 +2,9 @@ import type { UserStatus } from '@chat/shared'
 import { useMemo } from 'react'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
+import { ActivityLine } from '@/components/user/ActivityLine'
+import { useActivityStore } from '@/stores/activity.store'
+import { prefetchProfileCard } from '@/stores/profileCard.store'
 import type { Member } from '@/stores/member.store'
 import { getRoleColor } from '@/stores/member.store'
 
@@ -108,6 +111,7 @@ function MemberRow({
   const roleColor = getRoleColor(member)
   const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
   const isBot = member.user.isBot
+  const activity = useActivityStore((s) => s.activities.get(member.userId))
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -119,6 +123,7 @@ function MemberRow({
       <button
         type="button"
         onClick={handleClick}
+        onMouseEnter={() => prefetchProfileCard(member.userId, isBot)}
         className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-white/[0.04] ${
           dimmed ? 'opacity-50' : ''
         }`}
@@ -148,9 +153,11 @@ function MemberRow({
               </svg>
             )}
           </div>
-          {member.user.customStatus && (
+          {activity ? (
+            <ActivityLine activity={activity} />
+          ) : member.user.customStatus ? (
             <p className="truncate text-xs text-gray-500">{member.user.customStatus}</p>
-          )}
+          ) : null}
         </div>
       </button>
     </li>

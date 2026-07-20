@@ -16,6 +16,7 @@ import { ToastContainer } from '@/components/ToastContainer'
 import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
 import { useAppBadge } from '@/hooks/useAppBadge'
 import { useActivityReporter } from '@/hooks/useActivityReporter'
+import { useDetectedActivity } from '@/hooks/useDetectedActivity'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
 import { useChannelSocketSync } from '@/hooks/useChannelSocketSync'
@@ -113,6 +114,7 @@ export function MainLayout() {
   const memberSidebarVisible = useSettingsStore((s) => s.memberSidebarVisible)
 
   useActivityReporter(socket)
+  useDetectedActivity(socket)
   useAppBadge()
 
   const {

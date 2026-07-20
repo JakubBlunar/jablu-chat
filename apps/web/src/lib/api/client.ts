@@ -1,4 +1,5 @@
 import type {
+  ActivitySettings,
   Attachment,
   AuthResponse,
   BotApplication,
@@ -7,14 +8,17 @@ import type {
   ChangePasswordInput,
   ChannelCategory,
   CreateEventInput,
+  DetectedActivity,
   ForgotPasswordRequest,
   ForumTag,
+  GameDetectable,
   Invite,
   LoginRequest,
   Message,
   Poll,
   RefreshTokenRequest,
   RegisterRequest,
+  RegisteredGame,
   ResetPasswordRequest,
   ServerEvent,
   StatusDurationPreset,
@@ -278,6 +282,56 @@ export class ApiClient {
 
   canDmUser(userId: string): Promise<{ allowed: boolean }> {
     return this.get(`/api/dm/can-dm/${userId}`)
+  }
+
+  // ── Activity (game / music presence) ──
+
+  getActivitySettings(): Promise<ActivitySettings> {
+    return this.get('/api/activity/settings')
+  }
+
+  updateActivitySettings(data: Partial<ActivitySettings>): Promise<ActivitySettings> {
+    return this.patch('/api/activity/settings', data)
+  }
+
+  getRegisteredGames(): Promise<RegisteredGame[]> {
+    return this.get('/api/activity/games')
+  }
+
+  upsertRegisteredGame(data: {
+    name: string
+    source?: DetectedActivity['source']
+    executable?: string | null
+    steamAppId?: string | null
+    iconUrl?: string | null
+    verified?: boolean
+  }): Promise<RegisteredGame> {
+    return this.post('/api/activity/games', data)
+  }
+
+  updateRegisteredGame(
+    id: string,
+    data: { name?: string; hidden?: boolean; iconUrl?: string | null }
+  ): Promise<RegisteredGame> {
+    return this.patch(`/api/activity/games/${id}`, data)
+  }
+
+  deleteRegisteredGame(id: string): Promise<{ ok: boolean }> {
+    return this.delete(`/api/activity/games/${id}`)
+  }
+
+  getActivityDetectables(): Promise<GameDetectable[]> {
+    return this.get('/api/activity/detectables')
+  }
+
+  resolveSteamApp(
+    appId: string
+  ): Promise<{ name: string; iconUrl: string; headerUrl: string } | null> {
+    return this.get(`/api/activity/steam/${appId}`)
+  }
+
+  uploadActivityIcon(dataUrl: string, key: string): Promise<{ url: string }> {
+    return this.post('/api/activity/icon', { dataUrl, key })
   }
 
   getGifEnabled(): Promise<{ enabled: boolean }> {

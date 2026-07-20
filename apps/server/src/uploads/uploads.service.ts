@@ -50,7 +50,7 @@ export class UploadsService {
   constructor(private readonly config: ConfigService) {
     this.uploadDir = resolve(config.get<string>('UPLOAD_DIR', './uploads'));
     this.maxSizeMb = config.get<number>('MAX_UPLOAD_SIZE_MB', 50);
-    for (const sub of ['avatars', 'attachments', 'thumbnails', 'emoji']) {
+    for (const sub of ['avatars', 'attachments', 'thumbnails', 'emoji', 'activity-icons']) {
       this.ensureDir(join(this.uploadDir, sub));
     }
   }
@@ -221,6 +221,26 @@ export class UploadsService {
       .toFile(dest);
 
     return `/api/uploads/emoji/${filename}`;
+  }
+
+  /**
+   * Saves a small activity icon (game exe icon / album art) as a 64x64 webp,
+   * keyed by a caller-provided cache key (e.g. an executable-name hash) so
+   * repeated uploads of the same icon are deduplicated. Returns a stable URL.
+   */
+  async saveActivityIcon(buffer: Buffer, key: string): Promise<string> {
+    const safeKey = key.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64) || randomUUID();
+    const filename = `${safeKey}.webp`;
+    const dest = join(this.uploadDir, 'activity-icons', filename);
+    const url = `/api/uploads/activity-icons/${filename}`;
+    if (existsSync(dest)) return url;
+
+    await sharp(buffer)
+      .resize(64, 64, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality: 85 })
+      .toFile(dest);
+
+    return url;
   }
 
   deleteFile(urlPath: string) {

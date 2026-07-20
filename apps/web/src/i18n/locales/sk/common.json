@@ -16,5 +16,7 @@
   "loadingServers": "Načítavam servery…",
   "noServersTitle": "Zatiaľ žiadne servery",
   "noServersHintMobile": "Pripojte sa k serveru cez menu.",
-  "noServersHintDesktop": "Vytvorte prvý server pomocou tlačidla + v zozname serverov."
+  "noServersHintDesktop": "Vytvorte prvý server pomocou tlačidla + v zozname serverov.",
+  "activityPlaying": "Hrá",
+  "activityListeningTo": "Počúva"
 }
