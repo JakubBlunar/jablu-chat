@@ -491,7 +491,13 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     set({ micMode: mode })
     stopMicMode()
     if (!isMuted && mode !== 'always') {
-      startMicMode(mode)
+      // The previous mode's cleanup (e.g. PTT) unmutes the mic track via an
+      // un-awaited LiveKit `unmute()`, which can internally re-acquire the
+      // MediaStreamTrack (getUserMedia) asynchronously. Starting the new mode
+      // synchronously would let it clone/read a stale track mid-transition
+      // (VAD reading from a dead clone that never gets audio). Same delay
+      // already used for this exact race in toggleMute/toggleDeafen below.
+      setTimeout(() => startMicMode(mode), 300)
     }
   },
 

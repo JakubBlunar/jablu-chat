@@ -3,6 +3,7 @@ export type MicMode = 'always' | 'activity' | 'push-to-talk'
 import { Track } from 'livekit-client'
 import { useSettingsStore } from '@/stores/settings.store'
 import { desktopAPI, isDesktop } from '@/lib/desktop'
+import { showToast } from '@/stores/toast.store'
 
 type RoomGetter = () => import('livekit-client').Room | null
 let _getRoom: RoomGetter = () => null
@@ -96,7 +97,9 @@ function startVAD(): () => void {
   const source = audioCtx.createMediaStreamSource(new MediaStream([analysisTrack]))
   const analyser = audioCtx.createAnalyser()
   analyser.fftSize = 512
-  analyser.smoothingTimeConstant = 0.45
+  // Low smoothing so the reported level tracks the actual onset of speech
+  // almost immediately, instead of ramping up over several frames.
+  analyser.smoothingTimeConstant = 0.1
   source.connect(analyser)
 
   const dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -110,7 +113,7 @@ function startVAD(): () => void {
   let autoThreshold = 0
   const calibrationSamples: number[] = []
   const calibrationStart = performance.now()
-  const CALIBRATION_MS = 1500
+  const CALIBRATION_MS = 600
 
   function getAvg(): number {
     analyser.getByteFrequencyData(dataArray)
@@ -130,7 +133,9 @@ function startVAD(): () => void {
       calibrationSamples.push(avg)
       if (performance.now() - calibrationStart >= CALIBRATION_MS) {
         const ambient = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length
-        autoThreshold = Math.max(Math.round(ambient * 1.8 + 5), 8)
+        // Lower multiplier than before to compensate for the less-smoothed,
+        // spikier signal from the reduced smoothingTimeConstant above.
+        autoThreshold = Math.max(Math.round(ambient * 1.5 + 5), 6)
         calibrated = true
       }
       requestAnimationFrame(tick)
@@ -193,8 +198,16 @@ function startPTT(): (skipUnmute?: boolean) => void {
     const off = api.onPtt((state) => {
       setTrackMuted(state === 'up')
     })
+    // The global listener normally never reports back unless it fails to
+    // start (e.g. a blocked input hook) — surface that instead of leaving
+    // push-to-talk silently non-functional.
+    const offError = api.onPttError((message) => {
+      console.error('[push-to-talk]', message)
+      showToast('Push-to-talk unavailable', message)
+    })
     return (skipUnmute?: boolean) => {
       off()
+      offError()
       void api.clearPtt().catch(() => {})
       if (!skipUnmute) setTrackMuted(false)
     }
