@@ -20,7 +20,7 @@ pub enum Binding {
 /// lazily on first use and stays alive for the process lifetime; enabling/disabling
 /// and rebinding is done by mutating the shared atomics/binding it reads.
 pub struct PttState {
-    started: bool,
+    started: Arc<AtomicBool>,
     enabled: Arc<AtomicBool>,
     pressed: Arc<AtomicBool>,
     binding: Arc<Mutex<Option<Binding>>>,
@@ -29,7 +29,7 @@ pub struct PttState {
 impl Default for PttState {
     fn default() -> Self {
         Self {
-            started: false,
+            started: Arc::new(AtomicBool::new(false)),
             enabled: Arc::new(AtomicBool::new(false)),
             pressed: Arc::new(AtomicBool::new(false)),
             binding: Arc::new(Mutex::new(None)),
@@ -39,22 +39,25 @@ impl Default for PttState {
 
 #[tauri::command]
 pub fn set_ptt_binding(app: AppHandle, state: State<AppState>, binding: Binding) {
-    let mut ptt = state.ptt.lock().unwrap();
+    let ptt = state.ptt.lock().unwrap();
 
     *ptt.binding.lock().unwrap() = Some(binding);
     ptt.enabled.store(true, Ordering::SeqCst);
 
-    if ptt.started {
+    // Only one listener thread should ever be alive at a time. `swap` makes
+    // the check-and-set atomic so concurrent calls can't both spawn one.
+    if ptt.started.swap(true, Ordering::SeqCst) {
         return;
     }
-    ptt.started = true;
 
     let enabled = ptt.enabled.clone();
     let pressed = ptt.pressed.clone();
     let binding = ptt.binding.clone();
+    let started = ptt.started.clone();
     let handle = app.clone();
 
     std::thread::spawn(move || {
+        let error_handle = handle.clone();
         let callback = move |event: rdev::Event| {
             if !enabled.load(Ordering::SeqCst) {
                 return;
@@ -88,8 +91,19 @@ pub fn set_ptt_binding(app: AppHandle, state: State<AppState>, binding: Binding)
             }
         };
 
-        // `rdev::listen` blocks for the lifetime of the process.
-        let _ = rdev::listen(callback);
+        // `rdev::listen` blocks for the lifetime of the process on success; it
+        // only returns if the global hook failed to install (e.g. security
+        // software blocking low-level input hooks). Surface that instead of
+        // silently doing nothing, and clear `started` so a later
+        // `set_ptt_binding` call (e.g. reopening voice settings) can retry.
+        let result = rdev::listen(callback);
+        started.store(false, Ordering::SeqCst);
+        if let Err(err) = result {
+            let message = format!(
+                "Push-to-talk failed to start ({err:?}). Security or antivirus software may be blocking global input hooks."
+            );
+            let _ = error_handle.emit("ptt:error", message);
+        }
     });
 }
 
@@ -205,6 +219,46 @@ fn rdev_key_to_web(key: rdev::Key) -> Option<&'static str> {
         PageDown => "PageDown",
         Insert => "Insert",
         Delete => "Delete",
+        PrintScreen => "PrintScreen",
+        ScrollLock => "ScrollLock",
+        Pause => "Pause",
+        NumLock => "NumLock",
+        // Punctuation/symbol keys (US layout key names, matching what browsers
+        // report in KeyboardEvent.key for these physical keys).
+        BackQuote => "`",
+        Minus => "-",
+        Equal => "=",
+        LeftBracket => "[",
+        RightBracket => "]",
+        BackSlash => "\\",
+        SemiColon => ";",
+        Quote => "'",
+        Comma => ",",
+        Dot => ".",
+        Slash => "/",
+        // Numpad. Browsers report the same key string for numpad and main-row
+        // digits/operators (NumLock-on case), so these intentionally overlap
+        // with the main-row mappings above, consistent with how ControlLeft
+        // and ControlRight already both merge into "Control".
+        KpReturn => "Enter",
+        KpMinus => "-",
+        KpPlus => "+",
+        KpMultiply => "*",
+        KpDivide => "/",
+        Kp0 => "0",
+        Kp1 => "1",
+        Kp2 => "2",
+        Kp3 => "3",
+        Kp4 => "4",
+        Kp5 => "5",
+        Kp6 => "6",
+        Kp7 => "7",
+        Kp8 => "8",
+        Kp9 => "9",
+        KpDelete => "Delete",
+        // IntlBackslash (layout-dependent, no reliable single mapping) and
+        // Function/Unknown (not exposed as a browser KeyboardEvent) are left
+        // unmapped; bindings to these keys will simply never match.
         _ => return None,
     };
     Some(s)

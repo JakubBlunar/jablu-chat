@@ -5,22 +5,9 @@ import { Badge, SectionHeading } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useEventStore } from '@/stores/event.store'
 import { api } from '@/lib/api'
+import { formatEventTime } from '@/lib/eventTime'
 import { CreateEventWizard } from './CreateEventWizard'
 import { EventDetail } from './EventDetail'
-
-function formatEventTime(iso: string): string {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = d.getTime() - now.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-
-  if (days < 0) return `Started ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${time}`
-  if (days === 0) return `Today at ${time}`
-  if (days === 1) return `Tomorrow at ${time}`
-  return `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${time}`
-}
 
 function RecurrenceBadge({ rule }: { rule: string }) {
   const labels: Record<string, string> = {
@@ -171,9 +158,11 @@ function EventCard({
 type Props = {
   serverId: string
   onClose: () => void
+  /** Deep-link straight into a specific event's detail view when the panel opens. */
+  initialEventId?: string
 }
 
-export function EventsPanel({ serverId, onClose }: Props) {
+export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
   const { t } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
   const events = useEventStore((s) => s.events)
@@ -183,7 +172,7 @@ export function EventsPanel({ serverId, onClose }: Props) {
   const fetchEvents = useEventStore((s) => s.fetchEvents)
   const fetchMore = useEventStore((s) => s.fetchMore)
   const [showCreate, setShowCreate] = useState(false)
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEventId ?? null)
 
   useEffect(() => {
     if (loadedServerId !== serverId) {

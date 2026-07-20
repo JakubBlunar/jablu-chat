@@ -49,6 +49,8 @@ export type DesktopAPI = {
   setPttBinding: (binding: PttBinding) => Promise<void>
   clearPtt: () => Promise<void>
   onPtt: (cb: (state: 'down' | 'up') => void) => () => void
+  /** Fires when the global PTT listener fails to start (e.g. blocked hook). */
+  onPttError: (cb: (message: string) => void) => () => void
   // Activity detection (desktop only)
   /** Enable/disable the native detection poll loop. */
   setActivityDetectionEnabled: (enabled: boolean) => Promise<void>
@@ -137,6 +139,7 @@ function buildDesktopAPI(): DesktopAPI {
         offUp()
       }
     },
+    onPttError: (cb) => on<string>('ptt:error', cb),
     setActivityDetectionEnabled: (enabled) =>
       invoke('set_activity_detection_enabled', { enabled }),
     setCustomDetectables: (detectables) =>

@@ -59,6 +59,7 @@ import { DownloadAppBanner } from '@/components/settings/DownloadApp'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { useEventStore } from '@/stores/event.store'
+import { formatEventTime } from '@/lib/eventTime'
 import {
   PlusSmallIcon,
   InviteIcon,
@@ -162,6 +163,7 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
   const [eventsOpen, setEventsOpen] = useState(false)
+  const [eventsInitialId, setEventsInitialId] = useState<string | null>(null)
   const [serverNotifOpen, setServerNotifOpen] = useState(false)
   const [createCategoryId, setCreateCategoryId] = useState<string | null>(null)
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
@@ -241,6 +243,11 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
 
   const eventCount = useEventStore((s) =>
     currentServer && s.loadedServerId === currentServer.id ? s.events.length : 0
+  )
+  // `events` is sorted ascending by startAt and pre-filtered to scheduled/active
+  // by the API, so the first entry is already "the next closest event".
+  const nextEvent = useEventStore((s) =>
+    currentServer && s.loadedServerId === currentServer.id ? s.events[0] ?? null : null
   )
   const fetchEvents = useEventStore((s) => s.fetchEvents)
 
@@ -548,7 +555,10 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
           {currentServer && eventCount > 0 && (
             <button
               type="button"
-              onClick={() => setEventsOpen(true)}
+              onClick={() => {
+                setEventsInitialId(null)
+                setEventsOpen(true)
+              }}
               className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
             >
               <svg className="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -557,6 +567,30 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
               {t('events')}
               <span className="ml-auto rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                 {eventCount}
+              </span>
+            </button>
+          )}
+
+          {currentServer && nextEvent && (
+            <button
+              type="button"
+              onClick={() => {
+                setEventsInitialId(nextEvent.id)
+                setEventsOpen(true)
+              }}
+              className="-mt-0.5 flex w-full items-center gap-2 rounded-lg px-2 py-1 pl-7 text-left text-xs text-gray-500 transition hover:bg-white/5 hover:text-gray-300"
+            >
+              {nextEvent.status === 'active' ? (
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+              ) : (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-500" />
+              )}
+              <span className="truncate">{nextEvent.name}</span>
+              <span className="ml-auto shrink-0 text-[11px] text-gray-500">
+                {nextEvent.status === 'active' ? 'LIVE' : formatEventTime(nextEvent.startAt)}
               </span>
             </button>
           )}
@@ -878,7 +912,14 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
       )}
       {eventsOpen && currentServer && (
         <Suspense fallback={null}>
-          <EventsPanel serverId={currentServer.id} onClose={() => setEventsOpen(false)} />
+          <EventsPanel
+            serverId={currentServer.id}
+            initialEventId={eventsInitialId ?? undefined}
+            onClose={() => {
+              setEventsOpen(false)
+              setEventsInitialId(null)
+            }}
+          />
         </Suspense>
       )}
       {serverNotifOpen && currentServer && (
