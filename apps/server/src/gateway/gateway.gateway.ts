@@ -570,12 +570,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
     client.emit('friends:presence', { onlineFriendIds, friendStatuses })
 
-    // Snapshot of rich activities for people this user can see (server members + friends).
+    // Snapshot of rich activities, scoped to each sharer's sharing rules so a
+    // hidden server never leaks activity on (re)connect. Include a user's
+    // activity only if this client would receive their live broadcast: they
+    // share an eligible (non-hidden) server we're both in, or we're a friend.
     if (this.userActivities.size > 0) {
-      const visible = new Set<string>([...allMemberUserIds, ...friendIds])
+      const myServerIds = new Set(serverIds)
       const activities: Record<string, UserActivity> = {}
       for (const [uid, act] of this.userActivities) {
-        if (visible.has(uid)) activities[uid] = act
+        const scope = await this.getActivityScope(uid)
+        if (!scope.shareEnabled) continue
+        const sharesServer = scope.serverIds.some((sid) => myServerIds.has(sid))
+        const isFriend = scope.friendIds.includes(user.id)
+        if (sharesServer || isFriend) activities[uid] = act
       }
       if (Object.keys(activities).length > 0) {
         client.emit('activity:init', { activities })
