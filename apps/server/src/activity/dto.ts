@@ -31,7 +31,7 @@ export class UpdateActivitySettingsDto {
 export class UpsertRegisteredGameDto {
   @IsString()
   @MaxLength(120)
-  name: string
+  name!: string
 
   @IsOptional()
   @IsEnum(['steam', 'process', 'smtc', 'manual'])
@@ -73,14 +73,19 @@ export class UpdateRegisteredGameDto {
   iconUrl?: string | null
 }
 
+export class SetServerActivityDto {
+  @IsBoolean()
+  hidden!: boolean
+}
+
 export class UploadActivityIconDto {
   /** data:image/...;base64,.... payload of the icon. */
   @IsString()
   @MaxLength(2_000_000)
-  dataUrl: string
+  dataUrl!: string
 
   /** Stable cache key (e.g. executable-name hash) for dedup. */
   @IsString()
   @MaxLength(80)
-  key: string
+  key!: string
 }

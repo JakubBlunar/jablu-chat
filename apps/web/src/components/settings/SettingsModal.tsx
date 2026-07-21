@@ -64,24 +64,24 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  const tabEntries: { key: Tab; label: string; show?: boolean }[] = useMemo(
+  const tabEntries: { key: Tab; label: string; show?: boolean; group: number }[] = useMemo(
     () => [
-      { key: 'account', label: t('tabs.account') },
-      { key: 'profile', label: t('tabs.profile') },
-      { key: 'status', label: t('tabs.status') },
-      { key: 'appearance', label: t('tabs.appearance') },
-      { key: 'privacy', label: t('tabs.privacy') },
-      { key: 'voice', label: t('tabs.voice') },
-      { key: 'notifications', label: t('tabs.notifications') },
-      { key: 'activity-privacy', label: t('tabs.activityStatus'), show: isElectron },
-      { key: 'activity-games', label: t('tabs.registeredGames'), show: isElectron },
-      { key: 'my-bots', label: t('tabs.myBots') },
-      { key: 'sessions', label: t('tabs.sessions') },
-      { key: 'shortcuts', label: t('tabs.shortcuts'), show: !isMobile },
-      { key: 'server', label: t('tabs.server'), show: isElectron },
-      { key: 'desktop', label: t('tabs.desktop'), show: isElectron },
-      { key: 'downloads', label: t('tabs.downloads'), show: !isElectron && !isMobile },
-      { key: 'install', label: t('tabs.install'), show: !isElectron && !getIsStandalone() }
+      { key: 'account', label: t('tabs.account'), group: 1 },
+      { key: 'profile', label: t('tabs.profile'), group: 1 },
+      { key: 'status', label: t('tabs.status'), group: 1 },
+      { key: 'appearance', label: t('tabs.appearance'), group: 2 },
+      { key: 'privacy', label: t('tabs.privacy'), group: 2 },
+      { key: 'voice', label: t('tabs.voice'), group: 2 },
+      { key: 'notifications', label: t('tabs.notifications'), group: 2 },
+      { key: 'activity-privacy', label: t('tabs.activityStatus'), show: isElectron, group: 3 },
+      { key: 'activity-games', label: t('tabs.registeredGames'), show: isElectron, group: 3 },
+      { key: 'my-bots', label: t('tabs.myBots'), group: 4 },
+      { key: 'sessions', label: t('tabs.sessions'), group: 4 },
+      { key: 'shortcuts', label: t('tabs.shortcuts'), show: !isMobile, group: 4 },
+      { key: 'server', label: t('tabs.server'), show: isElectron, group: 5 },
+      { key: 'desktop', label: t('tabs.desktop'), show: isElectron, group: 5 },
+      { key: 'downloads', label: t('tabs.downloads'), show: !isElectron && !isMobile, group: 5 },
+      { key: 'install', label: t('tabs.install'), show: !isElectron && !getIsStandalone(), group: 5 }
     ],
     [t, isMobile]
   )
@@ -174,22 +174,29 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       aria-label={t('title')}
     >
       {/* Left sidebar */}
-      <div className="flex w-56 shrink-0 flex-col items-end bg-surface-dark">
-        <nav className="w-44 space-y-0.5 px-2 py-16" aria-label={t('userSettings')}>
-          <SectionHeading className="mb-1 px-2">{t('userSettings')}</SectionHeading>
-          {visibleTabs.map((te) => (
-            <SidebarButton key={te.key} active={tab === te.key} onClick={() => setTab(te.key)}>
-              {te.label}
-            </SidebarButton>
-          ))}
-          <div className="my-2 border-t border-white/10" />
-          <LogOutButton onClose={onClose} />
-          {isElectron && electronAPI && (
-            <div className="mt-4 border-t border-white/10 pt-4 px-2">
-              <AppVersionInfo />
-            </div>
-          )}
-        </nav>
+      <div className="flex w-56 shrink-0 flex-col bg-surface-dark">
+        <SimpleBar className="min-h-0 flex-1 w-full">
+          <nav className="ml-auto w-44 space-y-0.5 px-2 pt-12 pb-8" aria-label={t('userSettings')}>
+            <SectionHeading className="mb-1 px-2">{t('userSettings')}</SectionHeading>
+            {visibleTabs.map((te, i) => (
+              <div key={te.key}>
+                {i > 0 && visibleTabs[i - 1].group !== te.group && (
+                  <div className="my-2 border-t border-white/10" />
+                )}
+                <SidebarButton active={tab === te.key} onClick={() => setTab(te.key)}>
+                  {te.label}
+                </SidebarButton>
+              </div>
+            ))}
+            <div className="my-2 border-t border-white/10" />
+            <LogOutButton onClose={onClose} />
+            {isElectron && electronAPI && (
+              <div className="mt-4 border-t border-white/10 pt-4 px-2">
+                <AppVersionInfo />
+              </div>
+            )}
+          </nav>
+        </SimpleBar>
       </div>
 
       {/* Main content */}

@@ -320,6 +320,14 @@ export class ApiClient {
     return this.delete(`/api/activity/games/${id}`)
   }
 
+  getActivityServerPrefs(): Promise<{ hiddenServerIds: string[] }> {
+    return this.get('/api/activity/servers')
+  }
+
+  setActivityServerHidden(serverId: string, hidden: boolean): Promise<{ hidden: boolean }> {
+    return this.put(`/api/activity/servers/${serverId}`, { hidden })
+  }
+
   getActivityDetectables(): Promise<GameDetectable[]> {
     return this.get('/api/activity/detectables')
   }

@@ -45,6 +45,9 @@
     "friendsSmallDescription": "Zdieľať iba s priateľmi a členmi menších serverov.",
     "friendsOnlyLabel": "Iba priatelia",
     "friendsOnlyDescription": "Čo hráte alebo počúvate, uvidia iba vaši priatelia.",
+    "perServerTitle": "SKRYŤ NA KONKRÉTNYCH SERVEROCH",
+    "perServerDescription": "Vypnutím servera skryjete svoju aktivitu pred jeho členmi. Vaši priatelia ju stále uvidia.",
+    "perServerEmpty": "Zatiaľ nie ste na žiadnom serveri.",
     "notifications": "OZNÁMENIA",
     "onlineLabel": "Upozorniť priateľov, keď sa prihlásim",
     "onlineDescription": "Dajte priateľom vedieť, keď začnete aplikáciu používať."

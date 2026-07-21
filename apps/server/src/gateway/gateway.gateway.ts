@@ -1162,6 +1162,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     shareGames: boolean
     shareMusic: boolean
     serverIds: string[]
+    /** All servers the user is a member of, regardless of sharing scope. */
+    memberServerIds: string[]
     friendIds: string[]
   }> {
     const [user, memberships, friendIds] = await Promise.all([
@@ -1192,7 +1194,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       if (m.shareActivity === true) include = true
       else if (m.shareActivity === false) include = false
       else if (def === 'friends_all') include = true
-      else if (def === 'friends_small') include = (m.server?._count.members ?? 0) <= 200
+      else if (def === 'friends_small') include = (m.server?._count.members ?? 0) <= 30
       else include = false
       if (include) serverIds.push(m.serverId)
     }
@@ -1202,8 +1204,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       shareGames: user?.activityShareGames ?? true,
       shareMusic: user?.activityShareMusic ?? true,
       serverIds,
+      memberServerIds: memberships.map((m) => m.serverId),
       friendIds
     }
+  }
+
+  /**
+   * Re-emit a user's current activity to a single server room after their
+   * per-server sharing preference changed. Hiding emits `null` (clears the
+   * activity for that server's members); un-hiding re-emits the current one.
+   */
+  async refreshActivityForServer(userId: string, serverId: string) {
+    const scope = await this.getActivityScope(userId)
+    // Not a member -> nothing to emit. Uses the membership set getActivityScope
+    // already loaded, so no extra query. (serverIds alone only lists *shared*
+    // servers, which can't distinguish a hidden member-server from a non-member.)
+    if (!scope.memberServerIds.includes(serverId)) return
+
+    const included = scope.shareEnabled && scope.serverIds.includes(serverId)
+    const activity = included ? this.userActivities.get(userId) ?? null : null
+    this.server.to(`server:${serverId}`).emit('user:activity', { userId, activity })
   }
 
   /** Fan out a user's activity (or null to clear) to friends + eligible servers. */
