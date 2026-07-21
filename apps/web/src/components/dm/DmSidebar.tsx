@@ -5,7 +5,6 @@ import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
 import { useActivityStore } from '@/stores/activity.store'
-import { UserFooter } from '@/components/layout/UserFooter'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useAuthStore } from '@/stores/auth.store'
@@ -17,7 +16,7 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CountBadge } from '@/components/ui'
 import { GroupDmModal } from './GroupDmModal'
 
-export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
+export function DmSidebar() {
   const { t } = useTranslation('nav')
   const user = useAuthStore((s) => s.user)
   const {
@@ -243,8 +242,6 @@ export function DmSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) =
       </SimpleBar>
 
       {voiceChannelId && <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />}
-
-      <UserFooter onOpenSettings={onOpenSettings} className="h-[52px] px-2" />
 
       {groupDmOpen && (
         <GroupDmModal
