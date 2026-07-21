@@ -23,7 +23,6 @@ const ServerSettingsModal = React.lazy(() =>
 const LeaderboardModal = React.lazy(() =>
   import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
 )
-import { UserFooter } from '@/components/layout/UserFooter'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
@@ -78,7 +77,7 @@ const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
 )
 
-export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: string) => void }) {
+export function ChannelSidebar() {
   const { t } = useTranslation('nav')
   const { t: tA11y } = useTranslation('a11y')
   const user = useAuthStore((s) => s.user)
@@ -873,8 +872,6 @@ export function ChannelSidebar({ onOpenSettings }: { onOpenSettings: (tab?: stri
 
         <VoicePanel />
         <DownloadAppBanner />
-
-        <UserFooter onOpenSettings={onOpenSettings} className="h-[52px] px-2" />
       </aside>
 
       {channelModalOpen && (
