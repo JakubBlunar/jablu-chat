@@ -35,6 +35,7 @@ import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useGifStore } from '@/stores/gif.store'
+import { useActivityStore } from '@/stores/activity.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { CommandPalette } from '@/components/CommandPalette'
@@ -210,6 +211,7 @@ export function MainLayout() {
   useEffect(() => {
     void fetchServers()
     if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
+    void useActivityStore.getState().fetchServerPrefs().catch(() => {})
   }, [fetchServers])
 
   useEffect(() => {

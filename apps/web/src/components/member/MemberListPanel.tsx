@@ -4,6 +4,8 @@ import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
 import { useActivityStore } from '@/stores/activity.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { useServerStore } from '@/stores/server.store'
 import { prefetchProfileCard } from '@/stores/profileCard.store'
 import type { Member } from '@/stores/member.store'
 import { getRoleColor } from '@/stores/member.store'
@@ -111,7 +113,17 @@ function MemberRow({
   const roleColor = getRoleColor(member)
   const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
   const isBot = member.user.isBot
-  const activity = useActivityStore((s) => s.activities.get(member.userId))
+  const storedActivity = useActivityStore((s) => s.activities.get(member.userId))
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const currentServerId = useServerStore((s) => s.currentServerId)
+  const hiddenServerIds = useActivityStore((s) => s.hiddenServerIds)
+  // Hide our own activity from ourselves in servers where we've hidden sharing,
+  // so the member list reflects what everyone else on that server actually sees.
+  const selfHiddenHere =
+    member.userId === currentUserId &&
+    !!currentServerId &&
+    hiddenServerIds.includes(currentServerId)
+  const activity = selfHiddenHere ? undefined : storedActivity
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
