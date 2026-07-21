@@ -189,6 +189,12 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on(
+    'activity:server-scope-changed',
+    (payload: { userId: string; serverId: string }) =>
+      gw.refreshActivityForServer(payload.userId, payload.serverId)
+  )
+
+  gw.events.on(
     'webhook:message',
     (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
       gw.emitToChannel(payload.channelId, 'message:new', {

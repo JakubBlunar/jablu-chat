@@ -7,7 +7,8 @@ import type {
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
-import type { RegisteredGame } from '../prisma-client'
+import { EventBusService } from '../events/event-bus.service'
+import { Prisma, type RegisteredGame } from '../prisma-client'
 import { GAME_DETECTABLES } from './detectables'
 import {
   UpdateActivitySettingsDto,
@@ -24,7 +25,8 @@ export class ActivityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly uploads: UploadsService
+    private readonly uploads: UploadsService,
+    private readonly events: EventBusService
   ) {}
 
   async getSettings(userId: string): Promise<ActivitySettings> {
@@ -60,6 +62,39 @@ export class ActivityService {
       }
     })
     return this.getSettings(userId)
+  }
+
+  /** Servers where the user has explicitly hidden activity sharing (shareActivity === false). */
+  async listHiddenServers(userId: string): Promise<{ hiddenServerIds: string[] }> {
+    const rows = await this.prisma.serverMember.findMany({
+      where: { userId, shareActivity: false },
+      select: { serverId: true }
+    })
+    return { hiddenServerIds: rows.map((r) => r.serverId) }
+  }
+
+  /**
+   * Toggle per-server activity sharing. `hidden` writes `shareActivity = false`;
+   * un-hiding resets to `null` (follow the user's default sharing scope).
+   */
+  async setServerHidden(
+    userId: string,
+    serverId: string,
+    hidden: boolean
+  ): Promise<{ hidden: boolean }> {
+    try {
+      await this.prisma.serverMember.update({
+        where: { userId_serverId: { userId, serverId } },
+        data: { shareActivity: hidden ? false : null }
+      })
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new NotFoundException('Server membership not found')
+      }
+      throw err
+    }
+    this.events.emit('activity:server-scope-changed', { userId, serverId })
+    return { hidden }
   }
 
   async listGames(userId: string): Promise<RegisteredGameDto[]> {

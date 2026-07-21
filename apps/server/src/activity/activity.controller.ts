@@ -7,12 +7,14 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards
 } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { ActivityService } from './activity.service'
 import {
+  SetServerActivityDto,
   UpdateActivitySettingsDto,
   UpdateRegisteredGameDto,
   UploadActivityIconDto,
@@ -32,6 +34,20 @@ export class ActivityController {
   @Patch('settings')
   updateSettings(@CurrentUser() user: { id: string }, @Body() dto: UpdateActivitySettingsDto) {
     return this.activity.updateSettings(user.id, dto)
+  }
+
+  @Get('servers')
+  listHiddenServers(@CurrentUser() user: { id: string }) {
+    return this.activity.listHiddenServers(user.id)
+  }
+
+  @Put('servers/:serverId')
+  setServerHidden(
+    @CurrentUser() user: { id: string },
+    @Param('serverId', ParseUUIDPipe) serverId: string,
+    @Body() dto: SetServerActivityDto
+  ) {
+    return this.activity.setServerHidden(user.id, serverId, dto.hidden)
   }
 
   @Get('games')

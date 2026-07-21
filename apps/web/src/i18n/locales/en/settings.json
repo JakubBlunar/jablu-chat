@@ -45,6 +45,9 @@
     "friendsSmallDescription": "Share with friends and members of smaller servers only.",
     "friendsOnlyLabel": "Friends only",
     "friendsOnlyDescription": "Only your friends can see what you are playing or listening to.",
+    "perServerTitle": "HIDE FROM SPECIFIC SERVERS",
+    "perServerDescription": "Turn a server off to hide your activity from its members. Your friends can still see it.",
+    "perServerEmpty": "You are not in any servers yet.",
     "notifications": "NOTIFICATIONS",
     "onlineLabel": "Notify friends when I come online",
     "onlineDescription": "Let your friends know when you start using the app."

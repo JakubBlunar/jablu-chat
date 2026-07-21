@@ -9,6 +9,8 @@ type ActivityState = {
   settings: ActivitySettings | null
   /** Own registered games (desktop). */
   games: RegisteredGame[]
+  /** Server ids where the user has hidden their activity sharing. */
+  hiddenServerIds: string[]
 
   // Display
   setUserActivity: (userId: string, activity: UserActivity | null) => void
@@ -22,12 +24,17 @@ type ActivityState = {
   setGameHidden: (id: string, hidden: boolean) => Promise<void>
   removeGame: (id: string) => Promise<void>
   upsertGameLocal: (game: RegisteredGame) => void
+
+  // Per-server sharing
+  fetchServerPrefs: () => Promise<void>
+  setServerHidden: (serverId: string, hidden: boolean) => Promise<void>
 }
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
   activities: new Map(),
   settings: null,
   games: [],
+  hiddenServerIds: [],
 
   setUserActivity: (userId, activity) =>
     set((s) => {
@@ -86,5 +93,25 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       const next = [...s.games]
       next[idx] = game
       return { games: next }
-    })
+    }),
+
+  fetchServerPrefs: async () => {
+    const { hiddenServerIds } = await api.getActivityServerPrefs()
+    set({ hiddenServerIds })
+  },
+
+  setServerHidden: async (serverId, hidden) => {
+    // Optimistic update so the toggle feels instant.
+    const prev = get().hiddenServerIds
+    const next = hidden
+      ? [...new Set([...prev, serverId])]
+      : prev.filter((id) => id !== serverId)
+    set({ hiddenServerIds: next })
+    try {
+      await api.setActivityServerHidden(serverId, hidden)
+    } catch (err) {
+      set({ hiddenServerIds: prev })
+      throw err
+    }
+  }
 }))
