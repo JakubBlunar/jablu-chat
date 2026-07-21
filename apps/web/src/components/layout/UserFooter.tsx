@@ -27,7 +27,7 @@ export function UserFooter({ onOpenSettings, className, children }: UserFooterPr
   const avatarBtnRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div className={`flex shrink-0 items-center gap-2 bg-surface-overlay ${className ?? ''}`}>
+    <div className={`flex shrink-0 items-center gap-2 bg-surface-darkest ${className ?? ''}`}>
       <button
         ref={avatarBtnRef}
         type="button"

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { InAppNotificationDto } from '@/lib/api/types'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { CountBadge } from '@/components/ui'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useMessageStore } from '@/stores/message.store'
@@ -53,14 +54,14 @@ export function InAppNotificationBell({
   size = 'md'
 }: {
   className?: string
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'rail'
 }) {
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState<{
     left: number
     top?: number
     bottom?: number
-    maxHeight: number
+    height: number
   } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -72,6 +73,7 @@ export function InAppNotificationBell({
   const fetchList = useNotificationCenterStore((s) => s.fetchList)
   const markRead = useNotificationCenterStore((s) => s.markRead)
   const markAllRead = useNotificationCenterStore((s) => s.markAllRead)
+  const showLoading = useDelayedFlag(listLoading)
   const { orchestratedGoToChannel, orchestratedGoToDm, navigate } = useAppNavigate()
 
   useEffect(() => {
@@ -100,10 +102,12 @@ export function InAppNotificationBell({
       const spaceBelow = window.innerHeight - rect.bottom - margin
       const spaceAbove = rect.top - margin
       const openDown = spaceBelow >= 320 || spaceBelow >= spaceAbove
+      const avail = openDown ? spaceBelow : spaceAbove
+      const height = Math.min(460, avail)
       if (openDown) {
-        setPanelPos({ left, top: rect.bottom + gap, maxHeight: spaceBelow })
+        setPanelPos({ left, top: rect.bottom + gap, height })
       } else {
-        setPanelPos({ left, bottom: window.innerHeight - rect.top + gap, maxHeight: spaceAbove })
+        setPanelPos({ left, bottom: window.innerHeight - rect.top + gap, height })
       }
     }
     reposition()
@@ -188,14 +192,17 @@ export function InAppNotificationBell({
     createPortal(
       <div
         ref={panelRef}
-        className="fixed z-[140] flex w-[min(100vw-16px,380px)] flex-col rounded-lg border border-white/10 bg-surface-dark py-2 shadow-xl ring-1 ring-black/40"
+        className="fixed z-[140] flex w-[min(100vw-16px,380px)] flex-col overflow-hidden rounded-lg border border-white/10 bg-surface-dark py-2 shadow-xl ring-1 ring-black/40"
         style={{
           left: panelPos.left,
           top: panelPos.top,
           bottom: panelPos.bottom,
-          maxHeight: panelPos.maxHeight
+          height: panelPos.height
         }}
       >
+        {showLoading && (
+          <span className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/70" />
+        )}
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 pb-2">
           <span className="text-sm font-semibold text-white">Inbox</span>
           {unreadCount > 0 && (
@@ -209,10 +216,21 @@ export function InAppNotificationBell({
           )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {listLoading && items.length === 0 ? (
-            <p className="px-3 py-6 text-center text-sm text-gray-500">Loading…</p>
+          {items.length === 0 && showLoading ? (
+            <ul aria-hidden>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <li key={i} className="flex flex-col gap-1.5 px-3 py-3">
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-white/10" />
+                  <div className="h-2.5 w-1/2 animate-pulse rounded bg-white/[0.06]" />
+                </li>
+              ))}
+            </ul>
+          ) : items.length === 0 && listLoading ? (
+            <div className="h-full" />
           ) : items.length === 0 ? (
-            <p className="px-3 py-6 text-center text-sm text-gray-500">You&apos;re all caught up.</p>
+            <div className="flex h-full items-center justify-center px-3">
+              <p className="text-sm text-gray-500">You&apos;re all caught up.</p>
+            </div>
           ) : (
             <ul>
               {items.map((n) => (
@@ -252,8 +270,8 @@ export function InAppNotificationBell({
       document.body
     )
 
-  const buttonSize = size === 'sm' ? 'h-7 w-7' : 'h-10 w-10'
-  const iconSize = size === 'sm' ? 'h-[18px] w-[18px]' : 'h-5 w-5'
+  const buttonSize = size === 'sm' ? 'h-7 w-7' : size === 'rail' ? 'h-9 w-9' : 'h-10 w-10'
+  const iconSize = size === 'md' ? 'h-5 w-5' : 'h-[18px] w-[18px]'
 
   return (
     <>

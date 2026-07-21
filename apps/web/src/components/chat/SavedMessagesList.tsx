@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { api } from '@/lib/api'
 import { useBookmarkStore } from '@/stores/bookmark.store'
+import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { IconButton } from '@/components/ui'
 
 type BookmarkEntry = {
@@ -19,13 +20,14 @@ type BookmarkEntry = {
   message: Message & { channel?: { id: string; name: string; serverId: string } }
 }
 
-export function SavedMessagesPanel({ onClose, onJump }: {
+export function SavedMessagesList({ onClose, onJump }: {
   onClose: () => void
   onJump?: (messageId: string, opts: { channelId?: string; serverId?: string; conversationId?: string }) => void
 }) {
   const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(false)
+  const showLoading = useDelayedFlag(loading)
   const removeBookmark = useBookmarkStore((s) => s.removeBookmark)
 
   const fetchBookmarks = useCallback(async (cursor?: string) => {
@@ -54,7 +56,10 @@ export function SavedMessagesPanel({ onClose, onJump }: {
   }, [removeBookmark])
 
   return (
-    <div className="absolute right-2 top-14 z-30 flex max-h-[28rem] w-96 max-w-[calc(100vw-1rem)] flex-col rounded-lg bg-surface-dark shadow-2xl ring-1 ring-white/10 sm:right-4">
+    <>
+      {showLoading && (
+        <span className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/70" />
+      )}
       <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
         <h3 className="text-sm font-semibold text-white">Saved Messages</h3>
         <button
@@ -67,14 +72,29 @@ export function SavedMessagesPanel({ onClose, onJump }: {
           </svg>
         </button>
       </div>
-      <SimpleBar className="flex-1">
-        {loading ? (
-          <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
-        ) : bookmarks.length === 0 ? (
-          <p className="p-6 text-center text-sm text-gray-400">
+      {showLoading ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-2.5 px-4 py-3">
+              <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-white/10" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-1/3 animate-pulse rounded bg-white/10" />
+                <div className="h-3 w-4/5 animate-pulse rounded bg-white/[0.06]" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-white/[0.06]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : loading ? (
+        <div className="min-h-0 flex-1" />
+      ) : bookmarks.length === 0 ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
+          <p className="text-sm text-gray-400">
             No saved messages yet. Click the bookmark icon on any message to save it.
           </p>
-        ) : (
+        </div>
+      ) : (
+        <SimpleBar className="min-h-0 flex-1">
           <div className="divide-y divide-white/5">
             {bookmarks.map((b) => {
               const m = b.message
@@ -162,8 +182,8 @@ export function SavedMessagesPanel({ onClose, onJump }: {
               </button>
             )}
           </div>
-        )}
-      </SimpleBar>
-    </div>
+        </SimpleBar>
+      )}
+    </>
   )
 }

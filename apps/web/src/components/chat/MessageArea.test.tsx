@@ -13,7 +13,6 @@ import { useMemberStore } from '@/stores/member.store'
 jest.mock('@/components/chat/MessageSurface', () => ({ MessageSurface: () => null }))
 jest.mock('@/components/chat/UnifiedInput', () => ({ UnifiedInput: () => null }))
 jest.mock('@/components/chat/PinnedPanel', () => ({ PinnedPanel: () => null }))
-jest.mock('@/components/chat/SavedMessagesPanel', () => ({ SavedMessagesPanel: () => null }))
 jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: () => null }))
 jest.mock('@/components/chat/PollCreator', () => ({ PollCreator: () => null }))
 jest.mock('@/components/chat/ChannelInfoPanel', () => ({ ChannelInfoPanel: () => null }))

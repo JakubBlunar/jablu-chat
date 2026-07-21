@@ -1,6 +1,6 @@
 [package]
 name = "jablu-desktop"
-version = "1.0.5"
+version = "1.0.6"
 description = "Jablu Desktop"
 authors = ["Jablu"]
 edition = "2021"
