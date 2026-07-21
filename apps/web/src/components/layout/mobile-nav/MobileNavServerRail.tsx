@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { JoinInviteModal } from '@/components/server/JoinInviteModal'
+import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
+import { SavedMessagesBell } from '@/components/chat/SavedMessagesBell'
+import { isDesktop } from '@/lib/desktop'
 import { resolveMediaUrl } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 import { DmIcon } from './mobileNavIcons'
@@ -12,6 +15,15 @@ function JoinIcon() {
       <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
       <polyline points="10 17 15 12 10 7" />
       <line x1="15" y1="12" x2="3" y2="12" />
+    </svg>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   )
 }
@@ -28,6 +40,7 @@ type Props = {
   computeServerBadge: (serverId: string) => ServerBadge
   onDmClick: () => void
   onServerClick: (server: Server) => void
+  onOpenQuickSwitcher: () => void
 }
 
 export function MobileNavServerRail({
@@ -39,7 +52,8 @@ export function MobileNavServerRail({
   navigatingToServerId,
   computeServerBadge,
   onDmClick,
-  onServerClick
+  onServerClick,
+  onOpenQuickSwitcher
 }: Props) {
   const { t } = useTranslation('nav')
   const [joinOpen, setJoinOpen] = useState(false)
@@ -125,6 +139,22 @@ export function MobileNavServerRail({
             )}
           </div>
         </SimpleBar>
+
+        {!isDesktop && (
+          <SavedMessagesBell size="rail" className="rounded-lg bg-surface" />
+        )}
+        {!isDesktop && (
+          <InAppNotificationBell size="rail" className="rounded-lg bg-surface" />
+        )}
+        <button
+          type="button"
+          title={t('findConversation')}
+          aria-label={t('findConversation')}
+          onClick={onOpenQuickSwitcher}
+          className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-gray-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <SearchIcon />
+        </button>
 
         <button
           type="button"

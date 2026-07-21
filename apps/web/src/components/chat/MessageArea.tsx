@@ -7,7 +7,6 @@ import { MessageSurface } from '@/components/chat/MessageSurface'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PollCreator } from '@/components/chat/PollCreator'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
-import { SavedMessagesPanel } from '@/components/chat/SavedMessagesPanel'
 import { ThreadPanel } from '@/components/chat/ThreadPanel'
 import { DmProfilePanel, UserProfileIcon } from '@/components/dm/DmProfilePanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
@@ -20,7 +19,6 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
-import { useNavigationStore } from '@/stores/navigation.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@chat/shared'
 import { useDmStore } from '@/stores/dm.store'
@@ -51,7 +49,6 @@ import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
 import {
   AtIcon,
-  BookmarkIcon,
   HamburgerIcon,
   HashChannelIcon,
   MembersIcon,
@@ -173,7 +170,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [searchQuery, setSearchQuery] = useState('')
   const [showPollCreator, setShowPollCreator] = useState(false)
   const [commandToast, setCommandToast] = useState<string | null>(null)
-  const [savedOpen, setSavedOpen] = useState(false)
   const [channelInfoOpen, setChannelInfoOpen] = useState(false)
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
 
@@ -326,27 +322,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           onJump={scroll.handleJumpToMessage}
         />
       )}
-      {savedOpen && (
-        <SavedMessagesPanel
-          onClose={() => setSavedOpen(false)}
-          onJump={(messageId, opts) => {
-            setSavedOpen(false)
-            if (opts.conversationId) {
-              void useNavigationStore.getState().navigateToDm({
-                conversationId: opts.conversationId,
-                scrollToMessageId: messageId
-              })
-            } else if (opts.serverId && opts.channelId) {
-              void useNavigationStore.getState().navigateToChannel({
-                serverId: opts.serverId,
-                channelId: opts.channelId,
-                scrollToMessageId: messageId
-              })
-            }
-          }}
-        />
-      )}
-
       <MessageSurface
         scroll={scroll}
         messages={messages}
@@ -499,14 +474,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   className="absolute -right-0.5 -top-0.5"
                 />
               </IconButton>
-              <IconButton
-                label="Saved messages"
-                size="lg"
-                active={savedOpen}
-                onClick={() => setSavedOpen((v) => !v)}
-              >
-                <BookmarkIcon className="h-5 w-5" />
-              </IconButton>
               <NotifBellMenu channelId={activeChannel.id} serverId={activeChannel.serverId} />
               {isAdminOrOwner && (
                 <IconButton
@@ -594,14 +561,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 >
                   <PinnedListIcon />
                 </IconButton>
-                <IconButton
-                  label="Saved messages"
-                  className="shrink-0"
-                  active={savedOpen}
-                  onClick={() => setSavedOpen((v) => !v)}
-                >
-                  <BookmarkIcon className="h-5 w-5" />
-                </IconButton>
                 <div className="shrink-0">
                   <SearchBar
                     searchOpen={searchOpen}
@@ -665,7 +624,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             onClose={() => setDmSheetOpen(false)}
             onProfile={() => { setDmSheetOpen(false); dm.setShowProfile((p) => !p) }}
             onPinned={() => { setDmSheetOpen(false); void pinned.handleOpenPinned() }}
-            onSaved={() => { setDmSheetOpen(false); setSavedOpen(true) }}
             onSearch={() => { setDmSheetOpen(false); setSearchOpen(true) }}
           />
         )}
@@ -732,10 +690,6 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           onSearch={() => {
             setChannelInfoOpen(false)
             setSearchOpen(true)
-          }}
-          onSaved={() => {
-            setChannelInfoOpen(false)
-            setSavedOpen(true)
           }}
           onSettings={() => {
             setChannelInfoOpen(false)

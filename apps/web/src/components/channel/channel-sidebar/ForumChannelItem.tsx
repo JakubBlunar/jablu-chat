@@ -18,7 +18,8 @@ export function ForumChannelItem({
   handleChannelTouchEnd,
   handleChannelTouchMove,
   handleChannelContextMenu,
-  compact = false
+  compact = false,
+  onSelect
 }: {
   ch: Channel
   active: boolean
@@ -32,6 +33,7 @@ export function ForumChannelItem({
   handleChannelTouchMove: () => void
   handleChannelContextMenu: (e: React.MouseEvent) => void
   compact?: boolean
+  onSelect?: () => void
 }) {
   const badge = computeChannelBadge(channelReadStates.get(ch.id), getNotifLevel(ch.id) as NotifLevel, active)
   const { showUnread: showUnreadDot, mentionCount, hasIndicator } = badge
@@ -49,6 +51,7 @@ export function ForumChannelItem({
           }
           if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
           useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+          onSelect?.()
         }}
         onTouchStart={() => handleChannelTouchStart(ch)}
         onTouchEnd={handleChannelTouchEnd}

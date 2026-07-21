@@ -8,8 +8,6 @@ import { MobileDrawer } from '@/components/layout/MobileDrawer'
 import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
 import { HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
 import { UserFooter } from '@/components/layout/UserFooter'
-import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
-import { isDesktop } from '@/lib/desktop'
 import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
@@ -321,7 +319,8 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
   return (
     <>
       <MobileDrawer open={open} onClose={close} side="left" width="w-[min(100vw,28rem)]">
-        <div className="flex h-full min-h-0 flex-row bg-surface-dark" onContextMenu={(e) => e.preventDefault()}>
+        <div className="flex h-full min-h-0 flex-col bg-surface-dark" onContextMenu={(e) => e.preventDefault()}>
+          <div className="flex min-h-0 flex-1 flex-row">
           <MobileNavServerRail
             viewMode={viewMode}
             servers={servers}
@@ -332,6 +331,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
             computeServerBadge={computeServerBadgeFn}
             onDmClick={handleDmClick}
             onServerClick={handleServerClick}
+            onOpenQuickSwitcher={() => { close(); onOpenQuickSwitcher() }}
           />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-dark">
@@ -499,6 +499,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                                   handleChannelTouchEnd={handleChannelTouchEnd}
                                   handleChannelTouchMove={handleChannelTouchMove}
                                   handleChannelContextMenu={handleChannelContextMenu}
+                                  onSelect={close}
                                 />
                               ))}
                             </ul>
@@ -598,6 +599,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                           handleChannelTouchEnd={handleChannelTouchEnd}
                           handleChannelTouchMove={handleChannelTouchMove}
                           handleChannelContextMenu={handleChannelContextMenu}
+                          onSelect={close}
                         />
                       ))}
                     </ul>
@@ -687,26 +689,14 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
           {/* Voice panel */}
           <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />
+          </div>
+          </div>
 
-          {/* User footer */}
+          {/* User footer spans the full drawer width, below the rail + list */}
           <UserFooter
             onOpenSettings={(tab) => { close(); onOpenSettings(tab) }}
-            className="border-t border-black/20 px-3 py-2"
-          >
-            {!isDesktop && <InAppNotificationBell size="sm" />}
-            <IconButton
-              label="Quick switcher"
-              size="md"
-              onClick={() => { close(); onOpenQuickSwitcher() }}
-              className="rounded-md"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </IconButton>
-          </UserFooter>
-          </div>
+            className="px-3 py-2"
+          />
         </div>
       </MobileDrawer>
 

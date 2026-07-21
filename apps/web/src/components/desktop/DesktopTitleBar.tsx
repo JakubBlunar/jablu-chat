@@ -1,4 +1,5 @@
 import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
+import { SavedMessagesBell } from '@/components/chat/SavedMessagesBell'
 import { useNavHistory } from '@/hooks/useNavHistory'
 import { useSideButtonNavigation } from '@/hooks/useSideButtonNavigation'
 import { useTaskbarAttention } from '@/hooks/useTaskbarAttention'
@@ -94,7 +95,8 @@ export function DesktopTitleBar() {
         </div>
 
         {isAuthenticated && (
-          <span style={{ pointerEvents: 'auto' }} className="shrink-0">
+          <span style={{ pointerEvents: 'auto' }} className="flex shrink-0 items-center">
+            <SavedMessagesBell size="sm" />
             <InAppNotificationBell size="sm" className="mr-1" />
           </span>
         )}

@@ -5,7 +5,7 @@ import SimpleBar from 'simplebar-react'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
-import { BookmarkIcon, SearchIcon, SettingsCogIcon } from '@/components/chat/chatIcons'
+import { SearchIcon, SettingsCogIcon } from '@/components/chat/chatIcons'
 import { MemberListPanel } from '@/components/member/MemberListPanel'
 import type { Member } from '@/stores/member.store'
 import { getTopRole, getRoleColor, useMemberStore } from '@/stores/member.store'
@@ -34,7 +34,6 @@ export function ChannelInfoPanel({
   pinnedCount,
   isAdmin,
   onSearch,
-  onSaved,
   onSettings,
   loadPinned,
   pinnedMessages,
@@ -54,7 +53,6 @@ export function ChannelInfoPanel({
   pinnedCount: number
   isAdmin: boolean
   onSearch: () => void
-  onSaved: () => void
   onSettings: () => void
   loadPinned: () => Promise<void>
   pinnedMessages: Message[]
@@ -147,15 +145,6 @@ export function ChannelInfoPanel({
                 </div>
                 <span className="text-center text-[11px] text-gray-400">{t('channelInfoActionNotifications')}</span>
               </div>
-              <ActionTile
-                label={t('channelInfoActionSaved')}
-                onClick={() => {
-                  onClose()
-                  onSaved()
-                }}
-              >
-                <BookmarkIcon className="h-6 w-6" />
-              </ActionTile>
               {isAdmin && (
                 <ActionTile
                   label={t('channelInfoActionSettings')}
