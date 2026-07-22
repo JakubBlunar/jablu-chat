@@ -14,7 +14,16 @@ const LEVELS: { value: NotifLevel; label: string; desc: string }[] = [
   { value: 'none', label: 'Muted', desc: 'No notifications' }
 ]
 
-export function NotifBellMenu({ channelId, serverId }: { channelId: string; serverId?: string }) {
+export function NotifBellMenu({
+  channelId,
+  serverId,
+  triggerClassName = 'relative h-10 w-10 shrink-0'
+}: {
+  channelId: string
+  serverId?: string
+  /** Override the trigger button box (e.g. to match a toolbar's icon sizing). */
+  triggerClassName?: string
+}) {
   const [open, setOpen] = useState(false)
   const storeLevel = useNotifPrefStore((s) => s.getEffective(channelId, serverId))
   const [optimistic, setOptimistic] = useState<NotifLevel | null>(null)
@@ -84,7 +93,7 @@ export function NotifBellMenu({ channelId, serverId }: { channelId: string; serv
           setOpen((p) => !p)
         }}
         className={cn(
-          'relative h-10 w-10 shrink-0',
+          triggerClassName,
           isMuted && 'text-gray-500',
           isMentions && 'text-yellow-500'
         )}

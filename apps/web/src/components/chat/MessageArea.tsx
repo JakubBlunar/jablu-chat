@@ -460,7 +460,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             </div>
           )}
           {!isMobile && (
-            <>
+            <div className="flex shrink-0 items-center gap-0.5">
               <IconButton
                 label="Pinned messages"
                 size="lg"
@@ -474,7 +474,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   className="absolute -right-0.5 -top-0.5"
                 />
               </IconButton>
-              <NotifBellMenu channelId={activeChannel.id} serverId={activeChannel.serverId} />
+              <NotifBellMenu
+                channelId={activeChannel.id}
+                serverId={activeChannel.serverId}
+                triggerClassName="relative shrink-0"
+              />
               {isAdminOrOwner && (
                 <IconButton
                   label="Channel settings"
@@ -504,7 +508,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   setSearchQuery('')
                 }}
               />
-            </>
+            </div>
           )}
         </>
       ) : (
