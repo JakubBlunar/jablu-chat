@@ -70,4 +70,21 @@ describe('notifBody', () => {
     const msg = makeMsg({ content: null, attachments: [{ type: 'image' }] as any })
     expect(notifBody(msg)).toBe('sent an image')
   })
+
+  it('strips HTML/color tokens from the preview', () => {
+    const msg = makeMsg({ content: '<span style="color:#F6F6F6">Hello</span>' })
+    const body = notifBody(msg)
+    expect(body).toBe('Hello')
+    expect(body).not.toContain('#F6F6F6')
+  })
+
+  it('strips markdown markup from the preview', () => {
+    const msg = makeMsg({ content: '**bold** _italic_ [link](https://x.com)' })
+    expect(notifBody(msg)).toBe('bold italic link')
+  })
+
+  it('falls back to attachments when content is only markup', () => {
+    const msg = makeMsg({ content: '<span></span>', attachments: [{ type: 'image' }] as any })
+    expect(notifBody(msg)).toBe('sent an image')
+  })
 })

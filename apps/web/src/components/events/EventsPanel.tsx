@@ -5,7 +5,7 @@ import { Badge, SectionHeading } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useEventStore } from '@/stores/event.store'
 import { api } from '@/lib/api'
-import { formatEventTime } from '@/lib/eventTime'
+import { formatEventSchedule } from '@/lib/eventTime'
 import { CreateEventWizard } from './CreateEventWizard'
 import { EventDetail } from './EventDetail'
 
@@ -61,7 +61,9 @@ function EventCard({
 
       <h4 className="truncate text-sm font-semibold text-white">{event.name}</h4>
 
-      <p className="mt-0.5 text-xs text-gray-400">{formatEventTime(event.startAt)}</p>
+      <p className="mt-0.5 text-xs text-gray-400">
+        {formatEventSchedule(event.startAt, event.endAt, event.status)}
+      </p>
 
       {event.description && (
         <p className="mt-1 line-clamp-2 text-xs text-gray-500">{event.description}</p>

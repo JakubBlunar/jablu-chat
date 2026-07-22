@@ -1,4 +1,4 @@
-import type { Message } from '@chat/shared'
+import { messagePreviewText, type Message } from '@chat/shared'
 
 export function describeAttachments(msg: Message): string {
   const attachments = msg.attachments
@@ -14,6 +14,7 @@ export function describeAttachments(msg: Message): string {
 }
 
 export function notifBody(msg: Message): string {
-  if (msg.content && msg.content.trim()) return msg.content.slice(0, 100)
+  const preview = messagePreviewText(msg.content)
+  if (preview) return preview
   return describeAttachments(msg)
 }

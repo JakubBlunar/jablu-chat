@@ -10,6 +10,9 @@ import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useEventStore } from '@/stores/event.store'
 import { UserAvatar } from '@/components/UserAvatar'
+import { isoToLocalDatetimeString, localToISO } from '@/lib/eventDuration'
+import { formatDuration } from '@/lib/eventTime'
+import { EventScheduleFields } from './EventScheduleFields'
 
 function formatFullTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -21,6 +24,10 @@ function formatFullTime(iso: string): string {
     minute: '2-digit',
     hour12: false
   })
+}
+
+function formatTimeOnly(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 type Props = {
@@ -42,6 +49,8 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState(event.name)
   const [editDescription, setEditDescription] = useState(event.description ?? '')
+  const [editStartLocal, setEditStartLocal] = useState(() => isoToLocalDatetimeString(event.startAt))
+  const [editEndISO, setEditEndISO] = useState<string | null>(event.endAt ?? null)
   const [editError, setEditError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -90,6 +99,21 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
       const input: UpdateEventInput = {}
       if (editName.trim() !== event.name) input.name = editName.trim()
       if ((editDescription.trim() || null) !== event.description) input.description = editDescription.trim() || null
+
+      const startISO = localToISO(editStartLocal)
+      if (!startISO) {
+        setEditError('A valid start time is required')
+        setSaving(false)
+        return
+      }
+      if (startISO !== event.startAt) input.startAt = startISO
+      if ((editEndISO ?? null) !== (event.endAt ?? null)) input.endAt = editEndISO
+      if (editEndISO && new Date(editEndISO).getTime() <= new Date(startISO).getTime()) {
+        setEditError('End time must be after start time')
+        setSaving(false)
+        return
+      }
+
       if (Object.keys(input).length === 0) {
         setIsEditing(false)
         return
@@ -102,7 +126,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
     } finally {
       setSaving(false)
     }
-  }, [serverId, event, editName, editDescription])
+  }, [serverId, event, editName, editDescription, editStartLocal, editEndISO])
 
   const handleCancelConfirmed = useCallback(async () => {
     setShowCancelConfirm(false)
@@ -180,6 +204,12 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               placeholder="Description..."
               className="rounded-lg ring-white/10 focus:ring-primary"
             />
+            <EventScheduleFields
+              startLocal={editStartLocal}
+              onStartChange={setEditStartLocal}
+              endISO={editEndISO}
+              onEndChange={setEditEndISO}
+            />
             {editError && <div className="rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400">{editError}</div>}
             <div className="flex gap-2">
               <Button
@@ -198,6 +228,9 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                   setIsEditing(false)
                   setEditName(event.name)
                   setEditDescription(event.description ?? '')
+                  setEditStartLocal(isoToLocalDatetimeString(event.startAt))
+                  setEditEndISO(event.endAt ?? null)
+                  setEditError(null)
                 }}
                 className="rounded-lg bg-white/5 hover:bg-white/10"
               >
@@ -218,8 +251,15 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <div>
-              <div>{formatFullTime(event.startAt)}</div>
-              {event.endAt && <div className="text-xs text-gray-500">Ends: {formatFullTime(event.endAt)}</div>}
+              <div>
+                {formatFullTime(event.startAt)}
+                {event.endAt && <span> - {formatTimeOnly(event.endAt)}</span>}
+              </div>
+              {event.endAt && (
+                <div className="text-xs text-gray-500">
+                  {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())}
+                </div>
+              )}
             </div>
           </div>
 

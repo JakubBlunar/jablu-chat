@@ -58,7 +58,7 @@ import { DownloadAppBanner } from '@/components/settings/DownloadApp'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { useEventStore } from '@/stores/event.store'
-import { formatEventTime } from '@/lib/eventTime'
+import { formatEventSchedule } from '@/lib/eventTime'
 import {
   PlusSmallIcon,
   InviteIcon,
@@ -243,11 +243,19 @@ export function ChannelSidebar() {
   const eventCount = useEventStore((s) =>
     currentServer && s.loadedServerId === currentServer.id ? s.events.length : 0
   )
-  // `events` is sorted ascending by startAt and pre-filtered to scheduled/active
-  // by the API, so the first entry is already "the next closest event".
-  const nextEvent = useEventStore((s) =>
-    currentServer && s.loadedServerId === currentServer.id ? s.events[0] ?? null : null
-  )
+  // `events` is sorted ascending by startAt. Pick the first that is happening
+  // now (active) or hasn't ended yet, so a stale past instance never shows.
+  const nextEvent = useEventStore((s) => {
+    if (!currentServer || s.loadedServerId !== currentServer.id) return null
+    const now = Date.now()
+    return (
+      s.events.find(
+        (e) =>
+          e.status === 'active' ||
+          new Date(e.endAt ?? e.startAt).getTime() >= now
+      ) ?? null
+    )
+  })
   const fetchEvents = useEventStore((s) => s.fetchEvents)
 
   useEffect(() => {
@@ -589,7 +597,9 @@ export function ChannelSidebar() {
               )}
               <span className="truncate">{nextEvent.name}</span>
               <span className="ml-auto shrink-0 text-[11px] text-gray-500">
-                {nextEvent.status === 'active' ? 'LIVE' : formatEventTime(nextEvent.startAt)}
+                {nextEvent.status === 'active'
+                  ? 'LIVE'
+                  : formatEventSchedule(nextEvent.startAt, nextEvent.endAt, nextEvent.status)}
               </span>
             </button>
           )}
