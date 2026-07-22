@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/lib/api'
 import type { CustomEmoji } from '@/lib/api/types'
-import { getSocket } from '@/lib/socket'
+import { toggleMessageReaction } from '@/lib/reactions'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -170,12 +170,13 @@ export function ReactionPill({
       longPressFired.current = false
       return
     }
-    getSocket()?.emit('reaction:toggle', {
+    toggleMessageReaction({
+      mode,
       messageId,
       emoji: reaction.emoji,
       isCustom: reaction.isCustom
     })
-  }, [messageId, reaction.emoji, reaction.isCustom])
+  }, [mode, messageId, reaction.emoji, reaction.isCustom])
 
   const handleOthersClick = useCallback(
     (e: React.MouseEvent) => {
@@ -204,13 +205,15 @@ export function ReactionPill({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${
+        className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition ${
           isMine
             ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
             : 'bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover'
         }`}
       >
-        <ReactionEmoji emoji={reaction.emoji} isCustom={reaction.isCustom} customEmojiMap={customEmojiMap} />
+        <span className="text-[1.125rem] leading-none">
+          <ReactionEmoji emoji={reaction.emoji} isCustom={reaction.isCustom} customEmojiMap={customEmojiMap} />
+        </span>
         <span className="font-medium">{reaction.count}</span>
       </button>
 
@@ -262,7 +265,7 @@ export function ReactionEmoji({
         src={resolveMediaUrl(customEmoji.imageUrl)}
         alt={`:${emoji}:`}
         title={`:${emoji}:`}
-        className="h-4 w-4 object-contain"
+        className="h-5 w-5 object-contain"
         loading="lazy"
       />
     )

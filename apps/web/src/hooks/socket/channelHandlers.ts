@@ -92,6 +92,8 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       if ((threadMsg?.threadParentId && currentForumPostId === threadMsg.threadParentId) || currentForumPostId) {
         window.dispatchEvent(new CustomEvent('forum-reply:reaction-add', { detail: payload }))
       }
+      // Guarded no-ops in whichever store doesn't hold the message.
+      useThreadStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
       useMessageStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
     }
   }
@@ -105,6 +107,8 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       if ((threadMsg?.threadParentId && currentForumPostId === threadMsg.threadParentId) || currentForumPostId) {
         window.dispatchEvent(new CustomEvent('forum-reply:reaction-remove', { detail: payload }))
       }
+      // Guarded no-ops in whichever store doesn't hold the message.
+      useThreadStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId)
       useMessageStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId)
     }
   }

@@ -24,6 +24,8 @@ interface ForumReplyState {
   addMessage: (msg: Message) => void
   updateMessage: (msg: Message) => void
   removeMessage: (msgId: string) => void
+  addReaction: (messageId: string, emoji: string, userId: string, isCustom?: boolean) => void
+  removeReaction: (messageId: string, emoji: string, userId: string) => void
 }
 
 export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
@@ -155,5 +157,52 @@ export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
     set((s) => ({
       messages: s.messages.filter((m) => m.id !== msgId)
     }))
+  },
+
+  addReaction: (messageId, emoji, userId, isCustom) => {
+    set((s) => {
+      if (!s.messages.some((m) => m.id === messageId)) return s
+      return {
+        messages: s.messages.map((m) => {
+          if (m.id !== messageId) return m
+          const reactions = [...(m.reactions ?? [])]
+          const existing = reactions.find((r) => r.emoji === emoji)
+          if (existing) {
+            if (!existing.userIds.includes(userId)) {
+              return {
+                ...m,
+                reactions: reactions.map((r) =>
+                  r.emoji === emoji ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] } : r
+                )
+              }
+            }
+            return m
+          }
+          return {
+            ...m,
+            reactions: [...reactions, { emoji, count: 1, userIds: [userId], isCustom: isCustom ?? false }]
+          }
+        })
+      }
+    })
+  },
+
+  removeReaction: (messageId, emoji, userId) => {
+    set((s) => {
+      if (!s.messages.some((m) => m.id === messageId)) return s
+      return {
+        messages: s.messages.map((m) => {
+          if (m.id !== messageId) return m
+          const reactions = (m.reactions ?? [])
+            .map((r) => {
+              if (r.emoji !== emoji) return r
+              const uids = r.userIds.filter((id) => id !== userId)
+              return { ...r, count: uids.length, userIds: uids }
+            })
+            .filter((r) => r.count > 0)
+          return { ...m, reactions }
+        })
+      }
+    })
   }
 }))

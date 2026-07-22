@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
+import { toggleMessageReaction } from '@/lib/reactions'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { SheetBtn } from '@/components/ui/SheetBtn'
@@ -12,6 +13,7 @@ import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { addRecentReaction } from '@/stores/reactions.store'
 import {
   BookmarkIcon,
   CopyIcon,
@@ -105,10 +107,11 @@ export function MobileMessageDrawer({
 
   const handleReaction = useCallback(
     (emoji: string) => {
-      getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji })
+      toggleMessageReaction({ mode, messageId: message.id, emoji })
+      addRecentReaction(emoji)
       close()
     },
-    [message.id, close]
+    [mode, message.id, close]
   )
 
   const handleReply = useCallback(() => {
