@@ -16,6 +16,8 @@ import { PollDisplay } from '@/components/chat/PollDisplay'
 import { ReactionPill } from '@/components/chat/ReactionPill'
 import { ReactionDetailsModal } from '@/components/chat/ReactionDetailsModal'
 import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
+import { addRecentReaction } from '@/stores/reactions.store'
+import { toggleMessageReaction } from '@/lib/reactions'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
@@ -26,17 +28,7 @@ import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
-import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
-import { ConfirmDialog, IconButton } from '@/components/ui'
-import {
-  EditIcon,
-  LinkIcon,
-  MessagePinIcon,
-  ReplyIcon,
-  ShareIcon,
-  SmileIcon,
-  TrashIcon,
-} from '@/components/chat/chatIcons'
+import { ReplyIcon } from '@/components/chat/chatIcons'
 
 const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -123,52 +115,12 @@ export const MessageRow = memo(function MessageRow({
     [emojiArr]
   )
 
-  const dmShareUrl = useMemo(() => {
-    if (!isDm) return null
-    return getMessageShareUrl(
-      buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id })
-    )
-  }, [isDm, contextId, message.id])
-
-  const copyDmMessageLink = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!dmShareUrl) return
-      void navigator.clipboard.writeText(dmShareUrl).then(
-        () => showToast('Link copied', 'Anyone with this link can jump to the message after signing in.'),
-        () => showToast('Copy failed', 'Could not copy to clipboard.')
-      )
-    },
-    [dmShareUrl]
-  )
-
-  const shareDmMessage = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (!dmShareUrl) return
-      if (typeof navigator.share === 'function') {
-        try {
-          await navigator.share({ title: 'Direct message', url: dmShareUrl })
-          return
-        } catch (err) {
-          if ((err as { name?: string }).name === 'AbortError') return
-        }
-      }
-      copyDmMessageLink(e)
-    },
-    [dmShareUrl, copyDmMessageLink]
-  )
   const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(message.content ?? '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [emojiOpen, setEmojiOpen] = useState(false)
-  const [pickerAbove, setPickerAbove] = useState(true)
-  const actionsRef = useRef<HTMLDivElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const deleteBtnRef = useRef<HTMLButtonElement>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -203,15 +155,6 @@ export const MessageRow = memo(function MessageRow({
     }
     setEditing(false)
   }, [editValue, message.id, message.content, isDm, contextId])
-
-  const handleDelete = useCallback(() => {
-    if (isDm) {
-      getSocket()?.emit('dm:delete', { messageId: message.id, conversationId: contextId })
-    } else {
-      getSocket()?.emit('message:delete', { messageId: message.id })
-    }
-    setShowDeleteConfirm(false)
-  }, [message.id, isDm, contextId])
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -277,7 +220,7 @@ export const MessageRow = memo(function MessageRow({
       onContextMenu={handleContextMenu}
       className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition ${
         editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
-      } ${showHead ? 'mt-3 first:mt-1' : '-mt-0.5'}`}
+      } ${showHead ? 'mt-4 first:mt-1' : '-mt-0.5'}`}
     >
       {drawerOpen && (
         <MobileMessageDrawer
@@ -297,122 +240,21 @@ export const MessageRow = memo(function MessageRow({
       {mobileEmojiPicker && (
         <MobileEmojiPickerOverlay
           messageId={message.id}
+          mode={mode}
           onClose={() => setMobileEmojiPicker(false)}
         />
       )}
-      {!editing && !isMobile &&
-        (!isDm ? (
-          <MessageActions
-            message={message}
-            channelId={contextId}
-            onEdit={handleStartEdit}
-            onReply={() => onReply(message)}
-            hidePinAction={hidePinAction}
-            hideBookmarkAction={hideBookmarkAction}
-          />
-        ) : (
-          <div ref={actionsRef} className="absolute -top-3 right-2 z-10 flex items-start">
-            <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              <IconButton
-                label="React"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (actionsRef.current) {
-                    const rect = actionsRef.current.getBoundingClientRect()
-                    setPickerAbove(rect.top > 460)
-                  }
-                  setEmojiOpen((p) => !p)
-                }}
-              >
-                <SmileIcon />
-              </IconButton>
-              <IconButton
-                label="Reply"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onReply(message)
-                }}
-              >
-                <ReplyIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} />
-              </IconButton>
-              {dmShareUrl && (
-                <IconButton label="Copy message link" onClick={copyDmMessageLink}>
-                  <LinkIcon className="h-4 w-4" />
-                </IconButton>
-              )}
-              {dmShareUrl && (
-                <IconButton label="Share message" onClick={(e) => void shareDmMessage(e)}>
-                  <ShareIcon />
-                </IconButton>
-              )}
-              <IconButton
-                label={message.pinned ? 'Unpin' : 'Pin'}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const event = message.pinned ? 'dm:unpin' : 'dm:pin'
-                  getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
-                }}
-              >
-                <MessagePinIcon />
-              </IconButton>
-              {isAuthor && (
-                <>
-                  <IconButton
-                    label="Edit"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleStartEdit()
-                    }}
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    ref={deleteBtnRef}
-                    label="Delete"
-                    variant="danger"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowDeleteConfirm(true)
-                    }}
-                  >
-                    <TrashIcon />
-                  </IconButton>
-                </>
-              )}
-            </div>
-            {showDeleteConfirm && (
-              <ConfirmDialog
-                title="Delete Message"
-                description="Are you sure? This cannot be undone."
-                confirmLabel="Delete"
-                anchorRef={deleteBtnRef}
-                onConfirm={handleDelete}
-                onCancel={() => setShowDeleteConfirm(false)}
-              />
-            )}
-            {emojiOpen && (
-              <div className={`absolute right-0 z-50 ${pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'}`}>
-                <ErrorBoundary
-                  fallback={null}
-                  onError={() => {
-                    setEmojiOpen(false)
-                    showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
-                  }}
-                >
-                  <Suspense fallback={<ReactionPickerLoading />}>
-                    <EmojiPicker
-                      onSelect={(emoji) => {
-                        getSocket()?.emit('reaction:toggle', { messageId: message.id, emoji })
-                        setEmojiOpen(false)
-                      }}
-                      onClose={() => setEmojiOpen(false)}
-                    />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-            )}
-          </div>
-        ))}
+      {!editing && !isMobile && (
+        <MessageActions
+          message={message}
+          mode={mode}
+          contextId={contextId}
+          onEdit={isAuthor ? handleStartEdit : undefined}
+          onReply={() => onReply(message)}
+          hidePinAction={hidePinAction}
+          hideBookmarkAction={hideBookmarkAction}
+        />
+      )}
 
       {showHead ? (
         isWebhook ? (
@@ -629,24 +471,33 @@ export const MessageRow = memo(function MessageRow({
   )
 })
 
-function MobileEmojiPickerOverlay({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+function MobileEmojiPickerOverlay({
+  messageId,
+  mode,
+  onClose
+}: {
+  messageId: string
+  mode: 'channel' | 'dm'
+  onClose: () => void
+}) {
   const serverId = useServerStore((s) => s.currentServerId)
   const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
 
   const handleReaction = useCallback(
     (emoji: string) => {
-      getSocket()?.emit('reaction:toggle', { messageId, emoji })
+      toggleMessageReaction({ mode, messageId, emoji })
+      addRecentReaction(emoji)
       onClose()
     },
-    [messageId, onClose]
+    [mode, messageId, onClose]
   )
 
   const handleCustomReaction = useCallback(
     (name: string) => {
-      getSocket()?.emit('reaction:toggle', { messageId, emoji: name, isCustom: true })
+      toggleMessageReaction({ mode, messageId, emoji: name, isCustom: true })
       onClose()
     },
-    [messageId, onClose]
+    [mode, messageId, onClose]
   )
 
   return (

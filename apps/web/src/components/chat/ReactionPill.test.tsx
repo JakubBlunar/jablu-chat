@@ -60,11 +60,15 @@ describe('ReactionPill', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '🔥 1' }))
 
-    expect(mockEmit).toHaveBeenCalledWith('reaction:toggle', {
-      messageId: 'msg-1',
-      emoji: '🔥',
-      isCustom: false
-    })
+    expect(mockEmit).toHaveBeenCalledWith(
+      'reaction:toggle',
+      {
+        messageId: 'msg-1',
+        emoji: '🔥',
+        isCustom: false
+      },
+      expect.any(Function)
+    )
   })
 
   it('marks the pill as pressed when the current user has reacted', () => {

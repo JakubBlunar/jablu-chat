@@ -108,6 +108,17 @@ export function BookmarkIcon({
   )
 }
 
+/** Overflow / "more actions" (horizontal ellipsis). */
+export function MoreIcon({ className = 'h-4 w-4', ...rest }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden={true} {...rest}>
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
+  )
+}
+
 export function CopyIcon({ className = 'h-5 w-5', strokeWidth = 2, ...rest }: IconProps) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth} {...rest}>

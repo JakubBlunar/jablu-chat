@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { lazyWithRetry } from '@/lib/lazyWithRetry'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui'
@@ -18,9 +19,11 @@ import { ConfirmDialog } from '@/components/ui'
 import { IconButton } from '@/components/ui/IconButton'
 import {
   BookmarkIcon,
+  CopyIcon,
   EditIcon,
   ForwardIcon,
   LinkIcon,
+  MoreIcon,
   ShareIcon,
   MessagePinIcon,
   ReplyIcon,
@@ -29,12 +32,15 @@ import {
   TrashIcon,
 } from '@/components/chat/chatIcons'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
+import { MessageActionsMenu, type MessageMenuItem } from '@/components/chat/MessageActionsMenu'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
+import { toggleMessageReaction } from '@/lib/reactions'
 import { useAuthStore } from '@/stores/auth.store'
 import { useShallow } from 'zustand/react/shallow'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
+import { addRecentReaction, useRecentReactions } from '@/stores/reactions.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
@@ -43,7 +49,10 @@ import { useThreadStore } from '@/stores/thread.store'
 
 interface MessageActionsProps {
   message: Message
-  channelId: string
+  /** Channel messages vs direct messages. */
+  mode: 'channel' | 'dm'
+  /** channelId (channel mode) or conversationId (dm mode). */
+  contextId: string
   onEdit?: () => void
   onReply?: () => void
   hidePinAction?: boolean
@@ -52,22 +61,27 @@ interface MessageActionsProps {
 
 export function MessageActions({
   message,
-  channelId,
+  mode,
+  contextId,
   onEdit,
   onReply,
   hidePinAction,
   hideBookmarkAction
 }: MessageActionsProps) {
+  const { t } = useTranslation('chat')
+  const isDm = mode === 'dm'
   const userId = useAuthStore((s) => s.user?.id)
   const serverId = useServerStore((s) => s.currentServerId)
   const channelLabel = useChannelStore((s) => {
-    const ch = s.channels.find((c) => c.id === channelId)
+    if (isDm) return null
+    const ch = s.channels.find((c) => c.id === contextId)
     return ch ? `#${ch.name}` : '#channel'
   })
-  const { has: hasPerm } = usePermissions(serverId)
+  const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAuthor = message.authorId === userId
-  const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
-  const canDelete = isAuthor || isAdminOrOwner
+  const isAdminOrOwner = !isDm && hasPerm(Permission.MANAGE_MESSAGES)
+  const canDelete = isDm ? isAuthor : isAuthor || isAdminOrOwner
+  const recent = useRecentReactions()
   const { isBookmarked, toggleBookmark } = useBookmarkStore(
     useShallow((s) => ({
       isBookmarked: s.bookmarkedIds.has(message.id),
@@ -77,8 +91,9 @@ export function MessageActions({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showForwardModal, setShowForwardModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
   const btnRef = useRef<HTMLDivElement>(null)
-  const deleteBtnRef = useRef<HTMLButtonElement>(null)
+  const moreBtnRef = useRef<HTMLButtonElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const [pickerAbove, setPickerAbove] = useState(true)
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null)
@@ -87,12 +102,18 @@ export function MessageActions({
     onReply?.()
   }, [onReply])
 
-  const shareableUrl =
-    serverId != null
+  const shareableUrl = useMemo(() => {
+    if (isDm) {
+      return getMessageShareUrl(
+        buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id })
+      )
+    }
+    return serverId != null
       ? getMessageShareUrl(
-          buildMessageJumpPath('channel', { serverId, channelId, messageId: message.id })
+          buildMessageJumpPath('channel', { serverId, channelId: contextId, messageId: message.id })
         )
       : null
+  }, [isDm, serverId, contextId, message.id])
 
   const copyMessageLink = useCallback(() => {
     if (!shareableUrl) return
@@ -106,37 +127,48 @@ export function MessageActions({
     if (!shareableUrl) return
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: `Message in ${channelLabel}`, url: shareableUrl })
+        await navigator.share({
+          title: isDm ? 'Direct message' : `Message in ${channelLabel}`,
+          url: shareableUrl
+        })
         return
       } catch (e) {
         if ((e as { name?: string }).name === 'AbortError') return
       }
     }
     copyMessageLink()
-  }, [shareableUrl, channelLabel, copyMessageLink])
+  }, [shareableUrl, isDm, channelLabel, copyMessageLink])
+
+  const handleCopyText = useCallback(() => {
+    if (!message.content) return
+    void navigator.clipboard.writeText(message.content).then(
+      () => showToast('Copied', 'Message text copied to clipboard.'),
+      () => showToast('Copy failed', 'Could not copy to clipboard.')
+    )
+  }, [message.content])
 
   const handleDelete = useCallback(() => {
-    getSocket()?.emit('message:delete', { messageId: message.id }, (res?: { ok?: boolean }) => {
-      if (res?.ok && message.threadParentId) {
-        window.dispatchEvent(new CustomEvent('forum-reply:delete', { detail: message.id }))
-      }
-    })
-    setShowDeleteConfirm(false)
-  }, [message.id, message.threadParentId])
-
-  const handlePin = useCallback(() => {
-    if (message.pinned) {
-      getSocket()?.emit('message:unpin', {
-        messageId: message.id,
-        channelId
-      })
+    if (isDm) {
+      getSocket()?.emit('dm:delete', { messageId: message.id, conversationId: contextId })
     } else {
-      getSocket()?.emit('message:pin', {
-        messageId: message.id,
-        channelId
+      getSocket()?.emit('message:delete', { messageId: message.id }, (res?: { ok?: boolean }) => {
+        if (res?.ok && message.threadParentId) {
+          window.dispatchEvent(new CustomEvent('forum-reply:delete', { detail: message.id }))
+        }
       })
     }
-  }, [message.id, message.pinned, channelId])
+    setShowDeleteConfirm(false)
+  }, [isDm, message.id, message.threadParentId, contextId])
+
+  const handlePin = useCallback(() => {
+    if (isDm) {
+      const event = message.pinned ? 'dm:unpin' : 'dm:pin'
+      getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
+    } else {
+      const event = message.pinned ? 'message:unpin' : 'message:pin'
+      getSocket()?.emit(event, { messageId: message.id, channelId: contextId })
+    }
+  }, [isDm, message.id, message.pinned, contextId])
 
   const openEmojiPicker = useCallback(() => {
     if (btnRef.current) {
@@ -150,29 +182,23 @@ export function MessageActions({
     setShowEmojiPicker((p) => !p)
   }, [])
 
-  const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
+  const customEmojis = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
 
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
-      getSocket()?.emit('reaction:toggle', {
-        messageId: message.id,
-        emoji
-      })
+      toggleMessageReaction({ mode, messageId: message.id, emoji })
+      addRecentReaction(emoji)
       setShowEmojiPicker(false)
     },
-    [message.id]
+    [mode, message.id]
   )
 
   const handleCustomReaction = useCallback(
     (name: string) => {
-      getSocket()?.emit('reaction:toggle', {
-        messageId: message.id,
-        emoji: name,
-        isCustom: true
-      })
+      toggleMessageReaction({ mode, messageId: message.id, emoji: name, isCustom: true })
       setShowEmojiPicker(false)
     },
-    [message.id]
+    [mode, message.id]
   )
 
   useEffect(() => {
@@ -199,65 +225,119 @@ export function MessageActions({
     }
   }, [showEmojiPicker, pickerPos])
 
+  const menuItems = useMemo<MessageMenuItem[]>(() => {
+    const items: MessageMenuItem[] = []
+    items.push({ id: 'react', label: t('actionAddReaction'), icon: <SmileIcon />, onClick: openEmojiPicker })
+    items.push({ id: 'reply', label: t('actionReply'), icon: <ReplyIcon />, onClick: handleReply })
+    if (!isDm && serverId) {
+      items.push({
+        id: 'forward',
+        label: t('actionForward'),
+        icon: <ForwardIcon />,
+        onClick: () => setShowForwardModal(true)
+      })
+    }
+    if (!isDm && !message.threadParentId) {
+      items.push({
+        id: 'thread',
+        label: message.threadCount ? t('actionViewThread') : t('actionCreateThread'),
+        icon: <ThreadIcon />,
+        onClick: () => useThreadStore.getState().openThread(contextId, message)
+      })
+    }
+    if (message.content) {
+      items.push({ id: 'copy-text', label: t('actionCopyText'), icon: <CopyIcon className="h-4 w-4" />, onClick: handleCopyText })
+    }
+    if (isAuthor && onEdit) {
+      items.push({ id: 'edit', label: t('actionEdit'), icon: <EditIcon />, onClick: onEdit })
+    }
+    const canPin = isDm ? !hidePinAction : isAdminOrOwner && !hidePinAction
+    if (canPin) {
+      items.push({
+        id: 'pin',
+        label: message.pinned ? t('actionUnpin') : t('actionPin'),
+        icon: <MessagePinIcon />,
+        onClick: handlePin
+      })
+    }
+    if (!hideBookmarkAction) {
+      items.push({
+        id: 'bookmark',
+        label: isBookmarked ? t('actionRemoveBookmark') : t('actionSaveMessage'),
+        icon: <BookmarkIcon filled={isBookmarked} />,
+        onClick: () => void toggleBookmark(message.id)
+      })
+    }
+    if (shareableUrl) {
+      items.push({ id: 'copy-link', label: t('actionCopyMessageLink'), icon: <LinkIcon className="h-4 w-4" />, onClick: copyMessageLink })
+      items.push({ id: 'share', label: t('actionShareMessage'), icon: <ShareIcon />, onClick: () => void shareMessage() })
+    }
+    if (canDelete) {
+      items.push({ id: 'delete', label: t('actionDelete'), icon: <TrashIcon />, danger: true, onClick: () => setShowDeleteConfirm(true) })
+    }
+    return items
+  }, [
+    t,
+    isDm,
+    serverId,
+    message,
+    contextId,
+    isAuthor,
+    onEdit,
+    hidePinAction,
+    isAdminOrOwner,
+    hideBookmarkAction,
+    isBookmarked,
+    shareableUrl,
+    canDelete,
+    openEmojiPicker,
+    handleReply,
+    handleCopyText,
+    handlePin,
+    toggleBookmark,
+    copyMessageLink,
+    shareMessage
+  ])
+
   return (
     <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
-      <div className="flex items-center gap-0.5 rounded bg-surface-dark shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-        <IconButton label="React" onClick={openEmojiPicker}>
+      <div className="flex items-center gap-0.5 rounded bg-surface-dark p-0.5 shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {recent.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            title={t('actionAddReaction')}
+            aria-label={`${t('actionAddReaction')} ${emoji}`}
+            onClick={() => handleEmojiSelect(emoji)}
+            className="flex h-7 w-7 items-center justify-center rounded text-[1.05rem] leading-none transition hover:bg-white/10"
+          >
+            {emoji}
+          </button>
+        ))}
+        <IconButton label={t('actionAddReaction')} onClick={openEmojiPicker}>
           <SmileIcon />
         </IconButton>
-        <IconButton label="Reply" onClick={handleReply}>
+        <IconButton label={t('actionReply')} onClick={handleReply}>
           <ReplyIcon />
         </IconButton>
-        {shareableUrl && (
-          <IconButton label="Copy message link" onClick={copyMessageLink}>
-            <LinkIcon className="h-4 w-4" />
-          </IconButton>
-        )}
-        {shareableUrl && (
-          <IconButton label="Share message" onClick={() => void shareMessage()}>
-            <ShareIcon />
-          </IconButton>
-        )}
-        {serverId && (
-          <IconButton label="Forward to channel" onClick={() => setShowForwardModal(true)}>
-            <ForwardIcon />
-          </IconButton>
-        )}
-        {!message.threadParentId && (
-          <IconButton
-            label={message.threadCount ? 'View Thread' : 'Reply in Thread'}
-            onClick={() => useThreadStore.getState().openThread(channelId, message)}
-          >
-            <ThreadIcon />
-          </IconButton>
-        )}
-        {isAuthor && onEdit && (
-          <IconButton label="Edit" onClick={onEdit}>
-            <EditIcon />
-          </IconButton>
-        )}
-        {isAdminOrOwner && !hidePinAction && (
-          <IconButton label={message.pinned ? 'Unpin' : 'Pin'} onClick={handlePin}>
-            <MessagePinIcon />
-          </IconButton>
-        )}
-        {!hideBookmarkAction && (
-          <IconButton label={isBookmarked ? 'Remove Bookmark' : 'Bookmark'} onClick={() => void toggleBookmark(message.id)}>
-            <BookmarkIcon filled={isBookmarked} />
-          </IconButton>
-        )}
-        {canDelete && (
-          <IconButton ref={deleteBtnRef} label="Delete" variant="danger" onClick={() => setShowDeleteConfirm(true)}>
-            <TrashIcon />
-          </IconButton>
-        )}
+        <IconButton
+          ref={moreBtnRef}
+          label={t('actionMore')}
+          active={showMenu}
+          onClick={() => setShowMenu((p) => !p)}
+        >
+          <MoreIcon />
+        </IconButton>
       </div>
+      {showMenu && (
+        <MessageActionsMenu anchorRef={moreBtnRef} items={menuItems} onClose={() => setShowMenu(false)} />
+      )}
       {showDeleteConfirm && (
         <ConfirmDialog
           title="Delete Message"
           description="Are you sure? This cannot be undone."
           confirmLabel="Delete"
-          anchorRef={deleteBtnRef}
+          anchorRef={moreBtnRef}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />
@@ -265,7 +345,7 @@ export function MessageActions({
       {showForwardModal && (
         <ForwardMessageModal
           message={message}
-          sourceChannelId={channelId}
+          sourceChannelId={contextId}
           onClose={() => setShowForwardModal(false)}
         />
       )}
@@ -290,9 +370,9 @@ export function MessageActions({
               <EmojiPicker
                 onSelect={handleEmojiSelect}
                 onClose={() => setShowEmojiPicker(false)}
-                customEmojis={customEmojis}
+                customEmojis={isDm ? undefined : customEmojis}
                 reactionMode
-                onCustomSelect={handleCustomReaction}
+                onCustomSelect={isDm ? undefined : handleCustomReaction}
               />
             </Suspense>
           </ErrorBoundary>
