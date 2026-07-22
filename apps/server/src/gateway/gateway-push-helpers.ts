@@ -1,4 +1,4 @@
-import { hasPermission, Permission } from '@chat/shared'
+import { hasPermission, messagePreviewText, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
@@ -16,7 +16,8 @@ export function describePushPreview(
   content: string | undefined,
   attachments?: { type: string }[]
 ): string {
-  if (content?.trim()) return content.slice(0, 100)
+  const preview = messagePreviewText(content)
+  if (preview) return preview
   if (!attachments || attachments.length === 0) return '[attachment]'
   const first = attachments[0]
   const label =

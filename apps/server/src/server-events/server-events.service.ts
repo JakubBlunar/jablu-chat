@@ -19,6 +19,10 @@ import type { CreateEventInput, UpdateEventInput } from '@chat/shared'
 
 const REMINDER_KEY = 'event:reminders'
 const POLL_INTERVAL_MS = 5 * 60 * 1000
+// Active events without an explicit end are force-completed this long after start.
+const NO_END_GRACE_MS = 24 * 60 * 60 * 1000
+// Stale, non-recurring events lingering this long past their start are purged.
+const STALE_EVENT_MS = 30 * 24 * 60 * 60 * 1000
 
 @Injectable()
 export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
@@ -468,12 +472,23 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async cleanupOldEvents() {
-    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const now = Date.now()
+    const cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000)
+    const staleCutoff = new Date(now - STALE_EVENT_MS)
     try {
       const result = await this.prisma.serverEvent.deleteMany({
         where: {
-          status: { in: ['completed', 'cancelled'] },
-          updatedAt: { lt: cutoff }
+          OR: [
+            // Finished events past the retention window.
+            { status: { in: ['completed', 'cancelled'] }, updatedAt: { lt: cutoff } },
+            // Orphaned non-recurring events that never transitioned and are
+            // long past their start (e.g. missed lifecycle during downtime).
+            {
+              status: { in: ['scheduled', 'active'] },
+              recurrenceRule: null,
+              startAt: { lt: staleCutoff }
+            }
+          ]
         }
       })
       if (result.count > 0) {
@@ -486,10 +501,17 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
 
   private async completeEndedEvents() {
     const now = new Date()
+    const graceCutoff = new Date(now.getTime() - NO_END_GRACE_MS)
     const ended = await this.prisma.serverEvent.findMany({
       where: {
         status: 'active',
-        endAt: { lte: now }
+        OR: [
+          // Events whose explicit end time has passed.
+          { endAt: { lte: now } },
+          // Events with no end time, force-completed after a grace window so
+          // they can't stay "active" (and recurrence can't stall) forever.
+          { endAt: null, startAt: { lte: graceCutoff } }
+        ]
       }
     })
     for (const event of ended) {

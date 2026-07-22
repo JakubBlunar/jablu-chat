@@ -3,8 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, IconButton, Input, Textarea } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
+import { toLocalDatetimeString } from '@/lib/eventDuration'
+import { formatDuration } from '@/lib/eventTime'
 import { useChannelStore } from '@/stores/channel.store'
 import { useEventStore } from '@/stores/event.store'
+import { EventScheduleFields } from './EventScheduleFields'
 
 type Step = 'location' | 'details' | 'review'
 
@@ -12,15 +15,6 @@ type Props = {
   serverId: string
   onClose: () => void
   onBack: () => void
-}
-
-function toLocalDatetimeString(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const h = String(d.getHours()).padStart(2, '0')
-  const min = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day}T${h}:${min}`
 }
 
 function formatPreviewTime(iso: string): string {
@@ -51,7 +45,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
     d.setHours(d.getHours() + 1, 0, 0, 0)
     return toLocalDatetimeString(d)
   })
-  const [endAt, setEndAt] = useState('')
+  const [endISO, setEndISO] = useState<string | null>(null)
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule | ''>('')
 
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +68,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
       ...(description.trim() && { description: description.trim() }),
       ...(locationType === 'voice_channel' && channelId && { channelId }),
       ...(locationType === 'custom' && locationText.trim() && { locationText: locationText.trim() }),
-      ...(endAt && { endAt: new Date(endAt).toISOString() }),
+      ...(endISO && { endAt: endISO }),
       ...(recurrenceRule && { recurrenceRule: recurrenceRule as RecurrenceRule })
     }
 
@@ -87,7 +81,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
     } finally {
       setSubmitting(false)
     }
-  }, [serverId, name, description, locationType, channelId, locationText, startAt, endAt, recurrenceRule, onClose])
+  }, [serverId, name, description, locationType, channelId, locationText, startAt, endISO, recurrenceRule, onClose])
 
   const canAdvanceToDetails =
     locationType === 'voice_channel' ? !!channelId : locationText.trim().length > 0
@@ -214,25 +208,12 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
               className="rounded-lg ring-white/10 focus:ring-primary"
             />
 
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                id="create-event-start"
-                label="Start *"
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-                className="rounded-lg ring-white/10 focus:ring-primary"
-              />
-              <Input
-                id="create-event-end"
-                label="End (optional)"
-                type="datetime-local"
-                value={endAt}
-                onChange={(e) => setEndAt(e.target.value)}
-                min={startAt}
-                className="rounded-lg ring-white/10 focus:ring-primary"
-              />
-            </div>
+            <EventScheduleFields
+              startLocal={startAt}
+              onStartChange={setStartAt}
+              endISO={endISO}
+              onEndChange={setEndISO}
+            />
 
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-400">Repeat</label>
@@ -263,7 +244,12 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
                     <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span>{formatPreviewTime(new Date(startAt).toISOString())}</span>
-                  {endAt && <span>- {formatPreviewTime(new Date(endAt).toISOString())}</span>}
+                  {endISO && <span>- {formatPreviewTime(endISO)}</span>}
+                  {endISO && (
+                    <span className="text-gray-500">
+                      ({formatDuration(new Date(endISO).getTime() - new Date(startAt).getTime())})
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

@@ -39,6 +39,20 @@ describe('describePushPreview', () => {
   it('prefers content over attachments', () => {
     expect(describePushPreview('Hello', [{ type: 'image' }])).toBe('Hello')
   })
+
+  it('strips HTML/color tokens from the preview', () => {
+    const out = describePushPreview('<span style="color:#F6F6F6">Hello</span>')
+    expect(out).toBe('Hello')
+    expect(out).not.toContain('#F6F6F6')
+  })
+
+  it('strips markdown markup from the preview', () => {
+    expect(describePushPreview('**bold** _italic_ [link](https://x.com)')).toBe('bold italic link')
+  })
+
+  it('falls back to attachments when content is only markup', () => {
+    expect(describePushPreview('<span></span>', [{ type: 'image' }])).toBe('sent an image')
+  })
 })
 
 function createMockContext(overrides: Partial<PushContext> = {}): PushContext {
