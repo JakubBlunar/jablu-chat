@@ -3,6 +3,11 @@
 The desktop app is a Tauri v2 shell around the `@chat/web` SPA. It supports automatic
 updates, global push-to-talk, auto-start, tray, and web-hosted installer downloads.
 
+> The server URL is **baked in at build time** (from `UPDATE_PUBLIC_URL`). There is no
+> in-app server switching — installed apps land directly on the login screen and always
+> talk to the server they were built for. Forks/self-hosters just build their own
+> installer with their own `UPDATE_PUBLIC_URL`.
+
 ## Prerequisites (one-time)
 
 1. **Rust toolchain** – install via https://rustup.rs (stable).
@@ -61,8 +66,10 @@ The `release.mjs` script:
 3. Stages artifacts into `apps/desktop/release-artifacts/` and writes `latest.json`.
 4. Prints exactly which files go to which server directory.
 
-Set `UPDATE_PUBLIC_URL` to the public base URL of the server hosting updates so the
-installer URL inside `latest.json` is correct, e.g.:
+`UPDATE_PUBLIC_URL` is **required**. It is the single source of truth for the server
+URL: the release script bakes it into the app (exposed to the web build as
+`VITE_SERVER_URL` and read by Rust for the updater feed) and uses it to build the
+installer URL inside `latest.json`. Set it before building, e.g.:
 
 ```bash
 $env:UPDATE_PUBLIC_URL = "https://chat.example.com"
@@ -87,7 +94,7 @@ node apps/desktop/scripts/release.mjs --bump patch --upload
 
 ## How updates work
 
-- The installed app reads the configured server URL and points the Tauri updater at
+- The installed app uses the baked-in server URL and points the Tauri updater at
   `{server}/api/updates/latest.json`.
 - Before checking, it calls `{server}/api/updates/compat?client={version}` to honor
   `MIN_CLIENT_VERSION`/`MAX_CLIENT_VERSION` gating.

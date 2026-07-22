@@ -1,21 +1,10 @@
 import type { ReactNode } from 'react'
-import { isElectron } from '@/lib/electron'
-import { clearServerUrl, getStoredServerUrl } from '@/stores/settings.store'
-import { api } from '@/lib/api'
 
 type AuthLayoutProps = {
   children: ReactNode
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
-  const serverUrl = isElectron ? getStoredServerUrl() : null
-
-  function handleChangeServer() {
-    clearServerUrl()
-    api.baseUrl = ''
-    window.location.reload()
-  }
-
   return (
     // The app disables body scrolling globally (`body { position: fixed }`), so this
     // must be its own scroll container. The inner wrapper uses `min-h-full` + flex
@@ -38,15 +27,6 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="w-full max-w-[420px] rounded-xl border border-white/10 bg-surface-dark p-8 shadow-xl shadow-black/40">
           {children}
         </div>
-
-        {serverUrl && (
-          <div className="mt-4 flex flex-col items-center gap-1 text-center">
-            <p className="text-xs text-gray-500 truncate max-w-xs">Connected to {serverUrl}</p>
-            <button type="button" onClick={handleChangeServer} className="text-xs text-primary hover:underline">
-              Change Server
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

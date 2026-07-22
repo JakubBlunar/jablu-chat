@@ -18,8 +18,6 @@ export type DesktopAPI = {
   restartApp: () => Promise<void>
   onNavigate: (cb: (url: string) => void) => () => void
   setTrayUnread: (count: number) => Promise<void>
-  setServerUrl: (url: string) => Promise<void>
-  testServerUrl: (url: string) => Promise<{ ok: boolean }>
   getAutoLaunch: () => Promise<boolean>
   setAutoLaunch: (enabled: boolean) => Promise<boolean>
   getStartMinimized: () => Promise<boolean>
@@ -103,8 +101,6 @@ function buildDesktopAPI(): DesktopAPI {
     restartApp: () => invoke('restart_app'),
     onNavigate: (cb) => on<string>('navigate', (url) => cb(url)),
     setTrayUnread: (count) => invoke('set_tray_unread', { count }),
-    setServerUrl: (url) => invoke('set_server_url', { url }),
-    testServerUrl: async (url) => ({ ok: await invoke<boolean>('test_server_url', { url }) }),
     getAutoLaunch: () => invoke<boolean>('get_auto_launch'),
     setAutoLaunch: (enabled) => invoke<boolean>('set_auto_launch', { enabled }),
     getStartMinimized: () => invoke<boolean>('get_start_minimized'),

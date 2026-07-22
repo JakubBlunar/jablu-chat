@@ -1,11 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DesktopChrome } from './components/desktop/DesktopChrome'
 import { MainLayout } from './components/layout/MainLayout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
-import { ServerUrlScreen, getStoredServerUrl } from './components/settings/ServerUrlScreen'
 import { isElectron } from './lib/electron'
 import { api } from './lib/api'
 import './stores/settings.store'
@@ -94,24 +93,6 @@ function AuthBootstrap() {
   return null
 }
 
-function ElectronUrlGate({ children }: { children: React.ReactNode }) {
-  const [connected, setConnected] = useState(() => !!getStoredServerUrl())
-
-  if (!isElectron) return <>{children}</>
-
-  if (!connected) {
-    return (
-      <ServerUrlScreen
-        onConnect={() => {
-          setConnected(true)
-        }}
-      />
-    )
-  }
-
-  return <>{children}</>
-}
-
 function LazyFallback() {
   return (
     <div className="flex h-full items-center justify-center bg-surface">
@@ -125,35 +106,33 @@ export default function App() {
     <ErrorBoundary>
       <Router>
         <DesktopChrome>
-          <ElectronUrlGate>
-            <LocaleSync>
-              <AuthBootstrap />
-              <Suspense fallback={<LazyFallback />}>
-                <Routes>
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                  <Route path="/reset-password" element={<ResetPasswordPage />} />
-                  <Route path="/admin" element={<AdminPage />} />
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <MainLayout />
-                      </ProtectedRoute>
-                    }
-                  >
-                    <Route index element={<Navigate to="/channels/@me" replace />} />
-                    <Route path="channels/@me" element={null} />
-                    <Route path="channels/@me/:conversationId" element={null} />
-                    <Route path="channels/:serverId" element={null} />
-                    <Route path="channels/:serverId/:channelId" element={null} />
-                  </Route>
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </Suspense>
-            </LocaleSync>
-          </ElectronUrlGate>
+          <LocaleSync>
+            <AuthBootstrap />
+            <Suspense fallback={<LazyFallback />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <MainLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<Navigate to="/channels/@me" replace />} />
+                  <Route path="channels/@me" element={null} />
+                  <Route path="channels/@me/:conversationId" element={null} />
+                  <Route path="channels/:serverId" element={null} />
+                  <Route path="channels/:serverId/:channelId" element={null} />
+                </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </LocaleSync>
         </DesktopChrome>
       </Router>
     </ErrorBoundary>

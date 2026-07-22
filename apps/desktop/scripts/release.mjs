@@ -14,9 +14,12 @@
 // Env:
 //   TAURI_SIGNING_PRIVATE_KEY           required for a signed updater build
 //   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  password for the signing key (if set)
-//   UPDATE_PUBLIC_URL                   public base URL of the server that will host
-//                                       updates, e.g. https://chat.example.com
-//                                       (used to build the installer URL in latest.json)
+//   UPDATE_PUBLIC_URL                   REQUIRED. Public base URL of the server, e.g.
+//                                       https://chat.example.com. This single value is
+//                                       baked into the build (exposed to the web build as
+//                                       VITE_SERVER_URL and read by Rust for the updater
+//                                       feed) AND used to build the installer URL in
+//                                       latest.json, so the app talks to your server.
 
 import { execSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, copyFileSync, readdirSync } from 'node:fs'
@@ -123,12 +126,26 @@ async function main() {
     )
   }
 
+  // The server URL is baked into the desktop build (no in-app configuration), so
+  // UPDATE_PUBLIC_URL is required. Expose it to the web build as VITE_SERVER_URL;
+  // it propagates to child processes (vite + cargo) for both the frontend and the
+  // Rust updater feed.
+  const serverUrl = (process.env.UPDATE_PUBLIC_URL ?? '').trim().replace(/\/+$/, '')
+  if (!serverUrl) {
+    console.error(
+      '\nERROR: UPDATE_PUBLIC_URL is not set. It is the server URL baked into the app.\n' +
+        'Set it before releasing, e.g.  UPDATE_PUBLIC_URL=https://chat.example.com\n'
+    )
+    process.exit(1)
+  }
+  process.env.VITE_SERVER_URL = serverUrl
+
   run('pnpm --filter @chat/web build')
   run('pnpm --filter @chat/desktop build')
 
   const { exe, exePath, sigPath } = findInstaller(version)
 
-  const publicUrl = (process.env.UPDATE_PUBLIC_URL ?? 'https://your-server.example.com').replace(/\/+$/, '')
+  const publicUrl = serverUrl
   const signature = readFileSync(sigPath, 'utf-8').trim()
   const latest = {
     version,
@@ -158,9 +175,6 @@ async function main() {
   console.log(`  UPDATES_DIR    <-  latest.json`)
   console.log(`  UPDATES_DIR    <-  ${exe}`)
   console.log(`  UPDATES_DIR    <-  ${exe}.sig`)
-  if (process.env.UPDATE_PUBLIC_URL == null) {
-    console.log('\nNOTE: UPDATE_PUBLIC_URL was not set; latest.json url uses a placeholder host.')
-  }
 
   if (args.upload) {
     const uploaderPath = join(__dirname, 'upload.mjs')
