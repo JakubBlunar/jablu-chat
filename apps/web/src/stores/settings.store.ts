@@ -2,9 +2,6 @@ import type { CameraQuality } from '@/lib/deviceSettings'
 import type { MicMode, PttBinding, VadMode } from '@/lib/micMode'
 import type { NoiseReductionMode } from '@/lib/voiceProcessingSettings'
 import { applyAccentPreset, type AccentPreset } from '@/lib/accent'
-import { api } from '@/lib/api'
-import { electronAPI } from '@/lib/electron'
-import { isDesktop } from '@/lib/desktop'
 import type { AppLocale } from '@/i18n/locales'
 import { isAppLocale } from '@/i18n/locales'
 import { create } from 'zustand'
@@ -66,7 +63,6 @@ export type SettingsSlice = {
   voiceJoinMuted: boolean
   voiceJoinDeafened: boolean
   locale: AppLocale
-  serverUrl: string | null
   pwaInstallDismissedAt: number | null
 }
 
@@ -99,8 +95,6 @@ type SettingsActions = {
   setVoiceJoinMuted: (v: boolean) => void
   setVoiceJoinDeafened: (v: boolean) => void
   setLocale: (locale: AppLocale) => void
-  setServerUrl: (url: string | null) => void
-  clearServerUrl: () => void
   setPwaInstallDismissedAt: (ts: number | null) => void
 }
 
@@ -132,7 +126,6 @@ const defaults: SettingsSlice = {
   voiceJoinMuted: false,
   voiceJoinDeafened: false,
   locale: 'en',
-  serverUrl: null,
   pwaInstallDismissedAt: null
 }
 
@@ -178,7 +171,6 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
   if (typeof o.voiceJoinMuted === 'boolean') out.voiceJoinMuted = o.voiceJoinMuted
   if (typeof o.voiceJoinDeafened === 'boolean') out.voiceJoinDeafened = o.voiceJoinDeafened
   if (typeof o.locale === 'string' && isAppLocale(o.locale)) out.locale = o.locale
-  if (o.serverUrl === null || typeof o.serverUrl === 'string') out.serverUrl = o.serverUrl
   if (o.pwaInstallDismissedAt === null || typeof o.pwaInstallDismissedAt === 'number')
     out.pwaInstallDismissedAt = o.pwaInstallDismissedAt
 
@@ -253,19 +245,6 @@ export const useSettingsStore = create<SettingsState>()(
 
       setLocale: (locale) => set({ locale: isAppLocale(locale) ? locale : defaults.locale }),
 
-      setServerUrl: (url) => {
-        set({ serverUrl: url })
-        // On desktop the app calls the server directly via an absolute base URL.
-        if (isDesktop) api.baseUrl = url ?? ''
-        if (url) void electronAPI?.setServerUrl(url).catch(() => {})
-      },
-
-      clearServerUrl: () => {
-        set({ serverUrl: null })
-        if (isDesktop) api.baseUrl = ''
-        void electronAPI?.setServerUrl('').catch(() => {})
-      },
-
       setPwaInstallDismissedAt: (ts) => set({ pwaInstallDismissedAt: ts })
     }),
     {
@@ -302,38 +281,17 @@ export const useSettingsStore = create<SettingsState>()(
         voiceJoinMuted: s.voiceJoinMuted,
         voiceJoinDeafened: s.voiceJoinDeafened,
         locale: s.locale,
-        serverUrl: s.serverUrl,
         pwaInstallDismissedAt: s.pwaInstallDismissedAt
       })
     }
   )
 )
 
-function syncDesktopBaseUrl() {
-  if (isDesktop) {
-    api.baseUrl = useSettingsStore.getState().serverUrl ?? ''
-  }
-}
-
 useSettingsStore.persist.onFinishHydration(() => {
   const { accent } = useSettingsStore.getState()
   applyAccentPreset(accent)
-  syncDesktopBaseUrl()
 })
 
 if (useSettingsStore.persist.hasHydrated()) {
   applyAccentPreset(useSettingsStore.getState().accent)
-  syncDesktopBaseUrl()
-}
-
-export function getStoredServerUrl(): string | null {
-  return useSettingsStore.getState().serverUrl
-}
-
-export function setStoredServerUrl(url: string) {
-  useSettingsStore.getState().setServerUrl(url)
-}
-
-export function clearServerUrl() {
-  useSettingsStore.getState().clearServerUrl()
 }

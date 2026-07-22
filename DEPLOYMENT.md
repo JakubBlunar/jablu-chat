@@ -281,46 +281,35 @@ curl -I https://chat.example.com/api/health
 
 ## Desktop App Updates
 
-Jablu's Electron desktop app supports automatic updates via `electron-updater`.
+Jablu's desktop app is a **Tauri v2** shell around the web SPA and supports automatic signed updates.
 
 ### How it works
 
-The desktop app checks `YOUR_SERVER/api/updates/` for new versions. When it finds one,
-it downloads in the background and prompts the user to restart.
+The **server URL is baked into the installer at build time** (from `UPDATE_PUBLIC_URL`),
+so each build points at exactly one server — there is no in-app server switching. The
+app checks `YOUR_SERVER/api/updates/latest.json`, downloads signed updates in the
+background, and prompts the user to restart. Connected apps detect an update within 4
+hours (or immediately via "Check for updates" in Settings).
+
+If you fork/self-host Jablu, you must build your own installer with your own
+`UPDATE_PUBLIC_URL` so the app connects to (and updates from) your server.
 
 ### Publishing an update
 
-1. Bump the version in `apps/desktop/package.json`:
-
-```json
-"version": "1.1.0"
-```
-
-2. Build the desktop app on your dev machine:
+The full flow (versioning, signing, building, staging, uploading) lives in
+[`apps/desktop/RELEASING.md`](apps/desktop/RELEASING.md). In short, from the repo root:
 
 ```bash
-pnpm --filter @chat/web build
-pnpm --filter @chat/desktop build
-pnpm --filter @chat/desktop dist
+$env:UPDATE_PUBLIC_URL = "https://chat.example.com"   # required: baked-in server URL
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content -Raw tauri-signing.key
+node apps/desktop/scripts/release.mjs --bump patch --notes "What changed"
 ```
 
-3. The build artifacts appear in `apps/desktop/release/`:
-   - **Windows:** `Jablu-Setup-1.1.0.exe` + `latest.yml`
-   - **Linux:** `Jablu-1.1.0.AppImage` + `latest-linux.yml`
-   - **macOS:** `Jablu-1.1.0.dmg` + `latest-mac.yml`
-
-4. Copy the artifacts to the server:
-
-```bash
-scp apps/desktop/release/latest.yml root@YOUR_VPS_IP:/opt/jablu/updates/
-scp apps/desktop/release/Jablu-Setup-1.1.0.exe root@YOUR_VPS_IP:/opt/jablu/updates/
-```
-
-5. Make sure the `UPDATES_DIR` in `.env` points to the right location and the
-   `updates` volume is mounted (or use a host path).
-
-Connected desktop apps will detect the update within 4 hours (or immediately if the
-user clicks "Check for updates" in Settings).
+This bumps the version, builds the web + Tauri NSIS installer, and stages
+`Jablu_<v>_x64-setup.exe`, its `.sig`, and `latest.json` into
+`apps/desktop/release-artifacts/`. Upload those to the server's `DOWNLOADS_DIR` /
+`UPDATES_DIR` (see `RELEASING.md`), and make sure `UPDATES_DIR` in `.env` points at the
+right location.
 
 ---
 

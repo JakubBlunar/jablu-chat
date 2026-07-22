@@ -10,6 +10,14 @@ export default defineConfig(({ command }) => ({
   // so a single base ("/") works for both web and desktop.
   base: '/',
   esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
+  // Server URL baked in at build time for the desktop app (from VITE_SERVER_URL,
+  // which the release script derives from UPDATE_PUBLIC_URL). Injected as compile-time
+  // constants so they work under both Vite and the SWC/CommonJS jest transform, which
+  // cannot parse `import.meta`. Consumers guard with `typeof` for the jest case.
+  define: {
+    __JABLU_SERVER_URL__: JSON.stringify(process.env.VITE_SERVER_URL ?? ''),
+    __JABLU_DEV__: JSON.stringify(command === 'serve')
+  },
   plugins: [
     react(),
     tailwindcss(),

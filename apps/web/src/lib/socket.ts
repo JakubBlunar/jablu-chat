@@ -1,17 +1,15 @@
 /// <reference types="vite/client" />
 import { io, type Socket } from 'socket.io-client'
 import { api } from './api'
-import { getStoredServerUrl } from '@/stores/settings.store'
-import { isElectron } from './electron'
+import { getServerBaseUrl } from './serverUrl'
 
 let socket: Socket | null = null
 let cleanupVisibility: (() => void) | null = null
 
 function getSocketUrl(): string {
   if (api.baseUrl) return api.baseUrl
-  if (isElectron) return getStoredServerUrl() ?? ''
   if (import.meta.env.DEV) return 'http://localhost:3001'
-  return ''
+  return getServerBaseUrl()
 }
 
 export function connectSocket(token: string): Socket {

@@ -70,11 +70,12 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **Webhook** management
 
 ### Desktop App
-- **Electron** app that connects to any Jablu instance
+- **Tauri** app built for a specific Jablu instance (server URL baked in at build time)
 - **Auto-updates** via the built-in update server
 - **Tray support** with unread count
 - **Auto-launch** at OS startup
 - **Native screen capture** for screen sharing
+- **Activity sharing** for sharing what you play / listen to
 
 ### Mobile
 - The web app is **fully responsive** and works well on mobile browsers
@@ -137,7 +138,7 @@ jablu-chat/
 ├── apps/
 │   ├── server/          # NestJS backend (REST API + WebSocket gateway)
 │   ├── web/             # React SPA (Vite + Tailwind CSS)
-│   ├── desktop/         # Electron desktop app
+│   ├── desktop/         # Tauri desktop app
 │   └── bot/             # FreeGameBot — example bot built with the SDK
 ├── packages/
 │   ├── shared/          # Shared types, validation schemas (Zod), permissions
@@ -159,7 +160,7 @@ jablu-chat/
 | **Backend**  | NestJS 11, Prisma, PostgreSQL, Redis, Socket.IO  |
 | **Frontend** | React 19, TypeScript, Vite 8, Tailwind CSS v4, Zustand |
 | **Voice**    | LiveKit (self-hosted WebRTC SFU)                 |
-| **Desktop**  | Electron with auto-updates                       |
+| **Desktop**  | Tauri v2 with signed auto-updates                |
 | **Bots**     | `@chat/sdk`, Socket.IO, better-sqlite3           |
 | **Tooling**  | pnpm workspaces, Turborepo                       |
 

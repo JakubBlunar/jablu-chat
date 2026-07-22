@@ -1,5 +1,5 @@
 import { isElectron } from '@/lib/electron'
-import { getStoredServerUrl } from '@/stores/settings.store'
+import { getServerBaseUrl } from '@/lib/serverUrl'
 import type { Message } from '@chat/shared'
 
 export function buildMessageJumpPath(
@@ -33,7 +33,7 @@ export function buildMessageJumpPath(
 export function getMessageShareUrl(appPath: string): string {
   const path = appPath.startsWith('/') ? appPath : `/${appPath}`
   if (isElectron) {
-    const serverUrl = getStoredServerUrl()
+    const serverUrl = getServerBaseUrl()
     if (serverUrl) return `${serverUrl.replace(/\/+$/, '')}${path}`
     return `${window.location.origin}${path}`
   }

@@ -13,7 +13,6 @@ export type Tab =
   | 'my-bots'
   | 'sessions'
   | 'shortcuts'
-  | 'server'
   | 'desktop'
   | 'downloads'
   | 'install'

@@ -22,7 +22,6 @@ import { PrivacySection } from '@/components/settings/sections/PrivacySection'
 import { ActivityPrivacySection } from '@/components/settings/sections/ActivityPrivacySection'
 import { RegisteredGamesSection } from '@/components/settings/sections/RegisteredGamesSection'
 import { ProfileSection } from '@/components/settings/sections/ProfileSection'
-import { ServerConnectionSection } from '@/components/settings/sections/ServerConnectionSection'
 import { AppearanceSection } from '@/components/settings/sections/AppearanceSection'
 import { StatusSection } from '@/components/settings/sections/StatusSection'
 import { MyBotsSection } from '@/components/settings/sections/MyBotsSection'
@@ -78,7 +77,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       { key: 'my-bots', label: t('tabs.myBots'), group: 4 },
       { key: 'sessions', label: t('tabs.sessions'), group: 4 },
       { key: 'shortcuts', label: t('tabs.shortcuts'), show: !isMobile, group: 4 },
-      { key: 'server', label: t('tabs.server'), show: isElectron, group: 5 },
       { key: 'desktop', label: t('tabs.desktop'), show: isElectron, group: 5 },
       { key: 'downloads', label: t('tabs.downloads'), show: !isElectron && !isMobile, group: 5 },
       { key: 'install', label: t('tabs.install'), show: !isElectron && !getIsStandalone(), group: 5 }
@@ -105,7 +103,6 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
       {tab === 'my-bots' && <MyBotsSection />}
       {tab === 'sessions' && <ActiveSessionsSection />}
       {tab === 'shortcuts' && <KeyboardShortcutsSection />}
-      {tab === 'server' && <ServerConnectionSection />}
       {tab === 'desktop' && <DesktopAppSection />}
       {tab === 'downloads' && <DownloadAppSection />}
       {tab === 'install' && <PwaInstallGuide />}
