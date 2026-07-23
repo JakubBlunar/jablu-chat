@@ -189,6 +189,9 @@ pub fn run() {
         .setup(|app| {
             logging::log("setup: begin");
             let handle = app.handle().clone();
+            // Pin the process AUMID before anything shows a toast, so notification
+            // clicks activate in-process (focus + deep-link) and don't linger.
+            notifications::register_aumid(&handle);
             setup_tray(&handle)?;
             logging::log("setup: tray ready");
 
