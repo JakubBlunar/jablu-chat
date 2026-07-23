@@ -22,6 +22,10 @@ export function useDetectedActivity(socket: Socket | null) {
   const lastStartedAt = useRef<string>('')
   const iconCache = useRef<Map<string, string>>(new Map())
   const registeredNames = useRef<Set<string>>(new Set())
+  // Whether we've sent at least one activity state to the server for the current
+  // connection. Ensures a cold start with no game still clears any stale
+  // server-side activity left over from a previous session.
+  const syncedThisConnection = useRef(false)
 
   const shareEnabled = useActivityStore((s) => s.settings?.shareEnabled ?? false)
   const shareGames = useActivityStore((s) => s.settings?.shareGames ?? true)
@@ -67,6 +71,9 @@ export function useDetectedActivity(socket: Socket | null) {
     if (!isDesktop || !desktopAPI || !socket) return
 
     let cancelled = false
+    // New effect run == new socket/settings; force a fresh sync so we re-clear
+    // or re-emit against the current server state on (re)connect.
+    syncedThisConnection.current = false
 
     const resolveIcon = async (d: DetectedActivity): Promise<string | null> => {
       if (d.iconUrl) return d.iconUrl
@@ -105,12 +112,17 @@ export function useDetectedActivity(socket: Socket | null) {
       const primary = pickPrimary(list)
 
       if (!primary) {
-        if (lastSig.current !== '') {
+        // Emit a clear when transitioning away from an activity, OR once per
+        // connection so a fresh launch resets stale server-side activity even
+        // when nothing is running (the native detector stays silent while idle).
+        if (lastSig.current !== '' || !syncedThisConnection.current) {
           lastSig.current = ''
+          syncedThisConnection.current = true
           socket.emit('activity:clear')
         }
         return
       }
+      syncedThisConnection.current = true
 
       const base: UserActivity = {
         kind: primary.kind,
@@ -155,9 +167,10 @@ export function useDetectedActivity(socket: Socket | null) {
       void handle(list)
     })
 
-    // Prime once in case an activity is already running at mount.
+    // Prime once at mount. Always run (even for an empty list) so a cold start
+    // with no game emits a clear that resets stale server-side activity.
     void desktopAPI.getDetectedActivities().then((list) => {
-      if (!cancelled && list.length > 0) void handle(list)
+      if (!cancelled) void handle(list)
     })
 
     return () => {

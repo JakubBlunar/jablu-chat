@@ -81,6 +81,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> current shared rich activity (game / music). Desktop-reported. */
   private readonly userActivities = new Map<string, UserActivity>()
 
+  /**
+   * userId -> socket id that last reported a rich activity. Lets us clear the
+   * activity the moment the reporting desktop disconnects, even when the user
+   * stays "online" through another session (web/phone), so a stale game can't
+   * outlive the app that reported it.
+   */
+  private readonly activityOwnerSocket = new Map<string, string>()
+
   /** channelId -> Set of participants in voice channel */
   private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
 
@@ -623,6 +631,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       return
     }
 
+    // If the desktop that reported this user's activity is the one leaving,
+    // clear it immediately so a stale game can't linger while other sessions
+    // (web/phone) keep the user online.
+    if (this.activityOwnerSocket.get(user.id) === client.id) {
+      this.activityOwnerSocket.delete(user.id)
+      if (this.userActivities.delete(user.id)) {
+        await this.broadcastActivity(user.id, null).catch(() => {})
+      }
+    }
+
     const isLastConnection = this.removeOnlineUser(user.id)
 
     if (isLastConnection) {
@@ -635,6 +653,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         this.userLastActivity.delete(userId)
         this.manualPresence.delete(userId)
         this.lastBroadcastedStatus.delete(userId)
+        this.activityOwnerSocket.delete(userId)
         if (this.userActivities.delete(userId)) {
           await this.broadcastActivity(userId, null).catch(() => {})
         }
@@ -1257,6 +1276,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       scope.shareEnabled && (body.kind === 'game' ? scope.shareGames : scope.shareMusic)
     if (!allowed) {
       // Sharing disabled for this category; ensure any prior activity is cleared.
+      this.activityOwnerSocket.delete(user.id)
       if (this.userActivities.delete(user.id)) {
         await this.broadcastActivity(user.id, null)
       }
@@ -1272,6 +1292,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       startedAt: body.startedAt ?? new Date().toISOString()
     }
     this.userActivities.set(user.id, activity)
+    this.activityOwnerSocket.set(user.id, client.id)
     await this.broadcastActivity(user.id, activity)
     return { ok: true }
   }
@@ -1281,6 +1302,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async onActivityClear(@ConnectedSocket() client: Socket) {
     const user = (client.data as { user: WsUser }).user
     if (user.isBot) return { ok: false }
+    this.activityOwnerSocket.delete(user.id)
     if (this.userActivities.delete(user.id)) {
       await this.broadcastActivity(user.id, null)
     }
