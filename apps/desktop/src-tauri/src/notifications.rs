@@ -10,6 +10,45 @@
 //! path; the web layer (`setupElectronNavigation`) turns that into a hash-route
 //! change, so the user lands on the channel the notification pointed at.
 
+/// Pin the process AppUserModelID (AUMID) to the bundle identifier and register
+/// it under HKCU.
+///
+/// An unpackaged (NSIS-installed) Win32 app only receives a foreground toast's
+/// in-process `Activated` event if the *process* AUMID matches the AUMID the
+/// toast was created with. Tauri's shortcut carries the AUMID so toasts render,
+/// but without `SetCurrentProcessExplicitAppUserModelID` Windows never routes the
+/// click back to us — so clicking a notification did nothing and it lingered in
+/// Action Center. Registering the AUMID under HKCU additionally makes toast
+/// rendering/persistence robust against a missing or stale shortcut property.
+#[cfg(windows)]
+pub fn register_aumid(app: &tauri::AppHandle) {
+    let aumid = app.config().identifier.clone();
+
+    // 1. Match the process AUMID to the toast AUMID so in-process activation is
+    //    delivered to this running process.
+    unsafe {
+        use windows::core::HSTRING;
+        use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+        if let Err(e) = SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(aumid.as_str())) {
+            eprintln!("failed to set process AUMID: {e}");
+        }
+    }
+
+    // 2. Self-healing per-user AUMID registration (no admin) so Action Center
+    //    renders/persists our toasts regardless of shortcut state or launch path.
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok((key, _)) =
+        hkcu.create_subkey(format!("Software\\Classes\\AppUserModelId\\{aumid}"))
+    {
+        let _ = key.set_value("DisplayName", &"Jablu");
+    }
+}
+
+#[cfg(not(windows))]
+pub fn register_aumid(_app: &tauri::AppHandle) {}
+
 /// Show a notification and, on click, focus the window and navigate to `url`.
 #[cfg(windows)]
 pub fn show(app: &tauri::AppHandle, title: &str, body: &str, url: Option<String>) {
