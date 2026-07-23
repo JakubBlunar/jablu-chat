@@ -174,14 +174,30 @@ fn init_thread() {}
 
 #[cfg(windows)]
 fn detect_all(custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
+    use sysinfo::System;
+
+    let mut sys = System::new();
+    sys.refresh_processes();
+
+    // Steam leaves the per-app `Running` registry flag set to the last game even
+    // after it exits, so it's only trustworthy while Steam itself is running.
+    // Otherwise we'd report a stale "playing" long after the game (and Steam)
+    // closed.
+    let steam_running = sys
+        .processes()
+        .values()
+        .any(|p| p.name().to_lowercase() == "steam.exe");
+
     let mut out: Vec<DetectedActivity> = Vec::new();
     let mut seen_names: Vec<String> = Vec::new();
 
-    for game in win::detect_steam() {
-        seen_names.push(game.name.to_lowercase());
-        out.push(game);
+    if steam_running {
+        for game in win::detect_steam() {
+            seen_names.push(game.name.to_lowercase());
+            out.push(game);
+        }
     }
-    for game in win::detect_processes(custom) {
+    for game in win::detect_processes(&sys, custom) {
         if seen_names.contains(&game.name.to_lowercase()) {
             continue;
         }
@@ -317,12 +333,10 @@ mod win {
         None
     }
 
-    pub fn detect_processes(custom: &[super::CustomDetectable]) -> Vec<DetectedActivity> {
-        use sysinfo::System;
-
-        let mut sys = System::new();
-        sys.refresh_processes();
-
+    pub fn detect_processes(
+        sys: &sysinfo::System,
+        custom: &[super::CustomDetectable],
+    ) -> Vec<DetectedActivity> {
         let mut out: Vec<DetectedActivity> = Vec::new();
         for (_pid, proc_) in sys.processes() {
             let exe_name = proc_.name().to_lowercase();
