@@ -1,3 +1,6 @@
+import { getAppVisibilityState, isAppFocused } from '@/lib/appVisibility'
+import { getDeviceId } from '@/lib/deviceId'
+import { logNotification, navigateFromNotification } from '@/lib/notificationNavigation'
 import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
 import { useSettingsStore } from '@/stores/settings.store'
 
@@ -31,6 +34,21 @@ export async function requestPermission(): Promise<boolean> {
   return result === 'granted'
 }
 
+/** Shared with the service worker so the OS collapses duplicates into one toast. */
+export function notificationTag(url?: string): string | undefined {
+  return url ? `jablu-${url}` : undefined
+}
+
+/**
+ * Three cases, and the distinction matters:
+ *
+ * - **Focused** — the user is reading this window. An in-app toast is enough; an
+ *   OS toast would be noise.
+ * - **Visible but unfocused** — Jablu on a second monitor. An OS toast, because
+ *   the server will not push to their other devices while this session is visible.
+ * - **Hidden** — tray, minimised, background tab. Also an OS toast, and the server
+ *   pushes as well; the shared `tag` makes the OS show only one of the two.
+ */
 export function showNotification(
   title: string,
   body: string,
@@ -41,17 +59,19 @@ export function showNotification(
   const settings = getNotifSettings()
   if (!settings.enabled) return
 
-  if (document.hasFocus()) {
+  if (isAppFocused()) {
     import('@/stores/toast.store').then(({ showToast }) => showToast(title, body, url))
     if (settings.soundEnabled) playNotifSound(soundKind)
     return
   }
 
+  const tag = notificationTag(url)
+
   const { electronAPI } = window as unknown as {
-    electronAPI?: { showNotification: (t: string, b: string, u?: string) => void }
+    electronAPI?: { showNotification: (t: string, b: string, u?: string, tag?: string) => void }
   }
   if (electronAPI?.showNotification) {
-    electronAPI.showNotification(title, body, url)
+    electronAPI.showNotification(title, body, url, tag)
     if (settings.soundEnabled) playNotifSound(soundKind)
     return
   }
@@ -62,7 +82,8 @@ export function showNotification(
   const n = new Notification(title, {
     body,
     icon: '/favicon-32x32.png',
-    silent: true
+    silent: true,
+    tag
   })
 
   n.onclick = () => {
@@ -70,7 +91,7 @@ export function showNotification(
     if (onClick) {
       onClick()
     } else if (url) {
-      window.location.href = new URL(url, window.location.origin).href
+      navigateFromNotification(url)
     }
     n.close()
   }
@@ -78,6 +99,46 @@ export function showNotification(
   if (settings.soundEnabled) {
     playNotifSound(soundKind)
   }
+}
+
+/**
+ * Takes down OS notifications the user has already dealt with elsewhere.
+ *
+ * Reaches all three places a toast can live — the page's own `Notification`
+ * objects, the service worker's (which survive a closed tab), and the Windows
+ * Action Center via the desktop shell. Passing `null` clears everything, which
+ * is what mark-all-read does.
+ */
+export async function clearNotifications(urls: string[] | null): Promise<void> {
+  const tags = urls?.map((u) => notificationTag(u)).filter((t): t is string => !!t) ?? null
+
+  const { electronAPI } = window as unknown as {
+    electronAPI?: { dismissNotification?: (tag: string) => void }
+  }
+  if (electronAPI?.dismissNotification && tags) {
+    for (const tag of tags) electronAPI.dismissNotification(tag)
+  }
+
+  if (!('serviceWorker' in navigator)) return
+  try {
+    const reg = await navigator.serviceWorker.ready
+    // `getNotifications` with no filter is the only way to reach ones this page
+    // never created, so always fetch all and filter locally.
+    const open = await reg.getNotifications()
+    for (const n of open) {
+      if (tags === null || (n.tag && tags.includes(n.tag))) {
+        n.close()
+        electronAPI?.dismissNotification?.(n.tag)
+      }
+    }
+  } catch {
+    // Notification cleanup is cosmetic; never let it break the caller.
+  }
+}
+
+/** True when the app is on screen; the server will not push to other devices. */
+export function isAppVisible(): boolean {
+  return getAppVisibilityState().visibility === 'visible'
 }
 
 export function playSound(kind: NotifSoundKind = 'message') {
@@ -111,12 +172,18 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray
 }
 
-export async function subscribeToPush(token: string): Promise<void> {
+/**
+ * @param promptForPermission Whether it is safe to ask for permission. Only true
+ *   when called from a user gesture: iOS Safari silently rejects
+ *   `requestPermission()` outside one, which would burn the prompt for good.
+ */
+export async function subscribeToPush(token: string, promptForPermission = false): Promise<void> {
   if (pushSubscribed) return
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
   if (Notification.permission === 'denied') return
   if (Notification.permission === 'default') {
+    if (!promptForPermission) return
     const result = await Notification.requestPermission()
     if (result !== 'granted') return
   }
@@ -148,7 +215,8 @@ export async function subscribeToPush(token: string): Promise<void> {
       body: JSON.stringify({
         endpoint: sub.endpoint,
         p256dh: subJson.keys?.p256dh ?? '',
-        auth: subJson.keys?.auth ?? ''
+        auth: subJson.keys?.auth ?? '',
+        deviceId: getDeviceId()
       })
     })
 
@@ -190,10 +258,8 @@ export function setupPushNavigation(): (() => void) | undefined {
 
   const handler = (event: MessageEvent) => {
     if (event.data?.type === 'navigate' && typeof event.data.url === 'string') {
-      const target = new URL(event.data.url, window.location.origin)
-      if (target.origin === window.location.origin) {
-        window.location.href = target.href
-      }
+      logNotification('service worker click received', event.data.url)
+      navigateFromNotification(event.data.url)
     }
   }
   navigator.serviceWorker.addEventListener('message', handler)
@@ -206,7 +272,9 @@ export function setupElectronNavigation() {
   }
   if (!electronAPI?.onNavigate) return
 
+  logNotification('desktop navigate listener installed')
   return electronAPI.onNavigate((url: string) => {
-    window.location.hash = `#${url}`
+    logNotification('desktop toast click received', url)
+    navigateFromNotification(url)
   })
 }

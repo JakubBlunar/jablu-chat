@@ -9,6 +9,9 @@ const PUSH_QUEUE_KEY = 'push:queue'
 const MAX_RETRIES = 3
 const POLL_TIMEOUT_S = 5
 
+/** How long a push service should keep retrying an undelivered message. */
+const PUSH_TTL_S = 60 * 60
+
 type PushJob = {
   userIds: string[]
   payload: { title: string; body: string; url?: string }
@@ -55,16 +58,21 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     return this.config.get<string>('VAPID_PUBLIC_KEY') ?? null
   }
 
-  async subscribe(userId: string, endpoint: string, p256dh: string, auth: string) {
+  async subscribe(userId: string, endpoint: string, p256dh: string, auth: string, deviceId?: string) {
     const existing = await this.prisma.pushSubscription.findUnique({ where: { endpoint } })
     if (existing && existing.userId !== userId) {
       await this.prisma.pushSubscription.delete({ where: { endpoint } })
     }
     await this.prisma.pushSubscription.upsert({
       where: { endpoint },
-      create: { userId, endpoint, p256dh, auth },
-      update: { p256dh, auth }
+      create: { userId, endpoint, p256dh, auth, deviceId: deviceId ?? null },
+      update: { p256dh, auth, ...(deviceId ? { deviceId } : {}) }
     })
+  }
+
+  /** Number of devices registered for push, surfaced by the settings test button. */
+  async countSubscriptions(userId: string): Promise<number> {
+    return this.prisma.pushSubscription.count({ where: { userId } })
   }
 
   async unsubscribe(endpoint: string, userId: string) {
@@ -86,14 +94,13 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     await this.enqueue(allowed, payload)
   }
 
-  async sendToAll(payload: { title: string; body: string; url?: string }) {
+  /**
+   * Bypasses quiet hours and suppress-all on purpose: the point of the test button
+   * is to prove the transport reaches this device, not to re-run the filters.
+   */
+  async sendTest(userId: string, payload: { title: string; body: string; url?: string }) {
     if (!this.enabled) return
-    const subs = await this.prisma.pushSubscription.findMany({ select: { userId: true } })
-    const uniqueIds = [...new Set(subs.map((s) => s.userId))]
-    if (uniqueIds.length === 0) return
-    const allowed = await filterUserIdsForWebPush(this.prisma, uniqueIds)
-    if (allowed.length === 0) return
-    await this.enqueue(allowed, payload)
+    await this.enqueue([userId], payload)
   }
 
   private async enqueue(userIds: string[], payload: { title: string; body: string; url?: string }) {
@@ -153,6 +160,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       const jsonPayload = JSON.stringify(job.payload)
       const stale: string[] = []
+      let sent = 0
+      let failed = 0
 
       await Promise.all(
         subs.map(async (sub) => {
@@ -160,14 +169,30 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
             await webPush.sendNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               jsonPayload,
-              { TTL: 60 * 60 }
+              {
+                TTL: PUSH_TTL_S,
+                // Without high urgency FCM batches the message until the phone next
+                // wakes on its own, which can be many minutes on a locked device.
+                urgency: 'high'
+              }
             )
+            sent++
           } catch (err: any) {
             if (err?.statusCode === 410 || err?.statusCode === 404) {
               stale.push(sub.id)
+            } else {
+              failed++
+              this.logger.debug(
+                `Push send failed (${err?.statusCode ?? 'no status'}) for ${sub.endpoint.slice(0, 60)}`
+              )
             }
           }
         })
+      )
+
+      this.logger.debug(
+        `Push "${job.payload.title}": ${sent} sent, ${failed} failed, ${stale.length} stale ` +
+          `across ${job.userIds.length} user(s)`
       )
 
       if (stale.length > 0) {

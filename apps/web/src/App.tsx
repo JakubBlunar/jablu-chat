@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DesktopChrome } from './components/desktop/DesktopChrome'
@@ -10,6 +10,8 @@ import { api } from './lib/api'
 import './stores/settings.store'
 import { showToast } from './stores/toast.store'
 import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
+import { startAppVisibilityTracking } from './lib/appVisibility'
+import { setNotificationNavigator } from './lib/notificationNavigation'
 import { Spinner } from '@/components/ui'
 import { LocaleSync } from '@/i18n/LocaleSync'
 import { LoginPage } from './pages/LoginPage'
@@ -76,20 +78,38 @@ function AuthBootstrap() {
   useEffect(() => {
     const cleanupPush = setupPushNavigation()
     const cleanupElectron = setupElectronNavigation()
+    const cleanupVisibility = startAppVisibilityTracking()
     return () => {
       cleanupPush?.()
       cleanupElectron?.()
+      cleanupVisibility()
     }
   }, [])
 
   useEffect(() => {
     return useAuthStore.subscribe((state) => {
+      // Only re-registers an already-granted permission. Prompting here would be
+      // rejected by iOS Safari for lacking a user gesture, permanently burning the
+      // one prompt we get; Settings has a button that asks from a real click.
       if (state.isAuthenticated && state.accessToken && getNotifSettings().enabled) {
         subscribeToPush(state.accessToken).catch(() => {})
       }
     })
   }, [])
 
+  return null
+}
+
+/**
+ * Gives out-of-tree notification handlers a real router navigate, so a toast click
+ * re-renders in place instead of assigning a hash the router may already be on.
+ */
+function NotificationRouterBridge() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    setNotificationNavigator((to) => navigate(to))
+    return () => setNotificationNavigator(null)
+  }, [navigate])
   return null
 }
 
@@ -108,6 +128,7 @@ export default function App() {
         <DesktopChrome>
           <LocaleSync>
             <AuthBootstrap />
+            <NotificationRouterBridge />
             <Suspense fallback={<LazyFallback />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />

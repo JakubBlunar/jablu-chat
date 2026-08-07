@@ -90,7 +90,9 @@ describe('showNotification', () => {
 
     showNotification('T', 'B', '/url')
 
-    expect(mockElectron.showNotification).toHaveBeenCalledWith('T', 'B', '/url')
+    // The tag is what lets the OS collapse the desktop toast and the web push
+    // toast for the same target into one.
+    expect(mockElectron.showNotification).toHaveBeenCalledWith('T', 'B', '/url', 'jablu-/url')
     delete (window as any).electronAPI
   })
 

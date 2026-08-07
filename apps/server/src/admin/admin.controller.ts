@@ -23,7 +23,8 @@ import { MailService } from '../auth/mail.service'
 import { CleanupService, StorageStats } from '../cleanup/cleanup.service'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
-import { PushService } from '../push/push.service'
+import { NotificationsService } from '../notifications/notifications.service'
+import { InAppNotificationKind } from '../prisma-client'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
 import { UploadsService } from '../uploads/uploads.service'
@@ -59,7 +60,7 @@ export class AdminController {
     private readonly config: ConfigService,
     private readonly uploads: UploadsService,
     private readonly cleanup: CleanupService,
-    private readonly push: PushService,
+    private readonly notifications: NotificationsService,
     private readonly mail: MailService,
     private readonly rateLimiter: AdminRateLimiter,
     private readonly tokenStore: AdminTokenStore,
@@ -953,15 +954,28 @@ export class AdminController {
       throw new BadRequestException('Title and body are required')
     }
 
-    const payload = { title: body.title, body: body.body }
+    // Targets are resolved to explicit ids so the broadcast can go through the
+    // notification facade and leave a bell row. A push that arrives while the
+    // user is asleep used to vanish with no record of what it said.
+    const targetIds =
+      body.userIds && body.userIds.length > 0
+        ? body.userIds
+        : (
+            await this.prisma.user.findMany({
+              where: { isBot: false },
+              select: { id: true }
+            })
+          ).map((u) => u.id)
 
-    if (body.userIds && body.userIds.length > 0) {
-      await this.push.sendToUsers(body.userIds, payload)
-      return { sent: body.userIds.length }
-    }
+    await this.notifications.dispatch({
+      userIds: targetIds,
+      kind: InAppNotificationKind.announcement,
+      payload: { title: body.title, body: body.body },
+      title: body.title,
+      body: body.body,
+      push: true
+    })
 
-    await this.push.sendToAll(payload)
-    const count = await this.prisma.pushSubscription.count()
-    return { sent: count }
+    return { sent: targetIds.length }
   }
 }

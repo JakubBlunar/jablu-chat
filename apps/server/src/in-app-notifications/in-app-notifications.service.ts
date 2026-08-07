@@ -4,7 +4,20 @@ import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 
 export const IN_APP_NOTIFICATION_CAP_DEFAULT = 500
+
+/** Recipients per transaction in `record`. Keeps instance-wide broadcasts bounded. */
+const RECORD_BATCH_SIZE = 100
 export const IN_APP_NOTIFICATION_USERS_EVENT = 'in_app_notification:users' as const
+
+/**
+ * Carries the in-app URLs whose notifications are now stale, so the gateway can
+ * tell the user's *other* devices to take the OS toast down. Reading a DM on
+ * your phone should clear the desktop toast for it.
+ *
+ * A `urls` of `null` means "everything", used by mark-all-read.
+ */
+export const NOTIFICATION_CLEAR_EVENT = 'notification:clear' as const
+export type NotificationClearPayload = { userId: string; urls: string[] | null }
 
 export type InAppNotificationWire = {
   id: string
@@ -44,6 +57,11 @@ export class InAppNotificationsService {
     const u = [...new Set(userIds)]
     if (u.length === 0) return
     this.events.emit(IN_APP_NOTIFICATION_USERS_EVENT, { userIds: u })
+  }
+
+  private emitClear(userId: string, urls: string[] | null) {
+    const payload: NotificationClearPayload = { userId, urls }
+    this.events.emit(NOTIFICATION_CLEAR_EVENT, payload)
   }
 
   private toWire(row: {
@@ -238,27 +256,39 @@ export class InAppNotificationsService {
     this.emitUsers(targets)
   }
 
-  /** Mark coalesced channel/thread/mention rows for a given channel as read. */
+  /**
+   * Kinds that live inside a channel and are therefore cleared by opening it.
+   * Everything else (moderation, role_changed, level_up, announcement,
+   * server_event, friend_*) has no channel to open and clears on click or on
+   * mark-all-read instead.
+   */
+  private channelScopedMatchers(channelId: string): Prisma.InAppNotificationWhereInput[] {
+    return [
+      InAppNotificationKind.mention,
+      InAppNotificationKind.thread_reply,
+      InAppNotificationKind.reply
+    ].map((kind) => ({
+      kind,
+      payload: { path: ['channelId'], equals: channelId }
+    }))
+  }
+
+  /** Mark coalesced channel/thread/mention/reply rows for a given channel as read. */
   async markChannelRead(userId: string, channelId: string): Promise<void> {
     const res = await this.prisma.inAppNotification.updateMany({
       where: {
         userId,
         readAt: null,
-        OR: [
-          { dedupeKey: `channel:${channelId}` },
-          {
-            kind: InAppNotificationKind.mention,
-            payload: { path: ['channelId'], equals: channelId }
-          },
-          {
-            kind: InAppNotificationKind.thread_reply,
-            payload: { path: ['channelId'], equals: channelId }
-          }
-        ]
+        OR: [{ dedupeKey: `channel:${channelId}` }, ...this.channelScopedMatchers(channelId)]
       },
       data: { readAt: new Date() }
     })
     if (res.count > 0) this.emitUsers([userId])
+
+    const ch = await this.prisma.channel
+      .findUnique({ where: { id: channelId }, select: { serverId: true } })
+      .catch(() => null)
+    if (ch) this.emitClear(userId, [`/channels/${ch.serverId}/${channelId}`])
   }
 
   /** Mark all channel-scoped rows for an entire server as read for a single user. */
@@ -279,16 +309,7 @@ export class InAppNotificationsService {
         where: {
           userId,
           readAt: null,
-          OR: [
-            {
-              kind: InAppNotificationKind.mention,
-              payload: { path: ['channelId'], equals: channelId }
-            },
-            {
-              kind: InAppNotificationKind.thread_reply,
-              payload: { path: ['channelId'], equals: channelId }
-            }
-          ]
+          OR: this.channelScopedMatchers(channelId)
         },
         data: { readAt: new Date() }
       })
@@ -308,6 +329,7 @@ export class InAppNotificationsService {
       data: { readAt: new Date() }
     })
     if (res.count > 0) this.emitUsers([userId])
+    this.emitClear(userId, [`/channels/@me/${conversationId}`])
   }
 
   async recordDmMessages(
@@ -328,7 +350,11 @@ export class InAppNotificationsService {
           where: { userId_dedupeKey: { userId, dedupeKey } }
         })
         const prev = (existing?.payload as Record<string, unknown> | null) ?? {}
-        const prevCount = typeof prev.count === 'number' ? prev.count : 0
+        // Restart the count once the row has been read, matching
+        // `recordChannelMessage`. Accumulating across the read boundary made the
+        // bell claim "12 new messages" for a conversation with one unread.
+        const prevCount =
+          existing && existing.readAt === null && typeof prev.count === 'number' ? prev.count : 0
         const nextPayload: Prisma.InputJsonValue = {
           conversationId: input.conversationId,
           messageId: input.messageId,
@@ -425,34 +451,6 @@ export class InAppNotificationsService {
     this.emitUsers(targets)
   }
 
-  async recordFriendRequest(
-    addresseeId: string,
-    input: { friendshipId: string; requesterId: string; requesterName: string }
-  ): Promise<void> {
-    const dedupeKey = `friend:${input.friendshipId}`
-    const payload: Prisma.InputJsonValue = {
-      friendshipId: input.friendshipId,
-      requesterId: input.requesterId,
-      requesterName: input.requesterName
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.inAppNotification.upsert({
-        where: { userId_dedupeKey: { userId: addresseeId, dedupeKey } },
-        create: {
-          userId: addresseeId,
-          kind: InAppNotificationKind.friend_request,
-          dedupeKey,
-          payload
-        },
-        update: { payload, readAt: null }
-      })
-      await this.applyTtlAndCap(tx, addresseeId)
-    })
-
-    this.emitUsers([addresseeId])
-  }
-
   async list(userId: string, limit = 40, cursor?: string) {
     const take = Math.min(Math.max(limit, 1), 100)
     const afterRow =
@@ -524,6 +522,9 @@ export class InAppNotificationsService {
       where: { id },
       data: { readAt: new Date() }
     })
+    // Like every other mutating method here: without this the badge on the user's
+    // other devices stays stale until a full reload.
+    this.emitUsers([userId])
     return this.toWire(updated)
   }
 
@@ -532,6 +533,53 @@ export class InAppNotificationsService {
       where: { userId, readAt: null },
       data: { readAt: new Date() }
     })
+    if (res.count > 0) this.emitUsers([userId])
+    this.emitClear(userId, null)
     return { updated: res.count }
+  }
+
+  /**
+   * Writes a one-shot row for the kinds that carry no coalescing of their own —
+   * moderation, role changes, level ups, announcements, events, friend accepts.
+   *
+   * `dedupeKey` makes the write idempotent (a retried job updates rather than
+   * duplicates); omit it for rows that should stack, such as repeated level ups.
+   */
+  async record(
+    userIds: string[],
+    input: {
+      kind: InAppNotificationKind
+      dedupeKey?: string
+      payload: Record<string, unknown>
+    }
+  ): Promise<void> {
+    const targets = [...new Set(userIds)]
+    if (targets.length === 0) return
+    const payload = input.payload as Prisma.InputJsonValue
+
+    // Chunked because an admin announcement targets every user on the instance,
+    // and each one costs an upsert plus the cap's count query. One transaction
+    // spanning all of them would hold locks long enough to time out.
+    for (let i = 0; i < targets.length; i += RECORD_BATCH_SIZE) {
+      const batch = targets.slice(i, i + RECORD_BATCH_SIZE)
+      await this.prisma.$transaction(async (tx) => {
+        for (const userId of batch) {
+          if (input.dedupeKey) {
+            await tx.inAppNotification.upsert({
+              where: { userId_dedupeKey: { userId, dedupeKey: input.dedupeKey } },
+              create: { userId, kind: input.kind, dedupeKey: input.dedupeKey, payload },
+              update: { payload, readAt: null }
+            })
+          } else {
+            await tx.inAppNotification.create({
+              data: { userId, kind: input.kind, payload }
+            })
+          }
+          await this.applyTtlAndCap(tx, userId)
+        }
+      })
+    }
+
+    this.emitUsers(targets)
   }
 }

@@ -19,8 +19,11 @@ export function useActivityReporter(socket: Socket | null) {
   useEffect(() => {
     if (!socket) return
 
+    // Sent regardless of manual status. The heartbeat now also drives the push
+    // away-timer, and someone on Idle or DND is still at their machine — going
+    // quiet here would make the server think they left and start pushing their
+    // phone. The server keeps its own manual-status guard for presence effects.
     const sendHeartbeat = () => {
-      if (useAuthStore.getState().isManualStatus) return
       if (!socket.connected) return
       const now = Date.now()
       if (now - lastSent.current < HEARTBEAT_THROTTLE_MS) return

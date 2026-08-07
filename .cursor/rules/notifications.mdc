@@ -1,0 +1,76 @@
+---
+description: Every user-visible event must produce a notification through the NotificationsService facade
+alwaysApply: true
+---
+
+# Notifications
+
+Jablu's notification set is expected to grow with every feature. The failure
+mode this rule exists to prevent is shipping something a user cares about that
+tells them nothing — a level up, a role change, a timeout — because the feature
+worked without it.
+
+Full design and architecture: [NOTIFICATIONS.md](../../NOTIFICATIONS.md).
+
+## The rule
+
+**If a feature produces an event a user would want to know about, it must
+notify.** Ask this for every new server-side event, not just the obvious ones.
+If you conclude an event should stay silent, say so in the PR description rather
+than leaving it unanswered.
+
+Events that warrant a notification:
+
+- Something addressed the user directly (mention, reply, DM, friend request).
+- Something happened *to* the user (moderation, role change, ban, level up).
+- Something the user opted into occurred (event starting, thread they follow).
+- An operator broadcast (announcement, maintenance).
+
+## How to add one
+
+1. Add the value to `InAppNotificationKind` in `apps/server/prisma/schema.prisma`
+   **and** write a migration that `ALTER TYPE ... ADD VALUE`s it. Postgres enums
+   are not created by `db push` alone.
+2. Mirror it in `InAppNotificationKind` in `apps/web/src/lib/api/types.ts`.
+3. Call `NotificationsService.dispatch()` from the producer. Never call
+   `PushService` or `InAppNotificationsService` directly — that ordering is what
+   guarantees an undeliverable notification still lands in the bell.
+4. Render it in `InAppNotificationBell.tsx`: a case in `titleFor`, an icon in
+   `iconFor`, and a branch in `onItemClick` that routes the click somewhere
+   sensible.
+5. If the kind is channel-scoped, add it to `channelScopedMatchers` in
+   `in-app-notifications.service.ts` so opening the channel clears it.
+6. Add a spec covering who receives it and who does not.
+
+## Choosing `push`
+
+`push: true` wakes a device. Reserve it for things that are worth interrupting
+someone for: direct address (mention, reply, DM), moderation, and events the
+user opted into. Ambient status changes (role changed, level up) belong in the
+bell only.
+
+## Delivery invariants
+
+Do not break these:
+
+- **Record before transport.** The durable row is written first; push and socket
+  emission are best-effort on top. A failed push must never mean a lost
+  notification.
+- **Push is gated on engagement, not on socket presence.** Use
+  `isUserActivelyEngaged`, never `hasActiveSocket` or `isUserOnline`. A desktop
+  app minimised to the tray holds a socket open indefinitely and is not a
+  reader.
+- **Fail open.** When engagement cannot be determined, push. A duplicate
+  notification is a far cheaper mistake than a missed one.
+- **Every read path clears across devices.** Marking something read must emit
+  both the badge bump (`IN_APP_NOTIFICATION_USERS_EVENT`) and the toast teardown
+  (`NOTIFICATION_CLEAR_EVENT`).
+
+## Messages are the one delegation
+
+Channel and DM messages go through `deliverChannelMessage` /
+`deliverDmMessage` rather than `dispatch`, because they carry per-channel
+preference and permission filtering. Any new path that creates a message —
+REST, webhook, bot, poll, forum — must route through those helpers. Emitting
+`message:new` directly is the bug that left webhook and bot messages with no
+mentions, no bell row, and no push.

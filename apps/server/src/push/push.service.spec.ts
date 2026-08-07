@@ -68,8 +68,21 @@ describe('PushService', () => {
 
       expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith({
         where: { endpoint: 'https://push.example.com' },
-        create: { userId: 'u1', endpoint: 'https://push.example.com', p256dh: 'p256', auth: 'auth' },
+        create: { userId: 'u1', endpoint: 'https://push.example.com', p256dh: 'p256', auth: 'auth', deviceId: null },
         update: { p256dh: 'p256', auth: 'auth' }
+      })
+    })
+
+    it('stores the deviceId when the client supplies one', async () => {
+      prisma.pushSubscription.findUnique.mockResolvedValue(null)
+      prisma.pushSubscription.upsert.mockResolvedValue({})
+
+      await service.subscribe('u1', 'https://push.example.com', 'p256', 'auth', 'device-9')
+
+      expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith({
+        where: { endpoint: 'https://push.example.com' },
+        create: { userId: 'u1', endpoint: 'https://push.example.com', p256dh: 'p256', auth: 'auth', deviceId: 'device-9' },
+        update: { p256dh: 'p256', auth: 'auth', deviceId: 'device-9' }
       })
     })
 

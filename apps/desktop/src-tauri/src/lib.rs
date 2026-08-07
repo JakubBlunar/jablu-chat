@@ -1,4 +1,5 @@
 mod activity;
+mod badges;
 mod config;
 mod logging;
 mod notifications;
@@ -41,16 +42,67 @@ fn get_version(app: AppHandle) -> String {
 }
 
 #[tauri::command]
-fn show_notification(app: AppHandle, title: String, body: String, url: Option<String>) {
+fn show_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    url: Option<String>,
+    tag: Option<String>,
+) {
     // The toast's own click handler focuses the window and emits `navigate`, so
     // deep-linking works when the user clicks the notification (see notifications.rs).
-    notifications::show(&app, &title, &body, url);
+    notifications::show(&app, &title, &body, url, tag);
 
     if let Some(window) = app.get_webview_window("main") {
         if !window.is_focused().unwrap_or(false) {
-            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+            // Critical, not Informational: Informational flashes once and settles,
+            // so a message that arrives while you are in another app leaves no trace
+            // on the taskbar. Critical keeps the button highlighted until you look.
+            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
         }
     }
+}
+
+#[tauri::command]
+fn dismiss_notification(app: AppHandle, tag: String) {
+    notifications::dismiss(&app, &tag);
+}
+
+/// Native window state, mirrored to the web layer so it can tell "hidden in the
+/// tray" from "on screen" — a distinction the webview's own `visibilityState`
+/// does not make reliably.
+#[derive(Clone, serde::Serialize)]
+pub struct WindowState {
+    pub visible: bool,
+    pub minimized: bool,
+    pub focused: bool,
+}
+
+fn current_window_state(app: &AppHandle) -> WindowState {
+    match app.get_webview_window("main") {
+        Some(window) => WindowState {
+            visible: window.is_visible().unwrap_or(true),
+            minimized: window.is_minimized().unwrap_or(false),
+            focused: window.is_focused().unwrap_or(false),
+        },
+        None => WindowState {
+            visible: false,
+            minimized: false,
+            focused: false,
+        },
+    }
+}
+
+#[tauri::command]
+fn get_window_state(app: AppHandle) -> WindowState {
+    current_window_state(&app)
+}
+
+/// Publishes the current window state. Called after every transition we control
+/// (hide, show, minimise, focus) — the web layer de-duplicates, so over-emitting
+/// is cheaper than missing a transition and mis-reporting presence.
+fn emit_window_state(app: &AppHandle) {
+    let _ = app.emit("window-state", current_window_state(app));
 }
 
 #[tauri::command]
@@ -60,15 +112,41 @@ fn restart_app(app: AppHandle) {
     app.restart();
 }
 
+/// Reflects the unread count everywhere a glance can reach it: the tray tooltip,
+/// a dot burned into the tray icon, and a taskbar overlay badge. The tooltip alone
+/// required hovering, which is no use for noticing that something arrived.
 #[tauri::command]
 fn set_tray_unread(app: AppHandle, count: i64) {
+    let has_unread = count > 0;
+
     if let Some(tray) = app.tray_by_id("main") {
-        let tooltip = if count > 0 {
+        let tooltip = if has_unread {
             format!("Jablu ({count} unread)")
         } else {
             "Jablu".to_string()
         };
         let _ = tray.set_tooltip(Some(&tooltip));
+
+        if let Some(base) = app.default_window_icon().cloned() {
+            let icon = if has_unread {
+                badges::with_corner_dot(&base)
+            } else {
+                Some(base)
+            };
+            if let Some(icon) = icon {
+                let _ = tray.set_icon(Some(icon));
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    if let Some(window) = app.get_webview_window("main") {
+        let overlay = if has_unread {
+            badges::unread_overlay()
+        } else {
+            None
+        };
+        let _ = window.set_overlay_icon(overlay);
     }
 }
 
@@ -135,6 +213,7 @@ fn show_main_window(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        emit_window_state(app);
     }
 }
 
@@ -211,16 +290,23 @@ pub fn run() {
 
                 let hide_target = window.clone();
                 window.on_window_event(move |event| {
-                    // Hide to tray instead of quitting when the user closes the window.
-                    if let WindowEvent::CloseRequested { api, .. } = event {
-                        api.prevent_close();
-                        // Capture the current size/position before hiding, so it is
-                        // preserved even if the process is later killed while in tray.
-                        let _ = hide_target
-                            .app_handle()
-                            .save_window_state(persisted_state_flags());
-                        let _ = hide_target.hide();
+                    match event {
+                        // Hide to tray instead of quitting when the user closes the window.
+                        WindowEvent::CloseRequested { api, .. } => {
+                            api.prevent_close();
+                            // Capture the current size/position before hiding, so it is
+                            // preserved even if the process is later killed while in tray.
+                            let _ = hide_target
+                                .app_handle()
+                                .save_window_state(persisted_state_flags());
+                            let _ = hide_target.hide();
+                        }
+                        // Minimise and restore arrive as a resize, not a dedicated
+                        // event, so the state has to be re-read rather than inferred.
+                        WindowEvent::Focused(_) | WindowEvent::Resized(_) => {}
+                        _ => return,
                     }
+                    emit_window_state(hide_target.app_handle());
                 });
 
                 if start_minimized {
@@ -232,6 +318,7 @@ pub fn run() {
                     let _ = window.set_focus();
                     logging::log("setup: window shown");
                 }
+                emit_window_state(&handle);
 
                 // Silently allow the WebView2 mic/camera prompts so voice/video
                 // works without the user clicking "grant access" each session.
@@ -247,6 +334,8 @@ pub fn run() {
             get_platform,
             get_version,
             show_notification,
+            dismiss_notification,
+            get_window_state,
             restart_app,
             set_tray_unread,
             get_auto_launch,

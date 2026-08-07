@@ -3,15 +3,13 @@ import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { FriendsService } from './friends.service'
 import { EventBusService } from '../events/event-bus.service'
-import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 
 @Controller('friends')
 @UseGuards(UnifiedAuthGuard)
 export class FriendsController {
   constructor(
     private readonly friends: FriendsService,
-    private readonly events: EventBusService,
-    private readonly inApp: InAppNotificationsService
+    private readonly events: EventBusService
   ) {}
 
   @Get()
@@ -32,20 +30,12 @@ export class FriendsController {
   @Post('request')
   async sendRequest(@CurrentUser() user: { id: string }, @Body('userId', ParseUUIDPipe) targetId: string) {
     const friendship = await this.friends.sendRequest(user.id, targetId)
+    // The gateway listener owns both the bell row and the push for this event.
     this.events.emit('friend:request', {
       friendshipId: friendship.id,
       requester: friendship.requester,
       addressee: friendship.addressee
     })
-    const requesterName =
-      friendship.requester.displayName?.trim() || friendship.requester.username
-    void this.inApp
-      .recordFriendRequest(friendship.addresseeId, {
-        friendshipId: friendship.id,
-        requesterId: friendship.requesterId,
-        requesterName
-      })
-      .catch(() => {})
     return { ok: true, friendshipId: friendship.id }
   }
 

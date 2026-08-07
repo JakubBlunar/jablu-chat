@@ -73,13 +73,13 @@ function createMockContext(overrides: Partial<PushContext> = {}): PushContext {
     roles: {
       getChannelPermissions: jest.fn().mockResolvedValue(Permission.VIEW_CHANNEL),
     } as any,
-    isUserOnline: jest.fn().mockReturnValue(false),
+    isUserActivelyEngaged: jest.fn().mockReturnValue(false),
     ...overrides,
   }
 }
 
 describe('sendPushToOfflineMembers', () => {
-  it('sends push to offline members with default "all" pref', async () => {
+  it('sends push to away members with default "all" pref', async () => {
     const ctx = createMockContext()
     ;(ctx.prisma.serverMember.findMany as jest.Mock).mockResolvedValue([
       { userId: 'u-offline', notifLevel: null },
@@ -93,10 +93,10 @@ describe('sendPushToOfflineMembers', () => {
     )
   })
 
-  it('skips online members', async () => {
-    const ctx = createMockContext({ isUserOnline: jest.fn().mockReturnValue(true) })
+  it('skips members actively looking at the app', async () => {
+    const ctx = createMockContext({ isUserActivelyEngaged: jest.fn().mockReturnValue(true) })
     ;(ctx.prisma.serverMember.findMany as jest.Mock).mockResolvedValue([
-      { userId: 'u-online', notifLevel: null },
+      { userId: 'u-engaged', notifLevel: null },
     ])
 
     await sendPushToOfflineMembers(ctx, 's1', 'sender', 'Alice', 'hello', '/url', 'ch-1', [])
@@ -144,7 +144,7 @@ describe('sendPushToOfflineMembers', () => {
 })
 
 describe('sendPushToThreadParticipants', () => {
-  it('sends to offline thread participants', async () => {
+  it('sends to away thread participants', async () => {
     const ctx = createMockContext()
     ;(ctx.prisma.message.findUnique as jest.Mock).mockResolvedValue({ authorId: 'u-parent' })
     ;(ctx.prisma.message.findMany as jest.Mock).mockResolvedValue([{ authorId: 'u-replier' }])

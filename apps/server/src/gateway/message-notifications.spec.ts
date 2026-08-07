@@ -15,7 +15,8 @@ function makeCtx(prisma: MockPrismaService, redis: MockRedisService) {
     recordChannelMessage: jest.fn().mockResolvedValue(undefined),
     recordThreadActivity: jest.fn().mockResolvedValue(undefined),
     recordDmMessages: jest.fn().mockResolvedValue(undefined),
-    resolveThreadParticipantUserIds: jest.fn().mockResolvedValue([])
+    resolveThreadParticipantUserIds: jest.fn().mockResolvedValue([]),
+    record: jest.fn().mockResolvedValue(undefined)
   }
   const readState = {
     resolveMentions: jest.fn().mockResolvedValue({ userIds: [], everyone: false, here: false }),
@@ -33,7 +34,7 @@ function makeCtx(prisma: MockPrismaService, redis: MockRedisService) {
   }
   const emitToChannel = jest.fn()
   const emitToDm = jest.fn()
-  const hasActiveSocket = jest.fn().mockReturnValue(false)
+  const isUserActivelyEngaged = jest.fn().mockReturnValue(false)
   const getOnlineUserIds = jest.fn().mockReturnValue([])
 
   const ctx: MessageNotificationsContext = {
@@ -44,13 +45,13 @@ function makeCtx(prisma: MockPrismaService, redis: MockRedisService) {
     inApp: inApp as any,
     readState: readState as any,
     linkPreviews: linkPreviews as any,
-    hasActiveSocket,
+    isUserActivelyEngaged,
     getOnlineUserIds,
     emitToChannel,
     emitToDm
   }
 
-  return { ctx, inApp, readState, push, roles, linkPreviews, emitToChannel, emitToDm, hasActiveSocket }
+  return { ctx, inApp, readState, push, roles, linkPreviews, emitToChannel, emitToDm, isUserActivelyEngaged }
 }
 
 async function flush() {
@@ -148,9 +149,142 @@ describe('deliverChannelMessage', () => {
     )
   })
 
-  it('skips push for users with an active socket', async () => {
-    const { ctx, push, hasActiveSocket } = makeCtx(prisma, redis)
-    hasActiveSocket.mockImplementation((uid: string) => uid === 'r1')
+  describe('replies', () => {
+    const replyMessage = {
+      id: 'm-2',
+      content: 'sure thing',
+      replyToId: 'm-1',
+      author: { id: 'sender', username: 'alice' }
+    }
+
+    it('records a reply row for the author of the message being replied to', async () => {
+      const { ctx, inApp } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        channelName: 'general',
+        message: replyMessage,
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(inApp.record).toHaveBeenCalledWith(
+        ['r1'],
+        expect.objectContaining({
+          kind: 'reply',
+          dedupeKey: 'reply:m-2',
+          payload: expect.objectContaining({ channelId: 'ch-1', replyToId: 'm-1' })
+        })
+      )
+    })
+
+    it('pushes to the reply target alongside mentions so a mentions-only pref still delivers', async () => {
+      const { ctx, push } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        message: replyMessage,
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(push.sendToUsers).toHaveBeenCalled()
+    })
+
+    it('does not record a reply row when the sender replies to themselves', async () => {
+      const { ctx, inApp } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'sender' })
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        message: replyMessage,
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(inApp.record).not.toHaveBeenCalled()
+    })
+
+    it('lets the mention row win when the reply target is also @-mentioned', async () => {
+      const { ctx, inApp, readState } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+      readState.resolveMentions.mockResolvedValue({
+        userIds: ['r1'],
+        everyone: false,
+        here: false
+      })
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        message: { ...replyMessage, content: 'sure @bob' },
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(inApp.recordMentions).toHaveBeenCalledWith(['r1'], expect.anything())
+      expect(inApp.record).not.toHaveBeenCalled()
+    })
+
+    it('does not record a reply row when the target cannot view the channel', async () => {
+      const { ctx, inApp, roles } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+      roles.getChannelPermissions.mockImplementation(async (_s: string, _c: string, uid: string) =>
+        uid === 'r1' ? 0n : VIEW_AND_SEND
+      )
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        message: replyMessage,
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(inApp.record).not.toHaveBeenCalled()
+    })
+
+    it('excludes the reply target from the coalesced channel_message row', async () => {
+      const { ctx, inApp } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        message: replyMessage,
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(inApp.recordChannelMessage).toHaveBeenCalledWith(['r2'], expect.anything())
+    })
+
+    it('leaves thread replies to the thread_reply row rather than doubling up', async () => {
+      const { ctx, inApp } = makeCtx(prisma, redis)
+      prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+      inApp.resolveThreadParticipantUserIds.mockResolvedValue(['r1'])
+
+      await deliverChannelMessage(ctx, {
+        serverId: 'srv-1',
+        channelId: 'ch-1',
+        message: { ...replyMessage, threadParentId: 'parent-1' },
+        senderId: 'sender'
+      })
+      await flush()
+
+      expect(inApp.record).not.toHaveBeenCalled()
+      expect(inApp.recordThreadActivity).toHaveBeenCalled()
+    })
+  })
+
+  it('skips push for users actively looking at the app', async () => {
+    const { ctx, push, isUserActivelyEngaged } = makeCtx(prisma, redis)
+    isUserActivelyEngaged.mockImplementation((uid: string) => uid === 'r1')
 
     await deliverChannelMessage(ctx, {
       serverId: 'srv-1',
@@ -298,9 +432,9 @@ describe('deliverDmMessage', () => {
     expect(push.sendToUsers).toHaveBeenCalledWith(['other'], expect.any(Object))
   })
 
-  it('skips push for DM members with an active socket', async () => {
-    const { ctx, push, hasActiveSocket } = makeCtx(prisma, redis)
-    hasActiveSocket.mockReturnValue(true)
+  it('skips push for DM members actively looking at the app', async () => {
+    const { ctx, push, isUserActivelyEngaged } = makeCtx(prisma, redis)
+    isUserActivelyEngaged.mockReturnValue(true)
 
     await deliverDmMessage(ctx, {
       conversationId: 'conv-1',

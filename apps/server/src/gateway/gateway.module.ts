@@ -6,6 +6,7 @@ import { MessagesModule } from '../messages/messages.module'
 import { PushModule } from '../push/push.module'
 import { ReadStateModule } from '../read-state/read-state.module'
 import { InAppNotificationsModule } from '../in-app-notifications/in-app-notifications.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 import { RolesModule } from '../roles/roles.module'
 import { ChatGateway } from './gateway.gateway'
 import { WsJwtGuard } from './ws-jwt.guard'
@@ -20,7 +21,8 @@ import { WsThrottleGuard } from './ws-throttle.guard'
     PushModule,
     AutoModModule,
     RolesModule,
-    InAppNotificationsModule
+    InAppNotificationsModule,
+    NotificationsModule
   ],
   providers: [ChatGateway, WsJwtGuard, WsThrottleGuard]
 })

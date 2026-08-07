@@ -10,6 +10,7 @@ import {
   WsMessageChannelDto,
   WsMessageIdDto,
   WsPollVoteDto,
+  WsPresenceStateDto,
   WsReactionToggleDto,
   WsSendMessageDto,
   WsVoiceStateDto
@@ -296,5 +297,31 @@ describe('WsVoiceStateDto', () => {
 
   it('rejects non-boolean screenShare', async () => {
     await expectInvalid(WsVoiceStateDto, { screenShare: 'off' }, 'screenShare')
+  })
+})
+
+describe('WsPresenceStateDto', () => {
+  it('accepts visible with focus', async () => {
+    await expectValid(WsPresenceStateDto, { visibility: 'visible', focused: true })
+  })
+
+  it('accepts hidden without focus', async () => {
+    await expectValid(WsPresenceStateDto, { visibility: 'hidden', focused: false })
+  })
+
+  it('accepts a missing focused flag', async () => {
+    await expectValid(WsPresenceStateDto, { visibility: 'visible' })
+  })
+
+  it('requires visibility', async () => {
+    await expectInvalid(WsPresenceStateDto, { focused: true }, 'visibility')
+  })
+
+  it('rejects a visibility outside the enum', async () => {
+    await expectInvalid(WsPresenceStateDto, { visibility: 'minimized' }, 'visibility')
+  })
+
+  it('rejects non-boolean focused', async () => {
+    await expectInvalid(WsPresenceStateDto, { visibility: 'visible', focused: 'yes' }, 'focused')
   })
 })

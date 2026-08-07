@@ -2002,7 +2002,6 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
- "tauri-winrt-notification",
  "tokio",
  "url",
  "webview2-com",

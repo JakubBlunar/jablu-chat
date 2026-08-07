@@ -138,6 +138,13 @@ export type InAppNotificationKind =
   | 'thread_reply'
   | 'friend_request'
   | 'channel_message'
+  | 'reply'
+  | 'moderation'
+  | 'role_changed'
+  | 'level_up'
+  | 'server_event'
+  | 'announcement'
+  | 'friend_accepted'
 
 export type InAppNotificationDto = {
   id: string

@@ -2,109 +2,275 @@
 //!
 //! `tauri-plugin-notification` can show a toast but gives us no way to react when
 //! the user clicks it, so a click neither focused the window nor deep-linked to
-//! the message. We instead drive the Windows toast through `tauri-winrt-notification`,
-//! whose `on_activated` callback fires in-process while the app is running — which
-//! is exactly when we show these toasts (only when the window isn't focused).
+//! the message. We drive the Windows toast through the `windows` crate directly,
+//! whose `Activated` callback fires in-process while the app is running — which is
+//! exactly when we show these toasts.
 //!
 //! On click we surface the window and emit a `navigate` event carrying the target
-//! path; the web layer (`setupElectronNavigation`) turns that into a hash-route
-//! change, so the user lands on the channel the notification pointed at.
+//! path; the web layer (`setupElectronNavigation`) hands that to the router, so the
+//! user lands on the channel the notification pointed at.
+//!
+//! Two Windows requirements govern the shape of this module:
+//!
+//! 1. **The AUMID must match.** An unpackaged Win32 app only receives a toast's
+//!    in-process `Activated` event if the *process* AUMID equals the AUMID the
+//!    toast was created with. `register_aumid` pins the process AUMID and writes
+//!    the matching HKCU registration, and `show` uses that one identifier
+//!    unconditionally — including in `tauri dev`, which previously fell back to
+//!    PowerShell's AUMID and routed every click into the void.
+//! 2. **The notification object must stay alive.** Activation is delivered to the
+//!    `ToastNotification` instance, so dropping it at the end of `show` silently
+//!    disables the callback. Live toasts are therefore parked in `LIVE_TOASTS`
+//!    until they are dismissed, activated, or fail.
 
 /// Pin the process AppUserModelID (AUMID) to the bundle identifier and register
 /// it under HKCU.
 ///
-/// An unpackaged (NSIS-installed) Win32 app only receives a foreground toast's
-/// in-process `Activated` event if the *process* AUMID matches the AUMID the
-/// toast was created with. Tauri's shortcut carries the AUMID so toasts render,
-/// but without `SetCurrentProcessExplicitAppUserModelID` Windows never routes the
-/// click back to us — so clicking a notification did nothing and it lingered in
-/// Action Center. Registering the AUMID under HKCU additionally makes toast
-/// rendering/persistence robust against a missing or stale shortcut property.
+/// Registering under HKCU additionally makes toast rendering and Action Center
+/// persistence robust against a missing or stale Start Menu shortcut, which is
+/// what makes it safe to use the real identifier during development.
 #[cfg(windows)]
 pub fn register_aumid(app: &tauri::AppHandle) {
     let aumid = app.config().identifier.clone();
 
-    // 1. Match the process AUMID to the toast AUMID so in-process activation is
-    //    delivered to this running process.
     unsafe {
         use windows::core::HSTRING;
         use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
         if let Err(e) = SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(aumid.as_str())) {
-            eprintln!("failed to set process AUMID: {e}");
+            crate::logging::log(&format!("notif: failed to set process AUMID: {e}"));
         }
     }
 
-    // 2. Self-healing per-user AUMID registration (no admin) so Action Center
-    //    renders/persists our toasts regardless of shortcut state or launch path.
     use winreg::enums::HKEY_CURRENT_USER;
     use winreg::RegKey;
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    if let Ok((key, _)) =
-        hkcu.create_subkey(format!("Software\\Classes\\AppUserModelId\\{aumid}"))
+    if let Ok((key, _)) = hkcu.create_subkey(format!("Software\\Classes\\AppUserModelId\\{aumid}"))
     {
         let _ = key.set_value("DisplayName", &"Jablu");
     }
+
+    crate::logging::log(&format!("notif: AUMID registered as {aumid}"));
 }
 
 #[cfg(not(windows))]
 pub fn register_aumid(_app: &tauri::AppHandle) {}
 
-/// Show a notification and, on click, focus the window and navigate to `url`.
 #[cfg(windows)]
-pub fn show(app: &tauri::AppHandle, title: &str, body: &str, url: Option<String>) {
-    use tauri::Manager;
-    use tauri_winrt_notification::Toast;
+mod win {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
 
-    let app_id = app_user_model_id(app);
-    let app_handle = app.clone();
+    use tauri::{AppHandle, Emitter, Manager};
+    use windows::core::{Interface, HSTRING};
+    use windows::Data::Xml::Dom::XmlDocument;
+    use windows::Foundation::TypedEventHandler;
+    use windows::UI::Notifications::{
+        ToastActivatedEventArgs, ToastDismissedEventArgs, ToastFailedEventArgs, ToastNotification,
+        ToastNotificationManager,
+    };
 
-    let toast = Toast::new(&app_id)
-        .title(title)
-        .text1(body)
-        .on_activated(move |_action| {
-            if let Some(window) = app_handle.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-            if let Some(url) = &url {
-                use tauri::Emitter;
-                let _ = app_handle.emit("navigate", url.clone());
-            }
-            Ok(())
-        });
+    /// Toasts currently on screen, keyed by tag.
+    ///
+    /// Windows delivers activation to the `ToastNotification` object itself, so it
+    /// has to outlive the call that showed it. Entries are removed once the toast
+    /// is activated, dismissed, or fails, which bounds the map to what is visible.
+    static LIVE_TOASTS: OnceLock<Mutex<HashMap<String, ToastNotification>>> = OnceLock::new();
 
-    if let Err(e) = toast.show() {
-        eprintln!("failed to show toast notification: {e}");
+    fn live_toasts() -> &'static Mutex<HashMap<String, ToastNotification>> {
+        LIVE_TOASTS.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    fn forget(tag: &str) {
+        if let Ok(mut map) = live_toasts().lock() {
+            map.remove(tag);
+        }
+    }
+
+    /// Windows tags and groups are limited to 64 characters, and a channel URL can
+    /// exceed that, so hash anything too long into a stable short key.
+    fn sanitize_tag(raw: &str) -> String {
+        if raw.len() <= 60 && raw.is_ascii() {
+            return raw.replace(|c: char| !c.is_ascii_alphanumeric() && c != '-', "-");
+        }
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for byte in raw.as_bytes() {
+            hash ^= *byte as u64;
+            hash = hash.wrapping_mul(0x1000_0000_01b3);
+        }
+        format!("t{hash:x}")
+    }
+
+    fn escape_xml(value: &str) -> String {
+        value
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+    }
+
+    pub fn show(
+        app: &AppHandle,
+        title: &str,
+        body: &str,
+        url: Option<String>,
+        tag: Option<String>,
+    ) {
+        let aumid = app.config().identifier.clone();
+        let tag = sanitize_tag(tag.as_deref().unwrap_or(title));
+
+        if let Err(e) = show_inner(app, &aumid, title, body, url, &tag) {
+            crate::logging::log(&format!("notif: failed to show toast ({tag}): {e}"));
+        }
+    }
+
+    fn show_inner(
+        app: &AppHandle,
+        aumid: &str,
+        title: &str,
+        body: &str,
+        url: Option<String>,
+        tag: &str,
+    ) -> windows::core::Result<()> {
+        let xml = XmlDocument::new()?;
+        xml.LoadXml(&HSTRING::from(format!(
+            r#"<toast><visual><binding template="ToastGeneric"><text>{}</text><text>{}</text></binding></visual></toast>"#,
+            escape_xml(title),
+            escape_xml(body)
+        )))?;
+
+        let toast = ToastNotification::CreateToastNotification(&xml)?;
+        // Tag and group make the toast addressable afterwards: repeat messages for
+        // one channel replace each other instead of stacking, and reading elsewhere
+        // can pull it out of the Action Center (see `dismiss`).
+        toast.SetTag(&HSTRING::from(tag))?;
+        toast.SetGroup(&HSTRING::from("jablu"))?;
+
+        let activated_app = app.clone();
+        let activated_tag = tag.to_string();
+        toast.Activated(&TypedEventHandler::new(
+            move |_: windows::core::Ref<'_, ToastNotification>,
+                  args: windows::core::Ref<'_, windows::core::IInspectable>| {
+                let action = args
+                    .as_ref()
+                    .and_then(|a| a.cast::<ToastActivatedEventArgs>().ok())
+                    .and_then(|a| a.Arguments().ok())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                crate::logging::log(&format!(
+                    "notif: toast activated (tag={activated_tag}, action={action})"
+                ));
+
+                if let Some(window) = activated_app.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                if let Some(url) = &url {
+                    crate::logging::log(&format!("notif: emitting navigate -> {url}"));
+                    match activated_app.emit("navigate", url.clone()) {
+                        Ok(()) => crate::logging::log("notif: navigate emitted"),
+                        Err(e) => crate::logging::log(&format!("notif: navigate emit failed: {e}")),
+                    }
+                } else {
+                    crate::logging::log("notif: toast had no url, nothing to navigate to");
+                }
+
+                forget(&activated_tag);
+                Ok(())
+            },
+        ))?;
+
+        let dismissed_tag = tag.to_string();
+        toast.Dismissed(&TypedEventHandler::new(
+            move |_: windows::core::Ref<'_, ToastNotification>,
+                  args: windows::core::Ref<'_, ToastDismissedEventArgs>| {
+                let reason = args
+                    .as_ref()
+                    .and_then(|a| a.Reason().ok())
+                    .map(|r| format!("{r:?}"))
+                    .unwrap_or_else(|| "unknown".to_string());
+                crate::logging::log(&format!(
+                    "notif: toast dismissed (tag={dismissed_tag}, reason={reason})"
+                ));
+                forget(&dismissed_tag);
+                Ok(())
+            },
+        ))?;
+
+        let failed_tag = tag.to_string();
+        toast.Failed(&TypedEventHandler::new(
+            move |_: windows::core::Ref<'_, ToastNotification>,
+                  args: windows::core::Ref<'_, ToastFailedEventArgs>| {
+                let error = args
+                    .as_ref()
+                    .and_then(|a| a.ErrorCode().ok())
+                    .map(|e| format!("{e:?}"))
+                    .unwrap_or_else(|| "unknown".to_string());
+                crate::logging::log(&format!(
+                    "notif: toast failed (tag={failed_tag}, error={error})"
+                ));
+                forget(&failed_tag);
+                Ok(())
+            },
+        ))?;
+
+        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(aumid))?.Show(&toast)?;
+
+        if let Ok(mut map) = live_toasts().lock() {
+            map.insert(tag.to_string(), toast);
+        }
+        crate::logging::log(&format!("notif: toast shown (tag={tag})"));
+        Ok(())
+    }
+
+    /// Pulls a toast out of the Action Center, so reading the message on another
+    /// device clears the stale desktop notification too.
+    pub fn dismiss(app: &AppHandle, tag: &str) {
+        let tag = sanitize_tag(tag);
+        forget(&tag);
+
+        let aumid = app.config().identifier.clone();
+        let result = (|| -> windows::core::Result<()> {
+            ToastNotificationManager::History()?.RemoveGroupedTagWithId(
+                &HSTRING::from(tag.as_str()),
+                &HSTRING::from("jablu"),
+                &HSTRING::from(aumid.as_str()),
+            )
+        })();
+        if let Err(e) = result {
+            crate::logging::log(&format!("notif: failed to remove toast ({tag}): {e}"));
+        }
     }
 }
 
-/// Pick the AppUserModelID the same way `tauri-plugin-notification` does: the
-/// installed build has a Start Menu shortcut whose AUMID equals the bundle
-/// identifier, so use that there. In `tauri dev` the exe lives under `target/`
-/// with no such shortcut, so fall back to the always-registered PowerShell AUMID
-/// — otherwise Windows may refuse to display the toast (and click activation
-/// still fires in-process either way).
 #[cfg(windows)]
-fn app_user_model_id(app: &tauri::AppHandle) -> String {
-    use tauri_winrt_notification::Toast;
+pub fn show(
+    app: &tauri::AppHandle,
+    title: &str,
+    body: &str,
+    url: Option<String>,
+    tag: Option<String>,
+) {
+    win::show(app, title, body, url, tag);
+}
 
-    let is_installed = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.to_string_lossy().to_lowercase()))
-        .map(|dir| !(dir.ends_with(r"target\debug") || dir.ends_with(r"target\release")))
-        .unwrap_or(true);
-
-    if is_installed {
-        app.config().identifier.clone()
-    } else {
-        Toast::POWERSHELL_APP_ID.to_string()
-    }
+#[cfg(windows)]
+pub fn dismiss(app: &tauri::AppHandle, tag: &str) {
+    win::dismiss(app, tag);
 }
 
 /// Non-Windows fallback: use the notification plugin (no click handling).
 #[cfg(not(windows))]
-pub fn show(app: &tauri::AppHandle, title: &str, body: &str, _url: Option<String>) {
+pub fn show(
+    app: &tauri::AppHandle,
+    title: &str,
+    body: &str,
+    _url: Option<String>,
+    _tag: Option<String>,
+) {
     use tauri_plugin_notification::NotificationExt;
     let _ = app.notification().builder().title(title).body(body).show();
 }
+
+#[cfg(not(windows))]
+pub fn dismiss(_app: &tauri::AppHandle, _tag: &str) {}

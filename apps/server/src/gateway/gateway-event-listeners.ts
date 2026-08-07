@@ -1,5 +1,7 @@
 import { Permission, hasPermission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
+import { deliverChannelMessage, deliverDmMessage } from './message-notifications'
+import { InAppNotificationKind } from '../prisma-client'
 
 export async function routeDmSlashCommand(
   gw: ChatGateway,
@@ -52,6 +54,53 @@ export async function routeDmSlashCommand(
   } catch {
     /* best-effort */
   }
+}
+
+/**
+ * Tells a user that moderation was applied to them.
+ *
+ * Always pushed. Silently losing the ability to post, with nothing explaining
+ * why, is the worst version of this experience — and after a kick or ban the
+ * user has no channel left to read an explanation in.
+ */
+async function notifyModeration(
+  gw: ChatGateway,
+  input: {
+    serverId: string
+    userId: string
+    action: 'kick' | 'ban' | 'timeout'
+    reason?: string
+    until?: string
+  }
+) {
+  const server = await gw.prisma.server
+    .findUnique({ where: { id: input.serverId }, select: { name: true } })
+    .catch(() => null)
+  const serverName = server?.name ?? 'a server'
+
+  const body =
+    input.action === 'ban' ? `You were banned from ${serverName}`
+    : input.action === 'kick' ? `You were removed from ${serverName}`
+    : `You were timed out in ${serverName}`
+
+  await gw.notifications.dispatch({
+    userIds: [input.userId],
+    kind: InAppNotificationKind.moderation,
+    // One row per server and action, so a repeated timeout updates rather than
+    // filling the bell.
+    dedupeKey: `moderation:${input.serverId}:${input.action}`,
+    payload: {
+      serverId: input.serverId,
+      serverName,
+      action: input.action,
+      reason: input.reason ?? null,
+      until: input.until ?? null
+    },
+    title: serverName,
+    body: input.reason ? `${body}: ${input.reason}` : body,
+    url: input.action === 'timeout' ? `/channels/${input.serverId}` : '/channels/@me',
+    push: true
+  })
 }
 
 export async function routeRestSlashCommand(gw: ChatGateway, content: string, serverId: string, channelId: string, authorId?: string) {
@@ -196,26 +245,25 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'webhook:message',
-    (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
-      gw.emitToChannel(payload.channelId, 'message:new', {
-        ...(payload.message as object),
-        ...(payload.serverId ? { serverId: payload.serverId } : {})
-      })
-
-      if (payload.serverId && payload.webhookName) {
-        const content = (payload.message as { content?: string })?.content
-        gw
-          .sendPushToOfflineMembers(
-            payload.serverId,
-            '',
-            payload.webhookName,
-            content,
-            `/channels/${payload.serverId}/${payload.channelId}`,
-            payload.channelId,
-            []
-          )
-          .catch(() => {})
+    async (payload: { channelId: string; message: unknown; serverId?: string; webhookName?: string }) => {
+      if (!payload.serverId) {
+        gw.emitToChannel(payload.channelId, 'message:new', payload.message as object)
+        return
       }
+
+      // Previously pushed but recorded nothing, so a webhook post that arrived
+      // while you were away left no trace in the notification center.
+      await deliverChannelMessage(gw.messageNotificationsContext(), {
+        serverId: payload.serverId,
+        channelId: payload.channelId,
+        message: payload.message as { id: string },
+        senderId: null,
+        senderDisplayName: payload.webhookName,
+        // `webhooks.service` generates its own previews and emits them as
+        // `webhook:link-previews`; generating them here too would refetch every
+        // link and emit a second event for the same message.
+        skipLinkPreviews: true
+      }).catch(() => {})
     }
   )
 
@@ -358,6 +406,54 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   })
 
+  // Bell only, no push: knowing you gained a role can wait until you next look.
+  gw.events.on(
+    'member:roles-changed',
+    async (payload: { serverId: string; userId: string; added: string[]; removed: string[] }) => {
+      const server = await gw.prisma.server
+        .findUnique({ where: { id: payload.serverId }, select: { name: true } })
+        .catch(() => null)
+
+      void gw.notifications.dispatch({
+        userIds: [payload.userId],
+        kind: InAppNotificationKind.role_changed,
+        dedupeKey: `roles:${payload.serverId}`,
+        payload: {
+          serverId: payload.serverId,
+          serverName: server?.name ?? 'a server',
+          added: payload.added,
+          removed: payload.removed
+        }
+      })
+    }
+  )
+
+  // Emitted by `servers.service` since timeouts shipped, but never forwarded, so
+  // the client's `member:timeout` handler had nothing to receive.
+  gw.events.on(
+    'member:timeout',
+    async (payload: {
+      serverId: string
+      userId: string
+      mutedUntil: string | null
+      mutedReason: string | null
+      mutedById: string | null
+    }) => {
+      gw.server.to(`server:${payload.serverId}`).emit('member:timeout', payload)
+
+      // A cleared timeout is good news the user will discover by being able to
+      // post again; only the timeout itself needs explaining.
+      if (!payload.mutedUntil) return
+      await notifyModeration(gw, {
+        serverId: payload.serverId,
+        userId: payload.userId,
+        action: 'timeout',
+        reason: payload.mutedReason ?? undefined,
+        until: payload.mutedUntil
+      })
+    }
+  )
+
   gw.events.on('channel:permissions:updated', async (payload: { serverId: string; channelId: string; roleId: string }) => {
     gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
     const members = await gw.prisma.serverMember.findMany({
@@ -385,11 +481,27 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('roles:reordered', payload)
   })
 
-  gw.events.on('member:removed', async (payload: { serverId: string; userId: string }) => {
+  gw.events.on(
+    'member:removed',
+    async (payload: {
+      serverId: string
+      userId: string
+      moderation?: 'kick' | 'ban'
+      reason?: string
+    }) => {
     gw.server.to(`server:${payload.serverId}`).emit('member:left', {
       serverId: payload.serverId,
       userId: payload.userId
     })
+
+    if (payload.moderation) {
+      await notifyModeration(gw, {
+        serverId: payload.serverId,
+        userId: payload.userId,
+        action: payload.moderation,
+        reason: payload.reason
+      })
+    }
 
     const channels = await gw.prisma.channel.findMany({
       where: { serverId: payload.serverId },
@@ -407,7 +519,8 @@ export function registerEventListeners(gw: ChatGateway) {
         if (idx !== -1) serverIds.splice(idx, 1)
       }
     }
-  })
+    }
+  )
 
   for (const ev of ['event:created', 'event:updated', 'event:cancelled', 'event:started', 'event:completed'] as const) {
     gw.events.on(ev, (payload: { serverId: string; event: unknown }) => {
@@ -432,6 +545,7 @@ export function registerEventListeners(gw: ChatGateway) {
     (payload: { friendshipId: string; requester: Record<string, unknown>; addressee: Record<string, unknown> }) => {
       const { friendshipId, requester, addressee } = payload
       const addresseeId = (addressee as { id: string }).id
+      const requesterId = (requester as { id: string }).id
       const requesterName =
         (requester as { displayName?: string }).displayName ??
         (requester as { username?: string }).username ??
@@ -444,15 +558,16 @@ export function registerEventListeners(gw: ChatGateway) {
         createdAt: new Date().toISOString()
       })
 
-      if (!gw.isUserOnline(addresseeId)) {
-        gw.push
-          .sendToUsers([addresseeId], {
-            title: 'Friend Request',
-            body: `${requesterName} sent you a friend request`,
-            url: '/channels/@me'
-          })
-          .catch(() => {})
-      }
+      void gw.notifications.dispatch({
+        userIds: [addresseeId],
+        kind: InAppNotificationKind.friend_request,
+        dedupeKey: `friend:${friendshipId}`,
+        payload: { friendshipId, requesterId, requesterName },
+        title: 'Friend Request',
+        body: `${requesterName} sent you a friend request`,
+        url: '/channels/@me',
+        push: true
+      })
     }
   )
 
@@ -470,6 +585,51 @@ export function registerEventListeners(gw: ChatGateway) {
       gw.server.to(`user:${addresseeId}`).emit('friend:accepted', {
         friendshipId,
         user: requester
+      })
+
+      // Only the requester is told something happened — the addressee is the one
+      // who just clicked accept. Before this they got a bare socket event and no
+      // alert at all, so an acceptance while offline was invisible.
+      const addresseeName =
+        (addressee as { displayName?: string }).displayName ??
+        (addressee as { username?: string }).username ??
+        'Someone'
+      void gw.notifications.dispatch({
+        userIds: [requesterId],
+        kind: InAppNotificationKind.friend_accepted,
+        dedupeKey: `friend-accepted:${friendshipId}`,
+        payload: { friendshipId, userId: addresseeId, userName: addresseeName },
+        title: 'Friend request accepted',
+        body: `${addresseeName} accepted your friend request`,
+        url: '/channels/@me',
+        push: true
+      })
+    }
+  )
+
+  // `xp.service` has emitted this since levelling shipped, but nothing consumed
+  // it, so levelling up was completely silent.
+  gw.events.on(
+    'xp:level-up',
+    async (payload: { serverId: string; userId: string; level: number; xp: number }) => {
+      gw.server.to(`user:${payload.userId}`).emit('xp:level-up', payload)
+
+      const server = await gw.prisma.server
+        .findUnique({ where: { id: payload.serverId }, select: { name: true } })
+        .catch(() => null)
+
+      // Bell only, no push: reaching a level is worth noticing later, not worth
+      // waking a phone for.
+      void gw.notifications.dispatch({
+        userIds: [payload.userId],
+        kind: InAppNotificationKind.level_up,
+        dedupeKey: `level:${payload.serverId}`,
+        payload: {
+          serverId: payload.serverId,
+          serverName: server?.name ?? 'a server',
+          level: payload.level,
+          xp: payload.xp
+        }
       })
     }
   )
@@ -532,21 +692,33 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'rest:message:created',
-    (payload: { channelId: string; message: any; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
-      gw.emitToChannel(payload.channelId, 'message:new', {
-        ...payload.message,
-        ...(payload.serverId ? { serverId: payload.serverId } : {})
-      })
-      if (payload.threadUpdate) {
-        gw.emitToChannel(payload.channelId, 'message:thread-update', {
-          parentId: payload.threadUpdate.parentId,
-          threadCount: payload.threadUpdate.threadCount
-        })
+    async (payload: { channelId: string; message: any; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
+      // Goes through the same delivery path as a websocket send (which emits
+      // `message:new` itself). Broadcasting directly here is what left bot, poll
+      // and API messages with no mentions, no bell rows and no push.
+      const serverId =
+        payload.serverId ??
+        (
+          await gw.prisma.channel
+            .findUnique({ where: { id: payload.channelId }, select: { serverId: true } })
+            .catch(() => null)
+        )?.serverId
+
+      if (serverId) {
+        await deliverChannelMessage(gw.messageNotificationsContext(), {
+          serverId,
+          channelId: payload.channelId,
+          message: payload.message,
+          senderId: payload.message?.author?.id ?? payload.message?.authorId ?? null,
+          threadUpdate: payload.threadUpdate
+        }).catch(() => {})
+      } else {
+        gw.emitToChannel(payload.channelId, 'message:new', payload.message)
       }
 
       const content = payload.message?.content
-      if (typeof content === 'string' && content.startsWith('/') && payload.serverId) {
-        void routeRestSlashCommand(gw, content, payload.serverId, payload.channelId, payload.message?.authorId)
+      if (typeof content === 'string' && content.startsWith('/') && serverId) {
+        void routeRestSlashCommand(gw, content, serverId, payload.channelId, payload.message?.authorId)
       }
     }
   )
@@ -610,10 +782,13 @@ export function registerEventListeners(gw: ChatGateway) {
         for (const s of sockets) s.join(roomName)
       }
 
-      gw.emitToDm(payload.conversationId, 'dm:new', {
-        ...payload.message,
-        conversationId: payload.conversationId
-      })
+      // Same reasoning as `rest:message:created`: the delivery helper emits
+      // `dm:new` and additionally records the bell row and sends push.
+      await deliverDmMessage(gw.messageNotificationsContext(), {
+        conversationId: payload.conversationId,
+        message: payload.message,
+        senderId: payload.message?.author?.id ?? payload.message?.authorId ?? null
+      }).catch(() => {})
 
       const content = payload.message?.content
       if (typeof content === 'string' && content.startsWith('/')) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { clearNotifications } from '@/lib/notifications'
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { showToast } from '@/stores/toast.store'
@@ -118,7 +119,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         socket.emit('activity:heartbeat')
       }
 
+      // Catch up on anything that landed while this client was asleep or offline.
       void useNotificationCenterStore.getState().fetchUnread()
+      throttledReadStateSync()
     }
     const onDisconnect = () => setIsConnected(false)
     const onConnectError = async () => {
@@ -130,7 +133,9 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         await store.refreshSession()
         const newToken = useAuthStore.getState().accessToken
         if (newToken) {
-          socket.auth = { token: newToken }
+          // Merge, don't replace: the handshake also carries the device id and
+          // visibility that seed the server's push gate.
+          socket.auth = { ...(socket.auth as Record<string, unknown>), token: newToken }
         }
       } catch (err: unknown) {
         const status = (err as { status?: number }).status
@@ -230,6 +235,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
     socket.on('in_app_notification:new', onInAppNotificationNew)
 
+    // Sent when the user reads something on any of their devices, so this one
+    // can take its now-stale toast down.
+    const onNotificationClear = (data: { urls: string[] | null }) => {
+      void clearNotifications(data.urls)
+    }
+    socket.on('notification:clear', onNotificationClear)
+
     setIsConnected(socket.connected)
 
     return () => {
@@ -300,6 +312,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:removed', srv.onFriendRemoved)
       socket.off('bot:command-error', onBotCommandError)
       socket.off('in_app_notification:new', onInAppNotificationNew)
+      socket.off('notification:clear', onNotificationClear)
       if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
       if (trailingFn) { trailingFn(); trailingFn = null }
       if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }

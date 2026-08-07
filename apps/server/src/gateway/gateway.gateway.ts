@@ -22,6 +22,8 @@ import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import {
   IN_APP_NOTIFICATION_USERS_EVENT,
+  NOTIFICATION_CLEAR_EVENT,
+  type NotificationClearPayload,
   InAppNotificationsService
 } from '../in-app-notifications/in-app-notifications.service'
 import { ReadStateService } from '../read-state/read-state.service'
@@ -38,11 +40,14 @@ import {
   WsMessageChannelDto,
   WsMessageIdDto,
   WsPollVoteDto,
+  WsPresenceStateDto,
   WsReactionToggleDto,
   WsActivityUpdateDto,
   WsSendMessageDto,
   WsVoiceStateDto
 } from './gateway.dto'
+import { PresenceRegistry } from './presence-registry'
+import { NotificationsService } from '../notifications/notifications.service'
 import {
   describePushPreview as describePushPreviewText,
   sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx,
@@ -68,6 +73,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   /** userId -> number of active socket connections */
   private readonly onlineUsers = new Map<string, number>()
+
+  /**
+   * Per-socket visibility / input state. Drives push gating; `onlineUsers` above
+   * stays the source of truth for the presence UI.
+   */
+  readonly presence = new PresenceRegistry()
 
   /**
    * userId -> manual presence (idle / dnd / invisible) with optional wall-clock expiry.
@@ -107,6 +118,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   private static readonly DISCONNECT_GRACE_MS = 5 * 60 * 1000
   private static readonly IDLE_THRESHOLD_MS = 3 * 60 * 1000
 
+  /**
+   * How long after the last input an on-screen session still counts as engaged.
+   * Deliberately separate from IDLE_THRESHOLD_MS so tuning push delivery does not
+   * shift when the presence dot turns yellow.
+   */
+  static readonly AWAY_THRESHOLD_MS = 5 * 60 * 1000
+
   constructor(
     readonly prisma: PrismaService,
     private readonly messages: MessagesService,
@@ -120,7 +138,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     readonly push: PushService,
     private readonly redis: RedisService,
     readonly roles: RolesService,
-    private readonly inApp: InAppNotificationsService
+    private readonly inApp: InAppNotificationsService,
+    readonly notifications: NotificationsService
   ) {}
 
   private readonly onInAppNotificationUsers = (data: { userIds: string[] }) => {
@@ -129,8 +148,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
   }
 
+  private readonly onNotificationClear = (data: NotificationClearPayload) => {
+    this.server?.to(`user:${data.userId}`).emit('notification:clear', { urls: data.urls })
+  }
+
   onModuleDestroy() {
     this.events.off(IN_APP_NOTIFICATION_USERS_EVENT, this.onInAppNotificationUsers)
+    this.events.off(NOTIFICATION_CLEAR_EVENT, this.onNotificationClear)
     for (const { timer } of this.disconnectGrace.values()) {
       clearTimeout(timer)
     }
@@ -187,13 +211,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   /**
-   * Strict check: true only if the user has at least one live socket. Used for
-   * push gating — during the disconnect-grace window the user has no live socket
-   * and would not receive WS events, so push must still fire.
+   * Push gate: true when the user is demonstrably looking at the app right now —
+   * some session is on screen and has seen input within AWAY_THRESHOLD_MS.
+   *
+   * Note what this deliberately does *not* consider. Holding a socket is not
+   * enough (a tray-minimised desktop holds one forever), OS focus is not required
+   * (the app on a second monitor still counts), and invisible status is ignored
+   * (that governs what other people see, not whether you want your own alerts).
+   *
+   * Do Not Disturb is the one status that suppresses push outright.
    */
-  hasActiveSocket(userId: string): boolean {
-    if (this.isInvisible(userId)) return false
-    return this.onlineUsers.has(userId)
+  isUserActivelyEngaged(userId: string): boolean {
+    if (this.getActiveManualPresence(userId)?.status === 'dnd') return true
+    return this.presence.isActivelyEngaged(userId, ChatGateway.AWAY_THRESHOLD_MS)
+  }
+
+  /** Reads the optional session hints a client sends in the Socket.IO handshake. */
+  private readSessionHandshake(client: Socket): {
+    deviceId: string | null
+    platform: unknown
+    visibility: unknown
+    focused: boolean
+  } {
+    const auth = (client.handshake.auth ?? {}) as Record<string, unknown>
+    return {
+      deviceId: typeof auth.deviceId === 'string' && auth.deviceId ? auth.deviceId : null,
+      platform: auth.platform,
+      visibility: auth.visibility,
+      focused: auth.focused === true
+    }
   }
 
   async getFriendUserIds(userId: string): Promise<string[]> {
@@ -239,8 +285,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   afterInit() {
+    // The facade decides push on its own, but only the gateway knows who is
+    // actually looking at a screen right now.
+    this.notifications.setEngagementCheck((userId) => this.isUserActivelyEngaged(userId))
     registerEventListeners(this)
     this.events.on(IN_APP_NOTIFICATION_USERS_EVENT, this.onInAppNotificationUsers)
+    this.events.on(NOTIFICATION_CLEAR_EVENT, this.onNotificationClear)
     this.afkInterval = setInterval(() => void this.checkAfkParticipants(), 30_000)
     this.idleCheckInterval = setInterval(() => void this.runIdleAndManualExpiryChecks(), 60_000)
   }
@@ -471,6 +521,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     ;(client.data as { serverIds?: string[] }).serverIds = serverIds
     client.join(`user:${user.id}`)
 
+    const handshake = this.readSessionHandshake(client)
+    this.presence.add({
+      socketId: client.id,
+      userId: user.id,
+      deviceId: handshake.deviceId,
+      platform: user.isBot ? 'bot' : handshake.platform,
+      visibility: handshake.visibility,
+      focused: handshake.focused
+    })
+
     if (!user.isBot) {
       await this.hydrateManualPresenceFromDb(user.id)
     }
@@ -625,6 +685,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const user = data.user
     const serverIds = data.serverIds
 
+    this.presence.remove(client.id)
     this.removeVoiceParticipant(client.id, serverIds)
 
     if (!user || !serverIds?.length) {
@@ -1154,10 +1215,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> last broadcasted effective status, avoids redundant DB writes */
   private readonly lastBroadcastedStatus = new Map<string, string>()
 
+  /**
+   * Clients report whether the app is on screen so push can target the devices
+   * the user is *not* looking at. See `isUserActivelyEngaged`.
+   */
+  @WsThrottle(5, 5)
+  @SubscribeMessage('presence:state')
+  onPresenceState(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: WsPresenceStateDto
+  ) {
+    this.presence.setState(client.id, {
+      visibility: body.visibility,
+      focused: body.focused
+    })
+    return { ok: true }
+  }
+
   @WsThrottle(2, 5)
   @SubscribeMessage('activity:heartbeat')
   async onActivityHeartbeat(@ConnectedSocket() client: Socket) {
     const user = (client.data as { user: WsUser }).user
+
+    // Refresh the push away-timer before the manual-status guard below: a user on
+    // Idle or DND is still at the machine, and their engagement must stay accurate.
+    this.presence.touch(client.id)
+
     if (this.hasActiveManualPresence(user.id)) return { ok: true }
 
     this.userLastActivity.set(user.id, Date.now())
@@ -1606,7 +1689,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       readState: this.readState,
       linkPreviews: this.linkPreviews,
       dm: this.dm,
-      hasActiveSocket: this.hasActiveSocket.bind(this),
+      isUserActivelyEngaged: this.isUserActivelyEngaged.bind(this),
       getOnlineUserIds: this.getOnlineUserIds.bind(this),
       emitToChannel: this.emitToChannel.bind(this),
       emitToDm: this.emitToDm.bind(this),
@@ -1630,7 +1713,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         push: this.push,
         redis: this.redis,
         roles: this.roles,
-        isUserOnline: this.hasActiveSocket.bind(this)
+        isUserActivelyEngaged: this.isUserActivelyEngaged.bind(this)
       },
       serverId,
       senderId,
@@ -1658,7 +1741,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         push: this.push,
         redis: this.redis,
         roles: this.roles,
-        isUserOnline: this.hasActiveSocket.bind(this)
+        isUserActivelyEngaged: this.isUserActivelyEngaged.bind(this)
       },
       parentId,
       channelId,

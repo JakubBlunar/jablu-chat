@@ -166,6 +166,15 @@ jablu-chat/
 
 ---
 
+## Notifications
+
+See [NOTIFICATIONS.md](./NOTIFICATIONS.md) for how notification delivery works —
+the engagement model that decides which of your devices gets woken, the kinds
+and their coalescing rules, cross-device read cleanup, platform-specific
+behaviour on web/PWA/desktop, and troubleshooting.
+
+---
+
 ## Deployment
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for a complete step-by-step guide covering:

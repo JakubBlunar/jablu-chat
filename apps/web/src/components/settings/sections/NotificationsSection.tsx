@@ -3,11 +3,13 @@ import {
   getNotifSettings,
   saveNotifSettings,
   requestPermission,
+  showNotification,
   subscribeToPush,
   unsubscribeFromPush
 } from '@/lib/notifications'
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
+import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { PushDeliverySettings } from '@/components/settings/sections/PushDeliverySettings'
 import { isDesktop } from '@/lib/desktop'
@@ -19,6 +21,7 @@ export function NotificationsSection() {
   )
   const [pushStatus, setPushStatus] = useState<'checking' | 'active' | 'inactive' | 'error'>('checking')
   const [pushError, setPushError] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<string | null>(null)
   const accessToken = useAuthStore((s) => s.accessToken)
 
   useEffect(() => {
@@ -47,7 +50,7 @@ export function NotificationsSection() {
         }
       } else if (permStatus === 'granted') {
         try {
-          await subscribeToPush(accessToken)
+          await subscribeToPush(accessToken, true)
           const reg = await navigator.serviceWorker.ready
           const sub = await reg.pushManager.getSubscription()
           setPushStatus(sub ? 'active' : 'inactive')
@@ -63,7 +66,7 @@ export function NotificationsSection() {
     setPermStatus(granted ? 'granted' : 'denied')
     if (granted && accessToken) {
       try {
-        await subscribeToPush(accessToken)
+        await subscribeToPush(accessToken, true)
         const reg = await navigator.serviceWorker.ready
         const sub = await reg.pushManager.getSubscription()
         setPushStatus(sub ? 'active' : 'error')
@@ -79,7 +82,7 @@ export function NotificationsSection() {
     if (!accessToken) return
     setPushError(null)
     try {
-      await subscribeToPush(accessToken)
+      await subscribeToPush(accessToken, true)
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       setPushStatus(sub ? 'active' : 'error')
@@ -87,6 +90,23 @@ export function NotificationsSection() {
     } catch (e: unknown) {
       setPushStatus('error')
       setPushError(e instanceof Error ? e.message : 'Push subscription failed')
+    }
+  }
+
+  const handleTestNotification = async () => {
+    setTestResult(null)
+    // Local first, so a failure here isolates the OS/permission layer from the
+    // server-to-device push transport that follows.
+    showNotification('Jablu test notification', 'This is how a message will look.', '/channels/@me')
+    try {
+      const res = await api.post<{ devices: number }>('/push/test', {})
+      setTestResult(
+        res.devices > 0
+          ? `Sent to ${res.devices} registered device${res.devices === 1 ? '' : 's'}.`
+          : 'No devices are registered for push yet.'
+      )
+    } catch (e: unknown) {
+      setTestResult(e instanceof Error ? e.message : 'Could not send the test push.')
     }
   }
 
@@ -184,6 +204,18 @@ export function NotificationsSection() {
           checked={settings.soundEnabled}
           onChange={() => toggle('soundEnabled')}
         />
+      </div>
+
+      <div className="rounded-lg bg-surface-dark p-4">
+        <p className="text-sm font-medium text-gray-200">Test this device</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Shows a notification here, then sends a push to every device you are signed in on. Run it
+          on each device to find one that is not receiving.
+        </p>
+        <Button type="button" variant="secondary" className="mt-2" onClick={() => void handleTestNotification()}>
+          Send test notification
+        </Button>
+        {testResult && <p className="mt-2 text-xs text-gray-400">{testResult}</p>}
       </div>
 
       <PushDeliverySettings />

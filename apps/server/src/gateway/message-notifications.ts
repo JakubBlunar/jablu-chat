@@ -7,6 +7,7 @@ import type { ReadStateService } from '../read-state/read-state.service'
 import type { RedisService } from '../redis/redis.service'
 import type { RolesService } from '../roles/roles.service'
 import type { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
+import { InAppNotificationKind } from '../prisma-client'
 import type { DmService } from '../dm/dm.service'
 import {
   describePushPreview,
@@ -27,6 +28,7 @@ export type ChannelMessageLike = {
   attachments?: { type: string }[] | null
   author?: MessageAuthor
   threadParentId?: string | null
+  replyToId?: string | null
 }
 
 export type DmMessageLike = {
@@ -37,8 +39,9 @@ export type DmMessageLike = {
 }
 
 /**
- * Context shared by both helpers. Push uses the strict `hasActiveSocket` check so
- * users in the disconnect-grace window still get push.
+ * Context shared by both helpers. Push is gated on `isUserActivelyEngaged` — is
+ * the user looking at the app right now — rather than on whether a socket exists,
+ * because a tray-minimised desktop holds a socket open indefinitely.
  */
 export type MessageNotificationsContext = {
   prisma: PrismaService
@@ -49,7 +52,7 @@ export type MessageNotificationsContext = {
   readState: ReadStateService
   linkPreviews: LinkPreviewService
   dm?: DmService
-  hasActiveSocket: (userId: string) => boolean
+  isUserActivelyEngaged: (userId: string) => boolean
   getOnlineUserIds: () => string[]
   emitToChannel: (channelId: string, event: string, data: unknown) => void
   emitToDm: (conversationId: string, event: string, data: unknown) => void
@@ -87,9 +90,9 @@ export type DeliverChannelMessageParams = {
  *  2. Increment per-user mention counter in `channel_read_states`.
  *  3. Emit `message:new` enriched with mention fields.
  *  4. Emit `message:thread-update` if applicable.
- *  5. Record in-app notifications (mention / thread / coalesced channel_message).
+ *  5. Record in-app notifications (mention / reply / thread / coalesced channel_message).
  *  6. Generate link previews asynchronously.
- *  7. Send push to recipients without an active socket.
+ *  7. Send push to recipients who are not looking at the app.
  */
 export async function deliverChannelMessage(
   ctx: MessageNotificationsContext,
@@ -146,6 +149,18 @@ export async function deliverChannelMessage(
     }
   }
 
+  // Replying to someone counts as addressing them, so it gets the same delivery
+  // weight as a mention. Kept out of `mentionedUserIds` because that field means
+  // "@-mentioned" to every client that reads it.
+  const replyTargetId = await resolveReplyTarget(ctx, {
+    serverId,
+    channelId,
+    senderId,
+    replyToId: message.replyToId,
+    isThreadReply,
+    mentionedUserIds
+  })
+
   ctx.emitToChannel(channelId, 'message:new', {
     ...message,
     serverId,
@@ -199,6 +214,24 @@ export async function deliverChannelMessage(
         .catch((err) => log.warn(`recordMentions failed: ${(err as Error)?.message}`))
     }
 
+    if (replyTargetId) {
+      ctx.inApp
+        .record([replyTargetId], {
+          kind: InAppNotificationKind.reply,
+          dedupeKey: `reply:${message.id}`,
+          payload: {
+            serverId,
+            channelId,
+            channelName: safeChannelName,
+            messageId: message.id,
+            replyToId: message.replyToId,
+            authorName,
+            snippet
+          }
+        })
+        .catch((err) => log.warn(`record reply failed: ${(err as Error)?.message}`))
+    }
+
     if (isThreadReply && message.threadParentId && senderId) {
       void (async () => {
         try {
@@ -230,7 +263,7 @@ export async function deliverChannelMessage(
             serverId,
             channelId,
             senderId,
-            mentionedUserIds
+            replyTargetId ? [...mentionedUserIds, replyTargetId] : mentionedUserIds
           )
           if (recipients.length === 0) return
           await ctx.inApp.recordChannelMessage(recipients, {
@@ -268,7 +301,7 @@ export async function deliverChannelMessage(
       push: ctx.push,
       redis: ctx.redis,
       roles: ctx.roles,
-      isUserOnline: ctx.hasActiveSocket
+      isUserActivelyEngaged: ctx.isUserActivelyEngaged
     }
     const senderForPush = senderId ?? ''
     const senderNameForPush =
@@ -295,7 +328,9 @@ export async function deliverChannelMessage(
         message.content ?? undefined,
         `/channels/${serverId}/${channelId}`,
         channelId,
-        mentionedUserIds,
+        // The reply target rides along so a "mentions only" preference still
+        // delivers a direct reply.
+        replyTargetId ? [...mentionedUserIds, replyTargetId] : mentionedUserIds,
         attachments
       ).catch((err) => log.warn(`Channel push failed: ${(err as Error)?.message}`))
     }
@@ -303,8 +338,46 @@ export async function deliverChannelMessage(
 }
 
 /**
- * All server members with VIEW_CHANNEL permission, excluding the sender and any
- * already-mentioned users (mentions get a separate `mention` row via
+ * The author of the message being replied to, when they deserve their own
+ * notification: not the sender replying to themselves, not someone already
+ * @-mentioned in the same message (that row wins), and not without read access.
+ *
+ * Thread replies are excluded — they already produce a `thread_reply` row, and
+ * two notifications for one message would be worse than none.
+ */
+async function resolveReplyTarget(
+  ctx: MessageNotificationsContext,
+  input: {
+    serverId: string
+    channelId: string
+    senderId: string | null
+    replyToId?: string | null
+    isThreadReply: boolean
+    mentionedUserIds: string[]
+  }
+): Promise<string | null> {
+  const { serverId, channelId, senderId, replyToId, isThreadReply, mentionedUserIds } = input
+  if (!replyToId || !senderId || isThreadReply) return null
+
+  try {
+    const parent = await ctx.prisma.message.findUnique({
+      where: { id: replyToId },
+      select: { authorId: true }
+    })
+    const authorId = parent?.authorId
+    if (!authorId || authorId === senderId) return null
+    if (mentionedUserIds.includes(authorId)) return null
+
+    const perms = await ctx.roles.getChannelPermissions(serverId, channelId, authorId)
+    return hasPermission(perms, Permission.VIEW_CHANNEL) ? authorId : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * All human server members with VIEW_CHANNEL permission, excluding the sender
+ * and any already-mentioned users (mentions get a separate `mention` row via
  * `recordMentions`). Mentioned users still appear in their own row but we don't
  * want a redundant `channel_message` row for the same activity.
  */
@@ -316,7 +389,13 @@ async function resolveChannelRecipients(
   mentionedUserIds: string[]
 ): Promise<string[]> {
   const members = await ctx.prisma.serverMember.findMany({
-    where: { serverId, ...(senderId ? { NOT: { userId: senderId } } : {}) },
+    where: {
+      serverId,
+      ...(senderId ? { NOT: { userId: senderId } } : {}),
+      // Bots never open a notification center, so a row per bot per message is
+      // pure write amplification that also evicts real rows via the per-user cap.
+      user: { isBot: false }
+    },
     select: { userId: true }
   })
   const mentionSet = new Set(mentionedUserIds)
@@ -354,7 +433,7 @@ export type DeliverDmMessageParams = {
  *  2. Emit `dm:new`.
  *  3. Record coalesced DM in-app row.
  *  4. Generate link previews asynchronously.
- *  5. Send push to DM members without an active socket.
+ *  5. Send push to DM members who are not looking at the app.
  */
 export async function deliverDmMessage(
   ctx: MessageNotificationsContext,
@@ -412,14 +491,14 @@ export async function deliverDmMessage(
   }
 
   if (!skipPush) {
-    const offlineMembers = otherMemberIds.filter((id) => !ctx.hasActiveSocket(id))
-    if (offlineMembers.length > 0) {
+    const awayMembers = otherMemberIds.filter((id) => !ctx.isUserActivelyEngaged(id))
+    if (awayMembers.length > 0) {
       const preview = describePushPreview(
         message.content ?? undefined,
         message.attachments ?? undefined
       )
       ctx.push
-        .sendToUsers(offlineMembers, {
+        .sendToUsers(awayMembers, {
           title: `DM from ${authorName}`,
           body: preview,
           url: `/channels/@me/${conversationId}`

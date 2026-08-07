@@ -47,21 +47,22 @@ webview2-com = "0.38"
 winreg = "0.52"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png"] }
+# `UI_Notifications` / `Data_Xml_Dom` drive the native toasts in notifications.rs.
+# We build the ToastNotification ourselves rather than using a wrapper crate
+# because Windows delivers click activation to the notification object, which
+# means we have to own its lifetime.
 windows = { version = "0.61", features = [
     "Media_Control",
     "Foundation",
     "Storage_Streams",
+    "Data_Xml_Dom",
+    "UI_Notifications",
     "Win32_Foundation",
     "Win32_System_Com",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Graphics_Gdi",
 ] }
-# Native Windows toasts with an in-process click handler so notification clicks
-# can focus the window and deep-link. `tauri-plugin-notification` (via notify_rust)
-# already pulls this in, but it doesn't expose the activation callback, so we use
-# it directly. Same version already in the tree — no extra resolution.
-tauri-winrt-notification = "0.7"
 
 [features]
 # by default Tauri runs in production mode
