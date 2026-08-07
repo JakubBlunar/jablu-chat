@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import type { Socket } from 'socket.io-client'
-import { useAuthStore } from '@/stores/auth.store'
 
 const ACTIVITY_EVENTS: (keyof DocumentEventMap)[] = [
   'mousemove',
