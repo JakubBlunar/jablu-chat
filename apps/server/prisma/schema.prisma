@@ -146,6 +146,9 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  /// Matches this subscription to a live socket session, so a device the user is
+  /// currently looking at can be skipped without silencing their other devices.
+  deviceId  String?  @map("device_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -602,6 +605,18 @@ enum InAppNotificationKind {
   thread_reply
   friend_request
   channel_message
+  /// Someone replied to your message without @mentioning you.
+  reply
+  /// You were timed out, kicked, or banned.
+  moderation
+  /// A role was assigned to or removed from you.
+  role_changed
+  level_up
+  /// A server event started, or starts within 30 minutes.
+  server_event
+  /// Admin broadcast to every user.
+  announcement
+  friend_accepted
 }
 
 /// Directed in-app notification (not a firehose of every channel message). Bounded per user via cap enforcement.

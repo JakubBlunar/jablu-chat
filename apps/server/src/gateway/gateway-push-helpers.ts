@@ -9,7 +9,11 @@ export type PushContext = {
   push: PushService
   redis: RedisService
   roles: RolesService
-  isUserOnline: (userId: string) => boolean
+  /**
+   * True when the user is already looking at the app on some device, in which
+   * case push is redundant. Never "has a socket" — see `ChatGateway.isUserActivelyEngaged`.
+   */
+  isUserActivelyEngaged: (userId: string) => boolean
 }
 
 export function describePushPreview(
@@ -69,9 +73,9 @@ export async function getChannelNotifPrefs(
 }
 
 /**
- * Sends web-push notifications to server members who have no active
- * Socket.IO connection ("offline"). Called fire-and-forget from message
- * handlers so it never blocks the message response.
+ * Sends web-push notifications to server members who are not currently looking
+ * at the app on any device. Called fire-and-forget from message handlers so it
+ * never blocks the message response.
  *
  * Respects per-channel ChannelNotifPref:
  *   - "all" (default) → always push
@@ -117,20 +121,20 @@ export async function sendPushToOfflineMembers(
     select: { userId: true, notifLevel: true }
   })
 
-  const offlineIds = members.filter((m) => !ctx.isUserOnline(m.userId))
+  const awayMembers = members.filter((m) => !ctx.isUserActivelyEngaged(m.userId))
 
-  if (offlineIds.length === 0) return
+  if (awayMembers.length === 0) return
 
   const serverPrefMap = new Map<string, string>()
-  for (const m of offlineIds) {
+  for (const m of awayMembers) {
     if (m.notifLevel) serverPrefMap.set(m.userId, m.notifLevel)
   }
 
-  const offlineUserIds = offlineIds.map((m) => m.userId)
-  const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, offlineUserIds)
+  const awayUserIds = awayMembers.map((m) => m.userId)
+  const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, awayUserIds)
   const mentionSet = new Set(mentionedUserIds)
 
-  const prefFilteredIds = offlineUserIds.filter((id) => {
+  const prefFilteredIds = awayUserIds.filter((id) => {
     const channelLevel = channelPrefMap.get(id)
     const serverLevel = serverPrefMap.get(id)
     const effective = channelLevel ?? serverLevel ?? 'all'
@@ -198,11 +202,11 @@ export async function sendPushToThreadParticipants(
   if (participantSet.size === 0) return
 
   const participantIds = [...participantSet]
-  const offlineIds = participantIds.filter((id) => !ctx.isUserOnline(id))
-  if (offlineIds.length === 0) return
+  const awayIds = participantIds.filter((id) => !ctx.isUserActivelyEngaged(id))
+  if (awayIds.length === 0) return
 
   const members = await ctx.prisma.serverMember.findMany({
-    where: { serverId, userId: { in: offlineIds } },
+    where: { serverId, userId: { in: awayIds } },
     select: { userId: true, notifLevel: true }
   })
   const serverPrefMap = new Map<string, string>()

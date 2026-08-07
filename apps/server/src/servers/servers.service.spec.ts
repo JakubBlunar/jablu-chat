@@ -129,7 +129,11 @@ describe('ServersService', () => {
 
       await service.kickMember(serverId, userId, 'target')
 
-      expect(events.emit).toHaveBeenCalledWith('member:removed', { serverId, userId: 'target' })
+      expect(events.emit).toHaveBeenCalledWith('member:removed', {
+        serverId,
+        userId: 'target',
+        moderation: 'kick'
+      })
     })
 
     it('cannot kick the server owner', async () => {
@@ -160,7 +164,12 @@ describe('ServersService', () => {
 
       await service.banMember(serverId, userId, 'target', 'spamming')
 
-      expect(events.emit).toHaveBeenCalledWith('member:removed', { serverId, userId: 'target' })
+      expect(events.emit).toHaveBeenCalledWith('member:removed', {
+        serverId,
+        userId: 'target',
+        moderation: 'ban',
+        reason: 'spamming'
+      })
     })
 
     it('cannot ban the server owner', async () => {

@@ -12,7 +12,8 @@ import { Permission } from '@chat/shared'
 import { CronJob } from 'cron'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
-import { PushService } from '../push/push.service'
+import { NotificationsService } from '../notifications/notifications.service'
+import { InAppNotificationKind } from '../prisma-client'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
 import type { CreateEventInput, UpdateEventInput } from '@chat/shared'
@@ -33,7 +34,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-    private readonly push: PushService,
+    private readonly notifications: NotificationsService,
     private readonly eventBus: EventBusService,
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly roles: RolesService
@@ -272,14 +273,21 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       select: { userId: true }
     })
     if (interestedUsers.length > 0) {
-      await this.push.sendToUsers(
-        interestedUsers.map((u) => u.userId),
-        {
-          title: `Event starting: ${event.name}`,
-          body: event.description?.slice(0, 100) ?? 'An event is starting now!',
-          url: `/channels/${event.serverId}`
-        }
-      )
+      await this.notifications.dispatch({
+        userIds: interestedUsers.map((u) => u.userId),
+        kind: InAppNotificationKind.server_event,
+        dedupeKey: `event:${eventId}`,
+        payload: {
+          eventId,
+          serverId: event.serverId,
+          eventName: event.name,
+          state: 'started'
+        },
+        title: `Event starting: ${event.name}`,
+        body: event.description?.slice(0, 100) ?? 'An event is starting now!',
+        url: `/channels/${event.serverId}`,
+        push: true
+      })
     }
 
     return updated
@@ -454,14 +462,23 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     })
     if (interestedUsers.length === 0) return
 
-    await this.push.sendToUsers(
-      interestedUsers.map((u) => u.userId),
-      {
-        title: `Starting soon: ${event.name}`,
-        body: 'This event starts in 30 minutes!',
-        url: `/channels/${event.serverId}`
-      }
-    )
+    await this.notifications.dispatch({
+      userIds: interestedUsers.map((u) => u.userId),
+      kind: InAppNotificationKind.server_event,
+      // Shares the key with the start notification, so the reminder is replaced
+      // rather than sitting next to it once the event actually begins.
+      dedupeKey: `event:${eventId}`,
+      payload: {
+        eventId,
+        serverId: event.serverId,
+        eventName: event.name,
+        state: 'soon'
+      },
+      title: `Starting soon: ${event.name}`,
+      body: 'This event starts in 30 minutes!',
+      url: `/channels/${event.serverId}`,
+      push: true
+    })
   }
 
   private registerCleanupCron() {

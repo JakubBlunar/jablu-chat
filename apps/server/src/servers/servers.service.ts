@@ -288,6 +288,8 @@ export class ServersService {
       throw new ForbiddenException('Cannot remove the Owner role from the server owner')
     }
 
+    const previousRoles = await this.roles.loadMemberRolesWire(serverId, targetUserId)
+
     await this.prisma.$transaction([
       this.prisma.serverMemberRole.deleteMany({
         where: { userId: targetUserId, serverId }
@@ -307,6 +309,22 @@ export class ServersService {
       roleIds: memberRoles.map((r) => r.id),
       roles: memberRoles
     })
+
+    // Diffed here rather than in the listener so a no-op save (reordering, or
+    // re-submitting the same set) does not notify. `member:updated` is far too
+    // chatty to notify on directly.
+    const before = new Set(previousRoles.map((r) => r.id))
+    const after = new Set(memberRoles.map((r) => r.id))
+    const added = memberRoles.filter((r) => !before.has(r.id)).map((r) => r.name)
+    const removed = previousRoles.filter((r) => !after.has(r.id)).map((r) => r.name)
+    if (added.length > 0 || removed.length > 0) {
+      this.events.emit('member:roles-changed', {
+        serverId,
+        userId: targetUserId,
+        added,
+        removed
+      })
+    }
 
     return this.prisma.serverMember.findUnique({
       where: { userId_serverId: { userId: targetUserId, serverId } },
@@ -336,7 +354,9 @@ export class ServersService {
       where: { userId_serverId: { userId: targetUserId, serverId } }
     })
     await this.auditLog.log(serverId, actorId, 'member.kick', 'user', targetUserId)
-    this.events.emit('member:removed', { serverId, userId: targetUserId })
+    // `moderation` distinguishes being removed from leaving voluntarily, so the
+    // gateway only notifies the user when it was done *to* them.
+    this.events.emit('member:removed', { serverId, userId: targetUserId, moderation: 'kick' })
   }
 
   async banMember(serverId: string, actorId: string, targetUserId: string, reason?: string) {
@@ -368,7 +388,12 @@ export class ServersService {
     })
 
     await this.auditLog.log(serverId, actorId, 'member.ban', 'user', targetUserId, reason)
-    this.events.emit('member:removed', { serverId, userId: targetUserId })
+    this.events.emit('member:removed', {
+      serverId,
+      userId: targetUserId,
+      moderation: 'ban',
+      reason: reason?.trim() || undefined
+    })
   }
 
   async timeoutMember(

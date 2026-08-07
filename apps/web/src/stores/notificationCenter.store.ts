@@ -13,6 +13,9 @@ type State = {
   markRead: (id: string) => Promise<void>
   markAllRead: () => Promise<void>
   applySocketBump: () => void
+  /** Set by the bell so socket bumps know whether the list is on screen. */
+  setPanelOpen: (open: boolean) => void
+  panelOpen: boolean
 }
 
 export const useNotificationCenterStore = create<State>((set, get) => ({
@@ -82,6 +85,15 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
   },
 
   applySocketBump: () => {
+    // Refreshing the list too keeps an open panel from showing a badge count
+    // that no longer matches the rows underneath it.
+    if (get().panelOpen) {
+      void get().fetchList()
+      return
+    }
     void get().fetchUnread()
-  }
+  },
+
+  panelOpen: false,
+  setPanelOpen: (open) => set({ panelOpen: open })
 }))

@@ -35,18 +35,150 @@ function titleFor(n: InAppNotificationDto): string {
       const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} new messages` : 'New message'
       return `${name} in #${ch} — ${c}`
     }
+    case 'reply': {
+      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
+      const ch = typeof p.channelName === 'string' ? p.channelName : 'channel'
+      return `${name} replied to you in #${ch}`
+    }
     case 'friend_request': {
       const name = typeof p.requesterName === 'string' ? p.requesterName : 'Someone'
       return `${name} sent a friend request`
+    }
+    case 'friend_accepted': {
+      const name = typeof p.userName === 'string' ? p.userName : 'Someone'
+      return `${name} accepted your friend request`
+    }
+    case 'moderation': {
+      const server = typeof p.serverName === 'string' ? p.serverName : 'a server'
+      const action = p.action
+      if (action === 'ban') return `You were banned from ${server}`
+      if (action === 'kick') return `You were removed from ${server}`
+      return `You were timed out in ${server}`
+    }
+    case 'role_changed': {
+      const server = typeof p.serverName === 'string' ? p.serverName : 'a server'
+      const added = Array.isArray(p.added) ? (p.added as string[]) : []
+      const removed = Array.isArray(p.removed) ? (p.removed as string[]) : []
+      if (added.length > 0 && removed.length === 0) {
+        return `You were given ${formatList(added)} in ${server}`
+      }
+      if (removed.length > 0 && added.length === 0) {
+        return `You lost ${formatList(removed)} in ${server}`
+      }
+      return `Your roles changed in ${server}`
+    }
+    case 'level_up': {
+      const server = typeof p.serverName === 'string' ? p.serverName : 'a server'
+      const level = typeof p.level === 'number' ? p.level : null
+      return level === null ? `You levelled up in ${server}` : `You reached level ${level} in ${server}`
+    }
+    case 'server_event': {
+      const name = typeof p.eventName === 'string' ? p.eventName : 'An event'
+      return p.state === 'soon' ? `${name} starts soon` : `${name} is starting now`
+    }
+    case 'announcement': {
+      const title = typeof p.title === 'string' ? p.title : null
+      return title ?? 'Announcement'
     }
     default:
       return 'Notification'
   }
 }
 
+function formatList(names: string[]): string {
+  if (names.length === 1) return names[0]!
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 function snippetFor(n: InAppNotificationDto): string {
-  const s = n.payload.snippet
-  return typeof s === 'string' ? s : ''
+  const p = n.payload
+  // Message-shaped kinds carry a `snippet`; the rest carry their detail under
+  // whatever field made sense for them.
+  if (typeof p.snippet === 'string') return p.snippet
+  if (n.kind === 'announcement' && typeof p.body === 'string') return p.body
+  if (n.kind === 'moderation' && typeof p.reason === 'string') return p.reason
+  return ''
+}
+
+/** Distinguishes kinds at a glance so the inbox isn't a wall of identical rows. */
+function iconFor(kind: InAppNotificationDto['kind']) {
+  const common = {
+    className: 'h-4 w-4 shrink-0',
+    fill: 'none',
+    viewBox: '0 0 24 24',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const
+  }
+  switch (kind) {
+    case 'mention':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+        </svg>
+      )
+    case 'reply':
+    case 'thread_reply':
+      return (
+        <svg {...common}>
+          <path d="M9 17 4 12l5-5" />
+          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+        </svg>
+      )
+    case 'dm_message':
+    case 'channel_message':
+      return (
+        <svg {...common}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      )
+    case 'friend_request':
+    case 'friend_accepted':
+      return (
+        <svg {...common}>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="m17 11 2 2 4-4" />
+        </svg>
+      )
+    case 'moderation':
+      return (
+        <svg {...common}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M12 9v4M12 17h.01" />
+        </svg>
+      )
+    case 'role_changed':
+      return (
+        <svg {...common}>
+          <path d="M12 2 3 7v6c0 5 9 9 9 9s9-4 9-9V7z" />
+        </svg>
+      )
+    case 'level_up':
+      return (
+        <svg {...common}>
+          <path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.8l6.5-.9z" />
+        </svg>
+      )
+    case 'server_event':
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+      )
+    case 'announcement':
+      return (
+        <svg {...common}>
+          <path d="m3 11 18-8v18l-18-8z" />
+          <path d="M7 12v6a2 2 0 0 0 4 0v-4" />
+        </svg>
+      )
+    default:
+      return null
+  }
 }
 
 export function InAppNotificationBell({
@@ -79,6 +211,13 @@ export function InAppNotificationBell({
   useEffect(() => {
     void fetchUnread()
   }, [fetchUnread])
+
+  const setPanelOpen = useNotificationCenterStore((s) => s.setPanelOpen)
+
+  useEffect(() => {
+    setPanelOpen(open)
+    return () => setPanelOpen(false)
+  }, [open, setPanelOpen])
 
   useEffect(() => {
     if (!open) return
@@ -168,16 +307,28 @@ export function InAppNotificationBell({
               if (parent) openWithParent(parent)
             }
           }
-        } else if (n.kind === 'channel_message') {
+        } else if (n.kind === 'channel_message' || n.kind === 'reply') {
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
           const channelId = typeof p.channelId === 'string' ? p.channelId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (serverId && channelId) {
             await orchestratedGoToChannel(serverId, channelId, messageId ?? undefined)
           }
-        } else if (n.kind === 'friend_request') {
+        } else if (n.kind === 'friend_request' || n.kind === 'friend_accepted') {
           navigate('/channels/@me')
+        } else if (
+          n.kind === 'moderation' ||
+          n.kind === 'role_changed' ||
+          n.kind === 'level_up' ||
+          n.kind === 'server_event'
+        ) {
+          // Server-scoped, but no channel to land on. A kick or ban leaves no
+          // server to open either, so fall back to the home view.
+          const serverId = typeof p.serverId === 'string' ? p.serverId : null
+          const removed = n.kind === 'moderation' && (p.action === 'kick' || p.action === 'ban')
+          navigate(serverId && !removed ? `/channels/${serverId}` : '/channels/@me')
         }
+        // `announcement` has nowhere to go; clicking it just marks it seen.
       } finally {
         if (!n.readAt) void markRead(n.id)
         setOpen(false)
@@ -238,14 +389,19 @@ export function InAppNotificationBell({
                   <button
                     type="button"
                     onClick={() => void onItemClick(n)}
-                    className={`flex w-full flex-col gap-0.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
+                    className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
                       n.readAt ? 'opacity-70' : ''
                     }`}
                   >
-                    <span className="text-sm font-medium text-white">{titleFor(n)}</span>
-                    {snippetFor(n) ? (
-                      <span className="line-clamp-2 text-xs text-gray-400">{snippetFor(n)}</span>
-                    ) : null}
+                    <span className="mt-0.5 text-gray-400" aria-hidden>
+                      {iconFor(n.kind)}
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-sm font-medium text-white">{titleFor(n)}</span>
+                      {snippetFor(n) ? (
+                        <span className="line-clamp-2 text-xs text-gray-400">{snippetFor(n)}</span>
+                      ) : null}
+                    </span>
                   </button>
                 </li>
               ))}

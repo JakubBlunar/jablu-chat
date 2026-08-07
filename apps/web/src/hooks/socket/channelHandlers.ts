@@ -12,6 +12,49 @@ import { showNotification } from '@/lib/notifications'
 import { notifBody } from './helpers'
 import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewPayload, ThrottledAck } from './types'
 
+/**
+ * Thread replies previously produced no client-side alert at all, so a reply
+ * that arrived while you had the app open was silent even though the server
+ * recorded it in the bell.
+ *
+ * Participation is judged from the thread the client has already loaded, so this
+ * only fires for threads the user has actually opened. The server-side push and
+ * bell row remain the authoritative delivery for everyone else.
+ */
+function notifyThreadReply(
+  msg: Message & { mentionedUserIds?: string[]; serverId?: string }
+) {
+  const myId = useAuthStore.getState().user?.id
+  if (!myId || msg.authorId === myId) return
+
+  const thread = useThreadStore.getState()
+  // Already reading this thread — the message is on screen.
+  if (thread.isOpen && thread.parentMessage?.id === msg.threadParentId) return
+
+  const isMentioned = (msg.mentionedUserIds ?? []).includes(myId)
+  const isParticipant =
+    thread.parentMessage?.id === msg.threadParentId &&
+    (thread.parentMessage?.authorId === myId ||
+      thread.messages.some((m) => m.authorId === myId))
+  if (!isMentioned && !isParticipant) return
+
+  if (msg.channelId) {
+    const level = useNotifPrefStore.getState().getEffective(msg.channelId, msg.serverId)
+    if (level === 'none') return
+  }
+
+  const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
+  const url =
+    msg.serverId && msg.channelId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined
+  showNotification(
+    'Thread reply',
+    `${author}: ${notifBody(msg)}`,
+    url,
+    undefined,
+    isMentioned ? 'mention' : 'message'
+  )
+}
+
 export function createChannelHandlers(throttledAck: ThrottledAck) {
   const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
     if (msg.threadParentId) {
@@ -19,6 +62,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       if (useForumStore.getState().currentPostId === msg.threadParentId) {
         window.dispatchEvent(new CustomEvent('forum-reply', { detail: msg }))
       }
+      notifyThreadReply(msg)
       return
     }
     const channelId = useChannelStore.getState().currentChannelId

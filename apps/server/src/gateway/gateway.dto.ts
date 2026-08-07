@@ -177,6 +177,16 @@ export class WsActivityUpdateDto {
   startedAt?: string
 }
 
+export class WsPresenceStateDto {
+  /** `visible` means the app is on screen: window shown and not minimised, or a foreground tab. */
+  @IsEnum(['visible', 'hidden'])
+  visibility!: 'visible' | 'hidden'
+
+  @IsOptional()
+  @IsBoolean()
+  focused?: boolean
+}
+
 export class WsVoiceStateDto {
   @IsOptional()
   @IsBoolean()

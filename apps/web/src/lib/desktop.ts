@@ -6,6 +6,16 @@ import type { PttBinding } from '@/lib/micMode'
 /** True when running inside the Tauri desktop shell. */
 export const isDesktop = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
+/**
+ * Native window state. `visible` is false while hidden to the tray, which the
+ * webview's own `document.visibilityState` does not reliably report.
+ */
+export type DesktopWindowState = {
+  visible: boolean
+  minimized: boolean
+  focused: boolean
+}
+
 export type DesktopAPI = {
   isElectron: true
   platform: string
@@ -14,10 +24,15 @@ export type DesktopAPI = {
   getSources: () => Promise<
     Array<{ id: string; name: string; thumbnail: string; appIcon: string | null }>
   >
-  showNotification: (title: string, body: string, url?: string) => Promise<void>
+  /** `tag` groups repeat toasts for the same channel so they can be replaced and dismissed. */
+  showNotification: (title: string, body: string, url?: string, tag?: string) => Promise<void>
   restartApp: () => Promise<void>
   onNavigate: (cb: (url: string) => void) => () => void
+  getWindowState: () => Promise<DesktopWindowState>
+  onWindowState: (cb: (state: DesktopWindowState) => void) => () => void
   setTrayUnread: (count: number) => Promise<void>
+  /** Removes a previously shown toast from the Action Center by tag. */
+  dismissNotification: (tag: string) => Promise<void>
   getAutoLaunch: () => Promise<boolean>
   setAutoLaunch: (enabled: boolean) => Promise<boolean>
   getStartMinimized: () => Promise<boolean>
@@ -97,10 +112,19 @@ function buildDesktopAPI(): DesktopAPI {
       return cachedVersion
     },
     getSources: () => Promise.resolve([]),
-    showNotification: (title, body, url) => invoke('show_notification', { title, body, url }),
+    showNotification: (title, body, url, tag) =>
+      invoke('show_notification', { title, body, url, tag }),
     restartApp: () => invoke('restart_app'),
     onNavigate: (cb) => on<string>('navigate', (url) => cb(url)),
+    getWindowState: () =>
+      invoke<DesktopWindowState>('get_window_state').catch(() => ({
+        visible: true,
+        minimized: false,
+        focused: true
+      })),
+    onWindowState: (cb) => on<DesktopWindowState>('window-state', cb),
     setTrayUnread: (count) => invoke('set_tray_unread', { count }),
+    dismissNotification: (tag) => invoke('dismiss_notification', { tag }),
     getAutoLaunch: () => invoke<boolean>('get_auto_launch'),
     setAutoLaunch: (enabled) => invoke<boolean>('set_auto_launch', { enabled }),
     getStartMinimized: () => invoke<boolean>('get_start_minimized'),
