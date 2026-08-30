@@ -30,5 +30,5 @@
     "noUncheckedSideEffectImports": true
   },
   "include": ["src"],
-  "exclude": ["src/sw.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "src/test/jest-setup-i18n.ts"]
+  "exclude": ["src/sw.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "src/test/jest-setup-i18n.ts", "src/test/jest-setup-env.ts"]
 }

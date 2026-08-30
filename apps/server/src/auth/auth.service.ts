@@ -475,16 +475,9 @@ export class AuthService implements OnModuleInit {
     duration?: StatusDurationPreset
   ) {
     const now = new Date()
-    let manualStatus: 'online' | 'idle' | 'dnd' | 'offline' | null = null
-    let manualStatusExpiresAt: Date | null = null
-
-    if (status === 'online') {
-      manualStatus = null
-      manualStatusExpiresAt = null
-    } else {
-      manualStatus = status
-      manualStatusExpiresAt = computeManualStatusExpiresAt(duration ?? '1h', now)
-    }
+    const manualStatus = status === 'online' ? null : status
+    const manualStatusExpiresAt =
+      status === 'online' ? null : computeManualStatusExpiresAt(duration ?? '1h', now)
 
     return this.prisma.user.update({
       where: { id: userId },

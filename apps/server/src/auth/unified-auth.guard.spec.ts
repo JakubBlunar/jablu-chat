@@ -1,4 +1,5 @@
-import { UnauthorizedException } from '@nestjs/common'
+import { Controller, UnauthorizedException, UseGuards } from '@nestjs/common'
+import { Test } from '@nestjs/testing'
 import { UnifiedAuthGuard } from './unified-auth.guard'
 
 describe('UnifiedAuthGuard', () => {
@@ -26,5 +27,19 @@ describe('UnifiedAuthGuard', () => {
   it('prefers the error over UnauthorizedException', () => {
     const customError = new Error('Custom')
     expect(() => guard.handleRequest(customError, { id: 'u1' }, null, {} as any)).toThrow(customError)
+  })
+
+  // Controllers all over the app apply this guard from modules that never import
+  // PassportModule, so it must resolve without AuthModuleOptions being available.
+  it('resolves in a module that does not provide AuthModuleOptions', async () => {
+    @Controller('probe')
+    @UseGuards(UnifiedAuthGuard)
+    class ProbeController {}
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ProbeController],
+    }).compile()
+
+    expect(moduleRef.get(UnifiedAuthGuard, { strict: false })).toBeInstanceOf(UnifiedAuthGuard)
   })
 })

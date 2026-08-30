@@ -6,6 +6,7 @@ import { EventBusService } from '../../events/event-bus.service'
 import { UploadsService } from '../../uploads/uploads.service'
 import { AuditLogService } from '../audit-log.service'
 import { RolesService } from '../../roles/roles.service'
+import { Prisma } from '../../prisma-client'
 import { createMockPrismaService, MockPrismaService } from '../../__mocks__/prisma.mock'
 
 describe('ChannelsService', () => {
@@ -78,9 +79,8 @@ describe('ChannelsService', () => {
 
     it('throws ConflictException on duplicate name', async () => {
       prisma.channel.aggregate.mockResolvedValue({ _max: { position: 0 } })
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       prisma.channel.create.mockRejectedValue(
-        new PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '6.0.0' }),
+        new Prisma.PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '7.10.0' }),
       )
 
       await expect(
@@ -195,9 +195,8 @@ describe('ChannelsService', () => {
     })
 
     it('throws ConflictException on duplicate name', async () => {
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       prisma.channel.update.mockRejectedValue(
-        new PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '6.0.0' }),
+        new Prisma.PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '7.10.0' }),
       )
 
       await expect(

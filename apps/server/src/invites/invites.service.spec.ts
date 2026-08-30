@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 import { EventBusService } from '../events/event-bus.service'
 import { AuditLogService } from '../servers/audit-log.service'
+import { Prisma } from '../prisma-client'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('InvitesService', () => {
@@ -87,10 +88,9 @@ describe('InvitesService', () => {
     })
 
     it('retries on unique constraint violation', async () => {
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
-      const uniqueError = new PrismaClientKnownRequestError('Unique constraint', {
+      const uniqueError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
         code: 'P2002',
-        clientVersion: '6.0.0',
+        clientVersion: '7.10.0',
       })
 
       prisma.invite.create
@@ -108,10 +108,9 @@ describe('InvitesService', () => {
     })
 
     it('throws ConflictException after 20 failed attempts', async () => {
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
-      const uniqueError = new PrismaClientKnownRequestError('Unique constraint', {
+      const uniqueError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
         code: 'P2002',
-        clientVersion: '6.0.0',
+        clientVersion: '7.10.0',
       })
       prisma.invite.create.mockRejectedValue(uniqueError)
 

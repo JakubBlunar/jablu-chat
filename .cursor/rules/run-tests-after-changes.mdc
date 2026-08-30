@@ -10,8 +10,8 @@ After completing code changes (new features, bug fixes, refactors), run the rele
 ## Commands
 
 - **Web app** (`apps/web`): `npx jest --no-coverage`
-- **Server** (`apps/server`): `npx jest --no-coverage`
-- **Targeted run** (faster): `npx jest path/to/file.test.ts --no-coverage`
+- **Server** (`apps/server`): `pnpm test -- --no-coverage` (Nest 12 ships ESM; Jest needs `--experimental-vm-modules`, which the package script sets)
+- **Targeted run** (faster): `npx jest path/to/file.test.ts --no-coverage` (web) or `pnpm test -- path/to/file.spec.ts --no-coverage` (server)
 
 ## Conventions
 

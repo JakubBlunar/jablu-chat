@@ -18,7 +18,7 @@ export function getNoiseReductionCapabilities(): NoiseReductionCapabilities {
     }
     voiceIsolation = !!c?.voiceIsolation
   } catch {
-    voiceIsolation = false
+    // leave voiceIsolation false
   }
 
   return { audioWorklet, voiceIsolation }

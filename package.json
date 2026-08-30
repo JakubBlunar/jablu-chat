@@ -24,9 +24,9 @@
     "local:sync-env": "node scripts/sync-env-development.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
-    "prettier": "^3.8.2",
-    "turbo": "^2.9.6",
+    "@playwright/test": "^1.62.1",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.12",
     "typescript": "~5.9.3"
   },
   "pnpm": {
