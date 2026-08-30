@@ -34,7 +34,7 @@ export function DmSidebar() {
       isLoading: s.isConversationsLoading
     }))
   )
-  const { goToDm, goToDms, goToChannel } = useAppNavigate()
+  const { goToDm, goToFriends, goToChannel } = useAppNavigate()
   const { onlineIds, realtimeStatuses } = useMemberStore(
     useShallow((s) => ({
       onlineIds: s.onlineUserIds,
@@ -51,9 +51,9 @@ export function DmSidebar() {
     if (!currentConvId || isLoading || conversations.length === 0) return
     const exists = conversations.some((c) => c.id === currentConvId)
     if (!exists) {
-      goToDms()
+      goToFriends()
     }
-  }, [currentConvId, conversations, isLoading, goToDms])
+  }, [currentConvId, conversations, isLoading, goToFriends])
 
   const getDisplayInfo = useCallback(
     (conv: (typeof conversations)[0]) => {
@@ -134,7 +134,7 @@ export function DmSidebar() {
       <div className="shrink-0 px-2 pt-2">
         <button
           type="button"
-          onClick={() => goToDms()}
+          onClick={() => goToFriends()}
           className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition ${
             !currentConvId
               ? 'bg-white/10 text-white'
@@ -229,7 +229,7 @@ export function DmSidebar() {
                   onClick={(e) => {
                     e.stopPropagation()
                     void closeConversation(conv.id)
-                    if (active) goToDms()
+                    if (active) goToFriends()
                   }}
                   className="shrink-0 rounded p-1 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
                 >

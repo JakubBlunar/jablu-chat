@@ -1,3 +1,4 @@
+import type { Channel } from '@chat/shared'
 import { create } from 'zustand'
 import { useChannelPermissionsStore } from './channel-permissions.store'
 import { useChannelStore } from './channel.store'
@@ -5,8 +6,37 @@ import { useDmStore } from './dm.store'
 import { useEmojiStore } from './emoji.store'
 import { useMemberStore } from './member.store'
 import { useMessageStore } from './message.store'
+import { useNavHistoryStore } from './navHistory.store'
 import { useServerStore } from './server.store'
+import { hydrateContextFromDisk } from '@/lib/cache/hydrate'
+import { channelKey, dmKey, peekContext } from '@/lib/cache/messageCache'
 import { getSocket } from '@/lib/socket'
+
+/** Channel types that have a message history worth navigating to. */
+function isMessageable(channel: Channel | undefined): boolean {
+  return channel ? channel.type === 'text' || channel.type === 'forum' : true
+}
+
+/**
+ * Resolve which channel a server switch should land on: an explicit request,
+ * then the channel the user last read here, then the first text channel.
+ *
+ * Archived channels are excluded from the fallback to agree with
+ * `useSortedChannels`, which MainLayout's redirect effect uses.
+ */
+function resolveTargetChannel(serverId: string, channels: Channel[], requested?: string | null): string | null {
+  const exists = (id: string | null | undefined) => !!id && channels.some((c) => c.id === id)
+
+  if (exists(requested)) return requested!
+
+  const remembered = useNavHistoryStore.getState().getLastChannel(serverId)
+  if (exists(remembered)) return remembered
+
+  const firstText = channels
+    .filter((c) => c.type === 'text' && !c.isArchived)
+    .sort((a, b) => a.position - b.position)[0]
+  return firstText?.id ?? null
+}
 
 type NavigationState = {
   isNavigating: boolean
@@ -36,23 +66,37 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
     try {
       if (serverChanged) {
-        await Promise.all([
+        // Only the channel list and permissions decide what renders first.
+        // Members fill a side panel and emojis only matter once the picker is
+        // opened, so awaiting them here just delays the switch. Nothing awaits
+        // these, so a rejection has nowhere to go but an unhandled rejection.
+        void Promise.resolve(useMemberStore.getState().fetchMembers(serverId)).catch(() => {})
+        void Promise.resolve(useEmojiStore.getState().fetch(serverId)).catch(() => {})
+
+        const sidebarReady =
+          useChannelStore.getState().hydrateFromCache(serverId) &&
+          useChannelPermissionsStore.getState().hydrateFromCache(serverId)
+
+        const revalidate = Promise.all([
           useChannelStore.getState().fetchChannels(serverId),
-          useMemberStore.getState().fetchMembers(serverId),
-          useChannelPermissionsStore.getState().fetchChannelPermissions(serverId),
-          useEmojiStore.getState().fetch(serverId)
+          useChannelPermissionsStore.getState().fetchChannelPermissions(serverId)
         ])
-        if (get().activeNavId !== navId) return null
+
+        if (sidebarReady) {
+          // Everything needed to pick and render a channel is already on
+          // screen, so the refresh happens behind the user.
+          void revalidate.catch(() => {})
+        } else {
+          await revalidate
+          if (get().activeNavId !== navId) return null
+        }
       }
 
       const channels = useChannelStore.getState().channels
-      let targetChannelId = channelId ?? null
-      if (!targetChannelId || !channels.some((c) => c.id === targetChannelId)) {
-        const firstText = channels.filter((c) => c.type === 'text').sort((a, b) => a.position - b.position)[0]
-        targetChannelId = firstText?.id ?? null
-      }
+      const targetChannelId = resolveTargetChannel(serverId, channels, channelId)
 
       if (!targetChannelId) {
+        useNavHistoryStore.getState().recordServerLocation(serverId, null)
         set({ isNavigating: false, navigatingToServerId: null })
         return `/channels/${serverId}`
       }
@@ -63,7 +107,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       // when viewingVoiceRoom is true (set by the caller, e.g. the "Voice
       // Connected" pill in MobileNavDrawer) and MessageArea never mounts.
       const targetChannel = channels.find((c) => c.id === targetChannelId)
-      const targetIsMessageable = targetChannel ? targetChannel.type === 'text' || targetChannel.type === 'forum' : true
+      const targetIsMessageable = isMessageable(targetChannel)
 
       const oldChannelId = useChannelStore.getState().currentChannelId
       const inServerView = useServerStore.getState().viewMode === 'server'
@@ -82,21 +126,44 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
         return null
       }
 
-      const socket = getSocket()
-      if (oldChannelId && oldChannelId !== targetChannelId) {
-        socket?.emit('channel:leave', { channelId: oldChannelId })
-      }
-      socket?.emit('channel:join', { channelId: targetChannelId })
+      // No `channel:leave`: the gateway subscribes the socket to every visible
+      // channel on connect, and staying subscribed is what keeps cached
+      // channels correct while the user is looking elsewhere.
+      getSocket()?.emit('channel:join', { channelId: targetChannelId })
 
       if (targetIsMessageable) {
-        useMessageStore.getState().clearMessages()
-        if (scrollToMessageId) {
-          await useMessageStore.getState().fetchMessagesAround(targetChannelId, scrollToMessageId)
-        } else {
-          await useMessageStore.getState().fetchMessages(targetChannelId)
+        // Hand the channel being left to the cache before overwriting it.
+        useMessageStore.getState().stashCurrent()
+
+        // A jump to a specific message needs a window around it, which the
+        // cached tail cannot satisfy, so that path always fetches.
+        if (!scrollToMessageId) {
+          // One indexed lookup, not a round trip. Skipped entirely when the
+          // context is already resident in memory.
+          await hydrateContextFromDisk(channelKey(targetChannelId))
+          if (get().activeNavId !== navId) return null
         }
 
-        if (get().activeNavId !== navId) return null
+        // A copy that came off disk can have missed edits and deletions that
+        // no socket event will ever replay, so it renders now and is checked
+        // against the server behind the user.
+        const wasStale = peekContext(channelKey(targetChannelId))?.stale ?? false
+        const served = !scrollToMessageId && useMessageStore.getState().hydrateFromCache(targetChannelId)
+
+        if (served && wasStale) {
+          void useMessageStore.getState().revalidate(targetChannelId)
+        }
+
+        if (!served) {
+          useMessageStore.getState().clearMessages()
+          if (scrollToMessageId) {
+            await useMessageStore.getState().fetchMessagesAround(targetChannelId, scrollToMessageId)
+          } else {
+            await useMessageStore.getState().fetchMessages(targetChannelId)
+          }
+
+          if (get().activeNavId !== navId) return null
+        }
 
         if (scrollToMessageId) {
           useMessageStore.getState().setScrollToMessageId(scrollToMessageId)
@@ -105,6 +172,15 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
       useServerStore.getState().setCurrentServer(serverId)
       useChannelStore.getState().setCurrentChannel(targetChannelId)
+
+      // Only messageable channels are remembered, so neither a server switch
+      // nor a relaunch drops the user straight into a voice room.
+      if (targetIsMessageable) {
+        useNavHistoryStore.getState().recordChannel(serverId, targetChannelId)
+      }
+      useNavHistoryStore
+        .getState()
+        .recordServerLocation(serverId, targetIsMessageable ? targetChannelId : null)
 
       set({ isNavigating: false, navigatingToServerId: null })
       return `/channels/${serverId}/${targetChannelId}`
@@ -138,14 +214,30 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
         return null
       }
 
-      useDmStore.getState().clearMessages()
-      if (scrollToMessageId) {
-        await useDmStore.getState().fetchMessagesAround(conversationId, scrollToMessageId)
-      } else {
-        await useDmStore.getState().fetchMessages(conversationId)
+      useDmStore.getState().stashCurrent()
+
+      if (!scrollToMessageId) {
+        await hydrateContextFromDisk(dmKey(conversationId))
+        if (get().activeNavId !== navId) return null
       }
 
-      if (get().activeNavId !== navId) return null
+      const wasStale = peekContext(dmKey(conversationId))?.stale ?? false
+      const served = !scrollToMessageId && useDmStore.getState().hydrateFromCache(conversationId)
+
+      if (served && wasStale) {
+        void useDmStore.getState().revalidate(conversationId)
+      }
+
+      if (!served) {
+        useDmStore.getState().clearMessages()
+        if (scrollToMessageId) {
+          await useDmStore.getState().fetchMessagesAround(conversationId, scrollToMessageId)
+        } else {
+          await useDmStore.getState().fetchMessages(conversationId)
+        }
+
+        if (get().activeNavId !== navId) return null
+      }
 
       if (scrollToMessageId) {
         useDmStore.getState().setScrollToMessageId(scrollToMessageId)
@@ -153,6 +245,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
       useServerStore.getState().setViewMode('dm')
       useDmStore.getState().setCurrentConversation(conversationId)
+      useNavHistoryStore.getState().recordDmScreen(conversationId)
 
       set({ isNavigating: false })
       return `/channels/@me/${conversationId}`

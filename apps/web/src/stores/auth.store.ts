@@ -52,7 +52,11 @@ function resetAllStores() {
     import('./layout.store'),
     import('./navigation.store'),
     import('./event.store'),
-    import('./channel-permissions.store')
+    import('./channel-permissions.store'),
+    import('./navHistory.store'),
+    import('@/lib/cache/messageCache'),
+    import('@/lib/cache/structureCache'),
+    import('@/lib/cache/persistence')
   ]).then(
     ([
       { useServerStore },
@@ -67,7 +71,11 @@ function resetAllStores() {
       { useLayoutStore },
       { useNavigationStore },
       { useEventStore },
-      { useChannelPermissionsStore }
+      { useChannelPermissionsStore },
+      { useNavHistoryStore },
+      { clearCache },
+      { clearStructureCache },
+      { purgeCache }
     ]) => {
       useServerStore.setState({ servers: [], currentServerId: null, viewMode: 'server', isLoading: false })
       useChannelStore.setState({ channels: [], categories: [], currentChannelId: null, isLoading: false, loadedServerId: null })
@@ -93,6 +101,14 @@ function resetAllStores() {
       useNavigationStore.setState({ isNavigating: false, navigatingToServerId: null, activeNavId: 0 })
       useEventStore.getState().reset()
       useChannelPermissionsStore.getState().clear()
+
+      // Cached messages outlive a session by design, so signing out has to
+      // take them with it. The listeners are torn down first so the clears
+      // below do not queue a write against the database being wiped.
+      void purgeCache()
+      clearCache(false)
+      clearStructureCache(false)
+      useNavHistoryStore.getState().syncUser(null)
     }
   )
 }

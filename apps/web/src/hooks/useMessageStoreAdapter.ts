@@ -105,11 +105,22 @@ export function useMessageStoreAdapter(
     [isDm]
   )
 
+  /**
+   * Fires on every context switch, including URL-driven ones that never go
+   * through navigation.store, so this is where the outgoing context is handed
+   * to the cache.
+   *
+   * It deliberately does not emit `channel:leave`: the gateway subscribes the
+   * socket to every visible channel on connect, and leaving would stop the
+   * events that keep the cached copy correct.
+   */
   const onContextLeave = useCallback(
     (contextId: string) => {
-      if (!isDm) {
-        getSocket()?.emit('channel:leave', { channelId: contextId })
-      }
+      const store = isDm ? useDmStore.getState() : useMessageStore.getState()
+      const loadedFor = isDm
+        ? useDmStore.getState().loadedForConvId
+        : useMessageStore.getState().loadedForChannelId
+      if (loadedFor === contextId) store.stashCurrent()
     },
     [isDm]
   )

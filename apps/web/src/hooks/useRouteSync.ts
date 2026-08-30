@@ -3,6 +3,7 @@ import { useLocation, useParams } from 'react-router-dom'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useForumStore } from '@/stores/forum.store'
+import { useNavHistoryStore } from '@/stores/navHistory.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -40,6 +41,7 @@ export function useRouteSync() {
       if (modeChanged || prevConvRef.current !== conversationId) {
         prevConvRef.current = conversationId
         useDmStore.getState().setCurrentConversation(conversationId)
+        useNavHistoryStore.getState().recordDmScreen(conversationId)
       }
     } else if (serverId) {
       if (prevIsDmRef.current !== false) {
@@ -58,6 +60,16 @@ export function useRouteSync() {
       if (channelId && prevChannelRef.current !== channelId) {
         prevChannelRef.current = channelId
         useChannelStore.getState().setCurrentChannel(channelId)
+        // Also record here so back/forward and deep links are remembered, not
+        // just clicks that go through navigation.store. The channel may not be
+        // loaded yet on a deep link, in which case navigation.store records it.
+        // Voice channels are deliberately not remembered as a landing spot.
+        const channel = useChannelStore.getState().channels.find((c) => c.id === channelId)
+        const messageable = channel?.type === 'text' || channel?.type === 'forum'
+        if (messageable) {
+          useNavHistoryStore.getState().recordChannel(serverId, channelId)
+        }
+        useNavHistoryStore.getState().recordServerLocation(serverId, messageable ? channelId : null)
         const voiceState = useVoiceConnectionStore.getState()
         voiceState.setViewingVoiceRoom(channelId === voiceState.currentChannelId)
       }

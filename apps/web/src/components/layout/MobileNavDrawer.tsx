@@ -67,7 +67,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
   const { t } = useTranslation('nav')
   const { open, close } = useLayoutStore(useShallow((s) => ({ open: s.navDrawerOpen, close: s.closeNavDrawer })))
 
-  const { orchestratedGoToChannel, goToDms, goToDm } = useAppNavigate()
+  const { orchestratedGoToChannel, goToDms, goToFriends, goToDm } = useAppNavigate()
 
   const { viewMode, servers, currentServerId, removeServer, isLoading: serversLoading } = useServerStore(
     useShallow((s) => ({
@@ -610,7 +610,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
               <>
                 <button
                   type="button"
-                  onClick={() => { goToDms(); close() }}
+                  onClick={() => { goToFriends(); close() }}
                   className="mb-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
