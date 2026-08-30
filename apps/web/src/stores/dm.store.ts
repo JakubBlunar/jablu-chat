@@ -1,7 +1,9 @@
 import type { Message } from '@chat/shared'
 import { create } from 'zustand'
 import { api, type DmConversation } from '@/lib/api'
-import { toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
+import { CACHE_PAGE_SIZE, dmKey, evictContext, getContext, putContext } from '@/lib/cache/messageCache'
+import { isForbidden } from '@/lib/cache/isForbidden'
+import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
 
 type DmState = {
   conversations: DmConversation[]
@@ -26,6 +28,9 @@ type DmState = {
   updateMessage: (message: Message) => void
   removeMessage: (messageId: string) => void
   clearMessages: () => void
+  stashCurrent: () => void
+  hydrateFromCache: (conversationId: string) => boolean
+  revalidate: (conversationId: string) => Promise<void>
   addReaction: (messageId: string, emoji: string, userId: string, isCustom?: boolean) => void
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   updateConversationLastMessage: (
@@ -93,6 +98,11 @@ export const useDmStore = create<DmState>((set, _get) => ({
           hasNewer: false,
           isLoading: false,
           loadedForConvId: conversationId
+        })
+        putContext(dmKey(conversationId), {
+          messages: chronological,
+          hasMore: page.hasMore,
+          hasNewer: false
         })
       }
     } catch {
@@ -181,6 +191,54 @@ export const useDmStore = create<DmState>((set, _get) => ({
   },
 
   clearMessages: () => set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null }),
+
+  stashCurrent: () => {
+    const { loadedForConvId, messages, hasMore, hasNewer, isLoading } = _get()
+    if (!loadedForConvId || isLoading) return
+
+    // See message.store.stashCurrent: only the live edge is worth keeping.
+    if (hasNewer) {
+      evictContext(dmKey(loadedForConvId))
+      return
+    }
+
+    putContext(dmKey(loadedForConvId), { messages, hasMore, hasNewer: false })
+  },
+
+  hydrateFromCache: (conversationId) => {
+    const entry = getContext(dmKey(conversationId))
+    if (!entry) return false
+
+    set({
+      messages: entry.messages,
+      hasMore: entry.hasMore,
+      hasNewer: entry.hasNewer,
+      isLoading: false,
+      messagesError: null,
+      loadedForConvId: conversationId
+    })
+    return true
+  },
+
+  /** See message.store.revalidate. */
+  revalidate: async (conversationId) => {
+    const fetchId = ++_dmFetchId
+    const idsWhenRequested = new Set(_get().messages.map((m) => m.id))
+    try {
+      const page = await api.getDmMessages(conversationId, undefined, 50)
+
+      if (_dmFetchId !== fetchId) return
+      const state = _get()
+      if (state.loadedForConvId !== conversationId) return
+      if (state.messages.length > CACHE_PAGE_SIZE || state.hasNewer) return
+
+      const merged = mergeNewestPage(state.messages, toChronological(page.messages), idsWhenRequested)
+      set({ messages: merged, hasMore: page.hasMore, messagesError: null })
+      putContext(dmKey(conversationId), { messages: merged, hasMore: page.hasMore, hasNewer: false })
+    } catch (e) {
+      if (isForbidden(e)) evictContext(dmKey(conversationId))
+    }
+  },
 
   addReaction: (messageId, emoji, userId, isCustom) => {
     set((s) => {

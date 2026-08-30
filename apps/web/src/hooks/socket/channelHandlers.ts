@@ -1,4 +1,15 @@
 import type { ForumPost, Message, Poll } from '@chat/shared'
+import {
+  cacheAddMessage,
+  cacheAddReaction,
+  cacheRemoveMessage,
+  cacheRemoveReaction,
+  cacheSetLinkPreviews,
+  cacheUpdateMessage,
+  cacheUpdatePoll,
+  cacheUpdateThreadCount
+} from '@/lib/cache/contextMutations'
+import { channelKey } from '@/lib/cache/messageCache'
 import { useThreadStore } from '@/stores/thread.store'
 import { useForumStore } from '@/stores/forum.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -72,7 +83,16 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     if (isViewingChannel) {
       useMessageStore.getState().addMessage(msg)
       throttledAck(() => useReadStateStore.getState().ackChannel(channelId!))
-    } else if (msg.channelId && msg.authorId !== myId) {
+      return
+    }
+
+    if (msg.channelId) {
+      // Keep the cached copy current even for the user's own messages sent
+      // from another device, which the unread path below deliberately skips.
+      cacheAddMessage(channelKey(msg.channelId), msg)
+    }
+
+    if (msg.channelId && msg.authorId !== myId) {
       const isMentioned = myId
         ? (msg.mentionedUserIds ?? []).includes(myId) || !!msg.mentionEveryone || !!msg.mentionHere
         : false
@@ -98,6 +118,8 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     const channelId = useChannelStore.getState().currentChannelId
     if (msg.channelId != null && msg.channelId === channelId) {
       useMessageStore.getState().updateMessage(msg)
+    } else {
+      cacheUpdateMessage(msg)
     }
   }
 
@@ -110,6 +132,8 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     const channelId = useChannelStore.getState().currentChannelId
     if (payload.channelId === channelId) {
       useMessageStore.getState().removeMessage(payload.messageId)
+    } else if (payload.channelId) {
+      cacheRemoveMessage(channelKey(payload.channelId), payload.messageId)
     }
   }
 
@@ -139,6 +163,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       // Guarded no-ops in whichever store doesn't hold the message.
       useThreadStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
       useMessageStore.getState().addReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
+      cacheAddReaction(payload.messageId, payload.emoji, payload.userId, payload.isCustom)
     }
   }
 
@@ -154,6 +179,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       // Guarded no-ops in whichever store doesn't hold the message.
       useThreadStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId)
       useMessageStore.getState().removeReaction(payload.messageId, payload.emoji, payload.userId)
+      cacheRemoveReaction(payload.messageId, payload.emoji, payload.userId)
     }
   }
 
@@ -163,6 +189,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       window.dispatchEvent(new CustomEvent('forum-reply:pin', { detail: msg }))
     }
     useMessageStore.getState().updateMessage(msg)
+    cacheUpdateMessage(msg)
     if (msg.channelId) {
       useChannelStore.getState().adjustPinnedCount(msg.channelId, 1)
     }
@@ -174,6 +201,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       window.dispatchEvent(new CustomEvent('forum-reply:unpin', { detail: msg }))
     }
     useMessageStore.getState().updateMessage(msg)
+    cacheUpdateMessage(msg)
     if (msg.channelId) {
       useChannelStore.getState().adjustPinnedCount(msg.channelId, -1)
     }
@@ -181,6 +209,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
 
   const onPollVote = (poll: Poll) => {
     useMessageStore.getState().updatePoll(poll)
+    cacheUpdatePoll(poll)
   }
 
   const onThreadUpdate = (payload: {
@@ -207,6 +236,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
                   : String(raw.createdAt)
           }
     useMessageStore.getState().updateThreadCount(payload.parentId, payload.threadCount, lastThreadReply)
+    cacheUpdateThreadCount(payload.parentId, payload.threadCount, lastThreadReply)
     useForumStore.getState().updateReplyCount(payload.parentId, payload.threadCount, lastThreadReply?.createdAt)
   }
 
@@ -221,6 +251,7 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
 
   const onLinkPreviews = (payload: LinkPreviewPayload) => {
     useMessageStore.getState().setLinkPreviews(payload.messageId, payload.linkPreviews)
+    cacheSetLinkPreviews(payload.messageId, payload.linkPreviews)
   }
 
   const onChannelReorder = (payload: { channelIds: string[] }) => {

@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { useMessageStoreAdapter } from './useMessageStoreAdapter'
+import { channelKey, clearCache, peekContext } from '@/lib/cache/messageCache'
 import { useMessageStore } from '@/stores/message.store'
 import { useDmStore } from '@/stores/dm.store'
 import { makeMessages, resetMsgSeq } from '@/test/factories'
@@ -23,6 +24,9 @@ const mockGetSocket = jest.mocked(getSocket)
 
 beforeEach(() => {
   resetMsgSeq()
+  clearCache()
+  useMessageStore.setState({ messages: [], loadedForChannelId: null, hasMore: false, hasNewer: false })
+  useDmStore.setState({ messages: [], loadedForConvId: null, hasMore: false, hasNewer: false })
   jest.clearAllMocks()
 })
 
@@ -61,13 +65,46 @@ describe('useMessageStoreAdapter', () => {
       expect(mockSocket.emit).toHaveBeenCalledWith('channel:join', { channelId: 'ch-1' })
     })
 
-    it('onContextLeave emits channel:leave', () => {
+    // Staying in the room is what keeps a cached channel correct while the
+    // user is looking elsewhere, and what keeps its unread badge moving.
+    it('onContextLeave does not emit channel:leave', () => {
       const mockSocket = { connected: true, emit: jest.fn() }
       mockGetSocket.mockReturnValue(mockSocket as any)
 
       const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       result.current.onContextLeave!('ch-1')
-      expect(mockSocket.emit).toHaveBeenCalledWith('channel:leave', { channelId: 'ch-1' })
+      expect(mockSocket.emit).not.toHaveBeenCalled()
+    })
+
+    it('onContextLeave stashes the channel it is leaving into the cache', () => {
+      const msgs = makeMessages(3)
+      useMessageStore.setState({
+        messages: msgs,
+        isLoading: false,
+        hasMore: false,
+        hasNewer: false,
+        loadedForChannelId: 'ch-1'
+      })
+
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
+      result.current.onContextLeave!('ch-1')
+
+      expect(peekContext(channelKey('ch-1'))?.messages).toHaveLength(3)
+    })
+
+    it('onContextLeave ignores a context the store is no longer showing', () => {
+      useMessageStore.setState({
+        messages: makeMessages(2),
+        isLoading: false,
+        hasMore: false,
+        hasNewer: false,
+        loadedForChannelId: 'ch-current'
+      })
+
+      const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-stale'))
+      result.current.onContextLeave!('ch-stale')
+
+      expect(peekContext(channelKey('ch-stale'))).toBeNull()
     })
   })
 

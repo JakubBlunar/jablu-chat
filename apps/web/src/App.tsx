@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { DesktopChrome } from './components/desktop/DesktopChrome'
 import { MainLayout } from './components/layout/MainLayout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
+import { RestoreLastLocation } from './components/layout/RestoreLastLocation'
 import { isElectron } from './lib/electron'
 import { api } from './lib/api'
 import './stores/settings.store'
@@ -144,7 +145,7 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 >
-                  <Route index element={<Navigate to="/channels/@me" replace />} />
+                  <Route index element={<RestoreLastLocation />} />
                   <Route path="channels/@me" element={null} />
                   <Route path="channels/@me/:conversationId" element={null} />
                   <Route path="channels/:serverId" element={null} />

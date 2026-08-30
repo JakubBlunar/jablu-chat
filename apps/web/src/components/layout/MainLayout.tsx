@@ -22,6 +22,7 @@ import { useDetectedActivity } from '@/hooks/useDetectedActivity'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
 import { useChannelSocketSync } from '@/hooks/useChannelSocketSync'
+import { useCacheBootstrap } from '@/hooks/useCacheBootstrap'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
@@ -32,8 +33,10 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useDmStore } from '@/stores/dm.store'
+import { useNavHistoryStore } from '@/stores/navHistory.store'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useGifStore } from '@/stores/gif.store'
 import { useActivityStore } from '@/stores/activity.store'
@@ -106,6 +109,7 @@ export function MainLayout() {
   const { t: tCommon } = useTranslation('common')
   useRouteSync()
   useMessageJumpFromQuery()
+  useCacheBootstrap(useAuthStore((s) => s.user?.id ?? null))
   const navigate = useNavigate()
 
   const { socket, isConnected } = useSocket()
@@ -211,6 +215,9 @@ export function MainLayout() {
   const prevServerRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // Covers signing in as a different user without a page reload; the
+    // landing route does the same check for the reload case.
+    useNavHistoryStore.getState().syncUser(useAuthStore.getState().user?.id ?? null)
     void fetchServers()
     if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
     void useActivityStore.getState().fetchServerPrefs().catch(() => {})
@@ -226,6 +233,18 @@ export function MainLayout() {
     if (viewMode !== 'server') return
     if (serversLoading || servers.length === 0) return
     if (!currentServerId) {
+      // Prefer where the user last was; servers[0] is an arbitrary choice that
+      // happens to be whatever the API returned first.
+      const last = useNavHistoryStore.getState().lastLocation
+      const remembered =
+        last?.kind === 'server' && servers.some((s) => s.id === last.serverId) ? last : null
+      if (remembered) {
+        const path = remembered.channelId
+          ? `/channels/${remembered.serverId}/${remembered.channelId}`
+          : `/channels/${remembered.serverId}`
+        navigate(path, { replace: true })
+        return
+      }
       navigate(`/channels/${servers[0].id}`, { replace: true })
       return
     }
@@ -264,9 +283,10 @@ export function MainLayout() {
     if (channelLoadedServerId !== currentServerId) return
     const valid = currentChannelId != null && channels.some((c) => c.id === currentChannelId)
     if (valid) return
-    const firstText = textChannels[0]
-    if (firstText) {
-      navigate(`/channels/${currentServerId}/${firstText.id}`, { replace: true })
+    const remembered = useNavHistoryStore.getState().getLastChannel(currentServerId)
+    const target = channels.find((c) => c.id === remembered) ?? textChannels[0]
+    if (target) {
+      navigate(`/channels/${currentServerId}/${target.id}`, { replace: true })
     }
   }, [
     viewMode,

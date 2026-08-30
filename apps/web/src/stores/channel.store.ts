@@ -1,6 +1,7 @@
 import type { Channel, ChannelCategory } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { getChannels, putChannels } from '@/lib/cache/structureCache'
 
 type ChannelState = {
   channels: Channel[]
@@ -9,6 +10,7 @@ type ChannelState = {
   isLoading: boolean
   loadedServerId: string | null
   fetchChannels: (serverId: string) => Promise<void>
+  hydrateFromCache: (serverId: string) => boolean
   setCurrentChannel: (id: string | null) => void
   getCurrentChannel: () => Channel | null
   textChannels: () => Channel[]
@@ -36,10 +38,34 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   isLoading: false,
   loadedServerId: null,
 
+  /**
+   * Show a previously loaded server's sidebar immediately. Callers are
+   * expected to follow up with `fetchChannels` to revalidate.
+   */
+  hydrateFromCache: (serverId) => {
+    const entry = getChannels(serverId)
+    if (!entry) return false
+    set({
+      channels: entry.channels,
+      categories: entry.categories,
+      isLoading: false,
+      loadedServerId: serverId
+    })
+    return true
+  },
+
   fetchChannels: async (serverId) => {
     const prev = get().loadedServerId
     if (prev !== serverId) {
-      set({ channels: [], categories: [], isLoading: true, loadedServerId: serverId })
+      // Blanking the list is only right when there is nothing to show; a
+      // cache hit has already put this server's channels on screen.
+      const cached = getChannels(serverId)
+      set({
+        channels: cached?.channels ?? [],
+        categories: cached?.categories ?? [],
+        isLoading: true,
+        loadedServerId: serverId
+      })
     } else {
       set({ isLoading: true })
     }
@@ -48,6 +74,10 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
         api.get<Channel[]>(`/api/servers/${serverId}/channels`),
         api.get<ChannelCategory[]>(`/api/servers/${serverId}/categories`)
       ])
+      putChannels(serverId, channels, categories)
+      // A slower response for a server the user already navigated away from
+      // must not overwrite what is on screen; it is still worth caching.
+      if (get().loadedServerId !== serverId) return
       set({ channels, categories, isLoading: false, loadedServerId: serverId })
     } catch (e) {
       set({ isLoading: false })
@@ -134,3 +164,14 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       })
     }))
 }))
+
+/**
+ * Mirror the loaded server's sidebar into the cache. Doing it here rather than
+ * in each action means socket-driven creates, renames and reorders are cached
+ * too, so returning to a server never shows a stale channel list.
+ */
+useChannelStore.subscribe((state, prev) => {
+  if (!state.loadedServerId || state.isLoading) return
+  if (state.channels === prev.channels && state.categories === prev.categories) return
+  putChannels(state.loadedServerId, state.channels, state.categories)
+})

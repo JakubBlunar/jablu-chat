@@ -1,7 +1,12 @@
 import type { LinkPreview, Message, Poll } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
-import { toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
+import { CACHE_PAGE_SIZE, channelKey, evictContext, getContext, putContext } from '@/lib/cache/messageCache'
+import { isForbidden } from '@/lib/cache/isForbidden'
+import { evictServer as evictServerStructure } from '@/lib/cache/structureCache'
+import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
+import { useChannelPermissionsStore } from './channel-permissions.store'
+import { useChannelStore } from './channel.store'
 
 type TypingEntry = {
   username: string
@@ -31,6 +36,9 @@ type MessageState = {
   updateMessage: (message: Message) => void
   removeMessage: (messageId: string) => void
   clearMessages: () => void
+  stashCurrent: () => void
+  hydrateFromCache: (channelId: string) => boolean
+  revalidate: (channelId: string) => Promise<void>
   addReaction: (messageId: string, emoji: string, userId: string, isCustom?: boolean) => void
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   setLinkPreviews: (messageId: string, linkPreviews: LinkPreview[]) => void
@@ -42,6 +50,10 @@ type MessageState = {
 }
 
 let _msgFetchId = 0
+
+function clearTypingTimers(typingUsers: Map<string, TypingEntry>) {
+  for (const entry of typingUsers.values()) clearTimeout(entry.timeout)
+}
 
 export const useMessageStore = create<MessageState>((set, get) => ({
   messages: [],
@@ -88,6 +100,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
           hasNewer: false,
           isLoading: false,
           loadedForChannelId: channelId
+        })
+        putContext(channelKey(channelId), {
+          messages: chronological,
+          hasMore: page.hasMore,
+          hasNewer: false
         })
       }
     } catch (e) {
@@ -175,10 +192,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   clearMessages: () => {
-    const { typingUsers } = get()
-    for (const entry of typingUsers.values()) {
-      clearTimeout(entry.timeout)
-    }
+    clearTypingTimers(get().typingUsers)
     set({
       messages: [],
       hasMore: false,
@@ -187,6 +201,79 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       loadedForChannelId: null,
       typingUsers: new Map()
     })
+  },
+
+  stashCurrent: () => {
+    const { loadedForChannelId, messages, hasMore, hasNewer, isLoading } = get()
+    if (!loadedForChannelId || isLoading) return
+
+    // Only the live edge is worth keeping. Caching a view scrolled into
+    // history would drop the user back into the middle of the channel on
+    // return, and `addMessage` refuses to append while `hasNewer` is set.
+    if (hasNewer) {
+      evictContext(channelKey(loadedForChannelId))
+      return
+    }
+
+    putContext(channelKey(loadedForChannelId), { messages, hasMore, hasNewer: false })
+  },
+
+  hydrateFromCache: (channelId) => {
+    const entry = getContext(channelKey(channelId))
+    if (!entry) return false
+
+    clearTypingTimers(get().typingUsers)
+    // `loadedForChannelId` has to land in the same update as `messages`:
+    // useMessageScroll reads it to decide whether to keep what is on screen or
+    // clear and refetch, and a mismatch there silently discards the cache.
+    set({
+      messages: entry.messages,
+      hasMore: entry.hasMore,
+      hasNewer: entry.hasNewer,
+      isLoading: false,
+      messagesError: null,
+      loadedForChannelId: channelId,
+      typingUsers: new Map()
+    })
+    return true
+  },
+
+  /**
+   * Check a cache-served channel against the server without disturbing the
+   * view. Corrects edits and deletions that happened while the app was closed,
+   * which no socket event can tell us about after the fact.
+   */
+  revalidate: async (channelId) => {
+    const fetchId = ++_msgFetchId
+    const idsWhenRequested = new Set(get().messages.map((m) => m.id))
+    try {
+      const page = await api.get<MessagesPage>(`/api/channels/${channelId}/messages?limit=50`)
+
+      // Anything that started a fetch since then is more current than we are.
+      if (_msgFetchId !== fetchId) return
+      if (get().loadedForChannelId !== channelId) return
+
+      const state = get()
+      // Scrollback loaded in the meantime reaches further back than this page
+      // can justify replacing, and the user is reading it right now.
+      if (state.messages.length > CACHE_PAGE_SIZE || state.hasNewer) return
+
+      const merged = mergeNewestPage(state.messages, toChronological(page.messages), idsWhenRequested)
+      set({ messages: merged, hasMore: page.hasMore, messagesError: null })
+      putContext(channelKey(channelId), { messages: merged, hasMore: page.hasMore, hasNewer: false })
+    } catch (e) {
+      // Access can be revoked while the app is closed, in which case the
+      // cached copy is not just stale but forbidden. The sidebar is cached
+      // too and will be showing a channel that is no longer there.
+      if (!isForbidden(e)) return
+      evictContext(channelKey(channelId))
+      const { loadedServerId, fetchChannels } = useChannelStore.getState()
+      if (loadedServerId) {
+        evictServerStructure(loadedServerId)
+        void fetchChannels(loadedServerId).catch(() => {})
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(loadedServerId)
+      }
+    }
   },
 
   addReaction: (messageId, emoji, userId, isCustom) => {

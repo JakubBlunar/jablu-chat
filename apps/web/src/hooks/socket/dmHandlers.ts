@@ -1,5 +1,12 @@
 import type { Message } from '@chat/shared'
 import { api } from '@/lib/api'
+import {
+  cacheAddMessage,
+  cacheRemoveMessage,
+  cacheSetLinkPreviews,
+  cacheUpdateMessage
+} from '@/lib/cache/contextMutations'
+import { dmKey } from '@/lib/cache/messageCache'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -18,12 +25,16 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
     if (isViewingConversation) {
       dmState.addMessage(payload)
       throttledAck(() => useReadStateStore.getState().ackDm(currentConvId!))
-    } else if (payload.authorId !== myId) {
-      useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
-      const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
-      const preview = notifBody(payload)
-      const url = `/channels/@me/${payload.conversationId}`
-      showNotification(`DM from ${author}`, preview, url, undefined, 'mention')
+    } else {
+      cacheAddMessage(dmKey(payload.conversationId), payload)
+
+      if (payload.authorId !== myId) {
+        useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
+        const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
+        const preview = notifBody(payload)
+        const url = `/channels/@me/${payload.conversationId}`
+        showNotification(`DM from ${author}`, preview, url, undefined, 'mention')
+      }
     }
 
     const inList = dmState.conversations.some((c) => c.id === payload.conversationId)
@@ -47,6 +58,8 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
     const currentConvId = useDmStore.getState().currentConversationId
     if (payload.conversationId === currentConvId) {
       useDmStore.getState().updateMessage(payload)
+    } else {
+      cacheUpdateMessage(payload)
     }
   }
 
@@ -54,6 +67,8 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
     const currentConvId = useDmStore.getState().currentConversationId
     if (payload.conversationId === currentConvId) {
       useDmStore.getState().removeMessage(payload.messageId)
+    } else {
+      cacheRemoveMessage(dmKey(payload.conversationId), payload.messageId)
     }
   }
 
@@ -61,10 +76,12 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
 
   const onDmPin = (msg: Message) => {
     useDmStore.getState().updateMessage(msg)
+    cacheUpdateMessage(msg)
   }
 
   const onDmUnpin = (msg: Message) => {
     useDmStore.getState().updateMessage(msg)
+    cacheUpdateMessage(msg)
   }
 
   const onDmLinkPreviews = (payload: DmLinkPreviewPayload) => {
@@ -78,6 +95,8 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
           linkPreviews: payload.linkPreviews
         })
       }
+    } else {
+      cacheSetLinkPreviews(payload.messageId, payload.linkPreviews)
     }
   }
 

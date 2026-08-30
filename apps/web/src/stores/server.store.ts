@@ -1,6 +1,7 @@
 import type { Server as SharedServer } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { getServerList, putServerList } from '@/lib/cache/structureCache'
 
 export type Server = SharedServer & { memberCount: number }
 
@@ -16,6 +17,7 @@ type ServerState = {
   viewMode: ViewMode
   isLoading: boolean
   fetchServers: () => Promise<void>
+  hydrateFromCache: () => boolean
   createServer: (name: string) => Promise<Server>
   setCurrentServer: (id: string | null) => void
   setViewMode: (mode: ViewMode) => void
@@ -30,10 +32,18 @@ export const useServerStore = create<ServerState>((set, get) => ({
   viewMode: 'server' as ViewMode,
   isLoading: false,
 
+  hydrateFromCache: () => {
+    const entry = getServerList()
+    if (!entry) return false
+    set({ servers: entry.servers as Server[], isLoading: false })
+    return true
+  },
+
   fetchServers: async () => {
     set({ isLoading: true })
     try {
       const list = await api.get<Server[]>('/api/servers')
+      putServerList(list)
       set({ servers: list, isLoading: false })
     } catch (e) {
       set({ isLoading: false })
