@@ -9,7 +9,6 @@ export default defineConfig(({ command }) => ({
   // The Tauri desktop shell serves the standard web build from tauri.localhost,
   // so a single base ("/") works for both web and desktop.
   base: '/',
-  esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
   // Server URL baked in at build time for the desktop app (from VITE_SERVER_URL,
   // which the release script derives from UPDATE_PUBLIC_URL). Injected as compile-time
   // constants so they work under both Vite and the SWC/CommonJS jest transform, which
@@ -67,9 +66,18 @@ export default defineConfig(({ command }) => ({
   ],
   build: {
     sourcemap: false,
-    minify: 'esbuild',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
+        ...(command === 'build'
+          ? {
+              minify: {
+                compress: {
+                  dropConsole: true,
+                  dropDebugger: true
+                }
+              }
+            }
+          : {}),
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return undefined
           if (id.includes('react-syntax-highlighter')) return 'syntax-highlighter'
@@ -104,7 +112,7 @@ export default defineConfig(({ command }) => ({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
+      '@': path.resolve(import.meta.dirname, './src')
     }
   },
   server: {

@@ -23,5 +23,5 @@
     "noUnusedParameters": false,
     "erasableSyntaxOnly": true
   },
-  "include": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/jest-setup-env.ts", "src/test/jest-setup-i18n.ts"]
 }

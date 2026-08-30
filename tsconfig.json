@@ -4,7 +4,6 @@
     { "path": "packages/shared" },
     { "path": "apps/web" },
     { "path": "apps/server" },
-    { "path": "apps/bot" },
-    { "path": "apps/desktop" }
+    { "path": "apps/bot" }
   ]
 }

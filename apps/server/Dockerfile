@@ -1,10 +1,12 @@
 # ─── Dependencies ────────────────────────────────────────────────────
 FROM node:24.14.1-alpine AS deps
+RUN apk add --no-cache python3 make g++
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json .npmrc ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/sdk/package.json ./packages/sdk/
 COPY apps/server/package.json ./apps/server/
 
 RUN pnpm install --frozen-lockfile
@@ -69,7 +71,7 @@ RUN pnpm --filter @chat/server deploy --prod /prod && \
 # Local `prisma` is required so `prisma.config.ts` can resolve `prisma/config` (global CLI alone does not).
 FROM node:24.14.1-alpine AS migrate
 WORKDIR /app
-RUN printf '%s\n' '{"name":"jablu-migrate","private":true,"dependencies":{"prisma":"7.7.0"}}' > package.json \
+RUN printf '%s\n' '{"name":"jablu-migrate","private":true,"dependencies":{"prisma":"7.10.0"}}' > package.json \
   && npm install --omit=dev \
   && npm cache clean --force
 COPY --from=prisma-generate /app/apps/server/prisma ./prisma

@@ -26,10 +26,10 @@ export class WsAdapter extends IoAdapter {
     this.origins = buildAllowedOrigins(config)
   }
 
-  createIOServer(port: number, options?: Partial<ServerOptions>) {
+  createIOServer(port: number, options?: ServerOptions) {
     return super.createIOServer(port, {
       ...options,
       cors: { origin: this.origins, credentials: true }
-    })
+    } as ServerOptions)
   }
 }

@@ -34,6 +34,7 @@ export default defineConfig([
       'react-hooks/refs': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/purity': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
       'react-refresh/only-export-components': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',

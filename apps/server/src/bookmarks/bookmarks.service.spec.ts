@@ -3,6 +3,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common'
 import { BookmarksService } from './bookmarks.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
+import { Prisma } from '../prisma-client'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('BookmarksService', () => {
@@ -58,9 +59,8 @@ describe('BookmarksService', () => {
       prisma.messageBookmark.findUnique.mockResolvedValue(null)
       prisma.message.findUnique.mockResolvedValue({ id: messageId })
 
-      const { PrismaClientKnownRequestError } = jest.requireActual('@prisma/client-runtime-utils') as any
       prisma.messageBookmark.create.mockRejectedValue(
-        new PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '6.0.0' }),
+        new Prisma.PrismaClientKnownRequestError('Unique', { code: 'P2002', clientVersion: '7.10.0' }),
       )
 
       await expect(service.toggle(userId, messageId)).rejects.toThrow(ConflictException)

@@ -39,7 +39,7 @@ function createMockModel(): MockModel {
 }
 
 export type MockPrismaService = {
-  [K in keyof PrismaService]: PrismaService[K] extends Function ? jest.Mock : unknown
+  [K in keyof PrismaService]: PrismaService[K] extends (...args: never[]) => unknown ? jest.Mock : unknown
 } & {
   user: MockModel
   refreshToken: MockModel

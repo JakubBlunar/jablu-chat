@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import type { Response } from 'express'
 import * as fs from 'fs'
 import { resolve } from 'path'
+import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { UploadsController } from './uploads.controller'
 import { UploadsService } from './uploads.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -50,7 +51,10 @@ describe('UploadsController (file serving)', () => {
         { provide: PrismaService, useValue: {} },
         { provide: ConfigService, useValue: { get: (_k: string, d?: unknown) => d } },
       ],
-    }).compile()
+    })
+      .overrideGuard(UnifiedAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
 
     controller = moduleRef.get(UploadsController)
   })
