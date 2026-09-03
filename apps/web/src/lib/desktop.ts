@@ -16,6 +16,15 @@ export type DesktopWindowState = {
   focused: boolean
 }
 
+/** Snapshot of the native updater. `pendingVersion` is set once the installer is downloaded. */
+export type DesktopUpdateStatus = {
+  lastCheckedAt: number | null
+  lastError: string | null
+  feedConfigured: boolean
+  pendingVersion: string | null
+  availableVersion: string | null
+}
+
 export type DesktopAPI = {
   isElectron: true
   platform: string
@@ -39,11 +48,7 @@ export type DesktopAPI = {
   setStartMinimized: (enabled: boolean) => Promise<void>
   checkForUpdates: () => Promise<void>
   installUpdate: () => Promise<void>
-  getUpdateStatus: () => Promise<{
-    lastCheckedAt: number | null
-    lastError: string | null
-    feedConfigured: boolean
-  }>
+  getUpdateStatus: () => Promise<DesktopUpdateStatus>
   onUpdateAvailable: (cb: (info: { version: string }) => void) => () => void
   onUpdateNotAvailable: (cb: () => void) => () => void
   onUpdateDownloadProgress: (
@@ -131,12 +136,7 @@ function buildDesktopAPI(): DesktopAPI {
     setStartMinimized: (enabled) => invoke('set_start_minimized', { enabled }),
     checkForUpdates: () => invoke('check_for_updates'),
     installUpdate: () => invoke('install_update'),
-    getUpdateStatus: () =>
-      invoke('get_update_status') as Promise<{
-        lastCheckedAt: number | null
-        lastError: string | null
-        feedConfigured: boolean
-      }>,
+    getUpdateStatus: () => invoke<DesktopUpdateStatus>('get_update_status'),
     onUpdateAvailable: (cb) => on<{ version: string }>('update-available', cb),
     onUpdateNotAvailable: (cb) => on<null>('update-not-available', () => cb()),
     onUpdateDownloadProgress: (cb) =>

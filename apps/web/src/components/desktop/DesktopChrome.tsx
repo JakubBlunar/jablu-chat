@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { isDesktop } from '@/lib/desktop'
+import { useDesktopUpdateSync } from '@/hooks/useDesktopUpdateSync'
 import { DesktopTitleBar } from './DesktopTitleBar'
 
 /**
@@ -10,6 +11,7 @@ import { DesktopTitleBar } from './DesktopTitleBar'
  * Must live inside the Router: the title bar uses navigation history hooks.
  */
 export function DesktopChrome({ children }: { children: ReactNode }) {
+  useDesktopUpdateSync()
   if (!isDesktop) return <>{children}</>
 
   return (
