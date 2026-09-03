@@ -25,7 +25,7 @@ pub struct AppState {
 
 /// Window state we persist. Everything except VISIBLE — we decide whether to show
 /// the window ourselves in `setup` (it starts hidden on autostart).
-fn persisted_state_flags() -> StateFlags {
+pub(crate) fn persisted_state_flags() -> StateFlags {
     StateFlags::all().difference(StateFlags::VISIBLE)
 }
 
@@ -217,6 +217,15 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+/// Opens the main window on a normal (non-autostart) launch. Always unminimize:
+/// `tauri-plugin-window-state` restores MINIMIZED, and a post-update NSIS
+/// relaunch otherwise lands as a taskbar button with no visible window.
+fn reveal_main_window(window: &tauri::WebviewWindow) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     logging::init();
@@ -278,7 +287,14 @@ pub fn run() {
             // stay in the tray then is up to the user's preference (default: yes). The
             // webview still initializes below, so the app connects and shows
             // notifications without a visible window.
-            let start_minimized = std::env::args().any(|arg| arg == "--minimized")
+            //
+            // An in-app update relaunch forwards the original argv (including
+            // `--minimized`) via NSIS `/ARGS`. The show-on-next-launch marker is
+            // written before install so that restart still opens the window the
+            // user was looking at when they clicked Update.
+            let force_show = config::take_show_on_next_launch(&handle);
+            let start_minimized = !force_show
+                && std::env::args().any(|arg| arg == "--minimized")
                 && config::get_stored_start_minimized(&handle);
 
             if let Some(window) = app.get_webview_window("main") {
@@ -314,8 +330,7 @@ pub fn run() {
                 } else {
                     // Show the window before touching WebView2 permissions so a slow or
                     // failing permission call can never leave the user with no window.
-                    let _ = window.show();
-                    let _ = window.set_focus();
+                    reveal_main_window(&window);
                     logging::log("setup: window shown");
                 }
                 emit_window_state(&handle);

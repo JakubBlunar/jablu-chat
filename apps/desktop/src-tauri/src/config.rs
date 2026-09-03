@@ -48,3 +48,35 @@ pub fn set_start_minimized(app: AppHandle, enabled: bool) -> Result<(), String> 
     }
     fs::write(path, if enabled { "true" } else { "false" }).map_err(|e| e.to_string())
 }
+
+/// Marker written before an in-app update relaunch so the next process shows
+/// the window even if the original argv still contains `--minimized` (NSIS
+/// forwards current-process args via `/ARGS`).
+fn show_on_next_launch_path(app: &AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_config_dir().ok()?;
+    Some(dir.join("show-on-next-launch"))
+}
+
+pub fn mark_show_on_next_launch(app: &AppHandle) {
+    let Some(path) = show_on_next_launch_path(app) else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(path, "1");
+}
+
+/// Consumes the one-shot "show the window" marker. Returns true when this
+/// launch should ignore `--minimized` and open the main window.
+pub fn take_show_on_next_launch(app: &AppHandle) -> bool {
+    let Some(path) = show_on_next_launch_path(app) else {
+        return false;
+    };
+    if path.exists() {
+        let _ = fs::remove_file(&path);
+        true
+    } else {
+        false
+    }
+}

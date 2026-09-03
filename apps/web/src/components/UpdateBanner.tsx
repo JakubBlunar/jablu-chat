@@ -1,133 +1,41 @@
 import { useEffect, useState } from 'react'
-import { Button, ProgressBar } from '@/components/ui'
-import { electronAPI, isElectron } from '@/lib/electron'
-
-type UpdateState =
-  | { status: 'idle' }
-  | { status: 'available'; version: string }
-  | { status: 'downloading'; percent: number }
-  | { status: 'ready'; version: string }
-  | { status: 'error'; message: string }
-  | { status: 'incompatible'; reason: 'client-too-old' | 'client-too-new' | null; minClient: string; maxClient: string | null }
+import { Button } from '@/components/ui'
+import { isElectron } from '@/lib/electron'
+import { useDesktopUpdateStore } from '@/stores/desktopUpdate.store'
 
 function ElectronUpdateBanner() {
-  const [state, setState] = useState<UpdateState>({ status: 'idle' })
-  const [dismissed, setDismissed] = useState(false)
+  const state = useDesktopUpdateStore((s) => s.state)
+  const check = useDesktopUpdateStore((s) => s.check)
 
-  useEffect(() => {
-    if (!electronAPI) return
-
-    const unsubs = [
-      electronAPI.onUpdateAvailable((info) => {
-        setState({ status: 'available', version: info.version })
-        setDismissed(false)
-      }),
-      electronAPI.onUpdateDownloadProgress((progress) => {
-        setState({ status: 'downloading', percent: progress.percent })
-      }),
-      electronAPI.onUpdateDownloaded((info) => {
-        setState({ status: 'ready', version: info.version })
-        setDismissed(false)
-      }),
-      electronAPI.onUpdateError((err) => {
-        setState({ status: 'error', message: err.message })
-      }),
-      electronAPI.onUpdateIncompatible((info) => {
-        setState({ status: 'incompatible', reason: info.reason, minClient: info.minClient, maxClient: info.maxClient })
-        setDismissed(false)
-      })
-    ]
-
-    return () => unsubs.forEach((fn) => fn())
-  }, [])
-
-  if (dismissed || state.status === 'idle') return null
+  // Ready / downloading live in the title bar (Discord-style green arrow).
+  // The banner is reserved for failures that need an explanation.
+  if (state.status !== 'error' && state.status !== 'incompatible') return null
 
   const isError = state.status === 'error'
-  const isIncompatible = state.status === 'incompatible'
-  const isWarn = isError || isIncompatible
 
   return (
-    <div
-      className={`flex shrink-0 items-center gap-3 border-b px-4 py-2 text-sm ${
-        isWarn ? 'border-red-500/30 bg-red-950/40 text-red-200' : 'border-white/5 bg-surface-raised text-gray-300'
-      }`}
-    >
-      {state.status === 'available' && (
-        <>
-          <span>A new version ({state.version}) is being downloaded...</span>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="ml-auto text-xs text-gray-500 transition hover:text-gray-300"
-          >
-            Dismiss
-          </button>
-        </>
-      )}
-      {state.status === 'downloading' && (
-        <>
-          <span>Downloading update... {state.percent.toFixed(0)}%</span>
-          <div className="w-32">
-            <ProgressBar value={state.percent} size="sm" className="bg-white/10" />
-          </div>
-        </>
-      )}
-      {state.status === 'ready' && (
-        <>
-          <span>Update {state.version} ready to install!</span>
-          <Button type="button" size="sm" onClick={() => electronAPI?.installUpdate()} className="rounded-md text-xs font-semibold">
-            Restart & Update
-          </Button>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="ml-auto text-xs text-gray-500 transition hover:text-gray-300"
-          >
-            Later
-          </button>
-        </>
-      )}
-      {isError && state.status === 'error' && (
+    <div className="flex shrink-0 items-center gap-3 border-b border-red-500/30 bg-red-950/40 px-4 py-2 text-sm text-red-200">
+      {isError && (
         <>
           <span className="min-w-0 flex-1 truncate">Update failed: {state.message}</span>
           <Button
             type="button"
             size="sm"
-            onClick={() => {
-              setState({ status: 'idle' })
-              electronAPI?.checkForUpdates()
-            }}
+            onClick={() => void check()}
             className="rounded-md text-xs font-semibold"
           >
             Retry
           </Button>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="text-xs text-red-300/70 transition hover:text-red-100"
-          >
-            Dismiss
-          </button>
         </>
       )}
-      {isIncompatible && state.status === 'incompatible' && (
-        <>
-          <span className="min-w-0 flex-1 truncate">
-            {state.reason === 'client-too-new'
-              ? `This app is newer than the server supports (max ${state.maxClient ?? '?'}). Ask your server admin to upgrade.`
-              : state.reason === 'client-too-old'
-                ? `This app is older than the server requires (min ${state.minClient}). Please update manually from the Downloads page.`
-                : 'This app is not compatible with the configured server.'}
-          </span>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="text-xs text-red-300/70 transition hover:text-red-100"
-          >
-            Dismiss
-          </button>
-        </>
+      {state.status === 'incompatible' && (
+        <span className="min-w-0 flex-1 truncate">
+          {state.reason === 'client-too-new'
+            ? `This app is newer than the server supports (max ${state.maxClient ?? '?'}). Ask your server admin to upgrade.`
+            : state.reason === 'client-too-old'
+              ? `This app is older than the server requires (min ${state.minClient}). Please update manually from the Downloads page.`
+              : 'This app is not compatible with the configured server.'}
+        </span>
       )}
     </div>
   )
