@@ -24,14 +24,12 @@ import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
 import { useChannelSocketSync } from '@/hooks/useChannelSocketSync'
 import { useCacheBootstrap } from '@/hooks/useCacheBootstrap'
 import { useRouteSync } from '@/hooks/useRouteSync'
+import { useServerResources } from '@/hooks/useServerResources'
 import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
-import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useSettingsStore } from '@/stores/settings.store'
-import { useMemberStore } from '@/stores/member.store'
-import { useMessageStore } from '@/stores/message.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useNavHistoryStore } from '@/stores/navHistory.store'
 import { useNavigationStore } from '@/stores/navigation.store'
@@ -110,6 +108,7 @@ export function MainLayout() {
   useRouteSync()
   useMessageJumpFromQuery()
   useCacheBootstrap(useAuthStore((s) => s.user?.id ?? null))
+  useServerResources()
   const navigate = useNavigate()
 
   const { socket, isConnected } = useSocket()
@@ -142,13 +141,11 @@ export function MainLayout() {
   )
   const {
     channels,
-    fetchChannels,
     currentChannelId,
     channelLoadedServerId
   } = useChannelStore(
     useShallow((s) => ({
       channels: s.channels,
-      fetchChannels: s.fetchChannels,
       currentChannelId: s.currentChannelId,
       channelLoadedServerId: s.loadedServerId
     }))
@@ -157,9 +154,6 @@ export function MainLayout() {
 
   const { textChannels } = useSortedChannels(channels)
   const currentChannelType = channels.find((c) => c.id === currentChannelId)?.type
-
-  const fetchMembers = useMemberStore((s) => s.fetchMembers)
-  const clearMessages = useMessageStore((s) => s.clearMessages)
 
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
   const currentConvId = useDmStore((s) => s.currentConversationId)
@@ -212,8 +206,6 @@ export function MainLayout() {
     return () => window.removeEventListener('keydown', handler)
   }, [isMobile])
 
-  const prevServerRef = useRef<string | null>(null)
-
   useEffect(() => {
     // Covers signing in as a different user without a page reload; the
     // landing route does the same check for the reload case.
@@ -253,27 +245,6 @@ export function MainLayout() {
       navigate('/channels/@me', { replace: true })
     }
   }, [viewMode, servers, serversLoading, currentServerId, navigate])
-
-  // Fetch channels & members when server changes
-  useEffect(() => {
-    if (viewMode !== 'server') return
-    if (!currentServerId) {
-      prevServerRef.current = null
-      clearMessages()
-      return
-    }
-
-    if (prevServerRef.current !== currentServerId) {
-      prevServerRef.current = currentServerId
-      if (channelLoadedServerId !== currentServerId) {
-        fetchChannels(currentServerId).catch(() => {
-          navigate('/channels/@me', { replace: true })
-        })
-        void fetchMembers(currentServerId)
-        void useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId)
-      }
-    }
-  }, [viewMode, currentServerId, fetchChannels, fetchMembers, navigate])
 
   // Auto-redirect: invalid/missing channel → navigate to first text channel
   useEffect(() => {

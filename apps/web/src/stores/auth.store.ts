@@ -79,7 +79,7 @@ function resetAllStores() {
     ]) => {
       useServerStore.setState({ servers: [], currentServerId: null, viewMode: 'server', isLoading: false })
       useChannelStore.setState({ channels: [], categories: [], currentChannelId: null, isLoading: false, loadedServerId: null })
-      useMemberStore.setState({ members: [], onlineUserIds: new Set(), isLoading: false })
+      useMemberStore.setState({ members: [], onlineUserIds: new Set(), isLoading: false, loadedServerId: null })
       useMessageStore.getState().clearMessages()
       useDmStore.setState({
         conversations: [],
