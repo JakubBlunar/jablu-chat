@@ -44,6 +44,7 @@ type MemberState = {
   onlineUserIds: Set<string>
   realtimeStatuses: Map<string, string>
   isLoading: boolean
+  loadedServerId: string | null
   fetchMembers: (serverId: string) => Promise<void>
   addMember: (member: Member) => void
   removeMember: (serverId: string, userId: string) => void
@@ -97,9 +98,10 @@ export const useMemberStore = create<MemberState>((set, get) => ({
   onlineUserIds: new Set(),
   realtimeStatuses: new Map(),
   isLoading: false,
+  loadedServerId: null,
 
   fetchMembers: async (serverId) => {
-    set({ isLoading: true })
+    set({ isLoading: true, loadedServerId: serverId })
     try {
       const list = await api.get<unknown[]>(`/api/servers/${serverId}/members`)
       const normalized = list.map(normalizeMember)
@@ -110,9 +112,12 @@ export const useMemberStore = create<MemberState>((set, get) => ({
             return live ? { ...m, user: { ...m.user, status: live } } : m
           })
         : normalized
+      // A slower response for a server the user already left must not replace
+      // the list now on screen.
+      if (get().loadedServerId !== serverId) return
       set({ members: patched, isLoading: false })
     } catch (e) {
-      set({ isLoading: false })
+      if (get().loadedServerId === serverId) set({ isLoading: false })
       throw e
     }
   },

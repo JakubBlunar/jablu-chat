@@ -46,7 +46,8 @@ function resetStore() {
     members: [],
     onlineUserIds: new Set(),
     realtimeStatuses: new Map(),
-    isLoading: false
+    isLoading: false,
+    loadedServerId: null
   })
 }
 
@@ -224,6 +225,46 @@ describe('useMemberStore', () => {
       const member = useMemberStore.getState().members[0]
       expect(member.user.status).toBe('dnd')
       expect(useMemberStore.getState().isLoading).toBe(false)
+      expect(useMemberStore.getState().loadedServerId).toBe('s1')
+    })
+
+    it('does not apply a slower response for a server the user already left', async () => {
+      let resolveFirst: (value: unknown) => void = () => {}
+      mockGet.mockImplementation((url: string) => {
+        if (url.includes('/s1/')) {
+          return new Promise((resolve) => {
+            resolveFirst = resolve
+          })
+        }
+        return Promise.resolve([
+          {
+            userId: 'u2',
+            serverId: 's2',
+            joinedAt: '2024-01-01',
+            roleIds: [],
+            user: { id: 'u2', username: 'bob', displayName: null, avatarUrl: null, bio: null }
+          }
+        ])
+      })
+
+      const first = useMemberStore.getState().fetchMembers('s1')
+      const second = useMemberStore.getState().fetchMembers('s2')
+      await second
+
+      resolveFirst([
+        {
+          userId: 'u1',
+          serverId: 's1',
+          joinedAt: '2024-01-01',
+          roleIds: [],
+          user: { id: 'u1', username: 'alice', displayName: null, avatarUrl: null, bio: null }
+        }
+      ])
+      await first
+
+      expect(useMemberStore.getState().loadedServerId).toBe('s2')
+      expect(useMemberStore.getState().members).toHaveLength(1)
+      expect(useMemberStore.getState().members[0].userId).toBe('u2')
     })
 
     it('resets isLoading on error', async () => {
