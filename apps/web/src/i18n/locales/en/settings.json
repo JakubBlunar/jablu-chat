@@ -8,6 +8,11 @@
     "languageHint": "Interface language. More locales can be added over time.",
     "accentTitle": "Accent Color",
     "accentHint": "Choose a color that highlights buttons, links, and active elements.",
+    "translateTitle": "Message Translation",
+    "translateHint": "Default target language for translated messages. Leave on Auto to pick per message.",
+    "translateAuto": "Auto",
+    "translateErrorTitle": "Couldn't save preference",
+    "translateErrorMessage": "The default translation language was not saved. Try again.",
     "themeTitle": "Theme",
     "themeHint": "Dark mode is the default and only fully supported theme. A light theme is planned for the future."
   },

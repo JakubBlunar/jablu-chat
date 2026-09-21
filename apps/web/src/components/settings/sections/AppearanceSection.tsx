@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ACCENT_OPTIONS } from '@/lib/accent'
 import { APP_LOCALES, LOCALE_LABELS, type AppLocale } from '@/i18n/locales'
 import { useSettingsStore } from '@/stores/settings.store'
+import { TranslationPreferenceSection } from '@/components/settings/sections/TranslationPreferenceSection'
 
 export function AppearanceSection() {
   const { t } = useTranslation('settings')
@@ -31,6 +32,8 @@ export function AppearanceSection() {
           ))}
         </select>
       </div>
+
+      <TranslationPreferenceSection />
 
       <div className="border-t border-white/10 pt-6">
         <h2 className="mb-1 text-base font-semibold text-white">{t('appearance.accentTitle')}</h2>

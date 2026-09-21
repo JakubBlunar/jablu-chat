@@ -8,6 +8,11 @@
     "languageHint": "Jazyk rozhraní. Další jazyky můžeme přidávat postupně.",
     "accentTitle": "Barva zvýraznění",
     "accentHint": "Vyberte barvu pro tlačítka, odkazy a aktivní prvky.",
+    "translateTitle": "Překlad zpráv",
+    "translateHint": "Výchozí cílový jazyk pro překládané zprávy. Nechte na Automaticky, pokud chcete volit jazyk u každé zprávy.",
+    "translateAuto": "Automaticky",
+    "translateErrorTitle": "Nepodařilo se uložit",
+    "translateErrorMessage": "Výchozí jazyk překladu se nepodařilo uložit. Zkuste to znovu.",
     "themeTitle": "Vzhled",
     "themeHint": "Tmavý režim je výchozí a plně podporovaný. Světlý motiv je v plánu."
   },
