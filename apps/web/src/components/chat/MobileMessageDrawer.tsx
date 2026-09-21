@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
@@ -89,6 +89,17 @@ export function MobileMessageDrawer({
   const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
   const defaultTarget = useTranslationStore((s) => s.targetLang)
   const translate = useTranslationStore((s) => s.translate)
+
+  // The desktop `MessageActions` (which lives only on the `!isMobile` path) is
+  // the component that normally fetches translation capabilities. On mobile
+  // that path never mounts, so the Translate button — gated on
+  // `capabilitiesLoaded` — would be permanently hidden. Fetch here when the
+  // drawer opens. No-op if a prior open (or desktop) already loaded them.
+  useEffect(() => {
+    const store = useTranslationStore.getState()
+    void store.fetchCapabilities()
+    void store.loadPreference()
+  }, [])
 
   const messageJumpUrl = useMemo(() => {
     if (isDm) {

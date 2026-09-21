@@ -25,6 +25,22 @@ if (!isDesktop) {
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return
 
+      // Cold-start check: the browser only re-fetches sw.js when we ask —
+      // without this, a PWA that stayed closed across a deploy keeps serving
+      // the old version until a visibility change or the hourly timer.
+      // Deferred so React is mounted (an early `waiting` would setState before
+      // render). 304 when nothing changed; full re-fetch otherwise.
+      setTimeout(() => void registration.update().catch(() => {}), 2000)
+
+      const state = () => {
+        const sw = registration.active
+        return sw ? { sw: sw.scriptURL, state: sw.state } : 'none'
+      }
+      // Exposed for Safari Web Inspector diagnostics if PWA updates misbehave:
+      // inspect `window.__jabluSW` in an opened PWA (survives dropConsole,
+      // which strips console.* in production builds).
+      ;(window as typeof window & { __jabluSW?: unknown }).__jabluSW = state()
+
       setInterval(() => registration.update(), 60 * 60 * 1000)
 
       let lastCheck = Date.now()
