@@ -54,7 +54,7 @@ services:
   # Self-hosted MT for on-demand message translation. The host-run API reaches
   # it at http://localhost:5500 (set TRANSLATE_URL in .env.development).
   libretranslate:
-    image: libretranslate/libretranslate:1.9.6
+    image: libretranslate/libretranslate:v1.9.6
     ports:
       - '5500:5000'
     environment:
