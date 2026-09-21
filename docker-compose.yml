@@ -213,7 +213,7 @@ services:
 # ~235 MiB idle / ~0.9 GB under burst, plenty for occasional use; bump
 # LT_THREADS (and mem_limit) only if you see real queueing.
   libretranslate:
-    image: libretranslate/libretranslate:1.9.6
+    image: libretranslate/libretranslate:v1.9.6
     environment:
       - LT_LOAD_ONLY=${TRANSLATE_LANGUAGES:-en,cs,sk}
       - LT_THREADS=1
