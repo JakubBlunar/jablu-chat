@@ -235,12 +235,16 @@ function collectMetaTags(html: string): Map<string, string> {
   return tags
 }
 
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength - 1).trimEnd()}\u2026`
+}
+
 function clean(value: string | undefined, maxLength: number): string | null {
   if (!value) return null
   const text = decodeHtmlEntities(value).replace(/\s+/g, ' ').trim()
   if (!text) return null
-  if (text.length <= maxLength) return text
-  return `${text.slice(0, maxLength - 1).trimEnd()}\u2026`
+  return truncate(text, maxLength)
 }
 
 function resolveImageUrl(value: string | undefined, baseUrl: string): string | null {
@@ -302,4 +306,59 @@ export function detectCharset(contentType: string, htmlStart: string): string {
   const fromMeta = /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i.exec(htmlStart)?.[1]
   if (fromMeta) return fromMeta.toLowerCase()
   return 'utf-8'
+}
+
+/**
+ * Recognizes any YouTube URL shape (watch, youtu.be, embed, shorts) so the
+ * caller can route it through the oEmbed endpoint instead of scraping HTML.
+ */
+export function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url)
+    const host = u.hostname.toLowerCase()
+    const m11 = '([a-zA-Z0-9_-]{11})'
+
+    if (host === 'youtu.be') {
+      const id = u.pathname.slice(1).split('/')[0]
+      return /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null
+    }
+
+    if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
+      const v = u.searchParams.get('v')
+      if (v && new RegExp(`^${m11}$`).test(v)) return v
+      const m = u.pathname.match(new RegExp(`^/(?:embed|shorts)/${m11}$`))
+      return m?.[1] ?? null
+    }
+
+    if (host === 'music.youtube.com') {
+      const v = u.searchParams.get('v')
+      if (v && new RegExp(`^${m11}$`).test(v)) return v
+      const m = u.pathname.match(new RegExp(`^/(?:embed|shorts)/${m11}$`))
+      return m?.[1] ?? null
+    }
+  } catch {
+    // Not a valid URL.
+  }
+  return null
+}
+
+type OEmbedData = {
+  title?: string
+  author_name?: string
+  provider_name?: string
+  thumbnail_url?: string
+}
+
+/**
+ * Maps a YouTube oEmbed JSON payload to the same shape the HTML scraper
+ * produces. oEmbed always returns raw text (no HTML entities), so this skips
+ * the entity decoding.
+ */
+export function parseOEmbed(data: OEmbedData): OgMeta {
+  return {
+    title: truncate((data.title ?? '').replace(/\s+/g, ' ').trim(), TITLE_MAX) || null,
+    description: null,
+    imageUrl: data.thumbnail_url || null,
+    siteName: truncate((data.author_name ?? data.provider_name ?? '').trim(), SITE_NAME_MAX) || null
+  }
 }

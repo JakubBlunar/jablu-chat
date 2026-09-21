@@ -2,6 +2,7 @@ import type { Message } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
+import { TranslateModal } from '@/components/chat/TranslateModal'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
 import { toggleMessageReaction } from '@/lib/reactions'
@@ -11,6 +12,7 @@ import { SheetBtn } from '@/components/ui/SheetBtn'
 import { useShallow } from 'zustand/react/shallow'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useServerStore } from '@/stores/server.store'
+import { useTranslationStore } from '@/stores/translation.store'
 import { showToast } from '@/stores/toast.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { addRecentReaction } from '@/stores/reactions.store'
@@ -20,6 +22,7 @@ import {
   DownloadIcon,
   EditIcon,
   ForwardIcon,
+  GlobeIcon,
   LinkIcon,
   MessagePinIcon,
   ReplyIcon,
@@ -80,7 +83,12 @@ export function MobileMessageDrawer({
   const canDelete = isAuthor || isAdminOrOwner
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [forwardOpen, setForwardOpen] = useState(false)
+  const [translateOpen, setTranslateOpen] = useState(false)
   const serverId = useServerStore((s) => s.currentServerId)
+  const translationEnabled = useTranslationStore((s) => s.capabilities?.enabled ?? false)
+  const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
+  const defaultTarget = useTranslationStore((s) => s.targetLang)
+  const translate = useTranslationStore((s) => s.translate)
 
   const messageJumpUrl = useMemo(() => {
     if (isDm) {
@@ -185,6 +193,17 @@ export function MobileMessageDrawer({
     close()
   }, [onEdit, close])
 
+  const handleTranslate = useCallback(() => {
+    if (defaultTarget) {
+      void translate(message.id, defaultTarget).then((err) => {
+        if (err) showToast(t('translateErrorTitle'), t('translateErrorMessage'))
+        close()
+      })
+    } else {
+      setTranslateOpen(true)
+    }
+  }, [defaultTarget, translate, message.id, t, close])
+
   const handlePin = useCallback(() => {
     if (isDm) {
       const event = message.pinned ? 'dm:unpin' : 'dm:pin'
@@ -226,6 +245,10 @@ export function MobileMessageDrawer({
         onForwarded={close}
       />
     )
+  }
+
+  if (translateOpen) {
+    return <TranslateModal messageId={message.id} onClose={() => setTranslateOpen(false)} />
   }
 
   return (
@@ -278,6 +301,9 @@ export function MobileMessageDrawer({
         )}
         {message.content && (
           <SheetBtn icon={<CopyIcon />} label="Copy Text" onClick={handleCopy} />
+        )}
+        {message.content && translationLoaded && translationEnabled && (
+          <SheetBtn icon={<GlobeIcon className="h-5 w-5" />} label={t('actionTranslate')} onClick={handleTranslate} />
         )}
         {links.map((url) => (
           <SheetBtn

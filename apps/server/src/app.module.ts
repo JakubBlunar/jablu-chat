@@ -8,6 +8,7 @@ import { DownloadsModule } from './downloads/downloads.module'
 import { DmModule } from './dm/dm.module'
 import { GatewayModule } from './gateway/gateway.module'
 import { GifModule } from './gif/gif.module'
+import { TranslationModule } from './translation/translation.module'
 import { HealthModule } from './health/health.module'
 import { InvitesModule } from './invites/invites.module'
 import { MessagesModule } from './messages/messages.module'
@@ -66,6 +67,7 @@ import { ActivityModule } from './activity/activity.module'
     ReadStateModule,
     PushModule,
     GifModule,
+    TranslationModule,
     GatewayModule,
     ServerEventsModule,
     FriendsModule,

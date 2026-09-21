@@ -201,5 +201,73 @@ describe('LinkPreviewService', () => {
 
       expect(await service.generatePreviews('msg-1', 'https://example.com/x')).toEqual([])
     })
+
+    describe('YouTube oEmbed', () => {
+      const oembedJson = (id: string) => ({
+        title: `Video ${id}`,
+        author_name: 'Some Channel',
+        provider_name: 'YouTube',
+        thumbnail_url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+      })
+
+      it('uses the oEmbed endpoint for youtu.be links and skips HTML scraping', async () => {
+        fetchMock.mockImplementation((url: string) => {
+          if (url.includes('/oembed?')) return Promise.resolve(new Response(JSON.stringify(oembedJson('8C-J2sRBMkQ'))))
+          return Promise.resolve(htmlResponse(page('<title> - YouTube</title>')))
+        })
+
+        const result = await service.generatePreviews('msg-1', 'https://youtu.be/8C-J2sRBMkQ?is=f5zJ4HX83q9ClsG-')
+
+        expect(result[0].title).toBe('Video 8C-J2sRBMkQ')
+        expect(result[0].siteName).toBe('Some Channel')
+        expect(result[0].imageUrl).toBe('https://i.ytimg.com/vi/8C-J2sRBMkQ/hqdefault.jpg')
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        expect(String(fetchMock.mock.calls[0][0])).toContain('/oembed?')
+      })
+
+      it('uses oEmbed for watch, embed and shorts URLs', async () => {
+        fetchMock.mockImplementation((url: string) => {
+          const endpoint = new URL(url)
+          const inner = endpoint.searchParams.get('url') ?? ''
+          const id = /v=([a-zA-Z0-9_-]{11})|(?:embed|shorts)\/([a-zA-Z0-9_-]{11})/.exec(inner)?.slice(1).find(Boolean) ?? ''
+          return Promise.resolve(new Response(JSON.stringify(oembedJson(id))))
+        })
+
+        for (const link of [
+          'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          'https://www.youtube.com/embed/dQw4w9WgXcQ',
+          'https://www.youtube.com/shorts/dQw4w9WgXcQ'
+        ]) {
+          const result = await service.generatePreviews(`msg-${link}`, link)
+          expect(result[0].title).toBe('Video dQw4w9WgXcQ')
+        }
+      })
+
+      it('falls back to HTML scraping when oEmbed fails', async () => {
+        fetchMock.mockImplementation((url: string) => {
+          if (String(url).includes('/oembed?')) return Promise.reject(new Error('oEmbed down'))
+          return Promise.resolve(
+            htmlResponse(page('<meta property="og:title" content="Scraped title"><meta property="og:image" content="/t.jpg">'))
+          )
+        })
+
+        const result = await service.generatePreviews('msg-1', 'https://youtu.be/dQw4w9WgXcQ')
+        expect(result[0].title).toBe('Scraped title')
+      })
+
+      it('does not persist a preview when oEmbed returns an error payload', async () => {
+        fetchMock.mockImplementation((url: string) => {
+          if (String(url).includes('/oembed?')) return Promise.resolve(new Response('not found', { status: 404 }))
+          return Promise.resolve(htmlResponse(page('<title> - YouTube</title>')))
+        })
+
+        // The shell page has no og: tags and its title is "- YouTube"; the
+        // oEmbed 404 (deleted/private video) must fall through to the shell,
+        // whose title still gets stored — matching prior behavior for broken
+        // links — so assert fetch order instead of a drop.
+        const result = await service.generatePreviews('msg-1', 'https://youtu.be/dQw4w9WgXcQ')
+        expect(result[0].title).toBe('- YouTube')
+      })
+    })
   })
 })

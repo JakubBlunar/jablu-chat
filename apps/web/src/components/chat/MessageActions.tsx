@@ -22,6 +22,7 @@ import {
   CopyIcon,
   EditIcon,
   ForwardIcon,
+  GlobeIcon,
   LinkIcon,
   MoreIcon,
   ShareIcon,
@@ -32,6 +33,7 @@ import {
   TrashIcon,
 } from '@/components/chat/chatIcons'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
+import { TranslateModal } from '@/components/chat/TranslateModal'
 import { MessageActionsMenu, type MessageMenuItem } from '@/components/chat/MessageActionsMenu'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
 import { getSocket } from '@/lib/socket'
@@ -46,6 +48,7 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { useTranslationStore } from '@/stores/translation.store'
 
 interface MessageActionsProps {
   message: Message
@@ -92,6 +95,33 @@ export function MessageActions({
   const [showForwardModal, setShowForwardModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showTranslateModal, setShowTranslateModal] = useState(false)
+  const translationEnabled = useTranslationStore((s) => s.capabilities?.enabled ?? false)
+  const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
+  const defaultTarget = useTranslationStore((s) => s.targetLang)
+  const fetchCapabilities = useTranslationStore((s) => s.fetchCapabilities)
+  const loadPreference = useTranslationStore((s) => s.loadPreference)
+  const translate = useTranslationStore((s) => s.translate)
+
+  useEffect(() => {
+    void fetchCapabilities()
+    void loadPreference()
+  }, [fetchCapabilities, loadPreference])
+
+  /**
+   * "Translate" menu action. With a stored default target we translate
+   * immediately (the result renders under the message); without one we open
+   * the language picker.
+   */
+  const handleTranslate = useCallback(() => {
+    if (defaultTarget) {
+      void translate(message.id, defaultTarget).then((err) => {
+        if (err) showToast(t('translateErrorTitle'), t('translateErrorMessage'))
+      })
+    } else {
+      setShowTranslateModal(true)
+    }
+  }, [defaultTarget, translate, message.id, t])
   const btnRef = useRef<HTMLDivElement>(null)
   const moreBtnRef = useRef<HTMLButtonElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
@@ -248,6 +278,9 @@ export function MessageActions({
     if (message.content) {
       items.push({ id: 'copy-text', label: t('actionCopyText'), icon: <CopyIcon className="h-4 w-4" />, onClick: handleCopyText })
     }
+    if (message.content && translationLoaded && translationEnabled) {
+      items.push({ id: 'translate', label: t('actionTranslate'), icon: <GlobeIcon />, onClick: handleTranslate })
+    }
     if (isAuthor && onEdit) {
       items.push({ id: 'edit', label: t('actionEdit'), icon: <EditIcon />, onClick: onEdit })
     }
@@ -349,6 +382,7 @@ export function MessageActions({
           onClose={() => setShowForwardModal(false)}
         />
       )}
+      {showTranslateModal && <TranslateModal messageId={message.id} onClose={() => setShowTranslateModal(false)} />}
       {showEmojiPicker && pickerPos && createPortal(
         <div
           ref={pickerRef}

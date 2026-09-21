@@ -1,4 +1,4 @@
-import { decodeHtmlEntities, detectCharset, extractUrls, parseOgTags } from './link-preview-parse'
+import { decodeHtmlEntities, detectCharset, extractUrls, extractYouTubeId, parseOEmbed, parseOgTags } from './link-preview-parse'
 
 describe('extractUrls', () => {
   it('extracts URLs from content', () => {
@@ -189,5 +189,62 @@ describe('detectCharset', () => {
 
   it('defaults to utf-8', () => {
     expect(detectCharset('text/html', '<html>')).toBe('utf-8')
+  })
+})
+
+describe('extractYouTubeId', () => {
+  it.each([
+    ['https://youtu.be/dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://youtu.be/dQw4w9WgXcQ?is=abc123XYZ78', 'dQw4w9WgXcQ'],
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://www.youtube.com/watch?is=xyz123ABC78&t=42&v=dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://www.youtube.com/embed/dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://www.youtube.com/shorts/dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://music.youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://m.youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ']
+  ])('extracts %s', (url, id) => {
+    expect(extractYouTubeId(url)).toBe(id)
+  })
+
+  it.each([
+    'https://example.com/watch?v=dQw4w9WgXcQ',
+    'https://www.youtube.com/channel/UCdQw4w9WgXcQ',
+    'https://www.youtube.com/results?search_query=test',
+    'https://youtu.be/short',
+    'https://www.youtube.com/watch?v=tooshort12',
+    'not a url'
+  ])('returns null for %s', (url) => {
+    expect(extractYouTubeId(url)).toBeNull()
+  })
+})
+
+describe('parseOEmbed', () => {
+  it('maps an oEmbed payload to preview meta', () => {
+    expect(
+      parseOEmbed({
+        title: 'AI Bubble: This could humiliate the world',
+        author_name: 'The Tech Report',
+        provider_name: 'YouTube',
+        thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg'
+      })
+    ).toEqual({
+      title: 'AI Bubble: This could humiliate the world',
+      description: null,
+      imageUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      siteName: 'The Tech Report'
+    })
+  })
+
+  it('falls back to provider_name when the author is missing', () => {
+    expect(parseOEmbed({ title: 'V', provider_name: 'YouTube' }).siteName).toBe('YouTube')
+  })
+
+  it('returns a null title for an empty payload', () => {
+    expect(parseOEmbed({}).title).toBeNull()
+  })
+
+  it('collapses whitespace and truncates long titles', () => {
+    expect(parseOEmbed({ title: `  a  b\n${'c'.repeat(400)}` }).title).toHaveLength(300)
   })
 })

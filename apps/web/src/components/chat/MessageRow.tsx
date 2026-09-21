@@ -10,6 +10,7 @@ import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import type { RoleMentionRef } from '@/lib/markdownMentions'
 import { ForwardedCard } from '@/components/chat/ForwardedCard'
 import { MessageActions } from '@/components/chat/MessageActions'
+import { MessageTranslationBlock } from '@/components/chat/MessageTranslationBlock'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
 import { PollDisplay } from '@/components/chat/PollDisplay'
@@ -383,6 +384,8 @@ export const MessageRow = memo(function MessageRow({
             {!showHead && message.editedAt ? <span className="ml-1.5 text-xs text-gray-500">(edited)</span> : null}
           </div>
         ) : null}
+
+        {message.content && <MessageTranslationBlock message={message} />}
 
         {message.forwardedFrom && <ForwardedCard snapshot={message.forwardedFrom} />}
 

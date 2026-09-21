@@ -1,5 +1,22 @@
 import type { Attachment } from '@chat/shared'
 
+export type TranslationLanguage = {
+  code: string
+  name: string
+  targets: string[]
+}
+
+export type TranslationCapabilities = {
+  enabled: boolean
+  languages: TranslationLanguage[]
+}
+
+export type TranslationResult = {
+  content: string
+  targetLang: string
+  detectedLang: string | null
+}
+
 export type GifResult = {
   id: string
   title: string
