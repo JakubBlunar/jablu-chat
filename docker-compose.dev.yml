@@ -61,7 +61,9 @@ services:
       - LT_LOAD_ONLY=${TRANSLATE_LANGUAGES:-en,cs,sk}
       - LT_THREADS=1
     volumes:
-      - lt-models-dev:/home/libretranslate/.local/share/argos-translate
+      # Mount at .local (exists in the image) so a fresh named volume is seeded
+      # with the app's uid (1032) instead of root — see prod compose comment.
+      - lt-models-dev:/home/libretranslate/.local
     mem_limit: 1.2g
     restart: unless-stopped
 

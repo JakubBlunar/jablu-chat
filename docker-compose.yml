@@ -219,8 +219,11 @@ services:
       - LT_THREADS=1
     volumes:
       # Models (~0.3 GB) — keeps them across container rebuilds instead of
-      # re-downloading on first boot.
-      - lt-models:/home/libretranslate/.local/share/argos-translate
+      # re-downloading on first boot. Mount at .local (not the deeper
+      # argos-translate subpath): the subpath doesn't exist in the image, so a
+      # fresh named volume would be seeded as root and the app (uid 1032)
+      # crashes with a PermissionError creating packages/.
+      - lt-models:/home/libretranslate/.local
     mem_limit: 1.2g
     restart: unless-stopped
     healthcheck:
