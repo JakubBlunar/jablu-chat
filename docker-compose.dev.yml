@@ -51,6 +51,21 @@ services:
       - ./docker/livekit/livekit.dev.yaml:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
 
+  # Self-hosted MT for on-demand message translation. The host-run API reaches
+  # it at http://localhost:5500 (set TRANSLATE_URL in .env.development).
+  libretranslate:
+    image: libretranslate/libretranslate:1.9.6
+    ports:
+      - '5500:5000'
+    environment:
+      - LT_LOAD_ONLY=${TRANSLATE_LANGUAGES:-en,cs,sk}
+      - LT_THREADS=1
+    volumes:
+      - lt-models-dev:/home/libretranslate/.local/share/argos-translate
+    mem_limit: 1.2g
+    restart: unless-stopped
+
 volumes:
   pgdata-dev:
   redisdata-dev:
+  lt-models-dev:

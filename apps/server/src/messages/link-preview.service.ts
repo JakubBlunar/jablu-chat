@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { lookup } from 'dns/promises'
 import { PrismaService } from '../prisma/prisma.service'
-import { detectCharset, extractUrls, OgMeta, parseOgTags } from './link-preview-parse'
+import { detectCharset, extractUrls, extractYouTubeId, OgMeta, parseOEmbed, parseOgTags } from './link-preview-parse'
 
 const FETCH_TIMEOUT = 8000
+const OEMBED_TIMEOUT = 5000
 const MAX_REDIRECTS = 5
 /**
  * Reading stops at </head>, which for most sites is a few kilobytes. The cap
@@ -266,6 +267,15 @@ export class LinkPreviewService {
   }
 
   private async fetchOgMeta(url: string): Promise<OgMeta | null> {
+    // YouTube serves a consent/landing shell (no og: tags) to most datacenter
+    // IPs, which yields a "- YouTube" title. The oEmbed endpoint is exempt,
+    // so try it first; HTML scraping stays as the fallback.
+    const videoId = extractYouTubeId(url)
+    if (videoId) {
+      const meta = await this.fetchYouTubeOEmbed(videoId)
+      if (meta) return meta
+    }
+
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
@@ -287,6 +297,43 @@ export class LinkPreviewService {
 
       const html = decodeHtml(await readHead(response, MAX_RESPONSE_BYTES), contentType)
       return parseOgTags(html, finalUrl)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  /**
+   * Fetches video metadata from YouTube's oEmbed endpoint. It is a small JSON
+   * response, needs no HTML parsing, and is not subject to the consent/landing
+   * page that YouTube serves datacenter IPs for regular watch pages.
+   */
+  private async fetchYouTubeOEmbed(videoId: string): Promise<OgMeta | null> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), OEMBED_TIMEOUT)
+    const endpoint = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
+      `https://www.youtube.com/watch?v=${videoId}`
+    )}`
+
+    try {
+      const response = await fetch(endpoint, {
+        signal: controller.signal,
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }
+      })
+      if (!response.ok) {
+        await discardBody(response)
+        return null
+      }
+      const data = (await response.json()) as Record<string, unknown>
+      const meta = parseOEmbed({
+        title: typeof data.title === 'string' ? data.title : undefined,
+        author_name: typeof data.author_name === 'string' ? data.author_name : undefined,
+        provider_name: typeof data.provider_name === 'string' ? data.provider_name : undefined,
+        thumbnail_url: typeof data.thumbnail_url === 'string' ? data.thumbnail_url : undefined
+      })
+      return meta.title ? meta : null
+    } catch (e) {
+      this.logger.debug(`oEmbed failed for video ${videoId}, falling back to HTML: ${e}`)
+      return null
     } finally {
       clearTimeout(timeout)
     }

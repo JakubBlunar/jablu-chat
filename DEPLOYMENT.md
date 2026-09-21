@@ -23,6 +23,7 @@ For 20+ concurrent users with voice/video, 4 cores and 8 GB RAM is recommended.
 | Redis                       | 6379                            | Cache, presence                    |
 | LiveKit                     | 7880, 7882/udp, 50000-50100/udp | Voice/video/screen share (WebRTC)  |
 | Mailpit (dev) / SMTP (prod) | 1025 / 587                      | Email for password resets          |
+| LibreTranslate              | internal only (5000 in network) | On-demand message translation      |
 
 ## Estimated Resource Usage (20 users)
 
@@ -144,6 +145,25 @@ CLEANUP_MIN_AGE_DAYS=90
 The setup script auto-generates `JWT_SECRET`, `JWT_REFRESH_SECRET`, `POSTGRES_PASSWORD`,
 `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` — don't change those unless you know what
 you're doing.
+
+### Optional: message translation (self-hosted LibreTranslate)
+
+On-demand "Translate" on any message is powered by a self-hosted
+[LibreTranslate](https://libretranslate.com) container — no API key, no third
+party ever sees your messages. It ships with the compose file and is
+**enabled by default** for `en`, `cs`, `sk` (the languages of the built-in UI).
+
+- To **disable** it, set `TRANSLATE_URL=` (empty) in `.env` — the UI hides the
+  action entirely and the container is simply not contacted.
+- To change languages, edit both `TRANSLATE_LANGUAGES` (e.g. `en,de,fr`) in
+  `.env` and restart — the container's `LT_LOAD_ONLY` follows it, and unknown
+  codes make LibreTranslate fail to start (codes, not pairs!).
+- Resource budget for a small, occasional-use server: `LT_THREADS=1` and
+  `mem_limit: 1.2g` (measured ~235 MiB idle, ~0.9 GB under a 300-request
+  burst). Models (~0.3 GB) persist in the `lt-models` volume across rebuilds.
+- Bump `LT_THREADS` (gunicorn workers; each worker loads all models) only if
+  you see real queueing — at 1 worker a 300-request burst still clears in
+  ~23 s, far beyond a chat's on-demand load.
 
 ## Step 4: Open Firewall Ports
 

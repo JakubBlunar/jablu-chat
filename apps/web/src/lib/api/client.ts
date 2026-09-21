@@ -43,7 +43,9 @@ import type {
   OnboardingConfig,
   SearchResult,
   ServerInsights,
-  InAppNotificationDto
+  InAppNotificationDto,
+  TranslationCapabilities,
+  TranslationResult
 } from './types'
 
 export class ApiClient {
@@ -360,6 +362,30 @@ export class ApiClient {
 
   getVoiceToken(channelId: string): Promise<{ token: string; url: string; isAdmin: boolean }> {
     return this.post(`/api/voice/token/${channelId}`)
+  }
+
+  getTranslationCapabilities(): Promise<TranslationCapabilities> {
+    return this.get('/api/translation/capabilities')
+  }
+
+  getTranslationPreference(): Promise<{ targetLang: string | null }> {
+    return this.get('/api/translation/preference')
+  }
+
+  setTranslationPreference(targetLang: string | null): Promise<{ targetLang: string | null }> {
+    return this.post('/api/translation/preference', { targetLang: targetLang ?? '' })
+  }
+
+  /**
+   * Translate a message on demand. The server re-fetches the message, checks
+   * access, and sends only its natural-language segments to the MT engine —
+   * code, URLs and mentions come back preserved. Never persisted.
+   */
+  translateMessage(messageId: string, targetLang?: string): Promise<TranslationResult> {
+    return this.post('/api/translation/translate', {
+      messageId,
+      ...(targetLang ? { targetLang } : {})
+    })
   }
 
   getVoiceVolumes(): Promise<Record<string, number>> {

@@ -64,6 +64,8 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - GIPHY_API_KEY=${GIPHY_API_KEY:-}
+      - TRANSLATE_URL=${TRANSLATE_URL:-http://libretranslate:5000/}
+      - TRANSLATE_LANGUAGES=${TRANSLATE_LANGUAGES:-en,cs,sk}
     volumes:
       - uploads:/data/uploads
       - updates:/data/updates
@@ -205,6 +207,34 @@ services:
     profiles:
       - dev
 
+# ─── LibreTranslate (self-hosted MT for on-demand message translation) ─
+# Restricted to the configured languages (LT_LOAD_ONLY mirrors
+# TRANSLATE_LANGUAGES — language *codes*, not pairs). One worker: measured
+# ~235 MiB idle / ~0.9 GB under burst, plenty for occasional use; bump
+# LT_THREADS (and mem_limit) only if you see real queueing.
+  libretranslate:
+    image: libretranslate/libretranslate:1.9.6
+    environment:
+      - LT_LOAD_ONLY=${TRANSLATE_LANGUAGES:-en,cs,sk}
+      - LT_THREADS=1
+    volumes:
+      # Models (~0.3 GB) — keeps them across container rebuilds instead of
+      # re-downloading on first boot.
+      - lt-models:/home/libretranslate/.local/share/argos-translate
+    mem_limit: 1.2g
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5000/\")'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   pgdata:
   redisdata:
@@ -215,3 +245,4 @@ volumes:
   letsencrypt:
   certbot-webroot:
   log-watcher-state:
+  lt-models:

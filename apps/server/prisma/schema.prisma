@@ -43,6 +43,8 @@ model User {
   /// Sub-filter: share music activity when master toggle is on.
   activityShareMusic    Boolean @default(true) @map("activity_share_music")
   lastSeenAt   DateTime?  @map("last_seen_at")
+  /// Preferred message-translation target language (e.g. "cs"). NULL = fall back to the client locale.
+  translationTargetLang String?  @map("translation_target_lang")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
