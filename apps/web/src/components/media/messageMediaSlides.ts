@@ -1,5 +1,6 @@
 import type { Attachment, LinkPreview } from '@chat/shared'
 import type { Slide } from 'yet-another-react-lightbox'
+import type {} from 'yet-another-react-lightbox/plugins/download'
 import { resolveMediaUrl } from '@/lib/api'
 import { extractYouTubeId, isGifUrl, isImageUrl, videoSourceType } from '@/lib/mediaUrl'
 
@@ -30,6 +31,7 @@ export function buildMessageMediaSlides(
         type: 'image',
         src: resolveMediaUrl(att.url) ?? att.url,
         alt: att.filename,
+        download: { url: resolveMediaUrl(att.url) ?? att.url, filename: att.filename },
         ...(att.width ? { width: att.width } : {}),
         ...(att.height ? { height: att.height } : {})
       })

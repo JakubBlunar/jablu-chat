@@ -1,7 +1,8 @@
 import type { Attachment, LinkPreview } from '@chat/shared'
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import Lightbox from 'yet-another-react-lightbox'
+import Lightbox, { IconButton, useLightboxState } from 'yet-another-react-lightbox'
 import Counter from 'yet-another-react-lightbox/plugins/counter'
+import Download from 'yet-another-react-lightbox/plugins/download'
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen'
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails'
 import Video from 'yet-another-react-lightbox/plugins/video'
@@ -9,7 +10,37 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import 'yet-another-react-lightbox/styles.css'
 import 'yet-another-react-lightbox/plugins/counter.css'
 import 'yet-another-react-lightbox/plugins/thumbnails.css'
+import { DownloadIcon } from '@/components/chat/chatIcons'
+import { useMediaDownload } from '@/hooks/useMediaDownload'
 import { buildMessageMediaSlides } from './messageMediaSlides'
+
+function MediaDownloadButton() {
+  const { currentSlide } = useLightboxState()
+  const image = currentSlide?.type === undefined || currentSlide?.type === 'image' ? currentSlide : undefined
+  const source = typeof image?.download === 'object' ? image.download : undefined
+  const url = source?.url ?? image?.src
+  let filename = source?.filename ?? 'image'
+  if (!source && url) {
+    try {
+      filename = decodeURIComponent(new URL(url, window.location.href).pathname.split('/').pop() || 'image')
+    } catch {
+      filename = 'image'
+    }
+  }
+  const { preparing, saving, failed, download } = useMediaDownload(url, filename)
+  if (!image) return null
+  const label = preparing ? 'Preparing download' : saving ? 'Saving' : failed ? 'Retry download' : 'Download'
+  return (
+    <IconButton
+      label="Download"
+      aria-label={label}
+      title={label}
+      icon={DownloadIcon}
+      disabled={preparing || saving}
+      onClick={() => { void download() }}
+    />
+  )
+}
 
 interface MessageMediaContextValue {
   /** Opens the message's media gallery at the slide for the given attachment/link-preview id. */
@@ -63,7 +94,8 @@ export function MessageMediaProvider({ attachments, linkPreviews, children }: Me
         close={() => setIndex(-1)}
         index={index < 0 ? 0 : index}
         slides={slides}
-        plugins={hasMultiple ? [Zoom, Video, Fullscreen, Counter, Thumbnails] : [Zoom, Video, Fullscreen]}
+        plugins={hasMultiple ? [Zoom, Video, Fullscreen, Download, Counter, Thumbnails] : [Zoom, Video, Fullscreen, Download]}
+        render={{ buttonDownload: () => <MediaDownloadButton /> }}
         carousel={{ finite: !hasMultiple }}
         controller={{ closeOnBackdropClick: true }}
         zoom={{ maxZoomPixelRatio: 3 }}

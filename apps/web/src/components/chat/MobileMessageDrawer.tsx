@@ -1,6 +1,7 @@
-import type { Message } from '@chat/shared'
+import type { Attachment, Message } from '@chat/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useMediaDownload } from '@/hooks/useMediaDownload'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
@@ -191,14 +192,6 @@ export function MobileMessageDrawer({
     handleCopyMessageJumpLink()
   }, [messageJumpUrl, isDm, close, handleCopyMessageJumpLink])
 
-  const handleDownload = useCallback((url: string, filename: string) => {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    close()
-  }, [close])
-
   const handleEdit = useCallback(() => {
     onEdit?.()
     close()
@@ -326,12 +319,10 @@ export function MobileMessageDrawer({
           />
         ))}
         {attachments.map((att) => (
-          <SheetBtn
+          <AttachmentDownloadButton
             key={att.id}
-            icon={<DownloadIcon />}
-            label={downloadLabel(att.type)}
-            subtitle={att.filename}
-            onClick={() => handleDownload(att.url, att.filename)}
+            attachment={att}
+            onSaved={close}
           />
         ))}
         {isAuthor && onEdit && (
@@ -350,6 +341,19 @@ export function MobileMessageDrawer({
         )}
       </div>
     </BottomSheet>
+  )
+}
+
+function AttachmentDownloadButton({ attachment, onSaved }: { attachment: Attachment; onSaved: () => void }) {
+  const { preparing, saving, failed, download } = useMediaDownload(attachment.url, attachment.filename)
+  return (
+    <SheetBtn
+      icon={<DownloadIcon />}
+      label={preparing ? 'Preparing download...' : saving ? 'Saving...' : failed ? 'Retry download' : downloadLabel(attachment.type)}
+      subtitle={attachment.filename}
+      disabled={preparing || saving}
+      onClick={() => { void download().then((saved) => { if (saved) onSaved() }) }}
+    />
   )
 }
 

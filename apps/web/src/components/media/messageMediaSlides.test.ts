@@ -45,8 +45,8 @@ describe('buildMessageMediaSlides', () => {
     ])
 
     expect(slides).toHaveLength(2)
-    expect(slides[0]).toMatchObject({ type: 'image', src: '/uploads/a1.png', alt: 'photo.png', width: 800, height: 600 })
-    expect(slides[1]).toMatchObject({ type: 'image', src: '/uploads/a2.gif', alt: 'anim.gif' })
+    expect(slides[0]).toMatchObject({ type: 'image', src: '/uploads/a1.png', alt: 'photo.png', width: 800, height: 600, download: { url: '/uploads/a1.png', filename: 'photo.png' } })
+    expect(slides[1]).toMatchObject({ type: 'image', src: '/uploads/a2.gif', alt: 'anim.gif', download: { url: '/uploads/a2.gif', filename: 'anim.gif' } })
     expect(indexByKey.get('a1')).toBe(0)
     expect(indexByKey.get('a2')).toBe(1)
   })

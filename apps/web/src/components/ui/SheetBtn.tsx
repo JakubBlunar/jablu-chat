@@ -4,14 +4,16 @@ interface SheetBtnProps {
   subtitle?: string
   onClick: () => void
   danger?: boolean
+  disabled?: boolean
 }
 
-export function SheetBtn({ icon, label, subtitle, onClick, danger }: SheetBtnProps) {
+export function SheetBtn({ icon, label, subtitle, onClick, danger, disabled }: SheetBtnProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition active:brightness-125 ${danger ? 'bg-red-500/10 text-red-400' : 'bg-white/5 text-gray-200'}`}
+      disabled={disabled}
+      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left transition active:brightness-125 disabled:opacity-50 ${danger ? 'bg-red-500/10 text-red-400' : 'bg-white/5 text-gray-200'}`}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
       <span className="min-w-0 flex-1">
