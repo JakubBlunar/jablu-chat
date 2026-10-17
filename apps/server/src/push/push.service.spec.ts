@@ -19,10 +19,18 @@ describe('PushService', () => {
   let prisma: MockPrismaService
   let redis: MockRedisService
   let config: Record<string, string>
+  let deliverQueuedJob: (job: [string, string] | null) => void
 
   beforeEach(async () => {
     prisma = createMockPrismaService()
     redis = createMockRedisService()
+    redis.client.blpop.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          deliverQueuedJob = resolve
+        })
+    )
+    mockWebPush.sendNotification.mockReset()
     config = {
       VAPID_PUBLIC_KEY: 'pub-key',
       VAPID_PRIVATE_KEY: 'priv-key',
@@ -223,6 +231,79 @@ describe('PushService', () => {
       await service.sendToUser('u1', { title: 'T', body: 'B' })
 
       expect(mockWebPush.sendNotification).not.toHaveBeenCalled()
+    })
+
+    it('keeps the normal one-hour TTL for message notifications', async () => {
+      redis.client.rpush.mockRejectedValue(new Error('redis down'))
+      prisma.pushSubscription.findMany.mockResolvedValue([{ id: 'sub1', endpoint: 'ep1', p256dh: 'p', auth: 'a' }])
+      mockWebPush.sendNotification.mockResolvedValue({} as webPush.SendResult)
+      await service.sendToUser('u1', { title: 'T', body: 'B' })
+      expect(mockWebPush.sendNotification).toHaveBeenCalledWith(
+        expect.anything(),
+        JSON.stringify({ title: 'T', body: 'B' }),
+        { TTL: 3600, urgency: 'high' }
+      )
+    })
+
+    it('limits call push TTL to the remaining ringing time', async () => {
+      const now = Date.now()
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now)
+      try {
+        redis.client.rpush.mockRejectedValue(new Error('redis down'))
+        prisma.pushSubscription.findMany.mockImplementation(async () => {
+          clock.mockReturnValue(now + 5000)
+          return [{ id: 'sub1', endpoint: 'ep1', p256dh: 'p', auth: 'a' }]
+        })
+        mockWebPush.sendNotification.mockResolvedValue({} as webPush.SendResult)
+        const payload = { title: 'Call', body: 'Join', expiresAt: now + 30_000 }
+        await service.sendToUser('u1', payload)
+        expect(mockWebPush.sendNotification).toHaveBeenCalledWith(expect.anything(), JSON.stringify(payload), {
+          TTL: 25,
+          urgency: 'high'
+        })
+      } finally {
+        clock.mockRestore()
+      }
+    })
+
+    it('does not queue an already expired call push', async () => {
+      await service.sendToUser('u1', { title: 'Call', body: 'Join', expiresAt: Date.now() - 1 })
+      expect(redis.client.rpush).not.toHaveBeenCalled()
+      expect(mockWebPush.sendNotification).not.toHaveBeenCalled()
+    })
+
+    it('drops a queued call push if the ringing deadline passed before processing', async () => {
+      const now = Date.now()
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now)
+      try {
+        await service.sendToUser('u1', { title: 'Call', body: 'Join', expiresAt: now + 30_000 })
+        const [key, json] = redis.client.rpush.mock.calls[0] as [string, string]
+        clock.mockReturnValue(now + 30_001)
+        deliverQueuedJob([key, json])
+        await Promise.resolve()
+        await Promise.resolve()
+        expect(redis.client.blpop).toHaveBeenCalledTimes(2)
+        expect(prisma.pushSubscription.findMany).not.toHaveBeenCalled()
+        expect(mockWebPush.sendNotification).not.toHaveBeenCalled()
+      } finally {
+        clock.mockRestore()
+      }
+    })
+
+    it('does not deliver if a subscription lookup runs past the call deadline', async () => {
+      const now = Date.now()
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now)
+      try {
+        redis.client.rpush.mockRejectedValue(new Error('redis down'))
+        prisma.pushSubscription.findMany.mockImplementation(async () => {
+          clock.mockReturnValue(now + 30_000)
+          return [{ id: 'sub1', endpoint: 'ep1', p256dh: 'p', auth: 'a' }]
+        })
+        await service.sendToUser('u1', { title: 'Call', body: 'Join', expiresAt: now + 30_000 })
+        expect(mockWebPush.sendNotification).not.toHaveBeenCalled()
+      } finally {
+        clock.mockRestore()
+      }
     })
   })
 })

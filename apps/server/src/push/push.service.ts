@@ -12,9 +12,16 @@ const POLL_TIMEOUT_S = 5
 /** How long a push service should keep retrying an undelivered message. */
 const PUSH_TTL_S = 60 * 60
 
+export type PushPayload = {
+  title: string
+  body: string
+  url?: string
+  expiresAt?: number
+}
+
 type PushJob = {
   userIds: string[]
-  payload: { title: string; body: string; url?: string }
+  payload: PushPayload
   attempt: number
 }
 
@@ -79,14 +86,14 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.pushSubscription.deleteMany({ where: { endpoint, userId } }).catch(() => {})
   }
 
-  async sendToUser(userId: string, payload: { title: string; body: string; url?: string }) {
+  async sendToUser(userId: string, payload: PushPayload) {
     if (!this.enabled) return
     const allowed = await filterUserIdsForWebPush(this.prisma, [userId])
     if (allowed.length === 0) return
     await this.enqueue(allowed, payload)
   }
 
-  async sendToUsers(userIds: string[], payload: { title: string; body: string; url?: string }) {
+  async sendToUsers(userIds: string[], payload: PushPayload) {
     if (userIds.length === 0) return
     if (!this.enabled) return
     const allowed = await filterUserIdsForWebPush(this.prisma, userIds)
@@ -98,13 +105,14 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
    * Bypasses quiet hours and suppress-all on purpose: the point of the test button
    * is to prove the transport reaches this device, not to re-run the filters.
    */
-  async sendTest(userId: string, payload: { title: string; body: string; url?: string }) {
+  async sendTest(userId: string, payload: PushPayload) {
     if (!this.enabled) return
     await this.enqueue([userId], payload)
   }
 
-  private async enqueue(userIds: string[], payload: { title: string; body: string; url?: string }) {
+  private async enqueue(userIds: string[], payload: PushPayload) {
     if (!this.enabled || userIds.length === 0) return
+    if (payload.expiresAt !== undefined && payload.expiresAt <= Date.now()) return
     const job: PushJob = { userIds, payload, attempt: 0 }
     try {
       await this.redis.client.rpush(PUSH_QUEUE_KEY, JSON.stringify(job))
@@ -152,6 +160,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processJob(job: PushJob) {
+    if (job.payload.expiresAt !== undefined && job.payload.expiresAt <= Date.now()) return
     try {
       const subs = await this.prisma.pushSubscription.findMany({
         where: { userId: { in: job.userIds } }
@@ -165,12 +174,17 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
 
       await Promise.all(
         subs.map(async (sub) => {
+          const ttl =
+            job.payload.expiresAt === undefined
+              ? PUSH_TTL_S
+              : Math.min(PUSH_TTL_S, Math.floor((job.payload.expiresAt - Date.now()) / 1000))
+          if (ttl <= 0) return
           try {
             await webPush.sendNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               jsonPayload,
               {
-                TTL: PUSH_TTL_S,
+                TTL: ttl,
                 // Without high urgency FCM batches the message until the phone next
                 // wakes on its own, which can be many minutes on a locked device.
                 urgency: 'high'
@@ -182,9 +196,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
               stale.push(sub.id)
             } else {
               failed++
-              this.logger.debug(
-                `Push send failed (${err?.statusCode ?? 'no status'}) for ${sub.endpoint.slice(0, 60)}`
-              )
+              this.logger.debug(`Push send failed (${err?.statusCode ?? 'no status'}) for ${sub.endpoint.slice(0, 60)}`)
             }
           }
         })
@@ -199,6 +211,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         await this.prisma.pushSubscription.deleteMany({ where: { id: { in: stale } } })
       }
     } catch (err) {
+      if (job.payload.expiresAt !== undefined && job.payload.expiresAt <= Date.now()) return
       job.attempt++
       if (job.attempt < MAX_RETRIES) {
         this.logger.warn(`Push job failed (attempt ${job.attempt}/${MAX_RETRIES}), re-queuing`)

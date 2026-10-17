@@ -6,6 +6,7 @@ import { DmService } from '../dm/dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { DmCallsService } from '../voice/dm-calls.service'
 import { VoiceService } from '../voice/voice.service'
+import { NotificationsService } from '../notifications/notifications.service'
 import { DmCallsGateway } from './dm-calls.gateway'
 import { WsJwtGuard } from './ws-jwt.guard'
 import { WsThrottleGuard } from './ws-throttle.guard'
@@ -98,7 +99,8 @@ describe('DM call signaling over WebSocket', () => {
             }
           }
         },
-        { provide: VoiceService, useValue: { isConfigured: true, deleteDmRoom: async () => {} } }
+        { provide: VoiceService, useValue: { isConfigured: true, deleteDmRoom: async () => {} } },
+        { provide: NotificationsService, useValue: { dispatch: async () => {} } }
       ]
     })
       .overrideGuard(WsJwtGuard)

@@ -50,7 +50,7 @@ beforeEach(() => {
     voice.currentChannelId = conversationId
     voice.room = {}
   })
-  useDmCallStore.setState({ calls: {}, busy: false, error: null })
+  useDmCallStore.setState({ calls: {}, busy: false, error: null, syncStatus: 'idle' })
   useVoiceStore.getState().reset()
   useDmStore.setState({
     conversations: [
@@ -138,6 +138,53 @@ it('resynchronizes current calls after reconnect', async () => {
   ack.mockResolvedValueOnce({ ok: true, data: [call] })
   await useDmCallStore.getState().sync()
   expect(useDmCallStore.getState().calls).toEqual({ call })
+  expect(useDmCallStore.getState().syncStatus).toBe('ready')
+  expect(join).not.toHaveBeenCalled()
+})
+
+it('distinguishes pending synchronization from an ended call and avoids duplicate requests', async () => {
+  let resolve!: (reply: object) => void
+  ack.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    })
+  )
+  const pending = useDmCallStore.getState().sync()
+  expect(useDmCallStore.getState().syncStatus).toBe('loading')
+  await useDmCallStore.getState().sync()
+  expect(ack).toHaveBeenCalledTimes(1)
+  resolve({ ok: true, data: [] })
+  await pending
+  expect(useDmCallStore.getState().syncStatus).toBe('ready')
+  expect(useDmCallStore.getState().calls).toEqual({})
+})
+
+it('reports synchronization failure and supports retry', async () => {
+  ack.mockRejectedValueOnce(new Error('offline'))
+  await useDmCallStore.getState().sync()
+  expect(useDmCallStore.getState().syncStatus).toBe('error')
+  expect(useDmCallStore.getState().error).toBe('Could not load active calls')
+  ack.mockResolvedValueOnce({ ok: true, data: [] })
+  await useDmCallStore.getState().sync()
+  expect(useDmCallStore.getState().syncStatus).toBe('ready')
+  expect(useDmCallStore.getState().error).toBeNull()
+})
+
+it('does not mark synchronization ready after logout or overwrite a newer session', async () => {
+  let resolve!: (reply: object) => void
+  ack.mockReturnValueOnce(
+    new Promise((done) => {
+      resolve = done
+    })
+  )
+  const pending = useDmCallStore.getState().sync()
+  useDmCallStore.getState().reset()
+  ack.mockResolvedValueOnce({ ok: true, data: [] })
+  await useDmCallStore.getState().sync()
+  resolve({ ok: true, data: [call] })
+  await pending
+  expect(useDmCallStore.getState().syncStatus).toBe('ready')
+  expect(useDmCallStore.getState().calls).toEqual({})
 })
 
 it('does not resurrect a call after logout or signaling reset', async () => {

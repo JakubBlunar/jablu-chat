@@ -250,6 +250,11 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
     socket.on('notification:clear', onNotificationClear)
 
+    const onVisibilityChange = () => {
+      if (!document.hidden && socket.connected) void useDmCallStore.getState().sync()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     setIsConnected(socket.connected)
 
     return () => {
@@ -323,6 +328,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('bot:command-error', onBotCommandError)
       socket.off('in_app_notification:new', onInAppNotificationNew)
       socket.off('notification:clear', onNotificationClear)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
       if (trailingFn) { trailingFn(); trailingFn = null }
       if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }

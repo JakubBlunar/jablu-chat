@@ -1,4 +1,9 @@
 import { deserialize, serialize } from 'node:v8'
+import { TextEncoder } from 'node:util'
+
+if (typeof globalThis.TextEncoder !== 'function') {
+  Object.defineProperty(globalThis, 'TextEncoder', { value: TextEncoder, configurable: true })
+}
 
 /**
  * jsdom does not expose `structuredClone`, and fake-indexeddb needs one to

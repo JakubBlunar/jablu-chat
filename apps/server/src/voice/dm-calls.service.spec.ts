@@ -4,6 +4,7 @@ import { DmService } from '../dm/dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { DmCallsService } from './dm-calls.service'
 import { VoiceService } from './voice.service'
+import { NotificationsService } from '../notifications/notifications.service'
 
 const alice = { id: 'alice', username: 'alice', displayName: 'Alice' }
 const bob = { id: 'bob', username: 'bob', displayName: null }
@@ -14,6 +15,7 @@ describe('DmCallsService', () => {
   const membership = jest.fn()
   const members = jest.fn()
   const emit = jest.fn()
+  const dispatch = jest.fn()
   const voice = {
     isConfigured: true,
     generateDmToken: jest.fn().mockResolvedValue({ token: 'token', url: 'wss://voice.test' }),
@@ -23,6 +25,7 @@ describe('DmCallsService', () => {
   beforeEach(async () => {
     jest.useFakeTimers()
     jest.clearAllMocks()
+    dispatch.mockResolvedValue(undefined)
     membership.mockResolvedValue({})
     members.mockResolvedValue([alice, bob].map((user) => ({ userId: user.id, user: { isBot: false } })))
     voice.isConfigured = true
@@ -31,7 +34,8 @@ describe('DmCallsService', () => {
         DmCallsService,
         { provide: DmService, useValue: { requireMembership: membership } },
         { provide: PrismaService, useValue: { directConversationMember: { findMany: members } } },
-        { provide: VoiceService, useValue: voice }
+        { provide: VoiceService, useValue: voice },
+        { provide: NotificationsService, useValue: { dispatch } }
       ]
     }).compile()
     calls = module.get(DmCallsService)
@@ -57,6 +61,39 @@ describe('DmCallsService', () => {
     expect(emit).not.toHaveBeenCalled()
     voice.isConfigured = false
     await expect(calls.start('dm', alice, 'a')).rejects.toThrow('Voice is not configured')
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('sends an exact-call invitation to human invitees, not the caller or bots', async () => {
+    members.mockResolvedValueOnce([
+      ...[alice, bob, carol].map((user) => ({ userId: user.id, user: { isBot: false } })),
+      { userId: 'bot', user: { isBot: true } }
+    ])
+    const call = await calls.start('group', alice, 'a')
+    expect(dispatch).toHaveBeenCalledWith({
+      userIds: ['bob', 'carol'],
+      kind: 'dm_call',
+      dedupeKey: `dm-call:${call.id}`,
+      payload: { conversationId: 'group', callId: call.id, authorName: 'Alice' },
+      title: 'Incoming voice call',
+      body: 'Alice is calling. Open Jablu to join.',
+      url: `/channels/@me/group?call=${call.id}`,
+      push: true,
+      expiresAt: Date.now() + 30_000
+    })
+  })
+
+  it('does not wait for notification delivery before acknowledging a call', async () => {
+    dispatch.mockReturnValueOnce(new Promise(() => {}))
+    const call = await calls.start('dm', alice, 'a')
+    expect(call.ringingUserIds).toEqual(['bob'])
+    await expect(calls.token(call.id, alice)).resolves.toBeDefined()
+  })
+
+  it('keeps the call usable if notification dispatch fails', async () => {
+    dispatch.mockRejectedValueOnce(new Error('notification transport failed'))
+    const call = await calls.start('dm', alice, 'a')
+    await expect(calls.accept(call.id, bob, 'b')).resolves.toMatchObject({ id: call.id })
   })
 
   it('does not start calls to bots', async () => {

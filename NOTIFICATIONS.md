@@ -115,6 +115,7 @@ messages with no mentions, no bell row and no push.
 | `mention`         | @-mentioned in a channel         | yes  | message              |
 | `reply`           | Someone replied to your message  | yes  | message              |
 | `dm_message`      | Direct message                   | yes  | conversation         |
+| `dm_call`         | Incoming direct/group voice call | yes  | call                 |
 | `channel_message` | Activity in a channel set to all | yes  | channel              |
 | `thread_reply`    | Reply in a thread you follow     | yes  | thread               |
 | `friend_request`  | Incoming friend request          | yes  | friendship           |
@@ -160,6 +161,35 @@ On iOS Safari, `Notification.requestPermission()` fails silently outside a user
 gesture and burns the prompt permanently. So auto-subscribe on login only runs
 when permission is *already* granted; the actual prompt happens from the button
 in Settings → Notifications.
+
+#### Incoming DM calls
+
+Starting a one-to-one or group call records a `dm_call` notification for every
+human invitee, excluding the caller and bots, through `NotificationsService`.
+Push uses the existing away/engagement, DND, quiet-hours and push-suppression
+rules. Delivery does not block the caller joining the call.
+
+Call pushes expire at the 30-second ringing deadline: expired queued jobs are
+dropped, Web Push TTL is capped to the remaining time, and the service worker
+ignores already-expired payloads. Ordinary message pushes retain their one-hour
+TTL. An already displayed call notification can remain after a call ends.
+
+Both local and push notifications use `/channels/@me/<conversationId>?call=<callId>`
+and a call-specific tag, separate from message notifications. Tapping opens that
+DM and checks current server state before offering **Join call**. Opening a
+notification never acquires the microphone or joins automatically. If the exact
+call ended, even if a newer call exists in the same DM, the invitation says it
+ended rather than starting/joining a replacement. Active group calls can still be
+joined after ringing expires. Calls refresh on reconnect, notification navigation,
+and return from the background; check failures show Retry rather than claiming
+the call ended. Invitations remain in the bell until read, even after a call ends.
+
+A suspended or closed PWA relies on browser/OS Web Push support and notification
+permission, not background JavaScript audio. The notification may make the OS's
+normal notification sound, but continuous native-style incoming-call ringing is
+not guaranteed. iOS/iPadOS requires an installed Home Screen PWA with permission.
+Deploy the `20261017120000_add_dm_call_notifications` database migration before the
+updated API, and allow clients to install the updated service worker.
 
 ### Desktop (Tauri)
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { getDmCallUrl } from '@chat/shared'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -41,7 +42,7 @@ export function DmCallNotifications() {
     const current = useDmCallStore.getState().calls
     for (const call of Object.values(current)) {
       if (userId && call.ringingUserIds.includes(userId) && !notified.current.has(call.id)) {
-        const url = `/channels/@me/${call.conversationId}`
+        const url = getDmCallUrl(call.conversationId, call.id)
         notified.current.set(call.id, url)
         if (!isDnd)
           showNotification(t('incomingCall'), t('callerRinging', { name: call.callerName }), url, undefined, 'friend')

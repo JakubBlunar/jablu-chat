@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import type { InAppNotificationDto } from '@/lib/api/types'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -9,8 +10,9 @@ import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
 import type { Message } from '@chat/shared'
+import { getDmCallUrl } from '@chat/shared'
 
-function titleFor(n: InAppNotificationDto): string {
+function titleFor(n: InAppNotificationDto, incomingCallTitle: string): string {
   const p = n.payload
   switch (n.kind) {
     case 'mention': {
@@ -22,6 +24,10 @@ function titleFor(n: InAppNotificationDto): string {
       const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
       const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} messages` : 'Direct message'
       return `${name} — ${c}`
+    }
+    case 'dm_call': {
+      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
+      return `${name} — ${incomingCallTitle}`
     }
     case 'thread_reply': {
       const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
@@ -112,6 +118,12 @@ function iconFor(kind: InAppNotificationDto['kind']) {
     strokeLinejoin: 'round' as const
   }
   switch (kind) {
+    case 'dm_call':
+      return (
+        <svg {...common}>
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.09 5.18 2 2 0 0 1 5.08 3h3a2 2 0 0 1 2 1.72c.12.96.35 1.91.69 2.81a2 2 0 0 1-.45 2.11L9.05 10.9a16 16 0 0 0 6 6l1.26-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.69A2 2 0 0 1 22 16.92z" />
+        </svg>
+      )
     case 'mention':
       return (
         <svg {...common}>
@@ -207,6 +219,7 @@ export function InAppNotificationBell({
   const markAllRead = useNotificationCenterStore((s) => s.markAllRead)
   const showLoading = useDelayedFlag(listLoading)
   const { orchestratedGoToChannel, orchestratedGoToDm, navigate } = useAppNavigate()
+  const { t: tVoice } = useTranslation('voice')
 
   useEffect(() => {
     void fetchUnread()
@@ -314,6 +327,10 @@ export function InAppNotificationBell({
           if (serverId && channelId) {
             await orchestratedGoToChannel(serverId, channelId, messageId ?? undefined)
           }
+        } else if (n.kind === 'dm_call') {
+          if (typeof p.conversationId === 'string' && typeof p.callId === 'string') {
+            navigate(getDmCallUrl(p.conversationId, p.callId))
+          }
         } else if (n.kind === 'friend_request' || n.kind === 'friend_accepted') {
           navigate('/channels/@me')
         } else if (
@@ -397,7 +414,7 @@ export function InAppNotificationBell({
                       {iconFor(n.kind)}
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-sm font-medium text-white">{titleFor(n)}</span>
+                      <span className="text-sm font-medium text-white">{titleFor(n, tVoice('incomingCall'))}</span>
                       {snippetFor(n) ? (
                         <span className="line-clamp-2 text-xs text-gray-400">{snippetFor(n)}</span>
                       ) : null}

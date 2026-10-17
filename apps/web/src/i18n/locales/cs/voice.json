@@ -1,6 +1,11 @@
 {
   "quickDevices": "Hlasová zařízení",
   "startCall": "Zahájit hlasový hovor",
+  "checkingCall": "Ověřování, zda hovor stále probíhá…",
+  "checkCallFailed": "Hovor se nepodařilo ověřit. Připojte se znovu nebo to zkuste znovu.",
+  "callEnded": "Tento hovor již skončil.",
+  "callStillActive": "Tento hlasový hovor stále probíhá. Připojte se, až budete připraveni.",
+  "callOnAnotherDevice": "K tomuto hovoru jste již připojeni na jiném zařízení.",
   "joinCall": "Připojit se k hovoru",
   "incomingCall": "Příchozí hlasový hovor",
   "callerRinging": "{{name}} volá",

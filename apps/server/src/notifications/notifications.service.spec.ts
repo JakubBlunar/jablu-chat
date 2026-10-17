@@ -51,6 +51,28 @@ describe('NotificationsService', () => {
     expect(push.sendToUsers).toHaveBeenCalled()
   })
 
+  it('forwards the call deadline without changing durable notification data', async () => {
+    const expiresAt = Date.now() + 30_000
+    await service.dispatch({ ...base, kind: InAppNotificationKind.dm_call, push: true, expiresAt })
+    expect(push.sendToUsers).toHaveBeenCalledWith(['u1'], {
+      title: base.title,
+      body: base.body,
+      url: undefined,
+      expiresAt
+    })
+    expect(inApp.record).toHaveBeenCalledWith(['u1'], {
+      kind: InAppNotificationKind.dm_call,
+      dedupeKey: undefined,
+      payload: base.payload
+    })
+  })
+
+  it('retains an expired invitation in the inbox but does not push it', async () => {
+    await service.dispatch({ ...base, push: true, expiresAt: Date.now() })
+    expect(inApp.record).toHaveBeenCalled()
+    expect(push.sendToUsers).not.toHaveBeenCalled()
+  })
+
   it('does not push to users who are actively engaged', async () => {
     service.setEngagementCheck((id) => id === 'u1')
 

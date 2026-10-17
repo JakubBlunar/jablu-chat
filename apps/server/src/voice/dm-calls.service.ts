@@ -8,6 +8,9 @@ import {
 } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
 import type { DmCall, DmCallEndReason } from '@chat/shared'
+import { getDmCallUrl } from '@chat/shared'
+import { InAppNotificationKind } from '../prisma-client'
+import { NotificationsService } from '../notifications/notifications.service'
 import { DmService } from '../dm/dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { VoiceService } from './voice.service'
@@ -30,7 +33,8 @@ export class DmCallsService implements OnModuleDestroy {
   constructor(
     private readonly dm: DmService,
     private readonly prisma: PrismaService,
-    private readonly voice: VoiceService
+    private readonly voice: VoiceService,
+    private readonly notifications: NotificationsService
   ) {}
 
   setEmitter(emit: (userIds: string[], event: string, payload: unknown) => void) {
@@ -65,13 +69,14 @@ export class DmCallsService implements OnModuleDestroy {
     }
     this.requireNotBusy(user.id)
     const id = randomUUID()
+    const expiresAt = Date.now() + 30_000
     const call: DmCall = {
       id,
       conversationId,
       callerId: user.id,
       callerName: user.displayName ?? user.username,
       createdAt: new Date().toISOString(),
-      ringingUntil: new Date(Date.now() + 30_000).toISOString(),
+      ringingUntil: new Date(expiresAt).toISOString(),
       ringingUserIds: memberIds.filter((id) => id !== user.id),
       participants: []
     }
@@ -90,6 +95,19 @@ export class DmCallsService implements OnModuleDestroy {
     }
     this.sessions.set(id, session)
     this.broadcast(session)
+    void this.notifications
+      .dispatch({
+        userIds: call.ringingUserIds,
+        kind: InAppNotificationKind.dm_call,
+        dedupeKey: `dm-call:${id}`,
+        payload: { conversationId, callId: id, authorName: call.callerName },
+        title: 'Incoming voice call',
+        body: `${call.callerName} is calling. Open Jablu to join.`,
+        url: getDmCallUrl(conversationId, id),
+        push: true,
+        expiresAt
+      })
+      .catch((error: unknown) => this.logger.error('Failed to notify DM call recipients', error))
     return this.snapshot(session)
   }
 

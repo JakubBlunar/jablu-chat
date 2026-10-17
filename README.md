@@ -15,11 +15,17 @@ preferences). The phone button also switches between the
 call and messages without hanging up. Joining another call asks before leaving
 the current voice connection when starting or joining a DM call.
 
-DM calls require the existing LiveKit configuration; no database migration is
-needed. Active call signaling, like server voice presence, is held by the API
+DM calls require the existing LiveKit configuration. Deployments must apply the
+additive `20261017120000_add_dm_call_notifications` migration before starting the
+updated API (`pnpm db:migrate:deploy`); it adds the incoming-call notification kind.
+Active call signaling, like server voice presence, is held by the API
 process. API restarts or losing the participating session's signaling connection
 end that session's call; a group call continues while at least two participants
-remain. Calls ring clients that are connected, not closed/offline apps.
+remain. Connected clients can ring in-app. Background/closed PWAs with Web Push
+enabled receive an incoming-call notification, subject to browser/OS delivery and
+existing push preferences. Tapping it opens the DM and offers an explicit Join
+only if that exact call is still active. An ended call never starts a new one.
+PWA push is an OS notification, not a guaranteed continuous background ringtone.
 
 ## Features
 

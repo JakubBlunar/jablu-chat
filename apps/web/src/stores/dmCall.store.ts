@@ -21,6 +21,7 @@ type DmCallState = {
   calls: Record<string, DmCall>
   busy: boolean
   error: string | null
+  syncStatus: 'idle' | 'loading' | 'ready' | 'error'
   update: (call: DmCall) => void
   ended: (event: { callId: string; reason: DmCallEndReason }) => void
   sync: () => Promise<void>
@@ -63,6 +64,7 @@ export const useDmCallStore = create<DmCallState>((set, get) => ({
   calls: {},
   busy: false,
   error: null,
+  syncStatus: 'idle',
   update: (call) => {
     set((s) => ({ calls: { ...s.calls, [call.id]: call } }))
     useVoiceStore.setState((s) => ({ participants: { ...s.participants, [call.conversationId]: call.participants } }))
@@ -89,14 +91,20 @@ export const useDmCallStore = create<DmCallState>((set, get) => ({
     if (useVoiceConnectionStore.getState().currentDmCallId === callId) useVoiceConnectionStore.getState().disconnect()
   },
   sync: async () => {
+    if (get().syncStatus === 'loading') return
     const epoch = generation
+    set({ syncStatus: 'loading' })
     try {
       const calls = await requestDmCall<DmCall[]>('dm:call:sync')
       if (epoch !== generation) return
-      set({ calls: Object.fromEntries(calls.map((call) => [call.id, call])) })
+      set((state) => ({
+        calls: Object.fromEntries(calls.map((call) => [call.id, call])),
+        syncStatus: 'ready',
+        error: state.error === 'Could not load active calls' ? null : state.error
+      }))
     } catch (error) {
       console.error('Failed to synchronize DM calls:', error)
-      if (epoch === generation) set({ error: 'Could not load active calls' })
+      if (epoch === generation) set({ error: 'Could not load active calls', syncStatus: 'error' })
     }
   },
   start: async (conversationId) => {
@@ -170,6 +178,6 @@ export const useDmCallStore = create<DmCallState>((set, get) => ({
   reset: () => {
     generation++
     if (useVoiceConnectionStore.getState().currentDmCallId) useVoiceConnectionStore.getState().disconnect()
-    set({ calls: {}, busy: false, error: null })
+    set({ calls: {}, busy: false, error: null, syncStatus: 'idle' })
   }
 }))

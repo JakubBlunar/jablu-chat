@@ -43,7 +43,10 @@ self.addEventListener('push', (event) => {
       title?: string
       body?: string
       url?: string
+      expiresAt?: number
     }
+
+    if (typeof payload.expiresAt === 'number' && payload.expiresAt <= Date.now()) return
 
     const title = payload.title ?? 'Jablu'
     const notifUrl = payload.url ?? '/'

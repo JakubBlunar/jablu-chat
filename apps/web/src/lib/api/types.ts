@@ -152,6 +152,7 @@ export type ActiveSession = {
 export type InAppNotificationKind =
   | 'mention'
   | 'dm_message'
+  | 'dm_call'
   | 'thread_reply'
   | 'friend_request'
   | 'channel_message'

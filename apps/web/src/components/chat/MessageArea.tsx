@@ -48,6 +48,7 @@ import { ChannelInfoDrawer } from '@/components/chat/ChannelInfoDrawer'
 import { TimeoutBanner } from '@/components/chat/TimeoutBanner'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { DmCallButton } from '@/components/dm/DmCallButton'
+import { DmCallInvitation } from '@/components/dm/DmCallInvitation'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
 import {
@@ -589,6 +590,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               </>
             )}
           </header>
+          {contextId && <DmCallInvitation conversationId={contextId} />}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {viewingDmVoice ? <Suspense fallback={<Spinner size="lg" />}><DmVoiceRoom /></Suspense> : messageList}
           </div>

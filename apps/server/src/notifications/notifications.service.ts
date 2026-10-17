@@ -28,6 +28,8 @@ export type DispatchInput = {
    * stay in the bell.
    */
   push?: boolean
+  /** Epoch milliseconds; time-sensitive pushes must not outlive their invitation. */
+  expiresAt?: number
 }
 
 /**
@@ -80,6 +82,7 @@ export class NotificationsService {
 
     // 3. Push only to users who are not already looking at the app somewhere.
     if (!input.push || !input.title) return
+    if (input.expiresAt !== undefined && input.expiresAt <= Date.now()) return
     const awayIds = userIds.filter((id) => !this.isUserActivelyEngaged(id))
     if (awayIds.length === 0) {
       this.logger.debug(`Push skipped for ${input.kind}: all ${userIds.length} recipients engaged`)
@@ -90,7 +93,8 @@ export class NotificationsService {
       await this.push.sendToUsers(awayIds, {
         title: input.title,
         body: input.body ?? '',
-        url: input.url
+        url: input.url,
+        ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {})
       })
     } catch (err) {
       this.logger.warn(`Failed to push ${input.kind} notification`, err)
