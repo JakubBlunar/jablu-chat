@@ -210,23 +210,29 @@ describe('ReadStateService', () => {
   })
 
   describe('incrementMention', () => {
-    it('increments for each user', async () => {
-      prisma.channelReadState.upsert.mockResolvedValue(undefined)
-      await service.incrementMention('ch-1', ['u1', 'u2', 'u3'])
-      expect(prisma.channelReadState.upsert).toHaveBeenCalledTimes(3)
+    it('increments all distinct recipients with one atomic statement', async () => {
+      await service.incrementMention('ch-1', ['u1', 'u2', 'u1', 'u3'])
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+      expect(prisma.$executeRaw.mock.calls[0]).toContainEqual(['u1', 'u2', 'u3'])
+      expect(prisma.$executeRaw.mock.calls[0][0].join('?')).toContain(
+        'mention_count = channel_read_states.mention_count + 1'
+      )
+      expect(prisma.channelReadState.upsert).not.toHaveBeenCalled()
     })
 
     it('does nothing for empty array', async () => {
       await service.incrementMention('ch-1', [])
-      expect(prisma.channelReadState.upsert).not.toHaveBeenCalled()
+      expect(prisma.$executeRaw).not.toHaveBeenCalled()
     })
   })
 
   describe('incrementDmMention', () => {
-    it('increments for each user', async () => {
-      prisma.dmReadState.upsert.mockResolvedValue(undefined)
+    it('increments all recipients with one atomic statement', async () => {
       await service.incrementDmMention('conv-1', ['u1', 'u2'])
-      expect(prisma.dmReadState.upsert).toHaveBeenCalledTimes(2)
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+      expect(prisma.$executeRaw.mock.calls[0][0].join('?')).toContain(
+        'mention_count = dm_read_states.mention_count + 1'
+      )
     })
   })
 

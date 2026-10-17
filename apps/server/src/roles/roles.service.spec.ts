@@ -136,6 +136,59 @@ describe('RolesService', () => {
     })
   })
 
+  describe('getChannelPermissionsForUsers', () => {
+    it('uses four queries for 5,000 recipients', async () => {
+      const ids = Array.from({ length: 5000 }, (_, i) => `u${i}`)
+      prisma.server.findUnique.mockResolvedValue({ ownerId })
+      prisma.serverMember.findMany.mockResolvedValue(ids.map((id) => ({ userId: id, roles: [] })))
+      prisma.role.findFirst.mockResolvedValue({ id: 'everyone', permissions: Permission.VIEW_CHANNEL })
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([])
+
+      const permissions = await service.getChannelPermissionsForUsers(serverId, 'ch-1', ids)
+
+      expect(permissions.size).toBe(5000)
+      expect(permissions.get('u4999')).toBe(Permission.VIEW_CHANNEL)
+      expect(prisma.server.findUnique).toHaveBeenCalledTimes(1)
+      expect(prisma.serverMember.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.role.findFirst).toHaveBeenCalledTimes(1)
+      expect(prisma.channelPermissionOverride.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.serverMember.findUnique).not.toHaveBeenCalled()
+    })
+
+    it('preserves owner/admin bypass, default roles, combined overrides and missing-member exclusion', async () => {
+      prisma.server.findUnique.mockResolvedValue({ ownerId })
+      prisma.role.findFirst.mockResolvedValue({ id: 'everyone', permissions: Permission.VIEW_CHANNEL })
+      prisma.serverMember.findMany.mockResolvedValue([
+        { userId: 'regular', roles: [] },
+        { userId: 'allowed', roles: [{ roleId: 'allow', role: { permissions: Permission.SEND_MESSAGES } }] },
+        { userId: 'admin', roles: [{ roleId: 'admin-role', role: { permissions: Permission.ADMINISTRATOR } }] }
+      ])
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([
+        { roleId: 'everyone', allow: 0n, deny: Permission.VIEW_CHANNEL },
+        { roleId: 'allow', allow: Permission.VIEW_CHANNEL, deny: 0n }
+      ])
+      const permissions = await service.getChannelPermissionsForUsers(
+        serverId, 'ch-1', [ownerId, 'regular', 'allowed', 'admin', 'removed', 'regular']
+      )
+      expect(permissions.size).toBe(4)
+      expect(permissions.get(ownerId)).toBe(DEFAULT_OWNER_PERMISSIONS)
+      expect(permissions.get('admin')).toBe(DEFAULT_OWNER_PERMISSIONS)
+      expect(permissions.get('regular')).toBe(0n)
+      expect(permissions.get('allowed')).toBe(Permission.VIEW_CHANNEL | Permission.SEND_MESSAGES)
+      expect(permissions.has('removed')).toBe(false)
+    })
+
+    it('does not query for an empty list and reports a missing server explicitly', async () => {
+      expect(await service.getChannelPermissionsForUsers(serverId, 'ch-1', [])).toEqual(new Map())
+      expect(prisma.server.findUnique).not.toHaveBeenCalled()
+      prisma.server.findUnique.mockResolvedValue(null)
+      prisma.serverMember.findMany.mockResolvedValue([])
+      prisma.role.findFirst.mockResolvedValue(null)
+      await expect(service.getChannelPermissionsForUsers(serverId, 'ch-1', ['u1']))
+        .rejects.toBeInstanceOf(NotFoundException)
+    })
+  })
+
   describe('getAllChannelPermissions', () => {
     beforeEach(() => {
       prisma.server.findUnique.mockResolvedValue({ ownerId: 'other' })

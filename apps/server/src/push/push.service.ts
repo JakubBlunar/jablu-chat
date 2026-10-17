@@ -8,6 +8,9 @@ import { filterUserIdsForWebPush } from './push-user-allow'
 const PUSH_QUEUE_KEY = 'push:queue'
 const MAX_RETRIES = 3
 const POLL_TIMEOUT_S = 5
+const PUSH_JOB_BATCH_SIZE = 100
+const PUSH_CONCURRENCY = 20
+const PUSH_TIMEOUT_MS = 10_000
 
 /** How long a push service should keep retrying an undelivered message. */
 const PUSH_TTL_S = 60 * 60
@@ -31,6 +34,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private enabled = false
   private running = false
   private workerClient: import('ioredis').default | null = null
+  private activeRequests = 0
+  private readonly waitingRequests: (() => void)[] = []
 
   constructor(
     private readonly prisma: PrismaService,
@@ -113,12 +118,30 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private async enqueue(userIds: string[], payload: PushPayload) {
     if (!this.enabled || userIds.length === 0) return
     if (payload.expiresAt !== undefined && payload.expiresAt <= Date.now()) return
-    const job: PushJob = { userIds, payload, attempt: 0 }
+    const jobs: PushJob[] = []
+    for (let i = 0; i < userIds.length; i += PUSH_JOB_BATCH_SIZE) {
+      jobs.push({ userIds: userIds.slice(i, i + PUSH_JOB_BATCH_SIZE), payload, attempt: 0 })
+    }
     try {
-      await this.redis.client.rpush(PUSH_QUEUE_KEY, JSON.stringify(job))
+      await this.redis.client.rpush(PUSH_QUEUE_KEY, ...jobs.map((job) => JSON.stringify(job)))
     } catch (err) {
       this.logger.warn('Failed to enqueue push job, sending inline', err)
-      await this.processJob(job)
+      for (const job of jobs) await this.processJob(job)
+    }
+  }
+
+  private async withPushSlot(send: () => Promise<void>): Promise<void> {
+    if (this.activeRequests >= PUSH_CONCURRENCY) {
+      await new Promise<void>((resolve) => this.waitingRequests.push(resolve))
+    } else {
+      this.activeRequests++
+    }
+    try {
+      await send()
+    } finally {
+      const next = this.waitingRequests.shift()
+      if (next) next()
+      else this.activeRequests--
     }
   }
 
@@ -172,35 +195,41 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       let sent = 0
       let failed = 0
 
-      await Promise.all(
-        subs.map(async (sub) => {
-          const ttl =
-            job.payload.expiresAt === undefined
-              ? PUSH_TTL_S
-              : Math.min(PUSH_TTL_S, Math.floor((job.payload.expiresAt - Date.now()) / 1000))
-          if (ttl <= 0) return
-          try {
-            await webPush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              jsonPayload,
-              {
-                TTL: ttl,
-                // Without high urgency FCM batches the message until the phone next
-                // wakes on its own, which can be many minutes on a locked device.
-                urgency: 'high'
+      let nextSub = 0
+      const sendNext = async () => {
+        while (nextSub < subs.length) {
+          const sub = subs[nextSub++]
+          await this.withPushSlot(async () => {
+            const ttl =
+              job.payload.expiresAt === undefined
+                ? PUSH_TTL_S
+                : Math.min(PUSH_TTL_S, Math.floor((job.payload.expiresAt - Date.now()) / 1000))
+            if (ttl <= 0) return
+            try {
+              await webPush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                jsonPayload,
+                {
+                  TTL: ttl,
+                  // Without high urgency FCM batches the message until the phone next
+                  // wakes on its own, which can be many minutes on a locked device.
+                  urgency: 'high',
+                  timeout: PUSH_TIMEOUT_MS
+                }
+              )
+              sent++
+            } catch (err: any) {
+              if (err?.statusCode === 410 || err?.statusCode === 404) {
+                stale.push(sub.id)
+              } else {
+                failed++
+                this.logger.debug(`Push send failed (${err?.statusCode ?? 'no status'}) for ${sub.endpoint.slice(0, 60)}`)
               }
-            )
-            sent++
-          } catch (err: any) {
-            if (err?.statusCode === 410 || err?.statusCode === 404) {
-              stale.push(sub.id)
-            } else {
-              failed++
-              this.logger.debug(`Push send failed (${err?.statusCode ?? 'no status'}) for ${sub.endpoint.slice(0, 60)}`)
             }
-          }
-        })
-      )
+          })
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(PUSH_CONCURRENCY, subs.length) }, sendNext))
 
       this.logger.debug(
         `Push "${job.payload.title}": ${sent} sent, ${failed} failed, ${stale.length} stale ` +

@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 
 export const IN_APP_NOTIFICATION_CAP_DEFAULT = 500
 
-/** Recipients per transaction in `record`. Keeps instance-wide broadcasts bounded. */
+/** Recipients per transaction for every notification kind. */
 const RECORD_BATCH_SIZE = 100
 export const IN_APP_NOTIFICATION_USERS_EVENT = 'in_app_notification:users' as const
 
@@ -82,57 +82,103 @@ export class InAppNotificationsService {
     }
   }
 
-  private async effectiveChannelPref(
-    userId: string,
+  private async effectiveChannelPrefs(
+    userIds: string[],
     channelId: string
-  ): Promise<'all' | 'mentions' | 'none'> {
+  ): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(userIds)]
+    if (uniqueIds.length === 0) return new Map()
     const ch = await this.prisma.channel.findUnique({
       where: { id: channelId },
       select: { serverId: true }
     })
-    if (!ch) return 'none'
-    const [pref, member] = await Promise.all([
-      this.prisma.channelNotifPref.findUnique({
-        where: { userId_channelId: { userId, channelId } }
+    if (!ch) return new Map(uniqueIds.map((id) => [id, 'none']))
+    const [prefs, members] = await Promise.all([
+      this.prisma.channelNotifPref.findMany({
+        where: { channelId, userId: { in: uniqueIds } },
+        select: { userId: true, level: true }
       }),
-      this.prisma.serverMember.findUnique({
-        where: { userId_serverId: { userId, serverId: ch.serverId } }
+      this.prisma.serverMember.findMany({
+        where: { serverId: ch.serverId, userId: { in: uniqueIds } },
+        select: { userId: true, notifLevel: true }
       })
     ])
-    return (pref?.level ?? member?.notifLevel ?? 'all') as 'all' | 'mentions' | 'none'
+    const channelPrefs = new Map(prefs.map((pref) => [pref.userId, pref.level]))
+    const serverPrefs = new Map(members.map((member) => [member.userId, member.notifLevel]))
+    return new Map(uniqueIds.map((id) => [id, channelPrefs.get(id) ?? serverPrefs.get(id) ?? 'all']))
   }
 
-  private async applyTtlAndCap(tx: Prisma.TransactionClient, userId: string) {
+  private async applyTtlAndCap(tx: Prisma.TransactionClient, userIds: string[]) {
     if (this.ttlMs > 0) {
-      await tx.inAppNotification.deleteMany({
-        where: { userId, createdAt: { lt: new Date(Date.now() - this.ttlMs) } }
-      })
+      await tx.$executeRaw`
+        DELETE FROM in_app_notifications
+        WHERE user_id = ANY(${userIds}::text[])
+          AND created_at < ${new Date(Date.now() - this.ttlMs)}
+      `
     }
-    let count = await tx.inAppNotification.count({ where: { userId } })
-    let excess = count - this.cap
-    while (excess > 0) {
-      const readRows = await tx.inAppNotification.findMany({
-        where: { userId, readAt: { not: null } },
-        orderBy: { readAt: 'asc' },
-        select: { id: true },
-        take: excess
+    await tx.$executeRaw`
+      WITH overflowing AS (
+        SELECT user_id, COUNT(*) - ${this.cap} AS excess
+        FROM in_app_notifications
+        WHERE user_id = ANY(${userIds}::text[])
+        GROUP BY user_id
+        HAVING COUNT(*) > ${this.cap}
+      ), ranked AS (
+        SELECT n.id, o.excess, ROW_NUMBER() OVER (
+          PARTITION BY n.user_id
+          ORDER BY (n.read_at IS NULL), n.read_at ASC NULLS LAST, n.created_at ASC, n.id
+        ) AS removal_order
+        FROM in_app_notifications n
+        JOIN overflowing o ON o.user_id = n.user_id
+      )
+      DELETE FROM in_app_notifications
+      WHERE id IN (SELECT id FROM ranked WHERE removal_order <= excess)
+    `
+  }
+
+  private async writeNotifications(
+    userIds: string[],
+    input: {
+      kind: InAppNotificationKind
+      dedupeKey?: string
+      payload: Prisma.InputJsonValue
+      countMode?: 'unread' | 'all'
+      preserveRead?: boolean
+    }
+  ): Promise<void> {
+    const targets = [...new Set(userIds)]
+    const payload = JSON.stringify(input.payload)
+    const updatedPayload = input.countMode
+      ? Prisma.sql`EXCLUDED.payload || jsonb_build_object('count', (
+          CASE
+            WHEN ${input.countMode === 'unread'} AND notification.read_at IS NOT NULL THEN 0
+            WHEN jsonb_typeof(notification.payload->'count') = 'number'
+              THEN (notification.payload->>'count')::numeric
+            ELSE 0
+          END
+        ) + 1)`
+      : Prisma.sql`EXCLUDED.payload`
+
+    for (let i = 0; i < targets.length; i += RECORD_BATCH_SIZE) {
+      const batch = targets.slice(i, i + RECORD_BATCH_SIZE)
+      const now = new Date()
+      await this.prisma.$transaction(async (tx) => {
+        // A consistent recipient order also gives overlapping fan-outs the same lock order.
+        await tx.$executeRaw`
+          INSERT INTO in_app_notifications AS notification
+            (id, user_id, kind, dedupe_key, payload, created_at, updated_at)
+          SELECT gen_random_uuid()::text, user_id, ${input.kind}::"InAppNotificationKind",
+            ${input.dedupeKey ?? null}, ${payload}::jsonb, ${now}, ${now}
+          FROM unnest(${batch}::text[]) AS recipients(user_id)
+          ORDER BY user_id
+          ON CONFLICT (user_id, dedupe_key) DO UPDATE
+          SET payload = ${updatedPayload},
+            read_at = ${input.preserveRead ? Prisma.sql`notification.read_at` : Prisma.sql`NULL`},
+            updated_at = EXCLUDED.updated_at
+        `
+        await this.applyTtlAndCap(tx, batch)
       })
-      let ids = readRows.map((r) => r.id)
-      const need = excess - ids.length
-      if (need > 0) {
-        const unread = await tx.inAppNotification.findMany({
-          where: { userId, readAt: null },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true },
-          take: need
-        })
-        ids = [...ids, ...unread.map((r) => r.id)]
-      }
-      if (ids.length === 0) break
-      await tx.inAppNotification.deleteMany({ where: { id: { in: ids } } })
-      count = await tx.inAppNotification.count({ where: { userId } })
-      excess = count - this.cap
-      if (ids.length < excess) break
+      this.emitUsers(batch)
     }
   }
 
@@ -149,12 +195,8 @@ export class InAppNotificationsService {
       snippet: string
     }
   ): Promise<void> {
-    const targets: string[] = []
-    for (const uid of userIds) {
-      const pref = await this.effectiveChannelPref(uid, input.channelId)
-      if (pref === 'none') continue
-      targets.push(uid)
-    }
+    const prefs = await this.effectiveChannelPrefs(userIds, input.channelId)
+    const targets = [...prefs.keys()].filter((id) => prefs.get(id) !== 'none')
     if (targets.length === 0) return
 
     const dedupeKey = `mention:${input.messageId}`
@@ -168,23 +210,12 @@ export class InAppNotificationsService {
       snippet: input.snippet
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const userId of targets) {
-        await tx.inAppNotification.upsert({
-          where: { userId_dedupeKey: { userId, dedupeKey } },
-          create: {
-            userId,
-            kind: InAppNotificationKind.mention,
-            dedupeKey,
-            payload
-          },
-          update: { payload }
-        })
-        await this.applyTtlAndCap(tx, userId)
-      }
+    await this.writeNotifications(targets, {
+      kind: InAppNotificationKind.mention,
+      dedupeKey,
+      payload,
+      preserveRead: true
     })
-
-    this.emitUsers(targets)
   }
 
   /**
@@ -206,56 +237,18 @@ export class InAppNotificationsService {
   ): Promise<void> {
     if (recipientIds.length === 0) return
 
-    const targets: string[] = []
-    for (const uid of recipientIds) {
-      const pref = await this.effectiveChannelPref(uid, input.channelId)
-      if (pref !== 'all') continue
-      targets.push(uid)
-    }
+    const prefs = await this.effectiveChannelPrefs(recipientIds, input.channelId)
+    const targets = [...prefs.keys()].filter((id) => prefs.get(id) === 'all')
     if (targets.length === 0) return
 
     const dedupeKey = `channel:${input.channelId}`
 
-    await this.prisma.$transaction(async (tx) => {
-      for (const userId of targets) {
-        const existing = await tx.inAppNotification.findUnique({
-          where: { userId_dedupeKey: { userId, dedupeKey } }
-        })
-        const prev = (existing?.payload as Record<string, unknown> | null) ?? {}
-        const prevCount =
-          existing && existing.readAt === null && typeof prev.count === 'number' ? prev.count : 0
-        const nextPayload: Prisma.InputJsonValue = {
-          serverId: input.serverId,
-          channelId: input.channelId,
-          channelName: input.channelName,
-          messageId: input.messageId,
-          authorName: input.authorName,
-          snippet: input.snippet,
-          count: prevCount + 1
-        }
-        await tx.inAppNotification.upsert({
-          where: { userId_dedupeKey: { userId, dedupeKey } },
-          create: {
-            userId,
-            kind: InAppNotificationKind.channel_message,
-            dedupeKey,
-            payload: {
-              serverId: input.serverId,
-              channelId: input.channelId,
-              channelName: input.channelName,
-              messageId: input.messageId,
-              authorName: input.authorName,
-              snippet: input.snippet,
-              count: 1
-            }
-          },
-          update: { payload: nextPayload, readAt: null }
-        })
-        await this.applyTtlAndCap(tx, userId)
-      }
+    await this.writeNotifications(targets, {
+      kind: InAppNotificationKind.channel_message,
+      dedupeKey,
+      payload: { ...input, count: 1 },
+      countMode: 'unread'
     })
-
-    this.emitUsers(targets)
   }
 
   /**
@@ -344,47 +337,12 @@ export class InAppNotificationsService {
     }
   ): Promise<void> {
     if (recipientIds.length === 0) return
-    const dedupeKey = `dm:${input.conversationId}`
-
-    await this.prisma.$transaction(async (tx) => {
-      for (const userId of recipientIds) {
-        const existing = await tx.inAppNotification.findUnique({
-          where: { userId_dedupeKey: { userId, dedupeKey } }
-        })
-        const prev = (existing?.payload as Record<string, unknown> | null) ?? {}
-        // Restart the count once the row has been read, matching
-        // `recordChannelMessage`. Accumulating across the read boundary made the
-        // bell claim "12 new messages" for a conversation with one unread.
-        const prevCount =
-          existing && existing.readAt === null && typeof prev.count === 'number' ? prev.count : 0
-        const nextPayload: Prisma.InputJsonValue = {
-          conversationId: input.conversationId,
-          messageId: input.messageId,
-          authorName: input.authorName,
-          snippet: input.snippet,
-          count: prevCount + 1
-        }
-        await tx.inAppNotification.upsert({
-          where: { userId_dedupeKey: { userId, dedupeKey } },
-          create: {
-            userId,
-            kind: InAppNotificationKind.dm_message,
-            dedupeKey,
-            payload: {
-              conversationId: input.conversationId,
-              messageId: input.messageId,
-              authorName: input.authorName,
-              snippet: input.snippet,
-              count: 1
-            }
-          },
-          update: { payload: nextPayload, readAt: null }
-        })
-        await this.applyTtlAndCap(tx, userId)
-      }
+    await this.writeNotifications(recipientIds, {
+      kind: InAppNotificationKind.dm_message,
+      dedupeKey: `dm:${input.conversationId}`,
+      payload: { ...input, count: 1 },
+      countMode: 'unread'
     })
-
-    this.emitUsers(recipientIds)
   }
 
   /** Thread participants (excludes sender). Skips users with channel muted. */
@@ -400,57 +358,16 @@ export class InAppNotificationsService {
       snippet: string
     }
   ): Promise<void> {
-    const targets: string[] = []
-    for (const uid of participantIds) {
-      const pref = await this.effectiveChannelPref(uid, input.channelId)
-      if (pref === 'none') continue
-      targets.push(uid)
-    }
+    const prefs = await this.effectiveChannelPrefs(participantIds, input.channelId)
+    const targets = [...prefs.keys()].filter((id) => prefs.get(id) !== 'none')
     if (targets.length === 0) return
 
-    const dedupeKey = `thread:${input.threadParentId}`
-
-    await this.prisma.$transaction(async (tx) => {
-      for (const userId of targets) {
-        const existing = await tx.inAppNotification.findUnique({
-          where: { userId_dedupeKey: { userId, dedupeKey } }
-        })
-        const prev = (existing?.payload as Record<string, unknown> | null) ?? {}
-        const prevCount = typeof prev.count === 'number' ? prev.count : 0
-        const nextPayload: Prisma.InputJsonValue = {
-          serverId: input.serverId,
-          channelId: input.channelId,
-          channelName: input.channelName,
-          threadParentId: input.threadParentId,
-          messageId: input.messageId,
-          authorName: input.authorName,
-          snippet: input.snippet,
-          count: prevCount + 1
-        }
-        await tx.inAppNotification.upsert({
-          where: { userId_dedupeKey: { userId, dedupeKey } },
-          create: {
-            userId,
-            kind: InAppNotificationKind.thread_reply,
-            dedupeKey,
-            payload: {
-              serverId: input.serverId,
-              channelId: input.channelId,
-              channelName: input.channelName,
-              threadParentId: input.threadParentId,
-              messageId: input.messageId,
-              authorName: input.authorName,
-              snippet: input.snippet,
-              count: 1
-            }
-          },
-          update: { payload: nextPayload, readAt: null }
-        })
-        await this.applyTtlAndCap(tx, userId)
-      }
+    await this.writeNotifications(targets, {
+      kind: InAppNotificationKind.thread_reply,
+      dedupeKey: `thread:${input.threadParentId}`,
+      payload: { ...input, count: 1 },
+      countMode: 'all'
     })
-
-    this.emitUsers(targets)
   }
 
   async list(userId: string, limit = 40, cursor?: string) {
@@ -555,33 +472,10 @@ export class InAppNotificationsService {
       payload: Record<string, unknown>
     }
   ): Promise<void> {
-    const targets = [...new Set(userIds)]
-    if (targets.length === 0) return
-    const payload = input.payload as Prisma.InputJsonValue
-
-    // Chunked because an admin announcement targets every user on the instance,
-    // and each one costs an upsert plus the cap's count query. One transaction
-    // spanning all of them would hold locks long enough to time out.
-    for (let i = 0; i < targets.length; i += RECORD_BATCH_SIZE) {
-      const batch = targets.slice(i, i + RECORD_BATCH_SIZE)
-      await this.prisma.$transaction(async (tx) => {
-        for (const userId of batch) {
-          if (input.dedupeKey) {
-            await tx.inAppNotification.upsert({
-              where: { userId_dedupeKey: { userId, dedupeKey: input.dedupeKey } },
-              create: { userId, kind: input.kind, dedupeKey: input.dedupeKey, payload },
-              update: { payload, readAt: null }
-            })
-          } else {
-            await tx.inAppNotification.create({
-              data: { userId, kind: input.kind, payload }
-            })
-          }
-          await this.applyTtlAndCap(tx, userId)
-        }
-      })
-    }
-
-    this.emitUsers(targets)
+    await this.writeNotifications(userIds, {
+      ...input,
+      dedupeKey: input.dedupeKey || undefined,
+      payload: input.payload as Prisma.InputJsonValue
+    })
   }
 }

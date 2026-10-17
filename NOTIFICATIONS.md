@@ -142,7 +142,7 @@ messages with no mentions, no bell row and no push.
 
 Coalescing works through `dedupeKey`: a second message in the same channel
 updates the existing row and bumps its count rather than adding another. The
-count restarts once the row is read, so the bell never claims "12 new messages"
+channel and DM counts restart once the row is read, so the bell never claims "12 new messages"
 for a conversation with one unread.
 
 `role_changed` and `level_up` are bell-only by design — worth noticing next time
@@ -257,7 +257,7 @@ reading its conversation uses the automatic acknowledgement described above.
 ## Preferences
 
 Per-channel and per-server notification levels (`all` / `mentions` / `none`)
-resolve in `effectiveChannelPref`: the channel-level override wins, falling back
+resolve in `effectiveChannelPrefs`: the channel-level override wins, falling back
 to the server member's `notifLevel`, defaulting to `all`.
 
 A reply is delivered like a mention, so a "mentions only" channel still notifies
@@ -267,6 +267,59 @@ Quiet hours and suppress-all apply to push only, in
 `filterUserIdsForWebPush`. They never suppress the in-app row — muting your phone
 should not erase your history. The test notification endpoint bypasses both, so
 troubleshooting works during quiet hours.
+
+## Fan-out and resource limits
+
+Large groups cost work even when most members are offline: the bell still needs
+durable records for eligible recipients. The delivery paths avoid a database
+round-trip per member:
+
+- Channel permissions are loaded for a set of users at once, preserving owner
+  and administrator bypass, the default role, combined channel overrides and
+  exclusion of removed members. No persistent permission cache is introduced.
+- Bell-notification preferences are resolved with one channel lookup and batched
+  channel/server preference lookups, rather than querying each recipient.
+- Every notification kind writes in transactions of at most 100 recipients.
+  Each transaction uses one bulk upsert and one retention statement, plus one
+  TTL deletion when TTL is enabled. Retention still removes read records first,
+  then the oldest unread records. A committed batch immediately emits its socket
+  refresh, even if a later batch fails.
+- Coalesced counters increment in the database's conflict update, so concurrent
+  messages cannot overwrite each other's count. Channel and DM counts still
+  reset after reading; mention retries preserve their existing read state.
+- Channel and DM mention counters each use a single bulk, atomic increment.
+  Existing read receipts are preserved.
+- Push jobs contain at most 100 users. A process-wide limit permits at most 20
+  outgoing push requests, including concurrent inline fallbacks when Redis is
+  unavailable. Each request has a 10-second network timeout; call pushes still
+  expire with the ringing deadline.
+
+For example, the durable-write stage for 5,000 recipients uses 50 bounded
+transactions and 100 SQL statements with TTL disabled, instead of thousands of
+individual reads and writes. It still does work proportional to recipient count;
+this is not a claim that 5,000 concurrent active users have been load-tested.
+
+No schema migration, new dependency or deployment service is required. The Redis
+push consumer still runs inside the API process: a queue and concurrency limits
+reduce bursts, but do not isolate CPU, database or memory usage. Moving delivery
+to separate workers and measuring real API/socket latency under sustained load
+remain the next steps for substantially larger installations.
+
+### PostgreSQL regression tests
+
+The normal unit suite checks batching at 5,000 recipients and the push concurrency
+limit. An additional integration suite exercises the actual SQL, concurrent
+coalescing, read boundaries, preference/permission behavior, TTL and retention.
+
+Use an **isolated, migrated PostgreSQL test database**, never a production
+database. The suite creates and removes 5,000 uniquely named test users and their
+associated fixtures. It is skipped unless `NOTIFICATION_TEST_DATABASE_URL` is set.
+
+```powershell
+$env:NOTIFICATION_TEST_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/jablu_notification_test'
+pnpm --filter @chat/server test --runInBand --runTestsByPath src\in-app-notifications\notification-fanout.integration.spec.ts
+Remove-Item Env:\NOTIFICATION_TEST_DATABASE_URL
+```
 
 ## Troubleshooting
 

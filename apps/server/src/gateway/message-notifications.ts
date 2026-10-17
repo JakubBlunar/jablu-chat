@@ -128,18 +128,12 @@ export async function deliverChannelMessage(
       mentionEveryone = result.everyone
       mentionHere = result.here
 
-      const filtered: string[] = []
-      for (const uid of result.userIds) {
-        try {
-          const perms = await ctx.roles.getChannelPermissions(serverId, channelId, uid)
-          if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
-            filtered.push(uid)
-          }
-        } catch {
-          // member removed mid-send; skip
-        }
-      }
-      mentionedUserIds = filtered
+      const permissions = await ctx.roles.getChannelPermissionsForUsers(
+        serverId, channelId, result.userIds
+      )
+      mentionedUserIds = result.userIds.filter((uid) =>
+        hasPermission(permissions.get(uid) ?? 0n, Permission.VIEW_CHANNEL)
+      )
 
       if (mentionedUserIds.length > 0) {
         await ctx.readState.incrementMention(channelId, mentionedUserIds)
@@ -402,18 +396,10 @@ async function resolveChannelRecipients(
   })
   const mentionSet = new Set(mentionedUserIds)
   const candidateIds = members.map((m) => m.userId).filter((uid) => !mentionSet.has(uid))
-  const eligible: string[] = []
-  for (const uid of candidateIds) {
-    try {
-      const perms = await ctx.roles.getChannelPermissions(serverId, channelId, uid)
-      if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
-        eligible.push(uid)
-      }
-    } catch {
-      // member removed; skip
-    }
-  }
-  return eligible
+  const permissions = await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, candidateIds)
+  return candidateIds.filter((uid) =>
+    hasPermission(permissions.get(uid) ?? 0n, Permission.VIEW_CHANNEL)
+  )
 }
 
 export type DeliverDmMessageParams = {

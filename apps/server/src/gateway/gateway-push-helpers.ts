@@ -57,10 +57,11 @@ export async function getChannelNotifPrefs(
   })
   const map = new Map<string, string>()
   if (prefs.length > 0) {
+    const userIdSet = new Set(userIds)
     const hash: Record<string, string> = {}
     for (const p of prefs) {
       hash[p.userId] = p.level
-      if (userIds.includes(p.userId)) map.set(p.userId, p.level)
+      if (userIdSet.has(p.userId)) map.set(p.userId, p.level)
     }
     try {
       await ctx.redis.client.hmset(cacheKey, hash)
@@ -82,28 +83,8 @@ export async function getChannelNotifPrefs(
  *   - "mentions"       → push only if user was @mentioned
  *   - "none"           → skip
  *
- * Current cost per message: 2 indexed DB queries (serverMember + channelNotifPref)
- * plus one web-push HTTP call per eligible subscription.
- *
- * --- Possible future improvements ---
- *
- * 1. Redis pref cache: store prefs in Redis (hash per channel or per user),
- *    invalidate on PUT/DELETE in NotifPrefsController. Eliminates the
- *    channelNotifPref DB query and reduces latency to a single Redis HMGET.
- *
- * 2. Bull/BullMQ job queue: instead of doing web-push calls inline,
- *    enqueue a "send-push" job. A dedicated worker processes the queue,
- *    retries on transient failures, and keeps the gateway event loop free.
- *    Pairs well with Redis since Bull already requires it.
- *
- * 3. Batch DB query: combine the serverMember + channelNotifPref lookups
- *    into a single raw SQL join to halve the DB round-trips.
- *
- * 4. User-level DND / quiet hours: enforced in PushService.sendToUsers (filters
- *    recipients by User.pushSuppressAll and push quiet-hour window + timezone).
- *
- * At current scale (<20 concurrent users) the indexed queries are
- * sub-millisecond and the simple approach is appropriate.
+ * Membership, preferences and permissions are resolved in batches. PushService
+ * queues transport in Redis and applies push-only suppression and quiet hours.
  */
 export async function sendPushToOfflineMembers(
   ctx: PushContext,
@@ -145,15 +126,10 @@ export async function sendPushToOfflineMembers(
 
   if (prefFilteredIds.length === 0) return
 
-  const eligibleIds: string[] = []
-  for (const id of prefFilteredIds) {
-    try {
-      const perms = await ctx.roles.getChannelPermissions(serverId, channelId, id)
-      if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
-        eligibleIds.push(id)
-      }
-    } catch { /* member removed, skip */ }
-  }
+  const permissions = await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, prefFilteredIds)
+  const eligibleIds = prefFilteredIds.filter((id) =>
+    hasPermission(permissions.get(id) ?? 0n, Permission.VIEW_CHANNEL)
+  )
 
   if (eligibleIds.length === 0) return
 
@@ -227,15 +203,10 @@ export async function sendPushToThreadParticipants(
 
   if (prefFilteredIds.length === 0) return
 
-  const eligibleIds: string[] = []
-  for (const id of prefFilteredIds) {
-    try {
-      const perms = await ctx.roles.getChannelPermissions(serverId, channelId, id)
-      if (hasPermission(perms, Permission.VIEW_CHANNEL)) {
-        eligibleIds.push(id)
-      }
-    } catch { /* member removed, skip */ }
-  }
+  const permissions = await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, prefFilteredIds)
+  const eligibleIds = prefFilteredIds.filter((id) =>
+    hasPermission(permissions.get(id) ?? 0n, Permission.VIEW_CHANNEL)
+  )
 
   if (eligibleIds.length === 0) return
 

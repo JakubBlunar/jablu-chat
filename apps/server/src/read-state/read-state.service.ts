@@ -163,38 +163,28 @@ export class ReadStateService {
 
   async incrementMention(channelId: string, userIds: string[]) {
     if (userIds.length === 0) return
-    await Promise.all(
-      userIds.map((userId) =>
-        this.prisma.channelReadState.upsert({
-          where: { userId_channelId: { userId, channelId } },
-          update: { mentionCount: { increment: 1 } },
-          create: {
-            userId,
-            channelId,
-            lastReadAt: new Date(0),
-            mentionCount: 1
-          }
-        })
-      )
-    )
+    const uniqueIds = [...new Set(userIds)]
+    await this.prisma.$executeRaw`
+      INSERT INTO channel_read_states (user_id, channel_id, last_read_at, mention_count)
+      SELECT user_id, ${channelId}, ${new Date(0)}, 1
+      FROM unnest(${uniqueIds}::text[]) AS recipients(user_id)
+      ORDER BY user_id
+      ON CONFLICT (user_id, channel_id) DO UPDATE
+        SET mention_count = channel_read_states.mention_count + 1
+    `
   }
 
   async incrementDmMention(conversationId: string, userIds: string[]) {
     if (userIds.length === 0) return
-    await Promise.all(
-      userIds.map((userId) =>
-        this.prisma.dmReadState.upsert({
-          where: { userId_conversationId: { userId, conversationId } },
-          update: { mentionCount: { increment: 1 } },
-          create: {
-            userId,
-            conversationId,
-            lastReadAt: new Date(0),
-            mentionCount: 1
-          }
-        })
-      )
-    )
+    const uniqueIds = [...new Set(userIds)]
+    await this.prisma.$executeRaw`
+      INSERT INTO dm_read_states (user_id, conversation_id, last_read_at, mention_count)
+      SELECT user_id, ${conversationId}, ${new Date(0)}, 1
+      FROM unnest(${uniqueIds}::text[]) AS recipients(user_id)
+      ORDER BY user_id
+      ON CONFLICT (user_id, conversation_id) DO UPDATE
+        SET mention_count = dm_read_states.mention_count + 1
+    `
   }
 
   /**

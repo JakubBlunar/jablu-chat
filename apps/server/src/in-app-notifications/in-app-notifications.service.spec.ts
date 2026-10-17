@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { NotFoundException } from '@nestjs/common'
-import { InAppNotificationKind } from '../prisma-client'
+import { InAppNotificationKind, Prisma } from '../prisma-client'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import {
@@ -14,8 +14,8 @@ describe('InAppNotificationsService', () => {
   let service: InAppNotificationsService
   let prisma: {
     channel: { findUnique: jest.Mock }
-    channelNotifPref: { findUnique: jest.Mock }
-    serverMember: { findUnique: jest.Mock }
+    channelNotifPref: { findMany: jest.Mock }
+    serverMember: { findMany: jest.Mock }
     inAppNotification: {
       upsert: jest.Mock
       findUnique: jest.Mock
@@ -27,6 +27,7 @@ describe('InAppNotificationsService', () => {
       updateMany: jest.Mock
     }
     $transaction: jest.Mock
+    $executeRaw: jest.Mock
   }
   let events: { emit: jest.Mock }
 
@@ -35,9 +36,9 @@ describe('InAppNotificationsService', () => {
     process.env.IN_APP_NOTIFICATION_TTL_DAYS = '0'
 
     prisma = {
-      channel: { findUnique: jest.fn() },
-      channelNotifPref: { findUnique: jest.fn() },
-      serverMember: { findUnique: jest.fn() },
+      channel: { findUnique: jest.fn().mockResolvedValue({ serverId: 's1' }) },
+      channelNotifPref: { findMany: jest.fn().mockResolvedValue([]) },
+      serverMember: { findMany: jest.fn().mockResolvedValue([]) },
       inAppNotification: {
         upsert: jest.fn(),
         findUnique: jest.fn(),
@@ -48,8 +49,10 @@ describe('InAppNotificationsService', () => {
         update: jest.fn(),
         updateMany: jest.fn()
       },
-      $transaction: jest.fn()
+      $transaction: jest.fn(),
+      $executeRaw: jest.fn().mockResolvedValue(1)
     }
+    prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<void>) => fn(prisma))
     events = { emit: jest.fn() }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -63,21 +66,13 @@ describe('InAppNotificationsService', () => {
     service = module.get(InAppNotificationsService)
   })
 
+  function executedQuery(index = 0) {
+    const [strings, ...values] = prisma.$executeRaw.mock.calls[index]
+    return Prisma.sql(strings, ...values)
+  }
+
   it('skips muted users for mentions', async () => {
-    prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
-    prisma.channelNotifPref.findUnique.mockResolvedValue({ level: 'none' })
-    prisma.serverMember.findUnique.mockResolvedValue(null)
-    prisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-      await fn({
-        inAppNotification: {
-          upsert: jest.fn(),
-          findUnique: jest.fn(),
-          findMany: jest.fn(),
-          count: jest.fn().mockResolvedValue(0),
-          deleteMany: jest.fn()
-        }
-      })
-    })
+    prisma.channelNotifPref.findMany.mockResolvedValue([{ userId: 'u1', level: 'none' }])
 
     await service.recordMentions(['u1'], {
       serverId: 's1',
@@ -88,26 +83,12 @@ describe('InAppNotificationsService', () => {
       snippet: 'hi'
     })
 
-    expect(prisma.inAppNotification.upsert).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(events.emit).not.toHaveBeenCalled()
   })
 
   it('creates mention and emits for unmuted user', async () => {
-    prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
-    prisma.channelNotifPref.findUnique.mockResolvedValue(null)
-    prisma.serverMember.findUnique.mockResolvedValue({ notifLevel: 'mentions' })
-    prisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<void>) => {
-      const tx = {
-        inAppNotification: {
-          upsert: jest.fn().mockResolvedValue({}),
-          findUnique: jest.fn(),
-          findMany: jest.fn(),
-          count: jest.fn().mockResolvedValue(1),
-          deleteMany: jest.fn()
-        }
-      }
-      await fn(tx)
-    })
+    prisma.serverMember.findMany.mockResolvedValue([{ userId: 'u1', notifLevel: 'mentions' }])
 
     await service.recordMentions(['u1'], {
       serverId: 's1',
@@ -119,23 +100,71 @@ describe('InAppNotificationsService', () => {
     })
 
     expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, { userIds: ['u1'] })
+    expect(executedQuery().text).toContain('read_at = notification.read_at')
   })
 
   it('preserves thread context in mention notification payloads', async () => {
-    prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
-    prisma.channelNotifPref.findUnique.mockResolvedValue(null)
-    prisma.serverMember.findUnique.mockResolvedValue({ notifLevel: 'mentions' })
-    prisma.inAppNotification.count.mockResolvedValue(1)
-    prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<void>) => fn(prisma))
     await service.recordMentions(['u1'], {
       serverId: 's1', channelId: 'c1', channelName: 'general',
       messageId: 'reply', threadParentId: 'parent', authorName: 'alice', snippet: 'hi'
     })
-    expect(prisma.inAppNotification.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({
-        payload: expect.objectContaining({ messageId: 'reply', threadParentId: 'parent' })
-      })
-    }))
+    expect(executedQuery().values).toContainEqual(expect.stringContaining('"threadParentId":"parent"'))
+  })
+
+  it('resolves preferences once for 5,000 recipients and uses two statements per batch', async () => {
+    const recipients = Array.from({ length: 5000 }, (_, i) => `u${i}`)
+    await service.recordChannelMessage(recipients, {
+      serverId: 's1', channelId: 'c1', channelName: 'general',
+      messageId: 'm1', authorName: 'alice', snippet: 'hi'
+    })
+
+    expect(prisma.channel.findUnique).toHaveBeenCalledTimes(1)
+    expect(prisma.channelNotifPref.findMany).toHaveBeenCalledTimes(1)
+    expect(prisma.serverMember.findMany).toHaveBeenCalledTimes(1)
+    expect(prisma.$transaction).toHaveBeenCalledTimes(50)
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(100)
+    expect(events.emit).toHaveBeenCalledTimes(50)
+    expect(executedQuery().text).toContain("notification.payload->>'count'")
+    expect(executedQuery().text).toContain('notification.read_at IS NOT NULL')
+  })
+
+  it('preserves channel-over-server preference precedence and the default all level', async () => {
+    prisma.serverMember.findMany.mockResolvedValue([
+      { userId: 'muted', notifLevel: 'none' },
+      { userId: 'override', notifLevel: 'none' },
+      { userId: 'mentions', notifLevel: 'mentions' }
+    ])
+    prisma.channelNotifPref.findMany.mockResolvedValue([{ userId: 'override', level: 'all' }])
+    await service.recordChannelMessage(['muted', 'override', 'mentions', 'default'], {
+      serverId: 's1', channelId: 'c1', channelName: 'general',
+      messageId: 'm1', authorName: 'alice', snippet: 'hi'
+    })
+    expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, {
+      userIds: ['override', 'default']
+    })
+  })
+
+  it('skips a channel removed before preference resolution', async () => {
+    prisma.channel.findUnique.mockResolvedValue(null)
+    await service.recordMentions(['u1'], {
+      serverId: 's1', channelId: 'c1', channelName: 'general',
+      messageId: 'm1', authorName: 'alice', snippet: 'hi'
+    })
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('notifies only committed batches when a later batch fails', async () => {
+    prisma.$transaction
+      .mockImplementationOnce(async (fn: (tx: typeof prisma) => Promise<void>) => fn(prisma))
+      .mockRejectedValueOnce(new Error('database unavailable'))
+    const recipients = Array.from({ length: 150 }, (_, i) => `u${i}`)
+    await expect(service.record(recipients, {
+      kind: InAppNotificationKind.announcement, payload: {}
+    })).rejects.toThrow('database unavailable')
+    expect(events.emit).toHaveBeenCalledTimes(1)
+    expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, {
+      userIds: recipients.slice(0, 100)
+    })
   })
 
   it('markRead throws when not found', async () => {
@@ -235,54 +264,27 @@ describe('InAppNotificationsService', () => {
   })
 
   describe('record', () => {
-    function stubTransaction() {
-      const tx = {
-        inAppNotification: {
-          upsert: jest.fn().mockResolvedValue({}),
-          create: jest.fn().mockResolvedValue({}),
-          findUnique: jest.fn(),
-          findMany: jest.fn(),
-          count: jest.fn().mockResolvedValue(1),
-          deleteMany: jest.fn()
-        }
-      }
-      prisma.$transaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
-        await fn(tx)
-      })
-      return tx
-    }
-
     it('upserts when given a dedupeKey so a retry updates rather than duplicates', async () => {
-      const tx = stubTransaction()
-
       await service.record(['u1'], {
         kind: InAppNotificationKind.moderation,
         dedupeKey: 'moderation:s1:ban',
         payload: { serverName: 'Jablu' }
       })
 
-      expect(tx.inAppNotification.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { userId_dedupeKey: { userId: 'u1', dedupeKey: 'moderation:s1:ban' } }
-        })
-      )
-      expect(tx.inAppNotification.create).not.toHaveBeenCalled()
+      expect(executedQuery().text).toContain('ON CONFLICT (user_id, dedupe_key) DO UPDATE')
+      expect(executedQuery().values).toContain('moderation:s1:ban')
     })
 
     it('creates a stacking row when no dedupeKey is given', async () => {
-      const tx = stubTransaction()
-
       await service.record(['u1'], {
         kind: InAppNotificationKind.announcement,
         payload: { title: 'Maintenance' }
       })
 
-      expect(tx.inAppNotification.create).toHaveBeenCalled()
-      expect(tx.inAppNotification.upsert).not.toHaveBeenCalled()
+      expect(executedQuery().values).toContain(null)
     })
 
     it('splits an instance-wide broadcast across several transactions', async () => {
-      stubTransaction()
       const targets = Array.from({ length: 250 }, (_, i) => `u${i}`)
 
       await service.record(targets, {
@@ -292,13 +294,11 @@ describe('InAppNotificationsService', () => {
 
       // 250 recipients at a batch size of 100.
       expect(prisma.$transaction).toHaveBeenCalledTimes(3)
-      expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, {
-        userIds: targets
-      })
+      expect(events.emit).toHaveBeenCalledTimes(3)
+      expect(events.emit.mock.calls.map(([, payload]) => payload.userIds).flat()).toEqual(targets)
     })
 
     it('deduplicates recipients and skips empty lists', async () => {
-      stubTransaction()
 
       await service.record(['u1', 'u1'], {
         kind: InAppNotificationKind.level_up,

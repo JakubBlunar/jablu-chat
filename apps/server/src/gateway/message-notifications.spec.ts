@@ -27,7 +27,10 @@ function makeCtx(prisma: MockPrismaService, redis: MockRedisService) {
     sendToUsers: jest.fn().mockResolvedValue(undefined)
   }
   const roles = {
-    getChannelPermissions: jest.fn().mockResolvedValue(VIEW_AND_SEND)
+    getChannelPermissions: jest.fn().mockResolvedValue(VIEW_AND_SEND),
+    getChannelPermissionsForUsers: jest.fn().mockImplementation(
+      async (_s: string, _c: string, ids: string[]) => new Map(ids.map((id) => [id, VIEW_AND_SEND]))
+    )
   }
   const linkPreviews = {
     generatePreviews: jest.fn().mockResolvedValue([])
@@ -147,6 +150,23 @@ describe('deliverChannelMessage', () => {
         messageId: 'm-1'
       })
     )
+  })
+
+  it('filters large fan-outs through batch permissions instead of per-user queries', async () => {
+    const { ctx, inApp, roles } = makeCtx(prisma, redis)
+    const ids = Array.from({ length: 5000 }, (_, i) => `u${i}`)
+    prisma.serverMember.findMany.mockResolvedValue(ids.map((userId) => ({ userId })))
+    roles.getChannelPermissionsForUsers.mockImplementation(
+      async (_s: string, _c: string, users: string[]) =>
+        new Map(users.filter((id) => id !== 'u0').map((id) => [id, VIEW_AND_SEND]))
+    )
+    await deliverChannelMessage(ctx, {
+      serverId: 'srv-1', channelId: 'ch-1', channelName: 'general',
+      message: { id: 'm1', content: 'hello' }, senderId: 'sender', skipPush: true
+    })
+    await flush()
+    expect(roles.getChannelPermissions).not.toHaveBeenCalled()
+    expect(inApp.recordChannelMessage).toHaveBeenCalledWith(ids.slice(1), expect.anything())
   })
 
   describe('replies', () => {

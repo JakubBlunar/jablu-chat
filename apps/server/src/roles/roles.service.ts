@@ -316,6 +316,65 @@ export class RolesService {
     )
   }
 
+  async getChannelPermissionsForUsers(
+    serverId: string,
+    channelId: string,
+    userIds: string[],
+  ): Promise<Map<string, bigint>> {
+    const uniqueIds = [...new Set(userIds)]
+    const result = new Map<string, bigint>()
+    if (uniqueIds.length === 0) return result
+
+    const [server, members, everyoneRole] = await Promise.all([
+      this.prisma.server.findUnique({ where: { id: serverId }, select: { ownerId: true } }),
+      this.prisma.serverMember.findMany({
+        where: { serverId, userId: { in: uniqueIds } },
+        select: {
+          userId: true,
+          roles: { select: { roleId: true, role: { select: { permissions: true } } } },
+        },
+      }),
+      this.prisma.role.findFirst({
+        where: { serverId, isDefault: true },
+        select: { id: true, permissions: true },
+      }),
+    ])
+    if (!server) throw new NotFoundException('Server not found')
+
+    const roleIds = new Set(members.flatMap((member) => member.roles.map((mr) => mr.roleId)))
+    if (everyoneRole) roleIds.add(everyoneRole.id)
+    const overrides = await this.prisma.channelPermissionOverride.findMany({
+      where: { channelId, roleId: { in: [...roleIds] } },
+      select: { roleId: true, allow: true, deny: true },
+    })
+    const overridesByRole = new Map(overrides.map((override) => [override.roleId, override]))
+    const memberByUser = new Map(members.map((member) => [member.userId, member]))
+
+    for (const userId of uniqueIds) {
+      if (userId === server.ownerId) {
+        result.set(userId, DEFAULT_OWNER_PERMISSIONS)
+        continue
+      }
+      const member = memberByUser.get(userId)
+      if (!member) continue
+      const roles = member.roles.map((mr) => ({ permissions: mr.role.permissions }))
+      if (everyoneRole) roles.push({ permissions: everyoneRole.permissions })
+      const perms = resolveMultiRolePermissions(roles)
+      if (hasPermission(perms, Permission.ADMINISTRATOR)) {
+        result.set(userId, DEFAULT_OWNER_PERMISSIONS)
+        continue
+      }
+      const memberRoleIds = new Set(member.roles.map((mr) => mr.roleId))
+      if (everyoneRole) memberRoleIds.add(everyoneRole.id)
+      const channelOverrides = [...memberRoleIds].flatMap((roleId) => {
+        const override = overridesByRole.get(roleId)
+        return override ? [override] : []
+      })
+      result.set(userId, resolveMultiRoleChannelPermissions(perms, channelOverrides))
+    }
+    return result
+  }
+
   async getAllChannelPermissions(
     serverId: string,
     userId: string,

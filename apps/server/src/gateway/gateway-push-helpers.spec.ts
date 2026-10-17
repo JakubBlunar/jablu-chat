@@ -71,7 +71,10 @@ function createMockContext(overrides: Partial<PushContext> = {}): PushContext {
       },
     } as any,
     roles: {
-      getChannelPermissions: jest.fn().mockResolvedValue(Permission.VIEW_CHANNEL),
+      getChannelPermissionsForUsers: jest.fn().mockImplementation(
+        async (_s: string, _c: string, ids: string[]) =>
+          new Map(ids.map((id) => [id, Permission.VIEW_CHANNEL]))
+      ),
     } as any,
     isUserActivelyEngaged: jest.fn().mockReturnValue(false),
     ...overrides,
@@ -135,7 +138,7 @@ describe('sendPushToOfflineMembers', () => {
     ;(ctx.prisma.serverMember.findMany as jest.Mock).mockResolvedValue([
       { userId: 'u-noperm', notifLevel: null },
     ])
-    ;(ctx.roles.getChannelPermissions as jest.Mock).mockResolvedValue(0n)
+    ;(ctx.roles.getChannelPermissionsForUsers as jest.Mock).mockResolvedValue(new Map())
 
     await sendPushToOfflineMembers(ctx, 's1', 'sender', 'Alice', 'hello', '/url', 'ch-1', [])
 

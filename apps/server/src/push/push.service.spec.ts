@@ -196,6 +196,51 @@ describe('PushService', () => {
       })
     })
 
+    it('splits a large fan-out into jobs of at most 100 recipients', async () => {
+      const ids = Array.from({ length: 5000 }, (_, i) => `u${i}`)
+      await service.sendToUsers(ids, { title: 'T', body: 'B' })
+      const key = redis.client.rpush.mock.calls[0][0]
+      const jsonJobs: string[] = redis.client.rpush.mock.calls[0].slice(1)
+      const jobs = jsonJobs.map((json: string) => JSON.parse(json) as { userIds: string[] })
+      expect(key).toBe('push:queue')
+      expect(jobs).toHaveLength(50)
+      expect(jobs.every((job) => job.userIds.length <= 100)).toBe(true)
+      expect(jobs.flatMap((job) => job.userIds)).toEqual(ids)
+    })
+
+    it('limits concurrent requests across simultaneous inline-fallback jobs', async () => {
+      redis.client.rpush.mockRejectedValue(new Error('redis down'))
+      prisma.pushSubscription.findMany.mockResolvedValue(Array.from({ length: 75 }, (_, i) => ({
+        id: `sub${i}`, userId: 'u1', endpoint: `ep${i}`, p256dh: 'p', auth: 'a'
+      })))
+      let active = 0
+      let peak = 0
+      mockWebPush.sendNotification.mockImplementation(async () => {
+        active++
+        peak = Math.max(peak, active)
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        active--
+        return {} as webPush.SendResult
+      })
+      await Promise.all([
+        service.sendToUser('u1', { title: 'A', body: 'B' }),
+        service.sendToUser('u2', { title: 'B', body: 'B' })
+      ])
+      expect(mockWebPush.sendNotification).toHaveBeenCalledTimes(150)
+      expect(peak).toBe(20)
+      expect(active).toBe(0)
+    })
+
+    it('releases concurrency slots after transport errors', async () => {
+      redis.client.rpush.mockRejectedValue(new Error('redis down'))
+      prisma.pushSubscription.findMany.mockResolvedValue(Array.from({ length: 45 }, (_, i) => ({
+        id: `sub${i}`, endpoint: `ep${i}`, p256dh: 'p', auth: 'a'
+      })))
+      mockWebPush.sendNotification.mockRejectedValue(new Error('timeout'))
+      await service.sendToUser('u1', { title: 'T', body: 'B' })
+      expect(mockWebPush.sendNotification).toHaveBeenCalledTimes(45)
+    })
+
     it('cleans up stale subscriptions on 410', async () => {
       redis.client.rpush.mockRejectedValue(new Error('redis down'))
       prisma.pushSubscription.findMany.mockResolvedValue([
@@ -241,7 +286,7 @@ describe('PushService', () => {
       expect(mockWebPush.sendNotification).toHaveBeenCalledWith(
         expect.anything(),
         JSON.stringify({ title: 'T', body: 'B' }),
-        { TTL: 3600, urgency: 'high' }
+        { TTL: 3600, urgency: 'high', timeout: 10_000 }
       )
     })
 
@@ -259,7 +304,8 @@ describe('PushService', () => {
         await service.sendToUser('u1', payload)
         expect(mockWebPush.sendNotification).toHaveBeenCalledWith(expect.anything(), JSON.stringify(payload), {
           TTL: 25,
-          urgency: 'high'
+          urgency: 'high',
+          timeout: 10_000
         })
       } finally {
         clock.mockRestore()
