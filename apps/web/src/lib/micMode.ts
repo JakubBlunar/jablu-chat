@@ -64,8 +64,10 @@ export function setVadMode(mode: VadMode) {
   useSettingsStore.getState().setVadMode(mode)
 }
 
-let vadCleanup: ((skipUnmute?: boolean) => void) | null = null
-let pttCleanup: ((skipUnmute?: boolean) => void) | null = null
+type MicCleanup = (skipUnmute?: boolean) => void | Promise<void>
+let vadCleanup: MicCleanup | null = null
+let pttCleanup: MicCleanup | null = null
+let pendingCleanup: Promise<void> | undefined
 
 export function startMicMode(mode: MicMode) {
   stopMicMode()
@@ -77,14 +79,37 @@ export function startMicMode(mode: MicMode) {
   }
 }
 
-export function stopMicMode(skipUnmute = false) {
-  vadCleanup?.(skipUnmute)
+export function stopMicMode(skipUnmute = false): void | Promise<void> {
+  const cleanups = [vadCleanup, pttCleanup]
   vadCleanup = null
-  pttCleanup?.(skipUnmute)
   pttCleanup = null
+  const pending: Promise<void>[] = pendingCleanup ? [pendingCleanup] : []
+  for (const cleanup of cleanups) {
+    try {
+      const result = cleanup?.(skipUnmute)
+      if (result) pending.push(result)
+    } catch (error) {
+      pending.push(Promise.reject(error))
+    }
+  }
+  if (!pending.length) return
+  if (!cleanups.some(Boolean)) return pendingCleanup
+  const teardown = Promise.allSettled(pending).then((results) => {
+    const errors = results.filter((result) => result.status === 'rejected').map((result) => result.reason as unknown)
+    if (errors.length) throw new AggregateError(errors, 'Microphone mode teardown failed')
+  })
+  pendingCleanup = teardown
+  void teardown.then(
+    () => { if (pendingCleanup === teardown) pendingCleanup = undefined },
+    (error: unknown) => {
+      if (pendingCleanup === teardown) pendingCleanup = undefined
+      console.error('Failed to stop microphone mode:', error)
+    }
+  )
+  return teardown
 }
 
-function startVAD(): () => void {
+function startVAD(): MicCleanup {
   const room = _getRoom()
   if (!room) return () => {}
 
@@ -180,12 +205,13 @@ function startVAD(): () => void {
     document.removeEventListener('visibilitychange', onVisibility)
     source.disconnect()
     analysisTrack.stop()
-    audioCtx.close().catch(() => {})
+    const closing = audioCtx.close()
     if (!skipUnmute) setTrackMuted(false)
+    return closing
   }
 }
 
-function startPTT(): (skipUnmute?: boolean) => void {
+function startPTT(): MicCleanup {
   const binding = getPttBinding()
 
   setTrackMuted(true)
@@ -208,8 +234,9 @@ function startPTT(): (skipUnmute?: boolean) => void {
     return (skipUnmute?: boolean) => {
       off()
       offError()
-      void api.clearPtt().catch(() => {})
+      const clearing = api.clearPtt()
       if (!skipUnmute) setTrackMuted(false)
+      return clearing
     }
   }
 

@@ -14,6 +14,7 @@ import { persist } from 'zustand/middleware'
 import { api } from '../lib/api'
 import { unsubscribeFromPush } from '../lib/notifications'
 import { useTranslationStore } from './translation.store'
+import { cleanupSession } from './sessionCleanup'
 
 export type AuthUser = User
 
@@ -39,82 +40,41 @@ function manualPresenceActive(user: AuthUser | null): boolean {
   return new Date(user.manualStatusExpiresAt) > new Date()
 }
 
-function resetAllStores() {
-  Promise.all([
-    import('./server.store'),
-    import('./channel.store'),
-    import('./member.store'),
-    import('./message.store'),
-    import('./dm.store'),
-    import('./dmCall.store'),
-    import('./readState.store'),
-    import('./notifPref.store'),
-    import('./voice.store'),
-    import('./voice-connection.store'),
-    import('./layout.store'),
-    import('./navigation.store'),
-    import('./event.store'),
-    import('./channel-permissions.store'),
-    import('./navHistory.store'),
-    import('@/lib/cache/messageCache'),
-    import('@/lib/cache/structureCache'),
-    import('@/lib/cache/persistence')
-  ]).then(
-    ([
-      { useServerStore },
-      { useChannelStore },
-      { useMemberStore },
-      { useMessageStore },
-      { useDmStore },
-      { useDmCallStore },
-      { useReadStateStore },
-      { useNotifPrefStore },
-      { useVoiceStore },
-      { useVoiceConnectionStore },
-      { useLayoutStore },
-      { useNavigationStore },
-      { useEventStore },
-      { useChannelPermissionsStore },
-      { useNavHistoryStore },
-      { clearCache },
-      { clearStructureCache },
-      { purgeCache }
-    ]) => {
-      useServerStore.setState({ servers: [], currentServerId: null, viewMode: 'server', isLoading: false })
-      useChannelStore.setState({ channels: [], categories: [], currentChannelId: null, isLoading: false, loadedServerId: null })
-      useMemberStore.setState({ members: [], onlineUserIds: new Set(), isLoading: false, loadedServerId: null })
-      useMessageStore.getState().clearMessages()
-      useDmStore.setState({
-        conversations: [],
-        currentConversationId: null,
-        messages: [],
-        hasMore: false,
-        hasNewer: false,
-        isLoading: false,
-        isConversationsLoading: false,
-        loadedForConvId: null,
-        scrollToMessageId: null,
-        scrollRequestNonce: 0
-      })
-      useReadStateStore.setState({ channels: new Map(), dms: new Map(), channelToServer: new Map() })
-      useNotifPrefStore.setState({ prefs: {}, serverPrefs: {} })
-      useVoiceStore.getState().reset()
-      useVoiceConnectionStore.getState().disconnect()
-      useDmCallStore.getState().reset()
-      useLayoutStore.setState({ navDrawerOpen: false, memberDrawerOpen: false })
-      useNavigationStore.setState({ isNavigating: false, navigatingToServerId: null, activeNavId: 0 })
-      useEventStore.getState().reset()
-      useChannelPermissionsStore.getState().clear()
+let sessionRevision = 0
+let authAttempt = 0
+let pendingCleanup: Promise<void> | undefined
 
-      // Cached messages outlive a session by design, so signing out has to
-      // take them with it. The listeners are torn down first so the clears
-      // below do not queue a write against the database being wiped.
-      void purgeCache()
-      clearCache(false)
-      clearStructureCache(false)
-      useNavHistoryStore.getState().syncUser(null)
-    }
-  )
+async function clearSession() {
+  if (pendingCleanup) return pendingCleanup
+  useAuthStore.setState({
+    user: null,
+    accessToken: null,
+    refreshToken: null,
+    isAuthenticated: false,
+    isLoading: false,
+    isManualStatus: false
+  })
+  const revision = sessionRevision
+  const cleanup = cleanupSession(() => sessionRevision === revision)
+  pendingCleanup = cleanup
+  try {
+    await cleanup
+  } finally {
+    if (pendingCleanup === cleanup) pendingCleanup = undefined
+  }
+}
+
+async function prepareSession(userId: string, attempt: number, revision?: number): Promise<boolean> {
+  // A disk purge already in progress cannot be canceled. Do not publish the
+  // next account (and start its persistence/realtime effects) until it settles.
+  await pendingCleanup
+  if (attempt !== authAttempt || (revision !== undefined && revision !== sessionRevision)) return false
+  const previousUser = useAuthStore.getState().user
+  if (previousUser && previousUser.id !== userId) {
+    await clearSession()
+    if (useAuthStore.getState().user) return false
+  }
+  return attempt === authAttempt
 }
 
 type AuthState = {
@@ -152,50 +112,59 @@ export const useAuthStore = create<AuthState>()(
       isManualStatus: false,
 
       login: async (email, password) => {
+        const attempt = ++authAttempt
         const data = await api.login(email, password)
         const u = normalizeAuthUser(data.user)
+        if (!await prepareSession(u.id, attempt)) return
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           user: u,
           isAuthenticated: true,
+          isLoading: false,
           isManualStatus: manualPresenceActive(u)
         })
       },
 
       register: async (username, email, password, inviteCode?) => {
+        const attempt = ++authAttempt
         const data = await api.register(username, email, password, inviteCode)
         const u = normalizeAuthUser(data.user)
+        if (!await prepareSession(u.id, attempt)) return
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
           user: u,
           isAuthenticated: true,
+          isLoading: false,
           isManualStatus: manualPresenceActive(u)
         })
       },
 
       logout: async () => {
+        ++authAttempt
         const rt = get().refreshToken
         const at = get().accessToken
         const cleanup = async () => {
           if (at) await unsubscribeFromPush(at).catch(() => {})
           if (rt) await api.logout(rt).catch(() => {})
         }
+        let timeout: ReturnType<typeof setTimeout> | undefined
         try {
-          await Promise.race([cleanup(), new Promise((r) => setTimeout(r, 5000))])
+          const remote = Promise.race([cleanup(), new Promise<void>((resolve) => { timeout = setTimeout(resolve, 5000) })])
+          // End the local session immediately; a slow revocation must never
+          // clear an account that signs in while the request is finishing.
+          const [sessionResult, remoteResult] = await Promise.allSettled([clearSession(), remote])
+          if (sessionResult.status === 'rejected') throw sessionResult.reason
+          if (remoteResult.status === 'rejected') throw remoteResult.reason
         } finally {
-          set({
-            user: null,
-            accessToken: null,
-            refreshToken: null,
-            isAuthenticated: false
-          })
-          resetAllStores()
+          clearTimeout(timeout)
         }
       },
 
       refreshSession: async () => {
+        const revision = sessionRevision
+        const attempt = authAttempt
         let rt = get().refreshToken
         if (!rt) {
           try {
@@ -204,8 +173,19 @@ export const useAuthStore = create<AuthState>()(
           } catch { /* ignore */ }
         }
         if (!rt) return
-        const data = await api.refreshToken(rt)
+        let data: AuthResponse
+        try {
+          data = await api.refreshToken(rt)
+        } catch (error) {
+          const status = (error as { status?: number }).status
+          if ((status === 401 || status === 403) && revision === sessionRevision && attempt === authAttempt) {
+            await clearSession()
+          }
+          throw error
+        }
+        if (revision !== sessionRevision || attempt !== authAttempt) return
         const u = normalizeAuthUser(data.user)
+        if (!await prepareSession(u.id, attempt, revision)) return
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
@@ -279,6 +259,9 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
+        const revision = sessionRevision
+        const attempt = authAttempt
+        const isCurrent = () => revision === sessionRevision && attempt === authAttempt
         let { accessToken, refreshToken } = get()
         if (!accessToken || !refreshToken) {
           try {
@@ -293,55 +276,46 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
 
         if (!accessToken || !refreshToken) {
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false
-          })
+          await clearSession()
           return
         }
 
+        let u: AuthUser
+        let refreshed: AuthResponse | undefined
         try {
           const user = await api.getProfile()
-          const u = normalizeAuthUser(user)
-          set({
-            user: u,
-            isAuthenticated: true,
-            isLoading: false,
-            isManualStatus: manualPresenceActive(u)
-          })
+          if (!isCurrent()) return
+          u = normalizeAuthUser(user)
         } catch (err: unknown) {
+          if (!isCurrent()) return
           const status = (err as { status?: number }).status
           if (status && status !== 401 && status !== 403) {
             set({ isLoading: false })
             return
           }
           try {
-            const data = await api.refreshToken(refreshToken)
-            const u = normalizeAuthUser(data.user)
-            set({
-              accessToken: data.accessToken,
-              refreshToken: data.refreshToken,
-              user: u,
-              isAuthenticated: true,
-              isLoading: false,
-              isManualStatus: manualPresenceActive(u)
-            })
+            refreshed = await api.refreshToken(refreshToken)
+            if (!isCurrent()) return
+            u = normalizeAuthUser(refreshed.user)
           } catch (refreshErr: unknown) {
+            if (!isCurrent()) return
             const rStatus = (refreshErr as { status?: number }).status
             if (rStatus === 401 || rStatus === 403) {
-              set({
-                user: null,
-                accessToken: null,
-                refreshToken: null,
-                isAuthenticated: false,
-                isLoading: false
-              })
+              await clearSession()
             } else {
               set({ isLoading: false })
             }
+            return
           }
         }
+        if (!await prepareSession(u.id, attempt, revision)) return
+        set({
+          ...(refreshed && { accessToken: refreshed.accessToken, refreshToken: refreshed.refreshToken }),
+          user: u,
+          isAuthenticated: true,
+          isLoading: false,
+          isManualStatus: manualPresenceActive(u)
+        })
       }
     }),
     {
@@ -357,5 +331,11 @@ export const useAuthStore = create<AuthState>()(
 )
 
 useAuthStore.subscribe((state, previous) => {
+  if (
+    state.user?.id !== previous.user?.id ||
+    state.accessToken !== previous.accessToken ||
+    state.refreshToken !== previous.refreshToken ||
+    state.isAuthenticated !== previous.isAuthenticated
+  ) sessionRevision++
   if (state.user?.id !== previous.user?.id) useTranslationStore.getState().reset()
 })

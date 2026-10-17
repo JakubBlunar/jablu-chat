@@ -1,5 +1,6 @@
 import type { User } from '@chat/shared'
 import { useAuthStore } from './auth.store'
+import { cleanupSession } from './sessionCleanup'
 
 jest.mock('../lib/api', () => ({
   api: {
@@ -24,29 +25,9 @@ jest.mock('../lib/notifications', () => ({
   unsubscribeFromPush: jest.fn().mockResolvedValue(undefined)
 }))
 
-const noopState = () => ({
-  setState: jest.fn(),
-  getState: () => ({
-    clearMessages: jest.fn(),
-    reset: jest.fn(),
-    disconnect: jest.fn(),
-    clear: jest.fn()
-  })
-})
-
-jest.mock('./server.store', () => ({ useServerStore: noopState() }))
-jest.mock('./channel.store', () => ({ useChannelStore: noopState() }))
-jest.mock('./member.store', () => ({ useMemberStore: noopState() }))
-jest.mock('./message.store', () => ({ useMessageStore: noopState() }))
-jest.mock('./dm.store', () => ({ useDmStore: noopState() }))
-jest.mock('./readState.store', () => ({ useReadStateStore: noopState() }))
-jest.mock('./notifPref.store', () => ({ useNotifPrefStore: noopState() }))
-jest.mock('./voice.store', () => ({ useVoiceStore: noopState() }))
-jest.mock('./voice-connection.store', () => ({ useVoiceConnectionStore: noopState() }))
-jest.mock('./layout.store', () => ({ useLayoutStore: noopState() }))
-jest.mock('./navigation.store', () => ({ useNavigationStore: noopState() }))
-jest.mock('./event.store', () => ({ useEventStore: noopState() }))
-jest.mock('./channel-permissions.store', () => ({ useChannelPermissionsStore: noopState() }))
+// Test auth's awaited boundary here; sessionCleanup.test exercises every real
+// cleanup step without loading browser realtime/media dependencies.
+jest.mock('./sessionCleanup', () => ({ cleanupSession: jest.fn() }))
 
 import { api } from '../lib/api'
 
@@ -87,10 +68,32 @@ function resetStore() {
   })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function signIn() {
+  useAuthStore.setState({
+    user: mockUser,
+    accessToken: 'at-1',
+    refreshToken: 'rt-1',
+    isAuthenticated: true,
+    isManualStatus: true
+  })
+}
+
 beforeEach(() => {
   resetStore()
   jest.clearAllMocks()
   localStorage.clear()
+  jest.mocked(cleanupSession).mockResolvedValue(undefined)
+  jest.mocked(api.logout).mockResolvedValue({ message: 'ok' })
 })
 
 describe('auth.store', () => {
@@ -129,7 +132,7 @@ describe('auth.store', () => {
   describe('logout', () => {
     it('clears auth state', async () => {
       useAuthStore.setState({
-        user: mockUser as any,
+        user: mockUser,
         accessToken: 'at-1',
         refreshToken: 'rt-1',
         isAuthenticated: true
@@ -147,7 +150,7 @@ describe('auth.store', () => {
 
     it('clears state even when API call fails', async () => {
       useAuthStore.setState({
-        user: mockUser as any,
+        user: mockUser,
         accessToken: 'at-1',
         refreshToken: 'rt-1',
         isAuthenticated: true
@@ -157,6 +160,133 @@ describe('auth.store', () => {
       await useAuthStore.getState().logout()
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    })
+  })
+
+  describe('session cleanup', () => {
+    it('awaits cleanup after clearing auth and manual presence', async () => {
+      signIn()
+      const started = deferred<void>()
+      const cleanup = deferred<void>()
+      jest.mocked(cleanupSession).mockImplementationOnce(() => {
+        started.resolve()
+        return cleanup.promise
+      })
+      let finished = false
+      const logout = useAuthStore.getState().logout().then(() => { finished = true })
+      await started.promise
+
+      expect(useAuthStore.getState()).toMatchObject({ user: null, isManualStatus: false })
+      expect(finished).toBe(false)
+      cleanup.resolve()
+      await logout
+      expect(finished).toBe(true)
+    })
+
+    it('surfaces cleanup failures without restoring the ended session', async () => {
+      signIn()
+      const error = new AggregateError([new Error('cache')], 'Session cleanup failed')
+      jest.mocked(cleanupSession).mockRejectedValueOnce(error)
+
+      await expect(useAuthStore.getState().logout()).rejects.toBe(error)
+      expect(useAuthStore.getState()).toMatchObject({
+        user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isManualStatus: false
+      })
+    })
+
+    it('does not publish a new login while an old disk purge is in flight', async () => {
+      signIn()
+      const started = deferred<void>()
+      const cleanup = deferred<void>()
+      jest.mocked(cleanupSession).mockImplementationOnce(() => {
+        started.resolve()
+        return cleanup.promise
+      })
+      const logout = useAuthStore.getState().logout()
+      await started.promise
+
+      jest.mocked(api.login).mockResolvedValueOnce({
+        accessToken: 'bob-at', refreshToken: 'bob-rt', user: { ...mockUser, id: 'bob' }
+      })
+      const login = useAuthStore.getState().login('bob@example.com', 'pass')
+      await Promise.resolve()
+      expect(useAuthStore.getState().user).toBeNull()
+      expect(jest.mocked(cleanupSession).mock.calls[0][0]()).toBe(true)
+
+      cleanup.resolve()
+      await Promise.all([logout, login])
+      expect(useAuthStore.getState().user?.id).toBe('bob')
+    })
+
+    it('does not let a delayed logout clear a newer login', async () => {
+      signIn()
+      const remoteLogout = deferred<{ message: string }>()
+      jest.mocked(api.logout).mockReturnValueOnce(remoteLogout.promise)
+      const logout = useAuthStore.getState().logout()
+      jest.mocked(api.login).mockResolvedValueOnce({
+        accessToken: 'bob-at', refreshToken: 'bob-rt', user: { ...mockUser, id: 'bob' }
+      })
+      await useAuthStore.getState().login('bob@example.com', 'pass')
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
+
+      remoteLogout.resolve({ message: 'ok' })
+      await logout
+      expect(useAuthStore.getState().user?.id).toBe('bob')
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('still ends the session if a newer login attempt fails during revocation', async () => {
+      signIn()
+      const remoteLogout = deferred<{ message: string }>()
+      jest.mocked(api.logout).mockReturnValueOnce(remoteLogout.promise)
+      const logout = useAuthStore.getState().logout()
+      jest.mocked(api.login).mockRejectedValueOnce(new Error('bad credentials'))
+      await expect(useAuthStore.getState().login('bob@example.com', 'wrong')).rejects.toThrow('bad credentials')
+      remoteLogout.resolve({ message: 'ok' })
+      await logout
+      expect(useAuthStore.getState().user).toBeNull()
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('bounds remote revocation without timing out local cleanup', async () => {
+      jest.useFakeTimers()
+      try {
+        signIn()
+        jest.mocked(api.logout).mockReturnValueOnce(new Promise(() => {}))
+        const cleanup = deferred<void>()
+        jest.mocked(cleanupSession).mockReturnValueOnce(cleanup.promise)
+        let finished = false
+        const logout = useAuthStore.getState().logout().then(() => { finished = true })
+        await jest.advanceTimersByTimeAsync(5000)
+        expect(finished).toBe(false)
+        expect(useAuthStore.getState().user).toBeNull()
+        cleanup.resolve()
+        await logout
+        expect(finished).toBe(true)
+        expect(jest.getTimerCount()).toBe(0)
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('invalidates remaining cleanup steps if the session is replaced externally', async () => {
+      signIn()
+      const started = deferred<void>()
+      const cleanup = deferred<void>()
+      jest.mocked(cleanupSession).mockImplementationOnce(() => {
+        started.resolve()
+        return cleanup.promise
+      })
+      const logout = useAuthStore.getState().logout()
+      await started.promise
+      const isCurrent = jest.mocked(cleanupSession).mock.calls[0][0]
+      expect(isCurrent()).toBe(true)
+
+      useAuthStore.setState({ user: { ...mockUser, id: 'bob' }, accessToken: 'bob-at', isAuthenticated: true })
+      expect(isCurrent()).toBe(false)
+      cleanup.resolve()
+      await logout
+      expect(useAuthStore.getState().user?.id).toBe('bob')
     })
   })
 
@@ -209,6 +339,41 @@ describe('auth.store', () => {
       expect(state.isAuthenticated).toBe(false)
       expect(state.accessToken).toBeNull()
       expect(state.refreshToken).toBeNull()
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('exposes cleanup failure when authentication is lost', async () => {
+      signIn()
+      jest.mocked(api.getProfile).mockRejectedValueOnce({ status: 401 })
+      jest.mocked(api.refreshToken).mockRejectedValueOnce({ status: 403 })
+      const error = new Error('cleanup failed')
+      jest.mocked(cleanupSession).mockRejectedValueOnce(error)
+
+      await expect(useAuthStore.getState().checkAuth()).rejects.toBe(error)
+      expect(useAuthStore.getState().user).toBeNull()
+    })
+
+    it('clears orphaned session state when tokens are missing', async () => {
+      useAuthStore.setState({ user: mockUser, isAuthenticated: true, isManualStatus: true })
+      await useAuthStore.getState().checkAuth()
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
+      expect(useAuthStore.getState()).toMatchObject({ user: null, isManualStatus: false, isLoading: false })
+    })
+
+    it('does not let an old auth check invalidate a new login', async () => {
+      signIn()
+      const profile = deferred<User>()
+      jest.mocked(api.getProfile).mockReturnValueOnce(profile.promise)
+      const check = useAuthStore.getState().checkAuth()
+      jest.mocked(api.login).mockResolvedValueOnce({
+        accessToken: 'bob-at', refreshToken: 'bob-rt', user: { ...mockUser, id: 'bob' }
+      })
+      await useAuthStore.getState().login('bob@example.com', 'pass')
+      profile.reject({ status: 401 })
+      await check
+      expect(api.refreshToken).not.toHaveBeenCalled()
+      expect(useAuthStore.getState().user?.id).toBe('bob')
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
     })
 
     it('keeps auth state on non-auth errors (e.g. 500)', async () => {
@@ -230,6 +395,38 @@ describe('auth.store', () => {
       await useAuthStore.getState().checkAuth()
 
       expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    })
+  })
+
+  describe('refreshSession', () => {
+    it('cleans up on a terminal refresh rejection, but preserves the API error', async () => {
+      signIn()
+      const error = { status: 401 }
+      jest.mocked(api.refreshToken).mockRejectedValueOnce(error)
+      await expect(useAuthStore.getState().refreshSession()).rejects.toBe(error)
+      expect(cleanupSession).toHaveBeenCalledTimes(1)
+      expect(useAuthStore.getState().user).toBeNull()
+    })
+
+    it('preserves the account and caches on a transient refresh failure', async () => {
+      signIn()
+      const error = { status: 500 }
+      jest.mocked(api.refreshToken).mockRejectedValueOnce(error)
+      await expect(useAuthStore.getState().refreshSession()).rejects.toBe(error)
+      expect(cleanupSession).not.toHaveBeenCalled()
+      expect(useAuthStore.getState().user?.id).toBe(mockUser.id)
+    })
+
+    it('does not resurrect an account after logout', async () => {
+      signIn()
+      const response = { accessToken: 'old-at', refreshToken: 'old-rt', user: mockUser }
+      const refresh = deferred<typeof response>()
+      jest.mocked(api.refreshToken).mockReturnValueOnce(refresh.promise)
+      const refreshing = useAuthStore.getState().refreshSession()
+      await useAuthStore.getState().logout()
+      refresh.resolve(response)
+      await refreshing
+      expect(useAuthStore.getState().user).toBeNull()
     })
   })
 

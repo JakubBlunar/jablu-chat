@@ -51,8 +51,8 @@ export type VoiceConnectionState = {
 
   setConnecting: (serverId: string | null, channelId: string, channelName: string, dmCallId?: string) => void
   setConnected: (room: Room, options?: { skipMicModeBootstrap?: boolean }) => void
-  disconnect: () => void
-  disconnectAfterUnexpectedClose: (info: VoiceNetworkDropout) => void
+  disconnect: () => Promise<void>
+  disconnectAfterUnexpectedClose: (info: VoiceNetworkDropout) => Promise<void>
   clearVoiceNetworkDropout: () => void
   applyInitialVoiceState: (opts: { joinMuted: boolean; joinDeafened: boolean }) => void
   toggleMute: () => void
@@ -132,6 +132,48 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
 
 let _saveTimer: number | undefined
 let _wasMutedBeforeDeafen = false
+let _micModePoll: ReturnType<typeof setInterval> | undefined
+let pendingDisconnect: Promise<void> | undefined
+
+function disconnectRoom(room: Room | null, micCleanup: void | Promise<void>): Promise<void> {
+  const previous = pendingDisconnect
+  const teardown = (async () => {
+    const errors: Error[] = []
+    const results = await Promise.allSettled([
+      micCleanup,
+      (async () => { if (room) await stopRnnoiseMicrophone(room) })()
+    ])
+    for (const result of results) {
+      if (result.status === 'rejected') errors.push(new Error('Failed to stop microphone processing', { cause: result.reason }))
+    }
+    if (room) {
+      try {
+        await room.disconnect()
+      } catch (cause) {
+        errors.push(new Error('Failed to disconnect the voice room', { cause }))
+      }
+    }
+    if (previous) {
+      try {
+        await previous
+      } catch (cause) {
+        errors.push(new Error('An earlier voice teardown failed', { cause }))
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, 'Voice teardown failed')
+  })()
+  pendingDisconnect = teardown
+  // Existing UI/socket callers intentionally do not await disconnect. Handle
+  // their rejection here without replacing the rejecting promise awaited by logout.
+  void teardown.then(
+    () => { if (pendingDisconnect === teardown) pendingDisconnect = undefined },
+    (error: unknown) => {
+      if (pendingDisconnect === teardown) pendingDisconnect = undefined
+      console.error('Failed to disconnect voice:', error)
+    }
+  )
+  return teardown
+}
 
 export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) => ({
   currentServerId: null,
@@ -167,14 +209,17 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     }),
 
   setConnected: (room, options) => {
+    clearInterval(_micModePoll)
+    _micModePoll = undefined
     set({ room, isConnecting: false, connectedAt: Date.now() })
     const mode = get().micMode
     if (mode !== 'always' && !options?.skipMicModeBootstrap) {
       let attempts = 0
-      const poll = setInterval(() => {
+      _micModePoll = setInterval(() => {
         const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
         if (pub?.track || ++attempts > 20) {
-          clearInterval(poll)
+          clearInterval(_micModePoll)
+          _micModePoll = undefined
           if (pub?.track) startMicMode(mode)
         }
       }, 100)
@@ -186,17 +231,18 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     const { room, _blurHandle, _originalCameraTrack, currentDmCallId } = get()
     if (currentDmCallId) getSocket()?.emit('dm:call:leave', { callId: currentDmCallId })
     if (_saveTimer) clearTimeout(_saveTimer)
-    stopMicMode()
+    clearInterval(_micModePoll)
+    _micModePoll = undefined
+    const micCleanup = stopMicMode(true)
     _blurHandle?.stop()
     _originalCameraTrack?.stop()
     if (room) {
-      void stopRnnoiseMicrophone(room)
       room.removeAllListeners()
       room.localParticipant.getTrackPublications().forEach((pub) => {
         pub.track?.mediaStreamTrack?.stop()
       })
-      room.disconnect().catch(() => {})
     }
+    const teardown = room || micCleanup ? disconnectRoom(room, micCleanup) : pendingDisconnect ?? Promise.resolve()
     set({
       currentServerId: null,
       currentDmCallId: null,
@@ -217,41 +263,16 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       volumeOverrides: {},
       voiceNetworkDropout: null
     })
+    return teardown
   },
 
   disconnectAfterUnexpectedClose: (info) => {
-    const { room, _blurHandle, _originalCameraTrack } = get()
-    if (_saveTimer) clearTimeout(_saveTimer)
-    stopMicMode()
-    _blurHandle?.stop()
-    _originalCameraTrack?.stop()
-    if (room) {
-      void stopRnnoiseMicrophone(room)
-      room.removeAllListeners()
-      room.localParticipant.getTrackPublications().forEach((pub) => {
-        pub.track?.mediaStreamTrack?.stop()
-      })
-      room.disconnect().catch(() => {})
-    }
+    const teardown = get().disconnect()
     set({
-      currentServerId: null,
-      currentChannelId: null,
-      currentChannelName: null,
-      room: null,
-      isMuted: false,
-      isDeafened: false,
-      isCameraOn: false,
-      isScreenSharing: false,
-      isConnecting: false,
-      isReconnecting: false,
-      connectedAt: null,
       viewingVoiceRoom: true,
-      isBlurEnabled: false,
-      _blurHandle: null,
-      _originalCameraTrack: null,
-      volumeOverrides: {},
       voiceNetworkDropout: info
     })
+    return teardown
   },
 
   clearVoiceNetworkDropout: () => set({ voiceNetworkDropout: null }),
