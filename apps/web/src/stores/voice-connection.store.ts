@@ -54,8 +54,8 @@ export type VoiceConnectionState = {
   applyInitialVoiceState: (opts: { joinMuted: boolean; joinDeafened: boolean }) => void
   toggleMute: () => void
   toggleDeafen: () => void
-  startCamera: (quality: CameraQuality, blur: boolean) => void
-  stopCamera: () => void
+  startCamera: (quality: CameraQuality, blur: boolean) => Promise<void>
+  stopCamera: () => Promise<void>
   applyCameraSettings: (quality: CameraQuality, blur: boolean) => void
   setScreenSharing: (v: boolean) => void
   setReconnecting: (v: boolean) => void
@@ -323,6 +323,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     const preset = CAMERA_PRESETS[quality]
     room.options.videoCaptureDefaults = {
       ...room.options.videoCaptureDefaults,
+      deviceId: getSavedCamera() || 'default',
       resolution: {
         width: preset.width,
         height: preset.height,

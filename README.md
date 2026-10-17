@@ -2,6 +2,11 @@
 
 A fully self-hosted Discord alternative for small communities. Text chat, voice/video calls, screen sharing, threads, reactions, polls, events — all running on your own server with zero third-party dependencies.
 
+The connected voice panel includes **Voice devices** for switching microphone,
+speakers (where supported), and camera without opening Settings. Selections are
+saved for future calls. Switching devices preserves mute/deafen state and camera
+blur; choosing a camera while it is off does not turn it on.
+
 ## Features
 
 ### Messaging

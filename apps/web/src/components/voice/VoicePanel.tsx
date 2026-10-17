@@ -1,10 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { joinVoiceChannel } from '@/lib/voiceConnect'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
 import { ScreenShareDialog } from './ScreenShareDialog'
 import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
+import { QuickVoiceDevices } from './QuickVoiceDevices'
 function MicIcon({ muted }: { muted: boolean }) {
   if (muted) {
     return (
@@ -86,6 +87,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
   const micMode = useVoiceConnectionStore((s) => s.micMode)
 
   const vc = useVoiceControls()
+  const [devicesOpen, setDevicesOpen] = useState(false)
 
   const handleShowVoiceRoom = useCallback(() => {
     if (onGoToVoiceRoom) {
@@ -249,6 +251,16 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
           <DisconnectIcon />
         </button>
       </div>
+
+      <button
+        type="button"
+        aria-expanded={devicesOpen}
+        onClick={() => setDevicesOpen((open) => !open)}
+        className="mt-1 flex w-full items-center gap-1.5 rounded px-1 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white"
+      >
+        <GearIcon /> {t('quickDevices')}
+      </button>
+      {devicesOpen && <QuickVoiceDevices />}
 
       {vc.cameraModalMode && (
         <CameraSettingsModal

@@ -2,15 +2,13 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { isElectron } from '@/lib/electron'
 import {
   getSavedAudioInput,
-  setSavedAudioInput,
   getSavedAudioOutput,
-  setSavedAudioOutput,
   getSavedCamera,
-  setSavedCamera,
   getValidatedDevices
 } from '@/lib/deviceSettings'
 import { getNoiseReductionCapabilities } from '@/lib/noiseReductionCapabilities'
 import { restartMicrophonePipeline } from '@/lib/voiceMicPipelineRestart'
+import { changeVoiceDevice, reportVoiceDeviceError } from '@/lib/voiceDevices'
 import {
   getCaptureAutoGainControl,
   getCaptureEchoCancellation,
@@ -34,9 +32,7 @@ import {
   setVadThreshold as saveVadThreshold,
   type VadMode,
   getVadMode,
-  setVadMode as saveVadMode,
-  stopMicMode,
-  startMicMode
+  setVadMode as saveVadMode
 } from '@/lib/micMode'
 import { Button } from '@/components/ui'
 import { Toggle } from '@/components/ui/Toggle'
@@ -496,21 +492,7 @@ export function VoiceSettings() {
             value={selectedInput}
             devices={audioInputs}
             onChange={(v) => {
-              setSelectedInput(v)
-              setSavedAudioInput(v)
-              const { room, isMuted, micMode: currentMicMode } = useVoiceConnectionStore.getState()
-              if (room) {
-                void (async () => {
-                  await room.switchActiveDevice('audioinput', v || '').catch(() => {})
-                  if (!isMuted && getNoiseReductionMode() === 'rnnoise') {
-                    await restartMicrophonePipeline(room, v || undefined, true)
-                  }
-                  if (!isMuted && currentMicMode !== 'always') {
-                    stopMicMode()
-                    setTimeout(() => startMicMode(currentMicMode), 500)
-                  }
-                })()
-              }
+              void changeVoiceDevice('audioinput', v).then(() => setSelectedInput(v)).catch(reportVoiceDeviceError)
             }}
           />
 
@@ -520,13 +502,7 @@ export function VoiceSettings() {
               value={selectedOutput}
               devices={audioOutputs}
               onChange={(v) => {
-                setSelectedOutput(v)
-                setSavedAudioOutput(v)
-                const store = useVoiceConnectionStore.getState()
-                store.setAudioOutputDeviceId(v)
-                if (store.room) {
-                  store.room.switchActiveDevice('audiooutput', v || '').catch(() => {})
-                }
+                void changeVoiceDevice('audiooutput', v).then(() => setSelectedOutput(v)).catch(reportVoiceDeviceError)
               }}
             />
           )}
@@ -550,12 +526,7 @@ export function VoiceSettings() {
           value={selectedCamera}
           devices={videoInputs}
           onChange={(v) => {
-            setSelectedCamera(v)
-            setSavedCamera(v)
-            const { room, isCameraOn } = useVoiceConnectionStore.getState()
-            if (room && isCameraOn) {
-              room.switchActiveDevice('videoinput', v || '').catch(() => {})
-            }
+            void changeVoiceDevice('videoinput', v).then(() => setSelectedCamera(v)).catch(reportVoiceDeviceError)
           }}
         />
       )}

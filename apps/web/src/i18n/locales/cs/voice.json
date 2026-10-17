@@ -1,4 +1,11 @@
 {
+  "quickDevices": "Hlasová zařízení",
+  "audioinput": "Mikrofon",
+  "audiooutput": "Reproduktory",
+  "videoinput": "Kamera",
+  "systemDefault": "Výchozí systémové",
+  "deviceUnavailable": "Zařízení není dostupné",
+  "deviceError": "Zařízení se nepodařilo načíst nebo změnit. Zkontrolujte připojení a oprávnění.",
   "defaultChannelName": "Hlas",
   "dropoutTitle": "Hlas odpojen — {{channel}}",
   "dropoutHint": "Zkontrolujte síť, pak zkuste znovu nebo zavřete.",

@@ -1,5 +1,12 @@
 {
   "defaultChannelName": "Voice",
+  "quickDevices": "Voice devices",
+  "audioinput": "Microphone",
+  "audiooutput": "Speakers",
+  "videoinput": "Camera",
+  "systemDefault": "System default",
+  "deviceUnavailable": "Device unavailable",
+  "deviceError": "Could not load or change devices. Check connections and permissions.",
   "dropoutTitle": "Voice disconnected — {{channel}}",
   "dropoutHint": "Check your network, then retry or dismiss.",
   "reconnectBanner": "Connection interrupted — reconnecting automatically. If this lasts too long, disconnect and rejoin the channel.",
