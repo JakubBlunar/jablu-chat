@@ -2,31 +2,6 @@
 
 A fully self-hosted Discord alternative for small communities. Text chat, voice/video calls, screen sharing, threads, reactions, polls, events — all running on your own server with zero third-party dependencies.
 
-The connected voice panel includes **Voice devices** for switching microphone,
-speakers (where supported), and camera without opening Settings. Selections are
-saved for future calls. Switching devices preserves mute/deafen state and camera
-blur; choosing a camera while it is off does not turn it on.
-
-One-to-one and group DMs have a phone button to start or join a voice call.
-Incoming calls ring connected web/desktop sessions for up to 30 seconds and
-offer Accept/Decline; accepting on one device stops ringing on the others.
-Calls reuse server voice features (video, screen sharing, mute/deafen, and device
-preferences). The phone button also switches between the
-call and messages without hanging up. Joining another call asks before leaving
-the current voice connection when starting or joining a DM call.
-
-DM calls require the existing LiveKit configuration. Deployments must apply the
-additive `20261017120000_add_dm_call_notifications` migration before starting the
-updated API (`pnpm db:migrate:deploy`); it adds the incoming-call notification kind.
-Active call signaling, like server voice presence, is held by the API
-process. API restarts or losing the participating session's signaling connection
-end that session's call; a group call continues while at least two participants
-remain. Connected clients can ring in-app. Background/closed PWAs with Web Push
-enabled receive an incoming-call notification, subject to browser/OS delivery and
-existing push preferences. Tapping it opens the DM and offers an explicit Join
-only if that exact call is still active. An ended call never starts a new one.
-PWA push is an OS notification, not a guaranteed continuous background ringtone.
-
 ## Features
 
 ### Messaging
