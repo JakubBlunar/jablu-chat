@@ -29,6 +29,9 @@ type ReadStateState = {
   ackServer: (serverId: string) => Promise<boolean>
   ackChannel: (channelId: string) => Promise<boolean>
   ackDm: (conversationId: string) => Promise<boolean>
+  markDmUnread: (conversationId: string) => Promise<boolean>
+  pausedDmAcks: Set<string>
+  resumeDmAck: (conversationId: string) => void
   incrementChannel: (channelId: string, isMention: boolean, serverId?: string, messageId?: string) => void
   incrementDm: (conversationId: string, messageId?: string) => void
   captureChannelView: (channelId: string) => void
@@ -41,12 +44,20 @@ type ReadStateState = {
   ) => { unread: boolean; mentions: number }
 }
 
+const pendingDmAcks = new Map<string, Promise<boolean>>()
+
 export const useReadStateStore = create<ReadStateState>()((set, get) => ({
   channels: new Map(),
   dms: new Map(),
   channelToServer: new Map(),
   channelViewSnapshots: new Map(),
   dmViewSnapshots: new Map(),
+  pausedDmAcks: new Set(),
+  resumeDmAck: (conversationId) => {
+    const pausedDmAcks = new Set(get().pausedDmAcks)
+    pausedDmAcks.delete(conversationId)
+    set({ pausedDmAcks })
+  },
 
   fetchAll: async () => {
     try {
@@ -138,7 +149,10 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     return true
   },
 
-  ackDm: async (conversationId) => {
+  ackDm: (conversationId) => {
+    const pending = pendingDmAcks.get(conversationId)
+    if (pending) return pending
+    const operation = (async () => {
     const previous = get().dms.get(conversationId)
     try {
       await api.ackDm(conversationId)
@@ -162,6 +176,34 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     dmViewSnapshots.delete(conversationId)
     set({ dms, dmViewSnapshots })
     return true
+    })()
+    pendingDmAcks.set(conversationId, operation)
+    void operation.finally(() => {
+      if (pendingDmAcks.get(conversationId) === operation) pendingDmAcks.delete(conversationId)
+    })
+    return operation
+  },
+
+  markDmUnread: async (conversationId) => {
+    set({ pausedDmAcks: new Set([...get().pausedDmAcks, conversationId]) })
+    await pendingDmAcks.get(conversationId)
+    try {
+      await api.markDmUnread(conversationId)
+      const dms = new Map(get().dms)
+      const previous = dms.get(conversationId)
+      dms.set(conversationId, {
+        lastReadAt: previous?.lastReadAt ?? new Date(0).toISOString(),
+        unreadCount: Math.max(previous?.unreadCount ?? 0, 1),
+        mentionCount: previous?.mentionCount ?? 0,
+        firstUnreadMessageId: previous?.firstUnreadMessageId ?? null
+      })
+      set({ dms })
+      return true
+    } catch (error) {
+      console.error('Failed to mark DM as unread', error)
+      get().resumeDmAck(conversationId)
+      return false
+    }
   },
 
   incrementChannel: (channelId, isMention, serverId?, messageId?) => {

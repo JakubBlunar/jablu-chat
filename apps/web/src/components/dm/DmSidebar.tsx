@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
-import { ActivityLine } from '@/components/user/ActivityLine'
-import { useActivityStore } from '@/stores/activity.store'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useAuthStore } from '@/stores/auth.store'
@@ -14,10 +12,14 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useFriendStore } from '@/stores/friend.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CountBadge } from '@/components/ui'
+import { resolveMediaUrl } from '@/lib/api'
+import { showToast } from '@/stores/toast.store'
 import { GroupDmModal } from './GroupDmModal'
+import { ConversationPreview } from './ConversationPreview'
 
 export function DmSidebar() {
   const { t } = useTranslation('nav')
+  const { t: tChat } = useTranslation('chat')
   const user = useAuthStore((s) => s.user)
   const {
     conversations,
@@ -60,7 +62,7 @@ export function DmSidebar() {
       if (conv.isGroup) {
         return {
           name: conv.groupName || conv.members.map((m) => m.displayName ?? m.username).join(', '),
-          avatarUrl: null,
+          avatarUrl: conv.groupAvatarUrl ?? null,
           status: 'online' as const,
           isGroup: true,
           userId: null as string | null
@@ -192,7 +194,9 @@ export function DmSidebar() {
                   onClick={() => goToDm(conv.id)}
                   className="flex min-w-0 flex-1 items-center gap-2"
                 >
-                  {info.isGroup ? (
+                  {info.isGroup && info.avatarUrl ? (
+                    <img src={resolveMediaUrl(info.avatarUrl)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                  ) : info.isGroup ? (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-text">
                       {conv.members.length}
                     </div>
@@ -206,14 +210,15 @@ export function DmSidebar() {
                     />
                   )}
                   <div className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-sm font-medium">{info.name}</p>
-                    <DmRowSubtitle
-                      userId={info.userId}
-                      lastMessage={conv.lastMessage ? conv.lastMessage.content ?? 'attachment' : null}
-                    />
+                    <div className="flex items-center gap-1">
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">{info.name}</p>
+                      {conv.isFavorite && <span title={tChat('conversationFavorite')} className="text-xs text-amber-300" aria-label={tChat('conversationFavorite')}>&#9733;</span>}
+                      {conv.muted && <span title={tChat('conversationMuted')} className="text-[10px] text-gray-500">{tChat('conversationMuted')}</span>}
+                    </div>
+                    <ConversationPreview conversation={conv} currentUserId={user?.id} />
                   </div>
                 </button>
-                {hasUnread &&
+                {hasUnread && !conv.muted &&
                   (rs!.mentionCount > 0 ? (
                     <CountBadge count={rs!.mentionCount} variant="danger" max={10} />
                   ) : (
@@ -228,8 +233,9 @@ export function DmSidebar() {
                   aria-label={t('closeConversation')}
                   onClick={(e) => {
                     e.stopPropagation()
-                    void closeConversation(conv.id)
-                    if (active) goToFriends()
+                    void closeConversation(conv.id).then(() => {
+                      if (active) goToFriends()
+                    }).catch(() => showToast(tChat('conversationActionFailed'), tChat('conversationRetry')))
                   }}
                   className="shrink-0 rounded p-1 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
                 >
@@ -261,13 +267,6 @@ export function DmSidebar() {
       )}
     </aside>
   )
-}
-
-function DmRowSubtitle({ userId, lastMessage }: { userId: string | null; lastMessage: string | null }) {
-  const activity = useActivityStore((s) => (userId ? s.activities.get(userId) : undefined))
-  if (activity) return <ActivityLine activity={activity} />
-  if (lastMessage) return <p className="truncate text-xs text-gray-400">{lastMessage}</p>
-  return null
 }
 
 function CloseIcon() {

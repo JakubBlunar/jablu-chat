@@ -281,6 +281,22 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.emitToDm(payload.conversationId, 'dm:read', payload)
   })
 
+  gw.events.on('dm:conversation-changed', (payload: { conversationId: string; userIds: string[] }) => {
+    for (const userId of payload.userIds) {
+      gw.server.in(`user:${userId}`).socketsJoin(`dm:${payload.conversationId}`)
+      gw.server.to(`user:${userId}`).emit('dm:conversation-refresh', { conversationId: payload.conversationId })
+    }
+  })
+
+  gw.events.on('dm:member-left', (payload: { conversationId: string; userId: string }) => {
+    gw.server.in(`user:${payload.userId}`).socketsLeave(`dm:${payload.conversationId}`)
+    gw.server.to(`user:${payload.userId}`).emit('dm:conversation-removed', { conversationId: payload.conversationId })
+  })
+
+  gw.events.on('dm:preferences-read-state', (payload: { userId: string }) => {
+    gw.server.to(`user:${payload.userId}`).emit('dm:read-state-refresh', {})
+  })
+
   gw.events.on('admin:message:delete', (payload: { messageId: string; channelId: string }) => {
     gw.emitToChannel(payload.channelId, 'message:delete', payload)
   })

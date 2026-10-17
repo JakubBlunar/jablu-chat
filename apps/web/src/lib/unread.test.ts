@@ -10,6 +10,7 @@ const state = (unreadCount: number, mentionCount: number) => ({
 })
 
 beforeEach(() => {
+  useDmStore.setState({ conversations: [] })
   useReadStateStore.setState({
     channels: new Map([['ch1', state(5, 1)], ['ch2', state(3, 0)], ['ch3', state(4, 2)]]),
     dms: new Map([['dm1', state(3, 0)]]),
@@ -100,4 +101,10 @@ it('does not hide unread counts merely because a conversation is selected', () =
 it('excludes muted channel mentions from the numbered badge', () => {
   useNotifPrefStore.setState({ getEffective: () => 'none' })
   expect(computeTotalBadge()).toBe(3)
+})
+
+it('excludes muted DMs from OS/title badges while retaining their unread state', () => {
+  useDmStore.setState({ conversations: [{ id: 'dm1', muted: true }] as ReturnType<typeof useDmStore.getState>['conversations'] })
+  expect(computeTotalBadge()).toBe(3)
+  expect(useReadStateStore.getState().dms.get('dm1')?.unreadCount).toBe(3)
 })

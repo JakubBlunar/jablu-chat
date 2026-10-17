@@ -5,7 +5,8 @@ jest.mock('@/lib/api', () => ({
     getReadStates: jest.fn(),
     ackServer: jest.fn().mockReturnValue(Promise.resolve()),
     ackChannel: jest.fn().mockReturnValue(Promise.resolve()),
-    ackDm: jest.fn().mockReturnValue(Promise.resolve())
+    ackDm: jest.fn().mockReturnValue(Promise.resolve()),
+    markDmUnread: jest.fn().mockResolvedValue({ ok: true })
   }
 }))
 
@@ -18,13 +19,36 @@ function resetStore() {
     dms: new Map(),
     channelToServer: new Map(),
     channelViewSnapshots: new Map(),
-    dmViewSnapshots: new Map()
+    dmViewSnapshots: new Map(),
+    pausedDmAcks: new Set()
   })
 }
 
 beforeEach(() => {
   resetStore()
   jest.clearAllMocks()
+})
+
+it('marks a read DM unread without changing its read receipt', async () => {
+  const lastReadAt = '2026-10-17T10:00:00Z'
+  useReadStateStore.setState({ dms: new Map([['dm', { unreadCount: 0, mentionCount: 0, lastReadAt, firstUnreadMessageId: null }]]) })
+  expect(await useReadStateStore.getState().markDmUnread('dm')).toBe(true)
+  expect(api.markDmUnread).toHaveBeenCalledWith('dm')
+  expect(useReadStateStore.getState().dms.get('dm')).toMatchObject({ unreadCount: 1, lastReadAt })
+  expect(useReadStateStore.getState().pausedDmAcks.has('dm')).toBe(true)
+})
+
+it('waits for an in-flight acknowledgement before marking unread', async () => {
+  let finishAck!: () => void
+  jest.mocked(api.ackDm).mockImplementationOnce(() => new Promise<{ ok: boolean }>((resolve) => { finishAck = () => resolve({ ok: true }) }))
+  const ack = useReadStateStore.getState().ackDm('dm')
+  const mark = useReadStateStore.getState().markDmUnread('dm')
+  expect(api.markDmUnread).not.toHaveBeenCalled()
+  finishAck()
+  await ack
+  await mark
+  expect(api.markDmUnread).toHaveBeenCalledWith('dm')
+  expect(useReadStateStore.getState().dms.get('dm')?.unreadCount).toBe(1)
 })
 
 describe('readState.store', () => {

@@ -58,5 +58,16 @@ export class VoiceService {
       if (error instanceof Error && 'code' in error && error.code === 'not_found') return
       throw error
     }
+
+  }
+
+  async removeDmParticipant(callId: string, userId: string) {
+    const client = new RoomServiceClient(this.livekitUrl.replace(/^ws/, 'http'), this.apiKey, this.apiSecret)
+    try {
+      await client.removeParticipant(`dm-call:${callId}`, userId)
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'not_found') return
+      throw error
+    }
   }
 }

@@ -49,6 +49,16 @@ export class ReadStateController {
       userId: req.user.id,
       lastReadAt: new Date().toISOString()
     })
+    this.events.emit('dm:preferences-read-state', { userId: req.user.id })
+    return { ok: true }
+  }
+
+  @Put('dm/:id/unread')
+  async markDmUnread(@Request() req: { user: { id: string } }, @Param('id', ParseUUIDPipe) conversationId: string) {
+    const membership = await this.prisma.directConversationMember.findFirst({ where: { conversationId, userId: req.user.id } })
+    if (!membership) throw new ForbiddenException('Not a member of this conversation')
+    await this.readState.markDmUnread(req.user.id, conversationId)
+    this.events.emit('dm:preferences-read-state', { userId: req.user.id })
     return { ok: true }
   }
 }

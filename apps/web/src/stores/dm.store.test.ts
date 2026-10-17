@@ -212,13 +212,24 @@ describe('dm.store', () => {
       expect(useDmStore.getState().currentConversationId).toBeNull()
     })
 
-    it('keeps conversation removed even when API fails', async () => {
+    it('preserves the conversation and surfaces an API failure', async () => {
       mockApi.closeDm.mockRejectedValueOnce(new Error('fail'))
       useDmStore.setState({ conversations: [makeConversation({ id: 'c1' })] })
 
-      await useDmStore.getState().closeConversation('c1')
-      expect(useDmStore.getState().conversations).toHaveLength(0)
+      await expect(useDmStore.getState().closeConversation('c1')).rejects.toThrow('fail')
+      expect(useDmStore.getState().conversations).toHaveLength(1)
     })
+  })
+
+  it('keeps favorites first when messages and conversation details update', () => {
+    useDmStore.setState({ conversations: [
+      makeConversation({ id: 'favorite', isFavorite: true }),
+      makeConversation({ id: 'recent' })
+    ] })
+    useDmStore.getState().updateConversationLastMessage('recent', { content: 'new', authorId: 'other', createdAt: '2026-10-17T10:00:00Z' })
+    expect(useDmStore.getState().conversations.map((conv) => conv.id)).toEqual(['favorite', 'recent'])
+    useDmStore.getState().addOrUpdateConversation(makeConversation({ id: 'favorite', isFavorite: false }))
+    expect(useDmStore.getState().conversations[0].id).toBe('recent')
   })
 
   describe('setScrollToMessageId', () => {

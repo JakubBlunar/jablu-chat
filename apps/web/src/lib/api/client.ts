@@ -998,6 +998,34 @@ export class ApiClient {
     return this.patch(`/api/dm/${conversationId}/close`)
   }
 
+  updateDmPreferences(conversationId: string, data: { isFavorite?: boolean; muted?: boolean }): Promise<DmConversation> {
+    return this.patch(`/api/dm/${conversationId}/preferences`, data)
+  }
+
+  updateGroupDm(conversationId: string, data: { groupName: string | null }): Promise<DmConversation> {
+    return this.patch(`/api/dm/${conversationId}/group`, data)
+  }
+
+  uploadGroupDmAvatar(conversationId: string, file: File): Promise<DmConversation> {
+    return this.fetchWithFormData(`/api/dm/${conversationId}/avatar`, 'avatar', file)
+  }
+
+  removeGroupDmAvatar(conversationId: string): Promise<DmConversation> {
+    return this.delete(`/api/dm/${conversationId}/avatar`)
+  }
+
+  addGroupDmMembers(conversationId: string, memberIds: string[]): Promise<DmConversation> {
+    return this.post(`/api/dm/${conversationId}/members`, { memberIds })
+  }
+
+  leaveGroupDm(conversationId: string): Promise<{ ok: boolean }> {
+    return this.post(`/api/dm/${conversationId}/leave`)
+  }
+
+  markDmUnread(conversationId: string): Promise<{ ok: boolean }> {
+    return this.request('PUT', `/api/dm/${conversationId}/unread`)
+  }
+
   getDmReadStates(conversationId: string): Promise<{ userId: string; lastReadAt: string }[]> {
     return this.get(`/api/dm/${conversationId}/read-states`)
   }

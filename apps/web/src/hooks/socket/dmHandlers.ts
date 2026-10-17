@@ -1,5 +1,5 @@
 import { messageNotificationUrl, type Message } from '@chat/shared'
-import { api } from '@/lib/api'
+import { api, type DmConversation } from '@/lib/api'
 import {
   cacheAddMessage,
   cacheRemoveMessage,
@@ -13,10 +13,31 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
+import { showToast } from '@/stores/toast.store'
 import { notifBody } from './helpers'
 import type { DmDeletePayload, DmLinkPreviewPayload, DmMessagePayload, DmTypingPayload } from './types'
 
 export function createDmHandlers() {
+  const refreshRequests = new Map<string, object>()
+  const onDmConversationRefresh = async ({ conversationId }: { conversationId: string }) => {
+    const request = {}
+    refreshRequests.set(conversationId, request)
+    try {
+      const conversation = await api.getDmConversation(conversationId)
+      if (refreshRequests.get(conversationId) === request) useDmStore.getState().addOrUpdateConversation(conversation)
+    } catch (error) {
+      if (refreshRequests.get(conversationId) !== request) return
+      console.error('Failed to refresh conversation', error)
+      showToast('Conversation update failed', 'Please reopen the conversation to retry.')
+    }
+  }
+  const onDmConversationRemoved = ({ conversationId }: { conversationId: string }) => {
+    refreshRequests.delete(conversationId)
+    useDmStore.getState().removeConversation(conversationId)
+    void useReadStateStore.getState().fetchAll()
+  }
+  const onDmReadStateRefresh = () => { void useReadStateStore.getState().fetchAll() }
+
   const onDmNew = (payload: DmMessagePayload) => {
     const dmState = useDmStore.getState()
     const currentConvId = dmState.currentConversationId
@@ -28,31 +49,40 @@ export function createDmHandlers() {
     } else {
       cacheAddMessage(dmKey(payload.conversationId), payload)
     }
-    if (payload.authorId !== myId) {
-      useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
+    const notify = (conversation: Pick<DmConversation, 'muted'>) => {
+      if (payload.authorId === myId || conversation.muted) return
       if (!isViewingConversation || !isAppFocused()) {
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
-        const preview = notifBody(payload)
-        const url = messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id)
-        showNotification(`DM from ${author}`, preview, url, undefined, 'mention')
+        showNotification(`DM from ${author}`, notifBody(payload), messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id), undefined, 'mention')
       }
     }
+    if (payload.authorId !== myId) {
+      useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
+    }
 
-    const inList = dmState.conversations.some((c) => c.id === payload.conversationId)
-    if (!inList) {
+    const existing = dmState.conversations.find((c) => c.id === payload.conversationId)
+    if (!existing) {
+      const request = {}
+      refreshRequests.set(payload.conversationId, request)
       api
         .getDmConversation(payload.conversationId)
         .then((conv) => {
+          if (refreshRequests.get(payload.conversationId) !== request) return
           useDmStore.getState().addOrUpdateConversation(conv)
+          useDmStore.getState().updateConversationLastMessage(payload.conversationId, lastMessage)
+          notify(conv)
         })
-        .catch(() => {})
-    }
+        .catch((error) => { console.error('Failed to load incoming conversation', error) })
+    } else notify(existing)
 
-    dmState.updateConversationLastMessage(payload.conversationId, {
+    const lastMessage = {
       content: payload.content ?? null,
       authorId: payload.authorId ?? '',
-      createdAt: payload.createdAt
-    })
+      authorName: payload.author?.displayName ?? payload.author?.username ?? null,
+      createdAt: payload.createdAt,
+      attachment: payload.attachments?.[0] ? { type: payload.attachments[0].type, filename: payload.attachments[0].filename } : null
+    }
+    dmState.updateConversationLastMessage(payload.conversationId, lastMessage)
   }
 
   const onDmEdit = (payload: DmMessagePayload) => {
@@ -101,5 +131,5 @@ export function createDmHandlers() {
     }
   }
 
-  return { onDmNew, onDmEdit, onDmDelete, onDmTyping, onDmPin, onDmUnpin, onDmLinkPreviews }
+  return { onDmNew, onDmEdit, onDmDelete, onDmTyping, onDmPin, onDmUnpin, onDmLinkPreviews, onDmConversationRefresh, onDmConversationRemoved, onDmReadStateRefresh }
 }

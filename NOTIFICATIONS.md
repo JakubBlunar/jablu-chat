@@ -10,6 +10,11 @@ count (displayed up to `99+`). One-to-one shortcuts use the other person's avata
 group DMs use their name's initial. Shortcuts disappear when the conversation is read,
 including when it is read on another device.
 
+Per-conversation DM mute settings suppress message/call alerts, new DM bell
+records, unread shortcuts and OS/title badge contributions across devices.
+Messages still arrive and remain unread in the conversation. Existing bell
+records are retained. Favorites affect ordering only, not notification delivery.
+
 Unmuted channels and their servers stay highlighted while unread, including when
 notification delivery is set to mentions only. Muted channels have no indicator.
 Selection alone does not hide unread indicators.

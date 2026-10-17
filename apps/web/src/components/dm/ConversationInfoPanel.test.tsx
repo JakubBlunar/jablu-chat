@@ -5,6 +5,7 @@ import { ConversationInfoPanel } from './ConversationInfoPanel'
 
 let mobile = false
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => mobile }))
+jest.mock('@/hooks/useAppNavigate', () => ({ useAppNavigate: () => ({ goToFriends: jest.fn() }) }))
 jest.mock('@/components/ui/BottomSheet', () => ({ BottomSheet: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div> }))
 jest.mock('./DmProfilePanel', () => ({ DmProfilePanel: () => <div>Profile content</div> }))
 jest.mock('@/components/UserAvatar', () => ({ UserAvatar: () => null }))

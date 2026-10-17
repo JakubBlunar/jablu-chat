@@ -1,5 +1,6 @@
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
+import { useDmStore } from '@/stores/dm.store'
 
 export type NotifLevel = 'all' | 'mentions' | 'none'
 
@@ -91,7 +92,9 @@ export function computeTotalBadge(): number {
     total += badge.mentionCount
   }
 
-  for (const rs of dms.values()) {
+  const mutedIds = new Set(useDmStore.getState().conversations.filter((conversation) => conversation.muted).map((conversation) => conversation.id))
+  for (const [id, rs] of dms) {
+    if (mutedIds.has(id)) continue
     total += rs.unreadCount
   }
 

@@ -4,6 +4,7 @@ import { DmService } from './dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { FriendsService } from '../friends/friends.service'
 import { MessagesService } from '../messages/messages.service'
+import { EventBusService } from '../events/event-bus.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
 describe('DmService', () => {
@@ -60,6 +61,7 @@ describe('DmService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: FriendsService, useValue: friends },
         { provide: MessagesService, useValue: {} },
+        { provide: EventBusService, useValue: { emit: jest.fn() } },
       ],
     }).compile()
 
@@ -78,6 +80,66 @@ describe('DmService', () => {
         prisma.directConversationMember.findUnique.mockResolvedValue(null)
         await expect(service.getAttachments(convId, userA, 'media', 0, 30)).rejects.toThrow(ForbiddenException)
         expect(prisma.attachment.findMany).not.toHaveBeenCalled()
+      })
+
+      describe('group management', () => {
+        beforeEach(() => {
+          prisma.$transaction.mockImplementation((callback) => callback(prisma))
+          prisma.directConversation.findUnique.mockResolvedValue(makeConversation({ isGroup: true }))
+          prisma.user.findMany.mockResolvedValue([
+            { id: userA, dmPrivacy: 'everyone' }, { id: userB, dmPrivacy: 'everyone' }, { id: 'user-c', dmPrivacy: 'everyone' }
+          ])
+        })
+
+        it('allows any participant to rename a group while keeping preferences private', async () => {
+          prisma.directConversation.update.mockResolvedValue(makeConversation({ isGroup: true, groupName: 'New name' }))
+          const result = await service.updateGroup(convId, userB, { groupName: ' New name ' })
+          expect(prisma.$queryRaw).toHaveBeenCalled()
+          expect(prisma.directConversation.update).toHaveBeenCalledWith(expect.objectContaining({ data: { groupName: 'New name' } }))
+          expect(result.groupName).toBe('New name')
+          expect(result.members[0]).not.toHaveProperty('muted')
+          expect(result.members[0]).not.toHaveProperty('isFavorite')
+        })
+
+        it('rejects nonmembers before changing a group', async () => {
+          await expect(service.updateGroup(convId, 'outsider', { groupName: 'No' })).rejects.toThrow(ForbiddenException)
+          expect(prisma.directConversation.update).not.toHaveBeenCalled()
+        })
+
+        it('rejects group actions in one-to-one DMs', async () => {
+          prisma.directConversation.findUnique.mockResolvedValue(makeConversation())
+          await expect(service.addGroupMembers(convId, userA, ['user-c'])).rejects.toThrow('only available in group DMs')
+          expect(prisma.directConversationMember.createMany).not.toHaveBeenCalled()
+        })
+
+        it('adds only new members, preserving the shared history', async () => {
+          prisma.directConversation.findUniqueOrThrow.mockResolvedValue(makeConversation({ isGroup: true }))
+          await service.addGroupMembers(convId, userB, [userA, 'user-c', 'user-c'])
+          expect(prisma.directConversationMember.createMany).toHaveBeenCalledWith({ data: [{ conversationId: convId, userId: 'user-c' }] })
+          expect(prisma.message.updateMany).not.toHaveBeenCalled()
+        })
+
+        it('checks the 10-person limit after locking the group', async () => {
+          const ids = Array.from({ length: 9 }, (_, i) => `new-${i}`)
+          await expect(service.addGroupMembers(convId, userA, ids)).rejects.toThrow('limited to 10')
+          expect(prisma.directConversationMember.createMany).not.toHaveBeenCalled()
+        })
+
+        it('honors friends-only privacy when adding members', async () => {
+          prisma.user.findMany.mockResolvedValue([
+            { id: userA, dmPrivacy: 'everyone' }, { id: userB, dmPrivacy: 'everyone' }, { id: 'user-c', dmPrivacy: 'friends_only' }
+          ])
+          prisma.friendship.findMany.mockResolvedValue([])
+          await expect(service.addGroupMembers(convId, userA, ['user-c'])).rejects.toThrow('must be friends')
+          expect(prisma.directConversationMember.createMany).not.toHaveBeenCalled()
+        })
+
+        it('removes membership and read state without deleting shared messages', async () => {
+          await service.leaveGroup(convId, userB)
+          expect(prisma.directConversationMember.delete).toHaveBeenCalledWith({ where: { conversationId_userId: { conversationId: convId, userId: userB } } })
+          expect(prisma.dmReadState.deleteMany).toHaveBeenCalledWith({ where: { conversationId: convId, userId: userB } })
+          expect(prisma.message.deleteMany).not.toHaveBeenCalled()
+        })
       })
 
       it.each(['media', 'files'] as const)('paginates %s across non-deleted conversation messages', async (kind) => {

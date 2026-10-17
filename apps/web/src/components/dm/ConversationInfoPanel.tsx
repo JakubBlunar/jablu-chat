@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { api, type DmConversation } from '@/lib/api'
-import { UserAvatar } from '@/components/UserAvatar'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { PinnedMessagesList } from '@/components/chat/PinnedMessagesList'
 import type { usePinnedMessages } from '@/components/chat/hooks/usePinnedMessages'
 import { AttachmentBrowser } from '@/components/media/AttachmentBrowser'
 import { useIsMobile } from '@/hooks/useMobile'
 import { DmProfilePanel } from './DmProfilePanel'
+import { ConversationActions } from './ConversationActions'
+import { GroupConversationDetails } from './GroupConversationDetails'
 
 type Tab = 'details' | 'media' | 'files' | 'pins'
 
@@ -61,6 +62,7 @@ export function ConversationInfoPanel({
       <div className="shrink-0 px-3 py-2">
         <button type="button" onClick={() => { onClose(); onSearch() }} className="text-sm text-primary">{t('channelInfoActionSearch')}</button>
       </div>
+      <ConversationActions conversation={conversation} onClose={onClose} />
       <div role="tablist" aria-label={t('conversationInfo')} className="flex shrink-0 overflow-x-auto border-b border-white/10 px-1">
         {(['details', 'media', 'files', 'pins'] as const).map((id) => (
           <button key={id} id={`conversation-tab-${id}`} role="tab" aria-selected={tab === id} aria-controls="conversation-tabpanel" type="button" onClick={() => setTab(id)}
@@ -82,17 +84,7 @@ export function ConversationInfoPanel({
             ) : <PinnedMessagesList messages={pinned.pinnedMessages} loading={pinned.pinnedLoading} canUnpin conversationId={conversation.id} onJump={jump} emptyLabel={t('pinnedEmptyDm')} jumpLabel={t('jumpToMessage')} />}
           </SimpleBar>
         ) : conversation.isGroup ? (
-          <SimpleBar className="h-full">
-            <div className="space-y-3 px-3 py-4">
-              <p className="text-sm text-gray-400">{t('conversationMemberCount', { count: conversation.members.length })}</p>
-              {conversation.members.map((member) => (
-                <div key={member.userId} className="flex items-center gap-2 text-sm text-white">
-                  <UserAvatar username={member.username} avatarUrl={member.avatarUrl} size="md" />
-                  <span className="truncate">{member.displayName ?? member.username}{member.userId === currentUserId ? ` (${t('conversationYou')})` : ''}</span>
-                </div>
-              ))}
-            </div>
-          </SimpleBar>
+          <GroupConversationDetails key={conversation.id} conversation={conversation} currentUserId={currentUserId} onClose={onClose} />
         ) : otherMember ? <div className="h-full [&>div]:h-full [&>div]:w-full [&>div]:border-0"><DmProfilePanel member={otherMember} mutualServers={mutualServers} /></div> : null}
       </div>
     </div>

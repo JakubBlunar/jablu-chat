@@ -24,6 +24,10 @@ export function useChannelAck(
   }, [mode, contextId, readState])
 
   useEffect(() => {
+    if (mode === 'dm' && contextId) useReadStateStore.getState().resumeDmAck(contextId)
+  }, [mode, contextId])
+
+  useEffect(() => {
     return () => {
       if (!contextId) return
       const rs = useReadStateStore.getState()
@@ -38,6 +42,7 @@ export function useChannelAck(
     const canRead = () => {
       const el = scrollParentRef.current
       return isAppFocused() && !useVoiceConnectionStore.getState().viewingVoiceRoom &&
+        !(mode === 'dm' && useReadStateStore.getState().pausedDmAcks.has(contextId)) &&
         !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 30
     }
     const schedule = () => {

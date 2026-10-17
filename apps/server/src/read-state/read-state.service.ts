@@ -53,13 +53,14 @@ export class ReadStateService {
       this.prisma.$queryRaw<
         {
           conversation_id: string
+          marked_unread: boolean
           last_read_at: Date
           mention_count: number
           unread_count: bigint
           first_unread_message_id: string | null
         }[]
       >`
-        SELECT dcm.conversation_id,
+        SELECT dcm.conversation_id, dcm.marked_unread,
           COALESCE(drs.last_read_at, dcm.joined_at) AS last_read_at,
           COALESCE(drs.mention_count, 0) AS mention_count,
           (SELECT COUNT(*) FROM (
@@ -103,7 +104,7 @@ export class ReadStateService {
       conversationId: r.conversation_id,
       lastReadAt: r.last_read_at.toISOString(),
       mentionCount: Number(r.mention_count),
-      unreadCount: Number(r.unread_count),
+      unreadCount: Math.max(Number(r.unread_count), r.marked_unread ? 1 : 0),
       firstUnreadMessageId: r.first_unread_message_id
     }))
 
@@ -136,6 +137,10 @@ export class ReadStateService {
   }
 
   async ackDm(userId: string, conversationId: string) {
+    await this.prisma.directConversationMember.updateMany({
+      where: { userId, conversationId },
+      data: { markedUnread: false }
+    })
     await this.prisma.dmReadState.upsert({
       where: { userId_conversationId: { userId, conversationId } },
       update: { lastReadAt: new Date(), mentionCount: 0 },
@@ -147,6 +152,13 @@ export class ReadStateService {
       }
     })
     await this.inApp.markDmRead(userId, conversationId).catch(() => {})
+  }
+
+  async markDmUnread(userId: string, conversationId: string) {
+    await this.prisma.directConversationMember.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { markedUnread: true, closedAt: null }
+    })
   }
 
   async incrementMention(channelId: string, userIds: string[]) {

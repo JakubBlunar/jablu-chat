@@ -27,7 +27,8 @@ export function DmCallNotifications() {
   const notificationsEnabled = useSettingsStore((s) => s.notifEnabled)
   const currentCallId = useVoiceConnectionStore((s) => s.currentDmCallId)
   const voiceChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
-  const incoming = Object.values(calls).filter((call) => userId && call.ringingUserIds.includes(userId))
+  const mutedIds = new Set(conversations.filter((conversation) => conversation.muted).map((conversation) => conversation.id))
+  const incoming = Object.values(calls).filter((call) => userId && call.ringingUserIds.includes(userId) && !mutedIds.has(call.conversationId))
   const ringingIds = incoming.map((call) => call.id).join(',')
   const groupNames = new Map(
     conversations
@@ -41,7 +42,7 @@ export function DmCallNotifications() {
   useEffect(() => {
     const current = useDmCallStore.getState().calls
     for (const call of Object.values(current)) {
-      if (userId && call.ringingUserIds.includes(userId) && !notified.current.has(call.id)) {
+      if (userId && call.ringingUserIds.includes(userId) && !useDmStore.getState().conversations.some((conversation) => conversation.id === call.conversationId && conversation.muted) && !notified.current.has(call.id)) {
         const url = getDmCallUrl(call.conversationId, call.id)
         notified.current.set(call.id, url)
         if (!isDnd)
@@ -49,7 +50,7 @@ export function DmCallNotifications() {
       }
     }
     for (const [id, url] of notified.current) {
-      if (!current[id]?.ringingUserIds.includes(userId ?? '')) {
+      if (!incoming.some((call) => call.id === id)) {
         void clearNotifications([url])
         notified.current.delete(id)
       }

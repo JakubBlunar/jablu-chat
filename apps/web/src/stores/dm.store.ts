@@ -4,6 +4,7 @@ import { api, type DmConversation } from '@/lib/api'
 import { CACHE_PAGE_SIZE, dmKey, evictContext, getContext, putContext } from '@/lib/cache/messageCache'
 import { isForbidden } from '@/lib/cache/isForbidden'
 import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
+import { compareDmConversations } from '@/lib/dmDisplay'
 
 type DmState = {
   conversations: DmConversation[]
@@ -35,10 +36,11 @@ type DmState = {
   removeReaction: (messageId: string, emoji: string, userId: string) => void
   updateConversationLastMessage: (
     conversationId: string,
-    msg: { content: string | null; authorId: string; createdAt: string }
+    msg: NonNullable<DmConversation['lastMessage']>
   ) => void
   addOrUpdateConversation: (conv: DmConversation) => void
   closeConversation: (conversationId: string) => Promise<void>
+  removeConversation: (conversationId: string) => void
 }
 
 let _dmFetchId = 0
@@ -61,7 +63,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     set({ isConversationsLoading: true, conversationsError: null })
     try {
       const list = await api.getDmConversations()
-      set({ conversations: list, isConversationsLoading: false })
+      set({ conversations: list.sort(compareDmConversations), isConversationsLoading: false })
     } catch {
       set({ isConversationsLoading: false, conversationsError: 'Failed to load conversations' })
     }
@@ -285,11 +287,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     set((s) => ({
       conversations: s.conversations
         .map((c) => (c.id === conversationId ? { ...c, lastMessage: msg } : c))
-        .sort((a, b) => {
-          const aTime = a.lastMessage?.createdAt ?? a.createdAt
-          const bTime = b.lastMessage?.createdAt ?? b.createdAt
-          return new Date(bTime).getTime() - new Date(aTime).getTime()
-        })
+        .sort(compareDmConversations)
     }))
   },
 
@@ -298,27 +296,30 @@ export const useDmStore = create<DmState>((set, _get) => ({
       const existing = s.conversations.find((c) => c.id === conv.id)
       if (existing) {
         return {
-          conversations: s.conversations.map((c) => (c.id === conv.id ? { ...c, ...conv } : c))
+          conversations: s.conversations.map((c) => (c.id === conv.id ? { ...c, ...conv } : c)).sort(compareDmConversations)
         }
       }
-      return { conversations: [conv, ...s.conversations] }
+      return { conversations: [conv, ...s.conversations].sort(compareDmConversations) }
     })
   },
 
-  closeConversation: async (conversationId) => {
+  removeConversation: (conversationId) => {
+    evictContext(dmKey(conversationId))
     set((s) => {
       const updates: Partial<DmState> = {
         conversations: s.conversations.filter((c) => c.id !== conversationId)
       }
       if (s.currentConversationId === conversationId) {
         updates.currentConversationId = null
+        updates.messages = []
+        updates.loadedForConvId = null
       }
       return updates
     })
-    try {
-      await api.closeDm(conversationId)
-    } catch {
-      /* server-side close is best-effort; UI already removed it */
-    }
+  },
+
+  closeConversation: async (conversationId) => {
+    await api.closeDm(conversationId)
+    _get().removeConversation(conversationId)
   }
 }))

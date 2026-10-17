@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import { UploadsService } from '../uploads/uploads.service'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { EventBusService } from '../events/event-bus.service'
-import { CreateDmDto, CreateGroupDmDto, DmAttachmentsQueryDto, SendDmMessageDto } from './dto'
+import { AddGroupMembersDto, CreateDmDto, CreateGroupDmDto, DmAttachmentsQueryDto, SendDmMessageDto, UpdateDmPreferencesDto, UpdateGroupDmDto } from './dto'
 import { DmService } from './dm.service'
 
 @Controller('dm')
@@ -10,7 +12,8 @@ import { DmService } from './dm.service'
 export class DmController {
   constructor(
     private readonly dm: DmService,
-    private readonly events: EventBusService
+    private readonly events: EventBusService,
+    private readonly uploads: UploadsService
   ) {}
 
   @Get()
@@ -26,6 +29,47 @@ export class DmController {
   @Post('group')
   createGroupDm(@CurrentUser() user: { id: string }, @Body() dto: CreateGroupDmDto) {
     return this.dm.createGroupDm(user.id, dto.memberIds, dto.groupName)
+  }
+
+  @Patch(':id/preferences')
+  updatePreferences(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }, @Body() dto: UpdateDmPreferencesDto) {
+    return this.dm.updatePreferences(id, user.id, dto)
+  }
+
+  @Patch(':id/group')
+  updateGroup(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }, @Body() dto: UpdateGroupDmDto) {
+    return this.dm.updateGroup(id, user.id, dto)
+  }
+
+  @Post(':id/members')
+  addMembers(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }, @Body() dto: AddGroupMembersDto) {
+    return this.dm.addGroupMembers(id, user.id, dto.memberIds)
+  }
+
+  @Post(':id/leave')
+  leaveGroup(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }) {
+    return this.dm.leaveGroup(id, user.id)
+  }
+
+  @Post(':id/avatar')
+  @UseInterceptors(FileInterceptor('avatar', {
+    limits: { fileSize: 8 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'].includes(file.mimetype)) cb(null, true)
+      else cb(new BadRequestException('Only image files are allowed'), false)
+    }
+  }))
+  async uploadGroupAvatar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }, @UploadedFile() file: Express.Multer.File) {
+    const conversation = await this.dm.getConversation(id, user.id)
+    if (!conversation.isGroup) throw new BadRequestException('This action is only available in group DMs')
+    if (!file) throw new BadRequestException('No image provided')
+    const groupAvatarUrl = await this.uploads.saveAvatar(file)
+    return this.dm.updateGroup(id, user.id, { groupAvatarUrl })
+  }
+
+  @Delete(':id/avatar')
+  removeGroupAvatar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }) {
+    return this.dm.updateGroup(id, user.id, { groupAvatarUrl: null })
   }
 
   @Patch(':id/close')

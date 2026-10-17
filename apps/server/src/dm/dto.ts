@@ -1,8 +1,32 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator'
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min, ValidateIf } from 'class-validator'
+
+export class UpdateDmPreferencesDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  isFavorite?: boolean
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  muted?: boolean
+}
+
+export class UpdateGroupDmDto {
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsString()
+  @Length(0, 100)
+  groupName?: string | null
+}
+
+export class AddGroupMembersDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(9)
+  @IsUUID('4', { each: true })
+  memberIds: string[]
+}
 
 export class DmAttachmentsQueryDto {
-  @IsOptional()
   @IsIn(['media', 'files'])
   kind: 'media' | 'files' = 'media'
 

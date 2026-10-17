@@ -364,6 +364,7 @@ model DirectConversation {
   id        String   @id @default(uuid())
   isGroup   Boolean  @default(false) @map("is_group")
   groupName String?  @map("group_name")
+  groupAvatarUrl String? @map("group_avatar_url")
   createdAt DateTime @default(now()) @map("created_at")
 
   members    DirectConversationMember[]
@@ -378,6 +379,9 @@ model DirectConversationMember {
   userId         String    @map("user_id")
   joinedAt       DateTime  @default(now()) @map("joined_at")
   closedAt       DateTime? @map("closed_at")
+  isFavorite     Boolean   @default(false) @map("is_favorite")
+  muted          Boolean   @default(false)
+  markedUnread   Boolean   @default(false) @map("marked_unread")
 
   conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)

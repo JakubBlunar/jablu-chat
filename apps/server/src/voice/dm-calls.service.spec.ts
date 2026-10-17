@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { DmCallsService } from './dm-calls.service'
 import { VoiceService } from './voice.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { EventBusService } from '../events/event-bus.service'
 
 const alice = { id: 'alice', username: 'alice', displayName: 'Alice' }
 const bob = { id: 'bob', username: 'bob', displayName: null }
@@ -12,6 +13,7 @@ const carol = { id: 'carol', username: 'carol', displayName: null }
 
 describe('DmCallsService', () => {
   let calls: DmCallsService
+  let events: EventBusService
   const membership = jest.fn()
   const members = jest.fn()
   const emit = jest.fn()
@@ -19,7 +21,8 @@ describe('DmCallsService', () => {
   const voice = {
     isConfigured: true,
     generateDmToken: jest.fn().mockResolvedValue({ token: 'token', url: 'wss://voice.test' }),
-    deleteDmRoom: jest.fn().mockResolvedValue(undefined)
+    deleteDmRoom: jest.fn().mockResolvedValue(undefined),
+    removeDmParticipant: jest.fn().mockResolvedValue(undefined)
   }
 
   beforeEach(async () => {
@@ -35,10 +38,12 @@ describe('DmCallsService', () => {
         { provide: DmService, useValue: { requireMembership: membership } },
         { provide: PrismaService, useValue: { directConversationMember: { findMany: members } } },
         { provide: VoiceService, useValue: voice },
-        { provide: NotificationsService, useValue: { dispatch } }
+        { provide: NotificationsService, useValue: { dispatch } },
+        EventBusService
       ]
     }).compile()
     calls = module.get(DmCallsService)
+    events = module.get(EventBusService)
     calls.setEmitter(emit)
   })
 
@@ -217,5 +222,24 @@ describe('DmCallsService', () => {
     expect(await calls.sync('stranger')).toEqual([])
     members.mockResolvedValueOnce([{ conversationId: 'dm' }])
     expect(await calls.sync('bob')).toEqual([call])
+  })
+
+  it('does not ring muted group members', async () => {
+    members.mockResolvedValueOnce([
+      { userId: 'alice', muted: false, user: { isBot: false } },
+      { userId: 'bob', muted: true, user: { isBot: false } }
+    ])
+    const call = await calls.start('dm', alice, 'a')
+    expect(call.ringingUserIds).toEqual([])
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ userIds: [] }))
+  })
+
+  it('revokes a departing member from signaling and the voice room', async () => {
+    const call = await calls.start('dm', alice, 'a')
+    await calls.accept(call.id, bob, 'b')
+    events.emit('dm:members-changed', { conversationId: 'dm', userIds: ['alice'], removedUserId: 'bob' })
+    expect(voice.removeDmParticipant).toHaveBeenCalledWith(call.id, 'bob')
+    expect(emit).toHaveBeenCalledWith(['bob'], 'dm:call:ended', expect.objectContaining({ callId: call.id }))
+    expect(voice.deleteDmRoom).toHaveBeenCalledWith(call.id)
   })
 })

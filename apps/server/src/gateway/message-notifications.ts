@@ -446,10 +446,11 @@ export async function deliverDmMessage(
 
   const memberRows = await ctx.prisma.directConversationMember.findMany({
     where: { conversationId },
-    select: { userId: true }
+    select: { userId: true, muted: true }
   })
   const memberIds = memberRows.map((m) => m.userId)
   const otherMemberIds = senderId ? memberIds.filter((id) => id !== senderId) : memberIds
+  const notificationMemberIds = memberRows.filter((member) => member.userId !== senderId && !member.muted).map((member) => member.userId)
 
   try {
     await ctx.readState.incrementDmMention(conversationId, otherMemberIds)
@@ -466,9 +467,9 @@ export async function deliverDmMessage(
   const snippet =
     describePushPreview(message.content ?? undefined, message.attachments ?? undefined) || 'Message'
 
-  if (!skipInApp && otherMemberIds.length > 0) {
+  if (!skipInApp && notificationMemberIds.length > 0) {
     ctx.inApp
-      .recordDmMessages(otherMemberIds, {
+      .recordDmMessages(notificationMemberIds, {
         conversationId,
         messageId: message.id,
         authorName,
@@ -493,7 +494,7 @@ export async function deliverDmMessage(
   }
 
   if (!skipPush) {
-    const awayMembers = otherMemberIds.filter((id) => !ctx.isUserActivelyEngaged(id))
+    const awayMembers = notificationMemberIds.filter((id) => !ctx.isUserActivelyEngaged(id))
     if (awayMembers.length > 0) {
       const preview = describePushPreview(
         message.content ?? undefined,

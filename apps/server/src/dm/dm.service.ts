@@ -3,6 +3,7 @@ import { Prisma } from '../prisma-client'
 import { FriendsService } from '../friends/friends.service'
 import { MessagesService } from '../messages/messages.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { EventBusService } from '../events/event-bus.service'
 import {
   dmMessageInclude as messageInclude,
   mapDmMessageToWire,
@@ -11,6 +12,8 @@ import {
 
 const memberSelect = {
   userId: true,
+  isFavorite: true,
+  muted: true,
   user: {
     select: {
       id: true,
@@ -30,7 +33,8 @@ export class DmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly friendsService: FriendsService,
-    private readonly messages: MessagesService
+    private readonly messages: MessagesService,
+    private readonly events: EventBusService
   ) {}
 
   mapToWire(m: MessageWithRelations) {
@@ -87,7 +91,7 @@ export class DmService {
         where: { conversationId: existing.id, userId: currentUserId, closedAt: { not: null } },
         data: { closedAt: null }
       })
-      return this.toConversationWire(existing)
+      return this.toConversationWire(existing, currentUserId)
     }
 
     if (!recipient.isBot && recipient.dmPrivacy === 'friends_only') {
@@ -107,7 +111,7 @@ export class DmService {
       include: { members: { select: memberSelect } }
     })
 
-    return this.toConversationWire(created)
+    return this.toConversationWire(created, currentUserId)
   }
 
   async createGroupDm(currentUserId: string, memberIds: string[], groupName?: string) {
@@ -119,7 +123,24 @@ export class DmService {
       throw new BadRequestException('Group DMs are limited to 10 participants')
     }
 
-    const users = await this.prisma.user.findMany({
+    await this.validateGroupPrivacy(this.prisma, uniqueIds)
+
+    const created = await this.prisma.directConversation.create({
+      data: {
+        isGroup: true,
+        groupName: groupName?.trim() || null,
+        members: {
+          create: uniqueIds.map((id) => ({ userId: id }))
+        }
+      },
+      include: { members: { select: memberSelect } }
+    })
+    this.events.emit('dm:conversation-changed', { conversationId: created.id, userIds: uniqueIds })
+    return this.toConversationWire(created, currentUserId)
+  }
+
+  private async validateGroupPrivacy(db: Pick<Prisma.TransactionClient, 'user' | 'friendship'>, uniqueIds: string[]) {
+    const users = await db.user.findMany({
       where: { id: { in: uniqueIds } },
       select: { id: true, dmPrivacy: true }
     })
@@ -130,7 +151,7 @@ export class DmService {
     const privacyUsers = users.filter((u) => u.dmPrivacy === 'friends_only')
     if (privacyUsers.length > 0) {
       const privacyUserIds = privacyUsers.map((u) => u.id)
-      const friendships = await this.prisma.friendship.findMany({
+      const friendships = await db.friendship.findMany({
         where: {
           status: 'accepted',
           OR: [
@@ -155,18 +176,76 @@ export class DmService {
       }
     }
 
-    const created = await this.prisma.directConversation.create({
-      data: {
-        isGroup: true,
-        groupName: groupName?.trim() || null,
-        members: {
-          create: uniqueIds.map((id) => ({ userId: id }))
-        }
-      },
+  }
+
+  private async lockGroup(tx: Prisma.TransactionClient, conversationId: string, userId: string) {
+    await tx.$queryRaw`SELECT id FROM direct_conversations WHERE id = ${conversationId} FOR UPDATE`
+    const conversation = await tx.directConversation.findUnique({
+      where: { id: conversationId },
       include: { members: { select: memberSelect } }
     })
+    if (!conversation?.members.some((member) => member.userId === userId)) {
+      throw new ForbiddenException('You are not a member of this conversation')
+    }
+    if (!conversation.isGroup) throw new BadRequestException('This action is only available in group DMs')
+    return conversation
+  }
 
-    return this.toConversationWire(created)
+  async updatePreferences(conversationId: string, userId: string, data: { isFavorite?: boolean; muted?: boolean }) {
+    await this.requireMembership(conversationId, userId)
+    await this.prisma.directConversationMember.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data
+    })
+    this.events.emit('dm:conversation-changed', { conversationId, userIds: [userId] })
+    return this.getConversation(conversationId, userId)
+  }
+
+  async updateGroup(conversationId: string, userId: string, data: { groupName?: string | null; groupAvatarUrl?: string | null }) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockGroup(tx, conversationId, userId)
+      return tx.directConversation.update({
+        where: { id: conversationId },
+        data: { ...data, ...(data.groupName !== undefined ? { groupName: data.groupName?.trim() || null } : {}) },
+        include: { members: { select: memberSelect } }
+      })
+    })
+    this.events.emit('dm:conversation-changed', { conversationId, userIds: updated.members.map((member) => member.userId) })
+    return this.toConversationWire(updated, userId)
+  }
+
+  async addGroupMembers(conversationId: string, userId: string, memberIds: string[]) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const group = await this.lockGroup(tx, conversationId, userId)
+      const ids = [...new Set([...group.members.map((member) => member.userId), ...memberIds])]
+      if (ids.length > 10) throw new BadRequestException('Group DMs are limited to 10 participants')
+      await this.validateGroupPrivacy(tx, ids)
+      const currentIds = new Set(group.members.map((member) => member.userId))
+      await tx.directConversationMember.createMany({
+        data: ids.filter((id) => !currentIds.has(id)).map((id) => ({ conversationId, userId: id }))
+      })
+      return tx.directConversation.findUniqueOrThrow({
+        where: { id: conversationId },
+        include: { members: { select: memberSelect } }
+      })
+    })
+    const userIds = updated.members.map((member) => member.userId)
+    this.events.emit('dm:conversation-changed', { conversationId, userIds })
+    this.events.emit('dm:members-changed', { conversationId, userIds })
+    return this.toConversationWire(updated, userId)
+  }
+
+  async leaveGroup(conversationId: string, userId: string) {
+    const userIds = await this.prisma.$transaction(async (tx) => {
+      const group = await this.lockGroup(tx, conversationId, userId)
+      await tx.directConversationMember.delete({ where: { conversationId_userId: { conversationId, userId } } })
+      await tx.dmReadState.deleteMany({ where: { conversationId, userId } })
+      return group.members.filter((member) => member.userId !== userId).map((member) => member.userId)
+    })
+    this.events.emit('dm:member-left', { conversationId, userId })
+    this.events.emit('dm:members-changed', { conversationId, userIds, removedUserId: userId })
+    this.events.emit('dm:conversation-changed', { conversationId, userIds })
+    return { ok: true }
   }
 
   async closeConversation(conversationId: string, userId: string) {
@@ -190,12 +269,15 @@ export class DmService {
       include: {
         members: { select: memberSelect },
         messages: {
+          where: { deleted: false },
           orderBy: { createdAt: 'desc' },
           take: 1,
           select: {
             content: true,
             authorId: true,
-            createdAt: true
+            createdAt: true,
+            attachments: { select: { type: true, filename: true }, take: 1 },
+            author: { select: { username: true, displayName: true } }
           }
         }
       },
@@ -206,14 +288,20 @@ export class DmService {
       .map((c) => {
         const lastMessage = c.messages[0] ?? null
         return {
-          ...this.toConversationWire(c),
-          lastMessage
+          ...this.toConversationWire(c, userId),
+          lastMessage: lastMessage ? {
+            content: lastMessage.content,
+            authorId: lastMessage.authorId,
+            authorName: lastMessage.author?.displayName ?? lastMessage.author?.username ?? null,
+            createdAt: lastMessage.createdAt,
+            attachment: lastMessage.attachments[0] ?? null
+          } : null
         }
       })
       .sort((a, b) => {
         const aTime = a.lastMessage?.createdAt ?? new Date(a.createdAt)
         const bTime = b.lastMessage?.createdAt ?? new Date(b.createdAt)
-        return new Date(bTime).getTime() - new Date(aTime).getTime()
+        return Number(b.isFavorite) - Number(a.isFavorite) || new Date(bTime).getTime() - new Date(aTime).getTime()
       })
   }
 
@@ -226,7 +314,7 @@ export class DmService {
     if (!conversation) {
       throw new NotFoundException('Conversation not found')
     }
-    return this.toConversationWire(conversation)
+    return this.toConversationWire(conversation, userId)
   }
 
   async getMessages(conversationId: string, userId: string, cursor?: string, limit = 50) {
@@ -578,12 +666,17 @@ export class DmService {
   private toConversationWire(
     c: Prisma.DirectConversationGetPayload<{
       include: { members: { select: typeof memberSelect } }
-    }>
+    }>,
+    viewerId: string
   ) {
+    const member = c.members.find((m) => m.userId === viewerId)
     return {
       id: c.id,
       isGroup: c.isGroup,
       groupName: c.groupName,
+      groupAvatarUrl: c.groupAvatarUrl,
+      isFavorite: member?.isFavorite ?? false,
+      muted: member?.muted ?? false,
       createdAt: c.createdAt.toISOString(),
       members: c.members.map((m) => ({
         userId: m.user.id,

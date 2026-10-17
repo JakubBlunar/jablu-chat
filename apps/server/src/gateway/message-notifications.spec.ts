@@ -405,6 +405,17 @@ describe('deliverDmMessage', () => {
     ])
   })
 
+  it('delivers muted messages and tracks unread without bell rows or push', async () => {
+    prisma.directConversationMember.findMany.mockResolvedValue([{ userId: 'sender' }, { userId: 'other', muted: true }])
+    const { ctx, readState, inApp, push, emitToDm } = makeCtx(prisma, redis)
+    await deliverDmMessage(ctx, { conversationId: 'conv', message: { id: 'm', content: 'hi' }, senderId: 'sender' })
+    await flush()
+    expect(emitToDm).toHaveBeenCalled()
+    expect(readState.incrementDmMention).toHaveBeenCalledWith('conv', ['other'])
+    expect(inApp.recordDmMessages).not.toHaveBeenCalled()
+    expect(push.sendToUsers).not.toHaveBeenCalled()
+  })
+
   it('emits dm:new, increments DM mention, records DM in-app, and pushes to offline members', async () => {
     const { ctx, readState, inApp, push, emitToDm } = makeCtx(prisma, redis)
 

@@ -43,6 +43,15 @@ describe('ReadStateService', () => {
   })
 
   describe('getAllForUser', () => {
+    it('preserves a manual unread marker without rewinding the read receipt', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+        conversation_id: 'dm', marked_unread: true, last_read_at: new Date('2026-10-17T10:00:00Z'),
+        mention_count: 0, unread_count: 0n, first_unread_message_id: null
+      }])
+      const result = await service.getAllForUser(userId)
+      expect(result.dms[0]).toMatchObject({ unreadCount: 1, lastReadAt: '2026-10-17T10:00:00.000Z' })
+    })
+
     it('queries membership-backed channels and DMs even without an existing read-state row', async () => {
       prisma.$queryRaw.mockResolvedValue([])
       await service.getAllForUser(userId)

@@ -14,7 +14,7 @@ export function UnreadDmShortcuts({ onNavigate }: { onNavigate?: () => void }) {
   const readStates = useReadStateStore((s) => s.dms)
 
   return conversations
-    .filter((conversation) => (readStates.get(conversation.id)?.unreadCount ?? 0) > 0)
+    .filter((conversation) => !conversation.muted && (readStates.get(conversation.id)?.unreadCount ?? 0) > 0)
     .map((conversation) => {
       const count = readStates.get(conversation.id)!.unreadCount
       const { name, avatarUrl } = getDmDisplayInfo(conversation, userId)

@@ -14,6 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service'
 import { DmService } from '../dm/dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { VoiceService } from './voice.service'
+import { EventBusService } from '../events/event-bus.service'
 
 type CallSession = {
   call: DmCall
@@ -34,8 +35,31 @@ export class DmCallsService implements OnModuleDestroy {
     private readonly dm: DmService,
     private readonly prisma: PrismaService,
     private readonly voice: VoiceService,
-    private readonly notifications: NotificationsService
-  ) {}
+    private readonly notifications: NotificationsService,
+    private readonly events: EventBusService
+  ) {
+    this.events.on('dm:members-changed', this.onMembersChanged)
+  }
+
+  private readonly onMembersChanged = ({ conversationId, userIds, removedUserId }: {
+    conversationId: string; userIds: string[]; removedUserId?: string
+  }) => {
+    for (const session of this.sessions.values()) {
+      if (session.call.conversationId !== conversationId) continue
+      session.memberIds = userIds
+      session.call.ringingUserIds = session.call.ringingUserIds.filter((id) => userIds.includes(id))
+      if (removedUserId) {
+        for (const [socketId, participant] of session.sockets) {
+          if (participant.userId === removedUserId) session.sockets.delete(socketId)
+        }
+        this.emit([removedUserId], 'dm:call:ended', { callId: session.call.id, conversationId, reason: 'disconnected' })
+        void this.voice.removeDmParticipant(session.call.id, removedUserId).catch((error: unknown) =>
+          this.logger.error('Failed to remove departed group member from voice', error))
+      }
+      if (session.sockets.size === 0 || (session.sockets.size < 2 && session.call.ringingUserIds.length === 0)) this.end(session, 'disconnected')
+      else this.broadcast(session)
+    }
+  }
 
   setEmitter(emit: (userIds: string[], event: string, payload: unknown) => void) {
     this.emit = emit
@@ -59,7 +83,7 @@ export class DmCallsService implements OnModuleDestroy {
     await this.dm.requireMembership(conversationId, user.id)
     const members = await this.prisma.directConversationMember.findMany({
       where: { conversationId },
-      select: { userId: true, user: { select: { isBot: true } } }
+      select: { userId: true, muted: true, user: { select: { isBot: true } } }
     })
     const memberIds = members.filter((member) => !member.user.isBot).map((member) => member.userId)
     if (!memberIds.includes(user.id) || memberIds.length < 2)
@@ -77,7 +101,7 @@ export class DmCallsService implements OnModuleDestroy {
       callerName: user.displayName ?? user.username,
       createdAt: new Date().toISOString(),
       ringingUntil: new Date(expiresAt).toISOString(),
-      ringingUserIds: memberIds.filter((id) => id !== user.id),
+      ringingUserIds: members.filter((member) => !member.user.isBot && !member.muted && member.userId !== user.id).map((member) => member.userId),
       participants: []
     }
     const session: CallSession = {
@@ -228,6 +252,7 @@ export class DmCallsService implements OnModuleDestroy {
   }
 
   onModuleDestroy() {
+    this.events.off('dm:members-changed', this.onMembersChanged)
     for (const session of this.sessions.values()) this.end(session, 'disconnected')
   }
 }

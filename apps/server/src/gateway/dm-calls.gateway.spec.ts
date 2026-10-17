@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io'
 import { DmService } from '../dm/dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { DmCallsService } from '../voice/dm-calls.service'
+import { EventBusService } from '../events/event-bus.service'
 import { VoiceService } from '../voice/voice.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { DmCallsGateway } from './dm-calls.gateway'
@@ -82,6 +83,7 @@ describe('DM call signaling over WebSocket', () => {
       providers: [
         DmCallsGateway,
         DmCallsService,
+        EventBusService,
         {
           provide: DmService,
           useValue: {

@@ -2,6 +2,9 @@ export interface DirectConversation {
   id: string
   isGroup: boolean
   groupName: string | null
+  groupAvatarUrl?: string | null
+  isFavorite?: boolean
+  muted?: boolean
   createdAt: string
   members?: DirectConversationMemberInfo[]
   lastMessage?: {

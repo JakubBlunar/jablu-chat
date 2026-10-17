@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 import { GroupDmModal } from '@/components/dm/GroupDmModal'
+import { ConversationPreview } from '@/components/dm/ConversationPreview'
+import { showToast } from '@/stores/toast.store'
 import { MobileDrawer } from '@/components/layout/MobileDrawer'
 import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
 import { HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
@@ -65,6 +67,7 @@ const RolePickerModal = React.lazy(() =>
 
 export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpenSettings: (tab?: string) => void; onOpenQuickSwitcher: () => void }) {
   const { t } = useTranslation('nav')
+  const { t: tChat } = useTranslation('chat')
   const { open, close } = useLayoutStore(useShallow((s) => ({ open: s.navDrawerOpen, close: s.closeNavDrawer })))
 
   const { orchestratedGoToChannel, goToDms, goToFriends, goToDm } = useAppNavigate()
@@ -300,7 +303,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
       if (conv.isGroup) {
         return {
           name: conv.groupName || conv.members.map((m) => m.displayName ?? m.username).join(', '),
-          avatarUrl: null as string | null,
+          avatarUrl: conv.groupAvatarUrl ?? null,
           status: 'online' as const,
           isGroup: true
         }
@@ -663,15 +666,19 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                             showStatus
                             status={info.status}
                           />
-                          <span className="min-w-0 flex-1 truncate text-left">{info.name}</span>
-                          {hasUnread && <span className="h-2 w-2 rounded-full bg-primary" />}
+                          <span className="min-w-0 flex-1 text-left">
+                            <span className="block truncate">{conv.isFavorite ? '\u2605 ' : ''}{info.name}</span>
+                            <ConversationPreview conversation={conv} currentUserId={user?.id} />
+                            {conv.muted && <span className="text-[10px] text-gray-500">{tChat('conversationMuted')}</span>}
+                          </span>
+                          {hasUnread && !conv.muted && <span className="mr-6 h-2 w-2 shrink-0 rounded-full bg-primary" />}
                         </button>
                         <IconButton
                           label={t('closeConversation')}
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation()
-                            void closeConv(conv.id)
+                            void closeConv(conv.id).catch(() => showToast(tChat('conversationActionFailed'), tChat('conversationRetry')))
                           }}
                           className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 opacity-60 hover:text-white"
                         >

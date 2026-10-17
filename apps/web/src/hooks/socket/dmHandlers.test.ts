@@ -130,8 +130,18 @@ describe('onDmNew', () => {
     expect(useDmStore.getState().updateConversationLastMessage).toHaveBeenCalledWith('conv1', {
       content: 'Hey!',
       authorId: 'other',
+      authorName: 'Bob',
+      attachment: null,
       createdAt: '2024-01-01T00:00:00Z'
     })
+  })
+
+  it('keeps muted messages unread without raising a notification', () => {
+    useDmStore.setState({ conversations: [{ id: 'conv1', muted: true }] } as any)
+    jest.mocked(isAppFocused).mockReturnValue(false)
+    handlers.onDmNew(basePayload as any)
+    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1', 'dm-msg-1')
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 })
 

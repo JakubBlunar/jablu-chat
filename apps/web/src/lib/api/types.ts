@@ -90,6 +90,9 @@ export type DmConversation = {
   id: string
   isGroup: boolean
   groupName: string | null
+  groupAvatarUrl?: string | null
+  isFavorite?: boolean
+  muted?: boolean
   createdAt: string
   members: {
     userId: string
@@ -104,6 +107,8 @@ export type DmConversation = {
   lastMessage?: {
     content: string | null
     authorId: string
+    authorName?: string | null
+    attachment?: { type: Attachment['type']; filename: string } | null
     createdAt: string
   } | null
 }
