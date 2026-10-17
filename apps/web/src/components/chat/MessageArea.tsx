@@ -39,6 +39,7 @@ import { useDmContext, dmMentionChannels } from '@/components/dm/hooks/useDmCont
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { SearchBar } from '@/components/SearchBar'
 const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then((m) => ({ default: m.SearchDrawer })))
+const DmVoiceRoom = lazy(() => import('@/components/voice/VoiceRoom').then((m) => ({ default: m.VoiceRoom })))
 const EditChannelModal = lazy(() =>
   import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
 )
@@ -46,6 +47,8 @@ import { ChannelInfoPanel } from '@/components/chat/ChannelInfoPanel'
 import { ChannelInfoDrawer } from '@/components/chat/ChannelInfoDrawer'
 import { TimeoutBanner } from '@/components/chat/TimeoutBanner'
 import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
+import { DmCallButton } from '@/components/dm/DmCallButton'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
 import {
   AtIcon,
@@ -71,6 +74,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isMobile = useIsMobile()
   const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
+  const viewingDmVoice = useVoiceConnectionStore((s) =>
+    isDm && !!s.currentDmCallId && s.currentChannelId === contextId && s.viewingVoiceRoom)
   const store = useMessageStoreAdapter(mode, contextId)
   const { messages, isLoading, hasMore, hasNewer } = store
   const dmMessagesError = useDmStore((s) => s.messagesError)
@@ -545,6 +550,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             ) : (
               <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
             )}
+            {contextId && <DmCallButton conversationId={contextId} />}
             {!isMobile && (
               <>
                 {dm.otherMember && !dm.currentConv?.isGroup && (
@@ -583,7 +589,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               </>
             )}
           </header>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {viewingDmVoice ? <Suspense fallback={<Spinner size="lg" />}><DmVoiceRoom /></Suspense> : messageList}
+          </div>
         </div>
         {searchOpen ? (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">

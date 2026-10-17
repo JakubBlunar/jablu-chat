@@ -6,6 +6,8 @@ import { CameraSettingsModal } from './CameraSettingsModal'
 import { ScreenShareDialog } from './ScreenShareDialog'
 import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
 import { QuickVoiceDevices } from './QuickVoiceDevices'
+import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { useLayoutStore } from '@/stores/layout.store'
 function MicIcon({ muted }: { muted: boolean }) {
   if (muted) {
     return (
@@ -87,15 +89,21 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
   const micMode = useVoiceConnectionStore((s) => s.micMode)
 
   const vc = useVoiceControls()
+  const { goToDm } = useAppNavigate()
   const [devicesOpen, setDevicesOpen] = useState(false)
 
   const handleShowVoiceRoom = useCallback(() => {
-    if (onGoToVoiceRoom) {
+    const state = useVoiceConnectionStore.getState()
+    if (state.currentDmCallId && state.currentChannelId) {
+      state.setViewingVoiceRoom(true)
+      goToDm(state.currentChannelId)
+      useLayoutStore.getState().closeNavDrawer()
+    } else if (onGoToVoiceRoom) {
       onGoToVoiceRoom()
     } else {
       useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
     }
-  }, [onGoToVoiceRoom])
+  }, [onGoToVoiceRoom, goToDm])
 
   const handleRetryVoice = useCallback(() => {
     const d = useVoiceConnectionStore.getState().voiceNetworkDropout

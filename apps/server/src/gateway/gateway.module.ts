@@ -11,6 +11,8 @@ import { RolesModule } from '../roles/roles.module'
 import { ChatGateway } from './gateway.gateway'
 import { WsJwtGuard } from './ws-jwt.guard'
 import { WsThrottleGuard } from './ws-throttle.guard'
+import { VoiceModule } from '../voice/voice.module'
+import { DmCallsGateway } from './dm-calls.gateway'
 
 @Module({
   imports: [
@@ -22,8 +24,9 @@ import { WsThrottleGuard } from './ws-throttle.guard'
     AutoModModule,
     RolesModule,
     InAppNotificationsModule,
-    NotificationsModule
+    NotificationsModule,
+    VoiceModule
   ],
-  providers: [ChatGateway, WsJwtGuard, WsThrottleGuard]
+  providers: [ChatGateway, DmCallsGateway, WsJwtGuard, WsThrottleGuard]
 })
 export class GatewayModule {}

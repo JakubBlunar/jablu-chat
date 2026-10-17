@@ -42,6 +42,8 @@ export function useRouteSync() {
         prevConvRef.current = conversationId
         useDmStore.getState().setCurrentConversation(conversationId)
         useNavHistoryStore.getState().recordDmScreen(conversationId)
+        const voiceState = useVoiceConnectionStore.getState()
+        voiceState.setViewingVoiceRoom(!!voiceState.currentDmCallId && conversationId === voiceState.currentChannelId)
       }
     } else if (serverId) {
       if (prevIsDmRef.current !== false) {

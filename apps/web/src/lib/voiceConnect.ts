@@ -21,22 +21,37 @@ function showVoiceError(message: string) {
   window.dispatchEvent(new CustomEvent('voice:error', { detail: { message } }))
 }
 
-function applyVoiceJoinPreferencesFromSettings() {
+function applyVoiceJoinPreferencesFromSettings(room: Room) {
+  if (useVoiceConnectionStore.getState().room !== room) {
+    room.localParticipant.getTrackPublications().forEach((publication) => publication.track?.mediaStreamTrack?.stop())
+    void room.disconnect().catch((error: unknown) => console.error('Failed to close canceled voice connection:', error))
+    return
+  }
   const { voiceJoinMuted, voiceJoinDeafened } = useSettingsStore.getState()
   if (!voiceJoinMuted && !voiceJoinDeafened) return
-  queueMicrotask(() =>
+  queueMicrotask(() => {
+    if (useVoiceConnectionStore.getState().room !== room) return
     useVoiceConnectionStore.getState().applyInitialVoiceState({
       joinMuted: voiceJoinMuted,
       joinDeafened: voiceJoinDeafened
     })
-  )
+  })
 }
 
 let _joinPromise: Promise<void> | null = null
 
 export async function joinVoiceChannel(serverId: string, channelId: string, channelName: string) {
+  await joinVoiceSession(serverId, channelId, channelName)
+}
+
+export async function joinDmCall(callId: string, conversationId: string, name: string, isValid?: () => boolean) {
+  await joinVoiceSession(null, conversationId, name, callId, isValid)
+}
+
+async function joinVoiceSession(serverId: string | null, channelId: string, channelName: string, dmCallId?: string, isValid?: () => boolean) {
   if (_joinPromise) await _joinPromise.catch(() => {})
-  _joinPromise = _joinVoiceChannelImpl(serverId, channelId, channelName)
+  if (isValid && !isValid()) return
+  _joinPromise = _joinVoiceChannelImpl(serverId, channelId, channelName, dmCallId, isValid)
   try {
     await _joinPromise
   } finally {
@@ -44,31 +59,26 @@ export async function joinVoiceChannel(serverId: string, channelId: string, chan
   }
 }
 
-async function _joinVoiceChannelImpl(serverId: string, channelId: string, channelName: string) {
+async function _joinVoiceChannelImpl(serverId: string | null, channelId: string, channelName: string, dmCallId?: string, isValid?: () => boolean) {
   const store = useVoiceConnectionStore.getState()
 
     if (store.currentChannelId) {
       getSocket()?.emit('voice:leave')
-      const oldRoom = store.room
-      if (oldRoom) {
-        void import('@/lib/rnnoiseMicrophone').then(({ stopRnnoiseMicrophone }) => stopRnnoiseMicrophone(oldRoom))
-        oldRoom.removeAllListeners()
-        oldRoom.localParticipant.getTrackPublications().forEach((pub) => {
-          pub.track?.mediaStreamTrack?.stop()
-        })
-        oldRoom.disconnect().catch(() => {})
-      }
+      store.disconnect()
     }
 
-  store.setConnecting(serverId, channelId, channelName)
+  store.setConnecting(serverId, channelId, channelName, dmCallId)
+  const isCurrent = () => {
+    const current = useVoiceConnectionStore.getState()
+    return current.currentChannelId === channelId && current.currentDmCallId === (dmCallId ?? null) && (!isValid || isValid())
+  }
 
   try {
-    const [{ token, url }, devices] = await Promise.all([api.getVoiceToken(channelId), getValidatedDevices()])
+    const [{ token, url }, devices] = await Promise.all([
+      dmCallId ? api.getDmVoiceToken(dmCallId) : api.getVoiceToken(channelId), getValidatedDevices()
+    ])
 
-    if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
-      useVoiceConnectionStore.getState().disconnect()
-      return
-    }
+    if (!isCurrent()) return
 
     const audioCaptureDefaults = buildAudioCaptureOptions(devices.audioInput || undefined)
 
@@ -125,10 +135,9 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
 
     await room.connect(url, token)
 
-    if (useVoiceConnectionStore.getState().currentChannelId !== channelId) {
+    if (!isCurrent()) {
       room.removeAllListeners()
       room.disconnect().catch(() => {})
-      useVoiceConnectionStore.getState().disconnect()
       return
     }
 
@@ -137,7 +146,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
       useVoiceConnectionStore.getState().setAudioOutputDeviceId(devices.audioOutput)
     }
 
-    getSocket()?.emit('voice:join', { channelId })
+    if (!dmCallId) getSocket()?.emit('voice:join', { channelId })
     const { voiceJoinMuted, voiceJoinDeafened } = useSettingsStore.getState()
     const skipMicBootstrap = voiceJoinMuted || voiceJoinDeafened
     store.setConnected(room, { skipMicModeBootstrap: skipMicBootstrap })
@@ -149,7 +158,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
     if (mode === 'rnnoise' && canUseRnnoise()) {
       void import('@/lib/rnnoiseMicrophone')
         .then(({ startRnnoiseMicrophone }) => startRnnoiseMicrophone(room, micOpts))
-        .then(() => applyVoiceJoinPreferencesFromSettings())
+        .then(() => applyVoiceJoinPreferencesFromSettings(room))
         .catch((err) => {
           console.error('RNNoise microphone failed:', err)
           showVoiceError('RNNoise could not start. Using standard microphone.')
@@ -157,7 +166,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
           room.options.audioCaptureDefaults = { ...room.options.audioCaptureDefaults, ...fallback }
           room.localParticipant
             .setMicrophoneEnabled(true, fallback)
-            .then(() => applyVoiceJoinPreferencesFromSettings())
+            .then(() => applyVoiceJoinPreferencesFromSettings(room))
             .catch((e2) => {
               if (e2 instanceof DOMException && e2.name === 'NotAllowedError') {
                 showVoiceError('Microphone access denied. Check your browser permissions.')
@@ -172,7 +181,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
       }
       room.localParticipant
         .setMicrophoneEnabled(true, micOpts)
-        .then(() => applyVoiceJoinPreferencesFromSettings())
+        .then(() => applyVoiceJoinPreferencesFromSettings(room))
         .catch((err) => {
           if (err instanceof DOMException && err.name === 'NotAllowedError') {
             showVoiceError('Microphone access denied. Check your browser permissions.')
@@ -182,7 +191,7 @@ async function _joinVoiceChannelImpl(serverId: string, channelId: string, channe
         })
     }
   } catch (err) {
-    if (useVoiceConnectionStore.getState().currentChannelId !== channelId) return
+    if (!isCurrent()) return
     console.error('Failed to join voice channel:', err)
     if (err instanceof DOMException && err.name === 'NotAllowedError') {
       showVoiceError('Permission denied. Allow microphone access to join voice channels.')

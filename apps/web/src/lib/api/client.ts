@@ -364,6 +364,10 @@ export class ApiClient {
     return this.post(`/api/voice/token/${channelId}`)
   }
 
+  getDmVoiceToken(callId: string): Promise<{ token: string; url: string }> {
+    return this.post(`/api/voice/dm-token/${callId}`)
+  }
+
   getTranslationCapabilities(): Promise<TranslationCapabilities> {
     return this.get('/api/translation/capabilities')
   }

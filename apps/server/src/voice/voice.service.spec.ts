@@ -43,6 +43,16 @@ describe('VoiceService', () => {
   })
 
   describe('generateToken', () => {
+    it('uses isolated short-lived rooms for DM calls', async () => {
+      const service = new VoiceService(makeConfig())
+      await service.generateDmToken('user1', 'alice', 'call-1')
+      const tokenMock = jest.mocked(AccessToken)
+      expect(tokenMock).toHaveBeenLastCalledWith('key123', 'secret456', {
+        identity: 'user1', name: 'alice', ttl: 60
+      })
+      const instance = tokenMock.mock.instances[tokenMock.mock.instances.length - 1]
+      expect(instance.addGrant).toHaveBeenCalledWith(expect.objectContaining({ room: 'dm-call:call-1' }))
+    })
     it('returns a JWT token and the LiveKit URL', async () => {
       const service = new VoiceService(makeConfig())
       const result = await service.generateToken('user1', 'alice', 'ch-voice')

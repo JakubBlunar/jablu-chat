@@ -18,6 +18,7 @@ import { CurrentUser } from '../auth/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 import { VoiceService } from './voice.service'
+import { DmCallsService } from './dm-calls.service'
 
 @Controller('voice')
 @UseGuards(UnifiedAuthGuard)
@@ -26,6 +27,7 @@ export class VoiceController {
     private readonly voice: VoiceService,
     private readonly prisma: PrismaService,
     private readonly roles: RolesService,
+    private readonly dmCalls: DmCallsService,
   ) {}
 
   @Post('token/:channelId')
@@ -53,6 +55,14 @@ export class VoiceController {
   @Get('status')
   status() {
     return { configured: this.voice.isConfigured }
+  }
+
+  @Post('dm-token/:callId')
+  getDmToken(
+    @Param('callId', ParseUUIDPipe) callId: string,
+    @CurrentUser() user: { id: string; username: string }
+  ) {
+    return this.dmCalls.token(callId, user)
   }
 
   @Get('volumes')

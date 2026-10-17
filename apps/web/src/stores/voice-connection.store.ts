@@ -16,7 +16,9 @@ function normalizedMicMode(): MicMode {
 }
 
 function emitVoiceState(state: { muted?: boolean; deafened?: boolean; camera?: boolean; screenShare?: boolean }) {
-  getSocket()?.emit('voice:state', state)
+  const callId = useVoiceConnectionStore.getState().currentDmCallId
+  if (callId) getSocket()?.emit('dm:call:state', { callId, ...state })
+  else getSocket()?.emit('voice:state', state)
 }
 
 export type VoiceNetworkDropout = {
@@ -27,6 +29,7 @@ export type VoiceNetworkDropout = {
 
 export type VoiceConnectionState = {
   currentServerId: string | null
+  currentDmCallId: string | null
   currentChannelId: string | null
   currentChannelName: string | null
   room: Room | null
@@ -46,7 +49,7 @@ export type VoiceConnectionState = {
   audioOutputDeviceId: string
   voiceNetworkDropout: VoiceNetworkDropout | null
 
-  setConnecting: (serverId: string, channelId: string, channelName: string) => void
+  setConnecting: (serverId: string | null, channelId: string, channelName: string, dmCallId?: string) => void
   setConnected: (room: Room, options?: { skipMicModeBootstrap?: boolean }) => void
   disconnect: () => void
   disconnectAfterUnexpectedClose: (info: VoiceNetworkDropout) => void
@@ -132,6 +135,7 @@ let _wasMutedBeforeDeafen = false
 
 export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) => ({
   currentServerId: null,
+  currentDmCallId: null,
   currentChannelId: null,
   currentChannelName: null,
   room: null,
@@ -151,9 +155,10 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   audioOutputDeviceId: '',
   voiceNetworkDropout: null,
 
-  setConnecting: (serverId, channelId, channelName) =>
+  setConnecting: (serverId, channelId, channelName, dmCallId) =>
     set({
       currentServerId: serverId,
+      currentDmCallId: dmCallId ?? null,
       currentChannelId: channelId,
       currentChannelName: channelName,
       isConnecting: true,
@@ -178,7 +183,8 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   },
 
   disconnect: () => {
-    const { room, _blurHandle, _originalCameraTrack } = get()
+    const { room, _blurHandle, _originalCameraTrack, currentDmCallId } = get()
+    if (currentDmCallId) getSocket()?.emit('dm:call:leave', { callId: currentDmCallId })
     if (_saveTimer) clearTimeout(_saveTimer)
     stopMicMode()
     _blurHandle?.stop()
@@ -193,6 +199,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     }
     set({
       currentServerId: null,
+      currentDmCallId: null,
       currentChannelId: null,
       currentChannelName: null,
       room: null,

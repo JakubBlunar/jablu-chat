@@ -6,6 +6,7 @@ import { SkipToMainLink } from '@/components/a11y/SkipToMainLink'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
 import { Spinner } from '@/components/ui'
 import { DmSidebar } from '@/components/dm/DmSidebar'
+import { DmCallNotifications } from '@/components/dm/DmCallNotifications'
 import { MemberDrawer } from '@/components/member/MemberDrawer'
 import { MemberSidebar } from '@/components/member/MemberSidebar'
 import { MessageArea } from '@/components/chat/MessageArea'
@@ -278,6 +279,7 @@ export function MainLayout() {
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
         <VoiceAudioManager />
+        <DmCallNotifications />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
@@ -340,6 +342,7 @@ export function MainLayout() {
       <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
         <VoiceAudioManager />
+        <DmCallNotifications />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
@@ -358,6 +361,9 @@ export function MainLayout() {
             <MessageArea mode="dm" contextId={currentConvId} />
           </div>
         </div>
+        <Suspense fallback={null}>
+          <ScreenSharePicker />
+        </Suspense>
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
@@ -373,6 +379,7 @@ export function MainLayout() {
     <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <SkipToMainLink />
       <VoiceAudioManager />
+      <DmCallNotifications />
       <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
       <PwaInstallBanner />

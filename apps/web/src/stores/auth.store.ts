@@ -45,6 +45,7 @@ function resetAllStores() {
     import('./member.store'),
     import('./message.store'),
     import('./dm.store'),
+    import('./dmCall.store'),
     import('./readState.store'),
     import('./notifPref.store'),
     import('./voice.store'),
@@ -64,6 +65,7 @@ function resetAllStores() {
       { useMemberStore },
       { useMessageStore },
       { useDmStore },
+      { useDmCallStore },
       { useReadStateStore },
       { useNotifPrefStore },
       { useVoiceStore },
@@ -97,6 +99,7 @@ function resetAllStores() {
       useNotifPrefStore.setState({ prefs: {}, serverPrefs: {} })
       useVoiceStore.getState().reset()
       useVoiceConnectionStore.getState().disconnect()
+      useDmCallStore.getState().reset()
       useLayoutStore.setState({ navDrawerOpen: false, memberDrawerOpen: false })
       useNavigationStore.setState({ isNavigating: false, navigatingToServerId: null, activeNavId: 0 })
       useEventStore.getState().reset()

@@ -13,6 +13,7 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useDmCallStore } from '@/stores/dmCall.store'
 import { createChannelHandlers } from './socket/channelHandlers'
 import { createDmHandlers } from './socket/dmHandlers'
 import { createPresenceHandlers } from './socket/presenceHandlers'
@@ -83,6 +84,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const onConnect = () => {
       setIsConnected(true)
       void useDmStore.getState().fetchConversations()
+      void useDmCallStore.getState().sync()
       const channelId = useChannelStore.getState().currentChannelId
       if (channelId) {
         socket.emit('channel:join', { channelId })
@@ -121,7 +123,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       void useNotificationCenterStore.getState().fetchUnread()
       throttledReadStateSync()
     }
-    const onDisconnect = () => setIsConnected(false)
+    const onDisconnect = () => {
+      setIsConnected(false)
+      const wasInCall = !!useVoiceConnectionStore.getState().currentDmCallId
+      if (wasInCall) useVoiceConnectionStore.getState().disconnect()
+      useDmCallStore.getState().reset()
+      if (wasInCall) useDmCallStore.setState({ error: 'Call disconnected. Reconnect and start or join the call again.' })
+    }
     const onConnectError = async () => {
       if (handlingAuthError) return
       const store = useAuthStore.getState()
@@ -183,6 +191,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('message:thread-update', ch.onThreadUpdate)
     socket.on('message:new', ch.onNewMessageForThread)
     socket.on('dm:typing', dm.onDmTyping)
+    socket.on('dm:call:update', useDmCallStore.getState().update)
+    socket.on('dm:call:ended', useDmCallStore.getState().ended)
     socket.on('dm:link-previews', dm.onDmLinkPreviews)
     socket.on('voice:participants', voice.onVoiceParticipants)
     socket.on('voice:participant-joined', voice.onVoiceParticipantJoined)
@@ -274,6 +284,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('message:thread-update', ch.onThreadUpdate)
       socket.off('message:new', ch.onNewMessageForThread)
       socket.off('dm:typing', dm.onDmTyping)
+      socket.off('dm:call:update', useDmCallStore.getState().update)
+      socket.off('dm:call:ended', useDmCallStore.getState().ended)
       socket.off('dm:link-previews', dm.onDmLinkPreviews)
       socket.off('voice:participants', voice.onVoiceParticipants)
       socket.off('voice:participant-joined', voice.onVoiceParticipantJoined)
@@ -315,6 +327,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (trailingFn) { trailingFn(); trailingFn = null }
       if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }
       presence.cleanup()
+      if (useVoiceConnectionStore.getState().currentDmCallId) useVoiceConnectionStore.getState().disconnect()
+      useDmCallStore.getState().reset()
       disconnectSocket()
       setIsConnected(false)
     }

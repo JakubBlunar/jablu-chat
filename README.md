@@ -7,6 +7,20 @@ speakers (where supported), and camera without opening Settings. Selections are
 saved for future calls. Switching devices preserves mute/deafen state and camera
 blur; choosing a camera while it is off does not turn it on.
 
+One-to-one and group DMs have a phone button to start or join a voice call.
+Incoming calls ring connected web/desktop sessions for up to 30 seconds and
+offer Accept/Decline; accepting on one device stops ringing on the others.
+Calls reuse server voice features (video, screen sharing, mute/deafen, and device
+preferences). The phone button also switches between the
+call and messages without hanging up. Joining another call asks before leaving
+the current voice connection when starting or joining a DM call.
+
+DM calls require the existing LiveKit configuration; no database migration is
+needed. Active call signaling, like server voice presence, is held by the API
+process. API restarts or losing the participating session's signaling connection
+end that session's call; a group call continues while at least two participants
+remain. Calls ring clients that are connected, not closed/offline apps.
+
 ## Features
 
 ### Messaging
