@@ -2,6 +2,7 @@
   "findConversation": "Find a conversation",
   "searchPlaceholder": "Search…",
   "directMessages": "Direct Messages",
+  "unreadDm": "{{name}}: {{count}} unread messages",
   "friends": "Friends",
   "noConversationsYet": "No conversations yet. Click on a user to start a DM.",
   "noMatchingConversations": "No matching conversations",

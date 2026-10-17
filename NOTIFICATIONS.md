@@ -5,6 +5,15 @@ your devices to tell.
 
 ## The goal
 
+Unread DMs appear above the server list on desktop and mobile with a per-conversation
+count (displayed up to `99+`). One-to-one shortcuts use the other person's avatar;
+group DMs use their name's initial. Shortcuts disappear when the conversation is read,
+including when it is read on another device.
+
+On Windows, the taskbar overlay displays the total unread message count (up to `99+`),
+using the same notification preferences and active-conversation exclusions as the web
+badge. The tray tooltip retains the exact count; the overlay clears at zero.
+
 Discord's behaviour, stated plainly:
 
 1. **Nothing is ever silently lost.** Every notification-producing event writes

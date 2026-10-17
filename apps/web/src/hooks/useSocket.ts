@@ -82,6 +82,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onConnect = () => {
       setIsConnected(true)
+      void useDmStore.getState().fetchConversations()
       const channelId = useChannelStore.getState().currentChannelId
       if (channelId) {
         socket.emit('channel:join', { channelId })
@@ -109,9 +110,6 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId).catch(() => {})
         }
 
-        if (useServerStore.getState().viewMode === 'dm') {
-          useDmStore.getState().fetchConversations().catch(() => {})
-        }
       }
       hasConnectedBefore = true
 

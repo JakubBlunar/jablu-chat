@@ -2,6 +2,7 @@
   "findConversation": "Najít konverzaci",
   "searchPlaceholder": "Hledat…",
   "directMessages": "Soukromé zprávy",
+  "unreadDm": "{{name}}: {{count}} nepřečtených zpráv",
   "friends": "Přátelé",
   "noConversationsYet": "Zatím žádné konverzace. Klikněte na uživatele a začněte SZ.",
   "noMatchingConversations": "Žádné odpovídající konverzace",

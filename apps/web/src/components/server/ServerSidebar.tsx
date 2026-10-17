@@ -5,6 +5,7 @@ import SimpleBar from 'simplebar-react'
 import { JoinInviteModal } from '@/components/server/JoinInviteModal'
 import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
 import { SavedMessagesBell } from '@/components/chat/SavedMessagesBell'
+import { UnreadDmShortcuts } from '@/components/dm/UnreadDmShortcuts'
 import { isDesktop } from '@/lib/desktop'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useNavigationStore } from '@/stores/navigation.store'
@@ -106,6 +107,7 @@ export function ServerSidebar() {
 
         <SimpleBar className="min-h-0 w-full flex-1" style={{ overflowX: 'hidden' }}>
           <div className="flex flex-col items-center gap-2 py-0.5">
+            <UnreadDmShortcuts />
             {isLoading && servers.length === 0 ? (
               <>
                 {[1, 2, 3].map((i) => (

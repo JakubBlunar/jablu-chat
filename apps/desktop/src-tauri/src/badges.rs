@@ -54,10 +54,12 @@ pub fn with_corner_dot(base: &Image<'_>) -> Option<Image<'static>> {
     Some(Image::new_owned(rgba, width, height))
 }
 
-/// A standalone dot for the Windows taskbar overlay, which is drawn small and
-/// square so it does not need the app icon underneath it.
-#[cfg(windows)]
-pub fn unread_overlay() -> Option<Image<'static>> {
+/// A numeric Windows overlay. Three compact glyphs keep "99+" readable at 16px.
+#[cfg(any(windows, test))]
+pub fn unread_overlay(count: i64) -> Option<Image<'static>> {
+    if count <= 0 {
+        return None;
+    }
     const SIZE: u32 = 32;
     let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
     let center = SIZE as f32 / 2.0;
@@ -65,5 +67,56 @@ pub fn unread_overlay() -> Option<Image<'static>> {
     draw_circle(&mut rgba, SIZE, SIZE, center, center, center - 1.0, OUTLINE);
     draw_circle(&mut rgba, SIZE, SIZE, center, center, center - 3.0, DOT);
 
+    let label = if count > 99 { "99+".to_owned() } else { count.to_string() };
+    let glyphs = [
+        [7, 5, 5, 5, 7], [2, 6, 2, 2, 7], [7, 1, 7, 4, 7],
+        [7, 1, 7, 1, 7], [5, 5, 7, 1, 1], [7, 4, 7, 1, 7],
+        [7, 4, 7, 5, 7], [7, 1, 1, 1, 1], [7, 5, 7, 5, 7],
+        [7, 5, 7, 1, 7], [0, 2, 7, 2, 0],
+    ];
+    let scale = if label.len() == 1 { 3 } else { 2 };
+    let text_width = (label.len() as u32 * 4 - 1) * scale;
+    let left = (SIZE - text_width) / 2;
+    let top = (SIZE - 5 * scale) / 2;
+    for (index, digit) in label.bytes().enumerate() {
+        let glyph = &glyphs[if digit == b'+' { 10 } else { (digit - b'0') as usize }];
+        for (row, bits) in glyph.iter().enumerate() {
+            for col in 0..3 {
+                if bits & (1 << (2 - col)) == 0 {
+                    continue;
+                }
+                for dy in 0..scale {
+                    for dx in 0..scale {
+                        let x = left + index as u32 * 4 * scale + col * scale + dx;
+                        let y = top + row as u32 * scale + dy;
+                        let offset = ((y * SIZE + x) * 4) as usize;
+                        rgba[offset..offset + 4].copy_from_slice(&[255, 255, 255, 255]);
+                    }
+                }
+            }
+        }
+    }
     Some(Image::new_owned(rgba, SIZE, SIZE))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlay_clears_at_zero() {
+        assert!(unread_overlay(0).is_none());
+        assert!(unread_overlay(-1).is_none());
+    }
+
+    #[test]
+    fn overlay_renders_counts_and_caps_at_99_plus() {
+        let one = unread_overlay(1).unwrap();
+        let twelve = unread_overlay(12).unwrap();
+        assert_eq!((one.width(), one.height()), (32, 32));
+        assert_ne!(one.rgba(), twelve.rgba());
+        assert!(one.rgba().chunks_exact(4).any(|pixel| pixel == [255, 255, 255, 255]));
+        assert_eq!(unread_overlay(100).unwrap().rgba(), unread_overlay(i64::MAX).unwrap().rgba());
+        assert_ne!(unread_overlay(99).unwrap().rgba(), unread_overlay(100).unwrap().rgba());
+    }
 }

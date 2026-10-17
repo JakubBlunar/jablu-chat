@@ -4,6 +4,8 @@ import SimpleBar from 'simplebar-react'
 import { JoinInviteModal } from '@/components/server/JoinInviteModal'
 import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
 import { SavedMessagesBell } from '@/components/chat/SavedMessagesBell'
+import { UnreadDmShortcuts } from '@/components/dm/UnreadDmShortcuts'
+import { useLayoutStore } from '@/stores/layout.store'
 import { isDesktop } from '@/lib/desktop'
 import { resolveMediaUrl } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -84,6 +86,7 @@ export function MobileNavServerRail({
 
         <SimpleBar className="min-h-0 w-full flex-1" style={{ overflowX: 'hidden' }}>
           <div className="flex flex-col items-center gap-2 py-0.5">
+            <UnreadDmShortcuts onNavigate={() => useLayoutStore.getState().closeNavDrawer()} />
             {isLoading && servers.length === 0 ? (
               <>
                 {[1, 2, 3].map((i) => (

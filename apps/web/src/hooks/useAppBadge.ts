@@ -14,7 +14,7 @@ function updateBadge(count: number) {
   // channel name), so we don't touch document.title; instead we surface the
   // unread count in the tray tooltip.
   if (isDesktop) {
-    void desktopAPI?.setTrayUnread(count).catch(() => {})
+    void desktopAPI?.setTrayUnread(count).catch((error) => console.error('Failed to update desktop unread badge:', error))
   } else {
     document.title = count > 0 ? `(${count > 99 ? '99+' : count}) ${BASE_TITLE}` : BASE_TITLE
   }

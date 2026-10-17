@@ -2,6 +2,7 @@
   "findConversation": "Nájsť konverzáciu",
   "searchPlaceholder": "Hľadať…",
   "directMessages": "Priame správy",
+  "unreadDm": "{{name}}: {{count}} neprečítaných správ",
   "friends": "Priatelia",
   "noConversationsYet": "Zatiaľ žiadne konverzácie. Kliknite na používateľa a začnite SS.",
   "noMatchingConversations": "Žiadne zodpovedajúce konverzácie",

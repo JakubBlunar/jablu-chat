@@ -142,11 +142,13 @@ fn set_tray_unread(app: AppHandle, count: i64) {
     #[cfg(windows)]
     if let Some(window) = app.get_webview_window("main") {
         let overlay = if has_unread {
-            badges::unread_overlay()
+            badges::unread_overlay(count)
         } else {
             None
         };
-        let _ = window.set_overlay_icon(overlay);
+        if let Err(error) = window.set_overlay_icon(overlay) {
+            logging::log(&format!("Failed to update taskbar unread badge: {error}"));
+        }
     }
 }
 
