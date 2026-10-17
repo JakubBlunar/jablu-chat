@@ -6,10 +6,11 @@ import { useMemberStore } from '@/stores/member.store'
 import { useDmStore } from '@/stores/dm.store'
 import type { ReactionGroup } from '@chat/shared'
 
-const mockEmit = jest.fn()
+const mockEmit = jest.fn().mockResolvedValue({ ok: true, action: 'added' })
+const mockTimeout = jest.fn(() => ({ emitWithAck: mockEmit }))
 
 jest.mock('@/lib/socket', () => ({
-  getSocket: () => ({ emit: mockEmit })
+  getSocket: () => ({ connected: true, timeout: mockTimeout, on: jest.fn(), off: jest.fn() })
 }))
 
 const mockIsMobile = jest.fn<boolean, []>(() => false)
@@ -47,7 +48,7 @@ beforeEach(() => {
 })
 
 describe('ReactionPill', () => {
-  it('toggles the reaction via socket on click', () => {
+  it('toggles the reaction with a bounded socket acknowledgement on click', async () => {
     render(
       <ReactionPill
         reaction={reaction({ emoji: '🔥', isCustom: false })}
@@ -58,17 +59,14 @@ describe('ReactionPill', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '🔥 1' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '🔥 1' })))
 
-    expect(mockEmit).toHaveBeenCalledWith(
-      'reaction:toggle',
-      {
-        messageId: 'msg-1',
-        emoji: '🔥',
-        isCustom: false
-      },
-      expect.any(Function)
-    )
+    expect(mockEmit).toHaveBeenCalledWith('reaction:toggle', {
+      messageId: 'msg-1',
+      emoji: '🔥',
+      isCustom: false
+    })
+    expect(mockTimeout).toHaveBeenCalledWith(10_000)
   })
 
   it('marks the pill as pressed when the current user has reacted', () => {
@@ -253,13 +251,7 @@ describe('ReactionPill', () => {
     it('cancels the long-press on touchmove', () => {
       const onShow = jest.fn()
       render(
-        <ReactionPill
-          reaction={reaction()}
-          messageId="msg-1"
-          mode="channel"
-          contextId="ch-1"
-          onShowReactors={onShow}
-        />
+        <ReactionPill reaction={reaction()} messageId="msg-1" mode="channel" contextId="ch-1" onShowReactors={onShow} />
       )
 
       const btn = screen.getByRole('button')

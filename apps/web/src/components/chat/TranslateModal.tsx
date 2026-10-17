@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Spinner } from '@/components/ui'
@@ -10,6 +10,7 @@ import { isAppLocale } from '@/i18n/locales'
 
 type Props = {
   messageId: string
+  sourceVersion?: string
   /** Preselect this language (re-picking from the rendered translation block). */
   initialTarget?: string
   onClose: () => void
@@ -20,7 +21,7 @@ type Props = {
  * no default target yet, or when they re-pick the language of an existing
  * translation. Saves the choice as the default when "remember" is on.
  */
-export function TranslateModal({ messageId, initialTarget, onClose }: Props) {
+export function TranslateModal({ messageId, sourceVersion, initialTarget, onClose }: Props) {
   const { t } = useTranslation('chat')
   const capabilities = useTranslationStore((s) => s.capabilities)
   const storedTarget = useTranslationStore((s) => s.targetLang)
@@ -33,29 +34,40 @@ export function TranslateModal({ messageId, initialTarget, onClose }: Props) {
   // Default target: explicit re-pick, stored preference, else the user's UI
   // language when supported, else the first configured language.
   const defaultTarget =
-    initialTarget ?? storedTarget ?? (languages.some((l) => l.code === currentLocale) ? currentLocale : languages[0]?.code ?? '')
+    [initialTarget, storedTarget, currentLocale].find((code) => languages.some((language) => language.code === code)) ??
+    languages[0]?.code ??
+    ''
   const [selected, setSelected] = useState<string | null>(null)
   const activeTarget = selected ?? defaultTarget
   const [remember, setRemember] = useState<boolean>(storedTarget == null)
   const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
+  const mountedRef = useRef(true)
 
-  const targets = useMemo(
-    () => (activeTarget ? languages.filter((l) => l.code !== activeTarget) : languages),
-    [languages, activeTarget]
-  )
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const handleTranslate = async (target: string) => {
-    if (busy) return
+    if (busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     if (remember && target !== storedTarget) {
       try {
         await savePreference(target)
       } catch {
-        // Saving the pref is best-effort; translation still proceeds.
+        if (!mountedRef.current) return
+        showToast(t('translateErrorTitle'), t('translationPreferenceFailed'))
       }
     }
-    const err = await translate(messageId, target)
+    if (!mountedRef.current) return
+    const err = await translate(messageId, target, sourceVersion)
+    if (!mountedRef.current) return
     if (err) {
+      busyRef.current = false
       setBusy(false)
       showToast(t('translateErrorTitle'), t('translateErrorMessage'))
       return
@@ -78,14 +90,13 @@ export function TranslateModal({ messageId, initialTarget, onClose }: Props) {
           </div>
         ) : (
           <div className="flex flex-col gap-1.5" role="radiogroup" aria-label={t('translateTitle')}>
-            {targets.map((lang) => (
+            {languages.map((lang) => (
               <button
                 key={lang.code}
                 type="button"
                 role="radio"
                 aria-checked={lang.code === activeTarget}
                 onClick={() => {
-                  // Re-selecting the currently-active target keeps it (no-op).
                   if (lang.code !== activeTarget) setSelected(lang.code)
                   void handleTranslate(lang.code)
                 }}

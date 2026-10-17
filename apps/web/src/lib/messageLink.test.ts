@@ -4,20 +4,35 @@ import type { Message } from '@chat/shared'
 jest.mock('./electron', () => ({ isElectron: false }))
 
 describe('messageLink', () => {
+  it('preserves and encodes thread parents for both link kinds', () => {
+    expect(
+      buildMessageJumpPath('channel', {
+        serverId: 's',
+        channelId: 'c',
+        messageId: 'reply?',
+        threadParentId: 'parent &'
+      })
+    ).toBe('/channels/s/c?m=reply%3F&thread=parent%20%26')
+    expect(
+      buildMessageJumpPath('dm', {
+        conversationId: 'd',
+        messageId: 'reply',
+        threadParentId: 'parent'
+      })
+    ).toBe('/channels/@me/d?m=reply&thread=parent')
+  })
   it('buildMessageJumpPath for channel encodes message id', () => {
     expect(
       buildMessageJumpPath('channel', {
         serverId: 's1',
         channelId: 'c1',
-        messageId: 'a b',
+        messageId: 'a b'
       })
     ).toBe('/channels/s1/c1?m=a%20b')
   })
 
   it('buildMessageJumpPath for dm', () => {
-    expect(buildMessageJumpPath('dm', { conversationId: 'd1', messageId: 'm1' })).toBe(
-      '/channels/@me/d1?m=m1'
-    )
+    expect(buildMessageJumpPath('dm', { conversationId: 'd1', messageId: 'm1' })).toBe('/channels/@me/d1?m=m1')
   })
 
   it('getMessageShareUrl uses origin in browser mode', () => {
@@ -28,7 +43,7 @@ describe('messageLink', () => {
     const msg = {
       id: 'm1',
       content: 'hello',
-      author: { username: 'alice', displayName: null },
+      author: { username: 'alice', displayName: null }
     } as unknown as Message
     const block = buildForwardQuoteBlock(msg, '#general', 'https://example.com/jump')
     expect(block).toContain('alice')

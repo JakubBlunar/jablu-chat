@@ -23,7 +23,7 @@ import { toggleMessageReaction } from '@/lib/reactions'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
-import { getSocket } from '@/lib/socket'
+import { editMessage, messageActionError } from '@/lib/messageActions'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
 import { getRoleColor, useMemberStore } from '@/stores/member.store'
@@ -122,6 +122,9 @@ export const MessageRow = memo(function MessageRow({
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(message.content ?? '')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const editPending = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -131,7 +134,9 @@ export const MessageRow = memo(function MessageRow({
   const [reactorsEmoji, setReactorsEmoji] = useState<string | null>(null)
 
   const handleStartEdit = useCallback(() => {
+    if (editPending.current) return
     setEditValue(message.content ?? '')
+    setEditError(null)
     setEditing(true)
   }, [message.content])
 
@@ -145,19 +150,27 @@ export const MessageRow = memo(function MessageRow({
     return () => window.removeEventListener('edit-message-intent', onIntent)
   }, [isAuthor, message.id, handleStartEdit])
 
-  const handleSaveEdit = useCallback(() => {
+  const handleSaveEdit = useCallback(async () => {
+    if (editPending.current) return
     const trimmed = editValue.trim()
     if (!trimmed || trimmed === message.content) {
       setEditing(false)
       return
     }
-    if (isDm) {
-      getSocket()?.emit('dm:edit', { messageId: message.id, conversationId: contextId, content: trimmed })
-    } else {
-      getSocket()?.emit('message:edit', { messageId: message.id, content: trimmed })
+    editPending.current = true
+    setSavingEdit(true)
+    setEditError(null)
+    try {
+      await editMessage(mode, contextId, message.id, trimmed)
+      setEditing(false)
+    } catch (error) {
+      console.error('Could not edit message', error)
+      setEditError(messageActionError(error))
+    } finally {
+      editPending.current = false
+      setSavingEdit(false)
     }
-    setEditing(false)
-  }, [editValue, message.id, message.content, isDm, contextId])
+  }, [editValue, message.id, message.content, mode, contextId])
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -326,46 +339,66 @@ export const MessageRow = memo(function MessageRow({
               ref={textareaRef}
               className="w-full resize-none overflow-hidden rounded-md bg-surface-raised px-3 py-2 text-[15px] leading-relaxed text-gray-100 outline-none ring-1 ring-primary/50 focus:ring-primary"
               value={editValue}
+              readOnly={savingEdit}
+              aria-label={t('editMessageText')}
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || savingEdit) return
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  handleSaveEdit()
+                  void handleSaveEdit()
                 }
                 if (e.key === 'Escape') setEditing(false)
               }}
               autoFocus
             />
+            {editError && (
+              <p role="alert" className="mt-1 text-sm text-red-400">
+                {editError}
+              </p>
+            )}
             {isMobile ? (
               <div className="mt-2 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
+                  disabled={savingEdit}
                   className="rounded-md px-3 py-1.5 text-sm text-gray-300 transition active:bg-white/10"
                 >
-                  Cancel
+                  {t('editCancel')}
                 </button>
                 <button
                   type="button"
-                  onClick={handleSaveEdit}
+                  onClick={() => void handleSaveEdit()}
+                  disabled={savingEdit}
                   className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition active:bg-primary/80"
                 >
-                  Save
+                  {t(savingEdit ? 'messageActionPending' : 'editSave')}
                 </button>
               </div>
             ) : (
               <div className="mt-1 flex gap-2 text-xs text-gray-400">
                 <span>
-                  escape to{' '}
-                  <button type="button" className="text-link hover:underline" onClick={() => setEditing(false)}>
-                    cancel
+                  {t('editCancelShortcut')}{' '}
+                  <button
+                    type="button"
+                    disabled={savingEdit}
+                    className="text-link hover:underline"
+                    onClick={() => setEditing(false)}
+                  >
+                    {t('editCancel')}
                   </button>
                 </span>
                 <span>•</span>
                 <span>
-                  enter to{' '}
-                  <button type="button" className="text-link hover:underline" onClick={handleSaveEdit}>
-                    save
+                  {t('editSaveShortcut')}{' '}
+                  <button
+                    type="button"
+                    disabled={savingEdit}
+                    className="text-link hover:underline"
+                    onClick={() => void handleSaveEdit()}
+                  >
+                    {t(savingEdit ? 'messageActionPending' : 'editSave')}
                   </button>
                 </span>
               </div>

@@ -4,28 +4,24 @@ import type { Message } from '@chat/shared'
 
 export function buildMessageJumpPath(
   kind: 'channel',
-  ids: { serverId: string; channelId: string; messageId: string }
+  ids: { serverId: string; channelId: string; messageId: string; threadParentId?: string | null }
 ): string
 export function buildMessageJumpPath(
   kind: 'dm',
-  ids: { conversationId: string; messageId: string }
+  ids: { conversationId: string; messageId: string; threadParentId?: string | null }
 ): string
 export function buildMessageJumpPath(
   kind: 'channel' | 'dm',
   ids:
-    | { serverId: string; channelId: string; messageId: string }
-    | { conversationId: string; messageId: string }
+    | { serverId: string; channelId: string; messageId: string; threadParentId?: string | null }
+    | { conversationId: string; messageId: string; threadParentId?: string | null }
 ): string {
-  if (kind === 'channel') {
-    const { serverId, channelId, messageId } = ids as {
-      serverId: string
-      channelId: string
-      messageId: string
-    }
-    return `/channels/${serverId}/${channelId}?m=${encodeURIComponent(messageId)}`
+  const query = `m=${encodeURIComponent(ids.messageId)}${ids.threadParentId ? `&thread=${encodeURIComponent(ids.threadParentId)}` : ''}`
+  if (kind === 'channel' && 'serverId' in ids) {
+    return `/channels/${ids.serverId}/${ids.channelId}?${query}`
   }
-  const { conversationId, messageId } = ids as { conversationId: string; messageId: string }
-  return `/channels/@me/${conversationId}?m=${encodeURIComponent(messageId)}`
+  if ('conversationId' in ids) return `/channels/@me/${ids.conversationId}?${query}`
+  throw new Error('Missing message link context')
 }
 
 /** Absolute URL that opens the app at the given in-app path. On desktop this points

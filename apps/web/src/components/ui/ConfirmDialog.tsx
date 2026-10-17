@@ -12,6 +12,8 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   onCancel: () => void
   anchorRef?: React.RefObject<HTMLElement | null>
+  busy?: boolean
+  error?: string | null
 }
 
 export function ConfirmDialog({
@@ -21,19 +23,30 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
-  anchorRef
+  anchorRef,
+  busy = false,
+  error
 }: ConfirmDialogProps) {
   const isMobile = useIsMobile()
+  const cancel = () => {
+    if (!busy) onCancel()
+  }
 
   if (isMobile || !anchorRef) {
     return createPortal(
-      <ModalOverlay onClose={onCancel} aria-label={title} maxWidth="max-w-sm" zIndex="z-[120]">
+      <ModalOverlay onClose={cancel} aria-label={title} maxWidth="max-w-sm" zIndex="z-[120]">
         <p className="text-lg font-semibold text-white">{title}</p>
         <p className="mt-2 text-sm text-gray-300">{description}</p>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-red-400">
+            {error}
+          </p>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={cancel}
+            disabled={busy}
             className="rounded-lg bg-surface-light px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 max-lg:min-h-11"
           >
             {cancelLabel}
@@ -41,6 +54,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
+            disabled={busy}
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 max-lg:min-h-11"
           >
             {confirmLabel}
@@ -58,8 +72,10 @@ export function ConfirmDialog({
       confirmLabel={confirmLabel}
       cancelLabel={cancelLabel}
       onConfirm={onConfirm}
-      onCancel={onCancel}
+      onCancel={cancel}
       anchorRef={anchorRef}
+      busy={busy}
+      error={error}
     />
   )
 }
@@ -71,7 +87,9 @@ function ConfirmPopover({
   cancelLabel,
   onConfirm,
   onCancel,
-  anchorRef
+  anchorRef,
+  busy,
+  error
 }: {
   title: string
   description: string
@@ -80,6 +98,8 @@ function ConfirmPopover({
   onConfirm: () => void
   onCancel: () => void
   anchorRef: React.RefObject<HTMLElement | null>
+  busy: boolean
+  error?: string | null
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
@@ -113,15 +133,25 @@ function ConfirmPopover({
   return createPortal(
     <div
       ref={popoverRef}
+      role="alertdialog"
+      aria-modal="true"
+      aria-label={title}
+      aria-busy={busy}
       className="fixed z-50 w-64 rounded-lg bg-surface-dark p-3 shadow-xl ring-1 ring-white/10"
       style={pos}
     >
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="mt-1 text-xs text-gray-400">{description}</p>
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-red-400">
+          {error}
+        </p>
+      )}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onCancel}
+          disabled={busy}
           className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10 max-lg:min-h-11"
         >
           {cancelLabel}
@@ -129,6 +159,7 @@ function ConfirmPopover({
         <button
           type="button"
           onClick={onConfirm}
+          disabled={busy}
           className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700 max-lg:min-h-11"
         >
           {confirmLabel}

@@ -28,26 +28,41 @@ export function MessageActionsMenu({
   onClose: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef({ text: '', at: 0 })
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
+  const positioned = pos !== null
   useFocusTrap(menuRef, pos !== null, onClose)
 
   useLayoutEffect(() => {
-    const anchor = anchorRef.current
-    if (!anchor) return
-    const rect = anchor.getBoundingClientRect()
-    let left = rect.right - MENU_WIDTH
-    if (left < 8) left = Math.min(rect.left, window.innerWidth - MENU_WIDTH - 8)
-    left = Math.max(8, left)
-
-    // Estimate menu height to decide flip direction (row ~36px + padding).
-    const estHeight = items.length * 36 + 8
-    const spaceBelow = window.innerHeight - rect.bottom
-    if (spaceBelow >= estHeight + GAP || spaceBelow >= rect.top) {
-      setPos({ left, top: rect.bottom + GAP })
-    } else {
-      setPos({ left, bottom: window.innerHeight - rect.top + GAP })
+    const updatePosition = (event?: Event) => {
+      if (event?.target instanceof Node && menuRef.current?.contains(event.target)) return
+      const anchor = anchorRef.current
+      if (!anchor?.isConnected) {
+        onClose()
+        return
+      }
+      const rect = anchor.getBoundingClientRect()
+      if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        onClose()
+        return
+      }
+      const left = Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8))
+      const height = Math.min(menuRef.current?.offsetHeight || items.length * 36 + 8, window.innerHeight * 0.7)
+      const spaceBelow = window.innerHeight - rect.bottom
+      const top = spaceBelow >= height + GAP || spaceBelow >= rect.top ? rect.bottom + GAP : rect.top - height - GAP
+      setPos({ left, top: Math.max(8, Math.min(top, window.innerHeight - height - 8)) })
     }
-  }, [anchorRef, items.length])
+    updatePosition()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => updatePosition())
+    if (menuRef.current) observer?.observe(menuRef.current)
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+      observer?.disconnect()
+    }
+  }, [anchorRef, items.length, onClose, positioned])
 
   useLayoutEffect(() => {
     const onPointer = (e: PointerEvent) => {
@@ -72,6 +87,35 @@ export function MessageActionsMenu({
     <div
       ref={menuRef}
       role="menu"
+      onKeyDown={(event) => {
+        const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+        if (!buttons.length) return
+        const current = buttons.findIndex((button) => button === document.activeElement)
+        let next: number | undefined
+        if (event.key === 'ArrowDown') next = (current + 1) % buttons.length
+        else if (event.key === 'ArrowUp')
+          next = current < 0 ? buttons.length - 1 : (current - 1 + buttons.length) % buttons.length
+        else if (event.key === 'Home') next = 0
+        else if (event.key === 'End') next = buttons.length - 1
+        else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
+          const now = Date.now()
+          const char = event.key.toLocaleLowerCase()
+          const previous = now - searchRef.current.at < 700 ? searchRef.current.text : ''
+          const text = previous === char ? char : previous + char
+          searchRef.current = { text, at: now }
+          for (let offset = 1; offset <= buttons.length; offset++) {
+            const index = (current + offset) % buttons.length
+            if (items[index].label.toLocaleLowerCase().startsWith(text)) {
+              next = index
+              break
+            }
+          }
+        }
+        if (next !== undefined) {
+          event.preventDefault()
+          buttons[next].focus()
+        }
+      }}
       style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_WIDTH }}
       className="fixed z-[300] max-h-[70vh] overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >

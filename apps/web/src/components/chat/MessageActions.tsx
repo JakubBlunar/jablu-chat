@@ -36,7 +36,9 @@ import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
 import { MessageActionsMenu, type MessageMenuItem } from '@/components/chat/MessageActionsMenu'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
-import { getSocket } from '@/lib/socket'
+import { copyMessageContent, shareMessageLink } from '@/lib/messageClipboard'
+import { messageTranslationVersion } from '@/lib/messageTranslationVersion'
+import { useMessageDeletion } from '@/components/chat/hooks/useMessageDeletion'
 import { toggleMessageReaction } from '@/lib/reactions'
 import { useAuthStore } from '@/stores/auth.store'
 import { useShallow } from 'zustand/react/shallow'
@@ -95,10 +97,12 @@ export function MessageActions({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showForwardModal, setShowForwardModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const deletion = useMessageDeletion(mode, contextId, message, () => setShowDeleteConfirm(false))
   const [showMenu, setShowMenu] = useState(false)
   const [showTranslateModal, setShowTranslateModal] = useState(false)
   const translationEnabled = useTranslationStore((s) => s.capabilities?.enabled ?? false)
   const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
+  const translationSetupError = useTranslationStore((s) => s.capabilitiesError || s.preferenceError)
   const defaultTarget = useTranslationStore((s) => s.targetLang)
   const fetchCapabilities = useTranslationStore((s) => s.fetchCapabilities)
   const loadPreference = useTranslationStore((s) => s.loadPreference)
@@ -116,13 +120,13 @@ export function MessageActions({
    */
   const handleTranslate = useCallback(() => {
     if (defaultTarget) {
-      void translate(message.id, defaultTarget).then((err) => {
+      void translate(message.id, defaultTarget, messageTranslationVersion(message)).then((err) => {
         if (err) showToast(t('translateErrorTitle'), t('translateErrorMessage'))
       })
     } else {
       setShowTranslateModal(true)
     }
-  }, [defaultTarget, translate, message.id, t])
+  }, [defaultTarget, translate, message, t])
   const btnRef = useRef<HTMLDivElement>(null)
   const moreBtnRef = useRef<HTMLButtonElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
@@ -135,57 +139,40 @@ export function MessageActions({
 
   const shareableUrl = useMemo(() => {
     if (isDm) {
-      return getMessageShareUrl(buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id }))
+      return getMessageShareUrl(
+        buildMessageJumpPath('dm', {
+          conversationId: contextId,
+          messageId: message.id,
+          threadParentId: message.threadParentId
+        })
+      )
     }
     return serverId != null
-      ? getMessageShareUrl(buildMessageJumpPath('channel', { serverId, channelId: contextId, messageId: message.id }))
+      ? getMessageShareUrl(
+          buildMessageJumpPath('channel', {
+            serverId,
+            channelId: contextId,
+            messageId: message.id,
+            threadParentId: message.threadParentId
+          })
+        )
       : null
-  }, [isDm, serverId, contextId, message.id])
+  }, [isDm, serverId, contextId, message.id, message.threadParentId])
 
   const copyMessageLink = useCallback(() => {
     if (!shareableUrl) return
-    void navigator.clipboard.writeText(shareableUrl).then(
-      () => showToast('Link copied', 'Anyone with this link can jump to the message after signing in.'),
-      () => showToast('Copy failed', 'Could not copy to clipboard.')
-    )
+    void copyMessageContent(shareableUrl, true)
   }, [shareableUrl])
 
   const shareMessage = useCallback(async () => {
     if (!shareableUrl) return
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({
-          title: isDm ? 'Direct message' : `Message in ${channelLabel}`,
-          url: shareableUrl
-        })
-        return
-      } catch (e) {
-        if ((e as { name?: string }).name === 'AbortError') return
-      }
-    }
-    copyMessageLink()
-  }, [shareableUrl, isDm, channelLabel, copyMessageLink])
+    await shareMessageLink(shareableUrl, isDm ? t('directMessage') : t('messageShareTitle', { channel: channelLabel }))
+  }, [shareableUrl, isDm, channelLabel, t])
 
   const handleCopyText = useCallback(() => {
     if (!message.content) return
-    void navigator.clipboard.writeText(message.content).then(
-      () => showToast('Copied', 'Message text copied to clipboard.'),
-      () => showToast('Copy failed', 'Could not copy to clipboard.')
-    )
+    void copyMessageContent(message.content)
   }, [message.content])
-
-  const handleDelete = useCallback(() => {
-    if (isDm) {
-      getSocket()?.emit('dm:delete', { messageId: message.id, conversationId: contextId })
-    } else {
-      getSocket()?.emit('message:delete', { messageId: message.id }, (res?: { ok?: boolean }) => {
-        if (res?.ok && message.threadParentId) {
-          window.dispatchEvent(new CustomEvent('forum-reply:delete', { detail: message.id }))
-        }
-      })
-    }
-    setShowDeleteConfirm(false)
-  }, [isDm, message.id, message.threadParentId, contextId])
 
   const handlePin = useCallback(() => {
     void setMessagePinned(mode, contextId, message.id, !message.pinned).catch((error) => {
@@ -280,6 +267,14 @@ export function MessageActions({
     if (message.content && translationLoaded && translationEnabled) {
       items.push({ id: 'translate', label: t('actionTranslate'), icon: <GlobeIcon />, onClick: handleTranslate })
     }
+    if (translationSetupError) {
+      items.push({
+        id: 'translate-retry',
+        label: t('translationSetupRetry'),
+        icon: <GlobeIcon />,
+        onClick: () => void Promise.all([fetchCapabilities(), loadPreference()])
+      })
+    }
     if (isAuthor && onEdit) {
       items.push({ id: 'edit', label: t('actionEdit'), icon: <EditIcon />, onClick: onEdit })
     }
@@ -345,6 +340,12 @@ export function MessageActions({
     openEmojiPicker,
     handleReply,
     handleCopyText,
+    handleTranslate,
+    translationLoaded,
+    translationEnabled,
+    translationSetupError,
+    fetchCapabilities,
+    loadPreference,
     handlePin,
     toggleBookmark,
     copyMessageLink,
@@ -372,25 +373,41 @@ export function MessageActions({
         <IconButton label={t('actionReply')} onClick={handleReply}>
           <ReplyIcon />
         </IconButton>
-        <IconButton ref={moreBtnRef} label={t('actionMore')} active={showMenu} onClick={() => setShowMenu((p) => !p)}>
+        <IconButton
+          ref={moreBtnRef}
+          label={t('actionMore')}
+          aria-haspopup="menu"
+          aria-expanded={showMenu}
+          active={showMenu}
+          onClick={() => setShowMenu((p) => !p)}
+        >
           <MoreIcon />
         </IconButton>
       </div>
       {showMenu && <MessageActionsMenu anchorRef={moreBtnRef} items={menuItems} onClose={() => setShowMenu(false)} />}
       {showDeleteConfirm && (
         <ConfirmDialog
-          title="Delete Message"
-          description="Are you sure? This cannot be undone."
-          confirmLabel="Delete"
+          title={t('actionDelete')}
+          description={t('deleteMessageWarning')}
+          confirmLabel={t(deletion.pending ? 'messageActionPending' : 'actionDelete')}
+          cancelLabel={t('editCancel')}
+          busy={deletion.pending}
+          error={deletion.error}
           anchorRef={moreBtnRef}
-          onConfirm={handleDelete}
+          onConfirm={() => void deletion.confirm()}
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
       {showForwardModal && (
         <ForwardMessageModal message={message} sourceChannelId={contextId} onClose={() => setShowForwardModal(false)} />
       )}
-      {showTranslateModal && <TranslateModal messageId={message.id} onClose={() => setShowTranslateModal(false)} />}
+      {showTranslateModal && (
+        <TranslateModal
+          messageId={message.id}
+          sourceVersion={messageTranslationVersion(message)}
+          onClose={() => setShowTranslateModal(false)}
+        />
+      )}
       {showEmojiPicker &&
         pickerPos &&
         createPortal(
@@ -407,7 +424,7 @@ export function MessageActions({
               fallback={null}
               onError={() => {
                 setShowEmojiPicker(false)
-                showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+                showToast(t('actionAddReaction'), t('emojiPickerFailed'))
               }}
             >
               <Suspense fallback={<PickerLoading />}>

@@ -5,7 +5,9 @@ import { useMediaDownload } from '@/hooks/useMediaDownload'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
 import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
-import { getSocket } from '@/lib/socket'
+import { copyMessageContent, shareMessageLink } from '@/lib/messageClipboard'
+import { messageTranslationVersion } from '@/lib/messageTranslationVersion'
+import { useMessageDeletion } from '@/components/chat/hooks/useMessageDeletion'
 import { toggleMessageReaction } from '@/lib/reactions'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { BottomSheet } from '@/components/ui/BottomSheet'
@@ -73,13 +75,16 @@ export function MobileMessageDrawer({
 }: MobileMessageDrawerProps) {
   const { t } = useTranslation('chat')
   const isDm = mode === 'dm'
-  const canDelete = isAuthor || isAdminOrOwner
+  const canDelete = isAuthor || (!isDm && isAdminOrOwner)
+  const deletion = useMessageDeletion(mode, contextId, message, onClose)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [forwardOpen, setForwardOpen] = useState(false)
   const [translateOpen, setTranslateOpen] = useState(false)
+  const [reactionPending, setReactionPending] = useState(false)
   const serverId = useServerStore((s) => s.currentServerId)
   const translationEnabled = useTranslationStore((s) => s.capabilities?.enabled ?? false)
   const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
+  const translationSetupError = useTranslationStore((s) => s.capabilitiesError || s.preferenceError)
   const defaultTarget = useTranslationStore((s) => s.targetLang)
   const translate = useTranslationStore((s) => s.translate)
 
@@ -96,15 +101,26 @@ export function MobileMessageDrawer({
 
   const messageJumpUrl = useMemo(() => {
     if (isDm) {
-      return getMessageShareUrl(buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id }))
+      return getMessageShareUrl(
+        buildMessageJumpPath('dm', {
+          conversationId: contextId,
+          messageId: message.id,
+          threadParentId: message.threadParentId
+        })
+      )
     }
     if (serverId) {
       return getMessageShareUrl(
-        buildMessageJumpPath('channel', { serverId, channelId: contextId, messageId: message.id })
+        buildMessageJumpPath('channel', {
+          serverId,
+          channelId: contextId,
+          messageId: message.id,
+          threadParentId: message.threadParentId
+        })
       )
     }
     return null
-  }, [isDm, serverId, contextId, message.id])
+  }, [isDm, serverId, contextId, message.id, message.threadParentId])
   const links = useMemo(() => {
     const contentLinks = extractLinks(message.content)
     const previewLinks = (message.linkPreviews ?? []).map((lp) => lp.url)
@@ -116,12 +132,19 @@ export function MobileMessageDrawer({
   const close = onClose
 
   const handleReaction = useCallback(
-    (emoji: string) => {
-      toggleMessageReaction({ mode, messageId: message.id, emoji })
-      addRecentReaction(emoji)
-      close()
+    async (emoji: string) => {
+      if (reactionPending) return
+      setReactionPending(true)
+      try {
+        if (await toggleMessageReaction({ mode, messageId: message.id, emoji })) {
+          addRecentReaction(emoji)
+          close()
+        }
+      } finally {
+        setReactionPending(false)
+      }
     },
-    [mode, message.id, close]
+    [mode, message.id, close, reactionPending]
   )
 
   const handleReply = useCallback(() => {
@@ -134,56 +157,26 @@ export function MobileMessageDrawer({
     close()
   }, [contextId, message, close])
 
-  const handleCopy = useCallback(() => {
-    if (message.content) {
-      try {
-        void navigator.clipboard.writeText(message.content)
-      } catch {
-        /* clipboard unavailable */
-      }
-    }
-    close()
+  const handleCopy = useCallback(async () => {
+    if (message.content && (await copyMessageContent(message.content))) close()
   }, [message.content, close])
 
   const handleCopyLink = useCallback(
-    (url: string) => {
-      try {
-        void navigator.clipboard.writeText(url)
-      } catch {
-        /* clipboard unavailable */
-      }
-      close()
+    async (url: string) => {
+      if (await copyMessageContent(url, true)) close()
     },
     [close]
   )
 
-  const handleCopyMessageJumpLink = useCallback(() => {
+  const handleCopyMessageJumpLink = useCallback(async () => {
     if (!messageJumpUrl) return
-    void navigator.clipboard.writeText(messageJumpUrl).then(
-      () => {
-        showToast('Link copied', 'Anyone with this link can jump to the message after signing in.')
-        close()
-      },
-      () => showToast('Copy failed', 'Could not copy to clipboard.')
-    )
+    if (await copyMessageContent(messageJumpUrl, true)) close()
   }, [messageJumpUrl, close])
 
   const handleShareMessageJump = useCallback(async () => {
     if (!messageJumpUrl) return
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ title: isDm ? 'Direct message' : 'Message', url: messageJumpUrl })
-        close()
-        return
-      } catch (e) {
-        if ((e as { name?: string }).name === 'AbortError') {
-          close()
-          return
-        }
-      }
-    }
-    handleCopyMessageJumpLink()
-  }, [messageJumpUrl, isDm, close, handleCopyMessageJumpLink])
+    if (await shareMessageLink(messageJumpUrl, t(isDm ? 'directMessage' : 'messageShareGenericTitle'))) close()
+  }, [messageJumpUrl, isDm, close, t])
 
   const handleEdit = useCallback(() => {
     onEdit?.()
@@ -192,39 +185,34 @@ export function MobileMessageDrawer({
 
   const handleTranslate = useCallback(() => {
     if (defaultTarget) {
-      void translate(message.id, defaultTarget).then((err) => {
+      void translate(message.id, defaultTarget, messageTranslationVersion(message)).then((err) => {
         if (err) showToast(t('translateErrorTitle'), t('translateErrorMessage'))
-        close()
+        else close()
       })
     } else {
       setTranslateOpen(true)
     }
-  }, [defaultTarget, translate, message.id, t, close])
+  }, [defaultTarget, translate, message, t, close])
 
   const handlePin = useCallback(() => {
-    void setMessagePinned(mode, contextId, message.id, !message.pinned).catch((error) => {
-      console.error('Failed to update message pin', error)
-      showToast(t('pinnedMessagesTitle'), t('pinActionFailed'))
-    })
-    close()
+    void setMessagePinned(mode, contextId, message.id, !message.pinned)
+      .then(close)
+      .catch((error) => {
+        console.error('Failed to update message pin', error)
+        showToast(t('pinnedMessagesTitle'), t('pinActionFailed'))
+      })
   }, [message.id, message.pinned, mode, contextId, close, t])
-
-  const handleDelete = useCallback(() => {
-    if (isDm) {
-      getSocket()?.emit('dm:delete', { messageId: message.id, conversationId: contextId })
-    } else {
-      getSocket()?.emit('message:delete', { messageId: message.id })
-    }
-    close()
-  }, [message.id, isDm, contextId, close])
 
   if (confirmDelete) {
     return (
       <ConfirmDialog
         title={t('actionDelete')}
         description={t('deleteMessageWarning')}
-        confirmLabel={t('actionDelete')}
-        onConfirm={handleDelete}
+        confirmLabel={t(deletion.pending ? 'messageActionPending' : 'actionDelete')}
+        cancelLabel={t('editCancel')}
+        busy={deletion.pending}
+        error={deletion.error}
+        onConfirm={() => void deletion.confirm()}
         onCancel={() => setConfirmDelete(false)}
       />
     )
@@ -242,7 +230,13 @@ export function MobileMessageDrawer({
   }
 
   if (translateOpen) {
-    return <TranslateModal messageId={message.id} onClose={() => setTranslateOpen(false)} />
+    return (
+      <TranslateModal
+        messageId={message.id}
+        sourceVersion={messageTranslationVersion(message)}
+        onClose={() => setTranslateOpen(false)}
+      />
+    )
   }
 
   return (
@@ -253,7 +247,9 @@ export function MobileMessageDrawer({
           <button
             key={emoji}
             type="button"
-            onClick={() => handleReaction(emoji)}
+            disabled={reactionPending}
+            aria-label={`${t('actionAddReaction')} ${emoji}`}
+            onClick={() => void handleReaction(emoji)}
             className="shrink-0 rounded-full p-2 text-2xl active:scale-110 active:bg-white/10"
           >
             {emoji}
@@ -303,6 +299,16 @@ export function MobileMessageDrawer({
         {message.content && <SheetBtn icon={<CopyIcon />} label={t('actionCopyText')} onClick={handleCopy} />}
         {message.content && translationLoaded && translationEnabled && (
           <SheetBtn icon={<GlobeIcon className="h-5 w-5" />} label={t('actionTranslate')} onClick={handleTranslate} />
+        )}
+        {translationSetupError && (
+          <SheetBtn
+            icon={<GlobeIcon />}
+            label={t('translationSetupRetry')}
+            onClick={() => {
+              const store = useTranslationStore.getState()
+              void Promise.all([store.fetchCapabilities(), store.loadPreference()])
+            }}
+          />
         )}
         {links.map((url) => (
           <SheetBtn
@@ -371,11 +377,12 @@ function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose:
       icon={<BookmarkIcon className="h-5 w-5" filled={isBookmarked} />}
       label={t(isBookmarked ? 'actionRemoveBookmark' : 'actionSaveMessage')}
       onClick={() => {
-        void toggleBookmark(messageId).catch((error) => {
-          console.error('Failed to update saved message', error)
-          showToast(t('savedMessagesTitle'), t('bookmarkActionFailed'))
-        })
-        onClose()
+        void toggleBookmark(messageId)
+          .then(onClose)
+          .catch((error) => {
+            console.error('Failed to update saved message', error)
+            showToast(t('savedMessagesTitle'), t('bookmarkActionFailed'))
+          })
       }}
     />
   )

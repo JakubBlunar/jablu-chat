@@ -6,13 +6,47 @@ import { useForumReplyStore } from '@/stores/forumReply.store'
 import type { Message } from '@chat/shared'
 
 let lastEmit: { event: string; payload: unknown; ack?: (res?: unknown) => void } | null = null
-const mockEmit = jest.fn((event: string, payload: unknown, ack?: (res?: unknown) => void) => {
-  lastEmit = { event, payload, ack }
+const mockEmit = jest.fn()
+const listeners = new Map<string, (payload: { messageId: string; emoji: string; userId: string }) => void>()
+const mockSocket = {
+  connected: true,
+  timeout: jest.fn(() => ({ emitWithAck: mockEmit })),
+  on: jest.fn((event: string, listener: (payload: { messageId: string; emoji: string; userId: string }) => void) =>
+    listeners.set(event, listener)
+  ),
+  off: jest.fn((event: string) => listeners.delete(event))
+}
+const operations: Promise<boolean>[] = []
+function toggle(params: Parameters<typeof toggleMessageReaction>[0]) {
+  const operation = toggleMessageReaction(params)
+  operations.push(operation)
+  return operation
+}
+jest.mock('@/stores/toast.store', () => ({ showToast: jest.fn() }))
+jest.mock('@/stores/translation.store', () => ({
+  useTranslationStore: { getState: () => ({ invalidate: jest.fn(), reset: jest.fn() }) }
+}))
+beforeEach(() => {
+  mockSocket.connected = true
+  listeners.clear()
+  operations.length = 0
+  mockEmit.mockReset().mockImplementation(
+    (event: string, payload: unknown) =>
+      new Promise((resolve) => {
+        lastEmit = { event, payload, ack: resolve }
+      })
+  )
+  jest.spyOn(console, 'error').mockImplementation(() => {})
 })
 
 jest.mock('@/lib/socket', () => ({
-  getSocket: () => ({ emit: mockEmit })
+  getSocket: () => mockSocket
 }))
+afterEach(async () => {
+  lastEmit?.ack?.({ ok: true, action: 'added' })
+  await Promise.all(operations)
+  jest.restoreAllMocks()
+})
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -37,7 +71,7 @@ beforeEach(() => {
 
 describe('toggleMessageReaction', () => {
   it('optimistically adds the reaction and emits with an ack', () => {
-    toggleMessageReaction({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+    toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
 
     const msg = useMessageStore.getState().messages[0]
     expect(msg.reactions).toEqual([{ emoji: '🔥', count: 1, userIds: ['self'], isCustom: false }])
@@ -51,31 +85,34 @@ describe('toggleMessageReaction', () => {
       messages: [makeMessage({ reactions: [{ emoji: '🔥', count: 1, userIds: ['self'], isCustom: false }] })]
     } as never)
 
-    toggleMessageReaction({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+    toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
 
     expect(useMessageStore.getState().messages[0].reactions).toEqual([])
   })
 
-  it('reverts the optimistic add when the server rejects (ok: false)', () => {
-    toggleMessageReaction({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+  it('reverts the optimistic add when the server rejects (ok: false)', async () => {
+    const result = toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
     expect(useMessageStore.getState().messages[0].reactions).toHaveLength(1)
 
     lastEmit?.ack?.({ ok: false })
+    expect(await result).toBe(false)
     expect(useMessageStore.getState().messages[0].reactions).toEqual([])
   })
 
-  it('reverts when the server resolved the opposite action', () => {
-    toggleMessageReaction({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+  it('reverts when the server resolved the opposite action', async () => {
+    const result = toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
     expect(useMessageStore.getState().messages[0].reactions).toHaveLength(1)
 
     // We predicted "added" but the server says it "removed" it.
     lastEmit?.ack?.({ ok: true, action: 'removed' })
+    await result
     expect(useMessageStore.getState().messages[0].reactions).toEqual([])
   })
 
-  it('keeps the optimistic change when the server confirms the same action', () => {
-    toggleMessageReaction({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+  it('keeps the optimistic change when the server confirms the same action', async () => {
+    const result = toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
     lastEmit?.ack?.({ ok: true, action: 'added' })
+    await result
     expect(useMessageStore.getState().messages[0].reactions).toHaveLength(1)
   })
 
@@ -83,7 +120,7 @@ describe('toggleMessageReaction', () => {
     useMessageStore.setState({ messages: [] } as never)
     useThreadStore.setState({ messages: [makeMessage({ id: 't1' })] } as never)
 
-    toggleMessageReaction({ mode: 'channel', messageId: 't1', emoji: '🎉' })
+    toggle({ mode: 'channel', messageId: 't1', emoji: '🎉' })
 
     expect(useThreadStore.getState().messages[0].reactions).toEqual([
       { emoji: '🎉', count: 1, userIds: ['self'], isCustom: false }
@@ -94,10 +131,48 @@ describe('toggleMessageReaction', () => {
     useMessageStore.setState({ messages: [] } as never)
     useForumReplyStore.setState({ messages: [makeMessage({ id: 'f1' })] } as never)
 
-    toggleMessageReaction({ mode: 'channel', messageId: 'f1', emoji: '😮' })
+    toggle({ mode: 'channel', messageId: 'f1', emoji: '😮' })
 
     expect(useForumReplyStore.getState().messages[0].reactions).toEqual([
       { emoji: '😮', count: 1, userIds: ['self'], isCustom: false }
     ])
+  })
+
+  it('does not update or buffer a reaction while disconnected', async () => {
+    mockSocket.connected = false
+    expect(await toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })).toBe(false)
+    expect(mockEmit).not.toHaveBeenCalled()
+    expect(useMessageStore.getState().messages[0].reactions).toEqual([])
+  })
+
+  it('rolls back a missing acknowledgement and bounds the operation', async () => {
+    mockEmit.mockRejectedValueOnce(new Error('timeout'))
+    expect(await toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })).toBe(false)
+    expect(mockSocket.timeout).toHaveBeenCalledWith(10_000)
+    expect(useMessageStore.getState().messages[0].reactions).toEqual([])
+  })
+
+  it('serializes rapid duplicate toggles', async () => {
+    const first = toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+    expect(await toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })).toBe(false)
+    expect(mockEmit).toHaveBeenCalledTimes(1)
+    lastEmit?.ack?.({ ok: true, action: 'added' })
+    expect(await first).toBe(true)
+  })
+
+  it('does not undo a confirmed room broadcast when only the ack is missing', async () => {
+    let reject!: (error: Error) => void
+    mockEmit.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail
+        })
+    )
+    const result = toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+    listeners.get('reaction:add')?.({ messageId: 'm1', emoji: '🔥', userId: 'self' })
+    reject(new Error('timeout'))
+    expect(await result).toBe(true)
+    expect(useMessageStore.getState().messages[0].reactions).toHaveLength(1)
+    expect(listeners.size).toBe(0)
   })
 })

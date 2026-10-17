@@ -13,6 +13,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { api } from '../lib/api'
 import { unsubscribeFromPush } from '../lib/notifications'
+import { useTranslationStore } from './translation.store'
 
 export type AuthUser = User
 
@@ -354,3 +355,7 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 )
+
+useAuthStore.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) useTranslationStore.getState().reset()
+})

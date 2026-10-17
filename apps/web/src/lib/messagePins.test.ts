@@ -5,7 +5,7 @@ jest.mock('./socket', () => ({ getSocket: jest.fn() }))
 
 it('requires a live connection rather than reporting success offline', async () => {
   jest.mocked(getSocket).mockReturnValue(null)
-  await expect(setMessagePinned('channel', 'ch', 'msg', false)).rejects.toThrow('No connection')
+  await expect(setMessagePinned('channel', 'ch', 'msg', false)).rejects.toThrow('offline')
 })
 
 it('waits for confirmation and surfaces rejected or timed-out updates', async () => {
@@ -22,5 +22,5 @@ it('waits for confirmation and surfaces rejected or timed-out updates', async ()
   await setMessagePinned('dm', 'dm1', 'msg', false)
   expect(emitWithAck).toHaveBeenCalledWith('dm:unpin', { conversationId: 'dm1', messageId: 'msg' })
   await expect(setMessagePinned('channel', 'ch', 'msg', true)).rejects.toThrow('Forbidden')
-  await expect(setMessagePinned('channel', 'ch', 'msg', true)).rejects.toThrow('timeout')
+  await expect(setMessagePinned('channel', 'ch', 'msg', true)).rejects.toThrow('unconfirmed')
 })

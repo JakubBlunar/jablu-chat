@@ -35,6 +35,8 @@ Message jumps load missing history before highlighting the target. An unavailabl
 target or failed request does not replace already loaded messages; a notice
 provides Retry and Dismiss. Thread and forum replies open in their own context.
 Saved-message jumps update the route and retain the reply's parent-thread target.
+Copied and shared message links also retain the parent thread, on both desktop
+and mobile.
 Paging and returning to the latest messages also expose recoverable failures.
 
 The authenticated `GET /api/dm/:id/attachments` endpoint accepts
@@ -48,6 +50,32 @@ message (not just the first five preview candidates). Results include sender,
 date, source-message ID and available preview titles/descriptions.
 Counts include messages containing HTTP(S) URL candidates. Malformed links are
 not clickable; the entry explains the issue and still lets you open its source.
+
+## Message actions
+
+Edits, deletes and reactions require a live connection and bounded server
+confirmation; they are not silently queued while offline. Failed edits keep the
+entered text, and failed deletes keep the confirmation open for another attempt.
+If confirmation times out, check the current message before retrying: the server
+may already have applied the action. Reaction failures roll back the optimistic
+change unless a room broadcast has already confirmed it.
+
+Forwarding shows a source preview and searchable destination channels. Selecting
+a channel does not send anything: review the destination and press **Send**.
+The current conversation stays open by default; **Open the destination after
+sending** opts into navigation. Retrying within the dialog reuses the same
+message ID for that destination to avoid duplicate forwarded copies.
+
+Message menus support arrow keys, Home, End and typing the start of an action's
+name, and stay positioned when the window or conversation scrolls. Mobile
+clipboard actions close only after successful copying; unavailable or denied
+clipboard access is reported.
+
+Translation capabilities and language preferences share their initial requests
+instead of loading once per message. Temporary setup failures expose a retry,
+and translations of an older message revision are no longer displayed after an
+edit. Changing the preferred language takes effect in already-rendered menus.
+Cached translation preferences and results are cleared when the account changes.
 
 ## Drafts and connection loss
 
