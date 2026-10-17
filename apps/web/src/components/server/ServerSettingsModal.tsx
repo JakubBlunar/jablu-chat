@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import type { Server } from '@/stores/server.store'
 import { SERVER_TABS, type Tab } from './server-settings/serverSettingsTypes'
 import { XIcon } from './server-settings/serverSettingsIcons'
@@ -27,6 +29,9 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   const { t: tCommon } = useTranslation('common')
   const [tab, setTab] = useState<Tab>('overview')
   const isMobile = useIsMobile()
+  const mobileRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(mobileRef, isMobile, onClose)
+  useBackGestureClose(isMobile, onClose, isMobile)
 
   const currentLabel = SERVER_TABS.find((t) => t.key === tab)?.label ?? 'Settings'
 
@@ -52,7 +57,13 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
 
   if (isMobile) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-surface" role="dialog" aria-modal="true" aria-label={t('serverSettings')}>
+      <div
+        ref={mobileRef}
+        className="fixed inset-0 z-50 flex flex-col bg-surface"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('serverSettings')}
+      >
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
@@ -98,7 +109,9 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
       className="flex h-[80vh] min-h-0"
     >
       <SimpleBar className="w-44 shrink-0 bg-surface-darkest p-3">
-        <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('serverSettings')}</h2>
+        <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          {t('serverSettings')}
+        </h2>
         <nav className="flex flex-col gap-0.5">
           {SERVER_TABS.map((t) => (
             <button
@@ -106,7 +119,9 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
               type="button"
               onClick={() => setTab(t.key)}
               className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
-                tab === t.key ? 'bg-surface-selected text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
+                tab === t.key
+                  ? 'bg-surface-selected text-white'
+                  : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
               }`}
             >
               {t.label}

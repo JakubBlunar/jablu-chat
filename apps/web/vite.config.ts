@@ -36,6 +36,9 @@ export default defineConfig(({ command }) => ({
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
+        id: '/',
+        prefer_related_applications: false,
+        related_applications: [{ platform: 'webapp', url: '/manifest.webmanifest' }],
         icons: [
           {
             src: 'pwa-192x192.png',

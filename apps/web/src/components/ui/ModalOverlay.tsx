@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useDialogName } from '@/hooks/useDialogName'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
@@ -15,6 +16,9 @@ type Props = {
    * (e.g. SimpleBar) as the only scroll containers. Default true scrolls the whole panel.
    */
   dialogBodyScroll?: boolean
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
 }
 
 export function ModalOverlay({
@@ -24,10 +28,14 @@ export function ModalOverlay({
   zIndex = 'z-50',
   className = '',
   noPadding = false,
-  dialogBodyScroll = true
+  dialogBodyScroll = true,
+  'aria-label': label,
+  'aria-labelledby': labelledBy,
+  'aria-describedby': describedBy
 }: Props) {
   const isMobile = useIsMobile()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const name = useDialogName(dialogRef, true, children, label)
   useFocusTrap(dialogRef, true, onClose)
   useBackGestureClose(true, onClose, isMobile)
 
@@ -53,6 +61,9 @@ export function ModalOverlay({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={labelledBy ?? name['aria-labelledby']}
+        aria-label={labelledBy ? undefined : name['aria-label']}
+        aria-describedby={describedBy}
         className={`w-full max-h-[90vh] overscroll-contain rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10 ${maxWidth} ${
           dialogBodyScroll ? 'overflow-y-auto' : 'min-h-0 overflow-hidden'
         } ${noPadding ? '' : 'p-6'} ${className}`}

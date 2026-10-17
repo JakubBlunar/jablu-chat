@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { isElectron } from '@/lib/electron'
+import { getDevicePlatform } from '@/lib/platform'
 import { api } from '@/lib/api'
+import { PwaInstallGuide } from '@/components/PwaInstallGuide'
 
 interface DownloadEntry {
   filename: string
@@ -10,150 +13,114 @@ interface DownloadEntry {
   updatedAt: string
 }
 
-const PLATFORM_ICONS: Record<string, string> = {
-  windows: '🪟',
-  macos: '🍎',
-  linux: '🐧'
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  windows: 'Windows',
-  macos: 'macOS',
-  linux: 'Linux'
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+const PLATFORM_LABELS: Record<string, string> = { windows: 'Windows', macos: 'macOS', linux: 'Linux' }
 
 export function DownloadAppSection() {
+  const { t } = useTranslation('settings')
   const [downloads, setDownloads] = useState<DownloadEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const platform = getDevicePlatform()
 
   useEffect(() => {
-    fetch(`${api.baseUrl}/api/downloads`)
-      .then((r) => r.json())
-      .then((data) => setDownloads(data as DownloadEntry[]))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    if (isElectron || platform === 'macos') return
+    let cancelled = false
+    setLoading(true)
+    setFailed(false)
+    void api
+      .get<DownloadEntry[]>('/api/downloads')
+      .then((data) => {
+        if (!cancelled) setDownloads(data)
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [platform, attempt])
 
-  if (isElectron) return null
-  if (loading) {
+  if (isElectron)
     return (
-      <div className="space-y-3">
-        <div className="h-4 w-24 animate-pulse rounded bg-white/10" />
-        <div className="h-3 w-56 animate-pulse rounded bg-white/5" />
-        <div className="space-y-2">
-          {[1, 2].map((i) => (
-            <div key={i} className="flex items-center gap-3 rounded-lg bg-surface-darkest p-3">
-              <div className="h-6 w-6 animate-pulse rounded bg-white/10" />
-              <div className="flex-1 space-y-1.5">
-                <div className="h-3 w-20 animate-pulse rounded bg-white/10" />
-                <div className="h-2.5 w-32 animate-pulse rounded bg-white/5" />
-              </div>
-            </div>
-          ))}
-        </div>
+      <p role="status" className="text-sm text-green-400">
+        {t('install.installed')}
+      </p>
+    )
+  if (platform === 'macos') return <PwaInstallGuide />
+  if (loading)
+    return (
+      <p role="status" className="text-sm text-gray-400">
+        {t('install.loading')}
+      </p>
+    )
+  if (failed)
+    return (
+      <div role="alert" className="space-y-3 text-sm text-gray-300">
+        <p>{t('install.downloadError')}</p>
+        <button type="button" onClick={() => setAttempt((value) => value + 1)} className="min-h-11 text-primary">
+          {t('install.retry')}
+        </button>
       </div>
     )
-  }
-  if (downloads.length === 0) return null
+
+  const recommended = downloads.filter((download) => download.platform === platform)
+  const others = downloads.filter((download) => download.platform !== platform)
+  const cards = (entries: DownloadEntry[]) =>
+    entries.map((download) => (
+      <a
+        key={download.filename}
+        href={`${api.baseUrl}/api/downloads/${encodeURIComponent(download.filename)}`}
+        download
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex min-h-14 items-center justify-between gap-3 rounded-lg bg-surface-darkest p-3 hover:bg-surface-raised"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-white">
+            {PLATFORM_LABELS[download.platform] ?? download.platform}
+            {download.version ? ` v${download.version}` : ''}
+          </span>
+          <span className="block truncate text-xs text-gray-400">
+            {(download.size / 1024 / 1024).toFixed(1)} MB · {download.filename}
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-primary">
+          ↓
+        </span>
+      </a>
+    ))
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-white">Desktop App</h3>
-      <p className="text-xs text-gray-400">
-        Get the desktop app for voice calls, screen sharing, and system tray notifications.
-      </p>
-      <div className="space-y-2">
-        {downloads.map((d) => (
-          <a
-            key={d.filename}
-            href={`${api.baseUrl}/api/downloads/${encodeURIComponent(d.filename)}`}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-lg bg-surface-darkest p-3 transition hover:bg-surface-raised"
+    <div className="space-y-4">
+      <h3 className="text-base font-semibold text-white">{t('install.desktopTitle')}</h3>
+      <p className="text-sm text-gray-400">{t('install.desktopHint')}</p>
+      {recommended.length ? (
+        cards(recommended)
+      ) : (
+        <div className="space-y-3 text-sm text-gray-300">
+          <p>{t('install.noDownload')}</p>
+          <button
+            type="button"
+            className="min-h-11 text-primary"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'install' }))}
           >
-            <span className="text-xl">{PLATFORM_ICONS[d.platform] ?? '💻'}</span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">
-                {PLATFORM_LABELS[d.platform] ?? d.platform}
-                {d.version && <span className="ml-1.5 font-normal text-gray-500">v{d.version}</span>}
-              </p>
-              <p className="text-xs text-gray-500">
-                {formatSize(d.size)} &middot; {d.filename}
-              </p>
-            </div>
-            <svg
-              className="h-4 w-4 shrink-0 text-gray-400"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-            </svg>
-          </a>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-export function DownloadAppBanner() {
-  const [hasDownloads, setHasDownloads] = useState(false)
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem('download-banner-dismissed') === 'true')
-
-  useEffect(() => {
-    if (isElectron || dismissed) return
-    fetch(`${api.baseUrl}/api/downloads`)
-      .then((r) => r.json())
-      .then((data: DownloadEntry[]) => setHasDownloads(data.length > 0))
-      .catch(() => {})
-  }, [dismissed])
-
-  if (isElectron || dismissed || !hasDownloads) return null
-
-  return (
-    <div className="flex items-center gap-2 border-t border-white/5 px-3 py-2.5">
-      <svg
-        className="h-4 w-4 shrink-0 text-primary"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-      </svg>
-      <span className="min-w-0 flex-1 text-xs text-gray-400 leading-snug">
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault()
-            window.dispatchEvent(new CustomEvent('open-settings', { detail: 'downloads' }))
-          }}
-          className="text-primary hover:underline"
-        >
-          Get the desktop app
-        </a>{' '}
-        for better voice & video
-      </span>
-      <button
-        type="button"
-        onClick={() => {
-          setDismissed(true)
-          sessionStorage.setItem('download-banner-dismissed', 'true')
-        }}
-        className="text-gray-500 hover:text-gray-300"
-        title="Dismiss"
-      >
-        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" />
-        </svg>
-      </button>
+            {t('install.pwaAlternative')}
+          </button>
+        </div>
+      )}
+      {others.length > 0 && (
+        <details className="space-y-3">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm text-gray-400">
+            {t('install.otherPlatforms')}
+          </summary>
+          <div className="space-y-2">{cards(others)}</div>
+        </details>
+      )}
+      <p className="text-xs text-gray-400">{t('install.nativeDetectionHint')}</p>
     </div>
   )
 }

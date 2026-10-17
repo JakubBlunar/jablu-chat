@@ -1,17 +1,8 @@
 import i18n from 'i18next'
-import { isAppLocale, type AppLocale } from './locales'
+import { detectAppLocale, isAppLocale, type AppLocale } from './locales'
 
 /** All JSON namespaces under locales/{lng}/ — keep in sync with files on disk. */
-export const I18N_NAMESPACES = [
-  'common',
-  'settings',
-  'chat',
-  'a11y',
-  'nav',
-  'voice',
-  'auth',
-  'search'
-] as const
+export const I18N_NAMESPACES = ['common', 'settings', 'chat', 'a11y', 'nav', 'voice', 'auth', 'search'] as const
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number]
 
@@ -45,12 +36,12 @@ export function readPersistedLocale(): AppLocale {
   if (typeof window === 'undefined') return 'en'
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return 'en'
+    if (!raw) return detectAppLocale()
     const parsed = JSON.parse(raw) as { state?: { locale?: string } }
     const loc = parsed.state?.locale
     if (loc && isAppLocale(loc)) return loc
-    return 'en'
+    return detectAppLocale()
   } catch {
-    return 'en'
+    return detectAppLocale()
   }
 }

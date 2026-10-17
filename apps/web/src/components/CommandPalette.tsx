@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { Kbd } from '@/components/ui/Kbd'
+import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useBuiltInCommands } from '@/lib/commands/useBuiltInCommands'
 import {
   type Command,
@@ -28,6 +29,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
@@ -39,10 +41,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   // actually changes.
   const registeredCommands = useCommandRegistry(useShallow(selectRegisteredCommands))
 
-  const allCommands = useMemo(
-    () => [...builtInCommands, ...registeredCommands],
-    [builtInCommands, registeredCommands]
-  )
+  const allCommands = useMemo(() => [...builtInCommands, ...registeredCommands], [builtInCommands, registeredCommands])
 
   const filtered = useMemo(() => filterCommands(allCommands, query), [allCommands, query])
   const grouped = useMemo(() => groupCommandsBySection(filtered), [filtered])
@@ -61,7 +60,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     if (open) {
       setQuery('')
       setSelectedIndex(0)
-      requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [open])
 
@@ -109,29 +107,36 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   let runningIndex = 0
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-start justify-center bg-black/40 pt-4 md:bg-transparent md:pt-[15vh]"
-      role="none"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
+    <ModalOverlay
+      onClose={onClose}
+      aria-label={t('commandPalette')}
+      maxWidth="max-w-lg"
+      zIndex="z-[400]"
+      noPadding
+      className="self-start mt-4 md:mt-[15vh]"
     >
-      <div
-        className="mx-3 w-full max-w-lg rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10"
-        role="combobox"
-        aria-expanded="true"
-        aria-haspopup="listbox"
-        onKeyDown={handleKeyDown}
-      >
+      <div className="w-full">
         <div className="composite-text-field flex items-center gap-2 rounded-t-xl border-b border-white/10 px-4 py-3 transition focus-within:ring-2 focus-within:ring-primary/55">
-          <svg className="h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <svg
+            className="h-5 w-5 shrink-0 text-gray-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-label={t('commandPalette')}
+            aria-expanded="true"
+            aria-autocomplete="list"
+            aria-controls={listId}
+            aria-activedescendant={flatItems[selectedIndex] ? `${listId}-${flatItems[selectedIndex].id}` : undefined}
+            onKeyDown={handleKeyDown}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('quickSwitcherPlaceholder')}
@@ -140,7 +145,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white md:hidden"
             aria-label={tCommon('close')}
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -150,7 +155,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <Kbd className="hidden md:inline-flex">ESC</Kbd>
         </div>
 
-        <div ref={listRef} className="chat-scroll max-h-[60dvh] overflow-y-auto p-2 md:max-h-[22rem]" role="listbox">
+        <div
+          id={listId}
+          ref={listRef}
+          className="chat-scroll max-h-[60dvh] overflow-y-auto p-2 md:max-h-[22rem]"
+          role="listbox"
+          aria-label={t('commandPalette')}
+        >
           {flatItems.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-gray-500">{t('quickSwitcherNoResults')}</p>
           )}
@@ -171,21 +182,19 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                       key={cmd.id}
                       type="button"
                       role="option"
+                      id={`${listId}-${cmd.id}`}
+                      tabIndex={-1}
                       aria-selected={selected}
                       data-selected={selected}
                       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ${
-                        selected
-                          ? 'bg-white/10 text-white'
-                          : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
+                        selected ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
                       }`}
                       onClick={() => void runCommand(cmd)}
                       onMouseEnter={() => setSelectedIndex(index)}
                     >
                       {cmd.icon}
                       <span className="truncate">{cmd.label}</span>
-                      {cmd.hint && (
-                        <span className="ml-auto text-xs text-gray-500">{cmd.hint}</span>
-                      )}
+                      {cmd.hint && <span className="ml-auto text-xs text-gray-500">{cmd.hint}</span>}
                       {cmd.shortcut && cmd.shortcut.length > 0 && (
                         <span className={`flex shrink-0 items-center gap-1 ${cmd.hint ? 'ml-2' : 'ml-auto'}`}>
                           {cmd.shortcut.map((key, i) => (
@@ -205,6 +214,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           })}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }

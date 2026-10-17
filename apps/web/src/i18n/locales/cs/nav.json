@@ -1,4 +1,9 @@
 {
+  "commandPalette": "Příkazy",
+  "cmdSettingsAppearance": "Nastavení: Vzhled",
+  "resizeChannelSidebar": "Změnit šířku panelu kanálů",
+  "resizeDmSidebar": "Změnit šířku panelu konverzací",
+  "resizeConversationPanel": "Změnit šířku panelu konverzace",
   "mobileNavigation": "Hlavní navigace",
   "mobileChats": "Chaty",
   "mobileInbox": "Oznámení",

@@ -43,6 +43,7 @@ import { useActivityStore } from '@/stores/activity.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { CommandPalette } from '@/components/CommandPalette'
+import { CommandPaletteButton } from '@/components/CommandPaletteButton'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { OnboardingWizard } from '@/components/server/OnboardingWizard'
 
@@ -373,6 +374,7 @@ export function MainLayout() {
               <ServerSidebar />
               <DmSidebar />
             </div>
+            <CommandPaletteButton onOpen={() => setCommandPaletteOpen(true)} />
             <UserFooter onOpenSettings={openSettings} className="px-2 py-2.5" />
           </div>
           <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
@@ -421,6 +423,7 @@ export function MainLayout() {
             <ServerSidebar />
             <ChannelSidebar />
           </div>
+          <CommandPaletteButton onOpen={() => setCommandPaletteOpen(true)} />
           <UserFooter onOpenSettings={openSettings} className="px-2 py-2.5" />
         </div>
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">

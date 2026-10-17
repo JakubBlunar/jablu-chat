@@ -18,10 +18,12 @@ import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 export function ThreadPanel({
   gifEnabled,
   onCommand,
-  overlay = false
+  overlay = false,
+  maxWidth
 }: {
   gifEnabled?: boolean
   overlay?: boolean
+  maxWidth?: number
   onCommand?: (cmd: string, args?: string) => boolean | void
 }) {
   const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore()
@@ -80,9 +82,9 @@ export function ThreadPanel({
     ) : undefined
 
   return (
-    <ResponsivePanel overlay={overlay || isMobile} onClose={closeThread}>
+    <ResponsivePanel overlay={overlay || isMobile} maxWidth={maxWidth} onClose={closeThread}>
       <div
-        className={`flex h-full min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${overlay || isMobile ? 'w-full border-l-0' : 'w-80'}`}
+        className={`flex h-full w-full min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${overlay || isMobile ? 'border-l-0' : ''}`}
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
           <h3 className="text-sm font-semibold text-white">Thread</h3>

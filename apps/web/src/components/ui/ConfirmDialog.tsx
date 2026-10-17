@@ -27,7 +27,7 @@ export function ConfirmDialog({
 
   if (isMobile || !anchorRef) {
     return createPortal(
-      <ModalOverlay onClose={onCancel} maxWidth="max-w-sm" zIndex="z-[120]">
+      <ModalOverlay onClose={onCancel} aria-label={title} maxWidth="max-w-sm" zIndex="z-[120]">
         <p className="text-lg font-semibold text-white">{title}</p>
         <p className="mt-2 text-sm text-gray-300">{description}</p>
         <div className="mt-4 flex justify-end gap-2">

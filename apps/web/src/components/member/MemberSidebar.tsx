@@ -44,7 +44,7 @@ export function MemberSidebar({ onClose }: { onClose?: () => void } = {}) {
   const total = listMembers.length
 
   return (
-    <aside className="flex h-full w-full shrink-0 flex-col bg-surface-dark md:w-60">
+    <aside className="flex h-full w-full shrink-0 flex-col bg-surface-dark">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4">
         <SectionHeading as="h2">MEMBERS — {total}</SectionHeading>
         {onClose && (

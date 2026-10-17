@@ -27,7 +27,8 @@ export function ConversationInfoPanel({
   onClose,
   onSearch,
   onJump,
-  overlay = false
+  overlay = false,
+  maxWidth
 }: {
   conversation: DmConversation
   currentUserId?: string
@@ -40,6 +41,7 @@ export function ConversationInfoPanel({
   onSearch: () => void
   onJump: (messageId: string) => void
   overlay?: boolean
+  maxWidth?: number
 }) {
   const { t } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
@@ -205,12 +207,8 @@ export function ConversationInfoPanel({
       </BottomSheet>
     )
   return (
-    <ResponsivePanel overlay={overlay} onClose={onClose}>
-      <aside
-        className={`flex h-full shrink-0 flex-col border-l border-white/10 bg-surface-dark ${overlay ? 'w-full' : 'w-80'}`}
-      >
-        {content}
-      </aside>
+    <ResponsivePanel overlay={overlay} maxWidth={maxWidth} onClose={onClose}>
+      <aside className="flex h-full w-full shrink-0 flex-col border-l border-white/10 bg-surface-dark">{content}</aside>
     </ResponsivePanel>
   )
 }

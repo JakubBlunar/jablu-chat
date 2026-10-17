@@ -14,6 +14,7 @@ interface ChannelInfoDrawerProps {
   channelId: string
   serverId: string
   overlay?: boolean
+  maxWidth?: number
 }
 
 export function ChannelInfoDrawer({
@@ -22,14 +23,15 @@ export function ChannelInfoDrawer({
   channelDescription,
   channelId,
   serverId,
-  overlay = false
+  overlay = false,
+  maxWidth
 }: ChannelInfoDrawerProps) {
   const { t } = useTranslation('chat')
   const [tab, setTab] = useState<DrawerTab>('images')
 
   return (
-    <ResponsivePanel overlay={overlay} onClose={onClose}>
-      <aside className={`flex h-full shrink-0 flex-col bg-surface-dark ${overlay ? 'w-full' : 'w-72'}`}>
+    <ResponsivePanel overlay={overlay} maxWidth={maxWidth} onClose={onClose}>
+      <aside className="flex h-full w-full shrink-0 flex-col bg-surface-dark">
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-black/20 px-3">
           <h2 className="min-w-0 truncate text-base font-semibold text-white">
             <span className="text-gray-400"># </span>

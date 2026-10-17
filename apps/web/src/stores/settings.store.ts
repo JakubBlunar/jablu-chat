@@ -3,13 +3,26 @@ import type { MicMode, PttBinding, VadMode } from '@/lib/micMode'
 import type { NoiseReductionMode } from '@/lib/voiceProcessingSettings'
 import { applyAccentPreset, type AccentPreset } from '@/lib/accent'
 import type { AppLocale } from '@/i18n/locales'
-import { isAppLocale } from '@/i18n/locales'
+import { detectAppLocale, isAppLocale } from '@/i18n/locales'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
 export const CHANNEL_SIDEBAR_MIN = 200
 export const CHANNEL_SIDEBAR_MAX = 320
 const CHANNEL_SIDEBAR_DEFAULT = 256
+export const FONT_SCALES = [90, 100, 110, 125, 150] as const
+export type FontScale = (typeof FONT_SCALES)[number]
+export const PANEL_LIMITS = {
+  secondary: { min: 280, max: 600, default: 320 },
+  members: { min: 200, max: 360, default: 240 },
+  dm: { min: 200, max: 320, default: 240 }
+} as const
+export type PanelKind = keyof typeof PANEL_LIMITS
+type PanelWidths = Record<PanelKind, number>
+
+function applyFontScale(scale: FontScale) {
+  document.documentElement.style.setProperty('--app-text-scale', String(scale / 100))
+}
 
 const TABLET_QUERY = '(max-width: 1023px)'
 
@@ -41,6 +54,8 @@ export type SettingsSlice = {
   accent: AccentPreset
   memberSidebarVisible: boolean
   compactPreviews: boolean
+  fontScale: FontScale
+  panelWidths: PanelWidths
   channelSidebarWidth: number
   collapsedCategoryIds: string[]
   audioInputDeviceId: string
@@ -71,6 +86,8 @@ type SettingsActions = {
   setAccent: (preset: AccentPreset) => void
   setMemberSidebarVisible: (v: boolean) => void
   setCompactPreviews: (v: boolean) => void
+  setFontScale: (scale: FontScale) => void
+  setPanelWidth: (kind: PanelKind, width: number) => void
   toggleMemberSidebarVisible: () => void
   setChannelSidebarWidth: (w: number) => void
   toggleCollapsedCategory: (categoryId: string) => void
@@ -106,6 +123,8 @@ const defaults: SettingsSlice = {
   accent: 'amber',
   memberSidebarVisible: defaultMemberSidebarVisible(),
   compactPreviews: false,
+  fontScale: 100,
+  panelWidths: { secondary: 320, members: 240, dm: 240 },
   channelSidebarWidth: CHANNEL_SIDEBAR_DEFAULT,
   collapsedCategoryIds: [],
   audioInputDeviceId: '',
@@ -128,7 +147,7 @@ const defaults: SettingsSlice = {
   screenShareHighQualityAudio: false,
   voiceJoinMuted: false,
   voiceJoinDeafened: false,
-  locale: 'en',
+  locale: detectAppLocale(),
   pwaInstallDismissedAt: null
 }
 
@@ -141,6 +160,17 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
     out.accent = o.accent as AccentPreset
   if (typeof o.memberSidebarVisible === 'boolean') out.memberSidebarVisible = o.memberSidebarVisible
   if (typeof o.compactPreviews === 'boolean') out.compactPreviews = o.compactPreviews
+  if (FONT_SCALES.some((scale) => scale === o.fontScale)) out.fontScale = o.fontScale as FontScale
+  if (o.panelWidths && typeof o.panelWidths === 'object') {
+    const widths = o.panelWidths as Record<string, unknown>
+    out.panelWidths = { ...defaults.panelWidths }
+    for (const kind of Object.keys(PANEL_LIMITS) as PanelKind[]) {
+      const width = widths[kind]
+      if (typeof width === 'number' && Number.isFinite(width)) {
+        out.panelWidths[kind] = Math.round(Math.max(PANEL_LIMITS[kind].min, Math.min(PANEL_LIMITS[kind].max, width)))
+      }
+    }
+  }
   if (typeof o.channelSidebarWidth === 'number' && Number.isFinite(o.channelSidebarWidth))
     out.channelSidebarWidth = clampChannelWidth(o.channelSidebarWidth)
   if (Array.isArray(o.collapsedCategoryIds) && o.collapsedCategoryIds.every((x) => typeof x === 'string'))
@@ -196,6 +226,16 @@ export const useSettingsStore = create<SettingsState>()(
 
       setMemberSidebarVisible: (v) => set({ memberSidebarVisible: v }),
       setCompactPreviews: (v) => set({ compactPreviews: v }),
+      setFontScale: (scale) => {
+        if (!FONT_SCALES.includes(scale)) throw new RangeError('Unsupported font scale')
+        applyFontScale(scale)
+        set({ fontScale: scale })
+      },
+      setPanelWidth: (kind, width) => {
+        if (!Number.isFinite(width)) throw new Error('Panel width must be finite')
+        const { min, max } = PANEL_LIMITS[kind]
+        set((s) => ({ panelWidths: { ...s.panelWidths, [kind]: Math.round(Math.max(min, Math.min(max, width))) } }))
+      },
 
       toggleMemberSidebarVisible: () => set((s) => ({ memberSidebarVisible: !s.memberSidebarVisible })),
 
@@ -264,6 +304,8 @@ export const useSettingsStore = create<SettingsState>()(
         accent: s.accent,
         memberSidebarVisible: s.memberSidebarVisible,
         compactPreviews: s.compactPreviews,
+        fontScale: s.fontScale,
+        panelWidths: s.panelWidths,
         channelSidebarWidth: s.channelSidebarWidth,
         collapsedCategoryIds: s.collapsedCategoryIds,
         audioInputDeviceId: s.audioInputDeviceId,
@@ -296,8 +338,10 @@ export const useSettingsStore = create<SettingsState>()(
 useSettingsStore.persist.onFinishHydration(() => {
   const { accent } = useSettingsStore.getState()
   applyAccentPreset(accent)
+  applyFontScale(useSettingsStore.getState().fontScale)
 })
 
 if (useSettingsStore.persist.hasHydrated()) {
   applyAccentPreset(useSettingsStore.getState().accent)
+  applyFontScale(useSettingsStore.getState().fontScale)
 }

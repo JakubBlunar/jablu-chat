@@ -54,7 +54,7 @@ import { type VoiceParticipant, useVoiceStore } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
-import { DownloadAppBanner } from '@/components/settings/DownloadApp'
+import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
 import { VoicePanel } from '@/components/voice/VoicePanel'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { useEventStore } from '@/stores/event.store'
@@ -85,7 +85,7 @@ export function ChannelSidebar() {
   const { currentServer, removeServer } = useServerStore(
     useShallow((s) => {
       const id = s.currentServerId
-      const currentServer = id ? s.servers.find((x) => x.id === id) ?? null : null
+      const currentServer = id ? (s.servers.find((x) => x.id === id) ?? null) : null
       return { currentServer, removeServer: s.removeServer }
     })
   )
@@ -117,7 +117,8 @@ export function ChannelSidebar() {
     [channels, permissionsMap]
   )
 
-  const { textChannels, uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups, archivedChannels } = useSortedChannels(visibleChannels, categories)
+  const { textChannels, uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups, archivedChannels } =
+    useSortedChannels(visibleChannels, categories)
   const [showArchived, setShowArchived] = useState(false)
 
   const { has: hasPerm } = usePermissions(currentServer?.id)
@@ -248,13 +249,7 @@ export function ChannelSidebar() {
   const nextEvent = useEventStore((s) => {
     if (!currentServer || s.loadedServerId !== currentServer.id) return null
     const now = Date.now()
-    return (
-      s.events.find(
-        (e) =>
-          e.status === 'active' ||
-          new Date(e.endAt ?? e.startAt).getTime() >= now
-      ) ?? null
-    )
+    return s.events.find((e) => e.status === 'active' || new Date(e.endAt ?? e.startAt).getTime() >= now) ?? null
   })
   const fetchEvents = useEventStore((s) => s.fetchEvents)
 
@@ -284,7 +279,10 @@ export function ChannelSidebar() {
         status: resolvedStatus,
         customStatus: member?.user.customStatus ?? null,
         joinedAt: member?.joinedAt,
-        roleName: (() => { const r = member?.roles?.filter((r) => !r.isDefault); return r && r.length > 0 ? r.reduce((a, b) => a.position > b.position ? a : b).name : null })(),
+        roleName: (() => {
+          const r = member?.roles?.filter((r) => !r.isDefault)
+          return r && r.length > 0 ? r.reduce((a, b) => (a.position > b.position ? a : b)).name : null
+        })(),
         roleColor: member ? getRoleColor(member) : null
       })
       setVoiceCardRect(rect)
@@ -343,37 +341,18 @@ export function ChannelSidebar() {
     }
   }, [menuOpen])
 
-  const handleDragStart = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      const startX = e.clientX
-      const startW = useSettingsStore.getState().channelSidebarWidth
-
-      const onMove = (ev: MouseEvent) => {
-        const delta = ev.clientX - startX
-        setSidebarWidth(startW + delta)
-      }
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
-      }
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-    },
-    [setSidebarWidth]
-  )
-
   return (
     <>
       <aside className="relative flex h-full shrink-0 flex-col bg-surface-dark" style={{ width: sidebarWidth }}>
         {/* Drag handle */}
-        <div
-          className="absolute right-0 top-0 z-30 h-full w-1 cursor-col-resize bg-transparent transition-colors hover:bg-primary/40"
-          onMouseDown={handleDragStart}
+        <PanelResizeHandle
+          label={t('resizeChannelSidebar')}
+          value={sidebarWidth}
+          min={200}
+          max={320}
+          edge="right"
+          onChange={setSidebarWidth}
+          onReset={() => setSidebarWidth(256)}
         />
 
         {/* Server name header with dropdown */}
@@ -452,7 +431,11 @@ export function ChannelSidebar() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8M12 17v4M5 4h14v4a7 7 0 11-14 0V4zM5 8a3 3 0 01-3-3V4h3m14 4a3 3 0 003-3V4h-3" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 21h8M12 17v4M5 4h14v4a7 7 0 11-14 0V4zM5 8a3 3 0 01-3-3V4h3m14 4a3 3 0 003-3V4h-3"
+                    />
                   </svg>
                   Leaderboard
                 </button>
@@ -466,7 +449,11 @@ export function ChannelSidebar() {
                 className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 Mark All as Read
               </button>
@@ -568,7 +555,13 @@ export function ChannelSidebar() {
               }}
               className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-gray-300 transition hover:bg-white/5 hover:text-white"
             >
-              <svg className="h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <svg
+                className="h-4 w-4 text-gray-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
                 <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               {t('events')}
@@ -646,7 +639,8 @@ export function ChannelSidebar() {
           {/* Category groups */}
           {categoryGroups.map((group) => {
             const isCollapsed = collapsedCategoryIds.includes(group.category.id)
-            const hasChannels = group.textChannels.length > 0 || group.voiceChannels.length > 0 || group.forumChannels.length > 0
+            const hasChannels =
+              group.textChannels.length > 0 || group.voiceChannels.length > 0 || group.forumChannels.length > 0
             return (
               <div key={group.category.id} className="mt-1">
                 <div className="group/header flex items-center justify-between px-1 pt-1">
@@ -881,17 +875,28 @@ export function ChannelSidebar() {
         </SimpleBar>
 
         <VoicePanel />
-        <DownloadAppBanner />
       </aside>
 
       {channelModalOpen && (
         <Suspense fallback={null}>
-          <CreateChannelModal open onClose={() => { setChannelModalOpen(false); setCreateCategoryId(null) }} defaultCategoryId={createCategoryId} />
+          <CreateChannelModal
+            open
+            onClose={() => {
+              setChannelModalOpen(false)
+              setCreateCategoryId(null)
+            }}
+            defaultCategoryId={createCategoryId}
+          />
         </Suspense>
       )}
       {inviteOpen && currentServer && (
         <Suspense fallback={null}>
-          <InviteModal serverId={currentServer.id} serverName={currentServer.name} vanityCode={currentServer.vanityCode} onClose={() => setInviteOpen(false)} />
+          <InviteModal
+            serverId={currentServer.id}
+            serverName={currentServer.name}
+            vanityCode={currentServer.vanityCode}
+            onClose={() => setInviteOpen(false)}
+          />
         </Suspense>
       )}
       {serverSettingsOpen && currentServer && (
@@ -931,7 +936,11 @@ export function ChannelSidebar() {
       )}
       {serverNotifOpen && currentServer && (
         <Suspense fallback={null}>
-          <ServerNotifModal serverId={currentServer.id} serverName={currentServer.name} onClose={() => setServerNotifOpen(false)} />
+          <ServerNotifModal
+            serverId={currentServer.id}
+            serverName={currentServer.name}
+            onClose={() => setServerNotifOpen(false)}
+          />
         </Suspense>
       )}
       {createCategoryOpen && (

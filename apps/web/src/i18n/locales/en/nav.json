@@ -1,4 +1,9 @@
 {
+  "commandPalette": "Commands",
+  "cmdSettingsAppearance": "Settings: Appearance",
+  "resizeChannelSidebar": "Resize channel sidebar",
+  "resizeDmSidebar": "Resize conversation sidebar",
+  "resizeConversationPanel": "Resize conversation panel",
   "mobileNavigation": "Main navigation",
   "mobileChats": "Chats",
   "mobileInbox": "Inbox",

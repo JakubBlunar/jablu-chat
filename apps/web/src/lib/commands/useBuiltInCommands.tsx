@@ -59,7 +59,7 @@ export function useBuiltInCommands(): Command[] {
   const canManageServer = isOwner || hasPerm(Permission.MANAGE_SERVER)
   const canManageChannels = isOwner || hasPerm(Permission.MANAGE_CHANNELS)
   const currentServer = useServerStore((s) =>
-    s.currentServerId ? s.servers.find((sv) => sv.id === s.currentServerId) ?? null : null
+    s.currentServerId ? (s.servers.find((sv) => sv.id === s.currentServerId) ?? null) : null
   )
   const xpEnabledHere = !!currentServer?.xpEnabled
 
@@ -261,6 +261,15 @@ export function useBuiltInCommands(): Command[] {
       keywords: ['account', 'me', 'avatar'],
       icon: <SettingsIcon />,
       run: ({ close }) => openSettings('profile', close)
+    })
+
+    commands.push({
+      id: 'settings:appearance',
+      section: 'settings',
+      label: t('cmdSettingsAppearance'),
+      keywords: ['font', 'text', 'size', 'language', 'theme', 'accent'],
+      icon: <SettingsIcon />,
+      run: ({ close }) => openSettings('appearance', close)
     })
 
     commands.push({

@@ -10,7 +10,8 @@ import { VoiceSettings } from '@/components/voice/VoiceSettings'
 import { DownloadAppSection } from '@/components/settings/DownloadApp'
 import { PwaInstallGuide } from '@/components/PwaInstallGuide'
 import { electronAPI, isElectron } from '@/lib/electron'
-import { getIsStandalone } from '@/hooks/usePwaInstall'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { getDevicePlatform } from '@/lib/platform'
 import { KeyboardShortcutsSection } from '@/components/settings/KeyboardShortcuts'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Tab } from '@/components/settings/settingsTypes'
@@ -58,6 +59,8 @@ export function SettingsModal({
   const modalRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
   const [mobileIndex, setMobileIndex] = useState(!initialTab)
+  const { isInstalled } = usePwaInstall()
+  const platform = getDevicePlatform()
   const back = () => {
     if (isMobile && !mobileIndex) setMobileIndex(true)
     else onClose()
@@ -88,10 +91,15 @@ export function SettingsModal({
       { key: 'sessions', label: t('tabs.sessions'), group: 4 },
       { key: 'shortcuts', label: t('tabs.shortcuts'), show: !isMobile, group: 4 },
       { key: 'desktop', label: t('tabs.desktop'), show: isElectron, group: 5 },
-      { key: 'downloads', label: t('tabs.downloads'), show: !isElectron && !isMobile, group: 5 },
-      { key: 'install', label: t('tabs.install'), show: !isElectron && !getIsStandalone(), group: 5 }
+      {
+        key: 'downloads',
+        label: t('tabs.downloads'),
+        show: !isElectron && !isMobile && platform !== 'macos',
+        group: 5
+      },
+      { key: 'install', label: t('tabs.install'), show: !isElectron && !isInstalled, group: 5 }
     ],
-    [t, isMobile]
+    [t, isMobile, isInstalled, platform]
   )
 
   if (!open) return null

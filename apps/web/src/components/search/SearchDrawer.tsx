@@ -37,17 +37,9 @@ type Props = {
   onClose: () => void
   defaultScope?: Scope
   conversationId?: string
-  overlay?: boolean
 }
 
-export function SearchDrawer({
-  query,
-  onQueryChange,
-  onClose,
-  defaultScope = 'server',
-  conversationId,
-  overlay = false
-}: Props) {
+export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'server', conversationId }: Props) {
   const { t } = useTranslation('search')
   const { t: tNav } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
@@ -240,9 +232,7 @@ export function SearchDrawer({
   }, [])
 
   return (
-    <aside
-      className={`flex h-full shrink-0 flex-col border-l border-white/10 bg-surface-dark max-lg:[&_button]:min-h-11 max-lg:[&_button]:min-w-11 max-lg:[&_input]:min-h-11 max-lg:[&_input]:text-base ${overlay ? 'w-full' : 'w-80'}`}
-    >
+    <aside className="flex h-full w-full shrink-0 flex-col border-l border-white/10 bg-surface-dark max-lg:[&_button]:min-h-11 max-lg:[&_button]:min-w-11 max-lg:[&_input]:min-h-11 max-lg:[&_input]:text-base">
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4">
         <h2 className="text-sm font-semibold text-white">{t('resultsTitle')}</h2>

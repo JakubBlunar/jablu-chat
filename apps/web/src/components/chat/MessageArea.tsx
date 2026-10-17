@@ -13,13 +13,14 @@ import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useChatPanelLayout } from '@/hooks/useChatPanelLayout'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
+import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
-import { useSettingsStore } from '@/stores/settings.store'
+import { PANEL_LIMITS, useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@chat/shared'
@@ -78,6 +79,8 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const { t: tCommon } = useTranslation('common')
   const isMobile = useIsMobile()
   const panels = useChatPanelLayout()
+  const memberWidth = useSettingsStore((s) => s.panelWidths.members)
+  const setPanelWidth = useSettingsStore((s) => s.setPanelWidth)
   const showNavButton = isMobile || compactNavigation
   const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
@@ -700,11 +703,14 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           </div>
         </div>
         {searchOpen ? (
-          <ResponsivePanel overlay={panels.overlay} onClose={() => setSearchOpen(false)}>
+          <ResponsivePanel
+            overlay={panels.overlay}
+            maxWidth={panels.maxPanelWidth}
+            onClose={() => setSearchOpen(false)}
+          >
             <Suspense fallback={null}>
               <SearchDrawer
                 query={searchQuery}
-                overlay={panels.overlay}
                 onQueryChange={setSearchQuery}
                 onClose={() => {
                   setSearchOpen(false)
@@ -719,6 +725,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           <ConversationInfoPanel
             key={contextId}
             overlay={panels.overlay}
+            maxWidth={panels.maxPanelWidth}
             conversation={dm.currentConv}
             currentUserId={userId}
             otherMember={dm.otherMember}
@@ -743,6 +750,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
         <ThreadPanel
           overlay={panels.overlay}
+          maxWidth={panels.maxPanelWidth}
           gifEnabled={gifEnabled}
           onCommand={(cmd, args) => {
             if (!isDm && cmd === 'poll') {
@@ -757,11 +765,14 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           }}
         />
         {searchOpen && (
-          <ResponsivePanel overlay={panels.overlay} onClose={() => setSearchOpen(false)}>
+          <ResponsivePanel
+            overlay={panels.overlay}
+            maxWidth={panels.maxPanelWidth}
+            onClose={() => setSearchOpen(false)}
+          >
             <Suspense fallback={null}>
               <SearchDrawer
                 query={searchQuery}
-                overlay={panels.overlay}
                 onQueryChange={setSearchQuery}
                 onClose={() => {
                   setSearchOpen(false)
@@ -776,6 +787,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           (!isMobile && channelInfoDrawerOpen && activeChannel && !isDm && activeChannel.type === 'text' ? (
             <ChannelInfoDrawer
               overlay={panels.overlay}
+              maxWidth={panels.maxPanelWidth}
               onClose={() => useLayoutStore.getState().closeChannelInfoDrawer()}
               channelName={activeChannel.name}
               channelDescription={activeChannel.description}
@@ -783,7 +795,21 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
               serverId={activeChannel.serverId}
             />
           ) : (
-            !panels.membersOverlay && memberSidebar
+            !panels.membersOverlay &&
+            memberSidebar && (
+              <div className="relative h-full shrink-0" style={{ width: Math.min(memberWidth, panels.maxMemberWidth) }}>
+                <PanelResizeHandle
+                  label={tA11y('resizeMembers')}
+                  value={Math.min(memberWidth, panels.maxMemberWidth)}
+                  min={PANEL_LIMITS.members.min}
+                  max={Math.min(PANEL_LIMITS.members.max, panels.maxMemberWidth)}
+                  edge="left"
+                  onChange={(width) => setPanelWidth('members', width)}
+                  onReset={() => setPanelWidth('members', PANEL_LIMITS.members.default)}
+                />
+                {memberSidebar}
+              </div>
+            )
           ))}
       </div>
 

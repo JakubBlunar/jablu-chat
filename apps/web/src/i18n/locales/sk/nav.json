@@ -1,4 +1,9 @@
 {
+  "commandPalette": "Príkazy",
+  "cmdSettingsAppearance": "Nastavenia: Vzhľad",
+  "resizeChannelSidebar": "Zmeniť šírku panela kanálov",
+  "resizeDmSidebar": "Zmeniť šírku panela konverzácií",
+  "resizeConversationPanel": "Zmeniť šírku panela konverzácie",
   "mobileNavigation": "Hlavná navigácia",
   "mobileChats": "Chaty",
   "mobileInbox": "Oznámenia",

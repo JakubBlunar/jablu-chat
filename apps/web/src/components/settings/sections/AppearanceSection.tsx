@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ACCENT_OPTIONS } from '@/lib/accent'
 import { APP_LOCALES, LOCALE_LABELS, type AppLocale } from '@/i18n/locales'
-import { useSettingsStore } from '@/stores/settings.store'
+import { FONT_SCALES, type FontScale, useSettingsStore } from '@/stores/settings.store'
 import { TranslationPreferenceSection } from '@/components/settings/sections/TranslationPreferenceSection'
 
 export function AppearanceSection() {
@@ -12,6 +12,8 @@ export function AppearanceSection() {
   const setLocale = useSettingsStore((s) => s.setLocale)
   const compactPreviews = useSettingsStore((s) => s.compactPreviews)
   const setCompactPreviews = useSettingsStore((s) => s.setCompactPreviews)
+  const fontScale = useSettingsStore((s) => s.fontScale)
+  const setFontScale = useSettingsStore((s) => s.setFontScale)
 
   return (
     <div className="space-y-6">
@@ -35,6 +37,30 @@ export function AppearanceSection() {
         </select>
       </div>
 
+      <section className="border-t border-white/10 pt-6">
+        <h2 className="mb-1 text-base font-semibold text-white">{t('appearance.textSize')}</h2>
+        <p className="mb-3 text-sm text-gray-400">{t('appearance.textSizeHint')}</p>
+        <label htmlFor="jablu-font-scale" className="sr-only">
+          {t('appearance.textSize')}
+        </label>
+        <select
+          id="jablu-font-scale"
+          value={fontScale}
+          onChange={(event) => setFontScale(Number(event.target.value) as FontScale)}
+          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-white ring-1 ring-white/10"
+        >
+          {FONT_SCALES.map((scale) => (
+            <option key={scale} value={scale}>
+              {scale}%{scale === 100 ? ` — ${t('appearance.defaultSize')}` : ''}
+            </option>
+          ))}
+        </select>
+        <div className="mt-4 rounded-lg bg-surface-darkest p-4" aria-live="polite">
+          <p className="text-base font-semibold text-white">{t('appearance.textPreview')}</p>
+          <p className="mt-1 text-sm text-gray-300">{t('appearance.textPreviewBody')}</p>
+          <p className="mt-2 text-xs text-gray-400">{t('appearance.textPreviewCaption')}</p>
+        </div>
+      </section>
       <TranslationPreferenceSection />
       <label className="flex min-h-11 cursor-pointer items-start gap-3 border-t border-white/10 pt-6">
         <input

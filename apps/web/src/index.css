@@ -1,6 +1,18 @@
 @import 'tailwindcss';
 @import 'simplebar-react/dist/simplebar.min.css';
 
+:root {
+  --app-text-scale: 1;
+}
+
+@utility text-* {
+  font-size: calc(--value(--text-*, [length]) * var(--app-text-scale));
+}
+
+body {
+  font-size: calc(1rem * var(--app-text-scale));
+}
+
 button,
 [role='button'] {
   cursor: pointer;
@@ -109,18 +121,36 @@ html {
 input:not([type='checkbox']):not([type='radio']):not([type='range']),
 textarea,
 select {
-  font-size: 1rem !important;
+  font-size: calc(1rem * var(--app-text-scale)) !important;
+}
+
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: max(1rem, calc(1rem * var(--app-text-scale))) !important;
+  }
 }
 
 @supports (height: 100dvh) {
   .h-screen-safe {
     height: 100dvh;
   }
-  .max-h-\[70vh\] { max-height: 70dvh; }
-  .max-h-\[80vh\] { max-height: 80dvh; }
-  .max-h-\[85vh\] { max-height: 85dvh; }
-  .max-h-\[90vh\] { max-height: 90dvh; }
-  .h-\[80vh\] { height: 80dvh; }
+  .max-h-\[70vh\] {
+    max-height: 70dvh;
+  }
+  .max-h-\[80vh\] {
+    max-height: 80dvh;
+  }
+  .max-h-\[85vh\] {
+    max-height: 85dvh;
+  }
+  .max-h-\[90vh\] {
+    max-height: 90dvh;
+  }
+  .h-\[80vh\] {
+    height: 80dvh;
+  }
 }
 
 /* Landscape lock overlay for mobile touch devices (shown/hidden via JS) */
@@ -222,8 +252,14 @@ select {
 }
 
 @keyframes toast-slide-in {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .animate-toast-in {

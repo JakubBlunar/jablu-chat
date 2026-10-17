@@ -1,4 +1,5 @@
 import { useLayoutEffect, useState } from 'react'
+import { PANEL_LIMITS } from '@/stores/settings.store'
 
 export function useChatPanelLayout() {
   const [container, ref] = useState<HTMLElement | null>(null)
@@ -15,5 +16,11 @@ export function useChatPanelLayout() {
     observer.observe(container)
     return () => observer.disconnect()
   }, [container])
-  return { ref, overlay: width < 800, membersOverlay: width < 720 }
+  return {
+    ref,
+    overlay: width < 480 + PANEL_LIMITS.secondary.min,
+    membersOverlay: width < 480 + PANEL_LIMITS.members.min,
+    maxPanelWidth: Math.max(PANEL_LIMITS.secondary.min, width - 480),
+    maxMemberWidth: Math.max(PANEL_LIMITS.members.min, width - 480)
+  }
 }

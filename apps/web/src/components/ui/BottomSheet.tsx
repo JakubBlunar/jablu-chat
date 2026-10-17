@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
+import { useDialogName } from '@/hooks/useDialogName'
 
 interface BottomSheetProps {
   open: boolean
@@ -17,6 +18,7 @@ interface BottomSheetProps {
    */
   bodyScrollable?: boolean
   closeOnEscape?: boolean
+  'aria-label'?: string
 }
 
 export function BottomSheet({
@@ -26,12 +28,14 @@ export function BottomSheet({
   zIndex = 100,
   maxHeightDvh = 70,
   bodyScrollable = true,
-  closeOnEscape = true
+  closeOnEscape = true,
+  'aria-label': label
 }: BottomSheetProps) {
   const { t } = useTranslation('common')
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
+  const name = useDialogName(sheetRef, open, children, label)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
@@ -70,6 +74,7 @@ export function BottomSheet({
       style={{ zIndex }}
       role="dialog"
       aria-modal="true"
+      {...name}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onTouchEnd={(e) => {

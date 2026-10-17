@@ -97,3 +97,39 @@ it does not leave the group.
 
 Deployments must run the standard Prisma migration deployment command before
 starting the updated server.
+
+## Desktop layout and appearance
+
+Drag the edges of channel, DM, member and secondary panels to resize them.
+Focused resize handles also support the arrow keys, Home and End. Double-click
+a handle to reset its width. Width preferences stay on this device; panels
+temporarily shrink or open as overlays when there is not enough space to keep
+480 pixels for the conversation.
+
+The visible **Commands** button opens the command palette; **Ctrl+K** (or
+**Command+K** on macOS) remains available. The palette and shared modal surfaces
+contain keyboard focus, announce a dialog name, dismiss only the topmost surface
+on Escape and restore focus when closed.
+
+**Settings > Appearance > Text size** scales app text without zooming the
+interface or changing stored panel widths. The default is 100%; choices persist
+on this device. Phone inputs keep a minimum readable size to avoid input zoom.
+
+## Initial language and installation
+
+A fresh installation selects the first supported device/browser language:
+English, Czech or Slovak, including regional variants. Unsupported preferences
+fall back to English. An existing saved language always takes precedence.
+Change the interface language in **Settings > Appearance**.
+
+Installation suggestions recommend the native desktop app on Windows and the
+web app on macOS and mobile devices. macOS Safari's Add to Dock requires macOS
+Sonoma 14 or later; Chromium browsers provide their own install controls.
+Installer downloads prioritize the current platform and show errors and retry
+controls when the download list cannot be loaded.
+
+Suggestions disappear inside the desktop shell or an installed web-app window,
+after a browser install event, or when a supported browser confirms a related
+installed web app. Browsers do not universally expose installation state; a
+website cannot reliably detect an arbitrary existing Windows desktop install.
+Downloading an installer is never treated as proof that it was installed.
