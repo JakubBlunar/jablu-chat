@@ -43,7 +43,7 @@ describe('thread.store', () => {
       expect(state.parentMessage?.id).toBe('parent-1')
       expect(state.channelId).toBe('ch-1')
       expect(state.messages).toEqual([])
-      expect(state.isLoading).toBe(true)
+      expect(state.isLoading).toBe(false)
       expect(state.loadedForParentId).toBeNull()
     })
 
@@ -113,12 +113,41 @@ describe('thread.store', () => {
     })
 
     it('fetches with around when focusMessageId is set', async () => {
-      mockApi.mockResolvedValueOnce({ messages: makeMessages(5), hasMore: true, hasNewer: true })
+      const replies = [makeMessage({ id: 'reply-5' }), ...makeMessages(4)]
+      mockApi.mockResolvedValueOnce({ messages: replies, hasMore: true, hasNewer: true })
 
       useThreadStore.getState().openThread('ch-1', parentMsg, { focusMessageId: 'reply-5' })
       await useThreadStore.getState().fetchMessages()
 
       expect(mockApi).toHaveBeenCalledWith('ch-1', 'parent-1', { around: 'reply-5' })
+      expect(useThreadStore.getState().messages).toEqual(replies)
+    })
+
+    it('keeps loaded replies when the focused reply is unavailable', async () => {
+      const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+      useThreadStore.getState().openThread('ch-1', parentMsg)
+      const visible = makeMessages(2)
+      useThreadStore.setState({ messages: visible, focusMessageId: 'deleted' })
+      mockApi.mockResolvedValueOnce({ messages: [], hasMore: false })
+      await useThreadStore.getState().fetchMessages()
+      expect(useThreadStore.getState()).toMatchObject({ messages: visible, messagesError: 'messageUnavailable' })
+      log.mockRestore()
+    })
+
+    it('ignores a response after its thread closes', async () => {
+      let resolve!: (value: { messages: ReturnType<typeof makeMessages>; hasMore: boolean }) => void
+      mockApi.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      )
+      useThreadStore.getState().openThread('ch-1', parentMsg)
+      const pending = useThreadStore.getState().fetchMessages()
+      useThreadStore.getState().closeThread()
+      resolve({ messages: makeMessages(2), hasMore: false })
+      await pending
+      expect(useThreadStore.getState()).toMatchObject({ messages: [], loadedForParentId: null, isLoading: false })
     })
 
     it('sets isLoading false on error', async () => {

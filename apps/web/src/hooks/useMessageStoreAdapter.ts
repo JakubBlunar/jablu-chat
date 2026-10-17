@@ -13,10 +13,7 @@ const EMPTY: Message[] = []
 const NOOP_FETCH = async () => {}
 const NOOP_CLEAR = () => {}
 
-export function useMessageStoreAdapter(
-  mode: 'channel' | 'dm',
-  contextId: string | null
-): ScrollStoreAdapter {
+export function useMessageStoreAdapter(mode: 'channel' | 'dm', contextId: string | null): ScrollStoreAdapter {
   const isDm = mode === 'dm'
 
   // Anchor used by useMessageScroll to land on the first unread message
@@ -90,7 +87,13 @@ export function useMessageStoreAdapter(
 
   const getSnapshot = useCallback(() => {
     const s = isDm ? useDmStore.getState() : useMessageStore.getState()
-    return { messages: s.messages, isLoading: s.isLoading, hasMore: s.hasMore, hasNewer: s.hasNewer }
+    return {
+      messages: s.messages,
+      isLoading: s.isLoading,
+      hasMore: s.hasMore,
+      hasNewer: s.hasNewer,
+      error: s.messagesError
+    }
   }, [isDm])
 
   const onContextJoin = useCallback(
@@ -117,9 +120,7 @@ export function useMessageStoreAdapter(
   const onContextLeave = useCallback(
     (contextId: string) => {
       const store = isDm ? useDmStore.getState() : useMessageStore.getState()
-      const loadedFor = isDm
-        ? useDmStore.getState().loadedForConvId
-        : useMessageStore.getState().loadedForChannelId
+      const loadedFor = isDm ? useDmStore.getState().loadedForConvId : useMessageStore.getState().loadedForChannelId
       if (loadedFor === contextId) store.stashCurrent()
     },
     [isDm]

@@ -32,6 +32,33 @@ beforeEach(() => {
 })
 afterEach(() => jest.restoreAllMocks())
 
+it('passes the saved reply parent through to message navigation', async () => {
+  const onJump = jest.fn()
+  jest.mocked(api.getBookmarks).mockResolvedValueOnce({
+    bookmarks: [
+      {
+        ...entry,
+        message: {
+          ...entry.message,
+          threadParentId: 'parent',
+          channel: { id: 'channel', name: 'general', serverId: 'server' }
+        }
+      }
+    ],
+    hasMore: false
+  })
+  render(<SavedMessagesList onClose={jest.fn()} onJump={onJump} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'jumpToMessage' }))
+  expect(onJump).toHaveBeenCalledWith(
+    'm1',
+    expect.objectContaining({
+      serverId: 'server',
+      channelId: 'channel',
+      threadParentId: 'parent'
+    })
+  )
+})
+
 it('reports an initial error instead of claiming there are no saved messages', async () => {
   jest
     .mocked(api.getBookmarks)

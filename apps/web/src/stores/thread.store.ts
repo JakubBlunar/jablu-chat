@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { historyErrorKey, requireMessageTarget } from '@/lib/messageHistory'
 
 interface ThreadState {
   isOpen: boolean
@@ -14,6 +15,7 @@ interface ThreadState {
   scrollToMessageId: string | null
   scrollRequestNonce: number
   loadedForParentId: string | null
+  messagesError: string | null
 
   openThread: (channelId: string, parentMessage: Message, opts?: { focusMessageId?: string }) => void
   closeThread: () => void
@@ -29,6 +31,8 @@ interface ThreadState {
   removeReaction: (messageId: string, emoji: string, userId: string) => void
 }
 
+let requestId = 0
+
 export const useThreadStore = create<ThreadState>((set, get) => ({
   isOpen: false,
   parentMessage: null,
@@ -41,6 +45,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   scrollToMessageId: null,
   scrollRequestNonce: 0,
   loadedForParentId: null,
+  messagesError: null,
 
   openThread: (channelId, parentMessage, opts) => {
     const current = get()
@@ -54,12 +59,14 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       }
       return
     }
+    ++requestId
     set({
       isOpen: true,
       parentMessage,
       channelId,
       messages: [],
-      isLoading: true,
+      isLoading: false,
+      messagesError: null,
       hasMore: false,
       hasNewer: false,
       focusMessageId: opts?.focusMessageId ?? null,
@@ -70,11 +77,14 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   },
 
   closeThread: () => {
+    ++requestId
     set({
       isOpen: false,
       parentMessage: null,
       channelId: null,
       messages: [],
+      isLoading: false,
+      messagesError: null,
       hasMore: false,
       hasNewer: false,
       focusMessageId: null,
@@ -87,13 +97,16 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     const { channelId, parentMessage, focusMessageId } = get()
     if (!channelId || !parentMessage) return
 
-    set({ isLoading: true })
+    const fetchId = ++requestId
+    set({ isLoading: true, messagesError: null })
     try {
       const result = await api.getThreadMessages(
         channelId,
         parentMessage.id,
         focusMessageId ? { around: focusMessageId } : undefined
       )
+      if (fetchId !== requestId) return
+      if (focusMessageId) requireMessageTarget(result.messages, focusMessageId)
       set({
         messages: result.messages,
         hasMore: result.hasMore,
@@ -101,8 +114,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         isLoading: false,
         loadedForParentId: parentMessage.id
       })
-    } catch {
-      set({ isLoading: false })
+    } catch (error) {
+      if (fetchId !== requestId) return
+      console.error('Failed to load thread messages', error)
+      set({ isLoading: false, messagesError: historyErrorKey(error) })
     }
   },
 
@@ -111,16 +126,20 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     if (!channelId || !parentMessage || isLoading || messages.length === 0) return
 
     const oldestMsg = messages[0]
-    set({ isLoading: true })
+    const fetchId = ++requestId
+    set({ isLoading: true, messagesError: null })
     try {
       const result = await api.getThreadMessages(channelId, parentMessage.id, { cursor: oldestMsg.id })
+      if (fetchId !== requestId) return
       set((s) => ({
         messages: [...result.messages, ...s.messages],
         hasMore: result.hasMore,
         isLoading: false
       }))
-    } catch {
-      set({ isLoading: false })
+    } catch (error) {
+      if (fetchId !== requestId) return
+      console.error('Failed to load older thread messages', error)
+      set({ isLoading: false, messagesError: historyErrorKey(error) })
     }
   },
 
@@ -129,9 +148,11 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     if (!channelId || !parentMessage || isLoading || messages.length === 0 || !hasNewer) return
 
     const newestMsg = messages[messages.length - 1]
-    set({ isLoading: true })
+    const fetchId = ++requestId
+    set({ isLoading: true, messagesError: null })
     try {
       const result = await api.getThreadMessages(channelId, parentMessage.id, { after: newestMsg.id })
+      if (fetchId !== requestId) return
       set((s) => {
         const next = [...s.messages]
         for (const msg of result.messages) {
@@ -143,8 +164,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
           isLoading: false
         }
       })
-    } catch {
-      set({ isLoading: false })
+    } catch (error) {
+      if (fetchId !== requestId) return
+      console.error('Failed to load newer thread messages', error)
+      set({ isLoading: false, messagesError: historyErrorKey(error) })
     }
   },
 
@@ -152,18 +175,22 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     const { channelId, parentMessage, messages, hasNewer } = get()
     if (!channelId || !parentMessage || messages.length === 0 || !hasNewer) return
 
-    set({ isLoading: true })
+    const fetchId = ++requestId
+    set({ isLoading: true, messagesError: null })
     try {
       const nextMessages = [...messages]
       let nextHasNewer: boolean = hasNewer
       let cursor = nextMessages[nextMessages.length - 1]?.id
       while (nextHasNewer && cursor) {
         const result = await api.getThreadMessages(channelId, parentMessage.id, { after: cursor })
+        if (fetchId !== requestId) return
         for (const msg of result.messages) {
           if (!nextMessages.some((m) => m.id === msg.id)) nextMessages.push(msg)
         }
         nextHasNewer = !!result.hasNewer
-        cursor = nextMessages[nextMessages.length - 1]?.id
+        const nextCursor = nextMessages[nextMessages.length - 1]?.id
+        if (nextHasNewer && nextCursor === cursor) throw new Error('Thread history did not advance')
+        cursor = nextCursor
       }
       set({
         messages: nextMessages,
@@ -171,8 +198,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         isLoading: false,
         focusMessageId: null
       })
-    } catch {
-      set({ isLoading: false })
+    } catch (error) {
+      if (fetchId !== requestId) return
+      console.error('Failed to load latest thread messages', error)
+      set({ isLoading: false, messagesError: historyErrorKey(error) })
     }
   },
 

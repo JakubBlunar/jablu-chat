@@ -12,9 +12,16 @@ const mockApi = jest.mocked(api.getThreadMessages)
 
 function resetStore() {
   useForumReplyStore.setState({
-    channelId: null, postId: null, messages: [], isLoading: false,
-    hasMore: false, hasNewer: false, focusMessageId: null,
-    scrollToMessageId: null, scrollRequestNonce: 0, loadedForPostId: null
+    channelId: null,
+    postId: null,
+    messages: [],
+    isLoading: false,
+    hasMore: false,
+    hasNewer: false,
+    focusMessageId: null,
+    scrollToMessageId: null,
+    scrollRequestNonce: 0,
+    loadedForPostId: null
   })
 }
 
@@ -61,7 +68,9 @@ describe('useForumSurfaceAdapter', () => {
   it('fetchMessages with cursor calls fetchOlder', async () => {
     const existing = makeMessages(2)
     useForumReplyStore.setState({
-      channelId: 'ch-1', postId: 'post-1', messages: existing
+      channelId: 'ch-1',
+      postId: 'post-1',
+      messages: existing
     })
     const older = makeMessages(1)
     mockApi.mockResolvedValueOnce({ messages: older, hasMore: false })
@@ -74,6 +83,7 @@ describe('useForumSurfaceAdapter', () => {
 
   it('fetchMessagesAround sets focusMessageId and fetches', async () => {
     const msgs = makeMessages(5)
+    msgs[0].id = 'msg-target'
     mockApi.mockResolvedValueOnce({ messages: msgs, hasMore: true, hasNewer: true })
 
     const { result } = renderHook(() => useForumSurfaceAdapter('ch-1'))
@@ -100,7 +110,10 @@ describe('useForumSurfaceAdapter', () => {
   it('getSnapshot returns current state', () => {
     const msgs = makeMessages(2)
     useForumReplyStore.setState({
-      messages: msgs, isLoading: true, hasMore: true, hasNewer: false
+      messages: msgs,
+      isLoading: true,
+      hasMore: true,
+      hasNewer: false
     })
     const { result } = renderHook(() => useForumSurfaceAdapter('ch-1'))
     const snap = result.current.getSnapshot()

@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BookmarkIcon } from '@/components/chat/chatIcons'
-import { SavedMessagesList } from '@/components/chat/SavedMessagesList'
-import { useNavigationStore } from '@/stores/navigation.store'
+import { SavedMessagesList, type SavedMessageLocation } from '@/components/chat/SavedMessagesList'
+import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useTranslation } from 'react-i18next'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
@@ -15,6 +15,7 @@ export function SavedMessagesBell({
   size?: 'sm' | 'md' | 'rail'
 }) {
   const { t } = useTranslation('chat')
+  const { navigate } = useAppNavigate()
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState<{
     left: number
@@ -69,19 +70,14 @@ export function SavedMessagesBell({
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  const handleJump = (messageId: string, opts: { channelId?: string; serverId?: string; conversationId?: string }) => {
+  const handleJump = (messageId: string, opts: SavedMessageLocation) => {
     setOpen(false)
+    const query = new URLSearchParams({ m: messageId })
+    if (opts.threadParentId) query.set('thread', opts.threadParentId)
     if (opts.conversationId) {
-      void useNavigationStore.getState().navigateToDm({
-        conversationId: opts.conversationId,
-        scrollToMessageId: messageId
-      })
+      navigate(`/channels/@me/${opts.conversationId}?${query}`)
     } else if (opts.serverId && opts.channelId) {
-      void useNavigationStore.getState().navigateToChannel({
-        serverId: opts.serverId,
-        channelId: opts.channelId,
-        scrollToMessageId: messageId
-      })
+      navigate(`/channels/${opts.serverId}/${opts.channelId}?${query}`)
     }
   }
 

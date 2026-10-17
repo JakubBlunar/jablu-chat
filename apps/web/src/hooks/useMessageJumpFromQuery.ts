@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useParams, useSearchParams } from 'react-router-dom'
 import type { Message } from '@chat/shared'
 import { api } from '@/lib/api'
@@ -11,11 +11,17 @@ import { useThreadStore } from '@/stores/thread.store'
 import { useForumStore } from '@/stores/forum.store'
 import { useForumReplyStore } from '@/stores/forumReply.store'
 import { showToast } from '@/stores/toast.store'
+import { useTranslation } from 'react-i18next'
+import { historyErrorKey } from '@/lib/messageHistory'
 
 /**
  * Reads `?m=<messageId>` on channel or DM routes and scrolls to that message, then strips the param.
  */
 export function useMessageJumpFromQuery() {
+  const { t } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
+  const errorTextRef = useRef({ t, tCommon })
+  errorTextRef.current = { t, tCommon }
   const [searchParams, setSearchParams] = useSearchParams()
   const jumpId = searchParams.get('m')
   const threadId = searchParams.get('thread')
@@ -37,9 +43,13 @@ export function useMessageJumpFromQuery() {
     if (isDmRoute) {
       if (viewMode !== 'dm' || conversationId !== params.conversationId) return
     } else if (
-      viewMode !== 'server' || serverId !== params.serverId || channelId !== params.channelId ||
-      loadedServerId !== params.serverId || channelsLoading
-    ) return
+      viewMode !== 'server' ||
+      serverId !== params.serverId ||
+      channelId !== params.channelId ||
+      loadedServerId !== params.serverId ||
+      channelsLoading
+    )
+      return
 
     let cancelled = false
 
@@ -49,9 +59,10 @@ export function useMessageJumpFromQuery() {
           conversationId,
           scrollToMessageId: jumpId
         })
+        if (cancelled || useNavigationStore.getState().error) return
         if (useDmStore.getState().loadedForConvId !== conversationId) return
         if (!useDmStore.getState().messages.some((m) => m.id === jumpId)) {
-          throw new Error('The notification message is no longer available.')
+          throw new Error('messageUnavailable')
         }
       } else if (viewMode === 'server' && serverId && channelId) {
         const channel = useChannelStore.getState().channels.find((c) => c.id === channelId)
@@ -71,11 +82,11 @@ export function useMessageJumpFromQuery() {
             channelId,
             scrollToMessageId: targetId
           })
-          if (cancelled) return
+          if (cancelled || useNavigationStore.getState().error) return
           const messages = useMessageStore.getState()
           if (messages.loadedForChannelId !== channelId) return
           if (!threadId && !messages.messages.some((m) => m.id === jumpId)) {
-            throw new Error('The notification message is no longer available.')
+            throw new Error('messageUnavailable')
           }
           if (threadId) {
             let parent = messages.messages.find((m) => m.id === threadId)
@@ -86,29 +97,45 @@ export function useMessageJumpFromQuery() {
               if (cancelled) return
               parent = result.messages.find((m) => m.id === threadId)
             }
-            if (!parent) throw new Error('The notification thread is no longer available.')
+            if (!parent) throw new Error('messageUnavailable')
             useThreadStore.getState().openThread(channelId, parent, { focusMessageId: jumpId })
           }
         }
       }
       if (cancelled) return
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev)
-        next.delete('m')
-        next.delete('thread')
-        return next
-      }, { replace: true })
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('m')
+          next.delete('thread')
+          return next
+        },
+        { replace: true }
+      )
     })().catch((error) => {
+      if (cancelled) return
       console.error('Failed to open notification target', error)
-      showToast('Error', error instanceof Error ? error.message : 'Failed to open notification target.')
+      const { t, tCommon } = errorTextRef.current
+      showToast(tCommon('error'), t(historyErrorKey(error)))
     })
 
     return () => {
       cancelled = true
     }
   }, [
-    jumpId, threadId, viewMode, serverId, channelId, conversationId, setSearchParams,
-    params.serverId, params.channelId, params.conversationId, isDmRoute,
-    loadedServerId, channelsLoading, location.key
+    jumpId,
+    threadId,
+    viewMode,
+    serverId,
+    channelId,
+    conversationId,
+    setSearchParams,
+    params.serverId,
+    params.channelId,
+    params.conversationId,
+    isDmRoute,
+    loadedServerId,
+    channelsLoading,
+    location.key
   ])
 }

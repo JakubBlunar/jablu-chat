@@ -131,8 +131,8 @@ describe('MessageSurface', () => {
   it('renders messages in chronological DOM order (oldest first, newest last)', () => {
     const msgs = makeMessages(3)
     const { container } = renderSurface({ messages: msgs })
-    const renderedIds = Array.from(container.querySelectorAll('[data-testid^="msg-"]')).map(
-      (el) => el.getAttribute('data-testid')
+    const renderedIds = Array.from(container.querySelectorAll('[data-testid^="msg-"]')).map((el) =>
+      el.getAttribute('data-testid')
     )
     expect(renderedIds).toEqual([`msg-${msgs[0].id}`, `msg-${msgs[1].id}`, `msg-${msgs[2].id}`])
   })
@@ -240,10 +240,10 @@ describe('MessageSurface', () => {
       expect(scrollContainer).toHaveAttribute('role', 'log')
     })
 
-    it('scroll container has aria-label="Messages"', () => {
+    it('scroll container has a localized accessible name', () => {
       const { container } = renderSurface()
       const scrollContainer = container.querySelector('.chat-scroll')
-      expect(scrollContainer).toHaveAttribute('aria-label', 'Messages')
+      expect(scrollContainer).toHaveAttribute('aria-label', 'messageListLabel')
     })
 
     it('scroll container has aria-live="polite"', () => {

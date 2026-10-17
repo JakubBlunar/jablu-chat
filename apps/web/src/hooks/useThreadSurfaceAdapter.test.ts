@@ -14,9 +14,17 @@ const parentMsg = makeMessage({ id: 'parent-1' })
 
 function resetStore() {
   useThreadStore.setState({
-    isOpen: false, parentMessage: null, channelId: null, messages: [],
-    isLoading: false, hasMore: false, hasNewer: false, focusMessageId: null,
-    scrollToMessageId: null, scrollRequestNonce: 0, loadedForParentId: null
+    isOpen: false,
+    parentMessage: null,
+    channelId: null,
+    messages: [],
+    isLoading: false,
+    hasMore: false,
+    hasNewer: false,
+    focusMessageId: null,
+    scrollToMessageId: null,
+    scrollRequestNonce: 0,
+    loadedForParentId: null
   })
 }
 
@@ -68,17 +76,20 @@ describe('useThreadSurfaceAdapter', () => {
     expect(useThreadStore.getState().messages).toHaveLength(5)
   })
 
-  it('fetchMessagesAround reopens thread with focus', () => {
+  it('fetchMessagesAround actually fetches the requested reply without reissuing a scroll request', async () => {
     useThreadStore.getState().openThread('ch-1', parentMsg)
     useThreadStore.setState({ isLoading: false })
     const nonce = useThreadStore.getState().scrollRequestNonce
+    mockApi.mockResolvedValueOnce({ messages: [makeMessage({ id: 'target-msg' })], hasMore: true })
 
     const { result } = renderHook(() => useThreadSurfaceAdapter())
-    act(() => { result.current.fetchMessagesAround('parent-1', 'target-msg') })
+    await act(() => result.current.fetchMessagesAround('parent-1', 'target-msg'))
 
     const state = useThreadStore.getState()
     expect(state.focusMessageId).toBe('target-msg')
-    expect(state.scrollRequestNonce).toBe(nonce + 1)
+    expect(state.scrollRequestNonce).toBe(nonce)
+    expect(mockApi).toHaveBeenCalledWith('ch-1', 'parent-1', { around: 'target-msg' })
+    expect(state.messages[0].id).toBe('target-msg')
   })
 
   it('clearMessages empties thread store messages', () => {
@@ -97,7 +108,10 @@ describe('useThreadSurfaceAdapter', () => {
 
   it('getSnapshot returns current thread state', () => {
     useThreadStore.setState({
-      messages: makeMessages(2), isLoading: true, hasMore: true, hasNewer: false
+      messages: makeMessages(2),
+      isLoading: true,
+      hasMore: true,
+      hasNewer: false
     })
     const { result } = renderHook(() => useThreadSurfaceAdapter())
     const snap = result.current.getSnapshot()

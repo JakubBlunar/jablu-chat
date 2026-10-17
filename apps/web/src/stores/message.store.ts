@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { api } from '@/lib/api'
 import { CACHE_PAGE_SIZE, channelKey, evictContext, getContext, putContext } from '@/lib/cache/messageCache'
 import { isForbidden } from '@/lib/cache/isForbidden'
+import { requireMessageTarget, historyErrorKey } from '@/lib/messageHistory'
 import { evictServer as evictServerStructure } from '@/lib/cache/structureCache'
 import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
 import { useChannelPermissionsStore } from './channel-permissions.store'
@@ -76,10 +77,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const qs = params.toString()
       const path = `/api/channels/${channelId}/messages${qs ? `?${qs}` : ''}`
       const page = await api.get<MessagesPage>(path)
-      if (_msgFetchId !== fetchId) {
-        set({ isLoading: false })
-        return
-      }
+      if (_msgFetchId !== fetchId) return
       const chronological = toChronological(page.messages)
 
       if (cursor) {
@@ -108,6 +106,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         })
       }
     } catch (e) {
+      if (_msgFetchId !== fetchId) return
       set({ isLoading: false, messagesError: 'Failed to load messages' })
       throw e
     }
@@ -119,20 +118,21 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     try {
       const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=100`
       const page = await api.get<MessagesPage>(path)
-      if (_msgFetchId !== fetchId) {
-        set({ isLoading: false })
-        return
-      }
+      if (_msgFetchId !== fetchId) return
+      requireMessageTarget(page.messages, messageId)
       const chronological = toChronological(page.messages)
+      if (get().loadedForChannelId !== channelId) clearTypingTimers(get().typingUsers)
       set({
         messages: chronological,
         hasMore: page.hasMore,
         hasNewer: page.hasNewer ?? false,
         isLoading: false,
-        loadedForChannelId: channelId
+        loadedForChannelId: channelId,
+        typingUsers: get().loadedForChannelId === channelId ? get().typingUsers : new Map()
       })
     } catch (e) {
-      set({ isLoading: false, messagesError: 'Failed to load messages' })
+      if (_msgFetchId !== fetchId) return
+      set({ isLoading: false, messagesError: historyErrorKey(e) })
       throw e
     }
   },
@@ -141,10 +141,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     const { messages } = get()
     if (!messages.length) return
     const newestId = messages[messages.length - 1].id
-    set({ isLoading: true })
+    const fetchId = ++_msgFetchId
+    set({ isLoading: true, messagesError: null })
     try {
       const path = `/api/channels/${channelId}/messages?after=${newestId}&limit=50`
       const page = await api.get<MessagesPage>(path)
+      if (_msgFetchId !== fetchId) return
       if (get().loadedForChannelId !== channelId) {
         set({ isLoading: false })
         return
@@ -161,6 +163,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         }
       })
     } catch (e) {
+      if (_msgFetchId !== fetchId) return
       set({ isLoading: false, messagesError: 'Failed to load messages' })
       throw e
     }
@@ -192,9 +195,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   clearMessages: () => {
+    ++_msgFetchId
     clearTypingTimers(get().typingUsers)
     set({
       messages: [],
+      isLoading: false,
       hasMore: false,
       hasNewer: false,
       messagesError: null,
@@ -222,6 +227,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     const entry = getContext(channelKey(channelId))
     if (!entry) return false
 
+    ++_msgFetchId
     clearTypingTimers(get().typingUsers)
     // `loadedForChannelId` has to land in the same update as `messages`:
     // useMessageScroll reads it to decide whether to keep what is on screen or
@@ -244,6 +250,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
    * which no socket event can tell us about after the fact.
    */
   revalidate: async (channelId) => {
+    if (get().isLoading) return
     const fetchId = ++_msgFetchId
     const idsWhenRequested = new Set(get().messages.map((m) => m.id))
     try {
@@ -344,9 +351,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   updateThreadCount: (messageId, threadCount, lastThreadReply) => {
     set((s) => ({
       messages: s.messages.map((m) =>
-        m.id === messageId
-          ? { ...m, threadCount, ...(lastThreadReply !== undefined ? { lastThreadReply } : {}) }
-          : m
+        m.id === messageId ? { ...m, threadCount, ...(lastThreadReply !== undefined ? { lastThreadReply } : {}) } : m
       )
     }))
   },

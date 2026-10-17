@@ -1,4 +1,7 @@
 {
+  "messageUnavailable": "This message is no longer available, or you no longer have access to it. Your current messages have been kept.",
+  "historyLoadFailed": "Couldn't load messages. Check your connection and try again.",
+  "dismissHistoryError": "Dismiss",
   "attachmentLimit": "Up to {{max}} MB per file.",
   "attachmentLimitPending": "File limits will be checked when connected.",
   "attachmentLimitFailed": "Could not check the file limit. Check your connection and try again; your draft is kept.",

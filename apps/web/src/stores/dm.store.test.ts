@@ -54,6 +54,19 @@ beforeEach(() => {
 })
 
 describe('dm.store', () => {
+  it('retains the current DM history and rejects an unavailable jump target', async () => {
+    const visible = makeMessages(2)
+    useDmStore.setState({ messages: visible, loadedForConvId: 'current' })
+    mockApi.getDmMessagesAround.mockResolvedValueOnce({ messages: [], hasMore: false, hasNewer: false })
+    await expect(useDmStore.getState().fetchMessagesAround('other', 'deleted')).rejects.toThrow('messageUnavailable')
+    expect(useDmStore.getState()).toMatchObject({
+      messages: visible,
+      loadedForConvId: 'current',
+      messagesError: 'messageUnavailable',
+      isLoading: false
+    })
+  })
+
   describe('fetchConversations', () => {
     it('loads conversations', async () => {
       const convs = [makeConversation({ id: 'c1' }), makeConversation({ id: 'c2' })]
@@ -222,11 +235,12 @@ describe('dm.store', () => {
   })
 
   it('keeps favorites first when messages and conversation details update', () => {
-    useDmStore.setState({ conversations: [
-      makeConversation({ id: 'favorite', isFavorite: true }),
-      makeConversation({ id: 'recent' })
-    ] })
-    useDmStore.getState().updateConversationLastMessage('recent', { content: 'new', authorId: 'other', createdAt: '2026-10-17T10:00:00Z' })
+    useDmStore.setState({
+      conversations: [makeConversation({ id: 'favorite', isFavorite: true }), makeConversation({ id: 'recent' })]
+    })
+    useDmStore
+      .getState()
+      .updateConversationLastMessage('recent', { content: 'new', authorId: 'other', createdAt: '2026-10-17T10:00:00Z' })
     expect(useDmStore.getState().conversations.map((conv) => conv.id)).toEqual(['favorite', 'recent'])
     useDmStore.getState().addOrUpdateConversation(makeConversation({ id: 'favorite', isFavorite: false }))
     expect(useDmStore.getState().conversations[0].id).toBe('recent')

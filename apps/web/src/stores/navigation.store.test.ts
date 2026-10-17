@@ -4,6 +4,7 @@ import { useServerStore } from './server.store'
 import { useMessageStore } from './message.store'
 import { useDmStore } from './dm.store'
 import { makeChannel, makeMessage, resetMsgSeq } from '@/test/factories'
+import { api } from '@/lib/api'
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -39,7 +40,8 @@ function resetStores() {
   useNavigationStore.setState({
     isNavigating: false,
     navigatingToServerId: null,
-    activeNavId: 0
+    activeNavId: 0,
+    error: null
   })
   useServerStore.setState({
     servers: [],
@@ -78,17 +80,41 @@ beforeEach(() => {
 })
 
 describe('navigation.store', () => {
+  it('keeps visible history after a failed cross-channel jump and retries the exact destination', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+    useServerStore.setState({ currentServerId: 's1' })
+    useChannelStore.setState({
+      loadedServerId: 's1',
+      currentChannelId: 'ch1',
+      channels: [makeChannel('ch1', 's1'), makeChannel('ch2', 's1')]
+    })
+    const visible = makeMessage({ id: 'visible' })
+    useMessageStore.setState({ messages: [visible], loadedForChannelId: 'ch1' })
+    const options = { serverId: 's1', channelId: 'ch2', scrollToMessageId: 'target' }
+    await useNavigationStore.getState().navigateToChannel(options)
+    expect(useMessageStore.getState().messages).toEqual([visible])
+    expect(useChannelStore.getState().currentChannelId).toBe('ch1')
+    expect(useNavigationStore.getState().error?.key).toBe('messageUnavailable')
+    jest.mocked(api.get).mockResolvedValueOnce({ messages: [makeMessage({ id: 'target' })], hasMore: false })
+    expect(await useNavigationStore.getState().error?.retry()).toBe('/channels/s1/ch2')
+    expect(useNavigationStore.getState().error).toBeNull()
+    expect(useChannelStore.getState().currentChannelId).toBe('ch2')
+    log.mockRestore()
+  })
+
   describe('navigateToChannel', () => {
     it('refreshes a missing channel instead of silently falling back to another one', async () => {
       useServerStore.setState({ currentServerId: 's1' })
       useChannelStore.setState({
-        channels: [makeChannel('ch-old', 's1')], loadedServerId: 's1'
+        channels: [makeChannel('ch-old', 's1')],
+        loadedServerId: 's1'
       })
       const fetch = jest.spyOn(useChannelStore.getState(), 'fetchChannels').mockImplementation(async () => {
         useChannelStore.setState({ channels: [makeChannel('ch-old', 's1'), makeChannel('ch-new', 's1')] })
       })
       const path = await useNavigationStore.getState().navigateToChannel({
-        serverId: 's1', channelId: 'ch-new'
+        serverId: 's1',
+        channelId: 'ch-new'
       })
       expect(fetch).toHaveBeenCalledWith('s1')
       expect(path).toBe('/channels/s1/ch-new')

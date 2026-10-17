@@ -11,7 +11,7 @@ import { useServerStore } from './server.store'
 import { hydrateContextFromDisk } from '@/lib/cache/hydrate'
 import { channelKey, dmKey, peekContext } from '@/lib/cache/messageCache'
 import { getSocket } from '@/lib/socket'
-import { showToast } from './toast.store'
+import { historyErrorKey, type HistoryErrorKey } from '@/lib/messageHistory'
 
 /** Channel types that have a message history worth navigating to. */
 function isMessageable(channel: Channel | undefined): boolean {
@@ -43,6 +43,8 @@ type NavigationState = {
   isNavigating: boolean
   navigatingToServerId: string | null
   activeNavId: number
+  error: { key: HistoryErrorKey; retry: () => Promise<string | null> } | null
+  dismissError: () => void
   navigateToChannel: (opts: {
     serverId: string
     channelId?: string | null
@@ -57,13 +59,15 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
   isNavigating: false,
   navigatingToServerId: null,
   activeNavId: 0,
+  error: null,
+  dismissError: () => set({ error: null }),
 
   navigateToChannel: async ({ serverId, channelId, scrollToMessageId }) => {
     const navId = ++navCounter
     const currentServerId = useServerStore.getState().currentServerId
     const serverChanged = currentServerId !== serverId
 
-    set({ isNavigating: true, activeNavId: navId, navigatingToServerId: serverChanged ? serverId : null })
+    set({ isNavigating: true, error: null, activeNavId: navId, navigatingToServerId: serverChanged ? serverId : null })
 
     try {
       const channelState = useChannelStore.getState()
@@ -76,7 +80,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
         void Promise.resolve(useMemberStore.getState().fetchMembers(serverId)).catch(() => {})
         void Promise.resolve(useEmojiStore.getState().fetch(serverId)).catch(() => {})
 
-        const sidebarReady = !requestedMissing &&
+        const sidebarReady =
+          !requestedMissing &&
           useChannelStore.getState().hydrateFromCache(serverId) &&
           useChannelPermissionsStore.getState().hydrateFromCache(serverId)
 
@@ -97,9 +102,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
       const channels = useChannelStore.getState().channels
       if (channelId && !channels.some((c) => c.id === channelId && c.serverId === serverId)) {
-        showToast('Error', 'This channel is no longer available.')
-        set({ isNavigating: false, navigatingToServerId: null })
-        return null
+        throw new Error('messageUnavailable')
       }
       const targetChannelId = resolveTargetChannel(serverId, channels, channelId)
 
@@ -163,10 +166,10 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
         }
 
         if (!served) {
-          useMessageStore.getState().clearMessages()
           if (scrollToMessageId) {
             await useMessageStore.getState().fetchMessagesAround(targetChannelId, scrollToMessageId)
           } else {
+            useMessageStore.getState().clearMessages()
             await useMessageStore.getState().fetchMessages(targetChannelId)
           }
 
@@ -186,16 +189,21 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       if (targetIsMessageable) {
         useNavHistoryStore.getState().recordChannel(serverId, targetChannelId)
       }
-      useNavHistoryStore
-        .getState()
-        .recordServerLocation(serverId, targetIsMessageable ? targetChannelId : null)
+      useNavHistoryStore.getState().recordServerLocation(serverId, targetIsMessageable ? targetChannelId : null)
 
       set({ isNavigating: false, navigatingToServerId: null })
       return `/channels/${serverId}/${targetChannelId}`
     } catch (error) {
       console.error('Failed to navigate to channel', error)
       if (get().activeNavId === navId) {
-        set({ isNavigating: false, navigatingToServerId: null })
+        set({
+          isNavigating: false,
+          navigatingToServerId: null,
+          error: {
+            key: historyErrorKey(error),
+            retry: () => get().navigateToChannel({ serverId, channelId, scrollToMessageId })
+          }
+        })
       }
       return null
     }
@@ -203,7 +211,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
   navigateToDm: async ({ conversationId, scrollToMessageId }) => {
     const navId = ++navCounter
-    set({ isNavigating: true, activeNavId: navId, navigatingToServerId: null })
+    set({ isNavigating: true, error: null, activeNavId: navId, navigatingToServerId: null })
 
     try {
       const dmState = useDmStore.getState()
@@ -238,14 +246,16 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       }
 
       if (!served) {
-        useDmStore.getState().clearMessages()
         if (scrollToMessageId) {
           await useDmStore.getState().fetchMessagesAround(conversationId, scrollToMessageId)
         } else {
+          useDmStore.getState().clearMessages()
           await useDmStore.getState().fetchMessages(conversationId)
         }
 
         if (get().activeNavId !== navId) return null
+        const error = useDmStore.getState().messagesError
+        if (error) throw new Error(error)
       }
 
       if (scrollToMessageId) {
@@ -258,9 +268,16 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
       set({ isNavigating: false })
       return `/channels/@me/${conversationId}`
-    } catch {
+    } catch (error) {
+      console.error('Failed to navigate to conversation', error)
       if (get().activeNavId === navId) {
-        set({ isNavigating: false })
+        set({
+          isNavigating: false,
+          error: {
+            key: historyErrorKey(error),
+            retry: () => get().navigateToDm({ conversationId, scrollToMessageId })
+          }
+        })
       }
       return null
     }

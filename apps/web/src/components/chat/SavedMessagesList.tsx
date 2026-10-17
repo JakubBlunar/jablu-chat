@@ -21,12 +21,19 @@ type BookmarkEntry = {
   message: Message & { channel?: { id: string; name: string; serverId: string } }
 }
 
+export type SavedMessageLocation = {
+  channelId?: string
+  serverId?: string
+  conversationId?: string
+  threadParentId?: string
+}
+
 export function SavedMessagesList({
   onClose,
   onJump
 }: {
   onClose: () => void
-  onJump?: (messageId: string, opts: { channelId?: string; serverId?: string; conversationId?: string }) => void
+  onJump?: (messageId: string, opts: SavedMessageLocation) => void
 }) {
   const { t } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
@@ -215,10 +222,11 @@ export function SavedMessagesList({
                         onJump(b.messageId, {
                           channelId: m.channel?.id,
                           serverId: m.channel?.serverId,
-                          conversationId: m.directConversationId ?? undefined
+                          conversationId: m.directConversationId ?? undefined,
+                          threadParentId: m.threadParentId ?? undefined
                         })
                       }
-                      className="mt-1.5 text-[11px] font-medium text-primary/70 transition hover:text-primary"
+                      className="mt-1.5 min-h-11 text-[11px] font-medium text-primary/70 transition hover:text-primary"
                     >
                       {t('jumpToMessage')}
                     </button>

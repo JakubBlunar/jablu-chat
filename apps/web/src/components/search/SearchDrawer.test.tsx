@@ -6,14 +6,29 @@ import { api, ApiError, type SearchResult } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 
+const mockNavigate = jest.fn()
+const mockGoToChannel = jest.fn()
+const mockGoToDm = jest.fn()
+const mockNavigation: { error: { key: string } | null; dismissError: () => void } = {
+  error: null,
+  dismissError: () => {
+    mockNavigation.error = null
+  }
+}
+
 jest.mock('@/lib/api', () => ({
   api: { searchMessages: jest.fn() },
   ApiError: jest.requireActual('@/lib/api/errors').ApiError,
   resolveMediaUrl: (value: string) => value
 }))
 jest.mock('@/hooks/useAppNavigate', () => ({
-  useAppNavigate: () => ({ orchestratedGoToDm: jest.fn(), orchestratedGoToChannel: jest.fn() })
+  useAppNavigate: () => ({
+    navigate: mockNavigate,
+    orchestratedGoToDm: mockGoToDm,
+    orchestratedGoToChannel: mockGoToChannel
+  })
 }))
+jest.mock('@/stores/navigation.store', () => ({ useNavigationStore: { getState: () => mockNavigation } }))
 jest.mock('@/components/UserAvatar', () => ({ UserAvatar: () => null }))
 jest.mock('simplebar-react', () => ({
   __esModule: true,
@@ -30,6 +45,8 @@ jest.mock('@/components/ui', () => ({
   Spinner: () => <div role="status">Loading</div>
 }))
 const search = jest.mocked(api.searchMessages)
+let mockIsMobile = false
+jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => mockIsMobile }))
 function Harness({ initial = '' }: { initial?: string }) {
   const [query, setQuery] = useState(initial)
   return (
@@ -43,6 +60,11 @@ function Harness({ initial = '' }: { initial?: string }) {
   )
 }
 beforeEach(() => {
+  mockNavigate.mockReset()
+  mockGoToChannel.mockReset().mockResolvedValue(undefined)
+  mockGoToDm.mockReset().mockResolvedValue(undefined)
+  mockNavigation.error = null
+  mockIsMobile = false
   search.mockReset().mockResolvedValue({ results: [], total: 0 })
   useServerStore.setState({ currentServerId: null })
   useChannelStore.setState({ currentChannelId: null, channels: [] })
@@ -53,11 +75,11 @@ afterEach(() => {
 
 it('applies and toggles a filter immediately with the current conversation scope', async () => {
   render(<Harness />)
-  fireEvent.click(screen.getByRole('button', { name: 'has:video' }))
+  fireEvent.click(screen.getByRole('button', { name: 'filterVideo' }))
   await waitFor(() => expect(search).toHaveBeenCalledWith('has:video', { offset: 0, conversationId: 'conv' }))
-  fireEvent.click(screen.getByRole('button', { name: 'has:video' }))
+  fireEvent.click(screen.getByRole('button', { name: 'filterVideo' }))
   expect(screen.getByRole('textbox')).toHaveValue('')
-  expect(screen.queryByRole('button', { name: 'tag:name' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'filterTag' })).not.toBeInTheDocument()
 })
 
 it('supports date inputs without entering raw filter syntax', async () => {
@@ -65,6 +87,30 @@ it('supports date inputs without entering raw filter syntax', async () => {
   fireEvent.change(screen.getByLabelText('afterDate'), { target: { value: '2026-10-01' } })
   await waitFor(() =>
     expect(search).toHaveBeenCalledWith('after:2026-10-01', expect.objectContaining({ conversationId: 'conv' }))
+  )
+})
+
+it('collapses mobile filters while keeping active filters removable', async () => {
+  mockIsMobile = true
+  render(<Harness initial={'hello has:video from:"Jane has:image"'} />)
+  expect(screen.queryByRole('button', { name: 'filterVideo' })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('afterDate')).not.toBeInTheDocument()
+  const chips = screen.getByLabelText('activeFilters')
+  expect(chips.querySelectorAll('button')).toHaveLength(3)
+  fireEvent.click(chips.querySelector('button')!)
+  expect(screen.getByRole('textbox')).toHaveValue('hello  from:"Jane has:image"')
+  await waitFor(() =>
+    expect(search).toHaveBeenLastCalledWith(
+      'hello  from:"Jane has:image"',
+      expect.objectContaining({ conversationId: 'conv' })
+    )
+  )
+  fireEvent.click(screen.getByRole('button', { name: /showFilters/ }))
+  expect(screen.getByLabelText('afterDate')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'clearFilters' }))
+  expect(screen.getByRole('textbox')).toHaveValue('hello')
+  await waitFor(() =>
+    expect(search).toHaveBeenLastCalledWith('hello', expect.objectContaining({ conversationId: 'conv' }))
   )
 })
 
@@ -108,7 +154,7 @@ it('shows actionable invalid-filter errors', async () => {
 
 it('preserves quoted sender values when toggling filters and editing dates', async () => {
   render(<Harness initial={'from:"Jane has:video before:2026-10-01"'} />)
-  const chip = screen.getByRole('button', { name: 'has:video' })
+  const chip = screen.getByRole('button', { name: 'filterVideo' })
   expect(chip).toHaveAttribute('aria-pressed', 'false')
   fireEvent.click(chip)
   expect(screen.getByRole('textbox')).toHaveValue('from:"Jane has:video before:2026-10-01" has:video')
@@ -126,7 +172,7 @@ it('stops the loading indicator while composing an incomplete sender filter', ()
   search.mockImplementationOnce(() => new Promise(() => {}))
   render(<Harness initial="old" />)
   expect(screen.getByRole('status')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'from:username' }))
+  fireEvent.click(screen.getByRole('button', { name: 'filterSender' }))
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
   act(() => {
     jest.advanceTimersByTime(1000)
@@ -169,4 +215,52 @@ it('retries a failed request with the same conversation scope', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'retry' }))
   await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   expect(search).toHaveBeenLastCalledWith('hello', { offset: 0, conversationId: 'conv' })
+})
+
+it.each(['text', 'forum'] as const)(
+  'uses the awaited message-link flow for %s replies without timing guesses',
+  async (type) => {
+    const result: SearchResult = {
+      id: 'reply',
+      content: 'Thread reply',
+      authorId: null,
+      author: null,
+      channelId: 'channel',
+      channel: { id: 'channel', name: 'general', serverId: 'server', type },
+      dmConversationId: null,
+      threadParentId: 'parent',
+      createdAt: '2026-10-17T10:00:00Z'
+    }
+    search.mockResolvedValue({ results: [result], total: 1 })
+    render(<SearchDrawer query="reply" onQueryChange={jest.fn()} onClose={jest.fn()} defaultScope="all" />)
+    fireEvent.click(await screen.findByText('Thread reply'))
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/channels/server/channel?m=reply&thread=parent'))
+    expect(mockGoToChannel).toHaveBeenCalledWith('server', 'channel', type === 'forum' ? undefined : 'parent')
+  }
+)
+
+it('keeps a failed result visible and retries the full navigation intent', async () => {
+  const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+  const result: SearchResult = {
+    id: 'message',
+    content: 'Recoverable result',
+    authorId: null,
+    author: null,
+    channelId: null,
+    channel: null,
+    dmConversationId: 'conv',
+    createdAt: '2026-10-17T10:00:00Z'
+  }
+  search.mockResolvedValue({ results: [result], total: 1 })
+  mockGoToDm.mockImplementationOnce(async () => {
+    mockNavigation.error = { key: 'historyLoadFailed' }
+  })
+  render(<Harness initial="recoverable" />)
+  fireEvent.click(await screen.findByText('Recoverable result'))
+  expect(await screen.findByRole('alert')).toHaveTextContent('historyLoadFailed')
+  expect(mockNavigate).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+  await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/channels/@me/conv?m=message'))
+  expect(mockGoToDm).toHaveBeenCalledTimes(2)
+  log.mockRestore()
 })

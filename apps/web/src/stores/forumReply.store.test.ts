@@ -33,6 +33,16 @@ beforeEach(() => {
 
 describe('forumReply.store', () => {
   describe('fetchMessages', () => {
+    it('preserves loaded replies if a focused reply has disappeared', async () => {
+      const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+      const visible = makeMessages(2)
+      useForumReplyStore.setState({ channelId: 'ch-1', postId: 'post-1', messages: visible, focusMessageId: 'deleted' })
+      mockApi.mockResolvedValueOnce({ messages: [], hasMore: false })
+      await useForumReplyStore.getState().fetchMessages()
+      expect(useForumReplyStore.getState()).toMatchObject({ messages: visible, messagesError: 'messageUnavailable' })
+      log.mockRestore()
+    })
+
     it('does nothing when channelId or postId is null', async () => {
       await useForumReplyStore.getState().fetchMessages()
       expect(mockApi).not.toHaveBeenCalled()
@@ -57,6 +67,7 @@ describe('forumReply.store', () => {
 
     it('fetches around focusMessageId when set', async () => {
       const msgs = makeMessages(5)
+      msgs[0].id = 'msg-target'
       mockApi.mockResolvedValueOnce({ messages: msgs, hasMore: true, hasNewer: true })
 
       useForumReplyStore.setState({ channelId: 'ch-1', postId: 'post-1', focusMessageId: 'msg-target' })
@@ -79,8 +90,10 @@ describe('forumReply.store', () => {
   describe('fetchOlder', () => {
     it('does nothing when already loading', async () => {
       useForumReplyStore.setState({
-        channelId: 'ch-1', postId: 'post-1',
-        messages: makeMessages(2), isLoading: true
+        channelId: 'ch-1',
+        postId: 'post-1',
+        messages: makeMessages(2),
+        isLoading: true
       })
       await useForumReplyStore.getState().fetchOlder()
       expect(mockApi).not.toHaveBeenCalled()
@@ -112,8 +125,10 @@ describe('forumReply.store', () => {
   describe('fetchNewer', () => {
     it('does nothing when hasNewer is false', async () => {
       useForumReplyStore.setState({
-        channelId: 'ch-1', postId: 'post-1',
-        messages: makeMessages(2), hasNewer: false
+        channelId: 'ch-1',
+        postId: 'post-1',
+        messages: makeMessages(2),
+        hasNewer: false
       })
       await useForumReplyStore.getState().fetchNewer()
       expect(mockApi).not.toHaveBeenCalled()
@@ -125,8 +140,10 @@ describe('forumReply.store', () => {
       mockApi.mockResolvedValueOnce({ messages: newer, hasMore: false, hasNewer: false })
 
       useForumReplyStore.setState({
-        channelId: 'ch-1', postId: 'post-1',
-        messages: existing, hasNewer: true
+        channelId: 'ch-1',
+        postId: 'post-1',
+        messages: existing,
+        hasNewer: true
       })
       await useForumReplyStore.getState().fetchNewer()
 

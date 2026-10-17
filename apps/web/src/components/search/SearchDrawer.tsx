@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Attachment, Message } from '@chat/shared'
+import type { Attachment } from '@chat/shared'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api, ApiError, resolveMediaUrl, type SearchResult } from '@/lib/api'
@@ -10,6 +10,10 @@ import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 import { IconButton, Spinner } from '@/components/ui'
+import { useIsMobile } from '@/hooks/useMobile'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { historyErrorKey, type HistoryErrorKey } from '@/lib/messageHistory'
+import { MediaPreview } from '@/components/media/MediaPreview'
 
 type Scope = 'server' | 'channel' | 'conversation' | 'dm' | 'all'
 const PAGE_SIZE = 25
@@ -43,11 +47,20 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const { t } = useTranslation('search')
   const { t: tNav } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
+  const { t: tChat } = useTranslation('chat')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
   const channels = useChannelStore((s) => s.channels)
   const currentChannel = channels.find((c) => c.id === currentChannelId)
-  const { orchestratedGoToChannel, orchestratedGoToDm } = useAppNavigate()
+  const { navigate, orchestratedGoToChannel, orchestratedGoToDm } = useAppNavigate()
+  const [resultFailure, setResultFailure] = useState<{ result: SearchResult; key: HistoryErrorKey } | null>(null)
+  const resultRequestRef = useRef(0)
+  useEffect(
+    () => () => {
+      ++resultRequestRef.current
+    },
+    []
+  )
 
   const [scope, setScope] = useState<Scope>(defaultScope)
   const [results, setResults] = useState<SearchResult[]>([])
@@ -60,6 +73,26 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
   const requestId = useRef(0)
+  const isMobile = useIsMobile()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const filtersId = useId()
+  const filterLabels: Record<string, string> = {
+    'has:image': 'filterImage',
+    'has:video': 'filterVideo',
+    'has:file': 'filterFile',
+    'has:attachment': 'filterAttachment',
+    'has:link': 'filterLink',
+    'has:poll': 'filterPoll',
+    'has:pinned': 'filterPinned',
+    'has:pin': 'filterPinned',
+    'in:thread': 'filterThread',
+    'in:root': 'filterRoot'
+  }
+  const activeFilters = Array.from(localQuery.matchAll(FILTER_TOKEN)).filter((match) => !!(match[2] ?? match[3]))
+  const filterName = (token: string, key: string, value: string) =>
+    filterLabels[token.toLowerCase()]
+      ? t(filterLabels[token.toLowerCase()])
+      : `${t(({ from: 'filterSender', tag: 'filterTag', after: 'filterAfter', before: 'filterBefore' } as Record<string, string>)[key.toLowerCase()] ?? 'searchFilters')}: ${value}`
 
   useEffect(() => {
     setLocalQuery(query)
@@ -151,76 +184,41 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     setOffset(0)
   }
 
-  function handleResultClick(result: SearchResult) {
+  async function handleResultClick(result: SearchResult) {
+    const request = ++resultRequestRef.current
     setActiveId(result.id)
-    if (result.channelId) {
-      const serverId = result.channel?.serverId ?? currentServerId
-      if (!serverId) return
-
-      if (result.channel?.type === 'forum') {
-        void orchestratedGoToChannel(serverId, result.channelId).then(() => {
-          const openForumPost = () => {
-            Promise.all([import('@/stores/forum.store'), import('@/stores/forumReply.store')]).then(
-              ([{ useForumStore }, { useForumReplyStore }]) => {
-                const postId = result.threadParentId ?? result.id
-                if (!useForumStore.getState().channelId) {
-                  useForumStore.setState({ channelId: result.channelId })
-                }
-                useForumStore.getState().openPost(postId)
-                if (result.threadParentId) {
-                  const s = useForumReplyStore.getState()
-                  useForumReplyStore.setState({
-                    scrollToMessageId: result.id,
-                    scrollRequestNonce: s.scrollRequestNonce + 1
-                  })
-                }
-              }
-            )
-          }
-          let attempts = 0
-          const waitForChannel = () => {
-            const ch = useChannelStore.getState().channels.find((c) => c.id === result.channelId)
-            if (ch || attempts >= 30) {
-              openForumPost()
-            } else {
-              attempts++
-              setTimeout(waitForChannel, 100)
-            }
-          }
-          waitForChannel()
-        })
-      } else if (result.threadParentId) {
-        // Thread reply in text channel: open thread panel
-        void orchestratedGoToChannel(serverId, result.channelId).then(() => {
-          setTimeout(() => {
-            import('@/stores/message.store').then(({ useMessageStore }) => {
-              const openWithParent = (msg: Message) => {
-                import('@/stores/thread.store').then(({ useThreadStore }) => {
-                  useThreadStore.getState().openThread(result.channelId!, msg, { focusMessageId: result.id })
-                })
-              }
-              const msg = useMessageStore.getState().messages.find((m) => m.id === result.threadParentId)
-              if (msg) {
-                openWithParent(msg)
-                return
-              }
-              api
-                .get<{ messages: Message[] }>(
-                  `/api/channels/${result.channelId}/messages?around=${result.threadParentId}&limit=1`
-                )
-                .then((res) => {
-                  const parent = res.messages.find((m) => m.id === result.threadParentId)
-                  if (parent) openWithParent(parent)
-                })
-                .catch(() => {})
-            })
-          }, 200)
-        })
+    setResultFailure(null)
+    try {
+      const query = new URLSearchParams({ m: result.id })
+      if (result.threadParentId) query.set('thread', result.threadParentId)
+      let path: string
+      if (result.channelId) {
+        const serverId = result.channel?.serverId ?? currentServerId
+        if (!serverId) throw new Error('messageUnavailable')
+        await orchestratedGoToChannel(
+          serverId,
+          result.channelId,
+          result.channel?.type === 'forum' ? undefined : (result.threadParentId ?? result.id)
+        )
+        path = `/channels/${serverId}/${result.channelId}?${query}`
+      } else if (result.dmConversationId) {
+        await orchestratedGoToDm(result.dmConversationId, result.id)
+        path = `/channels/@me/${result.dmConversationId}?${query}`
       } else {
-        void orchestratedGoToChannel(serverId, result.channelId, result.id)
+        throw new Error('messageUnavailable')
       }
-    } else if (result.dmConversationId) {
-      void orchestratedGoToDm(result.dmConversationId, result.id)
+      if (request !== resultRequestRef.current) return
+      const error = useNavigationStore.getState().error
+      if (error) {
+        useNavigationStore.getState().dismissError()
+        throw new Error(error.key)
+      }
+      navigate(path)
+      if (isMobile) onClose()
+    } catch (error) {
+      if (request !== resultRequestRef.current) return
+      console.error('Failed to open search result', error)
+      setResultFailure({ result, key: historyErrorKey(error) })
     }
   }
 
@@ -263,6 +261,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
             onChange={(e) => handleLocalChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={tNav('searchPlaceholder')}
+            aria-label={tNav('searchPlaceholder')}
             className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-200 outline-none placeholder:text-gray-500"
           />
         </div>
@@ -299,80 +298,144 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         )}
       </div>
 
-      {/* Filter hints */}
-      <div className="border-b border-white/10 px-3 py-2 max-lg:max-h-[35dvh] max-lg:shrink-0 max-lg:overflow-y-auto">
-        <p className="mb-1 text-[11px] font-medium text-gray-500">{t('searchFilters')}</p>
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              { label: 'has:image', insert: 'has:image ' },
-              { label: 'has:file', insert: 'has:file ' },
-              { label: 'has:attachment', insert: 'has:attachment ' },
-              { label: 'has:video', insert: 'has:video ' },
-              { label: 'has:link', insert: 'has:link ' },
-              { label: 'has:poll', insert: 'has:poll ' },
-              { label: 'has:pinned', insert: 'has:pinned ' },
-              { label: 'in:thread', insert: 'in:thread ' },
-              { label: 'in:root', insert: 'in:root ' },
-              { label: 'from:username', insert: 'from:' },
-              { label: 'tag:name', insert: 'tag:' }
-            ] as const
-          )
-            .filter(
-              (filter) =>
-                !(
-                  (scope === 'conversation' || scope === 'dm') &&
-                  ['has:poll', 'in:thread', 'in:root', 'tag:name'].includes(filter.label)
-                )
-            )
-            .map((f) => (
-              <button
-                key={f.label}
-                type="button"
-                aria-pressed={f.insert.endsWith(' ') ? !!findFilter(localQuery, f.insert.trim()) : undefined}
-                onClick={() => {
-                  if (f.insert.endsWith(' ')) {
-                    const token = f.insert.trim()
-                    submit(replaceFilter(localQuery, token, findFilter(localQuery, token) ? '' : token))
-                  } else {
-                    handleLocalChange(replaceFilter(localQuery, f.insert, f.insert))
-                    if (timerRef.current) clearTimeout(timerRef.current)
-                  }
-                  inputRef.current?.focus()
-                }}
-                className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-gray-400 transition hover:bg-white/10 hover:text-gray-300 aria-pressed:bg-primary/20 aria-pressed:text-primary"
-              >
-                {f.label}
-              </button>
-            ))}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(['after', 'before'] as const).map((direction) => {
-            const filter = findFilter(localQuery, `${direction}:`)
-            return (
-              <label key={direction} className="min-w-0 text-[11px] text-gray-400">
-                {t(direction === 'after' ? 'afterDate' : 'beforeDate')}
-                <input
-                  type="date"
-                  value={filter?.[2] ?? filter?.[3] ?? ''}
-                  onChange={(event) => {
-                    submit(
-                      replaceFilter(
-                        localQuery,
-                        `${direction}:`,
-                        event.target.value ? `${direction}:${event.target.value}` : ''
+      {(isMobile || activeFilters.length > 0) && (
+        <div className="shrink-0 border-b border-white/10 px-3 py-1">
+          {isMobile && (
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-controls={filtersId}
+              className="min-h-11 text-sm text-primary"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              {t(filtersOpen ? 'hideFilters' : 'showFilters')} {activeFilters.length > 0 && `(${activeFilters.length})`}
+            </button>
+          )}
+          {activeFilters.length > 0 && (
+            <div
+              className="flex flex-wrap gap-1 max-lg:flex-nowrap max-lg:overflow-x-auto"
+              aria-label={t('activeFilters')}
+            >
+              {activeFilters.map((match) => {
+                const name = filterName(match[0], match[1], match[2] ?? match[3])
+                return (
+                  <button
+                    type="button"
+                    key={`${match.index}-${match[0]}`}
+                    aria-label={t('removeFilter', { filter: name })}
+                    className="min-h-11 shrink-0 rounded bg-primary/15 px-2 text-xs text-primary"
+                    onClick={() =>
+                      submit(
+                        (localQuery.slice(0, match.index) + localQuery.slice(match.index + match[0].length)).trim()
                       )
-                    )
-                  }}
-                  className="ml-1 rounded bg-surface-darkest px-1 py-1 text-xs text-gray-200 [color-scheme:dark]"
-                />
-              </label>
-            )
-          })}
+                    }
+                  >
+                    {name} <span aria-hidden>&times;</span>
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                className="min-h-11 shrink-0 px-2 text-xs text-gray-400"
+                onClick={() => submit(localQuery.replace(FILTER_TOKEN, '').trim())}
+              >
+                {t('clearFilters')}
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+      {(!isMobile || filtersOpen) && (
+        <div
+          id={filtersId}
+          className="border-b border-white/10 px-3 py-2 max-lg:max-h-[35dvh] max-lg:shrink-0 max-lg:overflow-y-auto"
+        >
+          <p className="mb-1 text-[11px] font-medium text-gray-500">{t('searchFilters')}</p>
+          <div className="flex flex-wrap gap-1">
+            {(
+              [
+                { label: 'has:image', insert: 'has:image ' },
+                { label: 'has:file', insert: 'has:file ' },
+                { label: 'has:attachment', insert: 'has:attachment ' },
+                { label: 'has:video', insert: 'has:video ' },
+                { label: 'has:link', insert: 'has:link ' },
+                { label: 'has:poll', insert: 'has:poll ' },
+                { label: 'has:pinned', insert: 'has:pinned ' },
+                { label: 'in:thread', insert: 'in:thread ' },
+                { label: 'in:root', insert: 'in:root ' },
+                { label: 'from:username', insert: 'from:' },
+                { label: 'tag:name', insert: 'tag:' }
+              ] as const
+            )
+              .filter(
+                (filter) =>
+                  !(
+                    (scope === 'conversation' || scope === 'dm') &&
+                    ['has:poll', 'in:thread', 'in:root', 'tag:name'].includes(filter.label)
+                  )
+              )
+              .map((f) => (
+                <button
+                  key={f.label}
+                  title={f.label}
+                  type="button"
+                  aria-pressed={f.insert.endsWith(' ') ? !!findFilter(localQuery, f.insert.trim()) : undefined}
+                  onClick={() => {
+                    if (f.insert.endsWith(' ')) {
+                      const token = f.insert.trim()
+                      submit(replaceFilter(localQuery, token, findFilter(localQuery, token) ? '' : token))
+                    } else {
+                      handleLocalChange(replaceFilter(localQuery, f.insert, f.insert))
+                      if (timerRef.current) clearTimeout(timerRef.current)
+                    }
+                    inputRef.current?.focus()
+                  }}
+                  className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-gray-400 transition hover:bg-white/10 hover:text-gray-300 aria-pressed:bg-primary/20 aria-pressed:text-primary"
+                >
+                  {t(filterLabels[f.label] ?? (f.label === 'from:username' ? 'filterSender' : 'filterTag'))}
+                </button>
+              ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(['after', 'before'] as const).map((direction) => {
+              const filter = findFilter(localQuery, `${direction}:`)
+              return (
+                <label key={direction} className="min-w-0 text-[11px] text-gray-400">
+                  {t(direction === 'after' ? 'afterDate' : 'beforeDate')}
+                  <input
+                    type="date"
+                    value={filter?.[2] ?? filter?.[3] ?? ''}
+                    onChange={(event) => {
+                      submit(
+                        replaceFilter(
+                          localQuery,
+                          `${direction}:`,
+                          event.target.value ? `${direction}:${event.target.value}` : ''
+                        )
+                      )
+                    }}
+                    className="ml-1 rounded bg-surface-darkest px-1 py-1 text-xs text-gray-200 [color-scheme:dark]"
+                  />
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Result count */}
+      {resultFailure && (
+        <div role="alert" className="shrink-0 border-b border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <p>{tChat(resultFailure.key)}</p>
+          <button
+            type="button"
+            className="min-h-11 underline"
+            onClick={() => void handleResultClick(resultFailure.result)}
+          >
+            {tCommon('retry')}
+          </button>
+        </div>
+      )}
       {query.trim() && !loading && !error && (
         <div className="border-b border-white/10 px-3 py-1.5">
           <span className="text-xs text-gray-500">{t('resultCount', { count: total })}</span>
@@ -417,14 +480,14 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                     className="flex w-full items-start gap-3 text-left"
                   >
                     <UserAvatar
-                      username={r.author?.username ?? 'Deleted User'}
+                      username={r.author?.username ?? tChat('deletedUser')}
                       avatarUrl={r.author?.avatarUrl ?? null}
                       size="sm"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="truncate text-sm font-medium text-white">
-                          {r.author?.displayName ?? r.author?.username ?? 'Deleted User'}
+                          {r.author?.displayName ?? r.author?.username ?? tChat('deletedUser')}
                         </span>
                         {r.channel ? (
                           <span className="shrink-0 text-[11px] text-gray-500">#{r.channel.name}</span>
@@ -487,23 +550,14 @@ function SearchResultThumb({ attachment }: { attachment: Attachment }) {
   const { openByKey } = useMessageMedia()
   const src = resolveMediaUrl(attachment.thumbnailUrl ?? attachment.url) ?? attachment.url
   return (
-    <button
-      type="button"
-      aria-label={attachment.filename}
-      onClick={() => openByKey(attachment.id)}
+    <MediaPreview
+      src={src}
+      alt={attachment.filename}
+      compact
+      video={attachment.type === 'video' && !attachment.thumbnailUrl}
+      onOpen={() => openByKey(attachment.id)}
       className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-black/30"
-    >
-      {attachment.type === 'video' && !attachment.thumbnailUrl ? (
-        <video src={`${src}#t=0.1`} muted preload="metadata" className="h-full w-full object-cover" />
-      ) : (
-        <img
-          src={src}
-          alt={attachment.filename}
-          loading="lazy"
-          className="h-full w-full object-cover transition hover:opacity-90"
-        />
-      )}
-    </button>
+    />
   )
 }
 

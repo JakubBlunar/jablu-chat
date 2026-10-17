@@ -1,4 +1,7 @@
 {
+  "messageUnavailable": "Táto správa už nie je dostupná alebo k nej nemáte prístup. Aktuálne správy zostali zachované.",
+  "historyLoadFailed": "Správy sa nepodarilo načítať. Skontrolujte pripojenie a skúste to znova.",
+  "dismissHistoryError": "Zavrieť",
   "attachmentLimit": "Najviac {{max}} MB na súbor.",
   "attachmentLimitPending": "Obmedzenia súborov sa overia po pripojení.",
   "attachmentLimitFailed": "Obmedzenie veľkosti súborov sa nepodarilo overiť. Skontrolujte pripojenie a skúste to znova; koncept zostáva zachovaný.",

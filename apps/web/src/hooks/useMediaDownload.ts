@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { resolveMediaUrl } from '@/lib/api'
 import { prepareMediaDownload, saveMediaFile } from '@/lib/mediaDownload'
 import { showToast } from '@/stores/toast.store'
@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 
 export function useMediaDownload(url: string | undefined, filename: string) {
   const { t } = useTranslation('common')
+  const tRef = useRef(t)
+  tRef.current = t
   const [attempt, setAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
   const [prepared, setPrepared] = useState<{
@@ -26,12 +28,12 @@ export function useMediaDownload(url: string | undefined, filename: string) {
       () => {
         if (!controller.signal.aborted) {
           setPrepared({ key, attempt })
-          showToast(t('downloadFailed'), t('downloadLoadFailed'))
+          showToast(tRef.current('downloadFailed'), tRef.current('downloadLoadFailed'))
         }
       }
     )
     return () => controller.abort()
-  }, [url, filename, key, attempt, t])
+  }, [url, filename, key, attempt])
 
   const download = async () => {
     if (!url || preparing || saving) return false

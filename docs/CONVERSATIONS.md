@@ -24,6 +24,19 @@ the messages loaded in the chat. **Jump to message** opens the original context.
 Deleted messages are excluded. Only current conversation members can list
 attachments or shared links.
 
+Previews reserve space while loading and expose a retry if the image or video
+cannot be loaded. File cards separate **Open original** from **Download**.
+Downloads prepare the file only after you request it, rather than fetching every
+file in a conversation. Touch browsers that support file sharing show
+**Save file** once preparation finishes, so saving/sharing runs from a fresh tap.
+The full-screen gallery supports opening and downloading both images and videos.
+
+Message jumps load missing history before highlighting the target. An unavailable
+target or failed request does not replace already loaded messages; a notice
+provides Retry and Dismiss. Thread and forum replies open in their own context.
+Saved-message jumps update the route and retain the reply's parent-thread target.
+Paging and returning to the latest messages also expose recoverable failures.
+
 The authenticated `GET /api/dm/:id/attachments` endpoint accepts
 `kind=media|files`, zero-based `page` and `limit` (1-100, default 30), and returns
 `{ items, total }`. Attachment results include the original `messageId`,
@@ -72,6 +85,11 @@ that message is being edited in the current composer.
 Search starts in the current conversation. Scope controls can widen it to all
 DMs or everywhere. Everywhere results share one chronological, paginated list.
 Filter buttons can be combined with text or used on their own:
+
+On phones, **Filters** expands the optional controls; results get the space by
+default. Active filters remain visible as removable chips in a horizontally
+scrollable row, with **Clear filters** preserving the free-text query. Buttons
+use human-readable labels while raw query syntax remains supported.
 
 - `has:image`, `has:video`, `has:file`, `has:attachment`, `has:link`, `has:pin`.
 - `from:username` or `from:"Display Name"` limits results to a sender.

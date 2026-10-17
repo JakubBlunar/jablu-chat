@@ -21,7 +21,11 @@ describe('useMediaDownload', () => {
     expect(result.current.preparing).toBe(true)
     expect(saveMediaFile).not.toHaveBeenCalled()
     await waitFor(() => expect(result.current.preparing).toBe(false))
-    expect(prepareMediaDownload).toHaveBeenCalledWith('https://chat.test/uploads/photo.png', 'photo.png', expect.any(AbortSignal))
+    expect(prepareMediaDownload).toHaveBeenCalledWith(
+      'https://chat.test/uploads/photo.png',
+      'photo.png',
+      expect.any(AbortSignal)
+    )
 
     await act(async () => {
       const saving = result.current.download()
@@ -40,7 +44,9 @@ describe('useMediaDownload', () => {
     rerender({ url: '/next.png' })
 
     expect(result.current.preparing).toBe(true)
-    await act(async () => { expect(await result.current.download()).toBe(false) })
+    await act(async () => {
+      expect(await result.current.download()).toBe(false)
+    })
     expect(saveMediaFile).not.toHaveBeenCalled()
   })
 
@@ -50,23 +56,31 @@ describe('useMediaDownload', () => {
     await waitFor(() => expect(result.current.failed).toBe(true))
     expect(showToast).toHaveBeenCalled()
 
-    await act(async () => { expect(await result.current.download()).toBe(false) })
+    await act(async () => {
+      expect(await result.current.download()).toBe(false)
+    })
     await waitFor(() => expect(result.current.preparing).toBe(false))
     expect(result.current.failed).toBe(false)
     expect(saveMediaFile).not.toHaveBeenCalled()
-    await act(async () => { expect(await result.current.download()).toBe(true) })
+    await act(async () => {
+      expect(await result.current.download()).toBe(true)
+    })
   })
 
   it('keeps cancellation quiet and reports save failures', async () => {
     const { result } = renderHook(() => useMediaDownload('/photo.png', 'photo.png'))
     await waitFor(() => expect(result.current.preparing).toBe(false))
     jest.mocked(saveMediaFile).mockResolvedValueOnce(false)
-    await act(async () => { expect(await result.current.download()).toBe(false) })
+    await act(async () => {
+      expect(await result.current.download()).toBe(false)
+    })
     expect(showToast).not.toHaveBeenCalled()
 
     jest.mocked(saveMediaFile).mockRejectedValueOnce(new Error('Not allowed'))
-    await act(async () => { expect(await result.current.download()).toBe(false) })
-    expect(showToast).toHaveBeenCalledWith('Download failed', expect.any(String))
+    await act(async () => {
+      expect(await result.current.download()).toBe(false)
+    })
+    expect(showToast).toHaveBeenCalledWith('downloadFailed', 'downloadSaveFailed')
     expect(result.current.saving).toBe(false)
   })
 

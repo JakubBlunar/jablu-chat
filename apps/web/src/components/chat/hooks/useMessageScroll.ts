@@ -1,5 +1,6 @@
 import type { Message } from '@chat/shared'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { historyErrorKey, requireMessageTarget, type HistoryErrorKey } from '@/lib/messageHistory'
 
 export interface ScrollStoreAdapter {
   messages: Message[]
@@ -22,7 +23,13 @@ export interface ScrollStoreAdapter {
   clearMessages: () => void
   setScrollToMessageId: (id: string | null) => void
   getLoadedForId: () => string | null
-  getSnapshot: () => { messages: Message[]; isLoading: boolean; hasMore: boolean; hasNewer: boolean }
+  getSnapshot: () => {
+    messages: Message[]
+    isLoading: boolean
+    hasMore: boolean
+    hasNewer: boolean
+    error?: string | null
+  }
   onContextJoin?: (contextId: string) => void
   onContextLeave?: (contextId: string) => void
 }
@@ -37,6 +44,9 @@ export interface ScrollState {
   stickToBottom: () => void
   handleBottomButtonClick: () => void
   handleJumpToMessage: (messageId: string) => void
+  historyError?: HistoryErrorKey | null
+  retryHistory?: () => void
+  dismissHistoryError?: () => void
 }
 
 const LOAD_OLDER_IMAGE_ANCHOR_WINDOW_MS = 3000
@@ -53,10 +63,7 @@ const INITIAL_LOAD_IMAGE_ANCHOR_WINDOW_MS = 1000
  * is active. This is the same belt-and-braces strategy Discord uses on top
  * of their ResizeObserver-based scroll manager.
  */
-function attachInitialLoadImageAnchor(
-  sp: HTMLElement,
-  shouldSnap: () => boolean
-): () => void {
+function attachInitialLoadImageAnchor(sp: HTMLElement, shouldSnap: () => boolean): () => void {
   const imgs = Array.from(sp.querySelectorAll('img')).filter((img) => !img.complete)
   if (imgs.length === 0) return () => {}
 
@@ -97,7 +104,8 @@ function attachInitialLoadImageAnchor(
  * and adjusts `scrollTop` to keep the visual anchor stable.
  */
 function attachLoadOlderImageAnchor(sp: HTMLElement, prevTopId: string): void {
-  const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(prevTopId) : prevTopId.replace(/[^a-zA-Z0-9_-]/g, '\\$&')
+  const escapedId =
+    typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(prevTopId) : prevTopId.replace(/[^a-zA-Z0-9_-]/g, '\\$&')
   const anchor = sp.querySelector(`#msg-${escapedId}`)
   if (!anchor) return
 
@@ -176,6 +184,48 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   const newerSentinelRef = useRef<HTMLDivElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [settling, setSettling] = useState(false)
+  const activeContextRef = useRef(contextId)
+  activeContextRef.current = contextId
+  const [historyFailure, setHistoryFailure] = useState<{
+    contextId: string | null
+    key: HistoryErrorKey
+    retry: () => void
+  } | null>(null)
+  const failureContextRef = useRef<string | null>(null)
+
+  const runHistory = useCallback(
+    async function run(action: () => Promise<void>, onSuccess?: () => void, checkError = true) {
+      if (activeContextRef.current !== contextId) return
+      failureContextRef.current = null
+      setHistoryFailure(null)
+      try {
+        await action()
+        if (activeContextRef.current !== contextId) return
+        const error = storeRef.current.getSnapshot().error
+        if (checkError && error) throw new Error(error)
+        onSuccess?.()
+      } catch (error) {
+        if (activeContextRef.current !== contextId) return
+        console.error('Failed to load message history', error)
+        setSettling(false)
+        failureContextRef.current = contextId
+        setHistoryFailure({
+          contextId,
+          key: historyErrorKey(error),
+          retry: () => {
+            void run(action, onSuccess, checkError)
+          }
+        })
+      }
+    },
+    [contextId]
+  )
+
+  const dismissHistoryError = useCallback(() => {
+    failureContextRef.current = null
+    setHistoryFailure(null)
+    storeRef.current.setScrollToMessageId(null)
+  }, [])
 
   const atBottomRef = useRef(true)
   atBottomRef.current = atBottom
@@ -187,17 +237,20 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     forceBottomUntilRef.current = Date.now() + FORCE_BOTTOM_WINDOW_MS
   }, [])
 
-  const goToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
-    const sp = scrollParentRef.current
-    if (!sp) return
-    if (behavior === 'smooth') {
-      sp.scrollTo({ top: sp.scrollHeight, behavior: 'smooth' })
-    } else {
-      sp.scrollTop = sp.scrollHeight
-    }
-    setAtBottom(true)
-    armForceBottom()
-  }, [armForceBottom])
+  const goToBottom = useCallback(
+    (behavior: ScrollBehavior = 'auto') => {
+      const sp = scrollParentRef.current
+      if (!sp) return
+      if (behavior === 'smooth') {
+        sp.scrollTo({ top: sp.scrollHeight, behavior: 'smooth' })
+      } else {
+        sp.scrollTop = sp.scrollHeight
+      }
+      setAtBottom(true)
+      armForceBottom()
+    },
+    [armForceBottom]
+  )
 
   const pendingGoToBottom = useRef(false)
   const anchorMsgRef = useRef<string | null>(null)
@@ -281,8 +334,9 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     const t3 = setTimeout(snap, 600)
     const t4 = setTimeout(snap, 1000)
 
-    const cancelImgAnchor = attachInitialLoadImageAnchor(sp, () =>
-      atBottomRef.current || Date.now() < forceBottomUntilRef.current
+    const cancelImgAnchor = attachInitialLoadImageAnchor(
+      sp,
+      () => atBottomRef.current || Date.now() < forceBottomUntilRef.current
     )
 
     return () => {
@@ -318,7 +372,12 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     }
 
     const mo = new MutationObserver(scheduleSnap)
-    mo.observe(sp, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'width', 'height'] })
+    mo.observe(sp, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class', 'width', 'height']
+    })
 
     const ro = new ResizeObserver(scheduleSnap)
     for (const child of sp.children) ro.observe(child)
@@ -402,24 +461,28 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         pendingGoToBottom.current = false
         setAtBottom(false)
         clearMessages()
-        void storeRef.current.fetchMessagesAround(contextId, initialAnchorId).then(() => {
-          if (storeRef.current.getLoadedForId() !== contextId) return
-          storeRef.current.setScrollToMessageId(initialAnchorId)
-          setSettling(false)
-        }).catch(() => {
-          setSettling(false)
-        })
+        void runHistory(
+          () => storeRef.current.fetchMessagesAround(contextId, initialAnchorId),
+          () => {
+            if (storeRef.current.getLoadedForId() !== contextId) return
+            storeRef.current.setScrollToMessageId(initialAnchorId)
+            setSettling(false)
+          }
+        )
       } else if (!alreadyLoaded && !hasScrollToTarget) {
         setSettling(true)
         pendingGoToBottom.current = true
         clearMessages()
-        void fetchMessages(contextId).then(() => {
-          requestAnimationFrame(() => {
-            const sp = scrollParentRef.current
-            if (sp) sp.scrollTop = sp.scrollHeight
-            armForceBottom()
-          })
-        }).catch(() => {})
+        void runHistory(
+          () => fetchMessages(contextId),
+          () => {
+            requestAnimationFrame(() => {
+              const sp = scrollParentRef.current
+              if (sp) sp.scrollTop = sp.scrollHeight
+              armForceBottom()
+            })
+          }
+        )
       } else if (alreadyLoaded && !hasScrollToTarget) {
         // Data is already in the store. This covers both:
         //   - context switch where navigation.store pre-fetched the target
@@ -444,7 +507,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     return () => {
       if (contextId) storeRef.current.onContextLeave?.(contextId)
     }
-  }, [contextId, clearMessages, fetchMessages, getLoadedForId, armForceBottom])
+  }, [contextId, clearMessages, fetchMessages, getLoadedForId, armForceBottom, runHistory])
 
   /* ── Load older messages (top sentinel) ── */
   const loadingOlderRef = useRef(false)
@@ -459,12 +522,19 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return
-        if (loadingOlderRef.current || !contextId || !messagesRef.current.length) return
+        if (
+          loadingOlderRef.current ||
+          !contextId ||
+          !messagesRef.current.length ||
+          failureContextRef.current === contextId
+        )
+          return
         // Suppress load-older until the initial-load snap has fired for this
         // context. Otherwise the top sentinel briefly intersects between when
         // messages render and when our snap moves us to the bottom, triggering
         // a spurious older-page fetch that strands the user mid-list.
-        if (!hasInitialSnappedRef.current || pendingGoToBottom.current || Date.now() < forceBottomUntilRef.current) return
+        if (!hasInitialSnappedRef.current || pendingGoToBottom.current || Date.now() < forceBottomUntilRef.current)
+          return
         const snap = storeRef.current.getSnapshot()
         if (!snap.hasMore || snap.isLoading) return
 
@@ -472,12 +542,16 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         const prevScrollTop = sp.scrollTop
         const prevScrollHeight = sp.scrollHeight
         const prevTopId = messagesRef.current[0].id
-        void fetchMessages(contextId, messagesRef.current[0].id).then(() => {
-          requestAnimationFrame(() => {
-            sp.scrollTop = prevScrollTop + (sp.scrollHeight - prevScrollHeight)
-            attachLoadOlderImageAnchor(sp, prevTopId)
-          })
-        }).catch(() => {}).finally(() => {
+        const cursor = messagesRef.current[0].id
+        void runHistory(
+          () => fetchMessages(contextId, cursor),
+          () => {
+            requestAnimationFrame(() => {
+              sp.scrollTop = prevScrollTop + (sp.scrollHeight - prevScrollHeight)
+              attachLoadOlderImageAnchor(sp, prevTopId)
+            })
+          }
+        ).finally(() => {
           loadingOlderRef.current = false
         })
       },
@@ -486,7 +560,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [contextId, fetchMessages, hasMore])
+  }, [contextId, fetchMessages, hasMore, runHistory])
 
   /* ── Load newer messages (bottom/newer sentinel) ── */
   const loadingNewerRef = useRef(false)
@@ -499,19 +573,28 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0].isIntersecting) return
-        if (loadingNewerRef.current || !contextId || !messagesRef.current.length) return
+        if (
+          loadingNewerRef.current ||
+          !contextId ||
+          !messagesRef.current.length ||
+          failureContextRef.current === contextId
+        )
+          return
         const snap = storeRef.current.getSnapshot()
         if (!snap.hasNewer || snap.isLoading) return
 
         loadingNewerRef.current = true
         const msgs = messagesRef.current
         const anchorId = msgs[msgs.length - 1]?.id
-        void fetchNewerMessages(contextId).then(() => {
-          if (!anchorId) return
-          requestAnimationFrame(() => {
-            document.getElementById(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
-          })
-        }).catch(() => {}).finally(() => {
+        void runHistory(
+          () => fetchNewerMessages(contextId),
+          () => {
+            if (!anchorId) return
+            requestAnimationFrame(() => {
+              document.getElementById(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
+            })
+          }
+        ).finally(() => {
           loadingNewerRef.current = false
         })
       },
@@ -520,7 +603,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [contextId, fetchNewerMessages, hasNewer])
+  }, [contextId, fetchNewerMessages, hasNewer, runHistory])
 
   /* ── Anchor message tracking + width-resize restore ── */
   useEffect(() => {
@@ -566,7 +649,9 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
 
       if (atBottomRef.current) {
         cancelAnimationFrame(rafId)
-        rafId = requestAnimationFrame(() => { sp.scrollTop = sp.scrollHeight })
+        rafId = requestAnimationFrame(() => {
+          sp.scrollTop = sp.scrollHeight
+        })
         return
       }
 
@@ -607,79 +692,61 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
 
     const targetId = scrollToMessageId
     let cancelled = false
-    const startTime = Date.now()
-    const TIMEOUT = 8000
-
-    const attempt = () => {
-      if (cancelled) return
-      if (Date.now() - startTime > TIMEOUT) {
-        setScrollToMessageId(null)
-        return
-      }
-
-      const snap = storeRef.current.getSnapshot()
-      const loadedId = storeRef.current.getLoadedForId()
-
-      if (snap.isLoading || snap.messages.length === 0 || loadedId !== contextId) {
-        setTimeout(attempt, 60)
-        return
-      }
-
-      const idx = snap.messages.findIndex((m) => m.id === targetId)
-      if (idx < 0) {
-        clearMessages()
-        void fetchMessagesAround(contextId, targetId)
-        const waitForLoad = () => {
-          if (cancelled) return
-          const s = storeRef.current.getSnapshot()
-          if (s.isLoading || s.messages.length === 0) {
-            setTimeout(waitForLoad, 60)
-            return
-          }
-          const newIdx = s.messages.findIndex((m) => m.id === targetId)
-          if (newIdx >= 0) {
-            setScrollToMessageId(null)
-            scrollToAndHighlight(targetId)
-          } else {
-            setScrollToMessageId(null)
-          }
+    let deadline: ReturnType<typeof setTimeout> | undefined
+    const jump = async () => {
+      try {
+        const snap = storeRef.current.getSnapshot()
+        if (storeRef.current.getLoadedForId() !== contextId || !snap.messages.some((m) => m.id === targetId)) {
+          await Promise.race([
+            fetchMessagesAround(contextId, targetId),
+            new Promise<never>((_, reject) => {
+              deadline = setTimeout(() => reject(new Error('historyLoadFailed')), 15_000)
+            })
+          ])
+          const error = storeRef.current.getSnapshot().error
+          if (error) throw new Error(error)
         }
-        setTimeout(waitForLoad, 100)
-        return
-      }
-
-      setScrollToMessageId(null)
-      scrollToAndHighlight(targetId)
-    }
-
-    setTimeout(attempt, 30)
-    return () => { cancelled = true }
-  }, [scrollToMessageId, scrollRequestNonce, contextId, clearMessages, fetchMessagesAround, setScrollToMessageId])
-
-  const scrollToAndHighlight = useCallback((messageId: string) => {
-    const tryFind = (attempts = 0) => {
-      const el = document.getElementById(`msg-${messageId}`)
-      if (el) {
+        if (cancelled) return
+        requireMessageTarget(storeRef.current.getSnapshot().messages, targetId)
+        let el: HTMLElement | null = null
+        for (let attempt = 0; attempt < 50 && !cancelled; attempt++) {
+          el = document.getElementById(`msg-${targetId}`)
+          if (el) break
+          await new Promise<void>((resolve) => setTimeout(resolve, 50))
+        }
+        if (cancelled) return
+        if (!el) throw new Error('historyLoadFailed')
         el.scrollIntoView({ block: 'center', behavior: 'auto' })
         setAtBottom(false)
-        // Mark initial snap done and clear the force-bottom window so the
-        // "Keep at bottom" effect doesn't yank us back after image loads, and
-        // so load-older can fire when the user keeps scrolling up.
         hasInitialSnappedRef.current = true
         pendingGoToBottom.current = false
         forceBottomUntilRef.current = 0
         el.classList.add('bg-primary/10')
+        const highlighted = el
         setTimeout(() => {
-          el.style.transition = 'background-color 1s ease'
-          void el.offsetHeight
-          el.classList.remove('bg-primary/10')
-          setTimeout(() => { el.style.transition = '' }, 1000)
+          highlighted.style.transition = 'background-color 1s ease'
+          void highlighted.offsetHeight
+          highlighted.classList.remove('bg-primary/10')
+          setTimeout(() => {
+            highlighted.style.transition = ''
+          }, 1000)
         }, 5000)
-      } else if (attempts < 50) {
-        setTimeout(() => tryFind(attempts + 1), 50)
+        setScrollToMessageId(null)
+      } catch (error) {
+        if (!cancelled) throw error
+      } finally {
+        clearTimeout(deadline)
       }
     }
-    requestAnimationFrame(() => tryFind())
+    void runHistory(jump, undefined, false)
+    return () => {
+      cancelled = true
+      clearTimeout(deadline)
+    }
+  }, [scrollToMessageId, scrollRequestNonce, contextId, fetchMessagesAround, setScrollToMessageId, runHistory])
+
+  const handleJumpToMessage = useCallback((messageId: string) => {
+    storeRef.current.setScrollToMessageId(messageId)
   }, [])
 
   /* ── Stick to bottom ── */
@@ -688,23 +755,27 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   }, [goToBottom])
 
   const handleBottomButtonClick = useCallback(() => {
+    dismissHistoryError()
     const snap = storeRef.current.getSnapshot()
     if (snap.hasNewer && contextId) {
-      pendingGoToBottom.current = true
       anchorMsgRef.current = null
-      clearMessages()
-      void fetchMessages(contextId).then(() => {
-        requestAnimationFrame(() => {
-          const sp = scrollParentRef.current
-          if (sp) sp.scrollTop = sp.scrollHeight
-          setAtBottom(true)
-          armForceBottom()
-        })
-      }).catch(() => {})
+      void runHistory(
+        () => fetchMessages(contextId),
+        () => {
+          requestAnimationFrame(() => {
+            const sp = scrollParentRef.current
+            if (sp) sp.scrollTop = sp.scrollHeight
+            setAtBottom(true)
+            armForceBottom()
+          })
+        }
+      )
     } else {
       goToBottom('smooth')
     }
-  }, [contextId, clearMessages, fetchMessages, goToBottom, armForceBottom])
+  }, [contextId, fetchMessages, goToBottom, armForceBottom, runHistory, dismissHistoryError])
+
+  const visibleFailure = historyFailure?.contextId === contextId ? historyFailure : null
 
   // Stable object so MessageSurface memo compares meaningfully (refs + callbacks are stable).
   return useMemo(
@@ -717,8 +788,19 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
       settling,
       stickToBottom,
       handleBottomButtonClick,
-      handleJumpToMessage: scrollToAndHighlight
+      handleJumpToMessage,
+      historyError: visibleFailure?.key ?? null,
+      retryHistory: visibleFailure?.retry,
+      dismissHistoryError
     }),
-    [atBottom, settling, stickToBottom, handleBottomButtonClick, scrollToAndHighlight]
+    [
+      atBottom,
+      settling,
+      stickToBottom,
+      handleBottomButtonClick,
+      handleJumpToMessage,
+      visibleFailure,
+      dismissHistoryError
+    ]
   )
 }

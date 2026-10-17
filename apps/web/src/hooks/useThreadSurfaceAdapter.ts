@@ -4,14 +4,7 @@ import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScrol
 import { useThreadStore } from '@/stores/thread.store'
 
 export function useThreadSurfaceAdapter(): ScrollStoreAdapter {
-  const {
-    messages,
-    isLoading,
-    hasMore,
-    hasNewer,
-    scrollToMessageId,
-    scrollRequestNonce
-  } = useThreadStore(
+  const { messages, isLoading, hasMore, hasNewer, scrollToMessageId, scrollRequestNonce } = useThreadStore(
     useShallow((s) => ({
       messages: s.messages,
       isLoading: s.isLoading,
@@ -26,6 +19,7 @@ export function useThreadSurfaceAdapter(): ScrollStoreAdapter {
     if (cursor) {
       await useThreadStore.getState().fetchMore()
     } else {
+      useThreadStore.setState({ focusMessageId: null })
       await useThreadStore.getState().fetchMessages()
     }
   }, [])
@@ -33,7 +27,8 @@ export function useThreadSurfaceAdapter(): ScrollStoreAdapter {
   const fetchMessagesAround = useCallback(async (_id: string, messageId: string) => {
     const state = useThreadStore.getState()
     if (state.parentMessage && state.channelId) {
-      state.openThread(state.channelId, state.parentMessage, { focusMessageId: messageId })
+      useThreadStore.setState({ focusMessageId: messageId })
+      await useThreadStore.getState().fetchMessages()
     }
   }, [])
 
@@ -55,7 +50,13 @@ export function useThreadSurfaceAdapter(): ScrollStoreAdapter {
 
   const getSnapshot = useCallback(() => {
     const s = useThreadStore.getState()
-    return { messages: s.messages, isLoading: s.isLoading, hasMore: s.hasMore, hasNewer: s.hasNewer }
+    return {
+      messages: s.messages,
+      isLoading: s.isLoading,
+      hasMore: s.hasMore,
+      hasNewer: s.hasNewer,
+      error: s.messagesError
+    }
   }, [])
 
   return {

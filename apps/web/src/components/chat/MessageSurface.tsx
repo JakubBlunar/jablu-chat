@@ -28,13 +28,7 @@ function DateSeparator({ date }: { date: string }) {
   )
 }
 
-const NewMessagesDivider = ({
-  label,
-  innerRef
-}: {
-  label: string
-  innerRef?: React.Ref<HTMLDivElement>
-}) => (
+const NewMessagesDivider = ({ label, innerRef }: { label: string; innerRef?: React.Ref<HTMLDivElement> }) => (
   <div ref={innerRef} data-testid="new-messages-divider" className="my-2 flex items-center gap-3">
     <div className="h-px flex-1 bg-red-500/60" />
     <span className="rounded bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-red-400">
@@ -110,6 +104,7 @@ export const MessageSurface = memo(function MessageSurface({
   onMarkAsRead
 }: MessageSurfaceProps) {
   const { t: tChat } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
   const renderedItems = useMemo(() => {
     const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
     for (let i = 0; i < messages.length; i++) {
@@ -158,7 +153,7 @@ export const MessageSurface = memo(function MessageSurface({
   const scrollChildren = (
     <>
       {headerContent}
-      {emptyState ?? (
+      {(!scroll.historyError ? emptyState : null) ?? (
         <>
           {hasMore && <div ref={scroll.topSentinelRef} className="h-1 shrink-0" />}
           {isLoading && messages.length === 0 && (
@@ -201,13 +196,27 @@ export const MessageSurface = memo(function MessageSurface({
   )
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {scroll.historyError && (
+        <div
+          role="alert"
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b border-red-400/20 bg-red-500/10 px-4 py-2 text-sm text-red-200"
+        >
+          <span className="min-w-0 flex-1">{tChat(scroll.historyError)}</span>
+          <button type="button" className="min-h-11 px-2 underline" onClick={scroll.retryHistory}>
+            {tCommon('retry')}
+          </button>
+          <button type="button" className="min-h-11 px-2" onClick={scroll.dismissHistoryError}>
+            {tChat('dismissHistoryError')}
+          </button>
+        </div>
+      )}
       <div
         ref={scroll.scrollParentRef}
         role="log"
-        aria-label="Messages"
+        aria-label={tChat('messageListLabel')}
         aria-live="polite"
-        className={`chat-scroll h-full overflow-y-auto overscroll-contain px-4 py-2 [overflow-anchor:none]${scroll.settling ? ' invisible' : ''}`}
+        className={`chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-2 [overflow-anchor:none]${scroll.settling ? ' invisible' : ''}`}
       >
         <div className="flex flex-col [overflow-anchor:none]">{scrollChildren}</div>
       </div>
@@ -220,9 +229,7 @@ export const MessageSurface = memo(function MessageSurface({
             onClick={onJumpToUnread}
             className="pointer-events-auto flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text shadow-lg ring-1 ring-black/10 transition hover:bg-primary/90"
           >
-            <span className="truncate">
-              {tChat('newMessagesPill', { count: unreadCount, time: pillTimeLabel })}
-            </span>
+            <span className="truncate">{tChat('newMessagesPill', { count: unreadCount, time: pillTimeLabel })}</span>
             {onMarkAsRead && (
               <span
                 role="button"

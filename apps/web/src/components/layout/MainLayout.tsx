@@ -41,6 +41,7 @@ import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useGifStore } from '@/stores/gif.store'
 import { useActivityStore } from '@/stores/activity.store'
 import { PwaInstallBanner } from '@/components/PwaInstallBanner'
+import { NavigationErrorBanner } from '@/components/NavigationErrorBanner'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { CommandPalette } from '@/components/CommandPalette'
 import { CommandPaletteButton } from '@/components/CommandPaletteButton'
@@ -284,6 +285,7 @@ export function MainLayout() {
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
+        <NavigationErrorBanner />
         <UpdateBanner />
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
           {viewMode === 'dm' ? (
@@ -365,6 +367,7 @@ export function MainLayout() {
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
         <PwaInstallBanner />
+        <NavigationErrorBanner />
         <UpdateBanner />
         <div className="flex min-h-0 flex-1">
           {/* Left region: server rail + DM sidebar stacked above a shared,
@@ -414,6 +417,7 @@ export function MainLayout() {
       <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
       <PwaInstallBanner />
+      <NavigationErrorBanner />
       <UpdateBanner />
       <div className="flex min-h-0 flex-1">
         {/* Left region: server rail + channel sidebar stacked above a shared,

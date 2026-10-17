@@ -1,4 +1,7 @@
 {
+  "messageUnavailable": "Tato zpráva už není dostupná nebo k ní nemáte přístup. Aktuální zprávy zůstaly zachovány.",
+  "historyLoadFailed": "Zprávy se nepodařilo načíst. Zkontrolujte připojení a zkuste to znovu.",
+  "dismissHistoryError": "Zavřít",
   "attachmentLimit": "Nejvýše {{max}} MB na soubor.",
   "attachmentLimitPending": "Omezení souborů se ověří po připojení.",
   "attachmentLimitFailed": "Omezení velikosti souborů se nepodařilo ověřit. Zkontrolujte připojení a zkuste to znovu; koncept zůstává zachován.",

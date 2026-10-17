@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { useMessageScroll, type ScrollStoreAdapter } from './useMessageScroll'
 import { makeMessage, makeMessages, resetMsgSeq } from '@/test/factories'
 import type { Message } from '@chat/shared'
@@ -50,6 +50,103 @@ beforeAll(() => {
 })
 
 describe('useMessageScroll', () => {
+  describe('recoverable history navigation', () => {
+    let errorLog: jest.SpyInstance
+    beforeEach(() => {
+      errorLog = jest.spyOn(console, 'error').mockImplementation(() => {})
+    })
+    afterEach(() => {
+      errorLog.mockRestore()
+    })
+
+    it('preserves visible messages after a failed jump and retries the original target', async () => {
+      const visible = makeMessage({ id: 'visible' })
+      const target = makeMessage({ id: 'target' })
+      const snapshot = { messages: [visible], isLoading: false, hasMore: true, hasNewer: false }
+      const element = document.createElement('div')
+      element.id = 'msg-target'
+      element.scrollIntoView = jest.fn()
+      const fetchAround = jest
+        .fn<Promise<void>, [string, string]>()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockImplementationOnce(async () => {
+          snapshot.messages = [target]
+          document.body.appendChild(element)
+        })
+      const adapter = makeAdapter({
+        messages: snapshot.messages,
+        scrollToMessageId: 'target',
+        getLoadedForId: () => 'ch-1',
+        getSnapshot: () => snapshot,
+        fetchMessagesAround: fetchAround
+      })
+      const { result, unmount } = renderHook(() => useMessageScroll('ch-1', adapter))
+      await waitFor(() => expect(result.current.historyError).toBe('historyLoadFailed'))
+      expect(snapshot.messages).toEqual([visible])
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
+      act(() => result.current.retryHistory?.())
+      await waitFor(() => expect(element.scrollIntoView).toHaveBeenCalled())
+      expect(fetchAround).toHaveBeenLastCalledWith('ch-1', 'target')
+      expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null)
+      expect(result.current.historyError).toBeNull()
+      unmount()
+      element.remove()
+    })
+
+    it('reports an unavailable target instead of polling empty history indefinitely', async () => {
+      const adapter = makeAdapter({ scrollToMessageId: 'deleted', getLoadedForId: () => 'ch-1' })
+      const { result } = renderHook(() => useMessageScroll('ch-1', adapter))
+      await waitFor(() => expect(result.current.historyError).toBe('messageUnavailable'))
+      expect(adapter.fetchMessagesAround).toHaveBeenCalledTimes(1)
+      act(() => result.current.dismissHistoryError?.())
+      expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null)
+      expect(result.current.historyError).toBeNull()
+    })
+
+    it('bounds a stalled jump and offers recovery', async () => {
+      jest.useFakeTimers()
+      const adapter = makeAdapter({
+        scrollToMessageId: 'target',
+        getLoadedForId: () => 'ch-1',
+        fetchMessagesAround: jest.fn(() => new Promise(() => {}))
+      })
+      const { result, unmount } = renderHook(() => useMessageScroll('ch-1', adapter))
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(15_001)
+      })
+      expect(result.current.historyError).toBe('historyLoadFailed')
+      expect(result.current.retryHistory).toEqual(expect.any(Function))
+      unmount()
+      jest.useRealTimers()
+    })
+
+    it('does not report a failed old jump after switching conversations', async () => {
+      let reject!: (error: Error) => void
+      let loadedId = 'ch-1'
+      const adapter = makeAdapter({
+        scrollToMessageId: 'old-target',
+        getLoadedForId: () => loadedId,
+        fetchMessagesAround: jest.fn(
+          () =>
+            new Promise((_resolve, fail) => {
+              reject = fail
+            })
+        )
+      })
+      const { result, rerender } = renderHook(({ id }) => useMessageScroll(id, adapter), {
+        initialProps: { id: 'ch-1' }
+      })
+      adapter.scrollToMessageId = null
+      loadedId = 'ch-2'
+      rerender({ id: 'ch-2' })
+      await act(async () => {
+        reject(new Error('old failure'))
+      })
+      expect(result.current.historyError).toBeNull()
+      expect(errorLog).not.toHaveBeenCalled()
+    })
+  })
+
   describe('initial state', () => {
     it('returns scroll refs and state', () => {
       const adapter = makeAdapter({ getLoadedForId: jest.fn(() => 'ch-1') })
@@ -470,7 +567,7 @@ describe('useMessageScroll', () => {
       act(() => result.current.handleBottomButtonClick())
     })
 
-    it('calls clearMessages and fetchMessages when hasNewer', () => {
+    it('fetches the latest messages without clearing visible history when hasNewer', () => {
       const adapter = makeAdapter({
         getLoadedForId: jest.fn(() => 'ch-1'),
         hasNewer: true
@@ -485,7 +582,7 @@ describe('useMessageScroll', () => {
       const { result } = renderHook(() => useMessageScroll('ch-1', adapter))
       act(() => result.current.handleBottomButtonClick())
 
-      expect(adapter.clearMessages).toHaveBeenCalled()
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
       expect(adapter.fetchMessages).toHaveBeenCalledWith('ch-1')
     })
   })

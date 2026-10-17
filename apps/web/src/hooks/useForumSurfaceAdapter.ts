@@ -4,14 +4,7 @@ import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScrol
 import { useForumReplyStore } from '@/stores/forumReply.store'
 
 export function useForumSurfaceAdapter(channelId: string | null): ScrollStoreAdapter {
-  const {
-    messages,
-    isLoading,
-    hasMore,
-    hasNewer,
-    scrollToMessageId,
-    scrollRequestNonce
-  } = useForumReplyStore(
+  const { messages, isLoading, hasMore, hasNewer, scrollToMessageId, scrollRequestNonce } = useForumReplyStore(
     useShallow((s) => ({
       messages: s.messages,
       isLoading: s.isLoading,
@@ -42,12 +35,7 @@ export function useForumSurfaceAdapter(channelId: string | null): ScrollStoreAda
     useForumReplyStore.setState({
       channelId: chId,
       postId,
-      focusMessageId: messageId,
-      messages: [],
-      isLoading: true,
-      hasMore: false,
-      hasNewer: false,
-      loadedForPostId: null
+      focusMessageId: messageId
     })
     await useForumReplyStore.getState().fetchMessages()
   }, [])
@@ -70,7 +58,13 @@ export function useForumSurfaceAdapter(channelId: string | null): ScrollStoreAda
 
   const getSnapshot = useCallback(() => {
     const s = useForumReplyStore.getState()
-    return { messages: s.messages, isLoading: s.isLoading, hasMore: s.hasMore, hasNewer: s.hasNewer }
+    return {
+      messages: s.messages,
+      isLoading: s.isLoading,
+      hasMore: s.hasMore,
+      hasNewer: s.hasNewer,
+      error: s.messagesError
+    }
   }, [])
 
   return {

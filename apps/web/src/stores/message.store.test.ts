@@ -73,7 +73,12 @@ describe('message.store', () => {
 
     it('discards stale responses', async () => {
       let resolveSlow!: (v: unknown) => void
-      mockGet.mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))
+      mockGet.mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveSlow = r
+          })
+      )
       const firstFetch = useMessageStore.getState().fetchMessages('ch-1')
 
       mockGet.mockResolvedValueOnce({ messages: makeMessages(2).reverse(), hasMore: false })
@@ -88,8 +93,24 @@ describe('message.store', () => {
   })
 
   describe('fetchMessagesAround', () => {
+    it('keeps the current history if the server cannot return the requested target', async () => {
+      const visible = makeMessages(3)
+      useMessageStore.setState({ messages: visible, loadedForChannelId: 'old-channel', hasMore: true })
+      mockGet.mockResolvedValueOnce({ messages: makeMessages(2), hasMore: false })
+      await expect(useMessageStore.getState().fetchMessagesAround('new-channel', 'deleted')).rejects.toThrow(
+        'messageUnavailable'
+      )
+      expect(useMessageStore.getState()).toMatchObject({
+        messages: visible,
+        loadedForChannelId: 'old-channel',
+        hasMore: true,
+        messagesError: 'messageUnavailable'
+      })
+    })
+
     it('loads messages around a target message', async () => {
       const msgs = makeMessages(5)
+      msgs[0].id = 'msg-target'
       mockGet.mockResolvedValueOnce({ messages: msgs.reverse(), hasMore: true, hasNewer: true })
 
       await useMessageStore.getState().fetchMessagesAround('ch-1', 'msg-target')
@@ -207,7 +228,9 @@ describe('message.store', () => {
     })
 
     it('removeReaction removes user and decrements count', () => {
-      const msg = makeMessage({ reactions: [{ emoji: '👍', count: 2, userIds: ['user-1', 'user-2'], isCustom: false }] })
+      const msg = makeMessage({
+        reactions: [{ emoji: '👍', count: 2, userIds: ['user-1', 'user-2'], isCustom: false }]
+      })
       useMessageStore.setState({ messages: [msg] })
       useMessageStore.getState().removeReaction(msg.id, '👍', 'user-1')
 

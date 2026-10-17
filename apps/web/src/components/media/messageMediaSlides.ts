@@ -40,6 +40,7 @@ export function buildMessageMediaSlides(
       const srcType = videoSourceType(att.mimeType)
       slides.push({
         type: 'video',
+        download: { url: resolveMediaUrl(att.url) ?? att.url, filename: att.filename },
         ...(att.width ? { width: att.width } : {}),
         ...(att.height ? { height: att.height } : {}),
         ...(att.thumbnailUrl ? { poster: resolveMediaUrl(att.thumbnailUrl) } : {}),

@@ -1,5 +1,6 @@
 import type { Message } from '@chat/shared'
 import { create } from 'zustand'
+import { requireMessageTarget, historyErrorKey } from '@/lib/messageHistory'
 import { api, type DmConversation } from '@/lib/api'
 import { CACHE_PAGE_SIZE, dmKey, evictContext, getContext, putContext } from '@/lib/cache/messageCache'
 import { isForbidden } from '@/lib/cache/isForbidden'
@@ -34,10 +35,7 @@ type DmState = {
   revalidate: (conversationId: string) => Promise<void>
   addReaction: (messageId: string, emoji: string, userId: string, isCustom?: boolean) => void
   removeReaction: (messageId: string, emoji: string, userId: string) => void
-  updateConversationLastMessage: (
-    conversationId: string,
-    msg: NonNullable<DmConversation['lastMessage']>
-  ) => void
+  updateConversationLastMessage: (conversationId: string, msg: NonNullable<DmConversation['lastMessage']>) => void
   addOrUpdateConversation: (conv: DmConversation) => void
   closeConversation: (conversationId: string) => Promise<void>
   removeConversation: (conversationId: string) => void
@@ -76,10 +74,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     set({ isLoading: true, messagesError: null })
     try {
       const page = await api.getDmMessages(conversationId, cursor, 50)
-      if (_dmFetchId !== fetchId) {
-        set({ isLoading: false })
-        return
-      }
+      if (_dmFetchId !== fetchId) return
       const chronological = toChronological(page.messages)
 
       if (cursor) {
@@ -107,7 +102,9 @@ export const useDmStore = create<DmState>((set, _get) => ({
           hasNewer: false
         })
       }
-    } catch {
+    } catch (error) {
+      if (_dmFetchId !== fetchId) return
+      console.error('Failed to load conversation messages', error)
       set({ isLoading: false, messagesError: 'Failed to load messages' })
     }
   },
@@ -117,10 +114,8 @@ export const useDmStore = create<DmState>((set, _get) => ({
     set({ isLoading: true, messagesError: null })
     try {
       const page = await api.getDmMessagesAround(conversationId, messageId, 100)
-      if (_dmFetchId !== fetchId) {
-        set({ isLoading: false })
-        return
-      }
+      if (_dmFetchId !== fetchId) return
+      requireMessageTarget(page.messages, messageId)
       const chronological = toChronological(page.messages)
       set({
         messages: chronological,
@@ -129,8 +124,10 @@ export const useDmStore = create<DmState>((set, _get) => ({
         isLoading: false,
         loadedForConvId: conversationId
       })
-    } catch {
-      set({ isLoading: false, messagesError: 'Failed to load messages' })
+    } catch (error) {
+      if (_dmFetchId !== fetchId) return
+      set({ isLoading: false, messagesError: historyErrorKey(error) })
+      throw error
     }
   },
 
@@ -138,9 +135,11 @@ export const useDmStore = create<DmState>((set, _get) => ({
     const { messages } = _get()
     if (!messages.length) return
     const newestId = messages[messages.length - 1].id
+    const fetchId = ++_dmFetchId
     set({ isLoading: true, messagesError: null })
     try {
       const page = await api.getDmMessagesAfter(conversationId, newestId, 50)
+      if (_dmFetchId !== fetchId) return
       if (_get().loadedForConvId !== conversationId) {
         set({ isLoading: false })
         return
@@ -156,7 +155,9 @@ export const useDmStore = create<DmState>((set, _get) => ({
           isLoading: false
         }
       })
-    } catch {
+    } catch (error) {
+      if (_dmFetchId !== fetchId) return
+      console.error('Failed to load newer conversation messages', error)
       set({ isLoading: false, messagesError: 'Failed to load messages' })
     }
   },
@@ -192,7 +193,10 @@ export const useDmStore = create<DmState>((set, _get) => ({
     }))
   },
 
-  clearMessages: () => set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null }),
+  clearMessages: () => {
+    ++_dmFetchId
+    set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null, messagesError: null, isLoading: false })
+  },
 
   stashCurrent: () => {
     const { loadedForConvId, messages, hasMore, hasNewer, isLoading } = _get()
@@ -211,6 +215,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     const entry = getContext(dmKey(conversationId))
     if (!entry) return false
 
+    ++_dmFetchId
     set({
       messages: entry.messages,
       hasMore: entry.hasMore,
@@ -224,6 +229,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   /** See message.store.revalidate. */
   revalidate: async (conversationId) => {
+    if (_get().isLoading) return
     const fetchId = ++_dmFetchId
     const idsWhenRequested = new Set(_get().messages.map((m) => m.id))
     try {
@@ -296,7 +302,9 @@ export const useDmStore = create<DmState>((set, _get) => ({
       const existing = s.conversations.find((c) => c.id === conv.id)
       if (existing) {
         return {
-          conversations: s.conversations.map((c) => (c.id === conv.id ? { ...c, ...conv } : c)).sort(compareDmConversations)
+          conversations: s.conversations
+            .map((c) => (c.id === conv.id ? { ...c, ...conv } : c))
+            .sort(compareDmConversations)
         }
       }
       return { conversations: [conv, ...s.conversations].sort(compareDmConversations) }
