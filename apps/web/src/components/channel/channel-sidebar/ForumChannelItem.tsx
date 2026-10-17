@@ -1,6 +1,7 @@
 import type { Channel } from '@chat/shared'
 import React, { memo } from 'react'
 import { CountBadge } from '@/components/ui'
+import { DraftBadge } from '@/components/chat/DraftBadge'
 import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { ForumIcon, ArchiveIcon } from './sidebarIcons'
@@ -71,10 +72,9 @@ export const ForumChannelItem = memo(function ForumChannelItem({
       >
         {isArchived ? <ArchiveIcon /> : <ForumIcon />}
         <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+        <DraftBadge mode="channel" contextId={ch.id} />
         {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
-        {showUnreadDot && mentionCount === 0 && (
-          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-        )}
+        {showUnreadDot && mentionCount === 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
       </button>
     </li>
   )

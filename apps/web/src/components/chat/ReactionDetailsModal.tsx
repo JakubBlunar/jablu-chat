@@ -8,7 +8,6 @@ import { ReactionEmoji } from '@/components/chat/ReactionPill'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
-import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { useIsMobile } from '@/hooks/useMobile'
 import type { CustomEmoji } from '@/lib/api/types'
 
@@ -29,18 +28,9 @@ type ResolvedUser = {
   isUnknown: boolean
 }
 
-export function ReactionDetailsModal({
-  reactions,
-  initialEmoji,
-  mode,
-  contextId,
-  customEmojiMap,
-  onClose
-}: Props) {
+export function ReactionDetailsModal({ reactions, initialEmoji, mode, contextId, customEmojiMap, onClose }: Props) {
   const { t } = useTranslation('chat')
   const isMobile = useIsMobile()
-
-  useBackGestureClose(true, onClose, isMobile)
 
   const initial = reactions.find((r) => r.emoji === initialEmoji)?.emoji ?? reactions[0]?.emoji ?? null
   const [selected, setSelected] = useState<string | null>(initial)
@@ -84,9 +74,7 @@ export function ReactionDetailsModal({
                 onClick={() => setSelected(r.emoji)}
                 aria-pressed={active}
                 className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition ${
-                  active
-                    ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
-                    : 'text-gray-300 hover:bg-white/5'
+                  active ? 'bg-primary/20 text-primary ring-1 ring-primary/40' : 'text-gray-300 hover:bg-white/5'
                 }`}
               >
                 <ReactionEmoji emoji={r.emoji} isCustom={r.isCustom} customEmojiMap={customEmojiMap} />
@@ -100,12 +88,12 @@ export function ReactionDetailsModal({
             <li key={u.userId} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-white/5">
               <UserAvatar username={u.username} avatarUrl={u.avatarUrl} size="md" />
               <div className="min-w-0 flex-1">
-                <div className={`truncate text-sm font-semibold ${u.isUnknown ? 'text-gray-400 italic' : 'text-gray-100'}`}>
+                <div
+                  className={`truncate text-sm font-semibold ${u.isUnknown ? 'text-gray-400 italic' : 'text-gray-100'}`}
+                >
                   {u.displayName}
                 </div>
-                {!u.isUnknown && (
-                  <div className="truncate text-xs text-gray-400">{u.username}</div>
-                )}
+                {!u.isUnknown && <div className="truncate text-xs text-gray-400">{u.username}</div>}
               </div>
             </li>
           ))}

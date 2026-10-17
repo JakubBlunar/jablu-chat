@@ -394,6 +394,7 @@ export function UnifiedInput({
 
   return (
     <div
+      data-message-composer
       className={`relative shrink-0 border-t border-black/20 bg-surface px-4 pb-2 pt-2 ${
         dragOver ? 'ring-2 ring-inset ring-primary' : ''
       }`}

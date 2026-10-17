@@ -7,8 +7,8 @@ export function MemberDrawer() {
   const close = useLayoutStore((s) => s.closeMemberDrawer)
 
   return (
-    <MobileDrawer open={open} onClose={close} side="right" width="w-64">
-      <MemberSidebar />
+    <MobileDrawer open={open} onClose={close} side="right" width="w-60">
+      <MemberSidebar onClose={close} />
     </MobileDrawer>
   )
 }

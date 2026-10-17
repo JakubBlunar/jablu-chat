@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { UserAvatar } from '@/components/UserAvatar'
-import { useIsMobile } from '@/hooks/useMobile'
+import { useIsMobile, useIsTablet } from '@/hooks/useMobile'
 import { api } from '@/lib/api'
 import { useFriendStore } from '@/stores/friend.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -29,6 +29,7 @@ export function FriendsPage() {
   const fetchFriends = useFriendStore((s) => s.fetchFriends)
   const fetchPending = useFriendStore((s) => s.fetchPending)
   const isMobile = useIsMobile()
+  const compactNavigation = useIsTablet()
 
   const [tab, setTab] = useState<Tab>('online')
   const [addFriendOpen, setAddFriendOpen] = useState(false)
@@ -54,7 +55,7 @@ export function FriendsPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-surface">
       <header className="flex shrink-0 items-center gap-3 border-b border-black/20 px-2 py-3 md:px-4">
-        {isMobile ? (
+        {compactNavigation ? (
           <button
             type="button"
             aria-label={tA11y('openNavigationMenu')}
@@ -68,14 +69,32 @@ export function FriendsPage() {
         )}
         <h1 className="text-base font-semibold text-white">{t('friends')}</h1>
         <div className="ml-2 flex items-center gap-1" role="tablist">
-          <TabBtn active={tab === 'online'} onClick={() => { setTab('online'); setAddFriendOpen(false) }}>
+          <TabBtn
+            active={tab === 'online'}
+            onClick={() => {
+              setTab('online')
+              setAddFriendOpen(false)
+            }}
+          >
             Online
           </TabBtn>
-          <TabBtn active={tab === 'all'} onClick={() => { setTab('all'); setAddFriendOpen(false) }}>
+          <TabBtn
+            active={tab === 'all'}
+            onClick={() => {
+              setTab('all')
+              setAddFriendOpen(false)
+            }}
+          >
             All
           </TabBtn>
           {(pending.length > 0 || tab === 'pending') && (
-            <TabBtn active={tab === 'pending'} onClick={() => { setTab('pending'); setAddFriendOpen(false) }}>
+            <TabBtn
+              active={tab === 'pending'}
+              onClick={() => {
+                setTab('pending')
+                setAddFriendOpen(false)
+              }}
+            >
               Pending
               {pending.length > 0 && (
                 <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
@@ -90,9 +109,7 @@ export function FriendsPage() {
           type="button"
           onClick={() => setAddFriendOpen(!addFriendOpen)}
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-            addFriendOpen
-              ? 'bg-transparent text-gray-300'
-              : 'bg-green-600 text-white hover:bg-green-700'
+            addFriendOpen ? 'bg-transparent text-gray-300' : 'bg-green-600 text-white hover:bg-green-700'
           }`}
         >
           Add Friend
@@ -186,9 +203,7 @@ function FriendRow({ friend, isMobile }: { friend: Friend; isMobile: boolean }) 
         status={friend.status}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-white">
-          {friend.displayName ?? friend.username}
-        </p>
+        <p className="truncate text-sm font-medium text-white">{friend.displayName ?? friend.username}</p>
         <div className="flex items-center gap-1.5">
           <StatusDot status={friend.status} />
           <span className="text-xs text-gray-400">{STATUS_LABELS[friend.status]}</span>
@@ -265,12 +280,8 @@ function PendingRow({ request }: { request: FriendRequest }) {
         status={request.user.status}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-white">
-          {request.user.displayName ?? request.user.username}
-        </p>
-        <p className="text-xs text-gray-400">
-          {isIncoming ? 'Incoming Friend Request' : 'Outgoing Friend Request'}
-        </p>
+        <p className="truncate text-sm font-medium text-white">{request.user.displayName ?? request.user.username}</p>
+        <p className="text-xs text-gray-400">{isIncoming ? 'Incoming Friend Request' : 'Outgoing Friend Request'}</p>
       </div>
       <div className="flex items-center gap-1.5">
         {isIncoming ? (
@@ -296,7 +307,9 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<{ id: string; username: string; displayName: string | null; avatarUrl: string | null }[]>([])
+  const [results, setResults] = useState<
+    { id: string; username: string; displayName: string | null; avatarUrl: string | null }[]
+  >([])
   const [statuses, setStatuses] = useState<Map<string, FriendshipStatusResponse>>(new Map())
   const [searching, setSearching] = useState(false)
   const [sent, setSent] = useState<Set<string>>(new Set())
@@ -305,7 +318,11 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
   const searchGenRef = useRef(0)
 
   useEffect(() => {
-    if (query.trim().length < 2) { setResults([]); setSearchError(''); return }
+    if (query.trim().length < 2) {
+      setResults([])
+      setSearchError('')
+      return
+    }
     const gen = ++searchGenRef.current
     const timeout = setTimeout(async () => {
       setSearching(true)
@@ -393,7 +410,9 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
         </div>
       )}
       {results.length > 0 && (
-        <p className="mt-1 text-[11px] text-gray-500">{results.length} result{results.length !== 1 ? 's' : ''}</p>
+        <p className="mt-1 text-[11px] text-gray-500">
+          {results.length} result{results.length !== 1 ? 's' : ''}
+        </p>
       )}
     </div>
   )

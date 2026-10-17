@@ -3,6 +3,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/lib/api'
 import { useMessageMedia } from '@/components/media/MessageMediaGallery'
+import { CollapsiblePreview } from '@/components/media/CollapsiblePreview'
 
 interface AttachmentPreviewProps {
   attachment: Attachment
@@ -15,6 +16,15 @@ function constrainedDims(w: number | null, h: number | null, maxW = 448, maxH = 
 }
 
 export const AttachmentPreview = memo(function AttachmentPreview({ attachment }: AttachmentPreviewProps) {
+  const content = <AttachmentContents attachment={attachment} />
+  return ['image', 'gif', 'video'].includes(attachment.type) ? (
+    <CollapsiblePreview title={attachment.filename}>{content}</CollapsiblePreview>
+  ) : (
+    content
+  )
+})
+
+function AttachmentContents({ attachment }: AttachmentPreviewProps) {
   const { t } = useTranslation('common')
   const { openByKey } = useMessageMedia()
   const { width: aw, height: ah } = attachment
@@ -25,7 +35,9 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
       <button
         type="button"
         className="mt-1 block overflow-hidden rounded-lg"
-        style={dims ? { width: dims.width, maxWidth: '100%', aspectRatio: `${dims.width} / ${dims.height}` } : undefined}
+        style={
+          dims ? { width: dims.width, maxWidth: '100%', aspectRatio: `${dims.width} / ${dims.height}` } : undefined
+        }
         onClick={() => openByKey(attachment.id)}
       >
         <img
@@ -49,7 +61,11 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
             src={resolveMediaUrl(attachment.url)}
             controls
             preload="metadata"
-            style={vDims ? { width: '100%', aspectRatio: `${vDims.width} / ${vDims.height}` } : { aspectRatio: '16 / 9', width: '100%' }}
+            style={
+              vDims
+                ? { width: '100%', aspectRatio: `${vDims.width} / ${vDims.height}` }
+                : { aspectRatio: '16 / 9', width: '100%' }
+            }
             className="rounded-lg"
           >
             <track kind="captions" />
@@ -86,7 +102,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({ attachment }:
       <DownloadIcon />
     </a>
   )
-})
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -112,7 +128,11 @@ function FileIcon() {
 function ExpandIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5"
+      />
     </svg>
   )
 }

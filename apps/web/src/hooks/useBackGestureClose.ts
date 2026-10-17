@@ -11,6 +11,7 @@ const stack: Entry[] = []
 let nextId = 0
 let suppressBack = false
 let listenerAttached = false
+let pendingRemoval: Entry | null = null
 
 function ensureListener(): void {
   if (listenerAttached) return
@@ -66,15 +67,27 @@ export function useBackGestureClose(open: boolean, onClose: () => void, enabled 
       onClose: () => onCloseRef.current()
     }
     stack.push(entry)
-    window.history.pushState({ jablu_overlay_id: id }, '')
+    const state = { ...window.history.state, jablu_overlay_id: id }
+    // A drawer opening another overlay should reuse its history entry.
+    if (pendingRemoval && currentOverlayId() === pendingRemoval.id) {
+      pendingRemoval = null
+      window.history.replaceState(state, '')
+    } else window.history.pushState(state, '')
 
     return () => {
       const idx = stack.indexOf(entry)
       if (idx === -1) return
       stack.splice(idx, 1)
       if (currentOverlayId() === id) {
-        suppressBack = true
-        window.history.back()
+        pendingRemoval = entry
+        queueMicrotask(() => {
+          if (pendingRemoval !== entry) return
+          pendingRemoval = null
+          if (currentOverlayId() === id) {
+            suppressBack = true
+            window.history.back()
+          }
+        })
       }
     }
   }, [open, enabled])
@@ -85,6 +98,7 @@ export const __testing = {
     stack.length = 0
     nextId = 0
     suppressBack = false
+    pendingRemoval = null
   },
   getStackSize(): number {
     return stack.length

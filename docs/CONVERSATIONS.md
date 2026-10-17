@@ -4,6 +4,14 @@ Part of the [Jablu documentation](./README.md).
 
 Open **Conversation info** in the desktop DM header, or tap the conversation
 name on mobile. The same panel is available in one-to-one and group DMs.
+Mobile headers expose Search directly and mark the conversation-details action
+with a chevron. Narrow windows open secondary panels over the conversation
+rather than shrinking the message column below a usable width.
+
+On phones, **Chats / Inbox / You** opens navigation, notifications and grouped
+settings. The bottom bar hides while composing or while the software keyboard
+is open. **You > Appearance > Compact previews** optionally collapses media and
+link previews; full previews remain the default.
 
 - **Profile / Members** shows the other person's profile or the group's participants.
 - **Media** browses uploaded photos, GIFs and videos with the shared full-screen viewer.

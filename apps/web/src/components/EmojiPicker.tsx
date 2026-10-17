@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { resolveMediaUrl } from '@/lib/api'
 
 export type CustomEmojiDef = {
@@ -27,19 +28,22 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
   const { t: tCommon } = useTranslation('common')
   const ref = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
+  useFocusTrap(ref, !isMobile, onClose)
 
   const custom = useMemo(() => {
     if (!customEmojis?.length) return undefined
-    return [{
-      id: 'server',
-      name: 'Server',
-      emojis: customEmojis.map((e) => ({
-        id: e.name,
-        name: e.name,
-        keywords: [e.name],
-        skins: [{ src: resolveMediaUrl(e.imageUrl) }]
-      }))
-    }]
+    return [
+      {
+        id: 'server',
+        name: 'Server',
+        emojis: customEmojis.map((e) => ({
+          id: e.name,
+          name: e.name,
+          keywords: [e.name],
+          skins: [{ src: resolveMediaUrl(e.imageUrl) }]
+        }))
+      }
+    ]
   }, [customEmojis])
 
   const handleEmojiSelect = (emoji: { native?: string; id?: string; src?: string }) => {
@@ -67,7 +71,12 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
 
   if (isMobile) {
     return createPortal(
-      <ModalOverlay onClose={onClose} zIndex="z-[110]" noPadding className="flex max-h-[80vh] flex-col items-center overflow-hidden">
+      <ModalOverlay
+        onClose={onClose}
+        zIndex="z-[110]"
+        noPadding
+        className="flex max-h-[80vh] flex-col items-center overflow-hidden"
+      >
         <div ref={ref} className="flex w-full flex-col items-center">
           <div className="flex w-full items-center justify-between border-b border-white/10 px-4 py-2">
             <span className="text-sm font-semibold text-white">{t('emojiPickerSheetTitle')}</span>
@@ -75,7 +84,7 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
               type="button"
               aria-label={tCommon('close')}
               onClick={onClose}
-              className="rounded-full p-1.5 text-gray-400 hover:bg-white/10 hover:text-white"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-white/10 hover:text-white"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M6 18 18 6M6 6l12 12" />
@@ -90,6 +99,8 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
             previewPosition="none"
             skinTonePosition="search"
             set="native"
+            emojiButtonSize={44}
+            perLine={7}
           />
         </div>
       </ModalOverlay>,

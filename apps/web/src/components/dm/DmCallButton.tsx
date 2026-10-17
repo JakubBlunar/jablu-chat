@@ -38,7 +38,7 @@ export function DmCallButton({ conversationId, callId }: { conversationId: strin
           if (voiceChannelId && !isCurrent) setConfirm(true)
           else run()
         }}
-        className={`flex h-10 shrink-0 items-center justify-center rounded-md transition disabled:opacity-50 ${callId ? 'gap-2 px-3 text-sm' : 'w-10'} ${call ? 'text-green-400 hover:bg-green-500/10' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
+        className={`flex h-11 shrink-0 items-center justify-center rounded-md transition disabled:opacity-50 ${callId ? 'gap-2 px-3 text-sm' : 'w-11'} ${call ? 'text-green-400 hover:bg-green-500/10' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
           <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1C10.61 21 3 13.39 3 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z" />

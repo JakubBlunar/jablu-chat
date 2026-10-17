@@ -1,14 +1,5 @@
 import type { BotCommandWithBot } from '@chat/shared'
-import {
-  Suspense,
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { Suspense, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -17,14 +8,7 @@ import { lazyWithRetry } from '@/lib/lazyWithRetry'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Spinner } from '@/components/ui'
 import { showToast } from '@/stores/toast.store'
-import {
-  EyeSlashIcon,
-  GifIcon,
-  HashIcon,
-  PlusCircleIcon,
-  SlashIcon,
-  SmileIcon,
-} from '@/components/chat/chatIcons'
+import { EyeSlashIcon, GifIcon, HashIcon, PlusCircleIcon, SlashIcon, SmileIcon } from '@/components/chat/chatIcons'
 
 const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 const GifPicker = lazyWithRetry(() => import('@/components/GifPicker').then((m) => ({ default: m.GifPicker })))
@@ -102,7 +86,7 @@ const BUILTIN_COMMANDS: CommandItem[] = [
   { key: 'b:lenny', name: 'lenny', description: 'Append ( ͡° ͜ʖ ͡°) to your message', tag: 'Fun' },
   { key: 'b:spoiler', name: 'spoiler', description: 'Wrap your text in a spoiler ||text||', tag: 'Formatting' },
   { key: 'b:me', name: 'me', description: 'Send an action message in italics', tag: 'Formatting' },
-  { key: 'b:nick', name: 'nick', description: 'Change your server display name', tag: 'Settings' },
+  { key: 'b:nick', name: 'nick', description: 'Change your server display name', tag: 'Settings' }
 ]
 
 function botToCommandItems(bots: BotCommandWithBot[]): CommandItem[] {
@@ -156,21 +140,24 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   const [showToolbar, setShowToolbar] = useState(false)
   const { t } = useTranslation('chat')
 
-  const wrapSelection = useCallback((prefix: string, suffix: string) => {
-    const ta = taRef.current
-    if (!ta) return
-    const start = ta.selectionStart
-    const end = ta.selectionEnd
-    const selected = value.slice(start, end)
-    const wrapped = `${prefix}${selected}${suffix}`
-    const next = value.slice(0, start) + wrapped + value.slice(end)
-    onChange(next)
-    requestAnimationFrame(() => {
-      ta.focus()
-      const newCursor = selected ? start + wrapped.length : start + prefix.length
-      ta.setSelectionRange(newCursor, newCursor)
-    })
-  }, [value, onChange])
+  const wrapSelection = useCallback(
+    (prefix: string, suffix: string) => {
+      const ta = taRef.current
+      if (!ta) return
+      const start = ta.selectionStart
+      const end = ta.selectionEnd
+      const selected = value.slice(start, end)
+      const wrapped = `${prefix}${selected}${suffix}`
+      const next = value.slice(0, start) + wrapped + value.slice(end)
+      onChange(next)
+      requestAnimationFrame(() => {
+        ta.focus()
+        const newCursor = selected ? start + wrapped.length : start + prefix.length
+        ta.setSelectionRange(newCursor, newCursor)
+      })
+    },
+    [value, onChange]
+  )
 
   const [popupMode, setPopupMode] = useState<PopupMode>('none')
   const [query, setQuery] = useState('')
@@ -194,9 +181,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     }
     const roleEntries = members.filter((m) => m.userId.startsWith('__role__:'))
     const userEntries = members.filter((m) => !m.userId.startsWith('__role__:'))
-    const roleResults = roleEntries
-      .filter((m) => m.username.toLowerCase().includes(q))
-      .slice(0, 6)
+    const roleResults = roleEntries.filter((m) => m.username.toLowerCase().includes(q)).slice(0, 6)
     const userResults = userEntries
       .filter((m) => m.username.toLowerCase().includes(q) || (m.displayName && m.displayName.toLowerCase().includes(q)))
       .slice(0, Math.max(0, 10 - broadcastEntries.length - roleResults.length))
@@ -512,12 +497,60 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
 
       {showToolbar && !isMobile && (
         <div className="flex items-center gap-0.5 border-b border-white/5 px-2 py-1">
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('**', '**')} className="rounded p-1 text-xs font-bold text-gray-400 transition hover:bg-white/10 hover:text-white" title="Bold (Ctrl+B)">B</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('*', '*')} className="rounded p-1 text-xs italic text-gray-400 transition hover:bg-white/10 hover:text-white" title="Italic (Ctrl+I)">I</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('~~', '~~')} className="rounded p-1 text-xs text-gray-400 line-through transition hover:bg-white/10 hover:text-white" title="Strikethrough">S</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('||', '||')} className="rounded p-1 text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Spoiler"><EyeSlashIcon /></button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('`', '`')} className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Inline code">{'\u{60}'}</button>
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => wrapSelection('```\n', '\n```')} className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white" title="Code block">{'\u{60}\u{60}\u{60}'}</button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => wrapSelection('**', '**')}
+            className="rounded p-1 text-xs font-bold text-gray-400 transition hover:bg-white/10 hover:text-white"
+            title="Bold (Ctrl+B)"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => wrapSelection('*', '*')}
+            className="rounded p-1 text-xs italic text-gray-400 transition hover:bg-white/10 hover:text-white"
+            title="Italic (Ctrl+I)"
+          >
+            I
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => wrapSelection('~~', '~~')}
+            className="rounded p-1 text-xs text-gray-400 line-through transition hover:bg-white/10 hover:text-white"
+            title="Strikethrough"
+          >
+            S
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => wrapSelection('||', '||')}
+            className="rounded p-1 text-xs text-gray-400 transition hover:bg-white/10 hover:text-white"
+            title="Spoiler"
+          >
+            <EyeSlashIcon />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => wrapSelection('`', '`')}
+            className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white"
+            title="Inline code"
+          >
+            {'\u{60}'}
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => wrapSelection('```\n', '\n```')}
+            className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white"
+            title="Code block"
+          >
+            {'\u{60}\u{60}\u{60}'}
+          </button>
         </div>
       )}
 
@@ -555,7 +588,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           disabled={disabled}
           aria-label={t('messageComposer')}
           enterKeyHint={isMobile ? 'send' : undefined}
-          className="max-h-[240px] min-h-[44px] flex-1 resize-none bg-transparent py-3 text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
+          className="max-h-[240px] min-h-[44px] min-w-0 flex-1 resize-none bg-transparent py-3 text-base md:text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
           onFocus={() => setShowToolbar(true)}
           onBlur={() => setShowToolbar(false)}
           onChange={(e) => {
@@ -576,7 +609,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               setGifOpen((p) => !p)
               setEmojiOpen(false)
             }}
-            className="shrink-0 px-1.5 py-3 text-gray-400 transition hover:text-white"
+            className="min-h-11 min-w-11 shrink-0 px-1.5 py-3 text-gray-400 transition hover:text-white"
             title="GIF"
             aria-label={t('gifPicker')}
           >
@@ -590,7 +623,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             setEmojiOpen((p) => !p)
             setGifOpen(false)
           }}
-          className="shrink-0 pl-1.5 pr-3 py-3 text-gray-400 transition hover:text-white"
+          className="min-h-11 min-w-11 shrink-0 pl-1.5 pr-3 py-3 text-gray-400 transition hover:text-white"
           title="Emoji"
           aria-label={t('emojiPicker')}
         >
@@ -603,7 +636,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onClick={() => {
               if (value.length <= MAX_MESSAGE_LENGTH) onSend()
             }}
-            className={`shrink-0 text-primary transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'pr-3 py-3'}`}
+            className={`min-h-11 min-w-11 shrink-0 text-primary transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'pr-3 py-3'}`}
             aria-label={t('sendMessage')}
           >
             <svg className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} viewBox="0 0 24 24" fill="currentColor">

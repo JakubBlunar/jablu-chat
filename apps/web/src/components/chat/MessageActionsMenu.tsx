@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export type MessageMenuItem = {
   id: string
@@ -28,6 +29,7 @@ export function MessageActionsMenu({
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
+  useFocusTrap(menuRef, pos !== null, onClose)
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current
@@ -48,9 +50,6 @@ export function MessageActionsMenu({
   }, [anchorRef, items.length])
 
   useLayoutEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
     const onPointer = (e: PointerEvent) => {
       if (
         menuRef.current &&
@@ -61,10 +60,8 @@ export function MessageActionsMenu({
         onClose()
       }
     }
-    document.addEventListener('keydown', onKey)
     document.addEventListener('pointerdown', onPointer)
     return () => {
-      document.removeEventListener('keydown', onKey)
       document.removeEventListener('pointerdown', onPointer)
     }
   }, [anchorRef, onClose])
@@ -87,7 +84,7 @@ export function MessageActionsMenu({
             item.onClick()
             onClose()
           }}
-          className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition hover:bg-white/5 ${
+          className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition hover:bg-white/5 max-lg:min-h-11 ${
             item.danger ? 'text-red-400 hover:bg-red-500/10' : 'text-gray-200'
           }`}
         >

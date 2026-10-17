@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { useIsMobile } from '@/hooks/useMobile'
 import SimpleBar from 'simplebar-react'
 import { VoiceSettings } from '@/components/voice/VoiceSettings'
@@ -43,25 +44,34 @@ function CloseIcon() {
   )
 }
 
-export function SettingsModal({ open, onClose, initialTab }: { open: boolean; onClose: () => void; initialTab?: string }) {
+export function SettingsModal({
+  open,
+  onClose,
+  initialTab
+}: {
+  open: boolean
+  onClose: () => void
+  initialTab?: string
+}) {
   const { t } = useTranslation('settings')
   const [tab, setTab] = useState<Tab>((initialTab as Tab) || 'account')
   const modalRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
-  useFocusTrap(modalRef, open)
+  const [mobileIndex, setMobileIndex] = useState(!initialTab)
+  const back = () => {
+    if (isMobile && !mobileIndex) setMobileIndex(true)
+    else onClose()
+  }
+  useFocusTrap(modalRef, open, back)
+  useBackGestureClose(open, onClose, isMobile)
+  useBackGestureClose(open && !mobileIndex, () => setMobileIndex(true), isMobile)
 
   useEffect(() => {
-    if (initialTab) setTab(initialTab as Tab)
-  }, [initialTab])
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+    if (initialTab) {
+      setTab(initialTab as Tab)
+      setMobileIndex(false)
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [open, onClose])
+  }, [initialTab])
 
   const tabEntries: { key: Tab; label: string; show?: boolean; group: number }[] = useMemo(
     () => [
@@ -123,38 +133,60 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label={t('closeSettings')}
+            onClick={back}
+            className="flex h-11 w-11 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white"
+            aria-label={mobileIndex ? t('closeSettings') : t('backToSettings')}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="ml-2 text-base font-semibold text-white">{currentLabel}</h1>
+          <h1 className="ml-2 text-base font-semibold text-white">{mobileIndex ? t('title') : currentLabel}</h1>
         </div>
-        <div className="shrink-0 overflow-x-auto border-b border-white/10 scrollbar-none">
-          <div className="flex gap-1 px-2 py-1.5" role="tablist" aria-label={t('title')}>
-            {visibleTabs.map((te) => (
-              <button
-                key={te.key}
-                type="button"
-                role="tab"
-                aria-selected={tab === te.key}
-                id={`settings-tab-${te.key}`}
-                onClick={() => setTab(te.key)}
-                className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                  tab === te.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {te.label}
-              </button>
-            ))}
-            <LogOutButton onClose={onClose} mobile />
+        <SimpleBar key={mobileIndex ? 'index' : tab} className="min-h-0 flex-1">
+          <div className="px-4 py-6 [&_button]:min-h-11 [&_button]:min-w-11 [&_select]:min-h-11">
+            {mobileIndex ? (
+              <nav aria-label={t('title')} className="space-y-6">
+                {Array.from(new Set(visibleTabs.map((entry) => entry.group))).map((group) => (
+                  <section key={group}>
+                    <SectionHeading as="h2" className="mb-2">
+                      {t(`mobileGroup${group}`)}
+                    </SectionHeading>
+                    <div className="overflow-hidden rounded-xl bg-surface-dark">
+                      {visibleTabs
+                        .filter((entry) => entry.group === group)
+                        .map((entry) => (
+                          <button
+                            key={entry.key}
+                            type="button"
+                            onClick={() => {
+                              setTab(entry.key)
+                              setMobileIndex(false)
+                            }}
+                            className="flex min-h-14 w-full items-center justify-between border-b border-white/5 px-4 text-left text-sm text-gray-200 last:border-0 hover:bg-white/5"
+                          >
+                            {entry.label}
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4 text-gray-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path d="m9 5 7 7-7 7" />
+                            </svg>
+                          </button>
+                        ))}
+                    </div>
+                  </section>
+                ))}
+                <LogOutButton onClose={onClose} mobile />
+              </nav>
+            ) : (
+              settingsContent
+            )}
           </div>
-        </div>
-        <SimpleBar className="min-h-0 flex-1">
-          <div className="px-4 py-6">{settingsContent}</div>
         </SimpleBar>
       </div>
     )
@@ -177,9 +209,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
             <SectionHeading className="mb-1 px-2">{t('userSettings')}</SectionHeading>
             {visibleTabs.map((te, i) => (
               <div key={te.key}>
-                {i > 0 && visibleTabs[i - 1].group !== te.group && (
-                  <div className="my-2 border-t border-white/10" />
-                )}
+                {i > 0 && visibleTabs[i - 1].group !== te.group && <div className="my-2 border-t border-white/10" />}
                 <SidebarButton active={tab === te.key} onClick={() => setTab(te.key)}>
                   {te.label}
                 </SidebarButton>
@@ -218,15 +248,7 @@ export function SettingsModal({ open, onClose, initialTab }: { open: boolean; on
   )
 }
 
-function SidebarButton({
-  active,
-  onClick,
-  children
-}: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
+function SidebarButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -253,7 +275,7 @@ function LogOutButton({ onClose, mobile }: { onClose: () => void; mobile?: boole
       }}
       className={
         mobile
-          ? 'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300'
+          ? 'min-h-11 w-full rounded-md px-3 py-2 text-left text-sm font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300'
           : 'block w-full rounded-md px-2 py-1.5 text-left text-sm font-medium text-red-400 transition hover:bg-red-500/10 hover:text-red-300'
       }
     >

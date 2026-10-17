@@ -11,6 +11,7 @@ import { DmProfilePanel } from './DmProfilePanel'
 import { ConversationActions } from './ConversationActions'
 import { GroupConversationDetails } from './GroupConversationDetails'
 import { ConversationLinksList } from './ConversationLinksList'
+import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 
 const TABS = ['details', 'media', 'files', 'links', 'pins'] as const
 export type ConversationInfoTab = (typeof TABS)[number]
@@ -25,7 +26,8 @@ export function ConversationInfoPanel({
   pinned,
   onClose,
   onSearch,
-  onJump
+  onJump,
+  overlay = false
 }: {
   conversation: DmConversation
   currentUserId?: string
@@ -37,6 +39,7 @@ export function ConversationInfoPanel({
   onClose: () => void
   onSearch: () => void
   onJump: (messageId: string) => void
+  overlay?: boolean
 }) {
   const { t } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
@@ -74,7 +77,7 @@ export function ConversationInfoPanel({
           type="button"
           aria-label={tCommon('close')}
           onClick={onClose}
-          className="rounded p-2 text-gray-400 hover:bg-white/10"
+          className="flex h-11 w-11 items-center justify-center rounded text-gray-400 hover:bg-white/10"
         >
           &times;
         </button>
@@ -86,7 +89,7 @@ export function ConversationInfoPanel({
             onClose()
             onSearch()
           }}
-          className="text-sm text-primary"
+          className="min-h-11 text-sm text-primary"
         >
           {t('channelInfoActionSearch')}
         </button>
@@ -202,6 +205,12 @@ export function ConversationInfoPanel({
       </BottomSheet>
     )
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-l border-white/10 bg-surface-dark">{content}</aside>
+    <ResponsivePanel overlay={overlay} onClose={onClose}>
+      <aside
+        className={`flex h-full shrink-0 flex-col border-l border-white/10 bg-surface-dark ${overlay ? 'w-full' : 'w-80'}`}
+      >
+        {content}
+      </aside>
+    </ResponsivePanel>
   )
 }

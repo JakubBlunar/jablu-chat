@@ -1,4 +1,12 @@
 {
+  "mobileNavigation": "Hlavní navigace",
+  "mobileChats": "Chaty",
+  "mobileInbox": "Oznámení",
+  "mobileYou": "Vy",
+  "inboxUnread": "Oznámení, nepřečteno: {{count}}",
+  "inboxMarkAll": "Označit vše jako přečtené",
+  "inboxCaughtUp": "Máte vše přečteno.",
+  "inboxLoadMore": "Načíst další",
   "findConversation": "Najít konverzaci",
   "searchPlaceholder": "Hledat…",
   "directMessages": "Soukromé zprávy",

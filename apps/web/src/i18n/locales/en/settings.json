@@ -1,9 +1,17 @@
 {
+  "backToSettings": "Back to settings",
+  "mobileGroup1": "Your account",
+  "mobileGroup2": "Preferences",
+  "mobileGroup3": "Activity",
+  "mobileGroup4": "Security and tools",
+  "mobileGroup5": "Apps",
   "title": "Settings",
   "closeSettings": "Close settings",
   "userSettings": "USER SETTINGS",
   "logOut": "Log Out",
   "appearance": {
+    "compactPreviews": "Compact previews",
+    "compactPreviewsHint": "Collapse link, image, GIF and video previews into compact rows. Tap a row to expand it. Full previews are shown by default.",
     "language": "Language",
     "languageHint": "Interface language. More locales can be added over time.",
     "accentTitle": "Accent Color",

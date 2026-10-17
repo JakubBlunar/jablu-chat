@@ -37,9 +37,17 @@ type Props = {
   onClose: () => void
   defaultScope?: Scope
   conversationId?: string
+  overlay?: boolean
 }
 
-export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'server', conversationId }: Props) {
+export function SearchDrawer({
+  query,
+  onQueryChange,
+  onClose,
+  defaultScope = 'server',
+  conversationId,
+  overlay = false
+}: Props) {
   const { t } = useTranslation('search')
   const { t: tNav } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
@@ -232,7 +240,9 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   }, [])
 
   return (
-    <aside className="flex h-full w-full shrink-0 flex-col border-l border-white/10 bg-surface-dark md:w-80">
+    <aside
+      className={`flex h-full shrink-0 flex-col border-l border-white/10 bg-surface-dark max-lg:[&_button]:min-h-11 max-lg:[&_button]:min-w-11 max-lg:[&_input]:min-h-11 max-lg:[&_input]:text-base ${overlay ? 'w-full' : 'w-80'}`}
+    >
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4">
         <h2 className="text-sm font-semibold text-white">{t('resultsTitle')}</h2>
@@ -244,7 +254,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       </div>
 
       {/* Search input */}
-      <div className="border-b border-white/10 px-3 py-2">
+      <div className="shrink-0 border-b border-white/10 px-3 py-2">
         <div className="composite-text-field flex items-center rounded bg-surface-darkest px-2 ring-1 ring-white/10 transition focus-within:ring-2 focus-within:ring-primary/55">
           <svg
             className="h-4 w-4 shrink-0 text-gray-500"
@@ -269,7 +279,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       </div>
 
       {/* Scope selector */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none">
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none">
         {defaultScope === 'conversation' ? (
           <>
             <ScopeBtn active={scope === 'conversation'} onClick={() => handleScopeChange('conversation')}>
@@ -300,7 +310,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       </div>
 
       {/* Filter hints */}
-      <div className="border-b border-white/10 px-3 py-2">
+      <div className="border-b border-white/10 px-3 py-2 max-lg:max-h-[35dvh] max-lg:shrink-0 max-lg:overflow-y-auto">
         <p className="mb-1 text-[11px] font-medium text-gray-500">{t('searchFilters')}</p>
         <div className="flex flex-wrap gap-1">
           {(

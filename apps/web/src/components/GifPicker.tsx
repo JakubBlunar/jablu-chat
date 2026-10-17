@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api, type GifResult } from '@/lib/api'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface GifPickerProps {
   onSelect: (gifUrl: string) => void
@@ -16,6 +17,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
   const { t: tCommon } = useTranslation('common')
   const isMobile = useIsMobile()
   const ref = useRef<HTMLDivElement>(null)
+  useFocusTrap(ref, !isMobile, onClose)
 
   useEffect(() => {
     if (isMobile) return
@@ -34,7 +36,13 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
 
   if (isMobile) {
     return createPortal(
-      <ModalOverlay onClose={onClose} zIndex="z-[110]" maxWidth="max-w-sm" noPadding className="flex max-h-[80vh] flex-col overflow-hidden">
+      <ModalOverlay
+        onClose={onClose}
+        zIndex="z-[110]"
+        maxWidth="max-w-sm"
+        noPadding
+        className="flex max-h-[80vh] flex-col overflow-hidden"
+      >
         <div ref={ref} className="flex min-h-0 flex-col">
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
             <span className="text-sm font-semibold text-white">{t('gifPickerSheetTitle')}</span>
@@ -42,7 +50,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
               type="button"
               aria-label={tCommon('close')}
               onClick={onClose}
-              className="rounded-full p-1 text-gray-400 hover:bg-white/10 hover:text-white"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-gray-400 hover:bg-white/10 hover:text-white"
             >
               <XIcon />
             </button>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsMobile } from '@/hooks/useMobile'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface ConfirmDialogProps {
   title: string
@@ -33,14 +34,14 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg bg-surface-light px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10"
+            className="rounded-lg bg-surface-light px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 max-lg:min-h-11"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 max-lg:min-h-11"
           >
             {confirmLabel}
           </button>
@@ -82,6 +83,7 @@ function ConfirmPopover({
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null)
+  useFocusTrap(popoverRef, pos !== null, onCancel)
 
   useEffect(() => {
     if (anchorRef.current) {
@@ -95,18 +97,13 @@ function ConfirmPopover({
   }, [anchorRef])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
     const onClick = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onCancel()
       }
     }
-    document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onClick)
     return () => {
-      document.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onClick)
     }
   }, [onCancel])
@@ -122,10 +119,18 @@ function ConfirmPopover({
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="mt-1 text-xs text-gray-400">{description}</p>
       <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded px-3 py-1 text-xs text-gray-300 transition hover:bg-white/10 max-lg:min-h-11"
+        >
           {cancelLabel}
         </button>
-        <button type="button" onClick={onConfirm} className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700">
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700 max-lg:min-h-11"
+        >
           {confirmLabel}
         </button>
       </div>

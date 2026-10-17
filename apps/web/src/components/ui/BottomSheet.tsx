@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 
 interface BottomSheetProps {
   open: boolean
@@ -29,35 +31,41 @@ export function BottomSheet({
   const { t } = useTranslation('common')
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (open) {
-      requestAnimationFrame(() => setVisible(true))
+      const frame = requestAnimationFrame(() => setVisible(true))
       const timer = setTimeout(() => setReady(true), 300)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(timer)
+        cancelAnimationFrame(frame)
+      }
     }
+    clearTimeout(closeTimer.current)
+    closeTimer.current = undefined
     setVisible(false)
     setReady(false)
   }, [open])
 
   const close = useCallback(() => {
+    if (closeTimer.current) return
     setVisible(false)
-    setTimeout(onClose, 200)
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = undefined
+      onClose()
+    }, 200)
   }, [onClose])
-
-  useEffect(() => {
-    if (!open || !closeOnEscape) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, close, closeOnEscape])
+  useFocusTrap(sheetRef, open, closeOnEscape ? close : undefined)
+  useBackGestureClose(open, close, closeOnEscape)
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
   if (!open) return null
 
   return createPortal(
     <div
+      ref={sheetRef}
       className={`fixed inset-0 flex items-end justify-center bg-black/70 backdrop-blur-sm`}
       style={{ zIndex }}
       role="dialog"
@@ -93,7 +101,7 @@ export function BottomSheet({
           type="button"
           aria-label={t('close')}
           onClick={close}
-          className="flex shrink-0 justify-center py-3"
+          className="flex min-h-11 shrink-0 items-center justify-center py-3"
         >
           <div className="h-1 w-10 rounded-full bg-gray-600" />
         </button>

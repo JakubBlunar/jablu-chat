@@ -12,6 +12,7 @@ import { MemberSidebar } from '@/components/member/MemberSidebar'
 import { MessageArea } from '@/components/chat/MessageArea'
 import { ForumView } from '@/components/forum/ForumView'
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer'
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ToastContainer } from '@/components/ToastContainer'
@@ -20,7 +21,7 @@ import { useAppBadge } from '@/hooks/useAppBadge'
 import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { usePresenceReporter } from '@/hooks/usePresenceReporter'
 import { useDetectedActivity } from '@/hooks/useDetectedActivity'
-import { useIsMobile } from '@/hooks/useMobile'
+import { useIsMobile, useIsTablet } from '@/hooks/useMobile'
 import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
 import { useChannelSocketSync } from '@/hooks/useChannelSocketSync'
 import { useCacheBootstrap } from '@/hooks/useCacheBootstrap'
@@ -78,7 +79,11 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
 
   if (!isConnected && hasConnected.current) {
     return (
-      <div className="shrink-0 bg-amber-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">
+      <div
+        className="shrink-0 bg-amber-600 px-4 py-1.5 text-center text-xs font-medium text-white"
+        role="status"
+        aria-live="polite"
+      >
         {t('connectionLost')}
       </div>
     )
@@ -86,7 +91,11 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
 
   if (showReconnected) {
     return (
-      <div className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white" role="status" aria-live="polite">
+      <div
+        className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white"
+        role="status"
+        aria-live="polite"
+      >
         {t('reconnected')}
       </div>
     )
@@ -115,6 +124,7 @@ export function MainLayout() {
   const { socket, isConnected } = useSocket()
   useChannelSocketSync(isConnected)
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
 
   const openNavDrawer = useLayoutStore((s) => s.openNavDrawer)
   const channelInfoDrawerOpen = useLayoutStore((s) => s.channelInfoDrawerOpen)
@@ -125,13 +135,7 @@ export function MainLayout() {
   useDetectedActivity(socket)
   useAppBadge()
 
-  const {
-    viewMode,
-    fetchServers,
-    servers,
-    serversLoading,
-    currentServerId
-  } = useServerStore(
+  const { viewMode, fetchServers, servers, serversLoading, currentServerId } = useServerStore(
     useShallow((s) => ({
       viewMode: s.viewMode,
       fetchServers: s.fetchServers,
@@ -140,11 +144,7 @@ export function MainLayout() {
       currentServerId: s.currentServerId
     }))
   )
-  const {
-    channels,
-    currentChannelId,
-    channelLoadedServerId
-  } = useChannelStore(
+  const { channels, currentChannelId, channelLoadedServerId } = useChannelStore(
     useShallow((s) => ({
       channels: s.channels,
       currentChannelId: s.currentChannelId,
@@ -162,7 +162,7 @@ export function MainLayout() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
   const openSettings = useCallback((tab?: string) => {
-    if (tab) setSettingsInitialTab(tab)
+    setSettingsInitialTab(tab)
     setSettingsOpen(true)
   }, [])
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
@@ -192,10 +192,7 @@ export function MainLayout() {
       if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const target = e.target as HTMLElement | null
         const isEditable =
-          target &&
-          (target.tagName === 'INPUT' ||
-            target.tagName === 'TEXTAREA' ||
-            target.isContentEditable)
+          target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
         if (!isEditable) {
           e.preventDefault()
           setSettingsInitialTab('shortcuts')
@@ -213,7 +210,10 @@ export function MainLayout() {
     useNavHistoryStore.getState().syncUser(useAuthStore.getState().user?.id ?? null)
     void fetchServers()
     if (!useBookmarkStore.getState().loaded) useBookmarkStore.getState().fetchIds()
-    void useActivityStore.getState().fetchServerPrefs().catch(() => {})
+    void useActivityStore
+      .getState()
+      .fetchServerPrefs()
+      .catch(() => {})
   }, [fetchServers])
 
   useEffect(() => {
@@ -229,8 +229,7 @@ export function MainLayout() {
       // Prefer where the user last was; servers[0] is an arbitrary choice that
       // happens to be whatever the API returned first.
       const last = useNavHistoryStore.getState().lastLocation
-      const remembered =
-        last?.kind === 'server' && servers.some((s) => s.id === last.serverId) ? last : null
+      const remembered = last?.kind === 'server' && servers.some((s) => s.id === last.serverId) ? last : null
       if (remembered) {
         const path = remembered.channelId
           ? `/channels/${remembered.serverId}/${remembered.channelId}`
@@ -291,7 +290,12 @@ export function MainLayout() {
           ) : serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col">
               <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
-                <button type="button" aria-label={t('openNavigationMenu')} onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
+                <button
+                  type="button"
+                  aria-label={t('openNavigationMenu')}
+                  onClick={openNavDrawer}
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+                >
                   <HamburgerIcon />
                 </button>
               </header>
@@ -303,7 +307,12 @@ export function MainLayout() {
           ) : servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col">
               <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 bg-surface px-2 shadow-sm">
-                <button type="button" aria-label={t('openNavigationMenu')} onClick={openNavDrawer} className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white">
+                <button
+                  type="button"
+                  aria-label={t('openNavigationMenu')}
+                  onClick={openNavDrawer}
+                  className="flex h-10 w-10 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+                >
                   <HamburgerIcon />
                 </button>
               </header>
@@ -322,6 +331,7 @@ export function MainLayout() {
             <MessageArea mode="channel" contextId={currentChannelId} />
           )}
         </div>
+        <MobileBottomNav onOpenSettings={() => openSettings()} />
         <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
         <MemberDrawer />
         <Suspense fallback={null}>
@@ -330,7 +340,14 @@ export function MainLayout() {
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
-            <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
+            <SettingsModal
+              open={settingsOpen}
+              initialTab={settingsInitialTab}
+              onClose={() => {
+                setSettingsOpen(false)
+                setSettingsInitialTab(undefined)
+              }}
+            />
           </Suspense>
         )}
       </div>
@@ -351,7 +368,7 @@ export function MainLayout() {
         <div className="flex min-h-0 flex-1">
           {/* Left region: server rail + DM sidebar stacked above a shared,
               full-width user panel (Discord-style) spanning both columns. */}
-          <div className="flex min-h-0 shrink-0 flex-col">
+          <div className={`${isTablet ? 'hidden' : 'flex'} min-h-0 shrink-0 flex-col`}>
             <div className="flex min-h-0 flex-1">
               <ServerSidebar />
               <DmSidebar />
@@ -359,16 +376,27 @@ export function MainLayout() {
             <UserFooter onOpenSettings={openSettings} className="px-2 py-2.5" />
           </div>
           <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
-            <MessageArea mode="dm" contextId={currentConvId} />
+            <MessageArea mode="dm" contextId={currentConvId} compactNavigation={isTablet} />
           </div>
         </div>
         <Suspense fallback={null}>
           <ScreenSharePicker />
         </Suspense>
+        {isTablet && (
+          <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
+        )}
+        <MemberDrawer />
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
-            <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
+            <SettingsModal
+              open={settingsOpen}
+              initialTab={settingsInitialTab}
+              onClose={() => {
+                setSettingsOpen(false)
+                setSettingsInitialTab(undefined)
+              }}
+            />
           </Suspense>
         )}
       </div>
@@ -388,7 +416,7 @@ export function MainLayout() {
       <div className="flex min-h-0 flex-1">
         {/* Left region: server rail + channel sidebar stacked above a shared,
             full-width user panel (Discord-style) spanning both columns. */}
-        <div className="flex min-h-0 shrink-0 flex-col">
+        <div className={`${isTablet ? 'hidden' : 'flex'} min-h-0 shrink-0 flex-col`}>
           <div className="flex min-h-0 flex-1">
             <ServerSidebar />
             <ChannelSidebar />
@@ -396,6 +424,18 @@ export function MainLayout() {
           <UserFooter onOpenSettings={openSettings} className="px-2 py-2.5" />
         </div>
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
+          {isTablet && servers.length === 0 && (
+            <header className="flex h-12 shrink-0 items-center border-b border-white/10 px-2">
+              <button
+                type="button"
+                aria-label={t('openNavigationMenu')}
+                onClick={openNavDrawer}
+                className="flex h-11 w-11 items-center justify-center rounded text-gray-400 hover:bg-white/10"
+              >
+                <HamburgerIcon />
+              </button>
+            </header>
+          )}
           {serversLoading && servers.length === 0 ? (
             <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3">
               <Spinner size="xl" />
@@ -411,10 +451,11 @@ export function MainLayout() {
               <VoiceRoom />
             </Suspense>
           ) : currentChannelType === 'forum' && currentChannelId ? (
-            <ForumView channelId={currentChannelId} />
+            <ForumView channelId={currentChannelId} onOpenNav={isTablet ? openNavDrawer : undefined} />
           ) : (
             <MessageArea
               mode="channel"
+              compactNavigation={isTablet}
               contextId={currentChannelId}
               memberSidebar={showMemberSidebar ? <MemberSidebar /> : null}
             />
@@ -424,10 +465,21 @@ export function MainLayout() {
           <ScreenSharePicker />
         </Suspense>
       </div>
+      {isTablet && (
+        <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
+      )}
+      <MemberDrawer />
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
       {settingsOpen && (
         <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
-          <SettingsModal open={settingsOpen} initialTab={settingsInitialTab} onClose={() => { setSettingsOpen(false); setSettingsInitialTab(undefined) }} />
+          <SettingsModal
+            open={settingsOpen}
+            initialTab={settingsInitialTab}
+            onClose={() => {
+              setSettingsOpen(false)
+              setSettingsInitialTab(undefined)
+            }}
+          />
         </Suspense>
       )}
       {viewMode === 'server' && <OnboardingWizard />}

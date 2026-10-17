@@ -11,6 +11,29 @@ beforeEach(() => {
 })
 
 describe('useBackGestureClose', () => {
+  it('preserves router state and replaces the entry when moving directly between overlays', async () => {
+    window.history.replaceState({ idx: 3, key: 'route-key', usr: { from: 'chat' } }, '', '/')
+    const backSpy = jest.spyOn(window.history, 'back').mockImplementation(() => {})
+    const pushSpy = jest.spyOn(window.history, 'pushState')
+    const closeSettings = jest.fn()
+    const { rerender } = renderHook(
+      ({ drawer, settings }) => {
+        useBackGestureClose(drawer, jest.fn())
+        useBackGestureClose(settings, closeSettings)
+      },
+      { initialProps: { drawer: true, settings: false } }
+    )
+    await act(async () => {
+      rerender({ drawer: false, settings: true })
+    })
+    expect(backSpy).not.toHaveBeenCalled()
+    expect(pushSpy).toHaveBeenCalledTimes(1)
+    expect(window.history.state).toMatchObject({ idx: 3, key: 'route-key', usr: { from: 'chat' } })
+    act(firePopState)
+    expect(closeSettings).toHaveBeenCalledTimes(1)
+    backSpy.mockRestore()
+    pushSpy.mockRestore()
+  })
   it('does nothing when not enabled', () => {
     const onClose = jest.fn()
     const pushSpy = jest.spyOn(window.history, 'pushState')
@@ -85,7 +108,7 @@ describe('useBackGestureClose', () => {
     backSpy.mockRestore()
   })
 
-  it('calls history.back (with suppression) when closed programmatically and entry is still on top', () => {
+  it('calls history.back (with suppression) when closed programmatically and entry is still on top', async () => {
     let open = true
     const onClose = jest.fn()
     const backSpy = jest.spyOn(window.history, 'back').mockImplementation(() => {
@@ -95,7 +118,7 @@ describe('useBackGestureClose', () => {
     const { rerender } = renderHook(() => useBackGestureClose(open, onClose, true))
     expect(__testing.getStackSize()).toBe(1)
 
-    act(() => {
+    await act(async () => {
       open = false
       rerender()
     })

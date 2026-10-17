@@ -1,4 +1,6 @@
 {
+  "expandPreview": "Expand preview: {{name}}",
+  "collapsePreview": "Collapse preview: {{name}}",
   "draft": "Draft",
   "draftSaveFailed": "Could not save this draft on your device. Keep this screen open and try again.",
   "restoreAttachments": "Restore draft attachments",

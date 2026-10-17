@@ -61,7 +61,7 @@ export function ChannelInfoPanel({
   onJumpToMessage: (messageId: string) => void
 }) {
   const { t } = useTranslation('chat')
-  const [tab, setTab] = useState<TabId>('members')
+  const [tab, setTab] = useState<TabId>(channelType === 'text' ? 'info' : 'members')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [cardUser, setCardUser] = useState<ProfileCardUser | null>(null)
   const [cardRect, setCardRect] = useState<DOMRect | null>(null)
@@ -77,11 +77,11 @@ export function ChannelInfoPanel({
 
   useEffect(() => {
     if (!open) {
-      setTab('members')
+      setTab(showMedia ? 'info' : 'members')
       setInviteOpen(false)
       setCardUser(null)
     }
-  }, [open])
+  }, [open, showMedia])
 
   useEffect(() => {
     if (open && tab === 'pins') {
@@ -119,7 +119,14 @@ export function ChannelInfoPanel({
 
   return (
     <>
-      <BottomSheet open={open} onClose={onClose} zIndex={110} maxHeightDvh={88} bodyScrollable={false}>
+      <BottomSheet
+        open={open}
+        onClose={onClose}
+        closeOnEscape={!inviteOpen && !cardUser}
+        zIndex={110}
+        maxHeightDvh={88}
+        bodyScrollable={false}
+      >
         <div className="flex h-full min-h-0 flex-col px-1">
           <div className="shrink-0 border-b border-black/20 px-3 pb-2 pt-0">
             <h2 className="truncate text-lg font-semibold text-white">
@@ -185,54 +192,60 @@ export function ChannelInfoPanel({
             ) : tab === 'files' ? (
               <ChannelFilesList serverId={serverId} channelId={channelId} />
             ) : (
-            <SimpleBar className="h-full max-h-full" style={{ maxHeight: '100%' }}>
-              {tab === 'info' ? (
-                <ChannelDescriptionBlock
-                  channelName={channelName}
-                  description={channelDescription}
-                  className="px-3 py-4"
-                />
-              ) : tab === 'members' ? (
-                <div className="px-2 py-3">
-                  <button
-                    type="button"
-                    onClick={() => setInviteOpen(true)}
-                    className="mb-3 flex w-full items-center gap-3 rounded-xl bg-white/[0.06] px-3 py-3 text-left transition hover:bg-white/[0.08]"
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-gray-300">
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="8.5" cy="7" r="4" />
-                        <line x1="20" y1="8" x2="20" y2="14" />
-                        <line x1="23" y1="11" x2="17" y2="11" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1 font-medium text-white">{t('channelInfoInviteMembers')}</span>
-                    <svg className="h-4 w-4 shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="m9 18 6-6-6-6" />
-                    </svg>
-                  </button>
-                  <MemberListPanel
-                    members={listMembers}
-                    onlineIds={onlineIds}
-                    isLoading={membersLoading}
-                    ownerId={ownerId}
-                    onMemberClick={handleMemberClick}
+              <SimpleBar className="h-full max-h-full" style={{ maxHeight: '100%' }}>
+                {tab === 'info' ? (
+                  <ChannelDescriptionBlock
+                    channelName={channelName}
+                    description={channelDescription}
+                    className="px-3 py-4"
                   />
-                </div>
-              ) : (
-                <PinnedMessagesList
-                  messages={pinnedMessages}
-                  loading={pinnedLoading}
-                  canUnpin={canUnpin}
-                  channelId={channelId}
-                  onJump={handleJump}
-                  emptyLabel={t('pinnedEmptyChannel')}
-                  jumpLabel={t('jumpToMessage')}
-                  className="py-1"
-                />
-              )}
-            </SimpleBar>
+                ) : tab === 'members' ? (
+                  <div className="px-2 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setInviteOpen(true)}
+                      className="mb-3 flex w-full items-center gap-3 rounded-xl bg-white/[0.06] px-3 py-3 text-left transition hover:bg-white/[0.08]"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-gray-300">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="8.5" cy="7" r="4" />
+                          <line x1="20" y1="8" x2="20" y2="14" />
+                          <line x1="23" y1="11" x2="17" y2="11" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0 flex-1 font-medium text-white">{t('channelInfoInviteMembers')}</span>
+                      <svg
+                        className="h-4 w-4 shrink-0 text-gray-500"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path d="m9 18 6-6-6-6" />
+                      </svg>
+                    </button>
+                    <MemberListPanel
+                      members={listMembers}
+                      onlineIds={onlineIds}
+                      isLoading={membersLoading}
+                      ownerId={ownerId}
+                      onMemberClick={handleMemberClick}
+                    />
+                  </div>
+                ) : (
+                  <PinnedMessagesList
+                    messages={pinnedMessages}
+                    loading={pinnedLoading}
+                    canUnpin={canUnpin}
+                    channelId={channelId}
+                    onJump={handleJump}
+                    emptyLabel={t('pinnedEmptyChannel')}
+                    jumpLabel={t('jumpToMessage')}
+                    className="py-1"
+                  />
+                )}
+              </SimpleBar>
             )}
           </div>
         </div>
@@ -271,7 +284,7 @@ function TabButton({
     <button
       type="button"
       onClick={() => onSelect(id)}
-      className={`relative shrink-0 whitespace-nowrap px-4 py-2.5 text-center text-sm font-semibold transition ${
+      className={`relative min-h-11 shrink-0 whitespace-nowrap px-4 py-2.5 text-center text-sm font-semibold transition ${
         active ? 'text-primary' : 'text-gray-400 hover:text-gray-200'
       }`}
     >
@@ -288,15 +301,7 @@ function TabButton({
   )
 }
 
-function ActionTile({
-  label,
-  onClick,
-  children
-}: {
-  label: string
-  onClick?: () => void
-  children: React.ReactNode
-}) {
+function ActionTile({ label, onClick, children }: { label: string; onClick?: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"

@@ -99,6 +99,20 @@ export const useDraftStore = create<DraftState>()(
   )
 )
 
+export function useHasDraft(mode: ComposerMode, contextId: string, threadParentId?: string) {
+  const userId = useAuthStore((s) => s.user?.id)
+  const prefix = JSON.stringify([userId, mode, contextId]).slice(0, -1) + ','
+  return useDraftStore((state) => {
+    if (!userId) return false
+    const entries = threadParentId
+      ? [state.drafts[composerKey(userId, mode, contextId, threadParentId)]]
+      : Object.entries(state.drafts)
+          .filter(([key]) => key.startsWith(prefix))
+          .map(([, draft]) => draft)
+    return entries.some((draft) => !!(draft?.text || draft?.reply || draft?.fileCount))
+  })
+}
+
 export function useDraftReply(mode: ComposerMode, contextId: string | null, threadParentId?: string | null) {
   const userId = useAuthStore((s) => s.user?.id)
   const key = userId && contextId ? composerKey(userId, mode, contextId, threadParentId) : null

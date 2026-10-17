@@ -10,6 +10,8 @@ export function AppearanceSection() {
   const setAccent = useSettingsStore((s) => s.setAccent)
   const locale = useSettingsStore((s) => s.locale)
   const setLocale = useSettingsStore((s) => s.setLocale)
+  const compactPreviews = useSettingsStore((s) => s.compactPreviews)
+  const setCompactPreviews = useSettingsStore((s) => s.setCompactPreviews)
 
   return (
     <div className="space-y-6">
@@ -34,6 +36,18 @@ export function AppearanceSection() {
       </div>
 
       <TranslationPreferenceSection />
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 border-t border-white/10 pt-6">
+        <input
+          type="checkbox"
+          checked={compactPreviews}
+          onChange={(event) => setCompactPreviews(event.target.checked)}
+          className="mt-1 h-5 w-5 shrink-0 accent-primary"
+        />
+        <span>
+          <span className="block text-base font-semibold text-white">{t('appearance.compactPreviews')}</span>
+          <span className="mt-1 block text-sm text-gray-400">{t('appearance.compactPreviewsHint')}</span>
+        </span>
+      </label>
 
       <div className="border-t border-white/10 pt-6">
         <h2 className="mb-1 text-base font-semibold text-white">{t('appearance.accentTitle')}</h2>
@@ -51,10 +65,7 @@ export function AppearanceSection() {
                   : 'bg-surface-darkest text-gray-300 hover:bg-white/[0.06]'
               }`}
             >
-              <span
-                className="h-4 w-4 shrink-0 rounded-full"
-                style={{ backgroundColor: opt.color }}
-              />
+              <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: opt.color }} />
               {opt.label}
             </button>
           ))}

@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
-import { composerKey, useDraftStore } from './draft.store'
+import { act, renderHook } from '@testing-library/react'
+import { composerKey, useDraftStore, useHasDraft } from './draft.store'
 
 jest.mock('@/stores/auth.store', () => ({ useAuthStore: () => 'alice' }))
 jest.mock('@/stores/toast.store', () => ({ showToast: jest.fn() }))
@@ -45,4 +46,14 @@ it('removes the badge state only after text, reply and files are cleared', () =>
   expect(useDraftStore.getState().drafts[key].fileCount).toBe(1)
   useDraftStore.getState().update(key, { fileCount: 0 })
   expect(useDraftStore.getState().drafts[key]).toBeUndefined()
+})
+
+it('includes thread-only drafts in the channel indicator without crossing accounts', () => {
+  const { result } = renderHook(() => useHasDraft('channel', 'general'))
+  act(() => useDraftStore.getState().update(composerKey('bob', 'channel', 'general', 'thread'), { text: 'private' }))
+  expect(result.current).toBe(false)
+  act(() =>
+    useDraftStore.getState().update(composerKey('alice', 'channel', 'general', 'thread'), { text: 'thread draft' })
+  )
+  expect(result.current).toBe(true)
 })

@@ -75,6 +75,7 @@ export function MobileNavDrawer({
 }) {
   const { t } = useTranslation('nav')
   const { t: tChat } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
   const { open, close } = useLayoutStore(useShallow((s) => ({ open: s.navDrawerOpen, close: s.closeNavDrawer })))
 
   const { orchestratedGoToChannel, goToDms, goToFriends, goToDm } = useAppNavigate()
@@ -338,7 +339,30 @@ export function MobileNavDrawer({
   return (
     <>
       <MobileDrawer open={open} onClose={close} side="left" width="w-[min(100vw,28rem)]">
-        <div className="flex h-full min-h-0 flex-col bg-surface-dark" onContextMenu={(e) => e.preventDefault()}>
+        <div
+          className="flex h-full min-h-0 flex-col bg-surface-dark [&_button]:min-h-11"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-3">
+            <span className="text-sm font-semibold text-white">{t('mobileChats')}</span>
+            <button
+              type="button"
+              onClick={close}
+              aria-label={tCommon('close')}
+              className="flex h-11 w-11 items-center justify-center rounded text-gray-400 hover:bg-white/10"
+            >
+              <svg
+                aria-hidden="true"
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path d="m6 6 12 12M6 18 18 6" />
+              </svg>
+            </button>
+          </div>
           <div className="flex min-h-0 flex-1 flex-row">
             <MobileNavServerRail
               viewMode={viewMode}
@@ -738,7 +762,7 @@ export function MobileNavDrawer({
                       value={dmFilter}
                       onChange={(e) => setDmFilter(e.target.value)}
                       placeholder={t('findConversation')}
-                      className="mb-1 w-full rounded-md bg-surface-darkest px-2.5 py-1.5 text-sm text-gray-200 outline-none placeholder:text-gray-500"
+                      className="mb-1 min-h-11 w-full rounded-md bg-surface-darkest px-2.5 py-1.5 text-base text-gray-200 outline-none placeholder:text-gray-500"
                     />
                     <ul className="space-y-0.5">
                       {filteredConversations.map((conv) => {
@@ -751,7 +775,7 @@ export function MobileNavDrawer({
                             <button
                               type="button"
                               onClick={() => handleConvClick(conv.id)}
-                              className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                              className={`flex w-full items-center gap-2 rounded-md px-2 pr-12 py-2 text-left text-sm transition ${
                                 active
                                   ? 'bg-surface-selected text-white'
                                   : hasUnread
@@ -780,7 +804,7 @@ export function MobileNavDrawer({
                                 )}
                               </span>
                               {hasUnread && !conv.muted && (
-                                <span className="mr-6 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                                <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
                               )}
                             </button>
                             <IconButton

@@ -11,6 +11,8 @@ import { ThreadPanel } from '@/components/chat/ThreadPanel'
 import { ConversationInfoPanel, type ConversationInfoTab } from '@/components/dm/ConversationInfoPanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useChatPanelLayout } from '@/hooks/useChatPanelLayout'
+import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -57,7 +59,8 @@ import {
   HashChannelIcon,
   MembersIcon,
   PinnedListIcon,
-  SettingsCogIcon
+  SettingsCogIcon,
+  SearchIcon
 } from '@/components/chat/chatIcons'
 
 /* ── MessageArea ── */
@@ -66,13 +69,16 @@ export interface MessageAreaProps {
   mode: 'channel' | 'dm'
   contextId: string | null
   memberSidebar?: React.ReactNode
+  compactNavigation?: boolean
 }
 
-export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps) {
+export function MessageArea({ mode, contextId, memberSidebar, compactNavigation = false }: MessageAreaProps) {
   const { t: tA11y } = useTranslation('a11y')
   const { t: tChat } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
   const isMobile = useIsMobile()
+  const panels = useChatPanelLayout()
+  const showNavButton = isMobile || compactNavigation
   const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
   const viewingDmVoice = useVoiceConnectionStore(
@@ -172,6 +178,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isMuted = !isDm && myMember?.mutedUntil ? new Date(myMember.mutedUntil) > new Date() : false
 
   const [searchOpen, setSearchOpen] = useState(false)
+  useEffect(() => {
+    if (threadOpen) {
+      setSearchOpen(false)
+      useLayoutStore.getState().closeChannelInfoDrawer()
+    }
+  }, [threadOpen])
   const [searchQuery, setSearchQuery] = useState('')
   const [showPollCreator, setShowPollCreator] = useState(false)
   const [commandToast, setCommandToast] = useState<string | null>(null)
@@ -261,12 +273,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     return (
       <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
         <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
-          {isMobile && (
+          {showNavButton && (
             <button
               type="button"
               aria-label={tA11y('openNavigationMenu')}
               onClick={useLayoutStore.getState().openNavDrawer}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <HamburgerIcon />
             </button>
@@ -456,12 +468,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
       {activeChannel ? (
         <>
-          {isMobile ? (
+          {showNavButton ? (
             <button
               type="button"
               aria-label={tA11y('openNavigationMenu')}
               onClick={useLayoutStore.getState().openNavDrawer}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <HamburgerIcon />
             </button>
@@ -469,13 +481,31 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             <HashChannelIcon />
           )}
           {isMobile ? (
-            <button type="button" onClick={() => setChannelInfoOpen(true)} className="min-w-0 flex-1 text-left">
+            <button
+              type="button"
+              onClick={() => setChannelInfoOpen(true)}
+              className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left"
+            >
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
+              <svg
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path d="m9 5 7 7-7 7" />
+              </svg>
             </button>
           ) : activeChannel.type === 'text' ? (
             <button
               type="button"
-              onClick={() => useLayoutStore.getState().toggleChannelInfoDrawer()}
+              onClick={() => {
+                useThreadStore.getState().closeThread()
+                setSearchOpen(false)
+                useLayoutStore.getState().toggleChannelInfoDrawer()
+              }}
               className="min-w-0 flex-1 text-left"
             >
               <h1 className="truncate text-base font-semibold text-white transition hover:text-gray-200">
@@ -515,7 +545,10 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               <IconButton
                 label="Toggle member list"
                 size="lg"
-                onClick={() => useSettingsStore.getState().toggleMemberSidebarVisible()}
+                onClick={() => {
+                  if (panels.membersOverlay) useLayoutStore.getState().openMemberDrawer()
+                  else useSettingsStore.getState().toggleMemberSidebarVisible()
+                }}
               >
                 <MembersIcon />
               </IconButton>
@@ -524,6 +557,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 query={searchQuery}
                 onQueryChange={setSearchQuery}
                 onSearch={(q) => {
+                  useThreadStore.getState().closeThread()
                   setSearchQuery(q)
                   setSearchOpen(true)
                 }}
@@ -534,6 +568,19 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               />
             </div>
           )}
+          {isMobile && (
+            <button
+              type="button"
+              aria-label={tChat('channelInfoActionSearch')}
+              onClick={() => {
+                useThreadStore.getState().closeThread()
+                setSearchOpen(true)
+              }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-white/10"
+            >
+              <SearchIcon />
+            </button>
+          )}
         </>
       ) : (
         <h1 className="text-base font-semibold text-gray-400">{tChat('selectChannel')}</h1>
@@ -543,15 +590,15 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   if (isDm) {
     return (
-      <div className="relative flex min-h-0 min-w-0 flex-1 bg-surface">
+      <div ref={panels.ref} className="relative flex min-h-0 min-w-0 flex-1 bg-surface">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
-            {isMobile ? (
+            {showNavButton ? (
               <button
                 type="button"
                 aria-label={tA11y('openNavigationMenu')}
                 onClick={useLayoutStore.getState().openNavDrawer}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
               >
                 <HamburgerIcon />
               </button>
@@ -566,14 +613,37 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   setDmSheetOpen(true)
                   setSearchOpen(false)
                 }}
-                className="min-w-0 flex-1 text-left"
+                className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left"
               >
                 <h2 className="truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
+                <svg
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="m9 5 7 7-7 7" />
+                </svg>
               </button>
             ) : (
               <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
             )}
             {contextId && <DmCallButton conversationId={contextId} />}
+            {isMobile && (
+              <button
+                type="button"
+                aria-label={tChat('channelInfoActionSearch')}
+                onClick={() => {
+                  setDmSheetOpen(false)
+                  setSearchOpen(true)
+                }}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-white/10"
+              >
+                <SearchIcon />
+              </button>
+            )}
             {!isMobile && (
               <>
                 <IconButton
@@ -630,10 +700,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           </div>
         </div>
         {searchOpen ? (
-          <div className="absolute inset-0 z-30 md:relative md:inset-auto">
+          <ResponsivePanel overlay={panels.overlay} onClose={() => setSearchOpen(false)}>
             <Suspense fallback={null}>
               <SearchDrawer
                 query={searchQuery}
+                overlay={panels.overlay}
                 onQueryChange={setSearchQuery}
                 onClose={() => {
                   setSearchOpen(false)
@@ -643,10 +714,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 conversationId={dm.dmConvId ?? undefined}
               />
             </Suspense>
-          </div>
+          </ResponsivePanel>
         ) : dmSheetOpen && dm.currentConv ? (
           <ConversationInfoPanel
             key={contextId}
+            overlay={panels.overlay}
             conversation={dm.currentConv}
             currentUserId={userId}
             otherMember={dm.otherMember}
@@ -664,12 +736,13 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   }
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+    <section ref={panels.ref} className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
       {channelHeader}
 
       <div className="relative flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
         <ThreadPanel
+          overlay={panels.overlay}
           gifEnabled={gifEnabled}
           onCommand={(cmd, args) => {
             if (!isDm && cmd === 'poll') {
@@ -684,10 +757,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           }}
         />
         {searchOpen && (
-          <div className="absolute inset-0 z-30 md:relative md:inset-auto">
+          <ResponsivePanel overlay={panels.overlay} onClose={() => setSearchOpen(false)}>
             <Suspense fallback={null}>
               <SearchDrawer
                 query={searchQuery}
+                overlay={panels.overlay}
                 onQueryChange={setSearchQuery}
                 onClose={() => {
                   setSearchOpen(false)
@@ -695,12 +769,13 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 }}
               />
             </Suspense>
-          </div>
+          </ResponsivePanel>
         )}
         {!threadOpen &&
           !searchOpen &&
           (!isMobile && channelInfoDrawerOpen && activeChannel && !isDm && activeChannel.type === 'text' ? (
             <ChannelInfoDrawer
+              overlay={panels.overlay}
               onClose={() => useLayoutStore.getState().closeChannelInfoDrawer()}
               channelName={activeChannel.name}
               channelDescription={activeChannel.description}
@@ -708,7 +783,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               serverId={activeChannel.serverId}
             />
           ) : (
-            memberSidebar
+            !panels.membersOverlay && memberSidebar
           ))}
       </div>
 

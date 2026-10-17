@@ -30,6 +30,8 @@ import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { ReplyIcon } from '@/components/chat/chatIcons'
+import { DraftBadge } from '@/components/chat/DraftBadge'
+import { useHasDraft } from '@/stores/draft.store'
 
 const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -72,6 +74,7 @@ export const MessageRow = memo(function MessageRow({
 }) {
   const userId = useAuthStore((s) => s.user?.id)
   const isDm = mode === 'dm'
+  const threadDraft = useHasDraft(mode, contextId, message.id)
   const isWebhook = !isDm && !!message.webhookId && !!message.webhook
   const isAuthor = message.authorId === userId
   const name = isWebhook
@@ -110,11 +113,8 @@ export const MessageRow = memo(function MessageRow({
 
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
-  const emojiArr = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
-  const customEmojiMap = useMemo(
-    () => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined),
-    [emojiArr]
-  )
+  const emojiArr = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
+  const customEmojiMap = useMemo(() => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined), [emojiArr])
 
   const { has: hasPerm } = usePermissions(isDm ? null : serverId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
@@ -239,11 +239,7 @@ export const MessageRow = memo(function MessageRow({
         />
       )}
       {mobileEmojiPicker && (
-        <MobileEmojiPickerOverlay
-          messageId={message.id}
-          mode={mode}
-          onClose={() => setMobileEmojiPicker(false)}
-        />
+        <MobileEmojiPickerOverlay messageId={message.id} mode={mode} onClose={() => setMobileEmojiPicker(false)} />
       )}
       {!editing && !isMobile && (
         <MessageActions
@@ -291,7 +287,10 @@ export const MessageRow = memo(function MessageRow({
         {showHead && (
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
             {isWebhook ? (
-              <span className="text-[15px] font-semibold" style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(name)}>
+              <span
+                className="text-[15px] font-semibold"
+                style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(name)}
+              >
                 {name}
               </span>
             ) : (
@@ -417,7 +416,7 @@ export const MessageRow = memo(function MessageRow({
 
         {message.poll && <PollDisplay poll={message.poll} />}
 
-        {!isDm && !hideThreadAction && !message.threadParentId && (message.threadCount ?? 0) > 0 && (
+        {!isDm && !hideThreadAction && !message.threadParentId && ((message.threadCount ?? 0) > 0 || threadDraft) && (
           <button
             type="button"
             onClick={() => {
@@ -425,20 +424,28 @@ export const MessageRow = memo(function MessageRow({
                 useThreadStore.getState().openThread(contextId, message)
               })
             }}
-            className="mt-1.5 flex max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-white/[0.03] px-2.5 py-1.5 text-xs transition hover:bg-white/[0.06]"
+            className="mt-1.5 flex max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-white/[0.03] px-2.5 py-1.5 text-xs transition hover:bg-white/[0.06] max-lg:min-h-11"
           >
-            <svg className="h-3.5 w-3.5 shrink-0 text-primary/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg
+              className="h-3.5 w-3.5 shrink-0 text-primary/70"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
             <span className="shrink-0 font-medium text-primary/70">
               {message.threadCount} {message.threadCount === 1 ? 'reply' : 'replies'}
             </span>
+            <DraftBadge mode="channel" contextId={contextId} threadParentId={message.id} />
             {message.lastThreadReply && (
               <span className="min-w-0 truncate text-gray-400">
                 <span className="font-medium text-gray-300">
-                  {message.lastThreadReply.author?.displayName ?? message.lastThreadReply.author?.username ?? 'Someone'}:
-                </span>
-                {' '}{message.lastThreadReply.content?.slice(0, 80) || 'sent an attachment'}
+                  {message.lastThreadReply.author?.displayName ?? message.lastThreadReply.author?.username ?? 'Someone'}
+                  :
+                </span>{' '}
+                {message.lastThreadReply.content?.slice(0, 80) || 'sent an attachment'}
               </span>
             )}
           </button>
@@ -484,7 +491,7 @@ function MobileEmojiPickerOverlay({
   onClose: () => void
 }) {
   const serverId = useServerStore((s) => s.currentServerId)
-  const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
+  const customEmojis = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
 
   const handleReaction = useCallback(
     (emoji: string) => {

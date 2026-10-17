@@ -40,6 +40,7 @@ const VALID_SS_FPS: ScreenShareFps[] = [5, 15, 20, 30]
 export type SettingsSlice = {
   accent: AccentPreset
   memberSidebarVisible: boolean
+  compactPreviews: boolean
   channelSidebarWidth: number
   collapsedCategoryIds: string[]
   audioInputDeviceId: string
@@ -69,6 +70,7 @@ export type SettingsSlice = {
 type SettingsActions = {
   setAccent: (preset: AccentPreset) => void
   setMemberSidebarVisible: (v: boolean) => void
+  setCompactPreviews: (v: boolean) => void
   toggleMemberSidebarVisible: () => void
   setChannelSidebarWidth: (w: number) => void
   toggleCollapsedCategory: (categoryId: string) => void
@@ -103,6 +105,7 @@ export type SettingsState = SettingsSlice & SettingsActions
 const defaults: SettingsSlice = {
   accent: 'amber',
   memberSidebarVisible: defaultMemberSidebarVisible(),
+  compactPreviews: false,
   channelSidebarWidth: CHANNEL_SIDEBAR_DEFAULT,
   collapsedCategoryIds: [],
   audioInputDeviceId: '',
@@ -137,6 +140,7 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
   if (typeof o.accent === 'string' && VALID_ACCENTS.includes(o.accent as AccentPreset))
     out.accent = o.accent as AccentPreset
   if (typeof o.memberSidebarVisible === 'boolean') out.memberSidebarVisible = o.memberSidebarVisible
+  if (typeof o.compactPreviews === 'boolean') out.compactPreviews = o.compactPreviews
   if (typeof o.channelSidebarWidth === 'number' && Number.isFinite(o.channelSidebarWidth))
     out.channelSidebarWidth = clampChannelWidth(o.channelSidebarWidth)
   if (Array.isArray(o.collapsedCategoryIds) && o.collapsedCategoryIds.every((x) => typeof x === 'string'))
@@ -156,18 +160,21 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
   if (o.pttBinding && typeof o.pttBinding === 'object') {
     const b = o.pttBinding as Record<string, unknown>
     if (b.type === 'key' && typeof b.key === 'string') out.pttBinding = { type: 'key', key: b.key }
-    else if (b.type === 'mouse' && typeof b.button === 'number')
-      out.pttBinding = { type: 'mouse', button: b.button }
+    else if (b.type === 'mouse' && typeof b.button === 'number') out.pttBinding = { type: 'mouse', button: b.button }
   }
   if (typeof o.vadThreshold === 'number' && Number.isFinite(o.vadThreshold)) out.vadThreshold = o.vadThreshold
   if (typeof o.vadMode === 'string' && VALID_VAD.includes(o.vadMode as VadMode)) out.vadMode = o.vadMode as VadMode
   if (typeof o.notifEnabled === 'boolean') out.notifEnabled = o.notifEnabled
   if (typeof o.notifSoundEnabled === 'boolean') out.notifSoundEnabled = o.notifSoundEnabled
-  if (typeof o.screenShareResolution === 'string' && VALID_SS_RES.includes(o.screenShareResolution as ScreenShareResolution))
+  if (
+    typeof o.screenShareResolution === 'string' &&
+    VALID_SS_RES.includes(o.screenShareResolution as ScreenShareResolution)
+  )
     out.screenShareResolution = o.screenShareResolution as ScreenShareResolution
   if (typeof o.screenShareFps === 'number' && VALID_SS_FPS.includes(o.screenShareFps as ScreenShareFps))
     out.screenShareFps = o.screenShareFps as ScreenShareFps
-  if (typeof o.screenShareHighQualityAudio === 'boolean') out.screenShareHighQualityAudio = o.screenShareHighQualityAudio
+  if (typeof o.screenShareHighQualityAudio === 'boolean')
+    out.screenShareHighQualityAudio = o.screenShareHighQualityAudio
   if (typeof o.voiceJoinMuted === 'boolean') out.voiceJoinMuted = o.voiceJoinMuted
   if (typeof o.voiceJoinDeafened === 'boolean') out.voiceJoinDeafened = o.voiceJoinDeafened
   if (typeof o.locale === 'string' && isAppLocale(o.locale)) out.locale = o.locale
@@ -188,6 +195,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setMemberSidebarVisible: (v) => set({ memberSidebarVisible: v }),
+      setCompactPreviews: (v) => set({ compactPreviews: v }),
 
       toggleMemberSidebarVisible: () => set((s) => ({ memberSidebarVisible: !s.memberSidebarVisible })),
 
@@ -208,8 +216,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAudioInputDeviceId: (id) => set({ audioInputDeviceId: id }),
       setAudioOutputDeviceId: (id) => set({ audioOutputDeviceId: id }),
       setCameraDeviceId: (id) => set({ cameraDeviceId: id }),
-      setCameraQuality: (q) =>
-        set({ cameraQuality: VALID_QUALITIES.includes(q) ? q : defaults.cameraQuality }),
+      setCameraQuality: (q) => set({ cameraQuality: VALID_QUALITIES.includes(q) ? q : defaults.cameraQuality }),
       setBackgroundBlurEnabled: (v) => set({ backgroundBlurEnabled: v }),
 
       setNoiseReductionMode: (mode) =>
@@ -220,8 +227,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setMicMode: (mode) => set({ micMode: VALID_MIC.includes(mode) ? mode : defaults.micMode }),
       setPttBinding: (b) => set({ pttBinding: b }),
-      setVadThreshold: (n) =>
-        set({ vadThreshold: Number.isFinite(n) ? n : defaults.vadThreshold }),
+      setVadThreshold: (n) => set({ vadThreshold: Number.isFinite(n) ? n : defaults.vadThreshold }),
       setVadMode: (mode) => set({ vadMode: VALID_VAD.includes(mode) ? mode : defaults.vadMode }),
 
       setNotifEnabled: (v) => set({ notifEnabled: v }),
@@ -236,8 +242,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({
           screenShareResolution: VALID_SS_RES.includes(r) ? r : defaults.screenShareResolution
         }),
-      setScreenShareFps: (f) =>
-        set({ screenShareFps: VALID_SS_FPS.includes(f) ? f : defaults.screenShareFps }),
+      setScreenShareFps: (f) => set({ screenShareFps: VALID_SS_FPS.includes(f) ? f : defaults.screenShareFps }),
 
       setScreenShareHighQualityAudio: (v) => set({ screenShareHighQualityAudio: v }),
       setVoiceJoinMuted: (v) => set({ voiceJoinMuted: v }),
@@ -258,6 +263,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (s) => ({
         accent: s.accent,
         memberSidebarVisible: s.memberSidebarVisible,
+        compactPreviews: s.compactPreviews,
         channelSidebarWidth: s.channelSidebarWidth,
         collapsedCategoryIds: s.collapsedCategoryIds,
         audioInputDeviceId: s.audioInputDeviceId,

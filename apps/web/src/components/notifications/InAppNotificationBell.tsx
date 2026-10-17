@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import type { InAppNotificationDto } from '@/lib/api/types'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { CountBadge } from '@/components/ui'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { getDmCallUrl, messageNotificationUrl } from '@chat/shared'
@@ -194,7 +196,7 @@ export function InAppNotificationBell({
   size = 'md'
 }: {
   className?: string
-  size?: 'sm' | 'md' | 'rail'
+  size?: 'sm' | 'md' | 'rail' | 'navigation'
 }) {
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState<{
@@ -216,6 +218,10 @@ export function InAppNotificationBell({
   const showLoading = useDelayedFlag(listLoading)
   const { navigate } = useAppNavigate()
   const { t: tVoice } = useTranslation('voice')
+  const { t } = useTranslation('nav')
+  const { t: tCommon } = useTranslation('common')
+  useFocusTrap(panelRef, open && !!panelPos, () => setOpen(false))
+  useBackGestureClose(open, () => setOpen(false), size === 'navigation')
 
   useEffect(() => {
     void fetchUnread()
@@ -266,10 +272,7 @@ export function InAppNotificationBell({
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
-      if (
-        panelRef.current?.contains(e.target as Node) ||
-        btnRef.current?.contains(e.target as Node)
-      ) {
+      if (panelRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) {
         return
       }
       setOpen(false)
@@ -333,6 +336,9 @@ export function InAppNotificationBell({
     createPortal(
       <div
         ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('mobileInbox')}
         className="fixed z-[140] flex w-[min(100vw-16px,380px)] flex-col overflow-hidden rounded-lg border border-white/10 bg-surface-dark py-2 shadow-xl ring-1 ring-black/40"
         style={{
           left: panelPos.left,
@@ -341,20 +347,26 @@ export function InAppNotificationBell({
           height: panelPos.height
         }}
       >
-        {showLoading && (
-          <span className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/70" />
-        )}
+        {showLoading && <span className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/70" />}
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 pb-2">
-          <span className="text-sm font-semibold text-white">Inbox</span>
+          <span className="text-sm font-semibold text-white">{t('mobileInbox')}</span>
           {unreadCount > 0 && (
             <button
               type="button"
-              className="text-xs font-medium text-primary hover:underline"
+              className="min-h-11 text-xs font-medium text-primary hover:underline"
               onClick={() => void markAllRead()}
             >
-              Mark all as seen
+              {t('inboxMarkAll')}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label={tCommon('close')}
+            className="h-11 w-11 rounded text-gray-400 hover:bg-white/10"
+          >
+            &times;
+          </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {items.length === 0 && showLoading ? (
@@ -370,7 +382,7 @@ export function InAppNotificationBell({
             <div className="h-full" />
           ) : items.length === 0 ? (
             <div className="flex h-full items-center justify-center px-3">
-              <p className="text-sm text-gray-500">You&apos;re all caught up.</p>
+              <p className="text-sm text-gray-500">{t('inboxCaughtUp')}</p>
             </div>
           ) : (
             <ul>
@@ -379,7 +391,7 @@ export function InAppNotificationBell({
                   <button
                     type="button"
                     onClick={() => void onItemClick(n)}
-                    className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
+                    className={`flex min-h-11 w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
                       n.readAt ? 'opacity-70' : ''
                     }`}
                   >
@@ -401,22 +413,27 @@ export function InAppNotificationBell({
             <div className="border-t border-white/10 px-2 py-2">
               <button
                 type="button"
-                className="w-full rounded py-1.5 text-xs font-medium text-gray-400 hover:bg-white/5 hover:text-white"
+                className="min-h-11 w-full rounded py-1.5 text-xs font-medium text-gray-400 hover:bg-white/5 hover:text-white"
                 onClick={() => void fetchList({ append: true })}
               >
-                Load more
+                {t('inboxLoadMore')}
               </button>
             </div>
           ) : null}
-          {listLoading && items.length > 0 ? (
-            <p className="py-2 text-center text-xs text-gray-500">Loading…</p>
-          ) : null}
+          {listLoading && items.length > 0 ? <p className="py-2 text-center text-xs text-gray-500">Loading…</p> : null}
         </div>
       </div>,
       document.body
     )
 
-  const buttonSize = size === 'sm' ? 'h-7 w-7' : size === 'rail' ? 'h-9 w-9' : 'h-10 w-10'
+  const buttonSize =
+    size === 'navigation'
+      ? 'min-h-14 flex-1 flex-col gap-0.5 text-xs font-medium'
+      : size === 'sm'
+        ? 'h-7 w-7'
+        : size === 'rail'
+          ? 'h-9 w-9'
+          : 'h-10 w-10'
   const iconSize = size === 'md' ? 'h-5 w-5' : 'h-[18px] w-[18px]'
 
   return (
@@ -424,19 +441,29 @@ export function InAppNotificationBell({
       <button
         ref={btnRef}
         type="button"
-        aria-label={`Inbox${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-        title="Inbox"
+        aria-label={unreadCount > 0 ? t('inboxUnread', { count: unreadCount }) : t('mobileInbox')}
+        title={t('mobileInbox')}
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`relative flex ${buttonSize} shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white ${className}`}
       >
-        <svg className={iconSize} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className={iconSize}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M22 12h-6l-2 3h-4l-2-3H2" />
           <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
         </svg>
+        {size === 'navigation' && t('mobileInbox')}
         <CountBadge
           count={unreadCount}
           variant="danger"
-          className="absolute -right-0.5 -top-0.5 min-w-[1rem] px-0.5 text-[10px]"
+          className={`absolute min-w-[1rem] px-0.5 text-[10px] ${size === 'navigation' ? 'left-[calc(50%+6px)] top-1' : '-right-0.5 -top-0.5'}`}
         />
       </button>
       {panel}

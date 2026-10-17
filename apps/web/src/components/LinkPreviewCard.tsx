@@ -2,6 +2,7 @@ import type { LinkPreview } from '@chat/shared'
 import { memo, useState } from 'react'
 import { extractYouTubeId, isGifUrl, isImageUrl } from '@/lib/mediaUrl'
 import { useMessageMedia } from '@/components/media/MessageMediaGallery'
+import { CollapsiblePreview } from '@/components/media/CollapsiblePreview'
 
 export { isGifUrl, isImageUrl }
 
@@ -116,8 +117,14 @@ function DefaultPreview({ lp }: { lp: LinkPreview }) {
 
 export const LinkPreviewCard = memo(function LinkPreviewCard({ lp }: { lp: LinkPreview }) {
   const youtubeId = extractYouTubeId(lp.url)
-  if (youtubeId) return <YouTubeEmbed lp={lp} videoId={youtubeId} />
-  if (isGifUrl(lp)) return <MediaEmbed lp={lp} label="GIF" />
-  if (isImageUrl(lp)) return <MediaEmbed lp={lp} label="Image" />
-  return <DefaultPreview lp={lp} />
+  const content = youtubeId ? (
+    <YouTubeEmbed lp={lp} videoId={youtubeId} />
+  ) : isGifUrl(lp) ? (
+    <MediaEmbed lp={lp} label="GIF" />
+  ) : isImageUrl(lp) ? (
+    <MediaEmbed lp={lp} label="Image" />
+  ) : (
+    <DefaultPreview lp={lp} />
+  )
+  return <CollapsiblePreview title={lp.title ?? lp.siteName ?? lp.url}>{content}</CollapsiblePreview>
 })

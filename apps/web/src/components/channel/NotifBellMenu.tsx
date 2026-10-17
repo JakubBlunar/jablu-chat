@@ -5,6 +5,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/api'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 type NotifLevel = 'all' | 'mentions' | 'none'
 
@@ -31,6 +32,7 @@ export function NotifBellMenu({
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+  useFocusTrap(menuRef, open, () => setOpen(false))
 
   useEffect(() => {
     setOptimistic(null)
@@ -92,11 +94,7 @@ export function NotifBellMenu({
           e.stopPropagation()
           setOpen((p) => !p)
         }}
-        className={cn(
-          triggerClassName,
-          isMuted && 'text-gray-500',
-          isMentions && 'text-yellow-500'
-        )}
+        className={cn(triggerClassName, isMuted && 'text-gray-500', isMentions && 'text-yellow-500')}
       >
         <ChannelNotifPrefTriggerIcon level={level} />
       </IconButton>

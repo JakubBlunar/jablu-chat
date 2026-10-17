@@ -2,7 +2,7 @@ import { RoomEvent, Track, type Participant, type TrackPublication } from 'livek
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { joinVoiceChannel } from '@/lib/voiceConnect'
-import { useIsMobile } from '@/hooks/useMobile'
+import { useIsTablet } from '@/hooks/useMobile'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CameraSettingsModal } from './CameraSettingsModal'
@@ -29,9 +29,9 @@ export function VoiceRoom() {
 
   useEffect(() => {
     const orient = screen?.orientation as
-      | (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void })
-      | undefined
-    const lock = (window as unknown as { __landscapeLock?: { disable: () => void; enable: () => void } }).__landscapeLock
+      (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void }) | undefined
+    const lock = (window as unknown as { __landscapeLock?: { disable: () => void; enable: () => void } })
+      .__landscapeLock
 
     lock?.disable()
     orient?.unlock?.()
@@ -127,9 +127,7 @@ export function VoiceRoom() {
     if (voiceNetworkDropout) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-          <p className="text-sm text-gray-300">
-            {t('dropoutTitle', { channel: voiceNetworkDropout.channelName })}
-          </p>
+          <p className="text-sm text-gray-300">{t('dropoutTitle', { channel: voiceNetworkDropout.channelName })}</p>
           <div className="flex flex-wrap justify-center gap-2">
             <button
               type="button"
@@ -157,9 +155,7 @@ export function VoiceRoom() {
         </div>
       )
     }
-    return (
-      <div className="flex flex-1 items-center justify-center text-gray-400">{t('notConnected')}</div>
-    )
+    return <div className="flex flex-1 items-center justify-center text-gray-400">{t('notConnected')}</div>
   }
 
   const focusedTile = focusedId ? (tiles.find((t) => t.id === focusedId) ?? null) : null
@@ -189,9 +185,7 @@ export function VoiceRoom() {
             onFullscreenConsumed={() => setPendingFullscreen(false)}
           />
         ) : (
-          <div
-            className={`grid h-full content-center gap-2 overflow-y-auto md:gap-3 ${gridCols(tiles.length)}`}
-          >
+          <div className={`grid h-full content-center gap-2 overflow-y-auto md:gap-3 ${gridCols(tiles.length)}`}>
             {tiles.map((tile) => (
               <div key={tile.id} className="mx-auto w-full max-w-2xl">
                 <ClickableTile tile={tile} onClick={handleTileClick} onFullscreen={handleTileFullscreen} />
@@ -237,7 +231,12 @@ function ClickableTile({
         tabIndex={0}
         className="w-full cursor-pointer text-left transition"
         onClick={() => onClick(tile.id)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(tile.id) } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClick(tile.id)
+          }
+        }}
       >
         <TileContent tile={tile} compact={compact} />
       </div>
@@ -341,13 +340,18 @@ function FocusedLayout({
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-hidden">
-      <div ref={fsRef} className={cssFs ? 'fixed inset-0 z-[9999] bg-black' : 'relative min-h-0 flex-1 bg-surface-darkest'}>
+      <div
+        ref={fsRef}
+        className={cssFs ? 'fixed inset-0 z-[9999] bg-black' : 'relative min-h-0 flex-1 bg-surface-darkest'}
+      >
         <div
           className="h-full w-full cursor-pointer"
           onClick={onUnfocus}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onUnfocus() }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onUnfocus()
+          }}
           aria-label={t('unfocusTile')}
         >
           <div className="h-full [&>div]:aspect-auto [&>div]:h-full [&>div]:w-full">
@@ -528,12 +532,12 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
   const { t } = useTranslation('voice')
   const { t: tA11y } = useTranslation('a11y')
   const vc = useVoiceControls()
-  const isMobile = useIsMobile()
+  const compactNavigation = useIsTablet()
 
   return (
     <>
       <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-black/20 bg-surface px-2 shadow-sm md:px-4">
-        {isMobile && (
+        {compactNavigation && (
           <button
             type="button"
             aria-label={tA11y('openNavigationMenu')}

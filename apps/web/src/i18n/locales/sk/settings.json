@@ -1,9 +1,17 @@
 {
+  "backToSettings": "Späť do nastavení",
+  "mobileGroup1": "Váš účet",
+  "mobileGroup2": "Predvoľby",
+  "mobileGroup3": "Aktivita",
+  "mobileGroup4": "Zabezpečenie a nástroje",
+  "mobileGroup5": "Aplikácie",
   "title": "Nastavenia",
   "closeSettings": "Zavrieť nastavenia",
   "userSettings": "NASTAVENIA ÚČTU",
   "logOut": "Odhlásiť sa",
   "appearance": {
+    "compactPreviews": "Kompaktné náhľady",
+    "compactPreviewsHint": "Zbalí náhľady odkazov, obrázkov, GIFov a videí do malých riadkov. Ťuknutím ich rozbalíte. Predvolene sa zobrazujú plné náhľady.",
     "language": "Jazyk",
     "languageHint": "Jazyk rozhrania. Ďalšie jazyky môžeme pridávať postupne.",
     "accentTitle": "Farba zvýraznenia",

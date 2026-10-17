@@ -1,4 +1,12 @@
 {
+  "mobileNavigation": "Main navigation",
+  "mobileChats": "Chats",
+  "mobileInbox": "Inbox",
+  "mobileYou": "You",
+  "inboxUnread": "Inbox, {{count}} unread",
+  "inboxMarkAll": "Mark all as seen",
+  "inboxCaughtUp": "You're all caught up.",
+  "inboxLoadMore": "Load more",
   "findConversation": "Find a conversation",
   "searchPlaceholder": "Search…",
   "directMessages": "Direct Messages",

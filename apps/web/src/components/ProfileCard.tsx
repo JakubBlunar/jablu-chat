@@ -11,6 +11,7 @@ import { useActivityStore } from '@/stores/activity.store'
 import { useProfileCardStore } from '@/stores/profileCard.store'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
@@ -64,6 +65,7 @@ export function ProfileCard({
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
+  useFocusTrap(cardRef, !isMobile, onClose)
 
   useEffect(() => {
     if (isMobile) return
@@ -88,7 +90,13 @@ export function ProfileCard({
 
   if (isMobile) {
     return createPortal(
-      <ModalOverlay onClose={onClose} zIndex="z-[110]" maxWidth="max-w-[320px]" noPadding className="max-h-[80vh] overflow-y-auto overflow-x-hidden">
+      <ModalOverlay
+        onClose={onClose}
+        zIndex="z-[110]"
+        maxWidth="max-w-[320px]"
+        noPadding
+        className="max-h-[80vh] overflow-y-auto overflow-x-hidden"
+      >
         <div ref={cardRef}>
           <ProfileCardContent user={user} onClose={onClose} />
         </div>
@@ -145,13 +153,7 @@ type MutualFriend = {
   status: string
 }
 
-function ProfileCardContent({
-  user,
-  onClose
-}: {
-  user: ProfileCardUser
-  onClose: () => void
-}) {
+function ProfileCardContent({ user, onClose }: { user: ProfileCardUser; onClose: () => void }) {
   const currentUserId = useAuthStore((s) => s.user?.id)
   const currentServerId = useServerStore((s) => s.currentServerId)
   const adminRole = useMemberStore((s) => {
@@ -211,18 +213,14 @@ function ProfileCardContent({
           {user.isBot && (
             <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
           )}
-          {adminRole && (
-            <RoleBadge name={adminRole.name} color={adminRole.color} size="sm" showDot={false} />
-          )}
+          {adminRole && <RoleBadge name={adminRole.name} color={adminRole.color} size="sm" showDot={false} />}
         </div>
 
         {user.displayName && user.displayName !== user.username && (
           <p className="text-xs text-gray-400">@{user.username}</p>
         )}
         <p className="text-xs text-gray-400">{statusLabel[user.status]}</p>
-        {user.customStatus && (
-          <p className="mt-0.5 text-xs text-gray-300 italic">{user.customStatus}</p>
-        )}
+        {user.customStatus && <p className="mt-0.5 text-xs text-gray-300 italic">{user.customStatus}</p>}
 
         {activity && (
           <div className="mt-3 rounded-md bg-black/20 p-2.5">
@@ -251,12 +249,14 @@ function ProfileCardContent({
 
         {mutualFriends.length > 0 && (
           <div className="mb-3">
-            <SectionHeading className="mb-1">
-              MUTUAL FRIENDS — {mutualFriends.length}
-            </SectionHeading>
+            <SectionHeading className="mb-1">MUTUAL FRIENDS — {mutualFriends.length}</SectionHeading>
             <div className="flex flex-wrap gap-1.5">
               {mutualFriends.slice(0, 8).map((f) => (
-                <div key={f.id} className="flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-1" title={f.displayName ?? f.username}>
+                <div
+                  key={f.id}
+                  className="flex items-center gap-1.5 rounded-full bg-white/5 px-2 py-1"
+                  title={f.displayName ?? f.username}
+                >
                   <UserAvatar username={f.username} avatarUrl={f.avatarUrl} size="sm" />
                   <span className="max-w-[80px] truncate text-xs text-gray-300">{f.displayName ?? f.username}</span>
                 </div>
@@ -270,9 +270,7 @@ function ProfileCardContent({
 
         {mutualServers.length > 0 && (
           <div className="mb-3">
-            <SectionHeading className="mb-1">
-              MUTUAL SERVERS — {mutualServers.length}
-            </SectionHeading>
+            <SectionHeading className="mb-1">MUTUAL SERVERS — {mutualServers.length}</SectionHeading>
             <div className="space-y-0.5">
               {mutualServers.map((s) => (
                 <button
@@ -412,9 +410,7 @@ function FriendButton({
   if (status.status === 'friends') {
     return (
       <div className="mt-3">
-        <span className="block rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-green-400">
-          Friends
-        </span>
+        <span className="block rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-green-400">Friends</span>
       </div>
     )
   }
@@ -422,9 +418,7 @@ function FriendButton({
   if (status.status === 'pending_outgoing') {
     return (
       <div className="mt-3 flex items-center gap-2">
-        <span className="flex-1 rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-gray-400">
-          Request Sent
-        </span>
+        <span className="flex-1 rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-gray-400">Request Sent</span>
         <button
           type="button"
           disabled={loading}
@@ -484,7 +478,10 @@ function SendDmButton({
 
   useEffect(() => {
     if (!userId || userId === currentUserId) return
-    api.canDmUser(userId).then((res) => setCanDm(res.allowed)).catch(() => setCanDm(true))
+    api
+      .canDmUser(userId)
+      .then((res) => setCanDm(res.allowed))
+      .catch(() => setCanDm(true))
   }, [userId, currentUserId, friendshipStatus])
 
   const handleClick = useCallback(async () => {
@@ -535,9 +532,7 @@ function SendDmButton({
 
 function RoleBadges({ userId }: { userId: string }) {
   const currentServerId = useServerStore((s) => s.currentServerId)
-  const member = useMemberStore((s) =>
-    s.members.find((m) => m.userId === userId && m.serverId === currentServerId)
-  )
+  const member = useMemberStore((s) => s.members.find((m) => m.userId === userId && m.serverId === currentServerId))
 
   if (!currentServerId) return null
 
@@ -558,7 +553,7 @@ function RoleBadges({ userId }: { userId: string }) {
 
 function XpProgressSection({ userId }: { userId: string }) {
   const currentServer = useServerStore((s) =>
-    s.currentServerId ? s.servers.find((sv) => sv.id === s.currentServerId) ?? null : null
+    s.currentServerId ? (s.servers.find((sv) => sv.id === s.currentServerId) ?? null) : null
   )
   const [progress, setProgress] = useState<{
     xp: number

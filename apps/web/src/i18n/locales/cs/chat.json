@@ -1,4 +1,6 @@
 {
+  "expandPreview": "Rozbalit náhled: {{name}}",
+  "collapsePreview": "Sbalit náhled: {{name}}",
   "draft": "Koncept",
   "draftSaveFailed": "Koncept se nepodařilo uložit do zařízení. Nechte tuto obrazovku otevřenou a zkuste to znovu.",
   "restoreAttachments": "Obnovit přílohy konceptu",

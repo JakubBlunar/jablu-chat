@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useIsMobile } from '@/hooks/useMobile'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 
 type Props = {
   onClose: () => void
@@ -27,15 +28,8 @@ export function ModalOverlay({
 }: Props) {
   const isMobile = useIsMobile()
   const dialogRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(dialogRef, true)
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  useFocusTrap(dialogRef, true, onClose)
+  useBackGestureClose(true, onClose, isMobile)
 
   return (
     <div
