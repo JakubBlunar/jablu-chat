@@ -13,6 +13,10 @@ jest.mock('@/lib/messageClipboard', () => ({ copyMessageContent: jest.fn(), shar
 jest.mock('@/lib/api', () => ({ api: {} }))
 jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 jest.mock('@/i18n/config', () => ({ i18n: { language: 'en' } }))
+jest.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ has: () => true }),
+  Permission: { MANAGE_MESSAGES: 1 }
+}))
 beforeEach(() => {
   jest.clearAllMocks()
   useTranslationStore.setState(
@@ -33,8 +37,6 @@ it('retains the drawer on clipboard failure and closes only after a successful c
       message={makeMessage()}
       mode="dm"
       contextId="dm"
-      isAuthor={false}
-      isAdminOrOwner={false}
       onClose={onClose}
       onReply={jest.fn()}
     />
@@ -52,8 +54,6 @@ it("does not offer deleting someone else's DM based on server permissions", () =
       message={makeMessage()}
       mode="dm"
       contextId="dm"
-      isAuthor={false}
-      isAdminOrOwner={true}
       onClose={jest.fn()}
       onReply={jest.fn()}
     />

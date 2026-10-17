@@ -1,4 +1,5 @@
-import { toggleMessageReaction } from './reactions'
+import { toggleMessageReaction, toggleMessageReactionAndRemember } from './reactions'
+import { addRecentReaction } from '@/stores/reactions.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -23,6 +24,7 @@ function toggle(params: Parameters<typeof toggleMessageReaction>[0]) {
   return operation
 }
 jest.mock('@/stores/toast.store', () => ({ showToast: jest.fn() }))
+jest.mock('@/stores/reactions.store', () => ({ addRecentReaction: jest.fn() }))
 jest.mock('@/stores/translation.store', () => ({
   useTranslationStore: { getState: () => ({ invalidate: jest.fn(), reset: jest.fn() }) }
 }))
@@ -30,6 +32,7 @@ beforeEach(() => {
   mockSocket.connected = true
   listeners.clear()
   operations.length = 0
+  jest.mocked(addRecentReaction).mockClear()
   mockEmit.mockReset().mockImplementation(
     (event: string, payload: unknown) =>
       new Promise((resolve) => {
@@ -70,6 +73,23 @@ beforeEach(() => {
 })
 
 describe('toggleMessageReaction', () => {
+  it.each([false, true])('remembers native reactions only after confirmation (ok=%s)', async (ok) => {
+    const result = toggleMessageReactionAndRemember({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
+    operations.push(result)
+    expect(addRecentReaction).not.toHaveBeenCalled()
+    lastEmit?.ack?.({ ok, action: 'added' })
+    expect(await result).toBe(ok)
+    expect(addRecentReaction).toHaveBeenCalledTimes(ok ? 1 : 0)
+  })
+
+  it('keeps custom emoji out of native recent reactions', async () => {
+    const result = toggleMessageReactionAndRemember({ mode: 'channel', messageId: 'm1', emoji: 'custom', isCustom: true })
+    operations.push(result)
+    lastEmit?.ack?.({ ok: true, action: 'added' })
+    expect(await result).toBe(true)
+    expect(addRecentReaction).not.toHaveBeenCalled()
+  })
+
   it('optimistically adds the reaction and emits with an ack', () => {
     toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })
 

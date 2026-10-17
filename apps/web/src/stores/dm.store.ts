@@ -1,3 +1,4 @@
+import { addMessageReaction, removeMessageReaction, replaceMessageInList, removeMessageFromList, messageListPatch } from '@/lib/messageCollection'
 import type { Message } from '@chat/shared'
 import { create } from 'zustand'
 import { requireMessageTarget, historyErrorKey } from '@/lib/messageHistory'
@@ -181,17 +182,9 @@ export const useDmStore = create<DmState>((set, _get) => ({
     })
   },
 
-  updateMessage: (message) => {
-    set((s) => ({
-      messages: s.messages.map((m) => (m.id === message.id ? message : m))
-    }))
-  },
+  updateMessage: (message) => set((s) => messageListPatch(s, replaceMessageInList(s.messages, message))),
 
-  removeMessage: (messageId) => {
-    set((s) => ({
-      messages: s.messages.filter((m) => m.id !== messageId)
-    }))
-  },
+  removeMessage: (messageId) => set((s) => messageListPatch(s, removeMessageFromList(s.messages, messageId))),
 
   clearMessages: () => {
     ++_dmFetchId
@@ -248,46 +241,9 @@ export const useDmStore = create<DmState>((set, _get) => ({
     }
   },
 
-  addReaction: (messageId, emoji, userId, isCustom) => {
-    set((s) => {
-      if (!s.messages.some((m) => m.id === messageId)) return s
-      return {
-        messages: s.messages.map((m) => {
-          if (m.id !== messageId) return m
-          const reactions = [...(m.reactions ?? [])]
-          const existing = reactions.find((r) => r.emoji === emoji)
-          if (existing) {
-            if (!existing.userIds.includes(userId)) {
-              existing.userIds = [...existing.userIds, userId]
-              existing.count += 1
-            }
-          } else {
-            reactions.push({ emoji, count: 1, userIds: [userId], isCustom: isCustom ?? false })
-          }
-          return { ...m, reactions }
-        })
-      }
-    })
-  },
+  addReaction: (messageId, emoji, userId, isCustom) => set((s) => messageListPatch(s, addMessageReaction(s.messages, messageId, emoji, userId, isCustom))),
 
-  removeReaction: (messageId, emoji, userId) => {
-    set((s) => {
-      if (!s.messages.some((m) => m.id === messageId)) return s
-      return {
-        messages: s.messages.map((m) => {
-          if (m.id !== messageId) return m
-          const reactions = (m.reactions ?? [])
-            .map((r) => {
-              if (r.emoji !== emoji) return r
-              const userIds = r.userIds.filter((id) => id !== userId)
-              return { ...r, userIds, count: userIds.length }
-            })
-            .filter((r) => r.count > 0)
-          return { ...m, reactions }
-        })
-      }
-    })
-  },
+  removeReaction: (messageId, emoji, userId) => set((s) => messageListPatch(s, removeMessageReaction(s.messages, messageId, emoji, userId))),
 
   updateConversationLastMessage: (conversationId, msg) => {
     set((s) => ({

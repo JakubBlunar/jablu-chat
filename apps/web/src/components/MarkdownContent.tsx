@@ -3,7 +3,7 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
-import type { Member } from '@/stores/member.store'
+import type { MemberMentionRef } from '@/lib/markdownMentions'
 import { resolveMediaUrl } from '@/lib/api'
 import { escapeHtml, VIDEO_ALLOWED_ATTRS, AUDIO_ALLOWED_ATTRS } from '@/lib/markdownSecurity'
 import { processMentions, type RoleMentionRef } from '@/lib/markdownMentions'
@@ -203,7 +203,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   )
 }
 
-const EMPTY_MEMBERS_MAP = new Map<string, Member>()
+const EMPTY_MEMBERS_MAP = new Map<string, MemberMentionRef>()
 
 const EMPTY_EMOJI_MAP = new Map<string, CustomEmojiRef>()
 
@@ -222,7 +222,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   onMentionClick?: (username: string, rect: DOMRect) => void
   channels?: ChannelRef[]
   onChannelClick?: (serverId: string, channelId: string) => void
-  membersByUsername?: Map<string, Member>
+  membersByUsername?: Map<string, MemberMentionRef>
   rolesByLowerName?: Map<string, RoleMentionRef>
   customEmojiMap?: Map<string, CustomEmojiRef>
 }) {

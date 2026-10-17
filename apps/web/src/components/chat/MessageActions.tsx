@@ -1,21 +1,9 @@
-import type { Message } from '@chat/shared'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { lazyWithRetry } from '@/lib/lazyWithRetry'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { Spinner } from '@/components/ui'
-
-const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
-
-function PickerLoading() {
-  return (
-    <div className="flex h-24 w-[340px] max-w-[80vw] items-center justify-center rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10">
-      <Spinner size="md" />
-    </div>
-  )
-}
-import { ConfirmDialog } from '@/components/ui'
+import { ConfirmDialog, Spinner } from '@/components/ui'
 import { IconButton } from '@/components/ui/IconButton'
 import {
   BookmarkIcon,
@@ -35,325 +23,28 @@ import {
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
 import { MessageActionsMenu, type MessageMenuItem } from '@/components/chat/MessageActionsMenu'
-import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
-import { copyMessageContent, shareMessageLink } from '@/lib/messageClipboard'
-import { messageTranslationVersion } from '@/lib/messageTranslationVersion'
+import {
+  useMessageActionController,
+  type MessageActionOptions
+} from '@/components/chat/hooks/useMessageActionController'
 import { useMessageDeletion } from '@/components/chat/hooks/useMessageDeletion'
-import { toggleMessageReaction } from '@/lib/reactions'
-import { useAuthStore } from '@/stores/auth.store'
-import { useShallow } from 'zustand/react/shallow'
-import { useBookmarkStore } from '@/stores/bookmark.store'
+import { messageTranslationVersion } from '@/lib/messageTranslationVersion'
+import { toggleMessageReactionAndRemember } from '@/lib/reactions'
 import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
-import { addRecentReaction, useRecentReactions } from '@/stores/reactions.store'
-import { usePermissions, Permission } from '@/hooks/usePermissions'
-import { useChannelStore } from '@/stores/channel.store'
-import { useServerStore } from '@/stores/server.store'
+import { useRecentReactions } from '@/stores/reactions.store'
 import { showToast } from '@/stores/toast.store'
-import { useThreadStore } from '@/stores/thread.store'
-import { useTranslationStore } from '@/stores/translation.store'
-import { setMessagePinned } from '@/lib/messagePins'
 
-interface MessageActionsProps {
-  message: Message
-  /** Channel messages vs direct messages. */
-  mode: 'channel' | 'dm'
-  /** channelId (channel mode) or conversationId (dm mode). */
-  contextId: string
-  onEdit?: () => void
-  onReply?: () => void
-  hidePinAction?: boolean
-  hideBookmarkAction?: boolean
-}
+const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
+type ActionView = 'menu' | 'emoji' | 'delete' | 'forward' | 'translate' | null
 
-export function MessageActions({
-  message,
-  mode,
-  contextId,
-  onEdit,
-  onReply,
-  hidePinAction,
-  hideBookmarkAction
-}: MessageActionsProps) {
+export function MessageActions(props: MessageActionOptions) {
   const { t } = useTranslation('chat')
-  const isDm = mode === 'dm'
-  const userId = useAuthStore((s) => s.user?.id)
-  const serverId = useServerStore((s) => s.currentServerId)
-  const channelLabel = useChannelStore((s) => {
-    if (isDm) return null
-    const ch = s.channels.find((c) => c.id === contextId)
-    return ch ? `#${ch.name}` : '#channel'
-  })
-  const { has: hasPerm } = usePermissions(isDm ? null : serverId)
-  const isAuthor = message.authorId === userId
-  const isAdminOrOwner = !isDm && hasPerm(Permission.MANAGE_MESSAGES)
-  const canDelete = isDm ? isAuthor : isAuthor || isAdminOrOwner
   const recent = useRecentReactions()
-  const { isBookmarked, toggleBookmark } = useBookmarkStore(
-    useShallow((s) => ({
-      isBookmarked: s.bookmarkedIds.has(message.id),
-      toggleBookmark: s.toggleBookmark
-    }))
-  )
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [showForwardModal, setShowForwardModal] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const deletion = useMessageDeletion(mode, contextId, message, () => setShowDeleteConfirm(false))
-  const [showMenu, setShowMenu] = useState(false)
-  const [showTranslateModal, setShowTranslateModal] = useState(false)
-  const translationEnabled = useTranslationStore((s) => s.capabilities?.enabled ?? false)
-  const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
-  const translationSetupError = useTranslationStore((s) => s.capabilitiesError || s.preferenceError)
-  const defaultTarget = useTranslationStore((s) => s.targetLang)
-  const fetchCapabilities = useTranslationStore((s) => s.fetchCapabilities)
-  const loadPreference = useTranslationStore((s) => s.loadPreference)
-  const translate = useTranslationStore((s) => s.translate)
-
-  useEffect(() => {
-    void fetchCapabilities()
-    void loadPreference()
-  }, [fetchCapabilities, loadPreference])
-
-  /**
-   * "Translate" menu action. With a stored default target we translate
-   * immediately (the result renders under the message); without one we open
-   * the language picker.
-   */
-  const handleTranslate = useCallback(() => {
-    if (defaultTarget) {
-      void translate(message.id, defaultTarget, messageTranslationVersion(message)).then((err) => {
-        if (err) showToast(t('translateErrorTitle'), t('translateErrorMessage'))
-      })
-    } else {
-      setShowTranslateModal(true)
-    }
-  }, [defaultTarget, translate, message, t])
-  const btnRef = useRef<HTMLDivElement>(null)
-  const moreBtnRef = useRef<HTMLButtonElement>(null)
-  const pickerRef = useRef<HTMLDivElement>(null)
-  const [pickerAbove, setPickerAbove] = useState(true)
-  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null)
-
-  const handleReply = useCallback(() => {
-    onReply?.()
-  }, [onReply])
-
-  const shareableUrl = useMemo(() => {
-    if (isDm) {
-      return getMessageShareUrl(
-        buildMessageJumpPath('dm', {
-          conversationId: contextId,
-          messageId: message.id,
-          threadParentId: message.threadParentId
-        })
-      )
-    }
-    return serverId != null
-      ? getMessageShareUrl(
-          buildMessageJumpPath('channel', {
-            serverId,
-            channelId: contextId,
-            messageId: message.id,
-            threadParentId: message.threadParentId
-          })
-        )
-      : null
-  }, [isDm, serverId, contextId, message.id, message.threadParentId])
-
-  const copyMessageLink = useCallback(() => {
-    if (!shareableUrl) return
-    void copyMessageContent(shareableUrl, true)
-  }, [shareableUrl])
-
-  const shareMessage = useCallback(async () => {
-    if (!shareableUrl) return
-    await shareMessageLink(shareableUrl, isDm ? t('directMessage') : t('messageShareTitle', { channel: channelLabel }))
-  }, [shareableUrl, isDm, channelLabel, t])
-
-  const handleCopyText = useCallback(() => {
-    if (!message.content) return
-    void copyMessageContent(message.content)
-  }, [message.content])
-
-  const handlePin = useCallback(() => {
-    void setMessagePinned(mode, contextId, message.id, !message.pinned).catch((error) => {
-      console.error('Failed to update message pin', error)
-      showToast(t('pinnedMessagesTitle'), t('pinActionFailed'))
-    })
-  }, [mode, message.id, message.pinned, contextId, t])
-
-  const openEmojiPicker = useCallback(() => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      setPickerAbove(rect.top > 460)
-      const width = 320
-      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))
-      const top = rect.top > 460 ? rect.top - 8 : rect.bottom + 8
-      setPickerPos({ top, left })
-    }
-    setShowEmojiPicker((p) => !p)
-  }, [])
-
-  const customEmojis = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
-
-  const handleEmojiSelect = useCallback(
-    (emoji: string) => {
-      toggleMessageReaction({ mode, messageId: message.id, emoji })
-      addRecentReaction(emoji)
-      setShowEmojiPicker(false)
-    },
-    [mode, message.id]
-  )
-
-  const handleCustomReaction = useCallback(
-    (name: string) => {
-      toggleMessageReaction({ mode, messageId: message.id, emoji: name, isCustom: true })
-      setShowEmojiPicker(false)
-    },
-    [mode, message.id]
-  )
-
-  useEffect(() => {
-    if (!showEmojiPicker) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowEmojiPicker(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [showEmojiPicker])
-
-  useEffect(() => {
-    if (!showEmojiPicker || !pickerPos || !pickerRef.current) return
-    const rect = pickerRef.current.getBoundingClientRect()
-    let nextLeft = pickerPos.left
-    if (rect.right > window.innerWidth - 8) {
-      nextLeft -= rect.right - (window.innerWidth - 8)
-    }
-    if (rect.left < 8) {
-      nextLeft += 8 - rect.left
-    }
-    if (Math.abs(nextLeft - pickerPos.left) > 1) {
-      setPickerPos((prev) => (prev ? { ...prev, left: nextLeft } : prev))
-    }
-  }, [showEmojiPicker, pickerPos])
-
-  const menuItems = useMemo<MessageMenuItem[]>(() => {
-    const items: MessageMenuItem[] = []
-    items.push({ id: 'react', label: t('actionAddReaction'), icon: <SmileIcon />, onClick: openEmojiPicker })
-    items.push({ id: 'reply', label: t('actionReply'), icon: <ReplyIcon />, onClick: handleReply })
-    if (!isDm && serverId) {
-      items.push({
-        id: 'forward',
-        label: t('actionForward'),
-        icon: <ForwardIcon />,
-        onClick: () => setShowForwardModal(true)
-      })
-    }
-    if (!isDm && !message.threadParentId) {
-      items.push({
-        id: 'thread',
-        label: message.threadCount ? t('actionViewThread') : t('actionCreateThread'),
-        icon: <ThreadIcon />,
-        onClick: () => useThreadStore.getState().openThread(contextId, message)
-      })
-    }
-    if (message.content) {
-      items.push({
-        id: 'copy-text',
-        label: t('actionCopyText'),
-        icon: <CopyIcon className="h-4 w-4" />,
-        onClick: handleCopyText
-      })
-    }
-    if (message.content && translationLoaded && translationEnabled) {
-      items.push({ id: 'translate', label: t('actionTranslate'), icon: <GlobeIcon />, onClick: handleTranslate })
-    }
-    if (translationSetupError) {
-      items.push({
-        id: 'translate-retry',
-        label: t('translationSetupRetry'),
-        icon: <GlobeIcon />,
-        onClick: () => void Promise.all([fetchCapabilities(), loadPreference()])
-      })
-    }
-    if (isAuthor && onEdit) {
-      items.push({ id: 'edit', label: t('actionEdit'), icon: <EditIcon />, onClick: onEdit })
-    }
-    const canPin = isDm ? !hidePinAction : isAdminOrOwner && !hidePinAction
-    if (canPin) {
-      items.push({
-        id: 'pin',
-        label: message.pinned ? t('actionUnpin') : t('actionPin'),
-        icon: <MessagePinIcon />,
-        onClick: handlePin
-      })
-    }
-    if (!hideBookmarkAction) {
-      items.push({
-        id: 'bookmark',
-        label: isBookmarked ? t('actionRemoveBookmark') : t('actionSaveMessage'),
-        icon: <BookmarkIcon filled={isBookmarked} />,
-        onClick: () =>
-          void toggleBookmark(message.id).catch((error) => {
-            console.error('Failed to update saved message', error)
-            showToast(t('savedMessagesTitle'), t('bookmarkActionFailed'))
-          })
-      })
-    }
-    if (shareableUrl) {
-      items.push({
-        id: 'copy-link',
-        label: t('actionCopyMessageLink'),
-        icon: <LinkIcon className="h-4 w-4" />,
-        onClick: copyMessageLink
-      })
-      items.push({
-        id: 'share',
-        label: t('actionShareMessage'),
-        icon: <ShareIcon />,
-        onClick: () => void shareMessage()
-      })
-    }
-    if (canDelete) {
-      items.push({
-        id: 'delete',
-        label: t('actionDelete'),
-        icon: <TrashIcon />,
-        danger: true,
-        onClick: () => setShowDeleteConfirm(true)
-      })
-    }
-    return items
-  }, [
-    t,
-    isDm,
-    serverId,
-    message,
-    contextId,
-    isAuthor,
-    onEdit,
-    hidePinAction,
-    isAdminOrOwner,
-    hideBookmarkAction,
-    isBookmarked,
-    shareableUrl,
-    canDelete,
-    openEmojiPicker,
-    handleReply,
-    handleCopyText,
-    handleTranslate,
-    translationLoaded,
-    translationEnabled,
-    translationSetupError,
-    fetchCapabilities,
-    loadPreference,
-    handlePin,
-    toggleBookmark,
-    copyMessageLink,
-    shareMessage
-  ])
-
+  const [view, setView] = useState<ActionView>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLButtonElement>(null)
   return (
-    <div ref={btnRef} className="absolute right-2 top-0 z-10 flex items-start">
+    <div ref={toolbarRef} className="absolute right-2 top-0 z-10 flex items-start">
       <div className="flex items-center gap-0.5 rounded bg-surface-dark p-0.5 shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         {recent.map((emoji) => (
           <button
@@ -361,31 +52,174 @@ export function MessageActions({
             type="button"
             title={t('actionAddReaction')}
             aria-label={`${t('actionAddReaction')} ${emoji}`}
-            onClick={() => handleEmojiSelect(emoji)}
+            onClick={() =>
+              void toggleMessageReactionAndRemember({ mode: props.mode, messageId: props.message.id, emoji })
+            }
             className="flex h-7 w-7 items-center justify-center rounded text-[1.05rem] leading-none transition hover:bg-white/10"
           >
             {emoji}
           </button>
         ))}
-        <IconButton label={t('actionAddReaction')} onClick={openEmojiPicker}>
+        <IconButton
+          label={t('actionAddReaction')}
+          onClick={() => setView((current) => (current === 'emoji' ? null : 'emoji'))}
+        >
           <SmileIcon />
         </IconButton>
-        <IconButton label={t('actionReply')} onClick={handleReply}>
+        <IconButton label={t('actionReply')} onClick={props.onReply}>
           <ReplyIcon />
         </IconButton>
         <IconButton
-          ref={moreBtnRef}
+          ref={moreRef}
           label={t('actionMore')}
           aria-haspopup="menu"
-          aria-expanded={showMenu}
-          active={showMenu}
-          onClick={() => setShowMenu((p) => !p)}
+          aria-expanded={view === 'menu'}
+          active={view === 'menu'}
+          onClick={() => setView((current) => (current === 'menu' ? null : 'menu'))}
         >
           <MoreIcon />
         </IconButton>
       </div>
-      {showMenu && <MessageActionsMenu anchorRef={moreBtnRef} items={menuItems} onClose={() => setShowMenu(false)} />}
-      {showDeleteConfirm && (
+      {view && (
+        <MessageActionSurface {...props} view={view} setView={setView} toolbarRef={toolbarRef} moreRef={moreRef} />
+      )}
+    </div>
+  )
+}
+
+function MessageActionSurface({
+  view,
+  setView,
+  toolbarRef,
+  moreRef,
+  ...props
+}: MessageActionOptions & {
+  view: Exclude<ActionView, null>
+  setView: Dispatch<SetStateAction<ActionView>>
+  toolbarRef: RefObject<HTMLDivElement | null>
+  moreRef: RefObject<HTMLButtonElement | null>
+}) {
+  const { t } = useTranslation('chat')
+  const { message, contextId } = props
+  const actions = useMessageActionController({ ...props, onComplete: () => setView(null) })
+  const close = () => setView(null)
+  const deletion = useMessageDeletion(props.mode, contextId, message, close)
+  const customEmojis = useEmojiStore((s) =>
+    actions.serverId ? (s.byServer[actions.serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS
+  )
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number; above: boolean } | null>(null)
+
+  useEffect(() => {
+    if (view !== 'emoji') return
+    const rect = toolbarRef.current?.getBoundingClientRect()
+    if (rect)
+      setPickerPos({
+        above: rect.top > 460,
+        left: Math.max(8, Math.min(window.innerWidth - 328, rect.right - 320)),
+        top: rect.top > 460 ? rect.top - 8 : rect.bottom + 8
+      })
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setView(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [view, toolbarRef, setView])
+
+  useEffect(() => {
+    if (view !== 'emoji' || !pickerPos || !pickerRef.current) return
+    const rect = pickerRef.current.getBoundingClientRect()
+    let left = pickerPos.left
+    if (rect.right > window.innerWidth - 8) left -= rect.right - (window.innerWidth - 8)
+    if (rect.left < 8) left += 8 - rect.left
+    if (Math.abs(left - pickerPos.left) > 1) setPickerPos({ ...pickerPos, left })
+  }, [view, pickerPos])
+
+  const items: MessageMenuItem[] = [
+    { id: 'react', label: t('actionAddReaction'), icon: <SmileIcon />, onClick: () => setView('emoji') },
+    { id: 'reply', label: t('actionReply'), icon: <ReplyIcon />, onClick: actions.reply }
+  ]
+  if (actions.canForward)
+    items.push({ id: 'forward', label: t('actionForward'), icon: <ForwardIcon />, onClick: () => setView('forward') })
+  if (actions.canThread)
+    items.push({
+      id: 'thread',
+      label: t(message.threadCount ? 'actionViewThread' : 'actionCreateThread'),
+      icon: <ThreadIcon />,
+      onClick: actions.thread
+    })
+  if (message.content)
+    items.push({
+      id: 'copy-text',
+      label: t('actionCopyText'),
+      icon: <CopyIcon className="h-4 w-4" />,
+      onClick: () => void actions.copyText()
+    })
+  if (actions.canTranslate)
+    items.push({
+      id: 'translate',
+      label: t('actionTranslate'),
+      icon: <GlobeIcon />,
+      onClick: () => actions.translate(() => setView('translate'))
+    })
+  if (actions.translationSetupError)
+    items.push({
+      id: 'translate-retry',
+      label: t('translationSetupRetry'),
+      icon: <GlobeIcon />,
+      onClick: actions.retryTranslation
+    })
+  if (actions.canEdit) items.push({ id: 'edit', label: t('actionEdit'), icon: <EditIcon />, onClick: actions.edit })
+  if (actions.canPin)
+    items.push({
+      id: 'pin',
+      label: t(message.pinned ? 'actionUnpin' : 'actionPin'),
+      icon: <MessagePinIcon />,
+      onClick: () => void actions.pin()
+    })
+  if (actions.canBookmark)
+    items.push({
+      id: 'bookmark',
+      label: t(actions.isBookmarked ? 'actionRemoveBookmark' : 'actionSaveMessage'),
+      icon: <BookmarkIcon filled={actions.isBookmarked} />,
+      onClick: () => void actions.bookmark()
+    })
+  if (actions.shareableUrl) {
+    items.push({
+      id: 'copy-link',
+      label: t('actionCopyMessageLink'),
+      icon: <LinkIcon className="h-4 w-4" />,
+      onClick: () => void actions.copyLink()
+    })
+    items.push({
+      id: 'share',
+      label: t('actionShareMessage'),
+      icon: <ShareIcon />,
+      onClick: () => void actions.share()
+    })
+  }
+  if (actions.canDelete)
+    items.push({
+      id: 'delete',
+      label: t('actionDelete'),
+      icon: <TrashIcon />,
+      danger: true,
+      onClick: () => setView('delete')
+    })
+
+  const react = (emoji: string, isCustom = false) => {
+    void actions.react(emoji, isCustom)
+  }
+  return (
+    <>
+      {view === 'menu' && (
+        <MessageActionsMenu
+          anchorRef={moreRef}
+          items={items}
+          onClose={() => setView((current) => (current === 'menu' ? null : current))}
+        />
+      )}
+      {view === 'delete' && (
         <ConfirmDialog
           title={t('actionDelete')}
           description={t('deleteMessageWarning')}
@@ -393,22 +227,16 @@ export function MessageActions({
           cancelLabel={t('editCancel')}
           busy={deletion.pending}
           error={deletion.error}
-          anchorRef={moreBtnRef}
+          anchorRef={moreRef}
           onConfirm={() => void deletion.confirm()}
-          onCancel={() => setShowDeleteConfirm(false)}
+          onCancel={close}
         />
       )}
-      {showForwardModal && (
-        <ForwardMessageModal message={message} sourceChannelId={contextId} onClose={() => setShowForwardModal(false)} />
+      {view === 'forward' && <ForwardMessageModal message={message} sourceChannelId={contextId} onClose={close} />}
+      {view === 'translate' && (
+        <TranslateModal messageId={message.id} sourceVersion={messageTranslationVersion(message)} onClose={close} />
       )}
-      {showTranslateModal && (
-        <TranslateModal
-          messageId={message.id}
-          sourceVersion={messageTranslationVersion(message)}
-          onClose={() => setShowTranslateModal(false)}
-        />
-      )}
-      {showEmojiPicker &&
+      {view === 'emoji' &&
         pickerPos &&
         createPortal(
           <div
@@ -416,30 +244,36 @@ export function MessageActions({
             className="fixed z-[130]"
             style={{
               left: pickerPos.left,
-              top: pickerAbove ? undefined : pickerPos.top,
-              bottom: pickerAbove ? window.innerHeight - pickerPos.top : undefined
+              top: pickerPos.above ? undefined : pickerPos.top,
+              bottom: pickerPos.above ? window.innerHeight - pickerPos.top : undefined
             }}
           >
             <ErrorBoundary
               fallback={null}
               onError={() => {
-                setShowEmojiPicker(false)
+                close()
                 showToast(t('actionAddReaction'), t('emojiPickerFailed'))
               }}
             >
-              <Suspense fallback={<PickerLoading />}>
+              <Suspense
+                fallback={
+                  <div className="flex h-24 w-[340px] max-w-[80vw] items-center justify-center rounded-xl bg-surface-dark shadow-2xl ring-1 ring-white/10">
+                    <Spinner size="md" />
+                  </div>
+                }
+              >
                 <EmojiPicker
-                  onSelect={handleEmojiSelect}
-                  onClose={() => setShowEmojiPicker(false)}
-                  customEmojis={isDm ? undefined : customEmojis}
+                  onSelect={(emoji) => react(emoji)}
+                  onClose={close}
+                  customEmojis={actions.isDm ? undefined : customEmojis}
                   reactionMode
-                  onCustomSelect={isDm ? undefined : handleCustomReaction}
+                  onCustomSelect={actions.isDm ? undefined : (name) => react(name, true)}
                 />
               </Suspense>
             </ErrorBoundary>
           </div>,
           document.body
         )}
-    </div>
+    </>
   )
 }

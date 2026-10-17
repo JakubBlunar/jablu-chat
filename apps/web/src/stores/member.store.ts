@@ -25,7 +25,7 @@ export type Member = {
   }
 }
 
-export function getTopRole(member: Member): Role | undefined {
+export function getTopRole(member: Pick<Member, 'roles'>): Role | undefined {
   if (!member.roles || member.roles.length === 0) return undefined
   const nonDefault = member.roles.filter((r) => !r.isDefault)
   if (nonDefault.length === 0) return member.roles[0]

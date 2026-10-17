@@ -25,10 +25,8 @@ jest.mock('@/hooks/usePermissions', () => ({
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (select: (state: { user: { id: string } }) => unknown) => select({ user: { id: 'user-1' } })
 }))
-jest.mock('@/lib/messageActions', () => ({
-  editMessage: jest.fn(),
-  messageActionError: () => 'edit failed; text retained'
-}))
+jest.mock('@/lib/messageActions', () => ({ editMessage: jest.fn() }))
+jest.mock('@/lib/messageActionError', () => ({ messageActionError: () => 'edit failed; text retained' }))
 jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 jest.mock('@/i18n/config', () => ({ i18n: { language: 'en' } }))
 

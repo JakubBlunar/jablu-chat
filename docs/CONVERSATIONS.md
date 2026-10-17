@@ -76,6 +76,23 @@ instead of loading once per message. Temporary setup failures expose a retry,
 and translations of an older message revision are no longer displayed after an
 edit. Changing the preferred language takes effect in already-rendered menus.
 Cached translation preferences and results are cleared when the account changes.
+Desktop translation/action setup is deferred until a menu or emoji picker is
+opened, rather than subscribing every message toolbar to action-only state.
+
+## State and session lifecycle
+
+Desktop and mobile action surfaces share permissions, links and mutation handlers
+while retaining their own layouts and dismissal behavior. Channel, DM, thread and
+forum message collections share immutable mutations: absent targets, duplicate
+reactions and identical replacements preserve state identity without notifying
+subscribers. Mention and role lookups update reactively after profile/role edits
+without rebuilding indexes in every message row or reacting to presence changes.
+
+Account changes clear transient conversation, call, bookmark and translation
+state. Logout waits for session cleanup, and a subsequent login waits for pending
+cleanup so an old session cannot erase the new one. Independent cleanup steps
+still run if another step fails, and failures are reported. Durable account-scoped
+drafts and queued outgoing messages are not deleted by logout.
 
 ## Drafts and connection loss
 

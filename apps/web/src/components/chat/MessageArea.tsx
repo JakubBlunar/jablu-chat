@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useShallow } from 'zustand/react/shallow'
 import { DelayedRender } from '@/components/DelayedRender'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MessageSurface } from '@/components/chat/MessageSurface'
@@ -89,8 +90,8 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   )
   const store = useMessageStoreAdapter(mode, contextId)
   const { messages, isLoading, hasMore, hasNewer } = store
-  const dmMessagesError = useDmStore((s) => s.messagesError)
-  const channelMessagesError = useMessageStore((s) => s.messagesError)
+  const dmMessagesError = useDmStore((s) => isDm ? s.messagesError : null)
+  const channelMessagesError = useMessageStore((s) => isDm ? null : s.messagesError)
   const messagesError = isDm ? dmMessagesError : channelMessagesError
 
   const userId = useAuthStore((s) => s.user?.id)
@@ -159,26 +160,14 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const { has: hasPerm } = usePermissions(isDm ? null : currentServerId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_SERVER)
 
-  type MemberMap = Map<string, ReturnType<typeof useMemberStore.getState>['members'][0]>
-  const membersByUsernameRef = useRef<MemberMap>(new Map())
-  useEffect(() => {
-    const build = (members: ReturnType<typeof useMemberStore.getState>['members']) => {
-      const map: MemberMap = new Map()
-      for (const m of members) map.set(m.user.username.toLowerCase(), m)
-      return map
-    }
-    membersByUsernameRef.current = build(useMemberStore.getState().members)
-    return useMemberStore.subscribe((s) => {
-      membersByUsernameRef.current = build(s.members)
-    })
-  }, [])
-
   const channelPerms = useChannelPermissionsStore((s) => (contextId ? (s.permissionsMap[contextId] ?? null) : null))
   const canSend = isDm || channelPerms === null ? true : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
 
-  const myId = useAuthStore((s) => s.user?.id)
-  const myMember = useMemberStore((s) => s.members.find((m) => m.userId === myId && m.serverId === currentServerId))
-  const isMuted = !isDm && myMember?.mutedUntil ? new Date(myMember.mutedUntil) > new Date() : false
+  const { mutedUntil, mutedReason, mutedById } = useMemberStore(useShallow((s) => {
+    const member = isDm ? undefined : s.members.find((m) => m.userId === userId && m.serverId === currentServerId)
+    return { mutedUntil: member?.mutedUntil, mutedReason: member?.mutedReason, mutedById: member?.mutedById }
+  }))
+  const isMuted = !!mutedUntil && new Date(mutedUntil) > new Date()
 
   const [searchOpen, setSearchOpen] = useState(false)
   useEffect(() => {
@@ -379,7 +368,6 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
         onMentionClick={isDm ? undefined : handleMentionClick}
         channels={channelRefsRef.current}
         onChannelClick={dm.handleChannelClick}
-        membersByUsername={membersByUsernameRef.current}
         firstUnreadId={unreadSnapshot?.firstUnreadMessageId ?? null}
         unreadCount={unreadSnapshot?.unreadCount ?? 0}
         unreadSince={unreadSnapshot?.lastReadAt ?? null}
@@ -402,8 +390,8 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             This channel is archived. You can read messages but cannot send new ones.
           </div>
         </div>
-      ) : isMuted && myMember?.mutedUntil ? (
-        <TimeoutBanner mutedUntil={myMember.mutedUntil} reason={myMember.mutedReason} mutedById={myMember.mutedById} />
+      ) : isMuted && mutedUntil ? (
+        <TimeoutBanner mutedUntil={mutedUntil} reason={mutedReason} mutedById={mutedById} />
       ) : !isDm && !canSend ? (
         <div className="shrink-0 border-t border-black/20 bg-surface px-4 py-3">
           <div className="flex items-center gap-2 rounded-lg bg-surface-dark px-4 py-2.5 text-sm text-gray-400">

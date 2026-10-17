@@ -1,41 +1,45 @@
 import { useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { Permission, hasPermission, permsToBigInt, ALL_PERMISSIONS, type Role } from '@chat/shared'
 import { useMemberStore, getTopRole } from '@/stores/member.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
 
+const EMPTY_ROLES: Role[] = []
+
 export function usePermissions(serverId?: string | null) {
   const userId = useAuthStore((s) => s.user?.id)
-  const server = useServerStore((s) => s.servers.find((sv) => sv.id === serverId))
-  const member = useMemberStore((s) =>
-    s.members.find((m) => m.userId === userId && m.serverId === serverId)
-  )
+  const ownerId = useServerStore((s) => s.servers.find((sv) => sv.id === serverId)?.ownerId)
+  const { memberExists, roles } = useMemberStore(useShallow((s) => {
+    const member = s.members.find((m) => m.userId === userId && m.serverId === serverId)
+    return { memberExists: !!member, roles: member?.roles ?? EMPTY_ROLES }
+  }))
 
   return useMemo(() => {
-    if (!serverId || !userId || !member) {
+    if (!serverId || !userId || !memberExists) {
       return {
         permissions: 0n,
         has: (_flag: bigint) => false,
         isOwner: false,
-        roles: [] as Role[],
-        topRole: undefined as Role | undefined,
+        roles: EMPTY_ROLES,
+        topRole: undefined,
       }
     }
 
-    const isOwner = server?.ownerId === userId
+    const isOwner = ownerId === userId
     if (isOwner) {
       return {
         permissions: ALL_PERMISSIONS,
         has: (_flag: bigint) => true,
         isOwner: true,
-        roles: member.roles ?? [],
-        topRole: getTopRole(member),
+        roles,
+        topRole: getTopRole({ roles }),
       }
     }
 
     let perms = 0n
-    if (member.roles && member.roles.length > 0) {
-      for (const role of member.roles) {
+    if (roles.length > 0) {
+      for (const role of roles) {
         perms |= permsToBigInt(role.permissions)
       }
     }
@@ -44,10 +48,10 @@ export function usePermissions(serverId?: string | null) {
       permissions: perms,
       has: (flag: bigint) => hasPermission(perms, flag),
       isOwner: false,
-      roles: member.roles ?? [],
-      topRole: getTopRole(member),
+      roles,
+      topRole: getTopRole({ roles }),
     }
-  }, [serverId, userId, member, server?.ownerId])
+  }, [serverId, userId, memberExists, roles, ownerId])
 }
 
 export { Permission }

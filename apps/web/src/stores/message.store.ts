@@ -1,3 +1,4 @@
+import { addMessageReaction, removeMessageReaction, replaceMessageInList, removeMessageFromList, messageListPatch, updateMessageInList } from '@/lib/messageCollection'
 import type { LinkPreview, Message, Poll } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
@@ -182,17 +183,9 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     })
   },
 
-  updateMessage: (message) => {
-    set((s) => ({
-      messages: s.messages.map((m) => (m.id === message.id ? message : m))
-    }))
-  },
+  updateMessage: (message) => set((s) => messageListPatch(s, replaceMessageInList(s.messages, message))),
 
-  removeMessage: (messageId) => {
-    set((s) => ({
-      messages: s.messages.filter((m) => m.id !== messageId)
-    }))
-  },
+  removeMessage: (messageId) => set((s) => messageListPatch(s, removeMessageFromList(s.messages, messageId))),
 
   clearMessages: () => {
     ++_msgFetchId
@@ -283,52 +276,9 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     }
   },
 
-  addReaction: (messageId, emoji, userId, isCustom) => {
-    set((s) => {
-      if (!s.messages.some((m) => m.id === messageId)) return s
-      return {
-        messages: s.messages.map((m) => {
-          if (m.id !== messageId) return m
-          const reactions = [...(m.reactions ?? [])]
-          const existing = reactions.find((r) => r.emoji === emoji)
-          if (existing) {
-            if (!existing.userIds.includes(userId)) {
-              return {
-                ...m,
-                reactions: reactions.map((r) =>
-                  r.emoji === emoji ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] } : r
-                )
-              }
-            }
-            return m
-          }
-          return {
-            ...m,
-            reactions: [...reactions, { emoji, count: 1, userIds: [userId], isCustom: isCustom ?? false }]
-          }
-        })
-      }
-    })
-  },
+  addReaction: (messageId, emoji, userId, isCustom) => set((s) => messageListPatch(s, addMessageReaction(s.messages, messageId, emoji, userId, isCustom))),
 
-  removeReaction: (messageId, emoji, userId) => {
-    set((s) => {
-      if (!s.messages.some((m) => m.id === messageId)) return s
-      return {
-        messages: s.messages.map((m) => {
-          if (m.id !== messageId) return m
-          const reactions = (m.reactions ?? [])
-            .map((r) => {
-              if (r.emoji !== emoji) return r
-              const uids = r.userIds.filter((id) => id !== userId)
-              return { ...r, count: uids.length, userIds: uids }
-            })
-            .filter((r) => r.count > 0)
-          return { ...m, reactions }
-        })
-      }
-    })
-  },
+  removeReaction: (messageId, emoji, userId) => set((s) => messageListPatch(s, removeMessageReaction(s.messages, messageId, emoji, userId))),
 
   setScrollToMessageId: (id) =>
     set((s) => ({
@@ -337,23 +287,18 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     })),
 
   setLinkPreviews: (messageId, linkPreviews) => {
-    set((s) => ({
-      messages: s.messages.map((m) => (m.id === messageId ? { ...m, linkPreviews } : m))
-    }))
+    set((s) => messageListPatch(s, updateMessageInList(s.messages, messageId, (m) => m.linkPreviews === linkPreviews ? m : { ...m, linkPreviews })))
   },
 
   updatePoll: (poll) => {
-    set((s) => ({
-      messages: s.messages.map((m) => (m.id === poll.messageId ? { ...m, poll } : m))
-    }))
+    set((s) => messageListPatch(s, updateMessageInList(s.messages, poll.messageId, (m) => m.poll === poll ? m : { ...m, poll })))
   },
 
   updateThreadCount: (messageId, threadCount, lastThreadReply) => {
-    set((s) => ({
-      messages: s.messages.map((m) =>
-        m.id === messageId ? { ...m, threadCount, ...(lastThreadReply !== undefined ? { lastThreadReply } : {}) } : m
-      )
-    }))
+    set((s) => messageListPatch(s, updateMessageInList(s.messages, messageId, (m) =>
+      m.threadCount === threadCount && (lastThreadReply === undefined || m.lastThreadReply === lastThreadReply)
+        ? m : { ...m, threadCount, ...(lastThreadReply !== undefined ? { lastThreadReply } : {}) }
+    )))
   },
 
   setTypingUser: (_channelId, userId, username) => {

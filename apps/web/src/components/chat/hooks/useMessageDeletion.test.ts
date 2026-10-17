@@ -3,7 +3,8 @@ import { useMessageDeletion } from './useMessageDeletion'
 import { deleteMessage } from '@/lib/messageActions'
 import { makeMessage } from '@/test/factories'
 
-jest.mock('@/lib/messageActions', () => ({ deleteMessage: jest.fn(), messageActionError: () => 'delete failed' }))
+jest.mock('@/lib/messageActions', () => ({ deleteMessage: jest.fn() }))
+jest.mock('@/lib/messageActionError', () => ({ messageActionError: () => 'delete failed' }))
 beforeEach(() => {
   jest.clearAllMocks()
   jest.spyOn(console, 'error').mockImplementation(() => {})

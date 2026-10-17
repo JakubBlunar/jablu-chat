@@ -8,7 +8,7 @@ import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard, isImageUrl, isGifUrl } from '@/components/LinkPreviewCard'
 import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
-import type { RoleMentionRef } from '@/lib/markdownMentions'
+import type { MemberMentionRef, RoleMentionRef } from '@/lib/markdownMentions'
 import { ForwardedCard } from '@/components/chat/ForwardedCard'
 import { MessageActions } from '@/components/chat/MessageActions'
 import { MessageTranslationBlock } from '@/components/chat/MessageTranslationBlock'
@@ -18,16 +18,14 @@ import { PollDisplay } from '@/components/chat/PollDisplay'
 import { ReactionPill } from '@/components/chat/ReactionPill'
 import { ReactionDetailsModal } from '@/components/chat/ReactionDetailsModal'
 import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
-import { addRecentReaction } from '@/stores/reactions.store'
-import { toggleMessageReaction } from '@/lib/reactions'
+import { toggleMessageReactionAndRemember } from '@/lib/reactions'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
-import { editMessage, messageActionError } from '@/lib/messageActions'
+import { editMessage } from '@/lib/messageActions'
+import { messageActionError } from '@/lib/messageActionError'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
-import { getRoleColor, useMemberStore } from '@/stores/member.store'
-import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { ReplyIcon } from '@/components/chat/chatIcons'
@@ -55,6 +53,8 @@ export const MessageRow = memo(function MessageRow({
   channels,
   onChannelClick,
   membersByUsername,
+  rolesByLowerName,
+  authorRoleColor,
   hideThreadAction,
   hidePinAction,
   hideBookmarkAction
@@ -68,7 +68,9 @@ export const MessageRow = memo(function MessageRow({
   onMentionClick?: (username: string, rect: DOMRect) => void
   channels?: ChannelRef[]
   onChannelClick?: (serverId: string, channelId: string) => void
-  membersByUsername?: Map<string, import('@/stores/member.store').Member>
+  membersByUsername?: Map<string, MemberMentionRef>
+  rolesByLowerName?: Map<string, RoleMentionRef>
+  authorRoleColor?: string | null
   hideThreadAction?: boolean
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
@@ -83,27 +85,9 @@ export const MessageRow = memo(function MessageRow({
     ? message.webhook!.name
     : (message.author?.displayName ?? message.author?.username ?? t('deletedUser'))
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
-  const storeMembers = useMemberStore((s) => s.members)
-  const authorRoleColor = useMemo(() => {
-    const member = storeMembers.find((m) => m.userId === message.authorId)
-    if (!member) return null
-    return getRoleColor(member)
-  }, [storeMembers, message.authorId])
-
-  const rolesByLowerName = useMemo(() => {
-    if (isDm) return undefined
-    const map = new Map<string, RoleMentionRef>()
-    for (const m of storeMembers) {
-      for (const r of m.roles ?? []) {
-        if (r.isDefault) continue
-        map.set(r.name.toLowerCase(), { id: r.id, name: r.name, color: r.color })
-      }
-    }
-    return map
-  }, [isDm, storeMembers])
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
-  const linkPreviews = message.linkPreviews ?? []
+  const linkPreviews = useMemo(() => message.linkPreviews ?? [], [message.linkPreviews])
 
   const contentIsMediaLink = useMemo(() => {
     const text = message.content?.trim()
@@ -118,8 +102,6 @@ export const MessageRow = memo(function MessageRow({
   const emojiArr = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
   const customEmojiMap = useMemo(() => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined), [emojiArr])
 
-  const { has: hasPerm } = usePermissions(isDm ? null : serverId)
-  const isAdminOrOwner = hasPerm(Permission.MANAGE_MESSAGES)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(message.content ?? '')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -243,8 +225,6 @@ export const MessageRow = memo(function MessageRow({
           message={message}
           contextId={contextId}
           mode={mode}
-          isAuthor={isAuthor}
-          isAdminOrOwner={isAdminOrOwner}
           hidePinAction={hidePinAction}
           hideBookmarkAction={hideBookmarkAction}
           onClose={() => setDrawerOpen(false)}
@@ -528,19 +508,26 @@ function MobileEmojiPickerOverlay({
   const serverId = useServerStore((s) => s.currentServerId)
   const customEmojis = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
 
+  const active = useRef(false)
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false }
+  }, [])
+
   const handleReaction = useCallback(
     (emoji: string) => {
-      toggleMessageReaction({ mode, messageId, emoji })
-      addRecentReaction(emoji)
-      onClose()
+      void toggleMessageReactionAndRemember({ mode, messageId, emoji }).then((success) => {
+        if (success && active.current) onClose()
+      })
     },
     [mode, messageId, onClose]
   )
 
   const handleCustomReaction = useCallback(
     (name: string) => {
-      toggleMessageReaction({ mode, messageId, emoji: name, isCustom: true })
-      onClose()
+      void toggleMessageReactionAndRemember({ mode, messageId, emoji: name, isCustom: true }).then((success) => {
+        if (success && active.current) onClose()
+      })
     },
     [mode, messageId, onClose]
   )

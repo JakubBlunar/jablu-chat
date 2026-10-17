@@ -7,7 +7,8 @@ import { type ChannelRef } from '@/components/MarkdownContent'
 import { formatDateSeparator, formatTimeOnly, isDifferentDay } from '@/lib/format-time'
 import { Spinner } from '@/components/ui'
 import type { ScrollState } from '@/components/chat/hooks/useMessageScroll'
-import type { Member } from '@/stores/member.store'
+import { useChatLookups } from '@/hooks/useChatLookups'
+import { useServerStore } from '@/stores/server.store'
 
 const GROUP_GAP_MS = 5 * 60 * 1000
 
@@ -58,7 +59,6 @@ export interface MessageSurfaceProps {
   onMentionClick?: (username: string, rect: DOMRect) => void
   channels?: ChannelRef[]
   onChannelClick?: (serverId: string, channelId: string) => void
-  membersByUsername?: Map<string, Member>
 
   hideThreadAction?: boolean
   hidePinAction?: boolean
@@ -93,7 +93,6 @@ export const MessageSurface = memo(function MessageSurface({
   onMentionClick,
   channels,
   onChannelClick,
-  membersByUsername,
   hideThreadAction,
   hidePinAction,
   hideBookmarkAction,
@@ -105,6 +104,8 @@ export const MessageSurface = memo(function MessageSurface({
 }: MessageSurfaceProps) {
   const { t: tChat } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
+  const serverId = useServerStore((s) => s.currentServerId)
+  const lookups = useChatLookups(serverId)
   const renderedItems = useMemo(() => {
     const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
     for (let i = 0; i < messages.length; i++) {
@@ -177,7 +178,9 @@ export const MessageSurface = memo(function MessageSurface({
                 onMentionClick={onMentionClick}
                 channels={channels}
                 onChannelClick={onChannelClick}
-                membersByUsername={membersByUsername}
+                membersByUsername={lookups.membersByUsername}
+                rolesByLowerName={mode === 'dm' ? undefined : lookups.rolesByLowerName}
+                authorRoleColor={lookups.authorColors.get(msg.authorId ?? '') ?? null}
                 hideThreadAction={hideThreadAction}
                 hidePinAction={hidePinAction}
                 hideBookmarkAction={hideBookmarkAction}

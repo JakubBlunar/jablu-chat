@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { MessageSurface } from '@/components/chat/MessageSurface'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -28,7 +29,10 @@ export function ThreadPanel({
   onCommand?: (cmd: string, args?: string) => boolean | void
 }) {
   const { t } = useTranslation('chat')
-  const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore()
+  const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore(useShallow((s) => ({
+    isOpen: s.isOpen, parentMessage: s.parentMessage, channelId: s.channelId,
+    closeThread: s.closeThread, reconcileToLatest: s.reconcileToLatest
+  })))
   const adapter = useThreadSurfaceAdapter()
   const contextId = isOpen && parentMessage ? parentMessage.id : null
   const scroll = useMessageScroll(contextId, adapter)

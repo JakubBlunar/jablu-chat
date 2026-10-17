@@ -2,7 +2,7 @@ import '@testing-library/jest-dom'
 import type { ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ForwardMessageModal } from './ForwardMessageModal'
-import { requestMessageAction } from '@/lib/messageActions'
+import { requestMessageAction } from '@/lib/messageActionTransport'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
@@ -13,10 +13,8 @@ jest.mock('@/hooks/useAppNavigate', () => ({ useAppNavigate: () => ({ orchestrat
 jest.mock('@/components/ui/ModalOverlay', () => ({
   ModalOverlay: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
-jest.mock('@/lib/messageActions', () => ({
-  requestMessageAction: jest.fn(),
-  messageActionError: () => 'confirmation failed'
-}))
+jest.mock('@/lib/messageActionTransport', () => ({ requestMessageAction: jest.fn() }))
+jest.mock('@/lib/messageActionError', () => ({ messageActionError: () => 'confirmation failed' }))
 jest.mock('@/stores/toast.store', () => ({ showToast: jest.fn() }))
 jest.mock('@/stores/message.store', () => ({ useMessageStore: { getState: () => ({ loadedForChannelId: null }) } }))
 
@@ -28,7 +26,7 @@ beforeEach(() => {
   useChannelPermissionsStore.setState({ permissionsMap: {} })
   jest.mocked(requestMessageAction).mockImplementation(async (_event, payload) => ({
     ok: true,
-    message: makeMessage({ id: String(payload.clientMessageId) })
+    message: makeMessage({ id: 'clientMessageId' in payload ? payload.clientMessageId : '' })
   }))
 })
 afterEach(() => jest.restoreAllMocks())
@@ -73,8 +71,8 @@ it('reuses the exact message UUID when retrying an unconfirmed send', async () =
   expect(onClose).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'forwardRetry' }))
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
-  expect(jest.mocked(requestMessageAction).mock.calls[0][1].clientMessageId).toBe(
-    jest.mocked(requestMessageAction).mock.calls[1][1].clientMessageId
+  expect(jest.mocked(requestMessageAction).mock.calls[0][1]).toEqual(
+    jest.mocked(requestMessageAction).mock.calls[1][1]
   )
 })
 

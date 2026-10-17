@@ -1,9 +1,7 @@
-import { requestMessageAction } from '@/lib/messageActions'
+import { requestMessageAction } from '@/lib/messageActionTransport'
 
 export async function setMessagePinned(mode: 'channel' | 'dm', contextId: string, messageId: string, pinned: boolean) {
   const action = pinned ? 'pin' : 'unpin'
-  await requestMessageAction(mode === 'dm' ? `dm:${action}` : `message:${action}`, {
-    messageId,
-    ...(mode === 'dm' ? { conversationId: contextId } : { channelId: contextId })
-  })
+  if (mode === 'dm') await requestMessageAction(`dm:${action}`, { messageId, conversationId: contextId })
+  else await requestMessageAction(`message:${action}`, { messageId, channelId: contextId })
 }

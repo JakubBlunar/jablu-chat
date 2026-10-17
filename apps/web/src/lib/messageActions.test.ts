@@ -1,4 +1,4 @@
-import { deleteMessage, editMessage, requestMessageAction } from './messageActions'
+import { deleteMessage, editMessage } from './messageActions'
 import { makeMessage } from '@/test/factories'
 
 const mockAck = jest.fn()
@@ -30,24 +30,6 @@ beforeEach(() => {
   jest.spyOn(console, 'error').mockImplementation(() => {})
 })
 afterEach(() => jest.restoreAllMocks())
-
-it('never buffers an action while disconnected', async () => {
-  mockSocket.connected = false
-  await expect(requestMessageAction('message:delete', { messageId: 'm' })).rejects.toThrow('offline')
-  expect(mockAck).not.toHaveBeenCalled()
-})
-
-it('bounds acknowledgements and exposes an unconfirmed operation', async () => {
-  mockAck.mockRejectedValueOnce(new Error('operation has timed out'))
-  await expect(requestMessageAction('message:delete', { messageId: 'm' })).rejects.toThrow('unconfirmed')
-  expect(mockTimeout).toHaveBeenCalledWith(10_000)
-})
-
-it('rejects absent and rejected acknowledgements', async () => {
-  mockAck.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ok: false, error: 'Edit blocked' })
-  await expect(requestMessageAction('message:edit', {})).rejects.toThrow('unconfirmed')
-  await expect(requestMessageAction('message:edit', {})).rejects.toThrow('Edit blocked')
-})
 
 it('updates DM messages only after a matching confirmed response', async () => {
   const message = makeMessage({ id: 'm', content: 'new text' })

@@ -1,10 +1,9 @@
-import type { Member } from '@/stores/member.store'
-
+export type MemberMentionRef = { user: { username: string; displayName: string | null } }
 export type RoleMentionRef = { id: string; name: string; color: string | null }
 
 export function processMentions(
   text: string,
-  byUsername: Map<string, Member>,
+  byUsername: Map<string, MemberMentionRef>,
   rolesByLowerName?: Map<string, RoleMentionRef>
 ): string {
   let out = text

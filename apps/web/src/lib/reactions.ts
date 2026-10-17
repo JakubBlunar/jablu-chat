@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { getSocket } from '@/lib/socket'
-import { requestMessageAction, messageActionError } from '@/lib/messageActions'
+import { requestMessageAction } from '@/lib/messageActionTransport'
+import { messageActionError } from '@/lib/messageActionError'
 import i18n from 'i18next'
 import { showToast } from '@/stores/toast.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -8,6 +9,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useForumReplyStore } from '@/stores/forumReply.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { addRecentReaction } from '@/stores/reactions.store'
 
 type ReactionAction = 'added' | 'removed'
 
@@ -26,6 +28,12 @@ type ReactionStore = {
 // so we can safely apply to all of them.
 const CHANNEL_STORES: ReactionStore[] = [useMessageStore, useThreadStore, useForumReplyStore]
 const pending = new Set<string>()
+
+export async function toggleMessageReactionAndRemember(params: Parameters<typeof toggleMessageReaction>[0]): Promise<boolean> {
+  const success = await toggleMessageReaction(params)
+  if (success && !params.isCustom) addRecentReaction(params.emoji)
+  return success
+}
 
 /**
  * Toggle a reaction with an optimistic local update, reconciled by the socket
@@ -80,7 +88,7 @@ export async function toggleMessageReaction(params: {
   socket.on('reaction:add', onAdd)
   socket.on('reaction:remove', onRemove)
   try {
-    const response = await requestMessageAction<{ ok?: boolean; action?: ReactionAction }>('reaction:toggle', {
+    const response = await requestMessageAction('reaction:toggle', {
       messageId,
       emoji,
       isCustom

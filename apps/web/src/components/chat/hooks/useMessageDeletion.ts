@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { useRef, useState } from 'react'
-import { deleteMessage, messageActionError } from '@/lib/messageActions'
+import { deleteMessage } from '@/lib/messageActions'
+import { messageActionError } from '@/lib/messageActionError'
 
 export function useMessageDeletion(mode: 'channel' | 'dm', contextId: string, message: Message, onDeleted: () => void) {
   const active = useRef(false)

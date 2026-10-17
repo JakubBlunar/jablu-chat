@@ -4,7 +4,8 @@ import { useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
-import { messageActionError, requestMessageAction } from '@/lib/messageActions'
+import { requestMessageAction } from '@/lib/messageActionTransport'
+import { messageActionError } from '@/lib/messageActionError'
 import { buildMessageJumpPath } from '@/lib/messageLink'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -68,7 +69,7 @@ export function ForwardMessageModal({ message, sourceChannelId, onClose, onForwa
         clientMessageId = crypto.randomUUID()
         attemptIds.current.set(selected.id, clientMessageId)
       }
-      const response = await requestMessageAction<{ ok?: boolean; error?: string; message?: Message }>('message:send', {
+      const response = await requestMessageAction('message:send', {
         channelId: selected.id,
         forwardFromMessageId: message.id,
         clientMessageId

@@ -1,25 +1,18 @@
-import type { Attachment, Message } from '@chat/shared'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Attachment } from '@chat/shared'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMediaDownload } from '@/hooks/useMediaDownload'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
-import { buildMessageJumpPath, getMessageShareUrl } from '@/lib/messageLink'
-import { copyMessageContent, shareMessageLink } from '@/lib/messageClipboard'
 import { messageTranslationVersion } from '@/lib/messageTranslationVersion'
 import { useMessageDeletion } from '@/components/chat/hooks/useMessageDeletion'
-import { toggleMessageReaction } from '@/lib/reactions'
+import {
+  useMessageActionController,
+  type MessageActionOptions
+} from '@/components/chat/hooks/useMessageActionController'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { SheetBtn } from '@/components/ui/SheetBtn'
-import { useShallow } from 'zustand/react/shallow'
-import { useBookmarkStore } from '@/stores/bookmark.store'
-import { useServerStore } from '@/stores/server.store'
-import { useTranslationStore } from '@/stores/translation.store'
-import { showToast } from '@/stores/toast.store'
-import { setMessagePinned } from '@/lib/messagePins'
-import { useThreadStore } from '@/stores/thread.store'
-import { addRecentReaction } from '@/stores/reactions.store'
 import {
   BookmarkIcon,
   CopyIcon,
@@ -46,14 +39,7 @@ function extractLinks(content: string | null): string[] {
   return matches ? [...new Set(matches)] : []
 }
 
-interface MobileMessageDrawerProps {
-  message: Message
-  contextId: string
-  mode: 'channel' | 'dm'
-  isAuthor: boolean
-  isAdminOrOwner: boolean
-  hidePinAction?: boolean
-  hideBookmarkAction?: boolean
+interface MobileMessageDrawerProps extends MessageActionOptions {
   onClose: () => void
   onEdit?: () => void
   onReply: () => void
@@ -64,8 +50,6 @@ export function MobileMessageDrawer({
   message,
   contextId,
   mode,
-  isAuthor,
-  isAdminOrOwner,
   hidePinAction,
   hideBookmarkAction,
   onClose,
@@ -75,52 +59,20 @@ export function MobileMessageDrawer({
 }: MobileMessageDrawerProps) {
   const { t } = useTranslation('chat')
   const isDm = mode === 'dm'
-  const canDelete = isAuthor || (!isDm && isAdminOrOwner)
+  const actions = useMessageActionController({
+    message,
+    mode,
+    contextId,
+    onEdit,
+    onReply,
+    hidePinAction,
+    hideBookmarkAction,
+    onComplete: onClose
+  })
   const deletion = useMessageDeletion(mode, contextId, message, onClose)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [forwardOpen, setForwardOpen] = useState(false)
   const [translateOpen, setTranslateOpen] = useState(false)
-  const [reactionPending, setReactionPending] = useState(false)
-  const serverId = useServerStore((s) => s.currentServerId)
-  const translationEnabled = useTranslationStore((s) => s.capabilities?.enabled ?? false)
-  const translationLoaded = useTranslationStore((s) => s.capabilitiesLoaded)
-  const translationSetupError = useTranslationStore((s) => s.capabilitiesError || s.preferenceError)
-  const defaultTarget = useTranslationStore((s) => s.targetLang)
-  const translate = useTranslationStore((s) => s.translate)
-
-  // The desktop `MessageActions` (which lives only on the `!isMobile` path) is
-  // the component that normally fetches translation capabilities. On mobile
-  // that path never mounts, so the Translate button — gated on
-  // `capabilitiesLoaded` — would be permanently hidden. Fetch here when the
-  // drawer opens. No-op if a prior open (or desktop) already loaded them.
-  useEffect(() => {
-    const store = useTranslationStore.getState()
-    void store.fetchCapabilities()
-    void store.loadPreference()
-  }, [])
-
-  const messageJumpUrl = useMemo(() => {
-    if (isDm) {
-      return getMessageShareUrl(
-        buildMessageJumpPath('dm', {
-          conversationId: contextId,
-          messageId: message.id,
-          threadParentId: message.threadParentId
-        })
-      )
-    }
-    if (serverId) {
-      return getMessageShareUrl(
-        buildMessageJumpPath('channel', {
-          serverId,
-          channelId: contextId,
-          messageId: message.id,
-          threadParentId: message.threadParentId
-        })
-      )
-    }
-    return null
-  }, [isDm, serverId, contextId, message.id, message.threadParentId])
   const links = useMemo(() => {
     const contentLinks = extractLinks(message.content)
     const previewLinks = (message.linkPreviews ?? []).map((lp) => lp.url)
@@ -130,78 +82,6 @@ export function MobileMessageDrawer({
   const attachments = message.attachments ?? []
 
   const close = onClose
-
-  const handleReaction = useCallback(
-    async (emoji: string) => {
-      if (reactionPending) return
-      setReactionPending(true)
-      try {
-        if (await toggleMessageReaction({ mode, messageId: message.id, emoji })) {
-          addRecentReaction(emoji)
-          close()
-        }
-      } finally {
-        setReactionPending(false)
-      }
-    },
-    [mode, message.id, close, reactionPending]
-  )
-
-  const handleReply = useCallback(() => {
-    onReply()
-    close()
-  }, [onReply, close])
-
-  const handleThread = useCallback(() => {
-    useThreadStore.getState().openThread(contextId, message)
-    close()
-  }, [contextId, message, close])
-
-  const handleCopy = useCallback(async () => {
-    if (message.content && (await copyMessageContent(message.content))) close()
-  }, [message.content, close])
-
-  const handleCopyLink = useCallback(
-    async (url: string) => {
-      if (await copyMessageContent(url, true)) close()
-    },
-    [close]
-  )
-
-  const handleCopyMessageJumpLink = useCallback(async () => {
-    if (!messageJumpUrl) return
-    if (await copyMessageContent(messageJumpUrl, true)) close()
-  }, [messageJumpUrl, close])
-
-  const handleShareMessageJump = useCallback(async () => {
-    if (!messageJumpUrl) return
-    if (await shareMessageLink(messageJumpUrl, t(isDm ? 'directMessage' : 'messageShareGenericTitle'))) close()
-  }, [messageJumpUrl, isDm, close, t])
-
-  const handleEdit = useCallback(() => {
-    onEdit?.()
-    close()
-  }, [onEdit, close])
-
-  const handleTranslate = useCallback(() => {
-    if (defaultTarget) {
-      void translate(message.id, defaultTarget, messageTranslationVersion(message)).then((err) => {
-        if (err) showToast(t('translateErrorTitle'), t('translateErrorMessage'))
-        else close()
-      })
-    } else {
-      setTranslateOpen(true)
-    }
-  }, [defaultTarget, translate, message, t, close])
-
-  const handlePin = useCallback(() => {
-    void setMessagePinned(mode, contextId, message.id, !message.pinned)
-      .then(close)
-      .catch((error) => {
-        console.error('Failed to update message pin', error)
-        showToast(t('pinnedMessagesTitle'), t('pinActionFailed'))
-      })
-  }, [message.id, message.pinned, mode, contextId, close, t])
 
   if (confirmDelete) {
     return (
@@ -247,9 +127,9 @@ export function MobileMessageDrawer({
           <button
             key={emoji}
             type="button"
-            disabled={reactionPending}
+            disabled={actions.reactionPending}
             aria-label={`${t('actionAddReaction')} ${emoji}`}
-            onClick={() => void handleReaction(emoji)}
+            onClick={() => void actions.react(emoji)}
             className="shrink-0 rounded-full p-2 text-2xl active:scale-110 active:bg-white/10"
           >
             {emoji}
@@ -271,44 +151,43 @@ export function MobileMessageDrawer({
       <div className="border-t border-white/5" />
 
       <div className="flex flex-col gap-1.5 px-3 pt-3">
-        <SheetBtn icon={<ReplyIcon className="h-5 w-5" />} label={t('actionReply')} onClick={handleReply} />
-        {!isDm && !message.threadParentId && (
+        <SheetBtn icon={<ReplyIcon className="h-5 w-5" />} label={t('actionReply')} onClick={actions.reply} />
+        {actions.canThread && (
           <SheetBtn
             icon={<ThreadIcon className="h-5 w-5" />}
             label={t((message.threadCount ?? 0) > 0 ? 'actionViewThread' : 'actionCreateThread')}
-            onClick={handleThread}
+            onClick={actions.thread}
           />
         )}
-        {!isDm && serverId && (
+        {actions.canForward && (
           <SheetBtn
             icon={<ForwardIcon className="h-5 w-5" />}
             label={t('actionForward')}
             onClick={() => setForwardOpen(true)}
           />
         )}
-        {messageJumpUrl && (
-          <SheetBtn icon={<LinkIcon />} label={t('actionCopyMessageLink')} onClick={handleCopyMessageJumpLink} />
+        {actions.shareableUrl && (
+          <SheetBtn icon={<LinkIcon />} label={t('actionCopyMessageLink')} onClick={() => void actions.copyLink()} />
         )}
-        {messageJumpUrl && (
+        {actions.shareableUrl && (
           <SheetBtn
             icon={<ShareIcon className="h-5 w-5" />}
             label={t('actionShareMessage')}
-            onClick={() => void handleShareMessageJump()}
+            onClick={() => void actions.share()}
           />
         )}
-        {message.content && <SheetBtn icon={<CopyIcon />} label={t('actionCopyText')} onClick={handleCopy} />}
-        {message.content && translationLoaded && translationEnabled && (
-          <SheetBtn icon={<GlobeIcon className="h-5 w-5" />} label={t('actionTranslate')} onClick={handleTranslate} />
+        {message.content && (
+          <SheetBtn icon={<CopyIcon />} label={t('actionCopyText')} onClick={() => void actions.copyText()} />
         )}
-        {translationSetupError && (
+        {actions.canTranslate && (
           <SheetBtn
-            icon={<GlobeIcon />}
-            label={t('translationSetupRetry')}
-            onClick={() => {
-              const store = useTranslationStore.getState()
-              void Promise.all([store.fetchCapabilities(), store.loadPreference()])
-            }}
+            icon={<GlobeIcon className="h-5 w-5" />}
+            label={t('actionTranslate')}
+            onClick={() => actions.translate(() => setTranslateOpen(true))}
           />
+        )}
+        {actions.translationSetupError && (
+          <SheetBtn icon={<GlobeIcon />} label={t('translationSetupRetry')} onClick={actions.retryTranslation} />
         )}
         {links.map((url) => (
           <SheetBtn
@@ -316,24 +195,30 @@ export function MobileMessageDrawer({
             icon={<LinkIcon />}
             label={t('actionCopyLink')}
             subtitle={url}
-            onClick={() => handleCopyLink(url)}
+            onClick={() => void actions.copyLink(url)}
           />
         ))}
         {attachments.map((att) => (
           <AttachmentDownloadButton key={att.id} attachment={att} onSaved={close} />
         ))}
-        {isAuthor && onEdit && (
-          <SheetBtn icon={<EditIcon className="h-5 w-5" />} label={t('actionEdit')} onClick={handleEdit} />
+        {actions.canEdit && (
+          <SheetBtn icon={<EditIcon className="h-5 w-5" />} label={t('actionEdit')} onClick={actions.edit} />
         )}
-        {!hideBookmarkAction && <BookmarkDrawerBtn messageId={message.id} onClose={close} />}
-        {!hidePinAction && (isDm || isAdminOrOwner) && (
+        {actions.canBookmark && (
+          <SheetBtn
+            icon={<BookmarkIcon className="h-5 w-5" filled={actions.isBookmarked} />}
+            label={t(actions.isBookmarked ? 'actionRemoveBookmark' : 'actionSaveMessage')}
+            onClick={() => void actions.bookmark()}
+          />
+        )}
+        {actions.canPin && (
           <SheetBtn
             icon={<MessagePinIcon className="h-5 w-5" />}
             label={t(message.pinned ? 'actionUnpin' : 'actionPin')}
-            onClick={handlePin}
+            onClick={() => void actions.pin()}
           />
         )}
-        {canDelete && (
+        {actions.canDelete && (
           <SheetBtn
             icon={<TrashIcon className="h-5 w-5" />}
             label={t('actionDelete')}
@@ -359,30 +244,6 @@ function AttachmentDownloadButton({ attachment, onSaved }: { attachment: Attachm
         void download().then((saved) => {
           if (saved) onSaved()
         })
-      }}
-    />
-  )
-}
-
-function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose: () => void }) {
-  const { t } = useTranslation('chat')
-  const { isBookmarked, toggleBookmark } = useBookmarkStore(
-    useShallow((s) => ({
-      isBookmarked: s.bookmarkedIds.has(messageId),
-      toggleBookmark: s.toggleBookmark
-    }))
-  )
-  return (
-    <SheetBtn
-      icon={<BookmarkIcon className="h-5 w-5" filled={isBookmarked} />}
-      label={t(isBookmarked ? 'actionRemoveBookmark' : 'actionSaveMessage')}
-      onClick={() => {
-        void toggleBookmark(messageId)
-          .then(onClose)
-          .catch((error) => {
-            console.error('Failed to update saved message', error)
-            showToast(t('savedMessagesTitle'), t('bookmarkActionFailed'))
-          })
       }}
     />
   )
