@@ -10,7 +10,7 @@ mode this rule exists to prevent is shipping something a user cares about that
 tells them nothing — a level up, a role change, a timeout — because the feature
 worked without it.
 
-Full design and architecture: [NOTIFICATIONS.md](../../NOTIFICATIONS.md).
+Full design and architecture: [notification guide](../../docs/NOTIFICATIONS.md).
 
 ## The rule
 

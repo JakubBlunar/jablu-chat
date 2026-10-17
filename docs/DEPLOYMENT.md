@@ -1,5 +1,7 @@
 # Jablu Deployment Guide
 
+Part of the [Jablu documentation](./README.md).
+
 ## Recommended VPS Specs
 
 Any VPS provider (Hetzner, Contabo, DigitalOcean, Linode, etc.) with these minimum specs will work:
@@ -317,7 +319,7 @@ If you fork/self-host Jablu, you must build your own installer with your own
 ### Publishing an update
 
 The full flow (versioning, signing, building, staging, uploading) lives in
-[`apps/desktop/RELEASING.md`](apps/desktop/RELEASING.md). In short, from the repo root:
+[desktop release guide](./RELEASING.md). In short, from the repo root:
 
 ```bash
 $env:UPDATE_PUBLIC_URL = "https://chat.example.com"   # required: baked-in server URL
@@ -328,7 +330,7 @@ node apps/desktop/scripts/release.mjs --bump patch --notes "What changed"
 This bumps the version, builds the web + Tauri NSIS installer, and stages
 `Jablu_<v>_x64-setup.exe`, its `.sig`, and `latest.json` into
 `apps/desktop/release-artifacts/`. Upload those to the server's `DOWNLOADS_DIR` /
-`UPDATES_DIR` (see `RELEASING.md`), and make sure `UPDATES_DIR` in `.env` points at the
+`UPDATES_DIR` (see the [release guide](./RELEASING.md)), and make sure `UPDATES_DIR` in `.env` points at the
 right location.
 
 ---
@@ -427,7 +429,7 @@ docker compose logs -f livekit
 
 The **log-watcher** service polls `docker compose logs` for matching lines (by default Nest `ERROR [` and `WARN [` plus `Exception`, `Unhandled`, `FATAL`; override with `LOG_WATCHER_PATTERNS`) and emails a summary. It uses Docker Compose **profile** `log-watcher` and the same root `.env` as the API for SMTP.
 
-1. Add `LOG_WATCHER_ALERT_TO` (and reuse your existing `SMTP_*` values) to the repo `.env`. See [`apps/log-watcher/.env.example`](apps/log-watcher/.env.example).
+1. Add `LOG_WATCHER_ALERT_TO` (and reuse your existing `SMTP_*` values) to the repo `.env`. See [`apps/log-watcher/.env.example`](../apps/log-watcher/.env.example).
 2. From the machine where the repo lives, run:
 
 ```bash

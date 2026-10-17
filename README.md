@@ -146,6 +146,7 @@ jablu-chat/
 ├── docker/
 │   ├── nginx/           # Reverse proxy + TLS termination
 │   └── livekit/         # LiveKit media server config
+├── docs/               # Deployment, feature guides, desktop releases and backlog
 ├── docker-compose.yml           # Production stack
 ├── docker-compose.dev.yml       # Dev infrastructure only
 ├── docker-compose.traefik.yml   # Override for multi-site Traefik setup
@@ -166,9 +167,15 @@ jablu-chat/
 
 ---
 
+## Documentation
+
+Start with the [documentation index](./docs/README.md) for deployment, desktop
+releases, notification architecture and direct-conversation behavior.
+The [backlog](./docs/BACKLOG.md) tracks planned scalability and reliability work.
+
 ## Notifications
 
-See [NOTIFICATIONS.md](./NOTIFICATIONS.md) for how notification delivery works —
+See [the notification guide](./docs/NOTIFICATIONS.md) for how notification delivery works —
 the engagement model that decides which of your devices gets woken, the kinds
 and their coalescing rules, cross-device read cleanup, platform-specific
 behaviour on web/PWA/desktop, and troubleshooting.
@@ -177,7 +184,7 @@ behaviour on web/PWA/desktop, and troubleshooting.
 
 ## Deployment
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for a complete step-by-step guide covering:
+See [the deployment guide](./docs/DEPLOYMENT.md) for a complete step-by-step guide covering:
 
 - VPS provisioning and requirements
 - Docker setup and configuration

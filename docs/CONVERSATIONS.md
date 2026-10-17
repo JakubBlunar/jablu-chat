@@ -1,5 +1,7 @@
 # Direct conversations
 
+Part of the [Jablu documentation](./README.md).
+
 Open **Conversation info** in the desktop DM header, or tap the conversation
 name on mobile. The same panel is available in one-to-one and group DMs.
 

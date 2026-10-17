@@ -1,5 +1,9 @@
 # Releasing the Jablu Desktop App (Tauri, Windows)
 
+Part of the [Jablu documentation](./README.md). Desktop-specific file paths in
+this guide refer to [apps/desktop](../apps/desktop/); script and artifact
+locations are unchanged.
+
 The desktop app is a Tauri v2 shell around the `@chat/web` SPA. It supports automatic
 updates, global push-to-talk, auto-start, tray, and web-hosted installer downloads.
 

@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 #
 # This removes public ports from nginx and adds Traefik routing labels.
-# Traefik must already be running on the "web" network (see DEPLOYMENT.md).
+# Traefik must already be running on the "web" network (see docs/DEPLOYMENT.md).
 
 services:
   nginx:

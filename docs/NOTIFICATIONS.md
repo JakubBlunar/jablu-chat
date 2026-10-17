@@ -1,5 +1,7 @@
 # Notifications
 
+Part of the [Jablu documentation](./README.md).
+
 How Jablu decides that something happened, whether to tell you, and which of
 your devices to tell.
 
@@ -382,7 +384,7 @@ the channel will not clear it.
 
 ## Adding a new notification
 
-See [`.cursor/rules/notifications.mdc`](./.cursor/rules/notifications.mdc) for
+See [`.cursor/rules/notifications.mdc`](../.cursor/rules/notifications.mdc) for
 the checklist. In short: add the enum value plus a migration, mirror it in the
 web types, call `dispatch` from the producer, render and route it in the bell,
 and add it to `channelScopedMatchers` if it is channel-scoped.
