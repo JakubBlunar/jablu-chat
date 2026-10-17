@@ -276,6 +276,20 @@ describe('useMemberStore', () => {
   })
 
   describe('setUserOnline / setUserOffline', () => {
+    it('does not notify subscribers for duplicate online/offline events', () => {
+      useMemberStore.getState().setUserOnline('u1')
+      const onChange = jest.fn()
+      const unsubscribe = useMemberStore.subscribe(onChange)
+
+      useMemberStore.getState().setUserOnline('u1')
+      expect(onChange).not.toHaveBeenCalled()
+      useMemberStore.getState().setUserOffline('u1')
+      expect(onChange).toHaveBeenCalledTimes(1)
+      useMemberStore.getState().setUserOffline('u1')
+      expect(onChange).toHaveBeenCalledTimes(1)
+      unsubscribe()
+    })
+
     it('adds and removes user from onlineUserIds', () => {
       useMemberStore.getState().setUserOnline('u1')
       expect(useMemberStore.getState().onlineUserIds.has('u1')).toBe(true)
@@ -323,6 +337,40 @@ describe('useMemberStore', () => {
       useMemberStore.setState({ members: [makeMember()] })
       useMemberStore.getState().setUserStatus('u1', 'dnd')
       expect(useMemberStore.getState().members[0].user.status).toBe('dnd')
+    })
+
+    it('preserves online membership and unchanged member objects for a status-only change', () => {
+      const member = makeMember()
+      const other = makeMember({ userId: 'u2' })
+      const onlineUserIds = new Set(['u1', 'u2'])
+      useMemberStore.setState({ members: [member, other], onlineUserIds })
+
+      useMemberStore.getState().setUserStatus('u1', 'dnd')
+
+      expect(useMemberStore.getState().onlineUserIds).toBe(onlineUserIds)
+      expect(useMemberStore.getState().members[0]).not.toBe(member)
+      expect(useMemberStore.getState().members[1]).toBe(other)
+    })
+
+    it('preserves the member list when presence changes outside the loaded server', () => {
+      const members = [makeMember()]
+      useMemberStore.setState({ members })
+      useMemberStore.getState().setUserStatus('friend-on-another-server', 'idle')
+
+      expect(useMemberStore.getState().members).toBe(members)
+      expect(useMemberStore.getState().resolveStatus('friend-on-another-server')).toBe('idle')
+    })
+
+    it('does not notify subscribers when an identical status is received again', () => {
+      useMemberStore.setState({ members: [makeMember()] })
+      useMemberStore.getState().setUserStatus('u1', 'idle')
+      const onChange = jest.fn()
+      const unsubscribe = useMemberStore.subscribe(onChange)
+
+      useMemberStore.getState().setUserStatus('u1', 'idle')
+
+      expect(onChange).not.toHaveBeenCalled()
+      unsubscribe()
     })
   })
 })

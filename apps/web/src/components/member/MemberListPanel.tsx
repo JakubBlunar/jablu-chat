@@ -1,5 +1,5 @@
 import type { UserStatus } from '@chat/shared'
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
@@ -18,7 +18,7 @@ export function resolveMemberPresence(m: Member, onlineIds: Set<string>): UserSt
   return 'online'
 }
 
-export function MemberListPanel({
+export const MemberListPanel = memo(function MemberListPanel({
   members,
   onlineIds,
   isLoading,
@@ -94,9 +94,9 @@ export function MemberListPanel({
       </section>
     </div>
   )
-}
+})
 
-function MemberRow({
+const MemberRow = memo(function MemberRow({
   member,
   presence,
   dimmed,
@@ -114,15 +114,15 @@ function MemberRow({
   const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
   const isBot = member.user.isBot
   const storedActivity = useActivityStore((s) => s.activities.get(member.userId))
-  const currentUserId = useAuthStore((s) => s.user?.id)
+  const isSelf = useAuthStore((s) => s.user?.id === member.userId)
   const currentServerId = useServerStore((s) => s.currentServerId)
-  const hiddenServerIds = useActivityStore((s) => s.hiddenServerIds)
   // Hide our own activity from ourselves in servers where we've hidden sharing,
   // so the member list reflects what everyone else on that server actually sees.
-  const selfHiddenHere =
-    member.userId === currentUserId &&
+  const selfHiddenHere = useActivityStore((s) =>
+    isSelf &&
     !!currentServerId &&
-    hiddenServerIds.includes(currentServerId)
+    s.hiddenServerIds.includes(currentServerId)
+  )
   const activity = selfHiddenHere ? undefined : storedActivity
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -174,4 +174,4 @@ function MemberRow({
       </button>
     </li>
   )
-}
+})

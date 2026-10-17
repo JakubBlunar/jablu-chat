@@ -1,16 +1,16 @@
 import type { Channel } from '@chat/shared'
-import React from 'react'
+import React, { memo } from 'react'
 import { CountBadge } from '@/components/ui'
 import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { ForumIcon, ArchiveIcon } from './sidebarIcons'
-import type { ReadStateMap } from './TextChannelItem'
+import type { ChannelItemReadState } from './TextChannelItem'
 
-export function ForumChannelItem({
+export const ForumChannelItem = memo(function ForumChannelItem({
   ch,
   active,
-  channelReadStates,
-  getNotifLevel,
+  readState,
+  notifLevel,
   longPressFired,
   currentServer,
   orchestratedGoToChannel,
@@ -23,8 +23,8 @@ export function ForumChannelItem({
 }: {
   ch: Channel
   active: boolean
-  channelReadStates: ReadStateMap
-  getNotifLevel: (channelId: string) => string
+  readState: ChannelItemReadState | undefined
+  notifLevel: NotifLevel
   longPressFired: React.MutableRefObject<boolean>
   currentServer: { id: string } | null
   orchestratedGoToChannel: (serverId: string, channelId: string) => Promise<unknown>
@@ -35,7 +35,7 @@ export function ForumChannelItem({
   compact?: boolean
   onSelect?: () => void
 }) {
-  const badge = computeChannelBadge(channelReadStates.get(ch.id), getNotifLevel(ch.id) as NotifLevel)
+  const badge = computeChannelBadge(readState, notifLevel)
   const { showUnread: showUnreadDot, mentionCount, hasIndicator } = badge
   const isArchived = !!ch.isArchived
   return (
@@ -78,4 +78,4 @@ export function ForumChannelItem({
       </button>
     </li>
   )
-}
+})

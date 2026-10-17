@@ -279,7 +279,11 @@ export class RolesService {
     const [member, everyoneRole] = await Promise.all([
       this.prisma.serverMember.findUnique({
         where: { userId_serverId: { userId, serverId } },
-        include: { roles: { include: { role: true } } },
+        select: {
+          roles: {
+            select: { roleId: true, role: { select: { permissions: true } } },
+          },
+        },
       }),
       this.prisma.role.findFirst({
         where: { serverId, isDefault: true },
@@ -312,11 +316,17 @@ export class RolesService {
     )
   }
 
-  async getAllChannelPermissions(serverId: string, userId: string): Promise<Record<string, bigint>> {
+  async getAllChannelPermissions(
+    serverId: string,
+    userId: string,
+    serverChannels?: readonly { id: string }[],
+  ): Promise<Record<string, bigint>> {
     const [{ perms: rolePerms, roleIds }, channels] = await Promise.all([
       this.getMemberPermissionsWithRoleIds(serverId, userId),
-      this.prisma.channel.findMany({ where: { serverId }, select: { id: true } }),
+      serverChannels ?? this.prisma.channel.findMany({ where: { serverId }, select: { id: true } }),
     ])
+
+    if (channels.length === 0) return {}
 
     if (hasPermission(rolePerms, Permission.ADMINISTRATOR)) {
       const map: Record<string, bigint> = {}
@@ -356,32 +366,39 @@ export class RolesService {
 
     const VIEW = Permission.VIEW_CHANNEL
 
-    const servers = await this.prisma.server.findMany({
-      where: { id: { in: unique } },
-      select: { id: true, ownerId: true },
-    })
+    const [servers, channels, members, everyoneRoles] = await Promise.all([
+      this.prisma.server.findMany({
+        where: { id: { in: unique } },
+        select: { id: true, ownerId: true },
+      }),
+      this.prisma.channel.findMany({
+        where: { serverId: { in: unique } },
+        select: { id: true, serverId: true },
+      }),
+      this.prisma.serverMember.findMany({
+        where: { userId, serverId: { in: unique } },
+        select: {
+          serverId: true,
+          roles: {
+            select: { roleId: true, role: { select: { permissions: true } } },
+          },
+        },
+      }),
+      this.prisma.role.findMany({
+        where: { serverId: { in: unique }, isDefault: true },
+        select: { id: true, serverId: true, permissions: true },
+      }),
+    ])
     const ownerByServer = new Map(servers.map((s) => [s.id, s.ownerId]))
 
-    const channels = await this.prisma.channel.findMany({
-      where: { serverId: { in: unique } },
-      select: { id: true, serverId: true },
-    })
     const channelsByServer = new Map<string, string[]>()
     for (const sid of unique) channelsByServer.set(sid, [])
     for (const ch of channels) {
       channelsByServer.get(ch.serverId)?.push(ch.id)
     }
 
-    const members = await this.prisma.serverMember.findMany({
-      where: { userId, serverId: { in: unique } },
-      include: { roles: { include: { role: true } } },
-    })
     const memberByServer = new Map(members.map((m) => [m.serverId, m]))
 
-    const everyoneRoles = await this.prisma.role.findMany({
-      where: { serverId: { in: unique }, isDefault: true },
-      select: { id: true, serverId: true, permissions: true },
-    })
     const everyoneByServer = new Map(everyoneRoles.map((r) => [r.serverId, r]))
 
     type OverrideRow = { channelId: string; roleId: string; allow: bigint; deny: bigint }

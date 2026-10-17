@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
@@ -13,7 +13,7 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useServerStore } from '@/stores/server.store'
 import { resolveMediaUrl } from '@/lib/api'
-import { computeServerBadge as computeServerBadgeUtil } from '@/lib/unread'
+import { computeServerBadges } from '@/lib/unread'
 
 function DmIcon() {
   return (
@@ -63,8 +63,8 @@ export function ServerSidebar() {
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
-  const computeServerBadge = useCallback(
-    (serverId: string) => computeServerBadgeUtil(serverId, getEffective),
+  const serverBadges = useMemo(
+    () => computeServerBadges(channelReadStates, channelToServer, getEffective),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs]
   )
@@ -118,7 +118,7 @@ export function ServerSidebar() {
               servers.map((server) => {
                 const active = viewMode === 'server' && server.id === currentServerId
                 const initial = server.name.trim().charAt(0).toUpperCase() || '?'
-                const badge = active ? null : computeServerBadge(server.id)
+                const badge = active ? null : serverBadges.get(server.id)
                 return (
                   <div key={server.id} className="group/pill relative flex w-full justify-center">
                     <span

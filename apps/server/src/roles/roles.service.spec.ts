@@ -136,6 +136,72 @@ describe('RolesService', () => {
     })
   })
 
+  describe('getAllChannelPermissions', () => {
+    beforeEach(() => {
+      prisma.server.findUnique.mockResolvedValue({ ownerId: 'other' })
+      prisma.serverMember.findUnique.mockResolvedValue({
+        roles: [{ roleId: 'r1', role: { permissions: Permission.VIEW_CHANNEL | Permission.SEND_MESSAGES } }],
+      })
+      prisma.role.findFirst.mockResolvedValue({ id: 'everyone', permissions: 0n })
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([])
+    })
+
+    it('reuses already loaded server channels while applying channel overrides', async () => {
+      const channels = [{ id: 'visible' }, { id: 'hidden' }]
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([
+        { channelId: 'hidden', allow: 0n, deny: Permission.VIEW_CHANNEL },
+      ])
+
+      const map = await service.getAllChannelPermissions(serverId, userId, channels)
+
+      expect(map.visible & Permission.VIEW_CHANNEL).toBe(Permission.VIEW_CHANNEL)
+      expect(map.hidden & Permission.VIEW_CHANNEL).toBe(0n)
+      expect(prisma.channel.findMany).not.toHaveBeenCalled()
+      expect(prisma.serverMember.findUnique).toHaveBeenCalledTimes(1)
+      expect(prisma.channelPermissionOverride.findMany).toHaveBeenCalledWith({
+        where: { roleId: { in: ['r1', 'everyone'] }, channelId: { in: ['visible', 'hidden'] } },
+      })
+    })
+
+    it('still loads channels for callers that do not already have them', async () => {
+      prisma.channel.findMany.mockResolvedValue([{ id: 'c1' }])
+      const map = await service.getAllChannelPermissions(serverId, userId)
+
+      expect(map.c1 & Permission.VIEW_CHANNEL).toBe(Permission.VIEW_CHANNEL)
+      expect(prisma.channel.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.channel.findMany).toHaveBeenCalledWith({ where: { serverId }, select: { id: true } })
+    })
+
+    it('does not bypass membership checks when channels are supplied', async () => {
+      prisma.serverMember.findUnique.mockResolvedValue(null)
+      await expect(service.getAllChannelPermissions(serverId, userId, [{ id: 'c1' }]))
+        .rejects.toThrow(ForbiddenException)
+      expect(prisma.channelPermissionOverride.findMany).not.toHaveBeenCalled()
+    })
+
+    it('does not bypass server existence checks for an empty supplied list', async () => {
+      prisma.server.findUnique.mockResolvedValue(null)
+      await expect(service.getAllChannelPermissions(serverId, userId, []))
+        .rejects.toThrow(NotFoundException)
+    })
+
+    it('preserves the administrator shortcut with already loaded channels', async () => {
+      prisma.serverMember.findUnique.mockResolvedValue({
+        roles: [{ roleId: 'admin', role: { permissions: Permission.ADMINISTRATOR } }],
+      })
+      expect(await service.getAllChannelPermissions(serverId, userId, [{ id: 'c1' }]))
+        .toEqual({ c1: DEFAULT_OWNER_PERMISSIONS })
+      expect(prisma.channel.findMany).not.toHaveBeenCalled()
+      expect(prisma.channelPermissionOverride.findMany).not.toHaveBeenCalled()
+    })
+
+    it('skips channel and override queries for an empty supplied list', async () => {
+      expect(await service.getAllChannelPermissions(serverId, userId, [])).toEqual({})
+      expect(prisma.channel.findMany).not.toHaveBeenCalled()
+      expect(prisma.channelPermissionOverride.findMany).not.toHaveBeenCalled()
+    })
+  })
+
   describe('requirePermission', () => {
     it('does not throw when permission is present', async () => {
       prisma.server.findUnique.mockResolvedValue({ ownerId })
@@ -882,6 +948,66 @@ describe('RolesService', () => {
       expect(m.get(serverId)).toEqual(expect.arrayContaining(['c1', 'c2']))
       expect(m.get(serverId)).toHaveLength(2)
       expect(prisma.channelPermissionOverride.findMany).not.toHaveBeenCalled()
+    })
+
+    it('applies everyone overrides, isolates roles by server, and excludes departed memberships', async () => {
+      prisma.server.findMany.mockResolvedValue([
+        { id: 's1', ownerId: 'other' }, { id: 's2', ownerId: 'other' }, { id: 's3', ownerId: 'other' },
+      ])
+      prisma.channel.findMany.mockResolvedValue([
+        { id: 's1-a', serverId: 's1' }, { id: 's1-b', serverId: 's1' },
+        { id: 's2-a', serverId: 's2' }, { id: 's3-a', serverId: 's3' },
+      ])
+      prisma.serverMember.findMany.mockResolvedValue([
+        { serverId: 's1', roles: [{ roleId: 'r1', role: { permissions: Permission.VIEW_CHANNEL } }] },
+        { serverId: 's2', roles: [] },
+      ])
+      prisma.role.findMany.mockResolvedValue([
+        { id: 'e1', serverId: 's1', permissions: 0n },
+        { id: 'e2', serverId: 's2', permissions: Permission.VIEW_CHANNEL },
+      ])
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([
+        { channelId: 's1-b', roleId: 'e1', allow: 0n, deny: Permission.VIEW_CHANNEL },
+        { channelId: 's1-a', roleId: 'e2', allow: 0n, deny: Permission.VIEW_CHANNEL },
+      ])
+
+      const map = await service.getVisibleChannelIdsForServers(userId, ['s1', 's2', 's3', 's1'])
+
+      expect(map.get('s1')).toEqual(['s1-a'])
+      expect(map.get('s2')).toEqual(['s2-a'])
+      expect(map.get('s3')).toEqual([])
+      expect(prisma.server.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['s1', 's2', 's3'] } }, select: { id: true, ownerId: true },
+      })
+    })
+
+    it('uses a fixed number of narrow queries for 50 servers', async () => {
+      const serverIds = Array.from({ length: 50 }, (_, i) => `s${i}`)
+      prisma.server.findMany.mockResolvedValue(serverIds.map((id) => ({ id, ownerId: 'other' })))
+      prisma.channel.findMany.mockResolvedValue(serverIds.map((id) => ({ id: `${id}-channel`, serverId: id })))
+      prisma.serverMember.findMany.mockResolvedValue(serverIds.map((id) => ({ serverId: id, roles: [] })))
+      prisma.role.findMany.mockResolvedValue(serverIds.map((id) => ({
+        id: `${id}-everyone`, serverId: id, permissions: Permission.VIEW_CHANNEL,
+      })))
+      prisma.channelPermissionOverride.findMany.mockResolvedValue([])
+
+      const map = await service.getVisibleChannelIdsForServers(userId, serverIds)
+
+      expect(map.size).toBe(50)
+      for (const id of serverIds) expect(map.get(id)).toEqual([`${id}-channel`])
+      expect(prisma.server.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.channel.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.serverMember.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.role.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.channelPermissionOverride.findMany).toHaveBeenCalledTimes(1)
+      expect(prisma.serverMember.findUnique).not.toHaveBeenCalled()
+      expect(prisma.serverMember.findMany).toHaveBeenCalledWith({
+        where: { userId, serverId: { in: serverIds } },
+        select: {
+          serverId: true,
+          roles: { select: { roleId: true, role: { select: { permissions: true } } } },
+        },
+      })
     })
   })
 })

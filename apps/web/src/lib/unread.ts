@@ -3,6 +3,8 @@ import { useReadStateStore } from '@/stores/readState.store'
 
 export type NotifLevel = 'all' | 'mentions' | 'none'
 
+export type ServerBadge = { unread: boolean; mentions: number }
+
 export type ChannelBadge = {
   showUnread: boolean
   showMentions: boolean
@@ -29,12 +31,35 @@ export function computeChannelBadge(
 }
 
 /**
+ * Aggregate all server icons in one pass instead of scanning every channel
+ * again for each server in the rail.
+ */
+export function computeServerBadges(
+  channels: ReadonlyMap<string, { unreadCount: number; mentionCount: number }>,
+  channelToServer: ReadonlyMap<string, string>,
+  getEffective: (channelId: string, serverId?: string) => NotifLevel
+): Map<string, ServerBadge> {
+  const badges = new Map<string, ServerBadge>()
+  for (const [channelId, serverId] of channelToServer) {
+    const rs = channels.get(channelId)
+    if (!rs) continue
+    const badge = computeChannelBadge(rs, getEffective(channelId, serverId))
+    if (!badge.hasIndicator) continue
+    const serverBadge = badges.get(serverId) ?? { unread: false, mentions: 0 }
+    serverBadge.unread = true
+    serverBadge.mentions += badge.mentionCount
+    badges.set(serverId, serverBadge)
+  }
+  return badges
+}
+
+/**
  * Aggregate badge for a server icon. Reads stores imperatively.
  */
 export function computeServerBadge(
   serverId: string,
   getEffective: (channelId: string, serverId?: string) => NotifLevel
-): { unread: boolean; mentions: number } {
+): ServerBadge {
   const { channels, channelToServer } = useReadStateStore.getState()
   let mentions = 0
   let unread = false

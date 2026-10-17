@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '../prisma-client'
+import { Permission } from '@chat/shared'
 import { ServersService } from './servers.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { EventBusService } from '../events/event-bus.service'
@@ -69,6 +70,25 @@ describe('ServersService', () => {
       expect(roles.createDefaultRoles).toHaveBeenCalledWith('srv-new', userId)
       expect(result).not.toBeNull()
       expect(result!.name).toBe('My Server')
+    })
+  })
+
+  describe('getServer', () => {
+    it('reuses loaded channels without changing the server response or visibility filtering', async () => {
+      const channels = [{ id: 'visible', type: 'text' }, { id: 'hidden', type: 'text' }]
+      const data = { ...server, channels, categories: [], roles: [], members: [{ userId }] }
+      prisma.server.findFirst.mockResolvedValue(data)
+      roles.getAllChannelPermissions.mockResolvedValue({ visible: Permission.VIEW_CHANNEL, hidden: 0n })
+
+      expect(await service.getServer(serverId, userId)).toEqual({ ...data, channels: [channels[0]] })
+      expect(roles.getAllChannelPermissions).toHaveBeenCalledWith(serverId, userId, channels)
+      expect(prisma.channel.findMany).not.toHaveBeenCalled()
+    })
+
+    it('preserves not-found behavior without resolving permissions', async () => {
+      prisma.server.findFirst.mockResolvedValue(null)
+      await expect(service.getServer(serverId, userId)).rejects.toThrow(NotFoundException)
+      expect(roles.getAllChannelPermissions).not.toHaveBeenCalled()
     })
   })
 

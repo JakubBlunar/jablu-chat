@@ -8,47 +8,54 @@ export type CategoryGroup = {
   forumChannels: Channel[]
 }
 
-export function useSortedChannels(channels: Channel[], categories: ChannelCategory[] = []) {
+const EMPTY_CATEGORIES: ChannelCategory[] = []
+
+export function useSortedChannels(channels: Channel[], categories: ChannelCategory[] = EMPTY_CATEGORIES) {
   const sorted = useMemo(() => {
     const byPos = (a: { position: number }, b: { position: number }) => a.position - b.position
 
-    const active = channels.filter((c) => !c.isArchived)
-    const archived = channels.filter((c) => c.isArchived).sort(byPos)
-
-    const uncatText = active
-      .filter((c) => c.type === 'text' && !c.categoryId)
-      .sort(byPos)
-    const uncatVoice = active
-      .filter((c) => c.type === 'voice' && !c.categoryId)
-      .sort(byPos)
-    const uncatForum = active
-      .filter((c) => c.type === 'forum' && !c.categoryId)
-      .sort(byPos)
-
-    const groups: CategoryGroup[] = [...categories].sort(byPos).map((cat) => ({
-      category: cat,
-      textChannels: active
-        .filter((c) => c.categoryId === cat.id && c.type === 'text')
-        .sort(byPos),
-      voiceChannels: active
-        .filter((c) => c.categoryId === cat.id && c.type === 'voice')
-        .sort(byPos),
-      forumChannels: active
-        .filter((c) => c.categoryId === cat.id && c.type === 'forum')
-        .sort(byPos)
+    const groups: CategoryGroup[] = [...categories].sort(byPos).map((category) => ({
+      category,
+      textChannels: [],
+      voiceChannels: [],
+      forumChannels: []
     }))
+    const byCategory = new Map(groups.map((group) => [group.category.id, group]))
+    const uncategorized: Omit<CategoryGroup, 'category'> = { textChannels: [], voiceChannels: [], forumChannels: [] }
+    const allText: Channel[] = []
+    const allVoice: Channel[] = []
+    const allForum: Channel[] = []
+    const archived: Channel[] = []
 
-    const allText = active.filter((c) => c.type === 'text').sort(byPos)
-    const allVoice = active.filter((c) => c.type === 'voice').sort(byPos)
-    const allForum = active.filter((c) => c.type === 'forum').sort(byPos)
+    for (const channel of [...channels].sort(byPos)) {
+      if (channel.isArchived) {
+        archived.push(channel)
+        continue
+      }
+      const group = channel.categoryId ? byCategory.get(channel.categoryId) : uncategorized
+      switch (channel.type) {
+        case 'text':
+          allText.push(channel)
+          group?.textChannels.push(channel)
+          break
+        case 'voice':
+          allVoice.push(channel)
+          group?.voiceChannels.push(channel)
+          break
+        case 'forum':
+          allForum.push(channel)
+          group?.forumChannels.push(channel)
+          break
+      }
+    }
 
     return {
       textChannels: allText,
       voiceChannels: allVoice,
       forumChannels: allForum,
-      uncategorizedText: uncatText,
-      uncategorizedVoice: uncatVoice,
-      uncategorizedForum: uncatForum,
+      uncategorizedText: uncategorized.textChannels,
+      uncategorizedVoice: uncategorized.voiceChannels,
+      uncategorizedForum: uncategorized.forumChannels,
       categoryGroups: groups,
       archivedChannels: archived
     }

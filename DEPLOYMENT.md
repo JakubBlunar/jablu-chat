@@ -349,6 +349,23 @@ docker compose up -d
 The `migrate` service runs automatically on startup and applies any new database
 migrations.
 
+### Sidebar index migration
+
+The `20261017130000_server_sidebar_indexes` migration adds
+`(server_id, position)` indexes to `channels` and `channel_categories`. These
+support server-scoped list queries; the existing member and message indexes are
+unchanged.
+
+It uses PostgreSQL `CREATE INDEX CONCURRENTLY` to avoid blocking ordinary writes
+while building the indexes. Run it through the normal Prisma migrate service,
+**not inside an explicit transaction**. Large tables may take longer to index;
+allow the migration to finish before starting the new API.
+
+If a concurrent build fails or is interrupted, inspect `pg_index.indisvalid` and
+the failed migration before retrying. A failed build can leave an invalid index;
+do not mark the migration applied or use `IF NOT EXISTS` to skip it without
+checking that both new indexes are valid.
+
 ### Zero-downtime update
 
 ```bash

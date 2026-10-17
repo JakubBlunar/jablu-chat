@@ -628,8 +628,8 @@ export function ChannelSidebar() {
                     key={ch.id}
                     ch={ch}
                     active={ch.id === currentChannelId && !viewingVoiceRoom}
-                    channelReadStates={channelReadStates}
-                    getNotifLevel={getNotifLevel}
+                    readState={channelReadStates.get(ch.id)}
+                    notifLevel={getNotifLevel(ch.id)}
                     longPressFired={longPressFired}
                     currentServer={currentServer}
                     orchestratedGoToChannel={orchestratedGoToChannel}
@@ -696,8 +696,8 @@ export function ChannelSidebar() {
                             key={ch.id}
                             ch={ch}
                             active={ch.id === currentChannelId && !viewingVoiceRoom}
-                            channelReadStates={channelReadStates}
-                            getNotifLevel={getNotifLevel}
+                            readState={channelReadStates.get(ch.id)}
+                            notifLevel={getNotifLevel(ch.id)}
                             longPressFired={longPressFired}
                             currentServer={currentServer}
                             orchestratedGoToChannel={orchestratedGoToChannel}
@@ -741,8 +741,8 @@ export function ChannelSidebar() {
                             key={ch.id}
                             ch={ch}
                             active={ch.id === currentChannelId && !viewingVoiceRoom}
-                            channelReadStates={channelReadStates}
-                            getNotifLevel={getNotifLevel}
+                            readState={channelReadStates.get(ch.id)}
+                            notifLevel={getNotifLevel(ch.id)}
                             longPressFired={longPressFired}
                             currentServer={currentServer}
                             orchestratedGoToChannel={orchestratedGoToChannel}
@@ -828,8 +828,8 @@ export function ChannelSidebar() {
                     key={ch.id}
                     ch={ch}
                     active={ch.id === currentChannelId && !viewingVoiceRoom}
-                    channelReadStates={channelReadStates}
-                    getNotifLevel={getNotifLevel}
+                    readState={channelReadStates.get(ch.id)}
+                    notifLevel={getNotifLevel(ch.id)}
                     longPressFired={longPressFired}
                     currentServer={currentServer}
                     orchestratedGoToChannel={orchestratedGoToChannel}
@@ -863,8 +863,8 @@ export function ChannelSidebar() {
                       key={ch.id}
                       ch={ch}
                       active={ch.id === currentChannelId && !viewingVoiceRoom}
-                      channelReadStates={channelReadStates}
-                      getNotifLevel={getNotifLevel}
+                      readState={channelReadStates.get(ch.id)}
+                      notifLevel={getNotifLevel(ch.id)}
                       longPressFired={longPressFired}
                       currentServer={currentServer}
                       orchestratedGoToChannel={orchestratedGoToChannel}

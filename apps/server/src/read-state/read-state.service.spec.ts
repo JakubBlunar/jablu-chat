@@ -8,7 +8,7 @@ import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.
 describe('ReadStateService', () => {
   let service: ReadStateService
   let prisma: MockPrismaService
-  let roles: { getAllChannelPermissions: jest.Mock }
+  let roles: { getAllChannelPermissions: jest.Mock; getVisibleChannelIdsForServers: jest.Mock }
   let inApp: {
     markChannelRead: jest.Mock
     markServerChannelsRead: jest.Mock
@@ -22,6 +22,7 @@ describe('ReadStateService', () => {
     prisma = createMockPrismaService()
     roles = {
       getAllChannelPermissions: jest.fn().mockResolvedValue({}),
+      getVisibleChannelIdsForServers: jest.fn().mockResolvedValue(new Map()),
     }
     inApp = {
       markChannelRead: jest.fn().mockResolvedValue(undefined),
@@ -42,8 +43,6 @@ describe('ReadStateService', () => {
   })
 
   describe('getAllForUser', () => {
-    const VIEW = 4096n // Permission.VIEW_CHANNEL
-
     it('queries membership-backed channels and DMs even without an existing read-state row', async () => {
       prisma.$queryRaw.mockResolvedValue([])
       await service.getAllForUser(userId)
@@ -88,10 +87,7 @@ describe('ReadStateService', () => {
           },
         ])
 
-      roles.getAllChannelPermissions.mockResolvedValue({
-        'ch-1': VIEW,
-        'ch-2': VIEW,
-      })
+      roles.getVisibleChannelIdsForServers.mockResolvedValue(new Map([['server-1', ['ch-1', 'ch-2']]]))
 
       const result = await service.getAllForUser(userId)
 
@@ -114,6 +110,43 @@ describe('ReadStateService', () => {
           firstUnreadMessageId: 'msg-dm-200',
         }),
       ])
+    })
+
+    it('batches visibility for many servers and filters hidden or departed channels', async () => {
+      const rows = Array.from({ length: 50 }, (_, i) => ({
+        channel_id: `ch-${i}`,
+        last_read_at: new Date('2026-01-01T00:00:00Z'),
+        mention_count: 1,
+        server_id: `server-${i}`,
+        unread_count: 3n,
+        first_unread_message_id: `msg-${i}`,
+      }))
+      prisma.$queryRaw.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
+      roles.getVisibleChannelIdsForServers.mockResolvedValue(new Map(
+        rows.filter((_, i) => i % 2 === 0).map((r) => [r.server_id, [r.channel_id]]),
+      ))
+
+      const result = await service.getAllForUser(userId)
+
+      expect(result.channels.map((c) => c.channelId)).toEqual(
+        rows.filter((_, i) => i % 2 === 0).map((r) => r.channel_id),
+      )
+      expect(roles.getVisibleChannelIdsForServers).toHaveBeenCalledTimes(1)
+      expect(roles.getVisibleChannelIdsForServers).toHaveBeenCalledWith(userId, rows.map((r) => r.server_id))
+      expect(roles.getAllChannelPermissions).not.toHaveBeenCalled()
+    })
+
+    it('surfaces permission query failures instead of silently returning incomplete badges', async () => {
+      prisma.$queryRaw.mockResolvedValueOnce([{
+        channel_id: 'ch-1',
+        last_read_at: new Date('2026-01-01T00:00:00Z'),
+        mention_count: 0,
+        server_id: serverId,
+        unread_count: 0n,
+        first_unread_message_id: null,
+      }]).mockResolvedValueOnce([])
+      roles.getVisibleChannelIdsForServers.mockRejectedValue(new Error('Database unavailable'))
+      await expect(service.getAllForUser(userId)).rejects.toThrow('Database unavailable')
     })
   })
 

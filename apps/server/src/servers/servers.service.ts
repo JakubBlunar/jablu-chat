@@ -122,7 +122,7 @@ export class ServersService {
     if (!server) {
       throw new NotFoundException('Server not found or you are not a member')
     }
-    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId, server.channels)
     const visibleChannelIds = new Set(
       Object.entries(permMap)
         .filter(([, p]) => hasPermission(p, Permission.VIEW_CHANNEL))

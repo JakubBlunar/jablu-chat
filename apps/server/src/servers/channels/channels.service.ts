@@ -75,7 +75,7 @@ export class ChannelsService {
       }
     })
 
-    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
+    const permMap = await this.roles.getAllChannelPermissions(serverId, userId, channels)
     const VIEW = Permission.VIEW_CHANNEL
 
     return channels

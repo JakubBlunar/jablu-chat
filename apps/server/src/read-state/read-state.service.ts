@@ -95,18 +95,9 @@ export class ReadStateService {
     }))
 
     const serverIds = [...new Set(allChannels.map((c) => c.serverId))]
-    const permMaps = new Map<string, Record<string, bigint>>()
-    for (const sid of serverIds) {
-      try {
-        permMaps.set(sid, await this.roles.getAllChannelPermissions(sid, userId))
-      } catch { /* not a member, skip */ }
-    }
-    const channels = allChannels.filter((c) => {
-      const pm = permMaps.get(c.serverId)
-      if (!pm) return false
-      const perms = pm[c.channelId]
-      return perms !== undefined && hasPermission(perms, Permission.VIEW_CHANNEL)
-    })
+    const visibleByServer = await this.roles.getVisibleChannelIdsForServers(userId, serverIds)
+    const visibleIds = new Set(Array.from(visibleByServer.values()).flat())
+    const channels = allChannels.filter((c) => visibleIds.has(c.channelId))
 
     const dms = dmRows.map((r) => ({
       conversationId: r.conversation_id,

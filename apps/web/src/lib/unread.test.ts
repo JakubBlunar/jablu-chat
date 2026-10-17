@@ -1,4 +1,4 @@
-import { computeChannelBadge, computeServerBadge, computeTotalBadge, type NotifLevel } from './unread'
+import { computeChannelBadge, computeServerBadge, computeServerBadges, computeTotalBadge, type NotifLevel } from './unread'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -43,6 +43,45 @@ it('highlights a server with ordinary unread activity even on mentions-only deli
 
 it('ignores muted channels in server indicators', () => {
   expect(computeServerBadge('s1', () => 'none')).toEqual({ unread: false, mentions: 0 })
+})
+
+it('aggregates all servers with the same results as individual badges', () => {
+  const { channels, channelToServer } = useReadStateStore.getState()
+  const getEffective = jest.fn((channelId: string): NotifLevel => channelId === 'ch2' ? 'none' : 'mentions')
+  const badges = computeServerBadges(channels, channelToServer, getEffective)
+
+  expect(getEffective).toHaveBeenCalledTimes(3)
+  expect(getEffective).toHaveBeenCalledWith('ch1', 's1')
+  for (const serverId of ['s1', 's2']) {
+    expect(badges.get(serverId)).toEqual(computeServerBadge(serverId, getEffective))
+  }
+})
+
+it('omits empty, muted, and missing read states without losing mention-only indicators', () => {
+  const channels = new Map([
+    ['empty', state(0, 0)],
+    ['muted', state(4, 2)],
+    ['mention', state(0, 3)],
+    ['unmapped', state(5, 5)]
+  ])
+  const mapping = new Map([
+    ['empty', 's1'], ['muted', 's1'], ['missing', 's1'], ['mention', 's2']
+  ])
+  expect(computeServerBadges(channels, mapping, (id) => id === 'muted' ? 'none' : 'all'))
+    .toEqual(new Map([['s2', { unread: true, mentions: 3 }]]))
+})
+
+it('resolves each channel only once across a large server rail', () => {
+  const channels = new Map(Array.from({ length: 10000 }, (_, i) => [`ch${i}`, state(1, i % 3)]))
+  const mapping = new Map(Array.from(channels.keys(), (id, i) => [id, `s${i % 100}`]))
+  const iterate = jest.spyOn(mapping, Symbol.iterator)
+  const getEffective = jest.fn((): NotifLevel => 'all')
+  const badges = computeServerBadges(channels, mapping, getEffective)
+
+  expect(badges.size).toBe(100)
+  expect(iterate).toHaveBeenCalledTimes(1)
+  expect(getEffective).toHaveBeenCalledTimes(channels.size)
+  expect(Array.from(badges.values()).reduce((total, badge) => total + badge.mentions, 0)).toBe(9999)
 })
 
 it('counts only mentions and DMs for the OS/title badge', () => {

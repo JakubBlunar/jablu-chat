@@ -194,8 +194,8 @@ export const useMemberStore = create<MemberState>((set, get) => ({
 
   setUserOnline: (userId) =>
     set((s) => {
-      const next = new Set(s.onlineUserIds)
-      next.add(userId)
+      if (s.onlineUserIds.has(userId) && s.realtimeStatuses.get(userId) === 'online') return s
+      const next = s.onlineUserIds.has(userId) ? s.onlineUserIds : new Set(s.onlineUserIds).add(userId)
       const rt = new Map(s.realtimeStatuses)
       rt.set(userId, 'online')
       return { onlineUserIds: next, realtimeStatuses: rt }
@@ -203,8 +203,9 @@ export const useMemberStore = create<MemberState>((set, get) => ({
 
   setUserOffline: (userId) =>
     set((s) => {
-      const next = new Set(s.onlineUserIds)
-      next.delete(userId)
+      if (!s.onlineUserIds.has(userId) && !s.realtimeStatuses.has(userId)) return s
+      const next = s.onlineUserIds.has(userId) ? new Set(s.onlineUserIds) : s.onlineUserIds
+      if (next !== s.onlineUserIds) next.delete(userId)
       const rt = new Map(s.realtimeStatuses)
       rt.delete(userId)
       return { onlineUserIds: next, realtimeStatuses: rt }
@@ -212,18 +213,24 @@ export const useMemberStore = create<MemberState>((set, get) => ({
 
   setUserStatus: (userId, status) =>
     set((s) => {
-      const rt = new Map(s.realtimeStatuses)
-      rt.set(userId, status)
-      const nextOnline = new Set(s.onlineUserIds)
-      if (status === 'offline') {
-        nextOnline.delete(userId)
-      } else if (status === 'online' || status === 'idle' || status === 'dnd') {
-        nextOnline.add(userId)
+      const wasOnline = s.onlineUserIds.has(userId)
+      const isOnline = status === 'offline' ? false
+        : status === 'online' || status === 'idle' || status === 'dnd' ? true : wasOnline
+      const statusChanged = s.realtimeStatuses.get(userId) !== status
+      const memberChanged = s.members.some((m) => m.userId === userId && m.user.status !== status)
+      if (!statusChanged && wasOnline === isOnline && !memberChanged) return s
+      const rt = statusChanged ? new Map(s.realtimeStatuses).set(userId, status) : s.realtimeStatuses
+      const nextOnline = wasOnline === isOnline ? s.onlineUserIds : new Set(s.onlineUserIds)
+      if (wasOnline !== isOnline) {
+        if (isOnline) nextOnline.add(userId)
+        else nextOnline.delete(userId)
       }
       return {
         onlineUserIds: nextOnline,
         realtimeStatuses: rt,
-        members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, status } } : m))
+        members: memberChanged
+          ? s.members.map((m) => (m.userId === userId && m.user.status !== status ? { ...m, user: { ...m.user, status } } : m))
+          : s.members
       }
     }),
 

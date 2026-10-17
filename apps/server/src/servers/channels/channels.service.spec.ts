@@ -7,6 +7,7 @@ import { UploadsService } from '../../uploads/uploads.service'
 import { AuditLogService } from '../audit-log.service'
 import { RolesService } from '../../roles/roles.service'
 import { Prisma } from '../../prisma-client'
+import { Permission } from '@chat/shared'
 import { createMockPrismaService, MockPrismaService } from '../../__mocks__/prisma.mock'
 
 describe('ChannelsService', () => {
@@ -142,15 +143,32 @@ describe('ChannelsService', () => {
 
   describe('getChannels', () => {
     it('returns channels with pinnedCount', async () => {
-      prisma.channel.findMany.mockResolvedValue([
+      const channels = [
         { id: 'ch-1', name: 'general', _count: { messages: 3 } },
         { id: 'ch-2', name: 'random', _count: { messages: 0 } },
-      ])
+      ]
+      prisma.channel.findMany.mockResolvedValue(channels)
 
       const result = await service.getChannels(serverId, userId)
       expect(result[0].pinnedCount).toBe(3)
       expect(result[1].pinnedCount).toBe(0)
       expect(roles.requireMembership).toHaveBeenCalled()
+      expect(roles.getAllChannelPermissions).toHaveBeenCalledWith(serverId, userId, channels)
+    })
+
+    it('preserves visibility filtering and pin counts while reusing loaded channels', async () => {
+      const channels = [
+        { id: 'visible', name: 'general', _count: { messages: 2 } },
+        { id: 'hidden', name: 'private', _count: { messages: 4 } },
+      ]
+      prisma.channel.findMany.mockResolvedValue(channels)
+      roles.getAllChannelPermissions.mockResolvedValue({ visible: Permission.VIEW_CHANNEL, hidden: 0n })
+
+      expect(await service.getChannels(serverId, userId)).toEqual([
+        { id: 'visible', name: 'general', pinnedCount: 2 },
+      ])
+      expect(roles.getAllChannelPermissions).toHaveBeenCalledWith(serverId, userId, channels)
+      expect(prisma.channel.findMany).toHaveBeenCalledTimes(1)
     })
   })
 

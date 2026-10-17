@@ -9,6 +9,7 @@ import { useLayoutStore } from '@/stores/layout.store'
 import { isDesktop } from '@/lib/desktop'
 import { resolveMediaUrl } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
+import type { ServerBadge } from '@/lib/unread'
 import { DmIcon } from './mobileNavIcons'
 
 function JoinIcon() {
@@ -30,8 +31,6 @@ function SearchIcon() {
   )
 }
 
-export type ServerBadge = { unread: boolean; mentions: number }
-
 type Props = {
   viewMode: 'dm' | 'server'
   servers: Server[]
@@ -39,7 +38,7 @@ type Props = {
   isLoading: boolean
   hasDmUnread: boolean
   navigatingToServerId: string | null
-  computeServerBadge: (serverId: string) => ServerBadge
+  serverBadges: ReadonlyMap<string, ServerBadge>
   onDmClick: () => void
   onServerClick: (server: Server) => void
   onOpenQuickSwitcher: () => void
@@ -52,7 +51,7 @@ export function MobileNavServerRail({
   isLoading,
   hasDmUnread,
   navigatingToServerId,
-  computeServerBadge,
+  serverBadges,
   onDmClick,
   onServerClick,
   onOpenQuickSwitcher
@@ -97,7 +96,7 @@ export function MobileNavServerRail({
               servers.map((server) => {
                 const active = viewMode === 'server' && server.id === currentServerId
                 const initial = server.name.trim().charAt(0).toUpperCase() || '?'
-                const badge = active ? null : computeServerBadge(server.id)
+                const badge = active ? null : serverBadges.get(server.id)
                 return (
                   <div key={server.id} className="group/pill relative flex w-full justify-center">
                     <span

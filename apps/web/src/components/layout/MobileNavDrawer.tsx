@@ -45,7 +45,7 @@ import { useFriendStore } from '@/stores/friend.store'
 import { useShallow } from 'zustand/react/shallow'
 import { CountBadge, IconButton } from '@/components/ui'
 import { ForumChannelItem } from '@/components/channel/channel-sidebar/ForumChannelItem'
-import { computeChannelBadge, computeServerBadge, type NotifLevel } from '@/lib/unread'
+import { computeChannelBadge, computeServerBadges, type NotifLevel } from '@/lib/unread'
 
 const EventsPanel = React.lazy(() =>
   import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
@@ -240,8 +240,8 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
-  const computeServerBadgeFn = useCallback(
-    (serverId: string) => computeServerBadge(serverId, getEffective),
+  const serverBadges = useMemo(
+    () => computeServerBadges(channelReadStates, channelToServer, getEffective),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs]
   )
@@ -328,7 +328,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
             isLoading={serversLoading}
             hasDmUnread={hasDmUnread}
             navigatingToServerId={navigatingToServerId}
-            computeServerBadge={computeServerBadgeFn}
+            serverBadges={serverBadges}
             onDmClick={handleDmClick}
             onServerClick={handleServerClick}
             onOpenQuickSwitcher={() => { close(); onOpenQuickSwitcher() }}
@@ -490,8 +490,8 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                                   ch={ch}
                                   compact
                                   active={ch.id === currentChannelId && !viewingVoiceRoom}
-                                  channelReadStates={channelReadStates}
-                                  getNotifLevel={getNotifLevel}
+                                  readState={channelReadStates.get(ch.id)}
+                                  notifLevel={getNotifLevel(ch.id)}
                                   longPressFired={longPressFired}
                                   currentServer={currentServer}
                                   orchestratedGoToChannel={orchestratedGoToChannel}
@@ -590,8 +590,8 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                           ch={ch}
                           compact
                           active={ch.id === currentChannelId && !viewingVoiceRoom}
-                          channelReadStates={channelReadStates}
-                          getNotifLevel={getNotifLevel}
+                          readState={channelReadStates.get(ch.id)}
+                          notifLevel={getNotifLevel(ch.id)}
                           longPressFired={longPressFired}
                           currentServer={currentServer}
                           orchestratedGoToChannel={orchestratedGoToChannel}
