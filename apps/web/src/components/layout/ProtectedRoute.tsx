@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { Spinner } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -8,6 +8,7 @@ type ProtectedRouteProps = {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const location = useLocation()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
 
@@ -23,7 +24,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />
   }
 
   return <>{children}</>

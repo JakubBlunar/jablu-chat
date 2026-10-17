@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common'
-import { hasPermission, Permission } from '@chat/shared'
+import { hasPermission, messageNotificationUrl, Permission } from '@chat/shared'
 import type { LinkPreviewService } from '../messages/link-preview.service'
 import type { PrismaService } from '../prisma/prisma.service'
 import type { PushService } from '../push/push.service'
@@ -208,6 +208,7 @@ export async function deliverChannelMessage(
           channelId,
           channelName: safeChannelName,
           messageId: message.id,
+          ...(message.threadParentId ? { threadParentId: message.threadParentId } : {}),
           authorName,
           snippet
         })
@@ -317,7 +318,8 @@ export async function deliverChannelMessage(
         senderForPush,
         senderNameForPush,
         message.content ?? undefined,
-        attachments
+        attachments,
+        message.id
       ).catch((err) => log.warn(`Thread push failed: ${(err as Error)?.message}`))
     } else {
       sendPushToOfflineMembers(
@@ -326,7 +328,7 @@ export async function deliverChannelMessage(
         senderForPush,
         senderNameForPush,
         message.content ?? undefined,
-        `/channels/${serverId}/${channelId}`,
+        messageNotificationUrl(`/channels/${serverId}/${channelId}`, message.id),
         channelId,
         // The reply target rides along so a "mentions only" preference still
         // delivers a direct reply.
@@ -501,7 +503,7 @@ export async function deliverDmMessage(
         .sendToUsers(awayMembers, {
           title: `DM from ${authorName}`,
           body: preview,
-          url: `/channels/@me/${conversationId}`
+          url: messageNotificationUrl(`/channels/@me/${conversationId}`, message.id)
         })
         .catch((err) => log.warn(`DM push failed: ${(err as Error)?.message}`))
     }

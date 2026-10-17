@@ -1,4 +1,4 @@
-import { hasPermission, messagePreviewText, Permission } from '@chat/shared'
+import { hasPermission, messageNotificationUrl, messagePreviewText, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
@@ -178,7 +178,8 @@ export async function sendPushToThreadParticipants(
   senderId: string,
   senderName: string,
   content: string | undefined,
-  attachments?: { type: string }[]
+  attachments?: { type: string }[],
+  messageId?: string
 ) {
   const [parent, replies] = await Promise.all([
     ctx.prisma.message.findUnique({
@@ -242,6 +243,8 @@ export async function sendPushToThreadParticipants(
   await ctx.push.sendToUsers(eligibleIds, {
     title: `${senderName} replied in a thread`,
     body: preview,
-    url: `/channels/${serverId}/${channelId}`
+    url: messageId
+      ? messageNotificationUrl(`/channels/${serverId}/${channelId}`, messageId, parentId)
+      : `/channels/${serverId}/${channelId}`
   })
 }

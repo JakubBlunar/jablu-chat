@@ -1,9 +1,6 @@
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
-import { useChannelStore } from './channel.store'
-import { useDmStore } from './dm.store'
-import { useServerStore } from './server.store'
 
 type ChannelUnread = {
   unreadCount: number
@@ -13,11 +10,8 @@ type ChannelUnread = {
 }
 
 /**
- * Snapshot of a channel/DM's unread state captured at the moment the user
- * opened it. Survives the immediate ackChannel/ackDm call so that the inline
- * "New Messages" divider and the top "X new messages since…" pill stay
- * visible while the user is in the channel. Cleared on context leave or when
- * the user explicitly clicks "Mark as Read".
+ * Keeps the first-unread marker stable while reading history. Cleared when
+ * the reader reaches the latest messages, leaves, or explicitly marks read.
  */
 export type ChannelViewSnapshot = {
   unreadCount: number
@@ -32,9 +26,9 @@ type ReadStateState = {
   channelViewSnapshots: Map<string, ChannelViewSnapshot>
   dmViewSnapshots: Map<string, ChannelViewSnapshot>
   fetchAll: () => Promise<void>
-  ackServer: (serverId: string) => void
-  ackChannel: (channelId: string) => void
-  ackDm: (conversationId: string) => void
+  ackServer: (serverId: string) => Promise<boolean>
+  ackChannel: (channelId: string) => Promise<boolean>
+  ackDm: (conversationId: string) => Promise<boolean>
   incrementChannel: (channelId: string, isMention: boolean, serverId?: string, messageId?: string) => void
   incrementDm: (conversationId: string, messageId?: string) => void
   captureChannelView: (channelId: string) => void
@@ -79,67 +73,58 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
           firstUnreadMessageId: rs.firstUnreadMessageId ?? null
         })
       }
-      const viewMode = useServerStore.getState().viewMode
-      const activeChannelId = useChannelStore.getState().currentChannelId
-      const activeConvId = useDmStore.getState().currentConversationId
       const channelViewSnapshots = new Map(get().channelViewSnapshots)
       const dmViewSnapshots = new Map(get().dmViewSnapshots)
-      const zero = {
-        unreadCount: 0,
-        mentionCount: 0,
-        lastReadAt: new Date().toISOString(),
-        firstUnreadMessageId: null
+      for (const id of channelViewSnapshots.keys()) {
+        if (channels.get(id)?.unreadCount === 0) channelViewSnapshots.delete(id)
       }
-
-      if (viewMode === 'server' && activeChannelId && channels.has(activeChannelId)) {
-        // Capture snapshot before zeroing so the divider/pill have something to render.
-        if (!channelViewSnapshots.has(activeChannelId)) {
-          const live = channels.get(activeChannelId)!
-          channelViewSnapshots.set(activeChannelId, {
-            unreadCount: live.unreadCount,
-            firstUnreadMessageId: live.firstUnreadMessageId,
-            lastReadAt: live.lastReadAt
-          })
-        }
-        channels.set(activeChannelId, zero)
-        api.ackChannel(activeChannelId).catch(() => {})
+      for (const id of dmViewSnapshots.keys()) {
+        if (dms.get(id)?.unreadCount === 0) dmViewSnapshots.delete(id)
       }
-      if (viewMode === 'dm' && activeConvId && dms.has(activeConvId)) {
-        if (!dmViewSnapshots.has(activeConvId)) {
-          const live = dms.get(activeConvId)!
-          dmViewSnapshots.set(activeConvId, {
-            unreadCount: live.unreadCount,
-            firstUnreadMessageId: live.firstUnreadMessageId,
-            lastReadAt: live.lastReadAt
-          })
-        }
-        dms.set(activeConvId, zero)
-        api.ackDm(activeConvId).catch(() => {})
-      }
-
       set({ channels, dms, channelToServer, channelViewSnapshots, dmViewSnapshots })
-    } catch {
-      // ignore
+    } catch (error) {
+      console.error('Failed to refresh unread state', error)
     }
   },
 
-  ackServer: (serverId) => {
+  ackServer: async (serverId) => {
+    const previous = get().channels
+    try {
+      await api.ackServer(serverId)
+    } catch (error) {
+      console.error('Failed to mark server as read', error)
+      return false
+    }
     const { channels, channelToServer } = get()
     const updated = new Map(channels)
+    const channelViewSnapshots = new Map(get().channelViewSnapshots)
     for (const [chId, sid] of channelToServer) {
-      if (sid !== serverId) continue
+      if (sid !== serverId || channels.get(chId) !== previous.get(chId)) continue
       updated.set(chId, {
         unreadCount: 0,
         mentionCount: 0,
         lastReadAt: new Date().toISOString(),
         firstUnreadMessageId: null
       })
+      channelViewSnapshots.delete(chId)
     }
-    set({ channels: updated })
-    api.ackServer(serverId).catch(() => {})
+    set({ channels: updated, channelViewSnapshots })
+    return true
   },
 
-  ackChannel: (channelId) => {
+  ackChannel: async (channelId) => {
+    const previous = get().channels.get(channelId)
+    try {
+      await api.ackChannel(channelId)
+    } catch (error) {
+      console.error('Failed to mark channel as read', error)
+      return false
+    }
+    if (get().channels.get(channelId) !== previous) return false
+    if (previous?.unreadCount === 0 && previous.mentionCount === 0) {
+      if (get().channelViewSnapshots.has(channelId)) get().clearChannelView(channelId)
+      return true
+    }
     const channels = new Map(get().channels)
     channels.set(channelId, {
       unreadCount: 0,
@@ -147,11 +132,25 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
       lastReadAt: new Date().toISOString(),
       firstUnreadMessageId: null
     })
-    set({ channels })
-    api.ackChannel(channelId).catch(() => {})
+    const channelViewSnapshots = new Map(get().channelViewSnapshots)
+    channelViewSnapshots.delete(channelId)
+    set({ channels, channelViewSnapshots })
+    return true
   },
 
-  ackDm: (conversationId) => {
+  ackDm: async (conversationId) => {
+    const previous = get().dms.get(conversationId)
+    try {
+      await api.ackDm(conversationId)
+    } catch (error) {
+      console.error('Failed to mark DM as read', error)
+      return false
+    }
+    if (get().dms.get(conversationId) !== previous) return false
+    if (previous?.unreadCount === 0 && previous.mentionCount === 0) {
+      if (get().dmViewSnapshots.has(conversationId)) get().clearDmView(conversationId)
+      return true
+    }
     const dms = new Map(get().dms)
     dms.set(conversationId, {
       unreadCount: 0,
@@ -159,8 +158,10 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
       lastReadAt: new Date().toISOString(),
       firstUnreadMessageId: null
     })
-    set({ dms })
-    api.ackDm(conversationId).catch(() => {})
+    const dmViewSnapshots = new Map(get().dmViewSnapshots)
+    dmViewSnapshots.delete(conversationId)
+    set({ dms, dmViewSnapshots })
+    return true
   },
 
   incrementChannel: (channelId, isMention, serverId?, messageId?) => {
@@ -257,7 +258,7 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
       if (sid !== serverId) continue
       const rs = channels.get(channelId)
       if (!rs) continue
-      const badge = computeChannelBadge(rs, getEffective(channelId, serverId), false)
+      const badge = computeChannelBadge(rs, getEffective(channelId, serverId))
       if (badge.hasIndicator) unread = true
       mentions += badge.mentionCount
     }

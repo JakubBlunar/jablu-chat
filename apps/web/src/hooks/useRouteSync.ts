@@ -7,6 +7,7 @@ import { useNavHistoryStore } from '@/stores/navHistory.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 
 /**
  * One-way sync: URL params → Zustand stores.
@@ -14,7 +15,7 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
  */
 export function useRouteSync() {
   const params = useParams()
-  const { pathname } = useLocation()
+  const { pathname, search, key } = useLocation()
   const isDm = pathname.startsWith('/channels/@me')
 
   const serverId = isDm ? null : (params.serverId ?? null)
@@ -62,6 +63,16 @@ export function useRouteSync() {
       if (channelId && prevChannelRef.current !== channelId) {
         prevChannelRef.current = channelId
         useChannelStore.getState().setCurrentChannel(channelId)
+        const channelState = useChannelStore.getState()
+        if (
+          channelState.loadedServerId === serverId && !channelState.isLoading &&
+          !channelState.channels.some((c) => c.id === channelId)
+        ) {
+          void channelState.fetchChannels(serverId).catch((error) => {
+            console.error('Failed to refresh notification channel', error)
+          })
+          void useChannelPermissionsStore.getState().fetchChannelPermissions(serverId)
+        }
         // Also record here so back/forward and deep links are remembered, not
         // just clicks that go through navigation.store. The channel may not be
         // loaded yet on a deep link, in which case navigation.store records it.
@@ -76,5 +87,8 @@ export function useRouteSync() {
         voiceState.setViewingVoiceRoom(channelId === voiceState.currentChannelId)
       }
     }
-  }, [isDm, serverId, channelId, conversationId])
+    if (new URLSearchParams(search).has('m')) {
+      useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+    }
+  }, [isDm, serverId, channelId, conversationId, search, key])
 }

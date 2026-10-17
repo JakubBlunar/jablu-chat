@@ -121,6 +121,23 @@ describe('InAppNotificationsService', () => {
     expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, { userIds: ['u1'] })
   })
 
+  it('preserves thread context in mention notification payloads', async () => {
+    prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
+    prisma.channelNotifPref.findUnique.mockResolvedValue(null)
+    prisma.serverMember.findUnique.mockResolvedValue({ notifLevel: 'mentions' })
+    prisma.inAppNotification.count.mockResolvedValue(1)
+    prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<void>) => fn(prisma))
+    await service.recordMentions(['u1'], {
+      serverId: 's1', channelId: 'c1', channelName: 'general',
+      messageId: 'reply', threadParentId: 'parent', authorName: 'alice', snippet: 'hi'
+    })
+    expect(prisma.inAppNotification.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        payload: expect.objectContaining({ messageId: 'reply', threadParentId: 'parent' })
+      })
+    }))
+  })
+
   it('markRead throws when not found', async () => {
     prisma.inAppNotification.findFirst.mockResolvedValue(null)
     await expect(service.markRead('u1', 'missing')).rejects.toBeInstanceOf(NotFoundException)

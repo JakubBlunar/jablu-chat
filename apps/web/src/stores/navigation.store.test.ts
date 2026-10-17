@@ -3,7 +3,7 @@ import { useChannelStore } from './channel.store'
 import { useServerStore } from './server.store'
 import { useMessageStore } from './message.store'
 import { useDmStore } from './dm.store'
-import { makeMessage, resetMsgSeq } from '@/test/factories'
+import { makeChannel, makeMessage, resetMsgSeq } from '@/test/factories'
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -79,6 +79,22 @@ beforeEach(() => {
 
 describe('navigation.store', () => {
   describe('navigateToChannel', () => {
+    it('refreshes a missing channel instead of silently falling back to another one', async () => {
+      useServerStore.setState({ currentServerId: 's1' })
+      useChannelStore.setState({
+        channels: [makeChannel('ch-old', 's1')], loadedServerId: 's1'
+      })
+      const fetch = jest.spyOn(useChannelStore.getState(), 'fetchChannels').mockImplementation(async () => {
+        useChannelStore.setState({ channels: [makeChannel('ch-old', 's1'), makeChannel('ch-new', 's1')] })
+      })
+      const path = await useNavigationStore.getState().navigateToChannel({
+        serverId: 's1', channelId: 'ch-new'
+      })
+      expect(fetch).toHaveBeenCalledWith('s1')
+      expect(path).toBe('/channels/s1/ch-new')
+      fetch.mockRestore()
+    })
+
     it('returns a path with the fallback first text channel', async () => {
       useChannelStore.setState({
         channels: [

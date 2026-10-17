@@ -153,11 +153,14 @@ describe('sendPushToThreadParticipants', () => {
       { userId: 'u-replier', notifLevel: null },
     ])
 
-    await sendPushToThreadParticipants(ctx, 'parent-1', 'ch-1', 's1', 'sender', 'Alice', 'reply text')
+    await sendPushToThreadParticipants(ctx, 'parent-1', 'ch-1', 's1', 'sender', 'Alice', 'reply text', undefined, 'reply-1')
 
     expect(ctx.push.sendToUsers).toHaveBeenCalledWith(
       expect.arrayContaining(['u-parent', 'u-replier']),
-      expect.objectContaining({ title: 'Alice replied in a thread' }),
+      expect.objectContaining({
+        title: 'Alice replied in a thread',
+        url: '/channels/s1/ch-1?m=reply-1&thread=parent-1'
+      }),
     )
   })
 

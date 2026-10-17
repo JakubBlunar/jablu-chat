@@ -39,5 +39,3 @@ export type DmTypingPayload = {
   username: string
 }
 export type DmLinkPreviewPayload = LinkPreviewPayload & { conversationId: string }
-
-export type ThrottledAck = (fn: () => void) => void

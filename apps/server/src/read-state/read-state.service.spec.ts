@@ -44,6 +44,20 @@ describe('ReadStateService', () => {
   describe('getAllForUser', () => {
     const VIEW = 4096n // Permission.VIEW_CHANNEL
 
+    it('queries membership-backed channels and DMs even without an existing read-state row', async () => {
+      prisma.$queryRaw.mockResolvedValue([])
+      await service.getAllForUser(userId)
+      const channelSql = prisma.$queryRaw.mock.calls[0][0].join('?')
+      const dmSql = prisma.$queryRaw.mock.calls[1][0].join('?')
+      expect(channelSql).toContain('FROM channels c')
+      expect(channelSql).toContain('JOIN server_members sm')
+      expect(channelSql).toContain('LEFT JOIN channel_read_states')
+      expect(channelSql).toContain('COALESCE(crs.last_read_at, sm.joined_at)')
+      expect(dmSql).toContain('FROM direct_conversation_members dcm')
+      expect(dmSql).toContain('LEFT JOIN dm_read_states')
+      expect(dmSql).toContain('COALESCE(drs.last_read_at, dcm.joined_at)')
+    })
+
     it('includes firstUnreadMessageId for channels and DMs', async () => {
       prisma.$queryRaw
         .mockResolvedValueOnce([

@@ -1,7 +1,7 @@
 import { loginSchema } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Input, Spinner } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
 import { ApiError } from '../lib/api'
@@ -10,6 +10,9 @@ import { useAuthStore } from '../stores/auth.store'
 export function LoginPage() {
   const { t } = useTranslation('auth')
   const navigate = useNavigate()
+  const location = useLocation()
+  const from: unknown = location.state?.from
+  const returnTo = typeof from === 'string' && from.startsWith('/channels/') ? from : '/'
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isAuthLoading = useAuthStore((s) => s.isLoading)
   const login = useAuthStore((s) => s.login)
@@ -21,9 +24,9 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated) {
-      navigate('/', { replace: true })
+      navigate(returnTo, { replace: true })
     }
-  }, [isAuthenticated, isAuthLoading, navigate])
+  }, [isAuthenticated, isAuthLoading, navigate, returnTo])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -39,7 +42,7 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       await login(parsed.data.email, parsed.data.password)
-      navigate('/', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)

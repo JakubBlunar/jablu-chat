@@ -1,4 +1,4 @@
-import type { Message } from '@chat/shared'
+import { messageNotificationUrl, type Message } from '@chat/shared'
 import { api } from '@/lib/api'
 import {
   cacheAddMessage,
@@ -8,14 +8,15 @@ import {
 } from '@/lib/cache/contextMutations'
 import { dmKey } from '@/lib/cache/messageCache'
 import { showNotification } from '@/lib/notifications'
+import { isAppFocused } from '@/lib/appVisibility'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { notifBody } from './helpers'
-import type { DmDeletePayload, DmLinkPreviewPayload, DmMessagePayload, DmTypingPayload, ThrottledAck } from './types'
+import type { DmDeletePayload, DmLinkPreviewPayload, DmMessagePayload, DmTypingPayload } from './types'
 
-export function createDmHandlers(throttledAck: ThrottledAck) {
+export function createDmHandlers() {
   const onDmNew = (payload: DmMessagePayload) => {
     const dmState = useDmStore.getState()
     const currentConvId = dmState.currentConversationId
@@ -24,15 +25,15 @@ export function createDmHandlers(throttledAck: ThrottledAck) {
     const isViewingConversation = viewMode === 'dm' && payload.conversationId === currentConvId
     if (isViewingConversation) {
       dmState.addMessage(payload)
-      throttledAck(() => useReadStateStore.getState().ackDm(currentConvId!))
     } else {
       cacheAddMessage(dmKey(payload.conversationId), payload)
-
-      if (payload.authorId !== myId) {
-        useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
+    }
+    if (payload.authorId !== myId) {
+      useReadStateStore.getState().incrementDm(payload.conversationId, payload.id)
+      if (!isViewingConversation || !isAppFocused()) {
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
         const preview = notifBody(payload)
-        const url = `/channels/@me/${payload.conversationId}`
+        const url = messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id)
         showNotification(`DM from ${author}`, preview, url, undefined, 'mention')
       }
     }

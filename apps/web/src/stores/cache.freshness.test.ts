@@ -32,7 +32,7 @@ import { useNavHistoryStore } from './navHistory.store'
 import { useNavigationStore } from './navigation.store'
 import { useServerStore } from './server.store'
 
-const handlers = createChannelHandlers((fn) => fn())
+const handlers = createChannelHandlers()
 
 function seed() {
   return new FakeApi({

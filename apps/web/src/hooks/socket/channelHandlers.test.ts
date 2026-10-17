@@ -3,8 +3,10 @@ import { createChannelHandlers } from './channelHandlers'
 jest.mock('@/lib/notifications', () => ({
   showNotification: jest.fn()
 }))
+jest.mock('@/lib/appVisibility', () => ({ isAppFocused: jest.fn(() => true) }))
 
 import { showNotification } from '@/lib/notifications'
+import { isAppFocused } from '@/lib/appVisibility'
 import { useThreadStore } from '@/stores/thread.store'
 import { useForumStore } from '@/stores/forum.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -59,13 +61,12 @@ function resetStores() {
 }
 
 let handlers: ReturnType<typeof createChannelHandlers>
-let throttledAck: jest.Mock
 
 beforeEach(() => {
   resetStores()
   jest.clearAllMocks()
-  throttledAck = jest.fn((fn: () => void) => fn())
-  handlers = createChannelHandlers(throttledAck)
+  jest.mocked(isAppFocused).mockReturnValue(true)
+  handlers = createChannelHandlers()
 })
 
 describe('onMessageNew', () => {
@@ -82,7 +83,16 @@ describe('onMessageNew', () => {
     handlers.onMessageNew(baseMsg as any)
 
     expect(useMessageStore.getState().addMessage).toHaveBeenCalledWith(baseMsg)
-    expect(throttledAck).toHaveBeenCalled()
+    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', false, undefined, 'm1')
+    expect(useReadStateStore.getState().ackChannel).not.toHaveBeenCalled()
+  })
+
+  it('keeps a selected channel unread and notifies when the app is hidden', () => {
+    jest.mocked(isAppFocused).mockReturnValue(false)
+    handlers.onMessageNew({ ...baseMsg, serverId: 's1' } as any)
+    expect(useReadStateStore.getState().ackChannel).not.toHaveBeenCalled()
+    expect(useReadStateStore.getState().incrementChannel).toHaveBeenCalledWith('ch1', false, 's1', 'm1')
+    expect(mockShowNotification).toHaveBeenCalled()
   })
 
   it('routes thread messages to thread store', () => {
@@ -133,7 +143,7 @@ describe('onMessageNew', () => {
     expect(mockShowNotification).toHaveBeenCalledWith(
       '#general',
       'Bob: hello',
-      '/channels/s1/ch1',
+      '/channels/s1/ch1?m=m1',
       undefined,
       'message'
     )

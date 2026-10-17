@@ -10,9 +10,18 @@ count (displayed up to `99+`). One-to-one shortcuts use the other person's avata
 group DMs use their name's initial. Shortcuts disappear when the conversation is read,
 including when it is read on another device.
 
-On Windows, the taskbar overlay displays the total unread message count (up to `99+`),
-using the same notification preferences and active-conversation exclusions as the web
-badge. The tray tooltip retains the exact count; the overlay clears at zero.
+Unmuted channels and their servers stay highlighted while unread, including when
+notification delivery is set to mentions only. Muted channels have no indicator.
+Selection alone does not hide unread indicators.
+
+Numbered server badges count mentions. The page title, PWA badge, Windows taskbar
+overlay and tray count combine channel mentions with unread DMs, rather than counting
+every ordinary channel message. Counts display up to `99+`; the tray tooltip retains
+the exact count and the overlay clears at zero.
+
+The bell counts durable notification records (including coalesced conversations
+and non-message events), not unread messages, so its count can legitimately differ
+from a server's mention badge.
 
 Discord's behaviour, stated plainly:
 
@@ -21,7 +30,7 @@ Discord's behaviour, stated plainly:
    was off — it is still in the notification center when you come back.
 2. **All your devices get told.** Being logged in on desktop and a phone means
    both light up, unless one of them is already showing you the app.
-3. **Reading somewhere cleans up everywhere.** Open the channel on your phone
+3. **Reading somewhere cleans up everywhere.** Read the latest messages on your phone
    and the desktop toast disappears, and the badge drops on both.
 4. **Clicking takes you there.** Every notification with a target routes to it,
    on web, PWA and desktop alike.
@@ -136,17 +145,29 @@ you look, not worth waking a phone for.
 
 ## Reading and cross-device cleanup
 
-Opening a channel or DM calls `ackChannel` / `ackDm`, which marks the matching
-in-app rows read. That emits two events:
+Text channels and DMs are automatically acknowledged only when their message surface
+is loaded, visible, focused, and within 30 pixels of the bottom, with no newer history
+left to load. A short 250 ms debounce coalesces incoming bursts and rechecks focus
+before sending. Reading older history, viewing a voice room, minimizing to the tray,
+or leaving a conversation does not mark unseen messages read.
+
+The acknowledgement clears the unread marker/banner as well as the counts; the manual
+Mark as Read action remains available as an explicit override. Failed acknowledgements
+retain unread state. Refreshing unread counts never acknowledges a selected channel
+by itself. Unvisited channels are included using server membership as their baseline,
+so activity in a new channel survives a reload even before its first read-state row.
+
+`ackChannel` / `ackDm` marks matching in-app rows read and emits two events:
 
 - `IN_APP_NOTIFICATION_USERS_EVENT` → socket `in_app_notification:new` → every
   device refreshes its badge count.
 - `NOTIFICATION_CLEAR_EVENT` → socket `notification:clear` carrying the affected
   in-app URLs → every device takes down the matching OS toast.
 
-Clients turn a URL into a notification tag via `notificationTag(url)`
-(`jablu-${url}`), shared between the page, the service worker, and the desktop
-shell so all three can find and close the same toast. `clearNotifications(null)`
+Clients turn a URL into a notification tag via the shared `notificationTag(url)`
+helper. It strips message/thread jump parameters so precise deep links still share
+a conversation's `jablu-${path}` tag across the page, service worker and desktop shell.
+Call invitation parameters remain part of the tag. `clearNotifications(null)`
 clears everything, which is what mark-all-read and returning focus to the app
 both do.
 
@@ -216,8 +237,17 @@ Notification clicks go through `navigateFromNotification`
 via a bridge installed in `App.tsx`. Assigning `window.location.hash` directly —
 the previous approach — reloads the app and loses the target on desktop.
 
-The same helper serves all three click sources: page `Notification` objects,
-service worker messages, and native Tauri toasts.
+The helper queues clicks received before the router mounts, accepts same-origin
+path/hash URLs, and rejects cross-origin targets. Message notifications carry
+`?m=<messageId>` and thread replies also carry `&thread=<parentId>`. The bell uses
+the same route-driven message/thread jump as OS toasts; a target is retained across
+login. Jump handling waits for URL/store synchronization and refreshed channel data
+instead of applying a new message id to the previous channel.
+
+Cached channel lists are revalidated when entering a server. Explicit navigation to
+a missing channel refreshes before resolving it, rather than silently selecting an
+unrelated channel. A message notification is not marked read merely by clicking it;
+reading its conversation uses the automatic acknowledgement described above.
 
 ## Preferences
 

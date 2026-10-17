@@ -2,15 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { InAppNotificationDto } from '@/lib/api/types'
-import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { CountBadge } from '@/components/ui'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
-import { useMessageStore } from '@/stores/message.store'
-import { useThreadStore } from '@/stores/thread.store'
-import type { Message } from '@chat/shared'
-import { getDmCallUrl } from '@chat/shared'
+import { getDmCallUrl, messageNotificationUrl } from '@chat/shared'
 
 function titleFor(n: InAppNotificationDto, incomingCallTitle: string): string {
   const p = n.payload
@@ -218,7 +214,7 @@ export function InAppNotificationBell({
   const markRead = useNotificationCenterStore((s) => s.markRead)
   const markAllRead = useNotificationCenterStore((s) => s.markAllRead)
   const showLoading = useDelayedFlag(listLoading)
-  const { orchestratedGoToChannel, orchestratedGoToDm, navigate } = useAppNavigate()
+  const { navigate } = useAppNavigate()
   const { t: tVoice } = useTranslation('voice')
 
   useEffect(() => {
@@ -283,49 +279,24 @@ export function InAppNotificationBell({
   }, [open])
 
   const onItemClick = useCallback(
-    async (n: InAppNotificationDto) => {
+    (n: InAppNotificationDto) => {
       const p = n.payload
       try {
-        if (n.kind === 'mention') {
-          const serverId = typeof p.serverId === 'string' ? p.serverId : null
-          const channelId = typeof p.channelId === 'string' ? p.channelId : null
-          const messageId = typeof p.messageId === 'string' ? p.messageId : null
-          if (serverId && channelId && messageId) {
-            await orchestratedGoToChannel(serverId, channelId, messageId)
-          }
-        } else if (n.kind === 'dm_message') {
+        if (n.kind === 'dm_message') {
           const conv = typeof p.conversationId === 'string' ? p.conversationId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (conv) {
-            await orchestratedGoToDm(conv, messageId ?? null)
+            const path = `/channels/@me/${conv}`
+            navigate(messageId ? messageNotificationUrl(path, messageId) : path)
           }
-        } else if (n.kind === 'thread_reply') {
+        } else if (['mention', 'thread_reply', 'channel_message', 'reply'].includes(n.kind)) {
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
           const channelId = typeof p.channelId === 'string' ? p.channelId : null
           const threadParentId = typeof p.threadParentId === 'string' ? p.threadParentId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
-          if (serverId && channelId && threadParentId) {
-            await orchestratedGoToChannel(serverId, channelId)
-            const openWithParent = (msg: Message) => {
-              useThreadStore.getState().openThread(channelId, msg, { focusMessageId: messageId ?? undefined })
-            }
-            const existing = useMessageStore.getState().messages.find((m) => m.id === threadParentId)
-            if (existing) {
-              openWithParent(existing)
-            } else {
-              const res = await api.get<{ messages: Message[] }>(
-                `/api/channels/${channelId}/messages?around=${threadParentId}&limit=5`
-              )
-              const parent = res.messages.find((m) => m.id === threadParentId)
-              if (parent) openWithParent(parent)
-            }
-          }
-        } else if (n.kind === 'channel_message' || n.kind === 'reply') {
-          const serverId = typeof p.serverId === 'string' ? p.serverId : null
-          const channelId = typeof p.channelId === 'string' ? p.channelId : null
-          const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (serverId && channelId) {
-            await orchestratedGoToChannel(serverId, channelId, messageId ?? undefined)
+            const path = `/channels/${serverId}/${channelId}`
+            navigate(messageId ? messageNotificationUrl(path, messageId, threadParentId) : path)
           }
         } else if (n.kind === 'dm_call') {
           if (typeof p.conversationId === 'string' && typeof p.callId === 'string') {
@@ -347,11 +318,13 @@ export function InAppNotificationBell({
         }
         // `announcement` has nowhere to go; clicking it just marks it seen.
       } finally {
-        if (!n.readAt) void markRead(n.id)
+        if (!n.readAt && !['mention', 'thread_reply', 'channel_message', 'reply', 'dm_message'].includes(n.kind)) {
+          void markRead(n.id)
+        }
         setOpen(false)
       }
     },
-    [markRead, navigate, orchestratedGoToChannel, orchestratedGoToDm]
+    [markRead, navigate]
   )
 
   const panel =

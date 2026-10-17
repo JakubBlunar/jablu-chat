@@ -376,7 +376,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                       {uncategorizedText.map((ch) => {
                         const active = ch.id === currentChannelId && !viewingVoiceRoom
                         const { showUnread: showUnreadDot, mentionCount, hasIndicator } = computeChannelBadge(
-                          channelReadStates.get(ch.id), getEffective(ch.id, currentServer?.id) as NotifLevel, active
+                          channelReadStates.get(ch.id), getEffective(ch.id, currentServer?.id) as NotifLevel
                         )
                         return (
                           <li key={ch.id}>
@@ -426,7 +426,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                               {group.textChannels.map((ch) => {
                                 const active = ch.id === currentChannelId && !viewingVoiceRoom
                                 const { showUnread: showUnreadDot, mentionCount, hasIndicator } = computeChannelBadge(
-                                  channelReadStates.get(ch.id), getEffective(ch.id, currentServer?.id) as NotifLevel, active
+                                  channelReadStates.get(ch.id), getEffective(ch.id, currentServer?.id) as NotifLevel
                                 )
                                 return (
                                   <li key={ch.id}>
@@ -642,7 +642,7 @@ export function MobileNavDrawer({ onOpenSettings, onOpenQuickSwitcher }: { onOpe
                     const info = getConvDisplayInfo(conv)
                     const active = conv.id === currentConvId
                     const rs = dmReadStates.get(conv.id)
-                    const hasUnread = !active && rs && rs.unreadCount > 0
+                    const hasUnread = rs && rs.unreadCount > 0
                     return (
                       <li key={conv.id} className="group/dm relative">
                         <button

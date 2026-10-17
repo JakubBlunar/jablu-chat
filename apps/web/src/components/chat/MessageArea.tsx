@@ -86,18 +86,20 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const userId = useAuthStore((s) => s.user?.id)
 
   const scroll = useMessageScroll(contextId, store)
-  useChannelAck(mode, contextId)
+  const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
+  useChannelAck(mode, contextId, {
+    ready: !isLoading && !hasNewer && !scroll.settling && !store.scrollToMessageId &&
+      !messagesError && !viewingVoiceRoom && store.getLoadedForId() === contextId,
+    atBottom: scroll.atBottom,
+    scrollParentRef: scroll.scrollParentRef
+  })
   const unreadSnapshot = useReadStateStore((s) => {
     if (!contextId) return null
     const snap = isDm ? s.dmViewSnapshots.get(contextId) : s.channelViewSnapshots.get(contextId)
     if (snap) return snap
     const live = isDm ? s.dms.get(contextId) : s.channels.get(contextId)
     if (!live || live.unreadCount === 0 || !live.firstUnreadMessageId) return null
-    return {
-      unreadCount: live.unreadCount,
-      firstUnreadMessageId: live.firstUnreadMessageId,
-      lastReadAt: live.lastReadAt
-    }
+    return live
   })
 
   const handleJumpToUnread = useCallback(() => {
@@ -110,11 +112,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     if (!contextId) return
     const rs = useReadStateStore.getState()
     if (isDm) {
-      rs.clearDmView(contextId)
-      rs.ackDm(contextId)
+      void rs.ackDm(contextId)
     } else {
-      rs.clearChannelView(contextId)
-      rs.ackChannel(contextId)
+      void rs.ackChannel(contextId)
     }
     scroll.stickToBottom()
   }, [isDm, contextId, scroll])

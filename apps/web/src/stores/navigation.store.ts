@@ -11,6 +11,7 @@ import { useServerStore } from './server.store'
 import { hydrateContextFromDisk } from '@/lib/cache/hydrate'
 import { channelKey, dmKey, peekContext } from '@/lib/cache/messageCache'
 import { getSocket } from '@/lib/socket'
+import { showToast } from './toast.store'
 
 /** Channel types that have a message history worth navigating to. */
 function isMessageable(channel: Channel | undefined): boolean {
@@ -65,7 +66,9 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     set({ isNavigating: true, activeNavId: navId, navigatingToServerId: serverChanged ? serverId : null })
 
     try {
-      if (serverChanged) {
+      const channelState = useChannelStore.getState()
+      const requestedMissing = !!channelId && !channelState.channels.some((c) => c.id === channelId)
+      if (serverChanged || channelState.loadedServerId !== serverId || requestedMissing) {
         // Only the channel list and permissions decide what renders first.
         // Members fill a side panel and emojis only matter once the picker is
         // opened, so awaiting them here just delays the switch. Nothing awaits
@@ -73,7 +76,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
         void Promise.resolve(useMemberStore.getState().fetchMembers(serverId)).catch(() => {})
         void Promise.resolve(useEmojiStore.getState().fetch(serverId)).catch(() => {})
 
-        const sidebarReady =
+        const sidebarReady = !requestedMissing &&
           useChannelStore.getState().hydrateFromCache(serverId) &&
           useChannelPermissionsStore.getState().hydrateFromCache(serverId)
 
@@ -93,6 +96,11 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       }
 
       const channels = useChannelStore.getState().channels
+      if (channelId && !channels.some((c) => c.id === channelId && c.serverId === serverId)) {
+        showToast('Error', 'This channel is no longer available.')
+        set({ isNavigating: false, navigatingToServerId: null })
+        return null
+      }
       const targetChannelId = resolveTargetChannel(serverId, channels, channelId)
 
       if (!targetChannelId) {
@@ -184,7 +192,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 
       set({ isNavigating: false, navigatingToServerId: null })
       return `/channels/${serverId}/${targetChannelId}`
-    } catch {
+    } catch (error) {
+      console.error('Failed to navigate to channel', error)
       if (get().activeNavId === navId) {
         set({ isNavigating: false, navigatingToServerId: null })
       }

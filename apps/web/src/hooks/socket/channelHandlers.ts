@@ -1,4 +1,4 @@
-import type { ForumPost, Message, Poll } from '@chat/shared'
+import { messageNotificationUrl, type ForumPost, type Message, type Poll } from '@chat/shared'
 import {
   cacheAddMessage,
   cacheAddReaction,
@@ -20,8 +20,9 @@ import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { showNotification } from '@/lib/notifications'
+import { isAppFocused } from '@/lib/appVisibility'
 import { notifBody } from './helpers'
-import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewPayload, ThrottledAck } from './types'
+import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewPayload } from './types'
 
 /**
  * Thread replies previously produced no client-side alert at all, so a reply
@@ -40,7 +41,7 @@ function notifyThreadReply(
 
   const thread = useThreadStore.getState()
   // Already reading this thread — the message is on screen.
-  if (thread.isOpen && thread.parentMessage?.id === msg.threadParentId) return
+  if (thread.isOpen && thread.parentMessage?.id === msg.threadParentId && isAppFocused()) return
 
   const isMentioned = (msg.mentionedUserIds ?? []).includes(myId)
   const isParticipant =
@@ -56,7 +57,9 @@ function notifyThreadReply(
 
   const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
   const url =
-    msg.serverId && msg.channelId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined
+    msg.serverId && msg.channelId
+      ? messageNotificationUrl(`/channels/${msg.serverId}/${msg.channelId}`, msg.id, msg.threadParentId)
+      : undefined
   showNotification(
     'Thread reply',
     `${author}: ${notifBody(msg)}`,
@@ -66,7 +69,7 @@ function notifyThreadReply(
   )
 }
 
-export function createChannelHandlers(throttledAck: ThrottledAck) {
+export function createChannelHandlers() {
   const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
     if (msg.threadParentId) {
       useThreadStore.getState().addMessage(msg)
@@ -82,11 +85,9 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
     const isViewingChannel = viewMode === 'server' && msg.channelId != null && msg.channelId === channelId
     if (isViewingChannel) {
       useMessageStore.getState().addMessage(msg)
-      throttledAck(() => useReadStateStore.getState().ackChannel(channelId!))
-      return
     }
 
-    if (msg.channelId) {
+    if (msg.channelId && !isViewingChannel) {
       // Keep the cached copy current even for the user's own messages sent
       // from another device, which the unread path below deliberately skips.
       cacheAddMessage(channelKey(msg.channelId), msg)
@@ -99,10 +100,12 @@ export function createChannelHandlers(throttledAck: ThrottledAck) {
       useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned, msg.serverId, msg.id)
 
       const level = useNotifPrefStore.getState().getEffective(msg.channelId, msg.serverId)
-      if (level !== 'none' && (level !== 'mentions' || isMentioned)) {
+      if ((!isViewingChannel || !isAppFocused()) && level !== 'none' && (level !== 'mentions' || isMentioned)) {
         const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
         const preview = notifBody(msg)
-        const url = msg.serverId ? `/channels/${msg.serverId}/${msg.channelId}` : undefined
+        const url = msg.serverId
+          ? messageNotificationUrl(`/channels/${msg.serverId}/${msg.channelId}`, msg.id)
+          : undefined
         const ch = useChannelStore.getState().channels.find((c) => c.id === msg.channelId)
         const channelTitle = ch ? `#${ch.name}` : `#${msg.channelId.slice(0, 8)}`
         showNotification(channelTitle, `${author}: ${preview}`, url, undefined, isMentioned ? 'mention' : 'message')

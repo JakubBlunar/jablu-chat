@@ -251,6 +251,7 @@ export function MainLayout() {
   useEffect(() => {
     if (viewMode !== 'server') return
     if (isNavigating) return
+    if (useChannelStore.getState().isLoading) return
     if (!currentServerId || channels.length === 0) return
     if (channelLoadedServerId !== currentServerId) return
     const valid = currentChannelId != null && channels.some((c) => c.id === currentChannelId)

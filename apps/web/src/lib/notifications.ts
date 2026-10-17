@@ -3,8 +3,10 @@ import { getDeviceId } from '@/lib/deviceId'
 import { logNotification, navigateFromNotification } from '@/lib/notificationNavigation'
 import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
 import { useSettingsStore } from '@/stores/settings.store'
+import { notificationTag } from '@chat/shared'
 
 export type { NotifSoundKind }
+export { notificationTag }
 
 type NotifSettings = {
   enabled: boolean
@@ -32,11 +34,6 @@ export async function requestPermission(): Promise<boolean> {
   if (Notification.permission === 'denied') return false
   const result = await Notification.requestPermission()
   return result === 'granted'
-}
-
-/** Shared with the service worker so the OS collapses duplicates into one toast. */
-export function notificationTag(url?: string): string | undefined {
-  return url ? `jablu-${url}` : undefined
 }
 
 /**

@@ -144,6 +144,7 @@ export class InAppNotificationsService {
       channelId: string
       channelName: string
       messageId: string
+      threadParentId?: string | null
       authorName: string
       snippet: string
     }
@@ -162,6 +163,7 @@ export class InAppNotificationsService {
       channelId: input.channelId,
       channelName: input.channelName,
       messageId: input.messageId,
+      ...(input.threadParentId ? { threadParentId: input.threadParentId } : {}),
       authorName: input.authorName,
       snippet: input.snippet
     }

@@ -1,175 +1,64 @@
-import { computeChannelBadge, computeServerBadge, computeTotalBadge } from './unread'
-import type { NotifLevel } from './unread'
+import { computeChannelBadge, computeServerBadge, computeTotalBadge, type NotifLevel } from './unread'
+import { useReadStateStore } from '@/stores/readState.store'
+import { useNotifPrefStore } from '@/stores/notifPref.store'
+import { useChannelStore } from '@/stores/channel.store'
+import { useDmStore } from '@/stores/dm.store'
+import { useServerStore } from '@/stores/server.store'
 
-describe('computeChannelBadge', () => {
-  it('returns empty badge when isActive is true', () => {
-    const rs = { unreadCount: 5, mentionCount: 2 }
-    const badge = computeChannelBadge(rs, 'all', true)
-
-    expect(badge).toEqual({ showUnread: false, showMentions: false, mentionCount: 0, hasIndicator: false })
-  })
-
-  it('returns empty badge when read state is undefined', () => {
-    const badge = computeChannelBadge(undefined, 'all', false)
-
-    expect(badge).toEqual({ showUnread: false, showMentions: false, mentionCount: 0, hasIndicator: false })
-  })
-
-  it('shows unread and mentions when level is "all"', () => {
-    const rs = { unreadCount: 3, mentionCount: 1 }
-    const badge = computeChannelBadge(rs, 'all', false)
-
-    expect(badge.showUnread).toBe(true)
-    expect(badge.showMentions).toBe(true)
-    expect(badge.mentionCount).toBe(1)
-    expect(badge.hasIndicator).toBe(true)
-  })
-
-  it('shows only unread (no mentions) when level is "all" and mentionCount is 0', () => {
-    const rs = { unreadCount: 5, mentionCount: 0 }
-    const badge = computeChannelBadge(rs, 'all', false)
-
-    expect(badge.showUnread).toBe(true)
-    expect(badge.showMentions).toBe(false)
-    expect(badge.mentionCount).toBe(0)
-    expect(badge.hasIndicator).toBe(true)
-  })
-
-  it('shows only mentions when level is "mentions"', () => {
-    const rs = { unreadCount: 10, mentionCount: 2 }
-    const badge = computeChannelBadge(rs, 'mentions', false)
-
-    expect(badge.showUnread).toBe(false)
-    expect(badge.showMentions).toBe(true)
-    expect(badge.mentionCount).toBe(2)
-    expect(badge.hasIndicator).toBe(true)
-  })
-
-  it('no indicator when level is "mentions" and mentionCount is 0', () => {
-    const rs = { unreadCount: 10, mentionCount: 0 }
-    const badge = computeChannelBadge(rs, 'mentions', false)
-
-    expect(badge.showUnread).toBe(false)
-    expect(badge.showMentions).toBe(false)
-    expect(badge.hasIndicator).toBe(false)
-  })
-
-  it('returns empty badge when level is "none"', () => {
-    const rs = { unreadCount: 10, mentionCount: 5 }
-    const badge = computeChannelBadge(rs, 'none', false)
-
-    expect(badge.showUnread).toBe(false)
-    expect(badge.showMentions).toBe(false)
-    expect(badge.mentionCount).toBe(0)
-    expect(badge.hasIndicator).toBe(false)
-  })
-
-  it('returns no indicator when unread and mention counts are both 0', () => {
-    const rs = { unreadCount: 0, mentionCount: 0 }
-    const badge = computeChannelBadge(rs, 'all', false)
-
-    expect(badge.hasIndicator).toBe(false)
-  })
-
-  it.each<[NotifLevel, number, number, boolean, boolean]>([
-    ['all', 1, 0, true, false],
-    ['all', 0, 1, false, true],
-    ['mentions', 5, 0, false, false],
-    ['mentions', 5, 3, false, true],
-    ['none', 5, 3, false, false],
-  ])('level=%s unread=%i mentions=%i => showUnread=%s showMentions=%s', (level, unread, mentions, expectedUnread, expectedMentions) => {
-    const badge = computeChannelBadge({ unreadCount: unread, mentionCount: mentions }, level, false)
-    expect(badge.showUnread).toBe(expectedUnread)
-    expect(badge.showMentions).toBe(expectedMentions)
-  })
+const state = (unreadCount: number, mentionCount: number) => ({
+  unreadCount, mentionCount, lastReadAt: '', firstUnreadMessageId: null
 })
 
-describe('computeServerBadge', () => {
-  beforeEach(() => {
-    const { useReadStateStore } = require('@/stores/readState.store')
-    useReadStateStore.setState({
-      channels: new Map([
-        ['ch1', { unreadCount: 3, mentionCount: 1 }],
-        ['ch2', { unreadCount: 2, mentionCount: 0 }],
-        ['ch3', { unreadCount: 1, mentionCount: 0 }],
-      ]),
-      channelToServer: new Map([
-        ['ch1', 's1'],
-        ['ch2', 's1'],
-        ['ch3', 's2'],
-      ])
-    })
+beforeEach(() => {
+  useReadStateStore.setState({
+    channels: new Map([['ch1', state(5, 1)], ['ch2', state(3, 0)], ['ch3', state(4, 2)]]),
+    dms: new Map([['dm1', state(3, 0)]]),
+    channelToServer: new Map([['ch1', 's1'], ['ch2', 's1'], ['ch3', 's2']])
   })
-
-  it('aggregates badges for channels belonging to a server', () => {
-    const result = computeServerBadge('s1', () => 'all')
-
-    expect(result.unread).toBe(true)
-    expect(result.mentions).toBe(1)
-  })
-
-  it('ignores channels from other servers', () => {
-    const result = computeServerBadge('s2', () => 'all')
-
-    expect(result.unread).toBe(true)
-    expect(result.mentions).toBe(0)
-  })
-
-  it('respects notification levels', () => {
-    const result = computeServerBadge('s1', () => 'none')
-
-    expect(result.unread).toBe(false)
-    expect(result.mentions).toBe(0)
-  })
+  useNotifPrefStore.setState({ getEffective: () => 'all' })
 })
 
-describe('computeTotalBadge', () => {
-  beforeEach(() => {
-    const { useReadStateStore } = require('@/stores/readState.store')
-    const { useNotifPrefStore } = require('@/stores/notifPref.store')
-    const { useServerStore } = require('@/stores/server.store')
-    const { useChannelStore } = require('@/stores/channel.store')
-    const { useDmStore } = require('@/stores/dm.store')
+it('has no indicator without a read state', () => {
+  expect(computeChannelBadge(undefined, 'all').hasIndicator).toBe(false)
+})
 
-    useReadStateStore.setState({
-      channels: new Map([
-        ['ch1', { unreadCount: 5, mentionCount: 1 }],
-      ]),
-      dms: new Map([
-        ['dm1', { unreadCount: 3, mentionCount: 0 }],
-      ]),
-      channelToServer: new Map([['ch1', 's1']])
-    })
-    useNotifPrefStore.setState({ getEffective: () => 'all' })
-    useServerStore.setState({ viewMode: 'server' })
-    useChannelStore.setState({ currentChannelId: null })
-    useDmStore.setState({ currentConversationId: null })
-  })
+it.each<[NotifLevel, number, number, boolean, number]>([
+  ['all', 5, 0, true, 0],
+  ['all', 5, 2, true, 2],
+  ['mentions', 5, 0, true, 0],
+  ['mentions', 5, 2, true, 2],
+  ['none', 5, 2, false, 0],
+  ['all', 0, 0, false, 0]
+])('%s: %i unread, %i mentions => highlight %s, count %i', (level, unread, mentions, highlighted, count) => {
+  const badge = computeChannelBadge(state(unread, mentions), level)
+  expect(badge.showUnread).toBe(highlighted)
+  expect(badge.mentionCount).toBe(count)
+  expect(badge.hasIndicator).toBe(highlighted || count > 0)
+})
 
-  it('sums channel unreads and DM unreads', () => {
-    expect(computeTotalBadge()).toBe(8) // 5 + 3
-  })
+it('highlights a server with ordinary unread activity even on mentions-only delivery', () => {
+  expect(computeServerBadge('s1', () => 'mentions')).toEqual({ unread: true, mentions: 1 })
+  expect(computeServerBadge('s2', () => 'all')).toEqual({ unread: true, mentions: 2 })
+})
 
-  it('excludes active channel', () => {
-    const { useChannelStore } = require('@/stores/channel.store')
-    useChannelStore.setState({ currentChannelId: 'ch1' })
+it('ignores muted channels in server indicators', () => {
+  expect(computeServerBadge('s1', () => 'none')).toEqual({ unread: false, mentions: 0 })
+})
 
-    expect(computeTotalBadge()).toBe(3)
-  })
+it('counts only mentions and DMs for the OS/title badge', () => {
+  expect(computeTotalBadge()).toBe(6)
+})
 
-  it('excludes active DM conversation in dm viewMode', () => {
-    const { useServerStore } = require('@/stores/server.store')
-    const { useDmStore } = require('@/stores/dm.store')
-    useServerStore.setState({ viewMode: 'dm' })
-    useDmStore.setState({ currentConversationId: 'dm1' })
+it('does not hide unread counts merely because a conversation is selected', () => {
+  useServerStore.setState({ viewMode: 'server' })
+  useChannelStore.setState({ currentChannelId: 'ch1' })
+  expect(computeTotalBadge()).toBe(6)
+  useServerStore.setState({ viewMode: 'dm' })
+  useDmStore.setState({ currentConversationId: 'dm1' })
+  expect(computeTotalBadge()).toBe(6)
+})
 
-    expect(computeTotalBadge()).toBe(5)
-  })
-
-  it('uses mention count instead of unread count for mentions-only level', () => {
-    const { useNotifPrefStore } = require('@/stores/notifPref.store')
-    useNotifPrefStore.setState({ getEffective: () => 'mentions' })
-
-    expect(computeTotalBadge()).toBe(4) // mention 1 + dm 3
-  })
+it('excludes muted channel mentions from the numbered badge', () => {
+  useNotifPrefStore.setState({ getEffective: () => 'none' })
+  expect(computeTotalBadge()).toBe(3)
 })

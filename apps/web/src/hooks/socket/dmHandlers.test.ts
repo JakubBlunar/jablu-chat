@@ -9,8 +9,10 @@ jest.mock('@/lib/api', () => ({
 jest.mock('@/lib/notifications', () => ({
   showNotification: jest.fn()
 }))
+jest.mock('@/lib/appVisibility', () => ({ isAppFocused: jest.fn(() => true) }))
 
 import { api } from '@/lib/api'
+import { isAppFocused } from '@/lib/appVisibility'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -40,13 +42,12 @@ function resetStores() {
 }
 
 let handlers: ReturnType<typeof createDmHandlers>
-let throttledAck: jest.Mock
 
 beforeEach(() => {
   resetStores()
   jest.clearAllMocks()
-  throttledAck = jest.fn((fn: () => void) => fn())
-  handlers = createDmHandlers(throttledAck)
+  jest.mocked(isAppFocused).mockReturnValue(true)
+  handlers = createDmHandlers()
 })
 
 describe('onDmNew', () => {
@@ -63,7 +64,16 @@ describe('onDmNew', () => {
     handlers.onDmNew(basePayload as any)
 
     expect(useDmStore.getState().addMessage).toHaveBeenCalledWith(basePayload)
-    expect(throttledAck).toHaveBeenCalled()
+    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1', 'dm-msg-1')
+    expect(useReadStateStore.getState().ackDm).not.toHaveBeenCalled()
+  })
+
+  it('keeps a selected DM unread and notifies while the app is hidden', () => {
+    jest.mocked(isAppFocused).mockReturnValue(false)
+    handlers.onDmNew(basePayload as any)
+    expect(useReadStateStore.getState().ackDm).not.toHaveBeenCalled()
+    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1', 'dm-msg-1')
+    expect(mockNotify).toHaveBeenCalled()
   })
 
   it('increments unread and shows notification when not viewing', () => {
@@ -75,7 +85,7 @@ describe('onDmNew', () => {
     expect(mockNotify).toHaveBeenCalledWith(
       'DM from Bob',
       'Hey!',
-      '/channels/@me/conv1',
+      '/channels/@me/conv1?m=dm-msg-1',
       undefined,
       'mention'
     )

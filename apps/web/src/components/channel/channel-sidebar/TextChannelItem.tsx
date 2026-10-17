@@ -32,7 +32,7 @@ export function TextChannelItem({
   handleChannelTouchMove: () => void
   handleChannelContextMenu: (e: React.MouseEvent) => void
 }) {
-  const badge = computeChannelBadge(channelReadStates.get(ch.id), getNotifLevel(ch.id) as NotifLevel, active)
+  const badge = computeChannelBadge(channelReadStates.get(ch.id), getNotifLevel(ch.id) as NotifLevel)
   const { showUnread: showUnreadDot, mentionCount, hasIndicator } = badge
   const isArchived = !!ch.isArchived
   return (

@@ -65,6 +65,14 @@ it('continues showing ordinary message notifications without an expiry', () => {
   expect(showNotification).toHaveBeenCalledWith('Alice', expect.objectContaining({ body: 'Hello' }))
 })
 
+it('retains the exact message target while coalescing and clearing by conversation', () => {
+  push({ title: 'Alice', url: '/channels/s1/ch1?m=reply&thread=parent' })
+  expect(showNotification).toHaveBeenCalledWith('Alice', expect.objectContaining({
+    data: { url: '/channels/s1/ch1?m=reply&thread=parent' },
+    tag: 'jablu-/channels/s1/ch1'
+  }))
+})
+
 function click(url: string) {
   const event = { notification: { close: jest.fn(), data: { url } }, waitUntil: jest.fn() }
   listeners.notificationclick!(event)

@@ -35,34 +35,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     let handlingAuthError = false
     let hasConnectedBefore = false
-    let lastAckTs = 0
-    let trailingTimer: ReturnType<typeof setTimeout> | null = null
-    let trailingFn: (() => void) | null = null
-    const throttledAck = (fn: () => void) => {
-      const now = Date.now()
-      if (now - lastAckTs > 3000) {
-        lastAckTs = now
-        if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
-        trailingFn = null
-        fn()
-      } else {
-        trailingFn = fn
-        if (!trailingTimer) {
-          const remaining = 3000 - (now - lastAckTs)
-          trailingTimer = setTimeout(() => {
-            trailingTimer = null
-            lastAckTs = Date.now()
-            trailingFn?.()
-            trailingFn = null
-          }, remaining)
-        }
-      }
-    }
-
-    // Server-icon unread badges depend on `message:new` arriving in the `channel:` room,
-    // but the client leaves those rooms on navigation, so background servers never update.
-    // `in_app_notification:new` rides the always-joined `user:` room, so use it to resync
-    // authoritative read state (throttled + trailing to coalesce bursts).
+    // Also resync from the user room for cross-device reads and missed messages.
     let lastReadSyncTs = 0
     let readSyncTimer: ReturnType<typeof setTimeout> | null = null
     const throttledReadStateSync = () => {
@@ -154,8 +127,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
-    const ch = createChannelHandlers(throttledAck)
-    const dm = createDmHandlers(throttledAck)
+    const ch = createChannelHandlers()
+    const dm = createDmHandlers()
     const presence = createPresenceHandlers()
     const voice = createVoiceHandlers()
     const srv = createServerHandlers()
@@ -329,8 +302,6 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('in_app_notification:new', onInAppNotificationNew)
       socket.off('notification:clear', onNotificationClear)
       document.removeEventListener('visibilitychange', onVisibilityChange)
-      if (trailingTimer) { clearTimeout(trailingTimer); trailingTimer = null }
-      if (trailingFn) { trailingFn(); trailingFn = null }
       if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }
       presence.cleanup()
       if (useVoiceConnectionStore.getState().currentDmCallId) useVoiceConnectionStore.getState().disconnect()

@@ -1,56 +1,59 @@
-import { useEffect } from 'react'
+import { useEffect, type RefObject } from 'react'
+import { isAppFocused, subscribeAppVisibility } from '@/lib/appVisibility'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
-/**
- * Marks the current channel/DM as read whenever it becomes the active context,
- * when the tab regains visibility, and on context change / unmount.
- *
- * This hook lives in MessageArea so the ack runs on every layout (desktop and
- * mobile PWA). Previously this was wired only inside ChannelSidebar / DmSidebar,
- * which are never mounted on mobile — leaving the unread badge stuck even after
- * the user opened the channel.
- *
- * For channels, the ack is suppressed while the user is viewing a voice room
- * (text channel isn't actually being read in that case).
- */
-export function useChannelAck(mode: 'channel' | 'dm', contextId: string | null): void {
+export function useChannelAck(
+  mode: 'channel' | 'dm',
+  contextId: string | null,
+  { ready, atBottom, scrollParentRef }: {
+    ready: boolean
+    atBottom: boolean
+    scrollParentRef: RefObject<HTMLDivElement | null>
+  }
+): void {
+  const readState = useReadStateStore((s) =>
+    contextId ? (mode === 'channel' ? s.channels : s.dms).get(contextId) : undefined
+  )
+
   useEffect(() => {
     if (!contextId) return
+    const rs = useReadStateStore.getState()
+    if (mode === 'channel') rs.captureChannelView(contextId)
+    else rs.captureDmView(contextId)
+  }, [mode, contextId, readState])
 
-    const isChannel = mode === 'channel'
-
-    const captureAndAck = () => {
-      const rs = useReadStateStore.getState()
-      if (isChannel) {
-        if (useVoiceConnectionStore.getState().viewingVoiceRoom) return
-        rs.captureChannelView(contextId)
-        rs.ackChannel(contextId)
-      } else {
-        rs.captureDmView(contextId)
-        rs.ackDm(contextId)
-      }
-    }
-
-    captureAndAck()
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') captureAndAck()
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-
+  useEffect(() => {
     return () => {
-      document.removeEventListener('visibilitychange', onVisibility)
+      if (!contextId) return
       const rs = useReadStateStore.getState()
-      if (isChannel) {
-        if (!useVoiceConnectionStore.getState().viewingVoiceRoom) {
-          rs.ackChannel(contextId)
-        }
-        rs.clearChannelView(contextId)
-      } else {
-        rs.ackDm(contextId)
-        rs.clearDmView(contextId)
-      }
+      if (mode === 'channel') rs.clearChannelView(contextId)
+      else rs.clearDmView(contextId)
     }
   }, [mode, contextId])
+
+  useEffect(() => {
+    if (!contextId || !ready || !atBottom) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const canRead = () => {
+      const el = scrollParentRef.current
+      return isAppFocused() && !useVoiceConnectionStore.getState().viewingVoiceRoom &&
+        !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 30
+    }
+    const schedule = () => {
+      clearTimeout(timer)
+      if (!canRead()) return
+      timer = setTimeout(() => {
+        if (!canRead()) return
+        const rs = useReadStateStore.getState()
+        void (mode === 'channel' ? rs.ackChannel(contextId) : rs.ackDm(contextId))
+      }, 250)
+    }
+    schedule()
+    const unsubscribe = subscribeAppVisibility(schedule)
+    return () => {
+      clearTimeout(timer)
+      unsubscribe()
+    }
+  }, [mode, contextId, readState, ready, atBottom, scrollParentRef])
 }

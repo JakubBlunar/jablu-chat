@@ -175,7 +175,7 @@ export function DmSidebar() {
             const info = getDisplayInfo(conv)
             const active = conv.id === currentConvId
             const rs = dmReadStates.get(conv.id)
-            const hasUnread = !active && rs && rs.unreadCount > 0
+            const hasUnread = rs && rs.unreadCount > 0
             return (
               <div
                 key={conv.id}
@@ -294,4 +294,3 @@ function PlusIcon() {
     </svg>
   )
 }
-

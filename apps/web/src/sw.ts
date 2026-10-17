@@ -3,6 +3,7 @@ import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
 import { CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
+import { notificationTag } from '@chat/shared'
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -55,7 +56,7 @@ self.addEventListener('push', (event) => {
       icon: '/pwa-192x192.png',
       badge: '/favicon-32x32.png',
       data: { url: notifUrl },
-      tag: `jablu-${notifUrl}`,
+      tag: notificationTag(notifUrl),
       renotify: true
     }
 

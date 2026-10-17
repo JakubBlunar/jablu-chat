@@ -24,28 +24,31 @@ export class ReadStateService {
           first_unread_message_id: string | null
         }[]
       >`
-        SELECT crs.channel_id, crs.last_read_at, crs.mention_count, c.server_id,
+        SELECT c.id AS channel_id,
+          COALESCE(crs.last_read_at, sm.joined_at) AS last_read_at,
+          COALESCE(crs.mention_count, 0) AS mention_count, c.server_id,
           (SELECT COUNT(*) FROM (
             SELECT 1 FROM messages m
-            WHERE m.channel_id = crs.channel_id
-              AND m.created_at > crs.last_read_at
+            WHERE m.channel_id = c.id
+              AND m.created_at > COALESCE(crs.last_read_at, sm.joined_at)
               AND m.deleted = false
               AND m.author_id != ${userId}
               AND m.thread_parent_id IS NULL
             LIMIT 100
           ) sub) AS unread_count,
           (SELECT m.id FROM messages m
-            WHERE m.channel_id = crs.channel_id
-              AND m.created_at > crs.last_read_at
+            WHERE m.channel_id = c.id
+              AND m.created_at > COALESCE(crs.last_read_at, sm.joined_at)
               AND m.deleted = false
               AND m.author_id != ${userId}
               AND m.thread_parent_id IS NULL
             ORDER BY m.created_at ASC
             LIMIT 1
           ) AS first_unread_message_id
-        FROM channel_read_states crs
-        JOIN channels c ON c.id = crs.channel_id
-        WHERE crs.user_id = ${userId}
+        FROM channels c
+        JOIN server_members sm ON sm.server_id = c.server_id AND sm.user_id = ${userId}
+        LEFT JOIN channel_read_states crs ON crs.channel_id = c.id AND crs.user_id = ${userId}
+        WHERE c.type IN ('text', 'forum')
       `,
       this.prisma.$queryRaw<
         {
@@ -56,25 +59,29 @@ export class ReadStateService {
           first_unread_message_id: string | null
         }[]
       >`
-        SELECT drs.conversation_id, drs.last_read_at, drs.mention_count,
+        SELECT dcm.conversation_id,
+          COALESCE(drs.last_read_at, dcm.joined_at) AS last_read_at,
+          COALESCE(drs.mention_count, 0) AS mention_count,
           (SELECT COUNT(*) FROM (
             SELECT 1 FROM messages m
-            WHERE m.direct_conversation_id = drs.conversation_id
-              AND m.created_at > drs.last_read_at
+            WHERE m.direct_conversation_id = dcm.conversation_id
+              AND m.created_at > COALESCE(drs.last_read_at, dcm.joined_at)
               AND m.deleted = false
               AND m.author_id != ${userId}
             LIMIT 100
           ) sub) AS unread_count,
           (SELECT m.id FROM messages m
-            WHERE m.direct_conversation_id = drs.conversation_id
-              AND m.created_at > drs.last_read_at
+            WHERE m.direct_conversation_id = dcm.conversation_id
+              AND m.created_at > COALESCE(drs.last_read_at, dcm.joined_at)
               AND m.deleted = false
               AND m.author_id != ${userId}
             ORDER BY m.created_at ASC
             LIMIT 1
           ) AS first_unread_message_id
-        FROM dm_read_states drs
-        WHERE drs.user_id = ${userId}
+        FROM direct_conversation_members dcm
+        LEFT JOIN dm_read_states drs
+          ON drs.conversation_id = dcm.conversation_id AND drs.user_id = ${userId}
+        WHERE dcm.user_id = ${userId}
       `
     ])
 

@@ -11,15 +11,24 @@
 type Navigator = (to: string) => void
 
 let navigateRef: Navigator | null = null
+let pendingPath: string | null = null
 
 /** Installed by the bridge component rendered inside the Router. */
 export function setNotificationNavigator(fn: Navigator | null): void {
   navigateRef = fn
+  if (fn && pendingPath) {
+    const path = pendingPath
+    pendingPath = null
+    fn(path)
+  }
 }
 
 export function navigateFromNotification(url: string): void {
   const path = normalizePath(url)
-  if (!path) return
+  if (!path) {
+    console.warn('[notif] Rejected invalid notification target', url)
+    return
+  }
 
   if (navigateRef) {
     logNotification('navigate via router', path)
@@ -27,15 +36,9 @@ export function navigateFromNotification(url: string): void {
     return
   }
 
-  // Before the router mounts (cold start from a toast click), fall through to the
-  // hash. Reassigning the same hash does nothing, so force a reload in that case.
-  logNotification('navigate via hash fallback', path)
-  const target = `#${path}`
-  if (window.location.hash === target) {
-    window.location.reload()
-  } else {
-    window.location.hash = target
-  }
+  // Wait for the actual router, rather than assuming web uses a hash router.
+  logNotification('queue until router mounts', path)
+  pendingPath = path
 }
 
 /**
@@ -44,8 +47,6 @@ export function navigateFromNotification(url: string): void {
  */
 function normalizePath(url: string): string | null {
   if (!url) return null
-  if (url.startsWith('/')) return url
-
   try {
     const parsed = new URL(url, window.location.origin)
     if (parsed.origin !== window.location.origin) return null

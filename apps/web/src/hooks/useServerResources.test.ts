@@ -42,7 +42,7 @@ beforeEach(() => {
 })
 
 describe('useServerResources', () => {
-  it('fetches members even when channels were already hydrated from cache', () => {
+  it('revalidates cached channels and fetches missing members', () => {
     const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
     useChannelStore.setState({ loadedServerId: 's1' } as never)
     useServerStore.setState({ viewMode: 'server', currentServerId: 's1' })
@@ -50,8 +50,8 @@ describe('useServerResources', () => {
     renderHook(() => useServerResources())
 
     expect(fetchMembers).toHaveBeenCalledWith('s1')
-    expect(fetchChannels).not.toHaveBeenCalled()
-    expect(fetchChannelPermissions).not.toHaveBeenCalled()
+    expect(fetchChannels).toHaveBeenCalledWith('s1')
+    expect(fetchChannelPermissions).toHaveBeenCalledWith('s1')
   })
 
   it('does not refetch members when they are already loaded for this server', () => {

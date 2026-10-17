@@ -39,12 +39,10 @@ export function useServerResources() {
 
     if (prevServerRef.current !== currentServerId) {
       prevServerRef.current = currentServerId
-      if (channelLoadedServerId !== currentServerId) {
-        fetchChannels(currentServerId).catch(() => {
-          navigate('/channels/@me', { replace: true })
-        })
-        void useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId)
-      }
+      fetchChannels(currentServerId).catch(() => {
+        navigate('/channels/@me', { replace: true })
+      })
+      void useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId)
     }
   }, [
     viewMode,

@@ -1,8 +1,5 @@
-import { useChannelStore } from '@/stores/channel.store'
-import { useDmStore } from '@/stores/dm.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
-import { useServerStore } from '@/stores/server.store'
 
 export type NotifLevel = 'all' | 'mentions' | 'none'
 
@@ -21,12 +18,11 @@ const EMPTY_BADGE: ChannelBadge = { showUnread: false, showMentions: false, ment
  */
 export function computeChannelBadge(
   rs: { unreadCount: number; mentionCount: number } | undefined,
-  effectiveLevel: NotifLevel,
-  isActive: boolean
+  effectiveLevel: NotifLevel
 ): ChannelBadge {
-  if (isActive || !rs) return EMPTY_BADGE
+  if (!rs) return EMPTY_BADGE
 
-  const showUnread = effectiveLevel === 'all' && rs.unreadCount > 0
+  const showUnread = effectiveLevel !== 'none' && rs.unreadCount > 0
   const showMentions = effectiveLevel !== 'none' && rs.mentionCount > 0
   const mentionCount = showMentions ? rs.mentionCount : 0
   return { showUnread, showMentions, mentionCount, hasIndicator: showUnread || showMentions }
@@ -46,7 +42,7 @@ export function computeServerBadge(
     if (sid !== serverId) continue
     const rs = channels.get(channelId)
     if (!rs) continue
-    const badge = computeChannelBadge(rs, getEffective(channelId, serverId), false)
+    const badge = computeChannelBadge(rs, getEffective(channelId, serverId))
     if (badge.hasIndicator) unread = true
     mentions += badge.mentionCount
   }
@@ -55,28 +51,22 @@ export function computeServerBadge(
 
 /**
  * Total badge count for the page title / OS badge.
- * Respects notification preferences and excludes the active channel/DM.
+ * Numbered badges represent mentions and DMs, not ordinary channel activity.
  */
 export function computeTotalBadge(): number {
   const { channels, dms, channelToServer } = useReadStateStore.getState()
   const { getEffective } = useNotifPrefStore.getState()
-  const viewMode = useServerStore.getState().viewMode
-  const activeChannelId = useChannelStore.getState().currentChannelId
-  const activeConvId = useDmStore.getState().currentConversationId
 
   let total = 0
 
   for (const [id, rs] of channels) {
-    const isActive = viewMode === 'server' && id === activeChannelId
     const serverId = channelToServer.get(id)
     const level = getEffective(id, serverId)
-    const badge = computeChannelBadge(rs, level, isActive)
-    if (badge.showUnread) total += rs.unreadCount
-    else if (badge.showMentions) total += badge.mentionCount
+    const badge = computeChannelBadge(rs, level)
+    total += badge.mentionCount
   }
 
-  for (const [id, rs] of dms) {
-    if (viewMode === 'dm' && id === activeConvId) continue
+  for (const rs of dms.values()) {
     total += rs.unreadCount
   }
 

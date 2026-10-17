@@ -29,6 +29,17 @@ beforeEach(() => {
 
 describe('readState.store', () => {
   describe('fetchAll', () => {
+    it('does not acknowledge selected conversations during an unread refresh', async () => {
+      mockGetReadStates.mockResolvedValueOnce({
+        channels: [{ channelId: 'ch-1', serverId: 's1', unreadCount: 3, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm1' }],
+        dms: []
+      })
+      await useReadStateStore.getState().fetchAll()
+      expect(api.ackChannel).not.toHaveBeenCalled()
+      expect(api.ackDm).not.toHaveBeenCalled()
+      expect(useReadStateStore.getState().channels.get('ch-1')?.unreadCount).toBe(3)
+    })
+
     it('populates channels, dms, and channelToServer maps', async () => {
       mockGetReadStates.mockResolvedValueOnce({
         channels: [
@@ -54,12 +65,43 @@ describe('readState.store', () => {
   })
 
   describe('ackChannel', () => {
-    it('zeros out unread and mention counts', () => {
+    it('preserves unread counts when the acknowledgement fails', async () => {
+      const error = new Error('offline')
+      const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+      jest.mocked(api.ackChannel).mockRejectedValueOnce(error)
+      useReadStateStore.getState().incrementChannel('ch-1', true, 's1', 'm1')
+      expect(await useReadStateStore.getState().ackChannel('ch-1')).toBe(false)
+      expect(useReadStateStore.getState().channels.get('ch-1')?.unreadCount).toBe(1)
+      expect(log).toHaveBeenCalledWith('Failed to mark channel as read', error)
+      log.mockRestore()
+    })
+
+    it('clears the new-message marker after a successful acknowledgement', async () => {
+      useReadStateStore.getState().incrementChannel('ch-1', true, 's1', 'm1')
+      useReadStateStore.getState().captureChannelView('ch-1')
+      await useReadStateStore.getState().ackChannel('ch-1')
+      expect(useReadStateStore.getState().channelViewSnapshots.has('ch-1')).toBe(false)
+    })
+
+    it('preserves messages arriving while an acknowledgement is in flight', async () => {
+      let finish: () => void = () => {}
+      jest.mocked(api.ackChannel).mockImplementationOnce(() => new Promise<{ ok: boolean }>((resolve) => {
+        finish = () => resolve({ ok: true })
+      }))
+      useReadStateStore.getState().incrementChannel('ch-1', false, 's1', 'm1')
+      const pending = useReadStateStore.getState().ackChannel('ch-1')
+      useReadStateStore.getState().incrementChannel('ch-1', true, 's1', 'm2')
+      finish()
+      await pending
+      expect(useReadStateStore.getState().channels.get('ch-1')?.unreadCount).toBe(2)
+    })
+
+    it('zeros out unread and mention counts', async () => {
       useReadStateStore.setState({
         channels: new Map([['ch-1', { unreadCount: 5, mentionCount: 2, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-1' }]])
       })
 
-      useReadStateStore.getState().ackChannel('ch-1')
+      await useReadStateStore.getState().ackChannel('ch-1')
 
       const rs = useReadStateStore.getState().channels.get('ch-1')!
       expect(rs.unreadCount).toBe(0)
@@ -69,7 +111,7 @@ describe('readState.store', () => {
   })
 
   describe('ackServer', () => {
-    it('zeros out all channels belonging to the server', () => {
+    it('zeros out all channels belonging to the server', async () => {
       useReadStateStore.setState({
         channels: new Map([
           ['ch-1', { unreadCount: 3, mentionCount: 1, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-1' }],
@@ -79,7 +121,7 @@ describe('readState.store', () => {
         channelToServer: new Map([['ch-1', 's1'], ['ch-2', 's1'], ['ch-3', 's2']])
       })
 
-      useReadStateStore.getState().ackServer('s1')
+      await useReadStateStore.getState().ackServer('s1')
 
       const state = useReadStateStore.getState()
       expect(state.channels.get('ch-1')!.unreadCount).toBe(0)
@@ -89,12 +131,12 @@ describe('readState.store', () => {
   })
 
   describe('ackDm', () => {
-    it('zeros out unread for the DM', () => {
+    it('zeros out unread for the DM', async () => {
       useReadStateStore.setState({
         dms: new Map([['dm-1', { unreadCount: 3, mentionCount: 3, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-1' }]])
       })
 
-      useReadStateStore.getState().ackDm('dm-1')
+      await useReadStateStore.getState().ackDm('dm-1')
 
       expect(useReadStateStore.getState().dms.get('dm-1')!.unreadCount).toBe(0)
     })
@@ -158,14 +200,14 @@ describe('readState.store', () => {
       expect(snap.lastReadAt).toBe('2025-01-01T00:00:00Z')
     })
 
-    it('is idempotent - subsequent captures do not overwrite (e.g. after ack)', () => {
+    it('is idempotent - subsequent captures do not overwrite the original marker', () => {
       useReadStateStore.setState({
         channels: new Map([
           ['ch-1', { unreadCount: 4, mentionCount: 0, lastReadAt: '2025-01-01T00:00:00Z', firstUnreadMessageId: 'm-42' }]
         ])
       })
       useReadStateStore.getState().captureChannelView('ch-1')
-      useReadStateStore.getState().ackChannel('ch-1')
+      useReadStateStore.getState().incrementChannel('ch-1', false)
       useReadStateStore.getState().captureChannelView('ch-1')
 
       const snap = useReadStateStore.getState().channelViewSnapshots.get('ch-1')!
