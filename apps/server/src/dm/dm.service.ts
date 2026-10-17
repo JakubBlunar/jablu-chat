@@ -548,6 +548,33 @@ export class DmService {
     return rows.map((m) => this.mapToWire(m))
   }
 
+  async getAttachments(conversationId: string, userId: string, kind: 'media' | 'files', page: number, limit: number) {
+    await this.requireMembership(conversationId, userId)
+    const types: ('image' | 'gif' | 'video' | 'file')[] = kind === 'files' ? ['file'] : ['image', 'gif', 'video']
+    const where: Prisma.AttachmentWhereInput = {
+      type: { in: types },
+      message: { is: { directConversationId: conversationId, deleted: false } }
+    }
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.attachment.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: page * limit,
+        take: limit,
+        include: { message: { select: { createdAt: true, author: { select: { username: true, displayName: true } } } } }
+      }),
+      this.prisma.attachment.count({ where })
+    ])
+    return {
+      items: rows.map(({ message, ...attachment }) => ({
+        ...attachment,
+        createdAt: message?.createdAt.toISOString(),
+        authorName: message?.author?.displayName ?? message?.author?.username ?? null
+      })),
+      total
+    }
+  }
+
   private toConversationWire(
     c: Prisma.DirectConversationGetPayload<{
       include: { members: { select: typeof memberSelect } }

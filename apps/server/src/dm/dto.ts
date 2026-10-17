@@ -1,4 +1,23 @@
-import { IsArray, IsOptional, IsString, IsUUID, Length } from 'class-validator'
+import { Type } from 'class-transformer'
+import { IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Max, Min } from 'class-validator'
+
+export class DmAttachmentsQueryDto {
+  @IsOptional()
+  @IsIn(['media', 'files'])
+  kind: 'media' | 'files' = 'media'
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  page = 0
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 30
+}
 
 export class CreateDmDto {
   @IsUUID()

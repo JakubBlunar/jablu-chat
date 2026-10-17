@@ -42,7 +42,12 @@ jest.mock('@/components/chat/ChannelInfoPanel', () => ({ ChannelInfoPanel: () =>
 jest.mock('@/components/chat/ChannelInfoDrawer', () => ({ ChannelInfoDrawer: () => null }))
 jest.mock('@/components/dm/DmProfilePanel', () => ({ DmProfilePanel: () => null, UserProfileIcon: () => null }))
 jest.mock('@/components/dm/FriendsPage', () => ({ FriendsPage: () => null }))
-jest.mock('@/components/dm/DmInfoSheet', () => ({ DmInfoSheet: () => null }))
+jest.mock('@/components/dm/ConversationInfoPanel', () => ({ ConversationInfoPanel: () => null }))
+jest.mock('@/components/dm/DmCallButton', () => ({ DmCallButton: () => null }))
+jest.mock('@/components/dm/DmCallInvitation', () => ({ DmCallInvitation: () => null }))
+jest.mock('@/stores/voice-connection.store', () => ({
+  useVoiceConnectionStore: (selector: (state: object) => unknown) => selector({ currentDmCallId: null, currentChannelId: null, viewingVoiceRoom: false })
+}))
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }))
 jest.mock('@/components/channel/NotifBellMenu', () => ({ NotifBellMenu: () => null }))
 jest.mock('@/components/notifications/InAppNotificationBell', () => ({ InAppNotificationBell: () => null }))

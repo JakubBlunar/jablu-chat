@@ -108,6 +108,11 @@ export type DmConversation = {
   } | null
 }
 
+export type ConversationAttachment = Attachment & {
+  createdAt: string
+  authorName: string | null
+}
+
 export type OnboardingConfig = {
   onboardingEnabled: boolean
   onboardingMessage: string | null

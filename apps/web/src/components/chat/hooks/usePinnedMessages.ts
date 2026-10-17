@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 
@@ -7,27 +7,34 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
   const [pinnedOpen, setPinnedOpen] = useState(false)
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([])
   const [pinnedLoading, setPinnedLoading] = useState(false)
+  const [pinnedError, setPinnedError] = useState(false)
+  const requestId = useRef(0)
 
   const activeId = channelId ?? conversationId ?? null
   const isDm = !channelId && !!conversationId
 
   useEffect(() => {
+    requestId.current++
     setPinnedOpen(false)
     setPinnedMessages([])
+    setPinnedError(false)
+    return () => { requestId.current++ }
   }, [activeId])
 
   const loadPinned = useCallback(async () => {
     if (!activeId) return
+    const request = ++requestId.current
     setPinnedLoading(true)
+    setPinnedError(false)
     try {
       const msgs = isDm
         ? await api.getPinnedDmMessages(activeId)
         : await api.getPinnedMessages(activeId)
-      setPinnedMessages(msgs)
+      if (request === requestId.current) setPinnedMessages(msgs)
     } catch {
-      setPinnedMessages([])
+      if (request === requestId.current) setPinnedError(true)
     } finally {
-      setPinnedLoading(false)
+      if (request === requestId.current) setPinnedLoading(false)
     }
   }, [activeId, isDm])
 
@@ -91,5 +98,5 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
     return () => window.removeEventListener('open-pinned', handler)
   }, [activeId, pinnedOpen, handleOpenPinned])
 
-  return { pinnedOpen, pinnedMessages, pinnedLoading, handleOpenPinned, setPinnedOpen, loadPinned, isDm }
+  return { pinnedOpen, pinnedMessages, pinnedLoading, pinnedError, handleOpenPinned, setPinnedOpen, loadPinned, isDm }
 }

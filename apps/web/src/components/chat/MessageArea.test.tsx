@@ -22,7 +22,12 @@ jest.mock('@/components/dm/DmProfilePanel', () => ({
   UserProfileIcon: () => null,
 }))
 jest.mock('@/components/dm/FriendsPage', () => ({ FriendsPage: () => <div data-testid="friends-page" /> }))
-jest.mock('@/components/dm/DmInfoSheet', () => ({ DmInfoSheet: () => null }))
+jest.mock('@/components/dm/ConversationInfoPanel', () => ({ ConversationInfoPanel: () => null }))
+jest.mock('@/components/dm/DmCallButton', () => ({ DmCallButton: () => null }))
+jest.mock('@/components/dm/DmCallInvitation', () => ({ DmCallInvitation: () => null }))
+jest.mock('@/stores/voice-connection.store', () => ({
+  useVoiceConnectionStore: (selector: (state: object) => unknown) => selector({ currentDmCallId: null, currentChannelId: null, viewingVoiceRoom: false })
+}))
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }))
 jest.mock('@/components/channel/NotifBellMenu', () => ({ NotifBellMenu: () => null }))
 jest.mock('@/components/notifications/InAppNotificationBell', () => ({ InAppNotificationBell: () => null }))
@@ -48,6 +53,7 @@ jest.mock('@/hooks/useMessageStoreAdapter', () => ({
     fetchMessages: jest.fn(),
     fetchNewer: jest.fn(),
     reset: jest.fn(),
+    getLoadedForId: () => null,
   }),
 }))
 

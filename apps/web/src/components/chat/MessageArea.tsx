@@ -8,7 +8,7 @@ import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PollCreator } from '@/components/chat/PollCreator'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
 import { ThreadPanel } from '@/components/chat/ThreadPanel'
-import { DmProfilePanel, UserProfileIcon } from '@/components/dm/DmProfilePanel'
+import { ConversationInfoPanel } from '@/components/dm/ConversationInfoPanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
@@ -46,7 +46,6 @@ const EditChannelModal = lazy(() =>
 import { ChannelInfoPanel } from '@/components/chat/ChannelInfoPanel'
 import { ChannelInfoDrawer } from '@/components/chat/ChannelInfoDrawer'
 import { TimeoutBanner } from '@/components/chat/TimeoutBanner'
-import { DmInfoSheet } from '@/components/dm/DmInfoSheet'
 import { DmCallButton } from '@/components/dm/DmCallButton'
 import { DmCallInvitation } from '@/components/dm/DmCallInvitation'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -178,6 +177,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [commandToast, setCommandToast] = useState<string | null>(null)
   const [channelInfoOpen, setChannelInfoOpen] = useState(false)
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
+  const [dmInfoTab, setDmInfoTab] = useState<'details' | 'pins'>('details')
+
+  useEffect(() => {
+    if (isDm && pinned.pinnedOpen) {
+      setDmInfoTab('pins')
+      setDmSheetOpen(true)
+      setSearchOpen(false)
+      pinned.setPinnedOpen(false)
+    }
+  }, [isDm, pinned.pinnedOpen, pinned.setPinnedOpen])
 
   const [replyTarget, setReplyTarget] = useState<{
     id: string
@@ -193,6 +202,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   useEffect(() => {
     setChannelInfoOpen(false)
+    setDmSheetOpen(false)
     useLayoutStore.getState().closeChannelInfoDrawer()
   }, [contextId])
 
@@ -317,7 +327,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const messageList = (
     <>
-      {pinned.pinnedOpen && (channelId || dmConversationId) && (
+      {!isDm && pinned.pinnedOpen && channelId && (
         <PinnedPanel
           messages={pinned.pinnedMessages}
           loading={pinned.pinnedLoading}
@@ -543,7 +553,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             {isMobile ? (
               <button
                 type="button"
-                onClick={() => setDmSheetOpen(true)}
+                onClick={() => { setDmInfoTab('details'); setDmSheetOpen(true); setSearchOpen(false) }}
                 className="min-w-0 flex-1 text-left"
               >
                 <h2 className="truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
@@ -554,21 +564,15 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             {contextId && <DmCallButton conversationId={contextId} />}
             {!isMobile && (
               <>
-                {dm.otherMember && !dm.currentConv?.isGroup && (
-                  <IconButton
-                    label="User profile"
-                    className="shrink-0"
-                    active={dm.showProfile}
-                    onClick={() => dm.setShowProfile((p) => !p)}
-                  >
-                    <UserProfileIcon />
-                  </IconButton>
-                )}
+                <IconButton label={tChat('conversationInfo')} className="shrink-0" active={dmSheetOpen}
+                  onClick={() => { setDmInfoTab('details'); setDmSheetOpen((open) => !open); setSearchOpen(false) }}>
+                  <MembersIcon />
+                </IconButton>
                 <IconButton
                   label="Pinned messages"
                   className="shrink-0"
-                  active={pinned.pinnedOpen}
-                  onClick={() => void pinned.handleOpenPinned()}
+                  active={dmSheetOpen && dmInfoTab === 'pins'}
+                  onClick={() => { setDmInfoTab('pins'); setDmSheetOpen(true); setSearchOpen(false) }}
                 >
                   <PinnedListIcon />
                 </IconButton>
@@ -610,37 +614,20 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               />
             </Suspense>
           </div>
-        ) : dm.showProfile && dm.otherMember ? (
-          isMobile ? (
-            <div className="absolute inset-0 z-30 bg-surface-dark">
-              <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
-                <button
-                  type="button"
-                  onClick={() => dm.setShowProfile(false)}
-                  className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-                  aria-label={tChat('closeProfile')}
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <span className="ml-2 text-sm font-semibold text-white">{tChat('profileTitle')}</span>
-              </div>
-              <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
-            </div>
-          ) : (
-            <DmProfilePanel member={dm.otherMember} mutualServers={dm.mutualServers} />
-          )
-        ) : null}
-        {dmSheetOpen && (
-          <DmInfoSheet
-            hasProfile={!!dm.otherMember && !dm.currentConv?.isGroup}
+        ) : dmSheetOpen && dm.currentConv ? (
+          <ConversationInfoPanel
+            key={`${contextId}:${dmInfoTab}`}
+            conversation={dm.currentConv}
+            currentUserId={userId}
+            otherMember={dm.otherMember}
+            mutualServers={dm.mutualServers}
+            initialTab={dmInfoTab}
+            pinned={pinned}
             onClose={() => setDmSheetOpen(false)}
-            onProfile={() => { setDmSheetOpen(false); dm.setShowProfile((p) => !p) }}
-            onPinned={() => { setDmSheetOpen(false); void pinned.handleOpenPinned() }}
-            onSearch={() => { setDmSheetOpen(false); setSearchOpen(true) }}
+            onSearch={() => setSearchOpen(true)}
+            onJump={scroll.handleJumpToMessage}
           />
-        )}
+        ) : null}
       </div>
     )
   }

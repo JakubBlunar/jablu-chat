@@ -52,7 +52,6 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
 
   const channelRefs = isDm ? dmChannelRefs : serverChannelRefs
 
-  const [showProfile, setShowProfile] = useState(false)
   const otherName = useMemo(() => {
     if (otherMember) return otherMember.displayName ?? otherMember.username
     if (currentConv?.isGroup) {
@@ -76,8 +75,6 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
     otherMember,
     mutualServers,
     channelRefs,
-    showProfile,
-    setShowProfile,
     otherName,
     handleChannelClick
   }

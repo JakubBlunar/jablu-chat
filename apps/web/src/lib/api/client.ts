@@ -986,6 +986,14 @@ export class ApiClient {
     return this.get(`/api/dm/${id}`)
   }
 
+  getDmAttachments(conversationId: string, kind: 'media' | 'files', page: number, limit = 30): Promise<{
+    items: import('./types').ConversationAttachment[]
+    total: number
+  }> {
+    const params = new URLSearchParams({ kind, page: String(page), limit: String(limit) })
+    return this.get(`/api/dm/${conversationId}/attachments?${params}`)
+  }
+
   closeDm(conversationId: string): Promise<void> {
     return this.patch(`/api/dm/${conversationId}/close`)
   }

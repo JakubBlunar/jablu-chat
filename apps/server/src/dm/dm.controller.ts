@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGua
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { EventBusService } from '../events/event-bus.service'
-import { CreateDmDto, CreateGroupDmDto, SendDmMessageDto } from './dto'
+import { CreateDmDto, CreateGroupDmDto, DmAttachmentsQueryDto, SendDmMessageDto } from './dto'
 import { DmService } from './dm.service'
 
 @Controller('dm')
@@ -41,6 +41,15 @@ export class DmController {
   @Get(':id/read-states')
   getReadStates(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }) {
     return this.dm.getConversationReadStates(id, user.id)
+  }
+
+  @Get(':id/attachments')
+  getAttachments(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @Query() query: DmAttachmentsQueryDto
+  ) {
+    return this.dm.getAttachments(id, user.id, query.kind, query.page, query.limit)
   }
 
   @Get(':id/messages/pinned')

@@ -73,6 +73,32 @@ describe('DmService', () => {
       expect(result.userId).toBe(userA)
     })
 
+    describe('getAttachments', () => {
+      it('checks membership before querying attachments', async () => {
+        prisma.directConversationMember.findUnique.mockResolvedValue(null)
+        await expect(service.getAttachments(convId, userA, 'media', 0, 30)).rejects.toThrow(ForbiddenException)
+        expect(prisma.attachment.findMany).not.toHaveBeenCalled()
+      })
+
+      it.each(['media', 'files'] as const)('paginates %s across non-deleted conversation messages', async (kind) => {
+        prisma.directConversationMember.findUnique.mockResolvedValue({ userId: userA })
+        prisma.$transaction.mockResolvedValue([[
+          { id: 'att-1', messageId: 'old-message', message: { createdAt: new Date('2024-01-01'), author: { username: 'alice', displayName: 'Alice' } } }
+        ], 65])
+        const result = await service.getAttachments(convId, userA, kind, 1, 30)
+        expect(prisma.attachment.findMany).toHaveBeenCalledWith(expect.objectContaining({
+          where: {
+            type: { in: kind === 'files' ? ['file'] : ['image', 'gif', 'video'] },
+            message: { is: { directConversationId: convId, deleted: false } }
+          },
+          skip: 30,
+          take: 30,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+        }))
+        expect(result).toEqual({ items: [{ id: 'att-1', messageId: 'old-message', createdAt: '2024-01-01T00:00:00.000Z', authorName: 'Alice' }], total: 65 })
+      })
+    })
+
     it('throws ForbiddenException when not a member', async () => {
       prisma.directConversationMember.findUnique.mockResolvedValue(null)
       await expect(service.requireMembership(convId, userA)).rejects.toThrow(ForbiddenException)
