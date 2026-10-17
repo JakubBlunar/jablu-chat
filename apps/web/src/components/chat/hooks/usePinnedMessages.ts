@@ -14,11 +14,12 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
   const isDm = !channelId && !!conversationId
 
   useEffect(() => {
-    requestId.current++
+    const requests = requestId
+    requests.current++
     setPinnedOpen(false)
     setPinnedMessages([])
     setPinnedError(false)
-    return () => { requestId.current++ }
+    return () => { requests.current++ }
   }, [activeId])
 
   const loadPinned = useCallback(async () => {

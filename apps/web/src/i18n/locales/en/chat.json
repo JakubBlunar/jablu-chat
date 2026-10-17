@@ -1,4 +1,7 @@
 {
+  "conversationLinks": "Links",
+  "conversationLinksEmpty": "No shared links yet.",
+  "conversationLinksInvalid": "This message contains an incomplete or invalid link.",
   "conversationFavorite": "Favorite",
   "conversationUnfavorite": "Remove favorite",
   "conversationMute": "Mute conversation",

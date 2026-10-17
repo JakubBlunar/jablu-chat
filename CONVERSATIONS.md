@@ -6,17 +6,41 @@ name on mobile. The same panel is available in one-to-one and group DMs.
 - **Profile / Members** shows the other person's profile or the group's participants.
 - **Media** browses uploaded photos, GIFs and videos with the shared full-screen viewer.
 - **Files** shows downloadable attachments, their sizes, senders and dates.
+- **Links** collects shared HTTP(S) links, including links without a generated preview.
 - **Pins** shows pinned messages and supports unpinning.
 
 Media and files are paginated across the entire conversation history, not just
 the messages loaded in the chat. **Jump to message** opens the original context.
 Deleted messages are excluded. Only current conversation members can list
-attachments.
+attachments or shared links.
 
 The authenticated `GET /api/dm/:id/attachments` endpoint accepts
 `kind=media|files`, zero-based `page` and `limit` (1-100, default 30), and returns
 `{ items, total }`. Attachment results include the original `messageId`,
 `createdAt` and `authorName`.
+
+The authenticated `GET /api/dm/:id/links` endpoint uses the same pagination
+parameters. It pages messages newest first, with all unique links in each
+message (not just the first five preview candidates). Results include sender,
+date, source-message ID and available preview titles/descriptions.
+Counts include messages containing HTTP(S) URL candidates. Malformed links are
+not clickable; the entry explains the issue and still lets you open its source.
+
+## Search
+
+Search starts in the current conversation. Scope controls can widen it to all
+DMs or everywhere. Everywhere results share one chronological, paginated list.
+Filter buttons can be combined with text or used on their own:
+
+- `has:image`, `has:video`, `has:file`, `has:attachment`, `has:link`, `has:pin`.
+- `from:username` or `from:"Display Name"` limits results to a sender.
+- Date inputs add `after:YYYY-MM-DD` (inclusive) and `before:YYYY-MM-DD`
+  (exclusive), both at midnight UTC.
+- Server searches additionally offer `has:poll`, `in:thread`, `in:root` and
+  `tag:name` (or `tag:"Tag name"`). Forum replies inherit the root post's tags.
+
+Invalid filters and date ranges show an error rather than being silently
+ignored. Only currently accessible channels and conversations are searched.
 
 ## Conversation controls
 

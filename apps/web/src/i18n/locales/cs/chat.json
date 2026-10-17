@@ -1,4 +1,7 @@
 {
+  "conversationLinks": "Odkazy",
+  "conversationLinksInvalid": "Tato zpráva obsahuje neúplný nebo neplatný odkaz.",
+  "conversationLinksEmpty": "Zatím žádné sdílené odkazy.",
   "conversationFavorite": "Oblíbená",
   "conversationUnfavorite": "Odebrat z oblíbených",
   "conversationMute": "Ztlumit konverzaci",

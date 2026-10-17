@@ -8,7 +8,7 @@ import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { PollCreator } from '@/components/chat/PollCreator'
 import { PinnedPanel } from '@/components/chat/PinnedPanel'
 import { ThreadPanel } from '@/components/chat/ThreadPanel'
-import { ConversationInfoPanel } from '@/components/dm/ConversationInfoPanel'
+import { ConversationInfoPanel, type ConversationInfoTab } from '@/components/dm/ConversationInfoPanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
@@ -177,16 +177,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const [commandToast, setCommandToast] = useState<string | null>(null)
   const [channelInfoOpen, setChannelInfoOpen] = useState(false)
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
-  const [dmInfoTab, setDmInfoTab] = useState<'details' | 'pins'>('details')
+  const [dmInfoTab, setDmInfoTab] = useState<ConversationInfoTab>('details')
+  const { pinnedOpen, setPinnedOpen } = pinned
 
   useEffect(() => {
-    if (isDm && pinned.pinnedOpen) {
+    if (isDm && pinnedOpen) {
       setDmInfoTab('pins')
       setDmSheetOpen(true)
       setSearchOpen(false)
-      pinned.setPinnedOpen(false)
+      setPinnedOpen(false)
     }
-  }, [isDm, pinned.pinnedOpen, pinned.setPinnedOpen])
+  }, [isDm, pinnedOpen, setPinnedOpen])
 
   const [replyTarget, setReplyTarget] = useState<{
     id: string
@@ -616,12 +617,13 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           </div>
         ) : dmSheetOpen && dm.currentConv ? (
           <ConversationInfoPanel
-            key={`${contextId}:${dmInfoTab}`}
+            key={contextId}
             conversation={dm.currentConv}
             currentUserId={userId}
             otherMember={dm.otherMember}
             mutualServers={dm.mutualServers}
-            initialTab={dmInfoTab}
+            tab={dmInfoTab}
+            onTabChange={setDmInfoTab}
             pinned={pinned}
             onClose={() => setDmSheetOpen(false)}
             onSearch={() => setSearchOpen(true)}

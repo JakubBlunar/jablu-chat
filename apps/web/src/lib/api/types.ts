@@ -118,6 +118,13 @@ export type ConversationAttachment = Attachment & {
   authorName: string | null
 }
 
+export type ConversationLinkMessage = {
+  messageId: string
+  createdAt: string
+  authorName: string | null
+  links: { url: string; title: string | null; description: string | null }[]
+}
+
 export type OnboardingConfig = {
   onboardingEnabled: boolean
   onboardingMessage: string | null

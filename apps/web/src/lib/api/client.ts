@@ -994,6 +994,11 @@ export class ApiClient {
     return this.get(`/api/dm/${conversationId}/attachments?${params}`)
   }
 
+  getDmLinks(conversationId: string, page: number, limit = 30): Promise<{ items: import('./types').ConversationLinkMessage[]; total: number }> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+    return this.get(`/api/dm/${conversationId}/links?${params}`)
+  }
+
   closeDm(conversationId: string): Promise<void> {
     return this.patch(`/api/dm/${conversationId}/close`)
   }

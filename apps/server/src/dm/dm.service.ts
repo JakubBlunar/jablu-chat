@@ -4,6 +4,7 @@ import { FriendsService } from '../friends/friends.service'
 import { MessagesService } from '../messages/messages.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { EventBusService } from '../events/event-bus.service'
+import { extractUrls } from '../messages/link-preview-parse'
 import {
   dmMessageInclude as messageInclude,
   mapDmMessageToWire,
@@ -634,6 +635,41 @@ export class DmService {
     })
 
     return rows.map((m) => this.mapToWire(m))
+  }
+
+  async getLinks(conversationId: string, userId: string, page: number, limit: number) {
+    await this.requireMembership(conversationId, userId)
+    const where = Prisma.sql`WHERE direct_conversation_id = ${conversationId} AND deleted = false
+      AND content ~* 'https?://[^[:space:]<>]+'`
+    const [ids, counts] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT id FROM messages ${where} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${page * limit}`),
+      this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`SELECT count(*) FROM messages ${where}`)
+    ])
+    const rows = ids.length ? await this.prisma.message.findMany({
+      where: { id: { in: ids.map((row) => row.id) }, directConversationId: conversationId, deleted: false },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true, content: true, createdAt: true,
+        author: { select: { username: true, displayName: true } },
+        linkPreviews: { select: { url: true, title: true, description: true } }
+      }
+    }) : []
+    return {
+      items: rows.map((row) => {
+        const previews = new Map(row.linkPreviews.map((preview) => [preview.url, preview]))
+        return {
+          messageId: row.id,
+          createdAt: row.createdAt.toISOString(),
+          authorName: row.author?.displayName ?? row.author?.username ?? null,
+          links: extractUrls(row.content, Infinity).map((url) => ({
+            url,
+            title: previews.get(url)?.title ?? null,
+            description: previews.get(url)?.description ?? null
+          }))
+        }
+      }),
+      total: Number(counts[0]?.count ?? 0)
+    }
   }
 
   async getAttachments(conversationId: string, userId: string, kind: 'media' | 'files', page: number, limit: number) {

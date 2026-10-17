@@ -1,4 +1,6 @@
 {
+  "afterDate": "Od dátumu (UTC)",
+  "beforeDate": "Pred dátumom (UTC)",
   "resultsTitle": "Výsledky vyhľadávania",
   "closeSearch": "Zavrieť vyhľadávanie",
   "openSearch": "Hľadať",

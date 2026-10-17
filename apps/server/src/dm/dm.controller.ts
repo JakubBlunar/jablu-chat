@@ -4,7 +4,7 @@ import { UploadsService } from '../uploads/uploads.service'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { EventBusService } from '../events/event-bus.service'
-import { AddGroupMembersDto, CreateDmDto, CreateGroupDmDto, DmAttachmentsQueryDto, SendDmMessageDto, UpdateDmPreferencesDto, UpdateGroupDmDto } from './dto'
+import { AddGroupMembersDto, CreateDmDto, CreateGroupDmDto, DmAttachmentsQueryDto, DmPageQueryDto, SendDmMessageDto, UpdateDmPreferencesDto, UpdateGroupDmDto } from './dto'
 import { DmService } from './dm.service'
 
 @Controller('dm')
@@ -94,6 +94,11 @@ export class DmController {
     @Query() query: DmAttachmentsQueryDto
   ) {
     return this.dm.getAttachments(id, user.id, query.kind, query.page, query.limit)
+  }
+
+  @Get(':id/links')
+  getLinks(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: { id: string }, @Query() query: DmPageQueryDto) {
+    return this.dm.getLinks(id, user.id, query.page, query.limit)
   }
 
   @Get(':id/messages/pinned')

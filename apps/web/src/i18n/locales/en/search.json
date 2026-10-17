@@ -1,4 +1,6 @@
 {
+  "afterDate": "On or after (UTC)",
+  "beforeDate": "Before (UTC)",
   "resultsTitle": "Search Results",
   "closeSearch": "Close search",
   "openSearch": "Search",

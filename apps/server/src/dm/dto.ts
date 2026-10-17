@@ -26,10 +26,7 @@ export class AddGroupMembersDto {
   memberIds: string[]
 }
 
-export class DmAttachmentsQueryDto {
-  @IsIn(['media', 'files'])
-  kind: 'media' | 'files' = 'media'
-
+export class DmPageQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -41,6 +38,11 @@ export class DmAttachmentsQueryDto {
   @Min(1)
   @Max(100)
   limit = 30
+}
+
+export class DmAttachmentsQueryDto extends DmPageQueryDto {
+  @IsIn(['media', 'files'])
+  kind: 'media' | 'files' = 'media'
 }
 
 export class CreateDmDto {

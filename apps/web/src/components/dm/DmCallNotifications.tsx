@@ -40,6 +40,7 @@ export function DmCallNotifications() {
   const calling = outgoing && outgoing.participants.length === 1 && outgoing.ringingUserIds.length > 0
 
   useEffect(() => {
+    const ringing = new Set(ringingIds.split(','))
     const current = useDmCallStore.getState().calls
     for (const call of Object.values(current)) {
       if (userId && call.ringingUserIds.includes(userId) && !useDmStore.getState().conversations.some((conversation) => conversation.id === call.conversationId && conversation.muted) && !notified.current.has(call.id)) {
@@ -50,7 +51,7 @@ export function DmCallNotifications() {
       }
     }
     for (const [id, url] of notified.current) {
-      if (!incoming.some((call) => call.id === id)) {
+      if (!ringing.has(id)) {
         void clearNotifications([url])
         notified.current.delete(id)
       }

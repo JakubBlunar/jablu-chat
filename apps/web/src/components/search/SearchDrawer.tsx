@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Attachment, Message } from '@chat/shared'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
-import { api, resolveMediaUrl, type SearchResult } from '@/lib/api'
+import { api, ApiError, resolveMediaUrl, type SearchResult } from '@/lib/api'
 import { MessageMediaProvider, useMessageMedia } from '@/components/media/MessageMediaGallery'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -13,6 +13,23 @@ import { IconButton, Spinner } from '@/components/ui'
 
 type Scope = 'server' | 'channel' | 'conversation' | 'dm' | 'all'
 const PAGE_SIZE = 25
+const FILTER_TOKEN = /(?<!\S)(has|from|in|tag|after|before):(?:"([^"]*)"|(\S*))/gi
+
+function matchesFilter(token: string, filter: string) {
+  const normalized = token.toLowerCase().replace(/^has:pin$/, 'has:pinned')
+  return filter.endsWith(':') ? normalized.startsWith(filter) : normalized === filter
+}
+
+function findFilter(query: string, filter: string) {
+  return Array.from(query.matchAll(FILTER_TOKEN))
+    .filter((match) => matchesFilter(match[0], filter))
+    .at(-1)
+}
+
+function replaceFilter(query: string, filter: string, replacement: string) {
+  const without = query.replace(FILTER_TOKEN, (token) => (matchesFilter(token, filter) ? '' : token)).trim()
+  return [without, replacement].filter(Boolean).join(' ')
+}
 
 type Props = {
   query: string
@@ -37,25 +54,29 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<{ message?: string } | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [localQuery, setLocalQuery] = useState(query)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
+  const requestId = useRef(0)
 
   useEffect(() => {
     setLocalQuery(query)
+    if (timerRef.current) clearTimeout(timerRef.current)
   }, [query])
 
   const doSearch = useCallback(
     async (q: string, s: Scope, off: number) => {
+      const request = ++requestId.current
+      setError(null)
       if (!q.trim()) {
         setResults([])
         setTotal(0)
+        setLoading(false)
         return
       }
       setLoading(true)
-      setError(false)
       try {
         const opts: Parameters<typeof api.searchMessages>[1] = { offset: off }
         if (s === 'server' && currentServerId) opts.serverId = currentServerId
@@ -63,47 +84,65 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         else if (s === 'conversation' && conversationId) opts.conversationId = conversationId
         else if (s === 'dm') opts.dmOnly = true
         const data = await api.searchMessages(q, opts)
+        if (request !== requestId.current) return
         setResults(data.results)
         setTotal(data.total)
-      } catch {
+      } catch (error) {
+        if (request !== requestId.current) return
         setResults([])
         setTotal(0)
-        setError(true)
+        setError({ message: error instanceof ApiError ? error.message : undefined })
       } finally {
-        setLoading(false)
+        if (request === requestId.current) setLoading(false)
       }
     },
     [currentServerId, currentChannelId, conversationId]
   )
 
   useEffect(() => {
-    if (query.trim()) {
-      void doSearch(query, scope, offset)
+    const requests = requestId
+    void doSearch(query, scope, offset)
+    return () => {
+      requests.current++
     }
   }, [query, scope, offset, doSearch])
 
-  function handleLocalChange(value: string) {
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    []
+  )
+
+  function submit(value: string) {
+    if (timerRef.current) clearTimeout(timerRef.current)
     setLocalQuery(value)
+    setOffset(0)
+    if (value === query && offset === 0) void doSearch(value, scope, 0)
+    else onQueryChange(value)
+  }
+
+  function handleLocalChange(value: string) {
+    requestId.current++
+    setLoading(false)
+    setLocalQuery(value)
+    setError(null)
     if (timerRef.current) clearTimeout(timerRef.current)
     if (value.trim()) {
       timerRef.current = setTimeout(() => {
-        setOffset(0)
-        onQueryChange(value)
+        submit(value)
       }, 400)
     } else {
       setOffset(0)
       onQueryChange('')
       setResults([])
       setTotal(0)
+      setLoading(false)
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && localQuery.trim()) {
-      if (timerRef.current) clearTimeout(timerRef.current)
-      setOffset(0)
-      onQueryChange(localQuery)
-    }
+    if (e.key === 'Enter') submit(localQuery)
     if (e.key === 'Escape') onClose()
   }
 
@@ -121,23 +160,22 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       if (result.channel?.type === 'forum') {
         void orchestratedGoToChannel(serverId, result.channelId).then(() => {
           const openForumPost = () => {
-            Promise.all([
-              import('@/stores/forum.store'),
-              import('@/stores/forumReply.store')
-            ]).then(([{ useForumStore }, { useForumReplyStore }]) => {
-              const postId = result.threadParentId ?? result.id
-              if (!useForumStore.getState().channelId) {
-                useForumStore.setState({ channelId: result.channelId })
+            Promise.all([import('@/stores/forum.store'), import('@/stores/forumReply.store')]).then(
+              ([{ useForumStore }, { useForumReplyStore }]) => {
+                const postId = result.threadParentId ?? result.id
+                if (!useForumStore.getState().channelId) {
+                  useForumStore.setState({ channelId: result.channelId })
+                }
+                useForumStore.getState().openPost(postId)
+                if (result.threadParentId) {
+                  const s = useForumReplyStore.getState()
+                  useForumReplyStore.setState({
+                    scrollToMessageId: result.id,
+                    scrollRequestNonce: s.scrollRequestNonce + 1
+                  })
+                }
               }
-              useForumStore.getState().openPost(postId)
-              if (result.threadParentId) {
-                const s = useForumReplyStore.getState()
-                useForumReplyStore.setState({
-                  scrollToMessageId: result.id,
-                  scrollRequestNonce: s.scrollRequestNonce + 1
-                })
-              }
-            })
+            )
           }
           let attempts = 0
           const waitForChannel = () => {
@@ -262,49 +300,82 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       </div>
 
       {/* Filter hints */}
-      {!query.trim() && (
-        <div className="border-b border-white/10 px-3 py-2">
-          <p className="mb-1 text-[11px] font-medium text-gray-500">{t('searchFilters')}</p>
-          <div className="flex flex-wrap gap-1">
-            {(
-              [
-                { label: 'has:image', insert: 'has:image ' },
-                { label: 'has:file', insert: 'has:file ' },
-                { label: 'has:attachment', insert: 'has:attachment ' },
-                { label: 'has:video', insert: 'has:video ' },
-                { label: 'has:link', insert: 'has:link ' },
-                { label: 'has:poll', insert: 'has:poll ' },
-                { label: 'has:pinned', insert: 'has:pinned ' },
-                { label: 'in:thread', insert: 'in:thread ' },
-                { label: 'in:root', insert: 'in:root ' },
-                { label: 'from:username', insert: 'from:' },
-                { label: 'tag:name', insert: 'tag:' },
-                { label: 'after:date', insert: 'after:' },
-                { label: 'before:date', insert: 'before:' },
-              ] as const
-            ).map((f) => (
+      <div className="border-b border-white/10 px-3 py-2">
+        <p className="mb-1 text-[11px] font-medium text-gray-500">{t('searchFilters')}</p>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              { label: 'has:image', insert: 'has:image ' },
+              { label: 'has:file', insert: 'has:file ' },
+              { label: 'has:attachment', insert: 'has:attachment ' },
+              { label: 'has:video', insert: 'has:video ' },
+              { label: 'has:link', insert: 'has:link ' },
+              { label: 'has:poll', insert: 'has:poll ' },
+              { label: 'has:pinned', insert: 'has:pinned ' },
+              { label: 'in:thread', insert: 'in:thread ' },
+              { label: 'in:root', insert: 'in:root ' },
+              { label: 'from:username', insert: 'from:' },
+              { label: 'tag:name', insert: 'tag:' }
+            ] as const
+          )
+            .filter(
+              (filter) =>
+                !(
+                  (scope === 'conversation' || scope === 'dm') &&
+                  ['has:poll', 'in:thread', 'in:root', 'tag:name'].includes(filter.label)
+                )
+            )
+            .map((f) => (
               <button
                 key={f.label}
                 type="button"
+                aria-pressed={f.insert.endsWith(' ') ? !!findFilter(localQuery, f.insert.trim()) : undefined}
                 onClick={() => {
-                  setLocalQuery((prev) => prev + f.insert)
+                  if (f.insert.endsWith(' ')) {
+                    const token = f.insert.trim()
+                    submit(replaceFilter(localQuery, token, findFilter(localQuery, token) ? '' : token))
+                  } else {
+                    handleLocalChange(replaceFilter(localQuery, f.insert, f.insert))
+                    if (timerRef.current) clearTimeout(timerRef.current)
+                  }
                   inputRef.current?.focus()
                 }}
-                className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-gray-400 transition hover:bg-white/10 hover:text-gray-300"
+                className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-gray-400 transition hover:bg-white/10 hover:text-gray-300 aria-pressed:bg-primary/20 aria-pressed:text-primary"
               >
                 {f.label}
               </button>
             ))}
-          </div>
         </div>
-      )}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {(['after', 'before'] as const).map((direction) => {
+            const filter = findFilter(localQuery, `${direction}:`)
+            return (
+              <label key={direction} className="min-w-0 text-[11px] text-gray-400">
+                {t(direction === 'after' ? 'afterDate' : 'beforeDate')}
+                <input
+                  type="date"
+                  value={filter?.[2] ?? filter?.[3] ?? ''}
+                  onChange={(event) => {
+                    submit(
+                      replaceFilter(
+                        localQuery,
+                        `${direction}:`,
+                        event.target.value ? `${direction}:${event.target.value}` : ''
+                      )
+                    )
+                  }}
+                  className="ml-1 rounded bg-surface-darkest px-1 py-1 text-xs text-gray-200 [color-scheme:dark]"
+                />
+              </label>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Result count */}
-      {query.trim() && !loading && (
+      {query.trim() && !loading && !error && (
         <div className="border-b border-white/10 px-3 py-1.5">
-          <span className="text-xs text-gray-500">
-            {t('resultCount', { count: total })}
-          </span>
+          <span className="text-xs text-gray-500">{t('resultCount', { count: total })}</span>
         </div>
       )}
 
@@ -315,8 +386,8 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
             <Spinner size="lg" />
           </div>
         ) : error ? (
-          <div className="px-3 py-8 text-center text-sm text-gray-400">
-            <p>{t('searchFailed')}</p>
+          <div role="alert" className="px-3 py-8 text-center text-sm text-gray-400">
+            <p>{error.message ?? t('searchFailed')}</p>
             <button
               type="button"
               className="mt-2 text-xs text-primary hover:underline"
@@ -333,14 +404,12 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
           <div className="py-1">
             {results.map((r) => {
               const mediaAtts = (r.attachments ?? []).filter(
-                (a) => a.type === 'image' || a.type === 'gif'
+                (a) => a.type === 'image' || a.type === 'gif' || a.type === 'video'
               )
               return (
                 <div
                   key={r.id}
-                  className={`px-3 py-2.5 transition hover:bg-white/5 ${
-                    activeId === r.id ? 'bg-white/[0.08]' : ''
-                  }`}
+                  className={`px-3 py-2.5 transition hover:bg-white/5 ${activeId === r.id ? 'bg-white/[0.08]' : ''}`}
                 >
                   <button
                     type="button"
@@ -363,9 +432,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                           <span className="shrink-0 text-[11px] text-gray-500">{t('dmBadge')}</span>
                         ) : null}
                       </div>
-                      {r.title && (
-                        <p className="mt-0.5 text-xs font-semibold text-gray-200">{r.title}</p>
-                      )}
+                      {r.title && <p className="mt-0.5 text-xs font-semibold text-gray-200">{r.title}</p>}
                       {r.content && (
                         <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-300">{r.content}</p>
                       )}
@@ -393,7 +460,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         <div className="flex items-center justify-between border-t border-white/10 px-3 py-2">
           <button
             type="button"
-            disabled={currentPage <= 1}
+            disabled={loading || currentPage <= 1}
             onClick={() => setOffset(offset - PAGE_SIZE)}
             className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
           >
@@ -404,7 +471,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
           </span>
           <button
             type="button"
-            disabled={currentPage >= totalPages}
+            disabled={loading || currentPage >= totalPages}
             onClick={() => setOffset(offset + PAGE_SIZE)}
             className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
           >
@@ -422,15 +489,20 @@ function SearchResultThumb({ attachment }: { attachment: Attachment }) {
   return (
     <button
       type="button"
+      aria-label={attachment.filename}
       onClick={() => openByKey(attachment.id)}
       className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-black/30"
     >
-      <img
-        src={src}
-        alt={attachment.filename}
-        loading="lazy"
-        className="h-full w-full object-cover transition hover:opacity-90"
-      />
+      {attachment.type === 'video' && !attachment.thumbnailUrl ? (
+        <video src={`${src}#t=0.1`} muted preload="metadata" className="h-full w-full object-cover" />
+      ) : (
+        <img
+          src={src}
+          alt={attachment.filename}
+          loading="lazy"
+          className="h-full w-full object-cover transition hover:opacity-90"
+        />
+      )}
     </button>
   )
 }

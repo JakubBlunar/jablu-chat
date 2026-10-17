@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing'
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { DmService } from './dm.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { FriendsService } from '../friends/friends.service'
@@ -80,6 +80,36 @@ describe('DmService', () => {
         prisma.directConversationMember.findUnique.mockResolvedValue(null)
         await expect(service.getAttachments(convId, userA, 'media', 0, 30)).rejects.toThrow(ForbiddenException)
         expect(prisma.attachment.findMany).not.toHaveBeenCalled()
+      })
+
+      describe('getLinks', () => {
+        it('requires membership before looking up links', async () => {
+          prisma.directConversationMember.findUnique.mockResolvedValue(null)
+          await expect(service.getLinks(convId, userA, 0, 30)).rejects.toThrow(ForbiddenException)
+          expect(prisma.$transaction).not.toHaveBeenCalled()
+        })
+        it('includes every URL even without a generated preview', async () => {
+          prisma.directConversationMember.findUnique.mockResolvedValue({ userId: userA })
+          prisma.$transaction.mockResolvedValue([[{ id: 'message' }], [{ count: 1n }]])
+          prisma.message.findMany.mockResolvedValue([{
+            id: 'message', content: Array.from({ length: 7 }, (_, i) => `https://example.com/${i}`).join(' '),
+            createdAt: new Date('2026-10-17'), author: { username: 'alice', displayName: null },
+            linkPreviews: [{ url: 'https://example.com/0', title: 'Example', description: 'Description' }]
+          }])
+          const result = await service.getLinks(convId, userA, 1, 30)
+          expect(result.total).toBe(1)
+          expect(result.items[0].links).toHaveLength(7)
+          expect(result.items[0].links[0]).toMatchObject({ title: 'Example' })
+          expect(result.items[0].links[6]).toMatchObject({ url: 'https://example.com/6', title: null })
+          const pageQuery = prisma.$queryRaw.mock.calls[0][0]
+          expect(pageQuery.sql).toContain('direct_conversation_id =')
+          expect(pageQuery.sql).toContain('deleted = false')
+          expect(pageQuery.sql).toContain('ORDER BY created_at DESC, id DESC LIMIT')
+          expect(pageQuery.values).toEqual([convId, 30, 30])
+          expect(prisma.message.findMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: { in: ['message'] }, directConversationId: convId, deleted: false }
+          }))
+        })
       })
 
       describe('group management', () => {

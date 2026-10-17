@@ -28,14 +28,15 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
   const [mutualServers, setMutualServers] = useState<
     { id: string; name: string; iconUrl: string | null; channels: { id: string; name: string }[] }[]
   >([])
+  const otherUserId = otherMember?.userId
   useEffect(() => {
-    if (!isDm || !otherMember) {
+    if (!isDm || !otherUserId) {
       setMutualServers([])
       return
     }
     let cancelled = false
     api
-      .getMutualServers(otherMember.userId)
+      .getMutualServers(otherUserId)
       .then((res) => {
         if (!cancelled) setMutualServers(res.servers)
       })
@@ -43,7 +44,7 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
     return () => {
       cancelled = true
     }
-  }, [isDm, otherMember?.userId])
+  }, [isDm, otherUserId])
 
   const dmChannelRefs: ChannelRef[] = useMemo(
     () => mutualServers.flatMap((s) => (s.channels ?? []).map((c) => ({ id: c.id, serverId: s.id, name: c.name }))),

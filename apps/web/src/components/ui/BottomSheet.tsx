@@ -14,6 +14,7 @@ interface BottomSheetProps {
    * When false, the body is a flex column with overflow hidden so children can own scrolling (e.g. tall channel panel).
    */
   bodyScrollable?: boolean
+  closeOnEscape?: boolean
 }
 
 export function BottomSheet({
@@ -22,7 +23,8 @@ export function BottomSheet({
   children,
   zIndex = 100,
   maxHeightDvh = 70,
-  bodyScrollable = true
+  bodyScrollable = true,
+  closeOnEscape = true
 }: BottomSheetProps) {
   const { t } = useTranslation('common')
   const [visible, setVisible] = useState(false)
@@ -44,13 +46,13 @@ export function BottomSheet({
   }, [onClose])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !closeOnEscape) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [open, close])
+  }, [open, close, closeOnEscape])
 
   if (!open) return null
 

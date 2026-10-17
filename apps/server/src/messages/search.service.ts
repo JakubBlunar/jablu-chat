@@ -1,48 +1,110 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { Prisma } from '../prisma-client'
 import { hasPermission, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 
-type SearchPage = { ids: string[]; total: number }
-
 interface ParsedQuery {
   text: string
   hasImage: boolean
   hasFile: boolean
+  hasVideo: boolean
+  hasAttachment: boolean
   hasLink: boolean
   hasPoll: boolean
   hasPinned: boolean
   fromUsername: string | null
+  location: 'thread' | 'root' | null
+  tag: string | null
+  after: Date | null
+  before: Date | null
 }
 
-function parseSearchQuery(raw: string): ParsedQuery {
-  let text = raw
+export function parseSearchQuery(raw: string): ParsedQuery {
   const filters: ParsedQuery = {
     text: '',
     hasImage: false,
     hasFile: false,
+    hasVideo: false,
+    hasAttachment: false,
     hasLink: false,
     hasPoll: false,
     hasPinned: false,
-    fromUsername: null
+    fromUsername: null,
+    location: null,
+    tag: null,
+    after: null,
+    before: null
   }
-
-  text = text.replace(/has:(image|file|link|poll|pin(?:ned)?)/gi, (_, type: string) => {
-    const t = type.toLowerCase()
-    if (t === 'image') filters.hasImage = true
-    else if (t === 'file') filters.hasFile = true
-    else if (t === 'link') filters.hasLink = true
-    else if (t === 'poll') filters.hasPoll = true
-    else if (t === 'pin' || t === 'pinned') filters.hasPinned = true
-    return ''
-  })
-
-  text = text.replace(/from:(\S+)/gi, (_, username: string) => {
-    filters.fromUsername = username.replace(/^@/, '')
-    return ''
-  })
-
+  const text = raw.replace(
+    /(?<!\S)(has|from|in|tag|after|before):(?:"([^"]*)"(?=\s|$)|(\S*))/gi,
+    (_, key: string, quoted: string | undefined, word: string | undefined) => {
+      const value = quoted ?? word ?? ''
+      if (!value.trim() || (quoted === undefined && value.includes('"'))) {
+        throw new BadRequestException('Complete the search filter before searching')
+      }
+      switch (key.toLowerCase()) {
+        case 'has':
+          switch (value.toLowerCase()) {
+            case 'image':
+              filters.hasImage = true
+              break
+            case 'file':
+              filters.hasFile = true
+              break
+            case 'video':
+              filters.hasVideo = true
+              break
+            case 'attachment':
+              filters.hasAttachment = true
+              break
+            case 'link':
+              filters.hasLink = true
+              break
+            case 'poll':
+              filters.hasPoll = true
+              break
+            case 'pin':
+            case 'pinned':
+              filters.hasPinned = true
+              break
+            default:
+              throw new BadRequestException(`Unsupported search filter: has:${value}`)
+          }
+          break
+        case 'from':
+          filters.fromUsername = value.replace(/^@/, '')
+          if (!filters.fromUsername) throw new BadRequestException('Specify a sender after from:')
+          break
+        case 'in': {
+          const location = value.toLowerCase()
+          if (location !== 'thread' && location !== 'root') throw new BadRequestException('Use in:thread or in:root')
+          filters.location = location
+          break
+        }
+        case 'tag':
+          filters.tag = value
+          break
+        case 'after':
+        case 'before': {
+          const date = new Date(`${value}T00:00:00.000Z`)
+          if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+            !Number.isFinite(date.getTime()) ||
+            date.toISOString().slice(0, 10) !== value
+          ) {
+            throw new BadRequestException('Search dates must be valid dates in YYYY-MM-DD format')
+          }
+          if (key.toLowerCase() === 'after') filters.after = date
+          else filters.before = date
+          break
+        }
+      }
+      return ''
+    }
+  )
+  if (filters.after && filters.before && filters.after >= filters.before)
+    throw new BadRequestException('The after date must be earlier than the before date')
   filters.text = text.trim()
   return filters
 }
@@ -51,7 +113,7 @@ function parseSearchQuery(raw: string): ParsedQuery {
 export class SearchService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly roles: RolesService,
+    private readonly roles: RolesService
   ) {}
 
   async searchMessages(
@@ -67,17 +129,15 @@ export class SearchService {
     const take = Math.min(Math.max(1, limit), 50)
     const skip = Math.max(0, offset)
     const parsed = parseSearchQuery(query)
-
     const tsQuery = parsed.text
       .split(/\s+/)
       .filter(Boolean)
-      .map((w) => w.replace(/[^\w\u00C0-\u024F\u0400-\u04FF\u3000-\u9FFF]/g, ''))
+      .map((word) => word.replace(/[^\w\u00C0-\u024F\u0400-\u04FF\u3000-\u9FFF]/g, ''))
       .filter(Boolean)
-      .map((w) => `${w}:*`)
+      .map((word) => `${word}:*`)
       .join(' & ')
-
-    const hasFiltersOnly = !tsQuery && (parsed.hasImage || parsed.hasFile || parsed.hasLink || parsed.hasPoll || parsed.hasPinned || parsed.fromUsername)
-    if (!tsQuery && !hasFiltersOnly) return { results: [], total: 0 }
+    const hasFilters = Object.entries(parsed).some(([key, value]) => key !== 'text' && !!value)
+    if (!tsQuery && !hasFilters) return { results: [], total: 0 }
 
     let fromUserId: string | null = null
     if (parsed.fromUsername) {
@@ -94,98 +154,104 @@ export class SearchService {
       fromUserId = user.id
     }
 
-    const filters = { ...parsed, fromUserId }
-
+    let channelIds: string[] = []
+    let conversationIds: string[] = []
     if (conversationId) {
-      const isMember = await this.prisma.directConversationMember.findFirst({
-        where: { conversationId, userId }
-      })
-      if (!isMember) return { results: [], total: 0 }
-
-      const dmPage = await this.searchInDms([conversationId], tsQuery, take, skip, filters)
-      if (dmPage.ids.length === 0) return { results: [], total: dmPage.total }
-
-      return this.hydrateResults(dmPage.ids, dmPage.total)
-    }
-
-    let channelPage: SearchPage = { ids: [], total: 0 }
-    let dmPage: SearchPage = { ids: [], total: 0 }
-
-    if (!dmOnly) {
-      const memberServerIds = await this.prisma.serverMember
-        .findMany({ where: { userId }, select: { serverId: true } })
-        .then((rows) => rows.map((r) => r.serverId))
-
-      if (channelId) {
-        const ch = await this.prisma.channel.findUnique({
-          where: { id: channelId },
-          select: { serverId: true }
+      const member = await this.prisma.directConversationMember.findFirst({ where: { conversationId, userId } })
+      if (!member) return { results: [], total: 0 }
+      conversationIds = [conversationId]
+    } else {
+      if (!dmOnly) {
+        const memberships = await this.prisma.serverMember.findMany({ where: { userId }, select: { serverId: true } })
+        const serverIds = memberships.map((member) => member.serverId)
+        if (channelId) {
+          const channel = await this.prisma.channel.findUnique({ where: { id: channelId }, select: { serverId: true } })
+          if (channel && serverIds.includes(channel.serverId)) {
+            const visible = await this.getVisibleChannelIds(channel.serverId, userId)
+            if (visible.includes(channelId)) channelIds = [channelId]
+          }
+        } else if (serverId) {
+          if (serverIds.includes(serverId)) channelIds = await this.getVisibleChannelIds(serverId, userId)
+        } else {
+          const visible = await this.roles.getVisibleChannelIdsForServers(userId, serverIds)
+          channelIds = [...visible.values()].flat()
+        }
+      }
+      if (!channelId && !serverId) {
+        const memberships = await this.prisma.directConversationMember.findMany({
+          where: { userId },
+          select: { conversationId: true }
         })
-        if (ch && memberServerIds.includes(ch.serverId)) {
-          const visible = await this.getVisibleChannelIds(ch.serverId, userId)
-          if (visible.includes(channelId)) {
-            channelPage = await this.searchInChannels([channelId], tsQuery, take, skip, filters)
-          }
-        }
-      } else if (serverId) {
-        if (memberServerIds.includes(serverId)) {
-          const visible = await this.getVisibleChannelIds(serverId, userId)
-          if (visible.length > 0) {
-            channelPage = await this.searchInChannels(visible, tsQuery, take, skip, filters)
-          }
-        }
-      } else {
-        const visibleByServer = await this.roles.getVisibleChannelIdsForServers(userId, memberServerIds)
-        const allVisible: string[] = []
-        for (const channels of visibleByServer.values()) {
-          allVisible.push(...channels)
-        }
-        if (allVisible.length > 0) {
-          channelPage = await this.searchInChannels(allVisible, tsQuery, take, skip, filters)
-        }
+        conversationIds = memberships.map((member) => member.conversationId)
       }
     }
+    if (channelIds.length === 0 && conversationIds.length === 0) return { results: [], total: 0 }
 
-    if (!channelId && !serverId) {
-      const dmConvIds = await this.prisma.directConversationMember
-        .findMany({ where: { userId }, select: { conversationId: true } })
-        .then((rows) => rows.map((r) => r.conversationId))
-
-      if (dmConvIds.length > 0) {
-        dmPage = await this.searchInDms(dmConvIds, tsQuery, take, skip, filters)
-      }
-    }
-
-    const allIds = [...channelPage.ids, ...dmPage.ids]
-    const total = channelPage.total + dmPage.total
-
-    if (allIds.length === 0) return { results: [], total }
-
-    return this.hydrateResults(allIds, total)
+    const clauses = this.buildFilterClauses({ ...parsed, fromUserId })
+    const textCondition = tsQuery
+      ? Prisma.sql`AND (to_tsvector('simple', coalesce(m.content, '')) @@ to_tsquery('simple', ${tsQuery})
+          OR to_tsvector('simple', coalesce(m.title, '')) @@ to_tsquery('simple', ${tsQuery}))`
+      : Prisma.empty
+    const where = Prisma.sql`
+      WHERE (m.channel_id = ANY(${channelIds}::text[]) OR m.direct_conversation_id = ANY(${conversationIds}::text[]))
+        AND m.deleted = false ${textCondition} ${Prisma.join(clauses, ' ')}`
+    const [rows, counts] = await Promise.all([
+      this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT m.id FROM messages m ${where}
+        ORDER BY m.created_at DESC, m.id DESC LIMIT ${take} OFFSET ${skip}`),
+      this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`SELECT count(*) FROM messages m ${where}`)
+    ])
+    const total = Number(counts[0]?.count ?? 0)
+    if (rows.length === 0) return { results: [], total }
+    return this.hydrateResults(
+      rows.map((row) => row.id),
+      total
+    )
   }
 
-  private async getVisibleChannelIds(serverId: string, userId: string): Promise<string[]> {
-    const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
-    const VIEW = Permission.VIEW_CHANNEL
-    return Object.entries(permMap)
-      .filter(([, perms]) => hasPermission(perms, VIEW))
-      .map(([chId]) => chId)
+  private buildFilterClauses(filters: ParsedQuery & { fromUserId: string | null }): Prisma.Sql[] {
+    const clauses: Prisma.Sql[] = [Prisma.empty]
+    if (filters.fromUserId) clauses.push(Prisma.sql`AND m.author_id = ${filters.fromUserId}`)
+    if (filters.hasPinned) clauses.push(Prisma.sql`AND m.pinned = true`)
+    if (filters.hasImage)
+      clauses.push(
+        Prisma.sql`AND EXISTS (SELECT 1 FROM attachments a WHERE a.message_id = m.id AND a.type IN ('image', 'gif'))`
+      )
+    if (filters.hasFile)
+      clauses.push(Prisma.sql`AND EXISTS (SELECT 1 FROM attachments a WHERE a.message_id = m.id AND a.type = 'file')`)
+    if (filters.hasVideo)
+      clauses.push(Prisma.sql`AND EXISTS (SELECT 1 FROM attachments a WHERE a.message_id = m.id AND a.type = 'video')`)
+    if (filters.hasAttachment)
+      clauses.push(Prisma.sql`AND EXISTS (SELECT 1 FROM attachments a WHERE a.message_id = m.id)`)
+    if (filters.hasLink)
+      clauses.push(
+        Prisma.sql`AND (EXISTS (SELECT 1 FROM link_previews lp WHERE lp.message_id = m.id) OR m.content ~* 'https?://[^[:space:]<>]+')`
+      )
+    if (filters.hasPoll) clauses.push(Prisma.sql`AND EXISTS (SELECT 1 FROM polls p WHERE p.message_id = m.id)`)
+    if (filters.location === 'thread') clauses.push(Prisma.sql`AND m.thread_parent_id IS NOT NULL`)
+    if (filters.location === 'root') clauses.push(Prisma.sql`AND m.thread_parent_id IS NULL`)
+    if (filters.tag)
+      clauses.push(Prisma.sql`AND EXISTS (
+      SELECT 1 FROM forum_post_tags pt JOIN forum_tags ft ON ft.id = pt.tag_id
+      WHERE pt.message_id = coalesce(m.thread_parent_id, m.id) AND lower(ft.name) = lower(${filters.tag}))`)
+    if (filters.after) clauses.push(Prisma.sql`AND m.created_at >= ${filters.after}`)
+    if (filters.before) clauses.push(Prisma.sql`AND m.created_at < ${filters.before}`)
+    return clauses
+  }
+
+  private async getVisibleChannelIds(serverId: string, userId: string) {
+    const permissions = await this.roles.getAllChannelPermissions(serverId, userId)
+    return Object.entries(permissions)
+      .filter(([, value]) => hasPermission(value, Permission.VIEW_CHANNEL))
+      .map(([id]) => id)
   }
 
   private async hydrateResults(ids: string[], total: number) {
-    const fullMessages = await this.prisma.message.findMany({
-      where: { id: { in: ids } },
+    const messages = await this.prisma.message.findMany({
+      where: { id: { in: ids }, deleted: false },
       include: {
-        author: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true
-          }
-        },
+        author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
         channel: { select: { id: true, name: true, serverId: true, type: true } },
-        directConversation: { select: { id: true } },
         attachments: {
           select: {
             id: true,
@@ -201,138 +267,23 @@ export class SearchService {
           }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
     })
-
     return {
-      results: fullMessages.map((m) => ({
-        id: m.id,
-        content: m.content,
-        title: m.title,
-        threadParentId: m.threadParentId,
-        authorId: m.authorId,
-        author: m.author,
-        channelId: m.channelId,
-        channel: m.channel,
-        dmConversationId: m.directConversationId,
-        createdAt: m.createdAt,
-        attachments: m.attachments
+      results: messages.map((message) => ({
+        id: message.id,
+        content: message.content,
+        title: message.title,
+        threadParentId: message.threadParentId,
+        authorId: message.authorId,
+        author: message.author,
+        channelId: message.channelId,
+        channel: message.channel,
+        dmConversationId: message.directConversationId,
+        createdAt: message.createdAt,
+        attachments: message.attachments
       })),
       total
-    }
-  }
-
-  private buildFilterClauses(
-    filters: ParsedQuery & { fromUserId: string | null }
-  ): { fragments: Prisma.Sql[]; joins: Prisma.Sql[] } {
-    const fragments: Prisma.Sql[] = []
-    const joins: Prisma.Sql[] = []
-
-    if (filters.fromUserId) {
-      fragments.push(Prisma.sql`AND m.author_id = ${filters.fromUserId}`)
-    }
-    if (filters.hasPinned) {
-      fragments.push(Prisma.sql`AND m.pinned = true`)
-    }
-    if (filters.hasImage) {
-      joins.push(Prisma.sql`INNER JOIN attachments ai ON ai.message_id = m.id AND ai.mime_type LIKE 'image/%'`)
-    }
-    if (filters.hasFile) {
-      joins.push(Prisma.sql`INNER JOIN attachments af ON af.message_id = m.id AND af.mime_type NOT LIKE 'image/%'`)
-    }
-    if (filters.hasLink) {
-      joins.push(Prisma.sql`INNER JOIN link_previews lp ON lp.message_id = m.id`)
-    }
-    if (filters.hasPoll) {
-      joins.push(Prisma.sql`INNER JOIN polls p ON p.message_id = m.id`)
-    }
-
-    return { fragments, joins }
-  }
-
-  private async searchInChannels(
-    channelIds: string[],
-    tsQuery: string,
-    limit: number,
-    offset: number,
-    filters: ParsedQuery & { fromUserId: string | null }
-  ): Promise<SearchPage> {
-    if (channelIds.length === 0) return { ids: [], total: 0 }
-    const { fragments, joins } = this.buildFilterClauses(filters)
-
-    const textCondition = tsQuery
-      ? Prisma.sql`AND (to_tsvector('simple', coalesce(m.content, '')) @@ to_tsquery('simple', ${tsQuery}) OR to_tsvector('simple', coalesce(m.title, '')) @@ to_tsquery('simple', ${tsQuery}))`
-      : Prisma.sql``
-
-    const joinSql = joins.reduce((acc, j) => Prisma.sql`${acc} ${j}`, Prisma.sql``)
-    const filterSql = fragments.reduce((acc, f) => Prisma.sql`${acc} ${f}`, Prisma.sql``)
-
-    const [rows, countRows] = await Promise.all([
-      this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT DISTINCT m.id, m.created_at FROM messages m
-        ${joinSql}
-        WHERE m.channel_id = ANY(${channelIds})
-          AND m.deleted = false
-          ${textCondition}
-          ${filterSql}
-        ORDER BY m.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `,
-      this.prisma.$queryRaw<{ count: bigint }[]>`
-        SELECT count(DISTINCT m.id) FROM messages m
-        ${joinSql}
-        WHERE m.channel_id = ANY(${channelIds})
-          AND m.deleted = false
-          ${textCondition}
-          ${filterSql}
-      `
-    ])
-    return {
-      ids: rows.map((r) => r.id),
-      total: Number(countRows[0]?.count ?? 0)
-    }
-  }
-
-  private async searchInDms(
-    conversationIds: string[],
-    tsQuery: string,
-    limit: number,
-    offset: number,
-    filters: ParsedQuery & { fromUserId: string | null }
-  ): Promise<SearchPage> {
-    if (conversationIds.length === 0) return { ids: [], total: 0 }
-    const { fragments, joins } = this.buildFilterClauses(filters)
-
-    const textCondition = tsQuery
-      ? Prisma.sql`AND to_tsvector('simple', m.content) @@ to_tsquery('simple', ${tsQuery})`
-      : Prisma.sql``
-
-    const joinSql = joins.reduce((acc, j) => Prisma.sql`${acc} ${j}`, Prisma.sql``)
-    const filterSql = fragments.reduce((acc, f) => Prisma.sql`${acc} ${f}`, Prisma.sql``)
-
-    const [rows, countRows] = await Promise.all([
-      this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT DISTINCT m.id, m.created_at FROM messages m
-        ${joinSql}
-        WHERE m.direct_conversation_id = ANY(${conversationIds})
-          AND m.deleted = false
-          ${textCondition}
-          ${filterSql}
-        ORDER BY m.created_at DESC
-        LIMIT ${limit} OFFSET ${offset}
-      `,
-      this.prisma.$queryRaw<{ count: bigint }[]>`
-        SELECT count(DISTINCT m.id) FROM messages m
-        ${joinSql}
-        WHERE m.direct_conversation_id = ANY(${conversationIds})
-          AND m.deleted = false
-          ${textCondition}
-          ${filterSql}
-      `
-    ])
-    return {
-      ids: rows.map((r) => r.id),
-      total: Number(countRows[0]?.count ?? 0)
     }
   }
 }
