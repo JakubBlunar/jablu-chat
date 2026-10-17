@@ -35,6 +35,12 @@ async function expectInvalid<T extends object>(cls: new () => T, plain: Record<s
 }
 
 describe('WsSendMessageDto', () => {
+  it('accepts UUID delivery IDs and rejects invalid delivery IDs', async () => {
+    await expectValid(WsSendMessageDto, { channelId: UUID, content: 'retry', clientMessageId: UUID2 })
+    await expectInvalid(WsSendMessageDto, { channelId: UUID, clientMessageId: 'invalid' }, 'clientMessageId')
+    await expectValid(WsDmSendDto, { conversationId: UUID, content: 'retry', clientMessageId: UUID2 })
+    await expectInvalid(WsDmSendDto, { conversationId: UUID, clientMessageId: 'invalid' }, 'clientMessageId')
+  })
   it('accepts valid payload with all fields', async () => {
     await expectValid(WsSendMessageDto, {
       channelId: UUID,
@@ -58,24 +64,36 @@ describe('WsSendMessageDto', () => {
   })
 
   it('rejects content exceeding max length', async () => {
-    await expectInvalid(WsSendMessageDto, {
-      channelId: UUID,
-      content: 'x'.repeat(4001)
-    }, 'content')
+    await expectInvalid(
+      WsSendMessageDto,
+      {
+        channelId: UUID,
+        content: 'x'.repeat(4001)
+      },
+      'content'
+    )
   })
 
   it('rejects non-UUID attachmentIds', async () => {
-    await expectInvalid(WsSendMessageDto, {
-      channelId: UUID,
-      attachmentIds: ['not-uuid']
-    }, 'attachmentIds')
+    await expectInvalid(
+      WsSendMessageDto,
+      {
+        channelId: UUID,
+        attachmentIds: ['not-uuid']
+      },
+      'attachmentIds'
+    )
   })
 
   it('rejects too many attachmentIds', async () => {
-    await expectInvalid(WsSendMessageDto, {
-      channelId: UUID,
-      attachmentIds: Array.from({ length: 21 }, () => UUID)
-    }, 'attachmentIds')
+    await expectInvalid(
+      WsSendMessageDto,
+      {
+        channelId: UUID,
+        attachmentIds: Array.from({ length: 21 }, () => UUID)
+      },
+      'attachmentIds'
+    )
   })
 })
 
@@ -93,10 +111,14 @@ describe('WsEditMessageDto', () => {
   })
 
   it('rejects content exceeding max length', async () => {
-    await expectInvalid(WsEditMessageDto, {
-      messageId: UUID,
-      content: 'x'.repeat(4001)
-    }, 'content')
+    await expectInvalid(
+      WsEditMessageDto,
+      {
+        messageId: UUID,
+        content: 'x'.repeat(4001)
+      },
+      'content'
+    )
   })
 })
 
@@ -132,18 +154,26 @@ describe('WsReactionToggleDto', () => {
   })
 
   it('rejects emoji exceeding 50 chars', async () => {
-    await expectInvalid(WsReactionToggleDto, {
-      messageId: UUID,
-      emoji: 'x'.repeat(51)
-    }, 'emoji')
+    await expectInvalid(
+      WsReactionToggleDto,
+      {
+        messageId: UUID,
+        emoji: 'x'.repeat(51)
+      },
+      'emoji'
+    )
   })
 
   it('rejects non-boolean isCustom', async () => {
-    await expectInvalid(WsReactionToggleDto, {
-      messageId: UUID,
-      emoji: '👍',
-      isCustom: 'yes'
-    }, 'isCustom')
+    await expectInvalid(
+      WsReactionToggleDto,
+      {
+        messageId: UUID,
+        emoji: '👍',
+        isCustom: 'yes'
+      },
+      'isCustom'
+    )
   })
 })
 
@@ -208,10 +238,14 @@ describe('WsDmSendDto', () => {
   })
 
   it('rejects content exceeding max length', async () => {
-    await expectInvalid(WsDmSendDto, {
-      conversationId: UUID,
-      content: 'x'.repeat(4001)
-    }, 'content')
+    await expectInvalid(
+      WsDmSendDto,
+      {
+        conversationId: UUID,
+        content: 'x'.repeat(4001)
+      },
+      'content'
+    )
   })
 })
 
@@ -229,11 +263,15 @@ describe('WsDmEditDto', () => {
   })
 
   it('rejects empty content', async () => {
-    await expectInvalid(WsDmEditDto, {
-      conversationId: UUID,
-      messageId: UUID2,
-      content: ''
-    }, 'content')
+    await expectInvalid(
+      WsDmEditDto,
+      {
+        conversationId: UUID,
+        messageId: UUID2,
+        content: ''
+      },
+      'content'
+    )
   })
 })
 

@@ -28,6 +28,25 @@ date, source-message ID and available preview titles/descriptions.
 Counts include messages containing HTTP(S) URL candidates. Malformed links are
 not clickable; the entry explains the issue and still lets you open its source.
 
+## Drafts and connection loss
+
+Channel, DM and thread composers keep separate, account-scoped drafts on this
+device, including reply context and selected files. Switching conversations,
+resizing the window or reopening the app does not intentionally discard them.
+Draft markers appear beside channels and conversations with unsent content.
+
+Sending first saves the message and its files to a durable device outbox. Queued
+messages are sent automatically when the open app reconnects, or the next time
+it is opened with a connection. A closed or suspended PWA cannot guarantee
+background delivery. Do not clear browser/app storage while drafts or queued
+messages are still needed.
+
+Outgoing messages show queued, sending or failed state. Permanent rejections
+remain visible with Retry and Discard controls; connection failures retry
+automatically. Stable UUID message IDs prevent duplicate messages when the
+server saved a message but its acknowledgement was lost. Queued messages never
+send under a different signed-in account.
+
 ## Search
 
 Search starts in the current conversation. Scope controls can widen it to all

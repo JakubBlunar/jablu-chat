@@ -27,6 +27,7 @@ import { useMessageStore } from '@/stores/message.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { useDraftReply } from '@/stores/draft.store'
 
 import { useChannelAck } from '@/components/chat/hooks/useChannelAck'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
@@ -56,7 +57,7 @@ import {
   HashChannelIcon,
   MembersIcon,
   PinnedListIcon,
-  SettingsCogIcon,
+  SettingsCogIcon
 } from '@/components/chat/chatIcons'
 
 /* ── MessageArea ── */
@@ -74,8 +75,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const isMobile = useIsMobile()
   const threadOpen = useThreadStore((s) => s.isOpen)
   const isDm = mode === 'dm'
-  const viewingDmVoice = useVoiceConnectionStore((s) =>
-    isDm && !!s.currentDmCallId && s.currentChannelId === contextId && s.viewingVoiceRoom)
+  const viewingDmVoice = useVoiceConnectionStore(
+    (s) => isDm && !!s.currentDmCallId && s.currentChannelId === contextId && s.viewingVoiceRoom
+  )
   const store = useMessageStoreAdapter(mode, contextId)
   const { messages, isLoading, hasMore, hasNewer } = store
   const dmMessagesError = useDmStore((s) => s.messagesError)
@@ -87,8 +89,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   const scroll = useMessageScroll(contextId, store)
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
   useChannelAck(mode, contextId, {
-    ready: !isLoading && !hasNewer && !scroll.settling && !store.scrollToMessageId &&
-      !messagesError && !viewingVoiceRoom && store.getLoadedForId() === contextId,
+    ready:
+      !isLoading &&
+      !hasNewer &&
+      !scroll.settling &&
+      !store.scrollToMessageId &&
+      !messagesError &&
+      !viewingVoiceRoom &&
+      store.getLoadedForId() === contextId,
     atBottom: scroll.atBottom,
     scrollParentRef: scroll.scrollParentRef
   })
@@ -129,7 +137,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
 
   const currentServerId = useServerStore((s) => s.currentServerId)
   const channelServer = useServerStore((s) =>
-    s.currentServerId ? s.servers.find((sv) => sv.id === s.currentServerId) ?? null : null
+    s.currentServerId ? (s.servers.find((sv) => sv.id === s.currentServerId) ?? null) : null
   )
   const activeChannel = useChannelStore((s) => {
     if (isDm || !s.currentChannelId) return null
@@ -156,20 +164,12 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     })
   }, [])
 
-  const channelPerms = useChannelPermissionsStore(
-    (s) => contextId ? s.permissionsMap[contextId] ?? null : null
-  )
-  const canSend = isDm || channelPerms === null
-    ? true
-    : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
+  const channelPerms = useChannelPermissionsStore((s) => (contextId ? (s.permissionsMap[contextId] ?? null) : null))
+  const canSend = isDm || channelPerms === null ? true : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
 
   const myId = useAuthStore((s) => s.user?.id)
-  const myMember = useMemberStore((s) =>
-    s.members.find((m) => m.userId === myId && m.serverId === currentServerId)
-  )
-  const isMuted = !isDm && myMember?.mutedUntil
-    ? new Date(myMember.mutedUntil) > new Date()
-    : false
+  const myMember = useMemberStore((s) => s.members.find((m) => m.userId === myId && m.serverId === currentServerId))
+  const isMuted = !isDm && myMember?.mutedUntil ? new Date(myMember.mutedUntil) > new Date() : false
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -189,15 +189,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     }
   }, [isDm, pinnedOpen, setPinnedOpen])
 
-  const [replyTarget, setReplyTarget] = useState<{
-    id: string
-    content: string | null
-    authorName: string
-  } | null>(null)
-
-  useEffect(() => {
-    setReplyTarget(null)
-  }, [contextId])
+  const [replyTarget, setReplyTarget] = useDraftReply(mode, contextId)
 
   const channelInfoDrawerOpen = useLayoutStore((s) => s.channelInfoDrawerOpen)
 
@@ -207,13 +199,16 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
     useLayoutStore.getState().closeChannelInfoDrawer()
   }, [contextId])
 
-  const handleReply = useCallback((msg: Message) => {
-    setReplyTarget({
-      id: msg.id,
-      content: msg.content,
-      authorName: msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser')
-    })
-  }, [tChat])
+  const handleReply = useCallback(
+    (msg: Message) => {
+      setReplyTarget({
+        id: msg.id,
+        content: msg.content,
+        authorName: msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser')
+      })
+    },
+    [tChat, setReplyTarget]
+  )
 
   const gifEnabled = useGifStore((s) => s.enabled)
 
@@ -221,36 +216,42 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   channelRefsRef.current = dm.channelRefs
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    },
+    []
+  )
   const scheduleToastDismiss = useCallback(() => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => setCommandToast(null), 3000)
   }, [])
 
-  const handleNick = useCallback(async (args?: string) => {
-    const name = args?.trim()
-    if (!name) {
-      setCommandToast(tChat('commandNickUsage'))
+  const handleNick = useCallback(
+    async (args?: string) => {
+      const name = args?.trim()
+      if (!name) {
+        setCommandToast(tChat('commandNickUsage'))
+        scheduleToastDismiss()
+        return
+      }
+      if (name.length < 5 || name.length > 20) {
+        setCommandToast(tChat('commandNickLength'))
+        scheduleToastDismiss()
+        return
+      }
+      try {
+        const updated = await api.updateProfile({ displayName: name })
+        useAuthStore.getState().setUser(updated)
+        useMemberStore.getState().updateUserProfile(updated.id, { displayName: updated.displayName })
+        setCommandToast(tChat('commandNickSuccess', { name }))
+      } catch {
+        setCommandToast(tChat('commandNickFailed'))
+      }
       scheduleToastDismiss()
-      return
-    }
-    if (name.length < 5 || name.length > 20) {
-      setCommandToast(tChat('commandNickLength'))
-      scheduleToastDismiss()
-      return
-    }
-    try {
-      const updated = await api.updateProfile({ displayName: name })
-      useAuthStore.getState().setUser(updated)
-      useMemberStore.getState().updateUserProfile(updated.id, { displayName: updated.displayName })
-      setCommandToast(tChat('commandNickSuccess', { name }))
-    } catch {
-      setCommandToast(tChat('commandNickFailed'))
-    }
-    scheduleToastDismiss()
-  }, [scheduleToastDismiss, tChat])
+    },
+    [scheduleToastDismiss, tChat]
+  )
 
   /* ── Empty states ── */
   if (!contextId) {
@@ -278,53 +279,59 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
   }
 
   /* ── Scroll content ── */
-  const emptyState = !isDm && !activeChannel ? (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
-      <div className="rounded-full bg-surface-dark p-6 text-gray-400">
-        <HashChannelIcon />
+  const emptyState =
+    !isDm && !activeChannel ? (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+        <div className="rounded-full bg-surface-dark p-6 text-gray-400">
+          <HashChannelIcon />
+        </div>
+        <p className="max-w-sm text-lg font-semibold text-white">{tChat('welcomeServerTitle')}</p>
+        <p className="max-w-sm text-sm text-gray-400">
+          {isMobile ? tChat('welcomeServerHintMobile') : tChat('welcomeServerHintDesktop')}
+        </p>
       </div>
-      <p className="max-w-sm text-lg font-semibold text-white">{tChat('welcomeServerTitle')}</p>
-      <p className="max-w-sm text-sm text-gray-400">
-        {isMobile ? tChat('welcomeServerHintMobile') : tChat('welcomeServerHintDesktop')}
-      </p>
-    </div>
-  ) : isLoading && messages.length === 0 ? (
-    <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
+    ) : isLoading && messages.length === 0 ? (
+      <DelayedRender loading delay={500} fallback={<div className="flex-1" />}>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
+          <Spinner size="lg" />
+          <p className="text-sm text-gray-400">{tChat('loadingMessages')}</p>
+        </div>
+      </DelayedRender>
+    ) : messagesError && messages.length === 0 ? (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-        <Spinner size="lg" />
-        <p className="text-sm text-gray-400">{tChat('loadingMessages')}</p>
+        <p className="text-sm text-red-400">{messagesError}</p>
+        <button
+          type="button"
+          onClick={() => contextId && store.fetchMessages(contextId)}
+          className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary/80"
+        >
+          {tCommon('retry')}
+        </button>
       </div>
-    </DelayedRender>
-  ) : messagesError && messages.length === 0 ? (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-12">
-      <p className="text-sm text-red-400">{messagesError}</p>
-      <button
-        type="button"
-        onClick={() => contextId && store.fetchMessages(contextId)}
-        className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary/80"
-      >
-        {tCommon('retry')}
-      </button>
-    </div>
-  ) : !isDm && activeChannel && messages.length === 0 ? (
-    <div className="flex flex-1 flex-col justify-end pb-6">
-      <div className="border-t border-white/10 pt-4">
-        <h2 className="text-2xl font-bold text-white">
-          {tChat('channelBeginningLead')}{' '}
-          <span className="text-primary">#{activeChannel.name}</span>
-        </h2>
-        <p className="mt-2 text-[15px] text-gray-400">{tChat('sparkConversation')}</p>
+    ) : !isDm && activeChannel && messages.length === 0 ? (
+      <div className="flex flex-1 flex-col justify-end pb-6">
+        <div className="border-t border-white/10 pt-4">
+          <h2 className="text-2xl font-bold text-white">
+            {tChat('channelBeginningLead')} <span className="text-primary">#{activeChannel.name}</span>
+          </h2>
+          <p className="mt-2 text-[15px] text-gray-400">{tChat('sparkConversation')}</p>
+        </div>
       </div>
-    </div>
-  ) : isDm && messages.length === 0 ? (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12">
-      <svg className="h-10 w-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-      <h3 className="text-sm font-medium text-gray-400">{tChat('noMessagesYet')}</h3>
-      <p className="text-xs text-gray-500">{tChat('sayHello')}</p>
-    </div>
-  ) : null
+    ) : isDm && messages.length === 0 ? (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 py-12">
+        <svg
+          className="h-10 w-10 text-gray-600"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <h3 className="text-sm font-medium text-gray-400">{tChat('noMessagesYet')}</h3>
+        <p className="text-xs text-gray-500">{tChat('sayHello')}</p>
+      </div>
+    ) : null
 
   const messageList = (
     <>
@@ -379,11 +386,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           </div>
         </div>
       ) : isMuted && myMember?.mutedUntil ? (
-        <TimeoutBanner
-          mutedUntil={myMember.mutedUntil}
-          reason={myMember.mutedReason}
-          mutedById={myMember.mutedById}
-        />
+        <TimeoutBanner mutedUntil={myMember.mutedUntil} reason={myMember.mutedReason} mutedById={myMember.mutedById} />
       ) : !isDm && !canSend ? (
         <div className="shrink-0 border-t border-black/20 bg-surface px-4 py-3">
           <div className="flex items-center gap-2 rounded-lg bg-surface-dark px-4 py-2.5 text-sm text-gray-400">
@@ -407,7 +410,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             contextId={contextId}
             replyTarget={replyTarget}
             onCancelReply={() => setReplyTarget(null)}
-            onSent={scroll.stickToBottom}
+            onSent={() => {
+              if (hasNewer && navigator.onLine) {
+                void store.fetchMessages(contextId).then(() => scroll.stickToBottom())
+              } else scroll.stickToBottom()
+            }}
             channels={isDm ? dmMentionChannels(dm.mutualServers) : undefined}
             gifEnabled={gifEnabled}
             placeholder={
@@ -420,8 +427,14 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                   : 'Message'
             }
             onCommand={(cmd, args) => {
-              if (!isDm && cmd === 'poll') { setShowPollCreator(true); return true }
-              if (!isDm && cmd === 'nick') { handleNick(args); return true }
+              if (!isDm && cmd === 'poll') {
+                setShowPollCreator(true)
+                return true
+              }
+              if (!isDm && cmd === 'nick') {
+                handleNick(args)
+                return true
+              }
               return false
             }}
           />
@@ -456,11 +469,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             <HashChannelIcon />
           )}
           {isMobile ? (
-            <button
-              type="button"
-              onClick={() => setChannelInfoOpen(true)}
-              className="min-w-0 flex-1 text-left"
-            >
+            <button type="button" onClick={() => setChannelInfoOpen(true)} className="min-w-0 flex-1 text-left">
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
             </button>
           ) : activeChannel.type === 'text' ? (
@@ -469,7 +478,9 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
               onClick={() => useLayoutStore.getState().toggleChannelInfoDrawer()}
               className="min-w-0 flex-1 text-left"
             >
-              <h1 className="truncate text-base font-semibold text-white transition hover:text-gray-200">{activeChannel.name}</h1>
+              <h1 className="truncate text-base font-semibold text-white transition hover:text-gray-200">
+                {activeChannel.name}
+              </h1>
             </button>
           ) : (
             <div className="min-w-0 flex-1">
@@ -497,11 +508,7 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
                 triggerClassName="relative shrink-0"
               />
               {isAdminOrOwner && (
-                <IconButton
-                  label="Channel settings"
-                  size="lg"
-                  onClick={() => setEditingChannel(true)}
-                >
+                <IconButton label="Channel settings" size="lg" onClick={() => setEditingChannel(true)}>
                   <SettingsCogIcon />
                 </IconButton>
               )}
@@ -554,7 +561,11 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             {isMobile ? (
               <button
                 type="button"
-                onClick={() => { setDmInfoTab('details'); setDmSheetOpen(true); setSearchOpen(false) }}
+                onClick={() => {
+                  setDmInfoTab('details')
+                  setDmSheetOpen(true)
+                  setSearchOpen(false)
+                }}
                 className="min-w-0 flex-1 text-left"
               >
                 <h2 className="truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
@@ -565,15 +576,27 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             {contextId && <DmCallButton conversationId={contextId} />}
             {!isMobile && (
               <>
-                <IconButton label={tChat('conversationInfo')} className="shrink-0" active={dmSheetOpen}
-                  onClick={() => { setDmInfoTab('details'); setDmSheetOpen((open) => !open); setSearchOpen(false) }}>
+                <IconButton
+                  label={tChat('conversationInfo')}
+                  className="shrink-0"
+                  active={dmSheetOpen}
+                  onClick={() => {
+                    setDmInfoTab('details')
+                    setDmSheetOpen((open) => !open)
+                    setSearchOpen(false)
+                  }}
+                >
                   <MembersIcon />
                 </IconButton>
                 <IconButton
                   label="Pinned messages"
                   className="shrink-0"
                   active={dmSheetOpen && dmInfoTab === 'pins'}
-                  onClick={() => { setDmInfoTab('pins'); setDmSheetOpen(true); setSearchOpen(false) }}
+                  onClick={() => {
+                    setDmInfoTab('pins')
+                    setDmSheetOpen(true)
+                    setSearchOpen(false)
+                  }}
                 >
                   <PinnedListIcon />
                 </IconButton>
@@ -597,7 +620,13 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
           </header>
           {contextId && <DmCallInvitation conversationId={contextId} />}
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {viewingDmVoice ? <Suspense fallback={<Spinner size="lg" />}><DmVoiceRoom /></Suspense> : messageList}
+            {viewingDmVoice ? (
+              <Suspense fallback={<Spinner size="lg" />}>
+                <DmVoiceRoom />
+              </Suspense>
+            ) : (
+              messageList
+            )}
           </div>
         </div>
         {searchOpen ? (
@@ -642,7 +671,17 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
         <ThreadPanel
           gifEnabled={gifEnabled}
-          onCommand={(cmd, args) => { if (!isDm && cmd === 'poll') { setShowPollCreator(true); return true } if (!isDm && cmd === 'nick') { handleNick(args); return true } return false }}
+          onCommand={(cmd, args) => {
+            if (!isDm && cmd === 'poll') {
+              setShowPollCreator(true)
+              return true
+            }
+            if (!isDm && cmd === 'nick') {
+              handleNick(args)
+              return true
+            }
+            return false
+          }}
         />
         {searchOpen && (
           <div className="absolute inset-0 z-30 md:relative md:inset-auto">
@@ -658,7 +697,8 @@ export function MessageArea({ mode, contextId, memberSidebar }: MessageAreaProps
             </Suspense>
           </div>
         )}
-        {!threadOpen && !searchOpen &&
+        {!threadOpen &&
+          !searchOpen &&
           (!isMobile && channelInfoDrawerOpen && activeChannel && !isDm && activeChannel.type === 'text' ? (
             <ChannelInfoDrawer
               onClose={() => useLayoutStore.getState().closeChannelInfoDrawer()}

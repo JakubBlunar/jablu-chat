@@ -1,4 +1,4 @@
-import { ArgumentsHost, BadRequestException, Catch, ExceptionFilter, Logger } from '@nestjs/common'
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, Logger } from '@nestjs/common'
 import { WsException } from '@nestjs/websockets'
 import { Socket } from 'socket.io'
 
@@ -10,8 +10,10 @@ export class WsExceptionFilter implements ExceptionFilter {
     const client = host.switchToWs().getClient<Socket>()
 
     let message: string
+    let retryable = true
 
-    if (exception instanceof BadRequestException) {
+    if (exception instanceof HttpException) {
+      retryable = exception.getStatus() >= 500 || exception.getStatus() === 429
       const response = exception.getResponse()
       if (typeof response === 'object' && response !== null && 'message' in response) {
         const inner = (response as { message: unknown }).message
@@ -29,6 +31,11 @@ export class WsExceptionFilter implements ExceptionFilter {
       message = 'Internal error'
     }
 
-    client.emit('exception', { status: 'error', message })
+    const acknowledge = host.getArgByIndex<unknown>(2)
+    if (typeof acknowledge === 'function') {
+      acknowledge({ ok: false, error: message, retryable })
+    } else {
+      client.emit('exception', { status: 'error', message })
+    }
   }
 }

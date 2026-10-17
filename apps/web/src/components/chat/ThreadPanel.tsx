@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { MessageSurface } from '@/components/chat/MessageSurface'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -9,37 +9,40 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { useServerStore } from '@/stores/server.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { useDraftReply } from '@/stores/draft.store'
 import { useThreadSurfaceAdapter } from '@/hooks/useThreadSurfaceAdapter'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
 import { IconButton, Spinner } from '@/components/ui'
 
-export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => boolean | void }) {
+export function ThreadPanel({
+  gifEnabled,
+  onCommand
+}: {
+  gifEnabled?: boolean
+  onCommand?: (cmd: string, args?: string) => boolean | void
+}) {
   const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore()
   const adapter = useThreadSurfaceAdapter()
   const contextId = isOpen && parentMessage ? parentMessage.id : null
   const scroll = useMessageScroll(contextId, adapter)
 
-  const [replyTarget, setReplyTarget] = useState<{
-    id: string
-    content: string | null
-    authorName: string
-  } | null>(null)
+  const [replyTarget, setReplyTarget] = useDraftReply('channel', channelId, parentMessage?.id)
 
-  const handleReply = useCallback((msg: Message) => {
-    setReplyTarget({
-      id: msg.id,
-      content: msg.content,
-      authorName: msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
-    })
-  }, [])
+  const handleReply = useCallback(
+    (msg: Message) => {
+      setReplyTarget({
+        id: msg.id,
+        content: msg.content,
+        authorName: msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
+      })
+    },
+    [setReplyTarget]
+  )
 
   const isMobile = useIsMobile()
   const serverId = useServerStore((s) => s.currentServerId)
-  const emojiArr = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
-  const customEmojiMap = useMemo(
-    () => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined),
-    [emojiArr]
-  )
+  const emojiArr = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
+  const customEmojiMap = useMemo(() => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined), [emojiArr])
 
   if (!isOpen || !parentMessage || !channelId) return null
 
@@ -48,17 +51,11 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
   const parentPreview = (
     <div className="border-b border-white/10 p-4">
       <div className="flex items-start gap-2.5">
-        <UserAvatar
-          username={parentName}
-          avatarUrl={parentMessage.author?.avatarUrl ?? null}
-          size="md"
-        />
+        <UserAvatar username={parentName} avatarUrl={parentMessage.author?.avatarUrl ?? null} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="text-sm font-semibold text-white">{parentName}</span>
-            <time className="text-[11px] text-gray-500">
-              {formatSmartTimestamp(parentMessage.createdAt)}
-            </time>
+            <time className="text-[11px] text-gray-500">{formatSmartTimestamp(parentMessage.createdAt)}</time>
           </div>
           {parentMessage.content && (
             <div className="mt-0.5 text-sm text-gray-300">
@@ -80,7 +77,9 @@ export function ThreadPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; o
     ) : undefined
 
   return (
-    <div className={`flex min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}>
+    <div
+      className={`flex min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}
+    >
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
         <h3 className="text-sm font-semibold text-white">Thread</h3>
         <IconButton label="Close thread" variant="ghost" size="md" onClick={closeThread}>

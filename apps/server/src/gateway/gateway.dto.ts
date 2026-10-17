@@ -12,6 +12,10 @@ import {
 } from 'class-validator'
 
 export class WsSendMessageDto {
+  @IsOptional()
+  @IsUUID('4')
+  clientMessageId?: string
+
   @IsUUID()
   channelId!: string
 
@@ -94,6 +98,10 @@ export class WsChannelIdDto {
 }
 
 export class WsDmSendDto {
+  @IsOptional()
+  @IsUUID('4')
+  clientMessageId?: string
+
   @IsUUID()
   conversationId!: string
 

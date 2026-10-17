@@ -4,6 +4,7 @@ import { FriendsService } from '../friends/friends.service'
 import { MessagesService } from '../messages/messages.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { EventBusService } from '../events/event-bus.service'
+import { findMessageReplay } from '../messages/message-replay'
 import { extractUrls } from '../messages/link-preview-parse'
 import {
   dmMessageInclude as messageInclude,
@@ -157,26 +158,21 @@ export class DmService {
           status: 'accepted',
           OR: [
             { requesterId: { in: privacyUserIds }, addresseeId: { in: uniqueIds } },
-            { requesterId: { in: uniqueIds }, addresseeId: { in: privacyUserIds } },
-          ],
+            { requesterId: { in: uniqueIds }, addresseeId: { in: privacyUserIds } }
+          ]
         },
-        select: { requesterId: true, addresseeId: true },
+        select: { requesterId: true, addresseeId: true }
       })
-      const pairSet = new Set(
-        friendships.map((f) => [f.requesterId, f.addresseeId].sort().join(':'))
-      )
+      const pairSet = new Set(friendships.map((f) => [f.requesterId, f.addresseeId].sort().join(':')))
       for (const pu of privacyUsers) {
         for (const other of uniqueIds) {
           if (other === pu.id) continue
           if (!pairSet.has([pu.id, other].sort().join(':'))) {
-            throw new BadRequestException(
-              'All members must be friends with each other to create this group DM'
-            )
+            throw new BadRequestException('All members must be friends with each other to create this group DM')
           }
         }
       }
     }
-
   }
 
   private async lockGroup(tx: Prisma.TransactionClient, conversationId: string, userId: string) {
@@ -202,7 +198,11 @@ export class DmService {
     return this.getConversation(conversationId, userId)
   }
 
-  async updateGroup(conversationId: string, userId: string, data: { groupName?: string | null; groupAvatarUrl?: string | null }) {
+  async updateGroup(
+    conversationId: string,
+    userId: string,
+    data: { groupName?: string | null; groupAvatarUrl?: string | null }
+  ) {
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockGroup(tx, conversationId, userId)
       return tx.directConversation.update({
@@ -211,7 +211,10 @@ export class DmService {
         include: { members: { select: memberSelect } }
       })
     })
-    this.events.emit('dm:conversation-changed', { conversationId, userIds: updated.members.map((member) => member.userId) })
+    this.events.emit('dm:conversation-changed', {
+      conversationId,
+      userIds: updated.members.map((member) => member.userId)
+    })
     return this.toConversationWire(updated, userId)
   }
 
@@ -290,13 +293,15 @@ export class DmService {
         const lastMessage = c.messages[0] ?? null
         return {
           ...this.toConversationWire(c, userId),
-          lastMessage: lastMessage ? {
-            content: lastMessage.content,
-            authorId: lastMessage.authorId,
-            authorName: lastMessage.author?.displayName ?? lastMessage.author?.username ?? null,
-            createdAt: lastMessage.createdAt,
-            attachment: lastMessage.attachments[0] ?? null
-          } : null
+          lastMessage: lastMessage
+            ? {
+                content: lastMessage.content,
+                authorId: lastMessage.authorId,
+                authorName: lastMessage.author?.displayName ?? lastMessage.author?.username ?? null,
+                createdAt: lastMessage.createdAt,
+                attachment: lastMessage.attachments[0] ?? null
+              }
+            : null
         }
       })
       .sort((a, b) => {
@@ -463,9 +468,12 @@ export class DmService {
     content?: string,
     replyToId?: string,
     attachmentIds?: string[],
-    forwardFromMessageId?: string
-  ) {
+    forwardFromMessageId?: string,
+    clientMessageId?: string
+  ): Promise<ReturnType<typeof mapDmMessageToWire> & { replayed?: boolean }> {
     await this.requireMembership(conversationId, userId)
+    const replay = await findMessageReplay(this.prisma, clientMessageId, userId, { conversationId })
+    if (replay) return { ...this.mapToWire(replay), replayed: true }
 
     const trimmed = content?.trim()
     const hasAttachments = !!attachmentIds?.length
@@ -483,44 +491,56 @@ export class DmService {
       }
     }
 
-    const forwardSnapshot = hasForward
-      ? await this.messages.buildForwardSnapshot(forwardFromMessageId!, userId)
-      : null
+    const forwardSnapshot = hasForward ? await this.messages.buildForwardSnapshot(forwardFromMessageId!, userId) : null
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      if (hasAttachments) {
-        const found = await tx.attachment.findMany({
-          where: {
-            id: { in: attachmentIds },
-            uploaderId: userId,
-            messageId: null
-          },
-          select: { id: true }
-        })
-        if (found.length !== attachmentIds!.length) {
-          throw new BadRequestException('One or more attachments were not found or do not belong to you')
+    let created: MessageWithRelations
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        if (hasAttachments) {
+          const found = await tx.attachment.findMany({
+            where: {
+              id: { in: attachmentIds },
+              uploaderId: userId,
+              messageId: null
+            },
+            select: { id: true }
+          })
+          if (found.length !== attachmentIds!.length) {
+            throw new BadRequestException('One or more attachments were not found or do not belong to you')
+          }
         }
+
+        const msg = await tx.message.create({
+          data: {
+            id: clientMessageId,
+            directConversationId: conversationId,
+            authorId: userId,
+            content: trimmed ?? null,
+            replyToId: replyToId ?? undefined,
+            attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
+            ...(forwardSnapshot ?? {})
+          },
+          include: messageInclude
+        })
+
+        await tx.directConversationMember.updateMany({
+          where: { conversationId, closedAt: { not: null } },
+          data: { closedAt: null }
+        })
+
+        return msg
+      })
+    } catch (error) {
+      if (
+        clientMessageId &&
+        ((error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') ||
+          error instanceof BadRequestException)
+      ) {
+        const concurrentReplay = await findMessageReplay(this.prisma, clientMessageId, userId, { conversationId })
+        if (concurrentReplay) return { ...this.mapToWire(concurrentReplay), replayed: true }
       }
-
-      const msg = await tx.message.create({
-        data: {
-          directConversationId: conversationId,
-          authorId: userId,
-          content: trimmed ?? null,
-          replyToId: replyToId ?? undefined,
-          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
-          ...(forwardSnapshot ?? {})
-        },
-        include: messageInclude
-      })
-
-      await tx.directConversationMember.updateMany({
-        where: { conversationId, closedAt: { not: null } },
-        data: { closedAt: null }
-      })
-
-      return msg
-    })
+      throw error
+    }
 
     return this.mapToWire(created)
   }
@@ -642,18 +662,24 @@ export class DmService {
     const where = Prisma.sql`WHERE direct_conversation_id = ${conversationId} AND deleted = false
       AND content ~* 'https?://[^[:space:]<>]+'`
     const [ids, counts] = await this.prisma.$transaction([
-      this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT id FROM messages ${where} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${page * limit}`),
+      this.prisma.$queryRaw<{ id: string }[]>(
+        Prisma.sql`SELECT id FROM messages ${where} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${page * limit}`
+      ),
       this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`SELECT count(*) FROM messages ${where}`)
     ])
-    const rows = ids.length ? await this.prisma.message.findMany({
-      where: { id: { in: ids.map((row) => row.id) }, directConversationId: conversationId, deleted: false },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: {
-        id: true, content: true, createdAt: true,
-        author: { select: { username: true, displayName: true } },
-        linkPreviews: { select: { url: true, title: true, description: true } }
-      }
-    }) : []
+    const rows = ids.length
+      ? await this.prisma.message.findMany({
+          where: { id: { in: ids.map((row) => row.id) }, directConversationId: conversationId, deleted: false },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            author: { select: { username: true, displayName: true } },
+            linkPreviews: { select: { url: true, title: true, description: true } }
+          }
+        })
+      : []
     return {
       items: rows.map((row) => {
         const previews = new Map(row.linkPreviews.map((preview) => [preview.url, preview]))

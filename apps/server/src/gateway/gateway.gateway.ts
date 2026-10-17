@@ -53,11 +53,7 @@ import {
   sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx,
   sendPushToThreadParticipants as sendPushToThreadParticipantsWithCtx
 } from './gateway-push-helpers'
-import {
-  deliverChannelMessage,
-  deliverDmMessage,
-  type MessageNotificationsContext
-} from './message-notifications'
+import { deliverChannelMessage, deliverDmMessage, type MessageNotificationsContext } from './message-notifications'
 import { WsExceptionFilter } from './ws-exception.filter'
 import { WsJwtGuard, WsUser } from './ws-jwt.guard'
 import { WsThrottle, WsThrottleGuard } from './ws-throttle.guard'
@@ -254,9 +250,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       },
       select: { requesterId: true, addresseeId: true }
     })
-    const ids = friendships.map((f) =>
-      f.requesterId === userId ? f.addresseeId : f.requesterId
-    )
+    const ids = friendships.map((f) => (f.requesterId === userId ? f.addresseeId : f.requesterId))
     await this.redis.client.setex(cacheKey, 60, JSON.stringify(ids))
     return ids
   }
@@ -319,8 +313,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     this.manualPresence.delete(userId)
 
     const lastActivity = this.userLastActivity.get(userId) ?? Date.now()
-    const next: 'online' | 'idle' =
-      Date.now() - lastActivity > ChatGateway.IDLE_THRESHOLD_MS ? 'idle' : 'online'
+    const next: 'online' | 'idle' = Date.now() - lastActivity > ChatGateway.IDLE_THRESHOLD_MS ? 'idle' : 'online'
     this.lastBroadcastedStatus.set(userId, next)
     await this.prisma.user
       .update({
@@ -356,7 +349,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (activeChannelIds.length === 0) return
     const channelRows = await this.prisma.channel.findMany({
       where: { id: { in: activeChannelIds } },
-      select: { id: true, serverId: true },
+      select: { id: true, serverId: true }
     })
     const channelServerMap = new Map(channelRows.map((c) => [c.id, c.serverId]))
 
@@ -456,7 +449,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const visibleIds = new Set(await this.getVisibleChannelIds(serverId, userId))
     const allChannels = await this.prisma.channel.findMany({
       where: { serverId },
-      select: { id: true },
+      select: { id: true }
     })
     const userSockets = await this.server.in(`user:${userId}`).fetchSockets()
     for (const s of userSockets) {
@@ -772,7 +765,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     return { archived: false as const }
   }
 
-  private async assertCanSendInChannel(channelId: string, userId: string): Promise<{ denied: boolean; serverId?: string; muted?: boolean }> {
+  private async assertCanSendInChannel(
+    channelId: string,
+    userId: string
+  ): Promise<{ denied: boolean; serverId?: string; muted?: boolean }> {
     const ch = await this.prisma.channel.findUnique({
       where: { id: channelId },
       select: { serverId: true }
@@ -795,10 +791,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 5)
   @SubscribeMessage('message:send')
-  async onMessageSend(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsSendMessageDto
-  ) {
+  async onMessageSend(@ConnectedSocket() client: Socket, @MessageBody() body: WsSendMessageDto) {
     const user = (client.data as { user: WsUser }).user
 
     if (this.socketVoiceChannel.has(client.id)) this.voiceActivity.set(client.id, Date.now())
@@ -810,11 +803,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const sendCheck = await this.assertCanSendInChannel(body.channelId, user.id)
     if (sendCheck.denied) {
-      return { ok: false, error: sendCheck.muted ? 'You are timed out in this server' : 'You do not have permission to send messages in this channel' }
+      return {
+        ok: false,
+        error: sendCheck.muted
+          ? 'You are timed out in this server'
+          : 'You do not have permission to send messages in this channel'
+      }
     }
 
     if (body.content && sendCheck.serverId) {
-      const check = await this.automod.checkMessage(sendCheck.serverId, user.id, body.content, { channelId: body.channelId })
+      const check = await this.automod.checkMessage(sendCheck.serverId, user.id, body.content, {
+        channelId: body.channelId
+      })
       if (!check.allowed) {
         return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
       }
@@ -828,10 +828,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       body.attachmentIds,
       body.threadParentId,
       undefined,
-      body.forwardFromMessageId
+      body.forwardFromMessageId,
+      body.clientMessageId
     )
 
-    const { serverId, threadUpdate, ...msgRest } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
+    const { serverId, threadUpdate, replayed, ...msgRest } = msg
+    if (replayed) return { ok: true, message: msgRest }
 
     if (serverId) {
       await deliverChannelMessage(this.messageNotificationsContext(), {
@@ -912,7 +914,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         try {
           const userPerms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
           if (!hasPermission(userPerms, permFlag)) {
-            client.emit('bot:command-error', { error: `You need the ${command.requiredPermission.replace(/_/g, ' ').toLowerCase()} permission to use this command`, channelId })
+            client.emit('bot:command-error', {
+              error: `You need the ${command.requiredPermission.replace(/_/g, ' ').toLowerCase()} permission to use this command`,
+              channelId
+            })
             return
           }
         } catch {
@@ -942,7 +947,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
       const hasSendPerm = await this.checkBotChannelPermission(serverId, channelId, match.userId)
       if (!hasSendPerm) {
-        client.emit('bot:command-error', { error: 'Bot does not have permission to respond in this channel', channelId })
+        client.emit('bot:command-error', {
+          error: 'Bot does not have permission to respond in this channel',
+          channelId
+        })
         return
       }
 
@@ -950,7 +958,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       try {
         const perms = await this.roles.getChannelPermissions(serverId, channelId, user.id)
         userPermissions = perms.toString()
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
 
       botSocket.emit('bot:command', {
         serverId,
@@ -1075,7 +1085,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
           select: { serverId: true }
         })
         if (channel?.serverId) {
-          const check = await this.automod.checkMessage(channel.serverId, user.id, body.content, { channelId, messageId: body.messageId })
+          const check = await this.automod.checkMessage(channel.serverId, user.id, body.content, {
+            channelId,
+            messageId: body.messageId
+          })
           if (!check.allowed) {
             return { ok: false, error: check.reason ?? 'Edit blocked by auto-moderation' }
           }
@@ -1144,10 +1157,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(10, 10)
   @SubscribeMessage('reaction:toggle')
-  async onReactionToggle(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsReactionToggleDto
-  ) {
+  async onReactionToggle(@ConnectedSocket() client: Socket, @MessageBody() body: WsReactionToggleDto) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.prisma.message.findUnique({ where: { id: body.messageId }, select: { channelId: true } })
     if (msg?.channelId) {
@@ -1188,10 +1198,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 10)
   @SubscribeMessage('message:unpin')
-  async onMessageUnpin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsMessageChannelDto
-  ) {
+  async onMessageUnpin(@ConnectedSocket() client: Socket, @MessageBody() body: WsMessageChannelDto) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.messages.unpinMessage(body.messageId, user.id, body.channelId)
     this.emitToChannel(body.channelId, 'message:unpin', msg)
@@ -1200,10 +1207,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 10)
   @SubscribeMessage('poll:vote')
-  async onPollVote(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsPollVoteDto
-  ) {
+  async onPollVote(@ConnectedSocket() client: Socket, @MessageBody() body: WsPollVoteDto) {
     const user = (client.data as { user: WsUser }).user
     const result = await this.polls.votePoll(body.pollId, body.optionId, user.id)
     if (result.channelId) {
@@ -1221,10 +1225,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
    */
   @WsThrottle(5, 5)
   @SubscribeMessage('presence:state')
-  onPresenceState(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsPresenceStateDto
-  ) {
+  onPresenceState(@ConnectedSocket() client: Socket, @MessageBody() body: WsPresenceStateDto) {
     this.presence.setState(client.id, {
       visibility: body.visibility,
       focused: body.focused
@@ -1331,7 +1332,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (!scope.memberServerIds.includes(serverId)) return
 
     const included = scope.shareEnabled && scope.serverIds.includes(serverId)
-    const activity = included ? this.userActivities.get(userId) ?? null : null
+    const activity = included ? (this.userActivities.get(userId) ?? null) : null
     this.server.to(`server:${serverId}`).emit('user:activity', { userId, activity })
   }
 
@@ -1347,16 +1348,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(4, 10)
   @SubscribeMessage('activity:update')
-  async onActivityUpdate(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsActivityUpdateDto
-  ) {
+  async onActivityUpdate(@ConnectedSocket() client: Socket, @MessageBody() body: WsActivityUpdateDto) {
     const user = (client.data as { user: WsUser }).user
     if (user.isBot) return { ok: false }
 
     const scope = await this.getActivityScope(user.id)
-    const allowed =
-      scope.shareEnabled && (body.kind === 'game' ? scope.shareGames : scope.shareMusic)
+    const allowed = scope.shareEnabled && (body.kind === 'game' ? scope.shareGames : scope.shareMusic)
     if (!allowed) {
       // Sharing disabled for this category; ensure any prior activity is cleared.
       this.activityOwnerSocket.delete(user.id)
@@ -1403,15 +1400,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
       if (now - lastActivity > ChatGateway.IDLE_THRESHOLD_MS && this.lastBroadcastedStatus.get(userId) !== 'idle') {
         this.lastBroadcastedStatus.set(userId, 'idle')
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: { status: 'idle' }
-        }).catch((err) => this.logger.warn(`Failed to set idle status for ${userId}`, err?.message))
+        await this.prisma.user
+          .update({
+            where: { id: userId },
+            data: { status: 'idle' }
+          })
+          .catch((err) => this.logger.warn(`Failed to set idle status for ${userId}`, err?.message))
 
         const sockets = await this.server.in(`user:${userId}`).fetchSockets()
         const serverIds = new Set<string>()
         for (const s of sockets) {
-          for (const sid of ((s.data as { serverIds?: string[] }).serverIds ?? [])) {
+          for (const sid of (s.data as { serverIds?: string[] }).serverIds ?? []) {
             serverIds.add(sid)
           }
         }
@@ -1455,19 +1454,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 5)
   @SubscribeMessage('dm:send')
-  async onDmSend(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsDmSendDto
-  ) {
+  async onDmSend(@ConnectedSocket() client: Socket, @MessageBody() body: WsDmSendDto) {
     const user = (client.data as { user: WsUser }).user
-    const msg = await this.dm.createMessage(
+    const result = await this.dm.createMessage(
       body.conversationId,
       user.id,
       body.content,
       body.replyToId,
       body.attachmentIds,
-      body.forwardFromMessageId
+      body.forwardFromMessageId,
+      body.clientMessageId
     )
+    const { replayed, ...msg } = result
+    if (replayed) return { ok: true, message: msg }
 
     const memberIds = await this.dm.getConversationMemberIds(body.conversationId)
     const roomName = `dm:${body.conversationId}`
@@ -1496,10 +1495,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 5)
   @SubscribeMessage('dm:edit')
-  async onDmEdit(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsDmEditDto
-  ) {
+  async onDmEdit(@ConnectedSocket() client: Socket, @MessageBody() body: WsDmEditDto) {
     const user = (client.data as { user: WsUser }).user
     const updated = await this.dm.editMessage(body.conversationId, body.messageId, user.id, body.content)
     this.emitToDm(body.conversationId, 'dm:edit', {
@@ -1511,10 +1507,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 5)
   @SubscribeMessage('dm:delete')
-  async onDmDelete(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsDmMessageDto
-  ) {
+  async onDmDelete(@ConnectedSocket() client: Socket, @MessageBody() body: WsDmMessageDto) {
     const user = (client.data as { user: WsUser }).user
     await this.dm.deleteMessage(body.conversationId, body.messageId, user.id)
     this.emitToDm(body.conversationId, 'dm:delete', {
@@ -1526,10 +1519,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 10)
   @SubscribeMessage('dm:pin')
-  async onDmPin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsDmMessageDto
-  ) {
+  async onDmPin(@ConnectedSocket() client: Socket, @MessageBody() body: WsDmMessageDto) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.dm.pinMessage(body.conversationId, body.messageId, user.id)
     this.emitToDm(body.conversationId, 'dm:pin', {
@@ -1541,10 +1531,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(5, 10)
   @SubscribeMessage('dm:unpin')
-  async onDmUnpin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsDmMessageDto
-  ) {
+  async onDmUnpin(@ConnectedSocket() client: Socket, @MessageBody() body: WsDmMessageDto) {
     const user = (client.data as { user: WsUser }).user
     const msg = await this.dm.unpinMessage(body.conversationId, body.messageId, user.id)
     this.emitToDm(body.conversationId, 'dm:unpin', {
@@ -1650,10 +1637,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   @WsThrottle(10, 10)
   @SubscribeMessage('voice:state')
-  async onVoiceState(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: WsVoiceStateDto
-  ) {
+  async onVoiceState(@ConnectedSocket() client: Socket, @MessageBody() body: WsVoiceStateDto) {
     const user = (client.data as { user: WsUser }).user
     const serverIds = (client.data as { serverIds?: string[] }).serverIds ?? []
     const channelId = this.socketVoiceChannel.get(client.id)

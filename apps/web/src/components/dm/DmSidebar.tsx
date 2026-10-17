@@ -16,18 +16,13 @@ import { resolveMediaUrl } from '@/lib/api'
 import { showToast } from '@/stores/toast.store'
 import { GroupDmModal } from './GroupDmModal'
 import { ConversationPreview } from './ConversationPreview'
+import { DraftBadge } from '@/components/chat/DraftBadge'
 
 export function DmSidebar() {
   const { t } = useTranslation('nav')
   const { t: tChat } = useTranslation('chat')
   const user = useAuthStore((s) => s.user)
-  const {
-    conversations,
-    currentConvId,
-    fetchConversations,
-    closeConversation,
-    isLoading
-  } = useDmStore(
+  const { conversations, currentConvId, fetchConversations, closeConversation, isLoading } = useDmStore(
     useShallow((s) => ({
       conversations: s.conversations,
       currentConvId: s.currentConversationId,
@@ -138,9 +133,7 @@ export function DmSidebar() {
           type="button"
           onClick={() => goToFriends()}
           className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium transition ${
-            !currentConvId
-              ? 'bg-white/10 text-white'
-              : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+            !currentConvId ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
           }`}
         >
           <FriendsNavIcon />
@@ -195,7 +188,11 @@ export function DmSidebar() {
                   className="flex min-w-0 flex-1 items-center gap-2"
                 >
                   {info.isGroup && info.avatarUrl ? (
-                    <img src={resolveMediaUrl(info.avatarUrl)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                    <img
+                      src={resolveMediaUrl(info.avatarUrl)}
+                      alt=""
+                      className="h-8 w-8 shrink-0 rounded-full object-cover"
+                    />
                   ) : info.isGroup ? (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-text">
                       {conv.members.length}
@@ -212,13 +209,27 @@ export function DmSidebar() {
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1">
                       <p className="min-w-0 flex-1 truncate text-sm font-medium">{info.name}</p>
-                      {conv.isFavorite && <span title={tChat('conversationFavorite')} className="text-xs text-amber-300" aria-label={tChat('conversationFavorite')}>&#9733;</span>}
-                      {conv.muted && <span title={tChat('conversationMuted')} className="text-[10px] text-gray-500">{tChat('conversationMuted')}</span>}
+                      <DraftBadge mode="dm" contextId={conv.id} />
+                      {conv.isFavorite && (
+                        <span
+                          title={tChat('conversationFavorite')}
+                          className="text-xs text-amber-300"
+                          aria-label={tChat('conversationFavorite')}
+                        >
+                          &#9733;
+                        </span>
+                      )}
+                      {conv.muted && (
+                        <span title={tChat('conversationMuted')} className="text-[10px] text-gray-500">
+                          {tChat('conversationMuted')}
+                        </span>
+                      )}
                     </div>
                     <ConversationPreview conversation={conv} currentUserId={user?.id} />
                   </div>
                 </button>
-                {hasUnread && !conv.muted &&
+                {hasUnread &&
+                  !conv.muted &&
                   (rs!.mentionCount > 0 ? (
                     <CountBadge count={rs!.mentionCount} variant="danger" max={10} />
                   ) : (
@@ -233,9 +244,11 @@ export function DmSidebar() {
                   aria-label={t('closeConversation')}
                   onClick={(e) => {
                     e.stopPropagation()
-                    void closeConversation(conv.id).then(() => {
-                      if (active) goToFriends()
-                    }).catch(() => showToast(tChat('conversationActionFailed'), tChat('conversationRetry')))
+                    void closeConversation(conv.id)
+                      .then(() => {
+                        if (active) goToFriends()
+                      })
+                      .catch(() => showToast(tChat('conversationActionFailed'), tChat('conversationRetry')))
                   }}
                   className="shrink-0 rounded p-1 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
                 >

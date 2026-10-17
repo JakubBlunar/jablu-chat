@@ -4,6 +4,7 @@ import { CountBadge } from '@/components/ui'
 import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { ArchiveIcon, HashIcon } from './sidebarIcons'
+import { DraftBadge } from '@/components/chat/DraftBadge'
 
 export type ChannelItemReadState = { unreadCount: number; mentionCount: number }
 
@@ -67,10 +68,9 @@ export const TextChannelItem = memo(function TextChannelItem({
       >
         {isArchived ? <ArchiveIcon /> : <HashIcon />}
         <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+        <DraftBadge mode="channel" contextId={ch.id} />
         {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
-        {showUnreadDot && mentionCount === 0 && (
-          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-        )}
+        {showUnreadDot && mentionCount === 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
       </button>
     </li>
   )

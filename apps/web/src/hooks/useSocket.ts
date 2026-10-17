@@ -19,9 +19,11 @@ import { createDmHandlers } from './socket/dmHandlers'
 import { createPresenceHandlers } from './socket/presenceHandlers'
 import { createServerHandlers } from './socket/serverHandlers'
 import { createVoiceHandlers } from './socket/voiceHandlers'
+import { startMessageOutbox } from '@/lib/messageOutbox'
 
 export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected: boolean } {
   const accessToken = useAuthStore((s) => s.accessToken)
+  const userId = useAuthStore((s) => s.user?.id)
   const [isConnected, setIsConnected] = useState(false)
 
   useEffect(() => {
@@ -42,7 +44,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       const now = Date.now()
       if (now - lastReadSyncTs > 1500) {
         lastReadSyncTs = now
-        if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }
+        if (readSyncTimer) {
+          clearTimeout(readSyncTimer)
+          readSyncTimer = null
+        }
         void useReadStateStore.getState().fetchAll()
       } else if (!readSyncTimer) {
         const remaining = 1500 - (now - lastReadSyncTs)
@@ -76,15 +81,26 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
 
       if (hasConnectedBefore) {
-        useServerStore.getState().fetchServers().catch(() => {})
+        useServerStore
+          .getState()
+          .fetchServers()
+          .catch(() => {})
 
         const currentServerId = useServerStore.getState().currentServerId
         if (currentServerId) {
-          useChannelStore.getState().fetchChannels(currentServerId).catch(() => {})
-          useMemberStore.getState().fetchMembers(currentServerId).catch(() => {})
-          useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId).catch(() => {})
+          useChannelStore
+            .getState()
+            .fetchChannels(currentServerId)
+            .catch(() => {})
+          useMemberStore
+            .getState()
+            .fetchMembers(currentServerId)
+            .catch(() => {})
+          useChannelPermissionsStore
+            .getState()
+            .fetchChannelPermissions(currentServerId)
+            .catch(() => {})
         }
-
       }
       hasConnectedBefore = true
 
@@ -101,7 +117,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       const wasInCall = !!useVoiceConnectionStore.getState().currentDmCallId
       if (wasInCall) useVoiceConnectionStore.getState().disconnect()
       useDmCallStore.getState().reset()
-      if (wasInCall) useDmCallStore.setState({ error: 'Call disconnected. Reconnect and start or join the call again.' })
+      if (wasInCall)
+        useDmCallStore.setState({ error: 'Call disconnected. Reconnect and start or join the call again.' })
     }
     const onConnectError = async () => {
       if (handlingAuthError) return
@@ -232,8 +249,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     document.addEventListener('visibilitychange', onVisibilityChange)
 
     setIsConnected(socket.connected)
+    const stopOutbox = userId ? startMessageOutbox(socket, userId) : undefined
 
     return () => {
+      stopOutbox?.()
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
       socket.off('connect_error', onConnectError)
@@ -308,14 +327,17 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('in_app_notification:new', onInAppNotificationNew)
       socket.off('notification:clear', onNotificationClear)
       document.removeEventListener('visibilitychange', onVisibilityChange)
-      if (readSyncTimer) { clearTimeout(readSyncTimer); readSyncTimer = null }
+      if (readSyncTimer) {
+        clearTimeout(readSyncTimer)
+        readSyncTimer = null
+      }
       presence.cleanup()
       if (useVoiceConnectionStore.getState().currentDmCallId) useVoiceConnectionStore.getState().disconnect()
       useDmCallStore.getState().reset()
       disconnectSocket()
       setIsConnected(false)
     }
-  }, [accessToken])
+  }, [accessToken, userId])
 
   return { socket: getSocket(), isConnected }
 }

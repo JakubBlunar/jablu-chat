@@ -6,6 +6,7 @@ import { RolesService } from '../roles/roles.service'
 import { XpService } from '../xp/xp.service'
 import { messageInclude, mapMessageToWire, type MessageWithRelations } from './message-wire'
 import { EmbedDto } from './dto/embed.dto'
+import { findMessageReplay } from './message-replay'
 
 @Injectable()
 export class MessagesService {
@@ -70,13 +71,12 @@ export class MessagesService {
       throw new BadRequestException('Source message is not forwardable')
     }
 
-    const authorName =
-      source.author?.displayName?.trim() || source.author?.username?.trim() || null
+    const authorName = source.author?.displayName?.trim() || source.author?.username?.trim() || null
 
     const channelName = source.channel
       ? source.channel.name
       : source.directConversation?.isGroup
-        ? source.directConversation.groupName ?? 'Group'
+        ? (source.directConversation.groupName ?? 'Group')
         : 'Direct message'
 
     return {
@@ -263,9 +263,19 @@ export class MessagesService {
     attachmentIds?: string[],
     threadParentId?: string,
     embeds?: EmbedDto[],
-    forwardFromMessageId?: string
+    forwardFromMessageId?: string,
+    clientMessageId?: string
   ) {
-    await this.requireMessageChannelMember(channelId, userId)
+    const destination = await this.requireMessageChannelMember(channelId, userId)
+    const replay = await findMessageReplay(this.prisma, clientMessageId, userId, { channelId, threadParentId })
+    if (replay) {
+      return {
+        ...this.mapToWire(replay, userId),
+        serverId: destination.serverId,
+        threadUpdate: undefined,
+        replayed: true
+      }
+    }
 
     const trimmed = content?.trim()
     const hasAttachments = !!attachmentIds?.length
@@ -293,9 +303,7 @@ export class MessagesService {
       }
     }
 
-    const forwardSnapshot = hasForward
-      ? await this.buildForwardSnapshot(forwardFromMessageId!, userId)
-      : null
+    const forwardSnapshot = hasForward ? await this.buildForwardSnapshot(forwardFromMessageId!, userId) : null
 
     const createWithChannelInclude = {
       ...messageInclude,
@@ -303,35 +311,59 @@ export class MessagesService {
     } satisfies Prisma.MessageInclude
     type MessageCreatedWithChannel = Prisma.MessageGetPayload<{ include: typeof createWithChannelInclude }>
 
-    const created = (await this.prisma.$transaction(async (tx) => {
-      if (hasAttachments) {
-        const found = await tx.attachment.findMany({
-          where: {
-            id: { in: attachmentIds },
-            uploaderId: userId,
-            messageId: null
+    let created: MessageCreatedWithChannel
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        if (hasAttachments) {
+          const found = await tx.attachment.findMany({
+            where: {
+              id: { in: attachmentIds },
+              uploaderId: userId,
+              messageId: null
+            },
+            select: { id: true }
+          })
+          if (found.length !== attachmentIds!.length) {
+            throw new BadRequestException('One or more attachments were not found or do not belong to you')
+          }
+        }
+
+        return tx.message.create({
+          data: {
+            id: clientMessageId,
+            channelId,
+            authorId: userId,
+            content: trimmed ?? null,
+            replyToId: replyToId ?? undefined,
+            threadParentId: threadParentId ?? undefined,
+            attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
+            embeds: hasEmbeds ? (embeds as unknown as Prisma.InputJsonValue) : undefined,
+            ...(forwardSnapshot ?? {})
           },
-          select: { id: true }
+          include: createWithChannelInclude
         })
-        if (found.length !== attachmentIds!.length) {
-          throw new BadRequestException('One or more attachments were not found or do not belong to you')
+      })
+    } catch (error) {
+      if (
+        clientMessageId &&
+        ((error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') ||
+          error instanceof BadRequestException)
+      ) {
+        const concurrentReplay = await findMessageReplay(this.prisma, clientMessageId, userId, {
+          channelId,
+          threadParentId
+        })
+        if (concurrentReplay) {
+          return {
+            ...this.mapToWire(concurrentReplay, userId),
+            serverId: destination.serverId,
+            threadUpdate: undefined,
+            replayed: true
+          }
         }
       }
-
-      return tx.message.create({
-        data: {
-          channelId,
-          authorId: userId,
-          content: trimmed ?? null,
-          replyToId: replyToId ?? undefined,
-          threadParentId: threadParentId ?? undefined,
-          attachments: hasAttachments ? { connect: attachmentIds!.map((id) => ({ id })) } : undefined,
-          embeds: hasEmbeds ? (embeds as unknown as Prisma.InputJsonValue) : undefined,
-          ...(forwardSnapshot ?? {})
-        },
-        include: createWithChannelInclude
-      })
-    })) as MessageCreatedWithChannel
+      throw error
+    }
 
     const { channel, ...rest } = created
     const wire = this.mapToWire(rest as any, userId)
@@ -352,7 +384,7 @@ export class MessagesService {
         .catch((err) => this.logger.warn(`XP award failed: ${(err as Error).message}`))
     }
 
-    return { ...wire, serverId: channel!.serverId, threadUpdate }
+    return { ...wire, serverId: channel!.serverId, threadUpdate, replayed: false }
   }
 
   async getThreadMessages(

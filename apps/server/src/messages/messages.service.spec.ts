@@ -44,7 +44,7 @@ describe('MessagesService', () => {
       _count: { threadMessages: 0 },
       threadMessages: [],
       channel: { serverId },
-      ...overrides,
+      ...overrides
     }
   }
 
@@ -52,7 +52,7 @@ describe('MessagesService', () => {
     prisma = createMockPrismaService()
     roles = {
       requirePermission: jest.fn().mockResolvedValue(0n),
-      requireChannelPermission: jest.fn().mockResolvedValue(0n),
+      requireChannelPermission: jest.fn().mockResolvedValue(0n)
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -60,8 +60,8 @@ describe('MessagesService', () => {
         MessagesService,
         { provide: PrismaService, useValue: prisma },
         { provide: RolesService, useValue: roles },
-        { provide: XpService, useValue: { tryAwardForMessage: jest.fn().mockResolvedValue(null) } },
-      ],
+        { provide: XpService, useValue: { tryAwardForMessage: jest.fn().mockResolvedValue(null) } }
+      ]
     }).compile()
 
     service = module.get(MessagesService)
@@ -100,7 +100,7 @@ describe('MessagesService', () => {
 
       const result = await service.getMessages(channelId, userId, 'cursor')
       expect(prisma.message.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ id: 'cursor' }) }),
+        expect.objectContaining({ where: expect.objectContaining({ id: 'cursor' }) })
       )
       expect(result.messages).toHaveLength(1)
     })
@@ -108,9 +108,7 @@ describe('MessagesService', () => {
     it('throws BadRequestException for invalid cursor', async () => {
       prisma.message.findFirst.mockResolvedValue(null)
 
-      await expect(
-        service.getMessages(channelId, userId, 'invalid-cursor'),
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.getMessages(channelId, userId, 'invalid-cursor')).rejects.toThrow(BadRequestException)
     })
 
     it('clamps limit between 1 and 100', async () => {
@@ -124,17 +122,13 @@ describe('MessagesService', () => {
     it('throws NotFoundException when channel not found', async () => {
       prisma.channel.findUnique.mockResolvedValue(null)
 
-      await expect(
-        service.getMessages('bad-channel', userId),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.getMessages('bad-channel', userId)).rejects.toThrow(NotFoundException)
     })
 
     it('throws ForbiddenException for voice channels', async () => {
       prisma.channel.findUnique.mockResolvedValue({ ...textChannel, type: 'voice' })
 
-      await expect(
-        service.getMessages(channelId, userId),
-      ).rejects.toThrow(ForbiddenException)
+      await expect(service.getMessages(channelId, userId)).rejects.toThrow(ForbiddenException)
     })
 
     it('accepts forum channels', async () => {
@@ -150,21 +144,38 @@ describe('MessagesService', () => {
       prisma.channel.findUnique.mockResolvedValue(textChannel)
       prisma.serverMember.findUnique.mockResolvedValue(null)
 
-      await expect(
-        service.getMessages(channelId, userId),
-      ).rejects.toThrow(ForbiddenException)
+      await expect(service.getMessages(channelId, userId)).rejects.toThrow(ForbiddenException)
     })
   })
 
   describe('createMessage', () => {
     beforeEach(() => mockChannelAndMembership())
 
+    it('acknowledges a retried client ID without creating or awarding XP again', async () => {
+      const existing = makeMessage({ id: 'client-id' })
+      prisma.message.findUnique.mockResolvedValue(existing)
+      const result = await service.createMessage(
+        channelId,
+        userId,
+        'Hello world',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'client-id'
+      )
+      expect(result.id).toBe('client-id')
+      expect(result.replayed).toBe(true)
+      expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
     it('creates a text message', async () => {
       const created = makeMessage()
       prisma.$transaction.mockImplementation(async (fn: any) => {
         return fn({
           attachment: { findMany: jest.fn() },
-          message: { create: jest.fn().mockResolvedValue(created) },
+          message: { create: jest.fn().mockResolvedValue(created) }
         })
       })
       prisma.message.count.mockResolvedValue(0)
@@ -175,34 +186,31 @@ describe('MessagesService', () => {
     })
 
     it('throws BadRequestException for empty content with no attachments', async () => {
-      await expect(
-        service.createMessage(channelId, userId, '   '),
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.createMessage(channelId, userId, '   ')).rejects.toThrow(BadRequestException)
     })
 
     it('throws BadRequestException when content is undefined and no attachments', async () => {
-      await expect(
-        service.createMessage(channelId, userId, undefined, undefined, []),
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.createMessage(channelId, userId, undefined, undefined, [])).rejects.toThrow(
+        BadRequestException
+      )
     })
 
     it('validates replyToId exists', async () => {
       prisma.message.findFirst.mockResolvedValue(null) // replyTo not found
 
-      await expect(
-        service.createMessage(channelId, userId, 'reply', 'nonexistent'),
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.createMessage(channelId, userId, 'reply', 'nonexistent')).rejects.toThrow(
+        BadRequestException
+      )
     })
 
     it('validates threadParentId exists', async () => {
-      prisma.message.findFirst
-        .mockResolvedValueOnce(null) // no replyTo check (replyToId is undefined)
+      prisma.message.findFirst.mockResolvedValueOnce(null) // no replyTo check (replyToId is undefined)
 
       // threadParentId check
       prisma.message.findFirst.mockResolvedValue(null)
 
       await expect(
-        service.createMessage(channelId, userId, 'thread reply', undefined, undefined, 'bad-parent'),
+        service.createMessage(channelId, userId, 'thread reply', undefined, undefined, 'bad-parent')
       ).rejects.toThrow(BadRequestException)
     })
 
@@ -211,7 +219,7 @@ describe('MessagesService', () => {
       prisma.$transaction.mockImplementation(async (fn: any) => {
         return fn({
           attachment: { findMany: jest.fn().mockResolvedValue([{ id: 'att-1' }]) },
-          message: { create: jest.fn().mockResolvedValue(created) },
+          message: { create: jest.fn().mockResolvedValue(created) }
         })
       })
       prisma.message.count.mockResolvedValue(0)
@@ -224,13 +232,13 @@ describe('MessagesService', () => {
       prisma.$transaction.mockImplementation(async (fn: any) => {
         return fn({
           attachment: { findMany: jest.fn().mockResolvedValue([]) },
-          message: { create: jest.fn() },
+          message: { create: jest.fn() }
         })
       })
 
-      await expect(
-        service.createMessage(channelId, userId, undefined, undefined, ['att-1']),
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.createMessage(channelId, userId, undefined, undefined, ['att-1'])).rejects.toThrow(
+        BadRequestException
+      )
     })
   })
 
@@ -247,30 +255,24 @@ describe('MessagesService', () => {
       expect(result.content).toBe('Updated')
     })
 
-    it('throws ForbiddenException when editing someone else\'s message', async () => {
+    it("throws ForbiddenException when editing someone else's message", async () => {
       const msg = makeMessage({ authorId: 'other-user' })
       prisma.message.findFirst.mockResolvedValue(msg)
 
-      await expect(
-        service.editMessage('msg-1', userId, 'hack'),
-      ).rejects.toThrow(ForbiddenException)
+      await expect(service.editMessage('msg-1', userId, 'hack')).rejects.toThrow(ForbiddenException)
     })
 
     it('throws ForbiddenException when editing a deleted message', async () => {
       const msg = makeMessage({ deleted: true })
       prisma.message.findFirst.mockResolvedValue(msg)
 
-      await expect(
-        service.editMessage('msg-1', userId, 'revive'),
-      ).rejects.toThrow(ForbiddenException)
+      await expect(service.editMessage('msg-1', userId, 'revive')).rejects.toThrow(ForbiddenException)
     })
 
     it('throws NotFoundException when message not found', async () => {
       prisma.message.findFirst.mockResolvedValue(null)
 
-      await expect(
-        service.editMessage('missing', userId, 'content'),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.editMessage('missing', userId, 'content')).rejects.toThrow(NotFoundException)
     })
   })
 
@@ -286,7 +288,7 @@ describe('MessagesService', () => {
       expect(result).toEqual({ id: 'msg-1', deleted: true })
     })
 
-    it('allows moderator (MANAGE_MESSAGES) to delete others\' messages', async () => {
+    it("allows moderator (MANAGE_MESSAGES) to delete others' messages", async () => {
       const msg = makeMessage({ authorId: 'other-user', channel: { serverId } })
       prisma.message.findFirst.mockResolvedValue(msg)
       prisma.message.update.mockResolvedValue({})
@@ -301,9 +303,7 @@ describe('MessagesService', () => {
       prisma.message.findFirst.mockResolvedValue(msg)
       roles.requirePermission.mockRejectedValue(new ForbiddenException())
 
-      await expect(
-        service.deleteMessage('msg-1', userId),
-      ).rejects.toThrow(ForbiddenException)
+      await expect(service.deleteMessage('msg-1', userId)).rejects.toThrow(ForbiddenException)
     })
 
     it('returns early for already-deleted messages', async () => {
@@ -318,9 +318,7 @@ describe('MessagesService', () => {
     it('throws NotFoundException when message not found', async () => {
       prisma.message.findFirst.mockResolvedValue(null)
 
-      await expect(
-        service.deleteMessage('missing', userId),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.deleteMessage('missing', userId)).rejects.toThrow(NotFoundException)
     })
   })
 
@@ -340,9 +338,7 @@ describe('MessagesService', () => {
     it('throws BadRequestException when pinning a deleted message', async () => {
       prisma.message.findFirst.mockResolvedValue(makeMessage({ deleted: true }))
 
-      await expect(
-        service.pinMessage('msg-1', userId, channelId),
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.pinMessage('msg-1', userId, channelId)).rejects.toThrow(BadRequestException)
     })
 
     it('unpins a message', async () => {
@@ -357,9 +353,7 @@ describe('MessagesService', () => {
     it('throws NotFoundException when message not found', async () => {
       prisma.message.findFirst.mockResolvedValue(null)
 
-      await expect(
-        service.pinMessage('missing', userId, channelId),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.pinMessage('missing', userId, channelId)).rejects.toThrow(NotFoundException)
     })
   })
 
@@ -388,9 +382,7 @@ describe('MessagesService', () => {
     it('throws NotFoundException on deleted message', async () => {
       prisma.message.findFirst.mockResolvedValue(null)
 
-      await expect(
-        service.toggleReaction('missing', userId, '👍'),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.toggleReaction('missing', userId, '👍')).rejects.toThrow(NotFoundException)
     })
   })
 
@@ -398,9 +390,7 @@ describe('MessagesService', () => {
     beforeEach(() => mockChannelAndMembership())
 
     it('returns pinned messages', async () => {
-      prisma.message.findMany.mockResolvedValue([
-        makeMessage({ id: 'pinned-1', pinned: true }),
-      ])
+      prisma.message.findMany.mockResolvedValue([makeMessage({ id: 'pinned-1', pinned: true })])
 
       const result = await service.getPinnedMessages(channelId, userId)
       expect(result).toHaveLength(1)
@@ -416,7 +406,7 @@ describe('MessagesService', () => {
         id,
         threadParentId: parentId,
         createdAt: new Date(createdAt),
-        ...overrides,
+        ...overrides
       })
     }
 
@@ -429,7 +419,7 @@ describe('MessagesService', () => {
       const msgs = [
         makeThreadMsg('t-3', '2024-06-03'),
         makeThreadMsg('t-2', '2024-06-02'),
-        makeThreadMsg('t-1', '2024-06-01'),
+        makeThreadMsg('t-1', '2024-06-01')
       ]
       prisma.message.findMany.mockResolvedValue(msgs)
 
@@ -453,9 +443,7 @@ describe('MessagesService', () => {
     it('throws NotFoundException when parent not found', async () => {
       prisma.message.findUnique.mockResolvedValue(null)
 
-      await expect(
-        service.getThreadMessages('missing', userId),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.getThreadMessages('missing', userId)).rejects.toThrow(NotFoundException)
     })
 
     describe('cursor (older messages)', () => {
@@ -463,10 +451,7 @@ describe('MessagesService', () => {
         const cursorMsg = makeThreadMsg('cursor', '2024-06-10')
         prisma.message.findFirst.mockResolvedValue(cursorMsg)
 
-        const olderMsgs = [
-          makeThreadMsg('t-2', '2024-06-09'),
-          makeThreadMsg('t-1', '2024-06-08'),
-        ]
+        const olderMsgs = [makeThreadMsg('t-2', '2024-06-09'), makeThreadMsg('t-1', '2024-06-08')]
         prisma.message.findMany.mockResolvedValue(olderMsgs)
 
         const result = await service.getThreadMessages(parentId, userId, { cursor: 'cursor' })
@@ -478,9 +463,9 @@ describe('MessagesService', () => {
       it('throws BadRequestException for invalid cursor', async () => {
         prisma.message.findFirst.mockResolvedValue(null)
 
-        await expect(
-          service.getThreadMessages(parentId, userId, { cursor: 'bad' }),
-        ).rejects.toThrow(BadRequestException)
+        await expect(service.getThreadMessages(parentId, userId, { cursor: 'bad' })).rejects.toThrow(
+          BadRequestException
+        )
       })
     })
 
@@ -489,10 +474,7 @@ describe('MessagesService', () => {
         const cursorMsg = makeThreadMsg('after-cursor', '2024-06-05')
         prisma.message.findFirst.mockResolvedValue(cursorMsg)
 
-        const newerMsgs = [
-          makeThreadMsg('t-6', '2024-06-06'),
-          makeThreadMsg('t-7', '2024-06-07'),
-        ]
+        const newerMsgs = [makeThreadMsg('t-6', '2024-06-06'), makeThreadMsg('t-7', '2024-06-07')]
         prisma.message.findMany.mockResolvedValue(newerMsgs)
 
         const result = await service.getThreadMessages(parentId, userId, { after: 'after-cursor' })
@@ -517,9 +499,7 @@ describe('MessagesService', () => {
       it('throws BadRequestException for invalid after cursor', async () => {
         prisma.message.findFirst.mockResolvedValue(null)
 
-        await expect(
-          service.getThreadMessages(parentId, userId, { after: 'bad' }),
-        ).rejects.toThrow(BadRequestException)
+        await expect(service.getThreadMessages(parentId, userId, { after: 'bad' })).rejects.toThrow(BadRequestException)
       })
     })
 
@@ -528,17 +508,9 @@ describe('MessagesService', () => {
         const anchor = makeThreadMsg('anchor', '2024-06-15')
         prisma.message.findFirst.mockResolvedValue(anchor)
 
-        const beforeRows = [
-          makeThreadMsg('t-14', '2024-06-14'),
-          makeThreadMsg('t-13', '2024-06-13'),
-        ]
-        const afterRows = [
-          makeThreadMsg('t-16', '2024-06-16'),
-          makeThreadMsg('t-17', '2024-06-17'),
-        ]
-        prisma.message.findMany
-          .mockResolvedValueOnce(beforeRows)
-          .mockResolvedValueOnce(afterRows)
+        const beforeRows = [makeThreadMsg('t-14', '2024-06-14'), makeThreadMsg('t-13', '2024-06-13')]
+        const afterRows = [makeThreadMsg('t-16', '2024-06-16'), makeThreadMsg('t-17', '2024-06-17')]
+        prisma.message.findMany.mockResolvedValueOnce(beforeRows).mockResolvedValueOnce(afterRows)
 
         const result = await service.getThreadMessages(parentId, userId, { around: 'anchor' })
         expect(result.messages.length).toBeGreaterThanOrEqual(1)
@@ -564,9 +536,7 @@ describe('MessagesService', () => {
         const afterRows = Array.from({ length: 26 }, (_, i) =>
           makeThreadMsg(`a-${i}`, `2024-06-${String(16 + i).padStart(2, '0')}`)
         )
-        prisma.message.findMany
-          .mockResolvedValueOnce(beforeRows)
-          .mockResolvedValueOnce(afterRows)
+        prisma.message.findMany.mockResolvedValueOnce(beforeRows).mockResolvedValueOnce(afterRows)
 
         const result = await service.getThreadMessages(parentId, userId, { around: 'anchor' })
         expect(result.hasMore).toBe(true)
@@ -587,18 +557,14 @@ describe('MessagesService', () => {
     it('throws NotFoundException when channel not found', async () => {
       prisma.channel.findUnique.mockResolvedValue(null)
 
-      await expect(
-        service.assertUserCanAccessChannel('missing', userId),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.assertUserCanAccessChannel('missing', userId)).rejects.toThrow(NotFoundException)
     })
 
     it('throws ForbiddenException when not a member', async () => {
       prisma.channel.findUnique.mockResolvedValue(textChannel)
       prisma.serverMember.findUnique.mockResolvedValue(null)
 
-      await expect(
-        service.assertUserCanAccessChannel(channelId, userId),
-      ).rejects.toThrow(ForbiddenException)
+      await expect(service.assertUserCanAccessChannel(channelId, userId)).rejects.toThrow(ForbiddenException)
     })
   })
 })

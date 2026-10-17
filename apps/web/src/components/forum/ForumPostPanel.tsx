@@ -19,12 +19,19 @@ import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import { useForumStore } from '@/stores/forum.store'
 import { useForumReplyStore } from '@/stores/forumReply.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useDraftReply } from '@/stores/draft.store'
 import { useServerStore } from '@/stores/server.store'
 import { api } from '@/lib/api'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { IconButton, Spinner } from '@/components/ui'
 
-export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean; onCommand?: (cmd: string, args?: string) => boolean | void }) {
+export function ForumPostPanel({
+  gifEnabled,
+  onCommand
+}: {
+  gifEnabled?: boolean
+  onCommand?: (cmd: string, args?: string) => boolean | void
+}) {
   const currentPostId = useForumStore((s) => s.currentPostId)
   const posts = useForumStore((s) => s.posts)
   const channelId = useForumStore((s) => s.channelId)
@@ -50,11 +57,7 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
   const adapter = useForumSurfaceAdapter(channelId)
   const scroll = useMessageScroll(currentPostId, adapter)
 
-  const [replyTarget, setReplyTarget] = useState<{
-    id: string
-    content: string | null
-    authorName: string
-  } | null>(null)
+  const [replyTarget, setReplyTarget] = useDraftReply('channel', channelId, currentPostId)
 
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -114,7 +117,9 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
     const onUnpin = (e: CustomEvent<Message>) => {
       useForumReplyStore.getState().updateMessage(e.detail)
     }
-    const onReactionAdd = (e: CustomEvent<{ messageId: string; emoji: string; userId: string; isCustom?: boolean }>) => {
+    const onReactionAdd = (
+      e: CustomEvent<{ messageId: string; emoji: string; userId: string; isCustom?: boolean }>
+    ) => {
       const payload = e.detail
       const store = useForumReplyStore.getState()
       const msg = store.messages.find((m) => m.id === payload.messageId)
@@ -202,7 +207,9 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
       })
       updatePostInStore(updated as never)
       setEditing(false)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setEditSaving(false)
   }, [post, channelId, editTitle, editContent, editSaving, updatePostInStore])
 
@@ -212,7 +219,9 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
       await api.delete(`/api/channels/${channelId}/posts/${post.id}`)
       removePostFromStore(post.id)
       closePost()
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setShowDeleteConfirm(false)
   }, [post, channelId, removePostFromStore, closePost])
 
@@ -221,20 +230,23 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
     setMenuOpen(false)
     try {
       const endpoint = `/api/channels/${channelId}/posts/${post.id}/lock`
-      const updated = post.isLocked
-        ? await api.delete(endpoint)
-        : await api.post(endpoint, {})
+      const updated = post.isLocked ? await api.delete(endpoint) : await api.post(endpoint, {})
       updatePostInStore(updated as never)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [post, channelId, updatePostInStore])
 
-  const handleReply = useCallback((msg: Message) => {
-    setReplyTarget({
-      id: msg.id,
-      content: msg.content,
-      authorName: msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
-    })
-  }, [])
+  const handleReply = useCallback(
+    (msg: Message) => {
+      setReplyTarget({
+        id: msg.id,
+        content: msg.content,
+        authorName: msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
+      })
+    },
+    [setReplyTarget]
+  )
 
   const isMobile = useIsMobile()
 
@@ -323,9 +335,7 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
                   {authorName}
                 </button>
                 <time className="text-[11px] text-gray-500">{formatSmartTimestamp(post.createdAt)}</time>
-                {post.editedAt && (
-                  <span className="text-[10px] text-gray-600">(edited)</span>
-                )}
+                {post.editedAt && <span className="text-[10px] text-gray-600">(edited)</span>}
               </div>
               {post.content && (
                 <div className="mt-0.5 text-sm text-gray-300">
@@ -367,7 +377,9 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
     ) : undefined
 
   return (
-    <div className={`flex min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}>
+    <div
+      className={`flex min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}
+    >
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{post.title}</h3>
@@ -389,7 +401,13 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
                       onClick={startEdit}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-300 transition hover:bg-white/5 hover:text-white"
                     >
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
                         <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                       Edit Post
@@ -401,11 +419,18 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
                       onClick={handleToggleLock}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-gray-300 transition hover:bg-white/5 hover:text-white"
                     >
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        {post.isLocked
-                          ? <path d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                          : <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        }
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        {post.isLocked ? (
+                          <path d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                        ) : (
+                          <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        )}
                       </svg>
                       {post.isLocked ? 'Unlock Post' : 'Lock Post'}
                     </button>
@@ -416,10 +441,19 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
                       <button
                         ref={deleteBtnRef}
                         type="button"
-                        onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true) }}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setShowDeleteConfirm(true)
+                        }}
                         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
                       >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
                           <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                         Delete Post
@@ -474,7 +508,10 @@ export function ForumPostPanel({ gifEnabled, onCommand }: { gifEnabled?: boolean
           replyTarget={replyTarget}
           onCancelReply={() => setReplyTarget(null)}
           onSent={() => {
-            void useForumReplyStore.getState().reconcileToLatest().then(() => scroll.stickToBottom())
+            void useForumReplyStore
+              .getState()
+              .reconcileToLatest()
+              .then(() => scroll.stickToBottom())
           }}
           gifEnabled={gifEnabled}
           onCommand={onCommand}

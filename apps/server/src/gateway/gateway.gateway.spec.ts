@@ -24,7 +24,7 @@ function makeDeps(prisma: MockPrismaService, redis: MockRedisService) {
   const events = {
     emit: jest.fn(),
     on: jest.fn(),
-    off: jest.fn(),
+    off: jest.fn()
   }
   return {
     events,
@@ -39,16 +39,16 @@ function makeDeps(prisma: MockPrismaService, redis: MockRedisService) {
     inApp: {
       markChannelRead: jest.fn(),
       markDmRead: jest.fn(),
-      markServerChannelsRead: jest.fn(),
+      markServerChannelsRead: jest.fn()
     } as any,
     notifications: {
       dispatch: jest.fn().mockResolvedValue(undefined),
-      setEngagementCheck: jest.fn(),
+      setEngagementCheck: jest.fn()
     } as any,
     roles: { getAllChannelPermissions: jest.fn() } as any,
     prisma,
     redis,
-    events_obj: events,
+    events_obj: events
   }
 }
 
@@ -56,12 +56,13 @@ describe('ChatGateway', () => {
   let gateway: ChatGateway
   let prisma: MockPrismaService
   let redis: MockRedisService
+  let deps: ReturnType<typeof makeDeps>
 
   beforeEach(async () => {
     prisma = createMockPrismaService()
     redis = createMockRedisService()
 
-    const deps = makeDeps(prisma, redis)
+    deps = makeDeps(prisma, redis)
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -79,14 +80,27 @@ describe('ChatGateway', () => {
         { provide: ReadStateService, useValue: deps.readState },
         { provide: PushService, useValue: deps.push },
         { provide: InAppNotificationsService, useValue: deps.inApp },
-        { provide: NotificationsService, useValue: deps.notifications },
-      ],
+        { provide: NotificationsService, useValue: deps.notifications }
+      ]
     })
       .overrideGuard(WsJwtGuard)
       .useValue({ canActivate: jest.fn().mockReturnValue(true) })
       .compile()
 
     gateway = module.get(ChatGateway)
+  })
+
+  it('acknowledges a duplicate DM without notifying recipients or running commands again', async () => {
+    deps.dm.createMessage = jest.fn().mockResolvedValue({ id: 'message-id', content: '/test', replayed: true })
+    const client = { data: { user: { id: 'user-id' } } }
+    const result = await gateway.onDmSend(client as Parameters<ChatGateway['onDmSend']>[0], {
+      conversationId: 'conversation-id',
+      content: '/test',
+      clientMessageId: 'message-id'
+    })
+    expect(result).toEqual({ ok: true, message: { id: 'message-id', content: '/test' } })
+    expect(deps.notifications.dispatch).not.toHaveBeenCalled()
+    expect(deps.events.emit).not.toHaveBeenCalled()
   })
 
   // ── getFriendUserIds Redis cache ─────────────────────────────────────────────
@@ -99,18 +113,14 @@ describe('ChatGateway', () => {
       redis.client.get.mockResolvedValue(null)
       prisma.friendship.findMany.mockResolvedValue([
         { requesterId: userId, addresseeId: 'u2' },
-        { requesterId: 'u3', addresseeId: userId },
+        { requesterId: 'u3', addresseeId: userId }
       ])
 
       const result = await gateway.getFriendUserIds(userId)
 
       expect(result).toEqual(['u2', 'u3'])
       expect(prisma.friendship.findMany).toHaveBeenCalledTimes(1)
-      expect(redis.client.setex).toHaveBeenCalledWith(
-        `friends:${userId}`,
-        60,
-        JSON.stringify(['u2', 'u3']),
-      )
+      expect(redis.client.setex).toHaveBeenCalledWith(`friends:${userId}`, 60, JSON.stringify(['u2', 'u3']))
     })
 
     it('returns cached value without querying DB', async () => {
@@ -125,9 +135,7 @@ describe('ChatGateway', () => {
     it('second call uses cache, not DB', async () => {
       // First call: miss
       redis.client.get.mockResolvedValueOnce(null)
-      prisma.friendship.findMany.mockResolvedValue([
-        { requesterId: userId, addresseeId: 'u2' },
-      ])
+      prisma.friendship.findMany.mockResolvedValue([{ requesterId: userId, addresseeId: 'u2' }])
       // Subsequent: simulate cache populated (setex was called)
       redis.client.get.mockResolvedValue(JSON.stringify(['u2']))
 
@@ -163,7 +171,7 @@ describe('ChatGateway', () => {
       prisma.channel.findMany.mockResolvedValue([
         { id: 'ch-1', serverId: 's1' },
         { id: 'ch-2', serverId: 's1' },
-        { id: 'ch-3', serverId: 's1' },
+        { id: 'ch-3', serverId: 's1' }
       ])
       prisma.server.findUnique.mockResolvedValue({ afkChannelId: null, afkTimeout: 300 })
 

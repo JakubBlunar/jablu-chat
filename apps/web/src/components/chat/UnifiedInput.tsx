@@ -1,5 +1,5 @@
-import type { Attachment, Message } from '@chat/shared'
-import { Permission } from '@chat/shared'
+import type { Message } from '@chat/shared'
+import { MAX_MESSAGE_LENGTH, Permission } from '@chat/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -9,7 +9,6 @@ import {
   type MentionMember
 } from '@/components/chat/ChatInputBar'
 import { useBotCommands } from '@/components/chat/useBotCommands'
-import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -21,6 +20,9 @@ import { useThreadStore } from '@/stores/thread.store'
 import { usePermissions } from '@/hooks/usePermissions'
 import { XSmallIcon } from '@/components/chat/chatIcons'
 import { useComposerPrefillStore } from '@/stores/composer-prefill.store'
+import { composerKey, EMPTY_DRAFT_FILES, useDraftStore } from '@/stores/draft.store'
+import { useOutboxStore } from '@/stores/outbox.store'
+import { OutboxMessages } from './OutboxMessages'
 
 const EDIT_LOOKBACK = 10
 
@@ -29,22 +31,14 @@ const TEXT_COMMANDS: Record<string, (rest: string) => string> = {
   tableflip: (rest) => `${rest} (╯°□°)╯︵ ┻━┻`.trim(),
   unflip: (rest) => `${rest} ┬─┬ ノ( ゜-゜ノ)`.trim(),
   lenny: (rest) => `${rest} ( ͡° ͜ʖ ͡°)`.trim(),
-  spoiler: (rest) => rest ? `||${rest}||` : '',
-  me: (rest) => rest ? `*${rest}*` : '',
+  spoiler: (rest) => (rest ? `||${rest}||` : ''),
+  me: (rest) => (rest ? `*${rest}*` : '')
 }
 
 function resolveTextCommand(cmd: string, rest: string): string | null {
   const handler = TEXT_COMMANDS[cmd]
   if (!handler) return null
   return handler(rest) || null
-}
-
-type PendingFile = {
-  file: File
-  preview: string | null
-  uploading: boolean
-  uploaded?: Attachment
-  error?: string
 }
 
 export function UnifiedInput({
@@ -73,18 +67,44 @@ export function UnifiedInput({
   const { t } = useTranslation('chat')
   const isDm = mode === 'dm'
   const inputRef = useRef<ChatInputBarHandle>(null)
-  const [value, setValue] = useState('')
-  const [files, setFiles] = useState<PendingFile[]>([])
+  const userId = useAuthStore((s) => s.user?.id)
+  const draftKey = composerKey(userId ?? '', mode, contextId, threadParentId)
+  const value = useDraftStore((s) => s.drafts[draftKey]?.text ?? '')
+  const files = useDraftStore((s) => s.files[draftKey] ?? EMPTY_DRAFT_FILES)
+  const draftError = useDraftStore((s) => s.error)
+  const restoringFiles = useDraftStore((s) => !!s.drafts[draftKey]?.fileCount && !s.files[draftKey])
+  const setValue = useCallback((text: string) => useDraftStore.getState().update(draftKey, { text }), [draftKey])
+  const setTargetBot = useCallback(
+    (bot: { botAppId: string; commandName: string } | null) => useDraftStore.getState().update(draftKey, { bot }),
+    [draftKey]
+  )
+  const targetBot = useDraftStore((s) => s.drafts[draftKey]?.bot ?? null)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [dragOver, setDragOver] = useState(false)
   const [sizeError, setSizeError] = useState<string | null>(null)
   const lastTypingEmit = useRef(0)
-  const userId = useAuthStore((s) => s.user?.id)
+  const previews = useMemo(
+    () => files.map((file) => (file.type.startsWith('image/') ? URL.createObjectURL(file) : null)),
+    [files]
+  )
+  useEffect(
+    () => () => {
+      previews.forEach((url) => {
+        if (url) URL.revokeObjectURL(url)
+      })
+    },
+    [previews]
+  )
+  useEffect(() => {
+    void useDraftStore.getState().loadFiles(draftKey)
+  }, [draftKey])
 
   const serverId = useChannelStore((s) =>
-    isDm ? null : s.channels.find((c) => c.id === contextId)?.serverId ?? null
+    isDm ? null : (s.channels.find((c) => c.id === contextId)?.serverId ?? null)
   )
 
-  const customEmojis = useEmojiStore((s) => serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS)
+  const customEmojis = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
 
   const dmBotUserId = useDmStore((s) => {
     if (!isDm) return null
@@ -97,28 +117,19 @@ export function UnifiedInput({
   const allBotCommands = useBotCommands(serverId, isDm ? null : contextId, dmBotUserId)
   const { has: hasPerm } = usePermissions(serverId)
   const canPingBroadcast =
-    !isDm &&
-    !!serverId &&
-    (hasPerm(Permission.MENTION_EVERYONE) || hasPerm(Permission.ADMINISTRATOR))
-  const botCommands = useMemo(() =>
-    allBotCommands.filter((cmd) => {
-      if (!cmd.requiredPermission) return true
-      const flag = Permission[cmd.requiredPermission as keyof typeof Permission]
-      return flag ? hasPerm(flag) : true
-    }),
+    !isDm && !!serverId && (hasPerm(Permission.MENTION_EVERYONE) || hasPerm(Permission.ADMINISTRATOR))
+  const botCommands = useMemo(
+    () =>
+      allBotCommands.filter((cmd) => {
+        if (!cmd.requiredPermission) return true
+        const flag = Permission[cmd.requiredPermission as keyof typeof Permission]
+        return flag ? hasPerm(flag) : true
+      }),
     [allBotCommands, hasPerm]
   )
-  const [targetBot, setTargetBot] = useState<{ botAppId: string; commandName: string } | null>(null)
-
   useEffect(() => {
     if (!value.trimStart().startsWith('/')) setTargetBot(null)
-  }, [value])
-
-  useEffect(() => {
-    setValue('')
-    setTargetBot(null)
-    setFiles([])
-  }, [contextId])
+  }, [value, setTargetBot])
 
   const threadComposerKey = threadParentId ?? null
   useEffect(() => {
@@ -126,9 +137,8 @@ export function UnifiedInput({
     if (!text) return
     setValue(text)
     setTargetBot(null)
-    setFiles([])
     queueMicrotask(() => inputRef.current?.focus())
-  }, [contextId, threadComposerKey])
+  }, [contextId, threadComposerKey, setValue, setTargetBot])
 
   useEffect(() => {
     if (replyTarget) inputRef.current?.focus()
@@ -150,8 +160,9 @@ export function UnifiedInput({
             avatarUrl: m.avatarUrl
           }))
       }
-      const userRows = useMemberStore.getState().members
-        .filter((m) => m.userId !== userId)
+      const userRows = useMemberStore
+        .getState()
+        .members.filter((m) => m.userId !== userId)
         .map((m) => ({
           userId: m.userId,
           username: m.user.username,
@@ -180,16 +191,27 @@ export function UnifiedInput({
     }
     const buildChannels = () => {
       if (isDm) return channels ?? []
-      return useChannelStore.getState().channels
-        .filter((c) => c.type === 'text')
+      return useChannelStore
+        .getState()
+        .channels.filter((c) => c.type === 'text')
         .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name }))
     }
     mentionMembersRef.current = buildMembers()
     mentionChannelsRef.current = buildChannels()
     const unsubs = [
-      useMemberStore.subscribe(() => { mentionMembersRef.current = buildMembers() }),
-      useChannelStore.subscribe(() => { mentionChannelsRef.current = buildChannels() }),
-      ...(isDm ? [useDmStore.subscribe(() => { mentionMembersRef.current = buildMembers() })] : [])
+      useMemberStore.subscribe(() => {
+        mentionMembersRef.current = buildMembers()
+      }),
+      useChannelStore.subscribe(() => {
+        mentionChannelsRef.current = buildChannels()
+      }),
+      ...(isDm
+        ? [
+            useDmStore.subscribe(() => {
+              mentionMembersRef.current = buildMembers()
+            })
+          ]
+        : [])
     ]
     return () => unsubs.forEach((fn) => fn())
   }, [isDm, userId, channels, contextId, canPingBroadcast])
@@ -217,21 +239,23 @@ export function UnifiedInput({
 
   const handleGifSelect = useCallback(
     (url: string) => {
-      if (isDm) {
-        getSocket()?.emit('dm:send', { conversationId: contextId, content: url })
-      } else {
-        const payload: Record<string, unknown> = { channelId: contextId, content: url }
-        if (threadParentId) payload.threadParentId = threadParentId
-        getSocket()?.emit('message:send', payload, (res: { ok?: boolean; message?: Message }) => {
-          if (res?.ok && res.message) {
-            if (threadParentId) useThreadStore.getState().addMessage(res.message)
-            else useMessageStore.getState().addMessage(res.message)
-          }
+      if (!userId) return
+      void useOutboxStore
+        .getState()
+        .enqueue({
+          userId,
+          mode,
+          contextId,
+          threadParentId,
+          content: url,
+          files: []
         })
-        return
-      }
+        .catch((error) => {
+          console.error('Failed to queue GIF', error)
+          setSizeError(t('outboxStorageFailed'))
+        })
     },
-    [isDm, contextId, threadParentId]
+    [userId, mode, contextId, threadParentId, t]
   )
 
   function emitTypingThrottled() {
@@ -255,26 +279,13 @@ export function UnifiedInput({
     }
   }
 
-  async function uploadFiles(pending: PendingFile[]) {
-    const results: PendingFile[] = [...pending]
-    for (let i = 0; i < results.length; i++) {
-      const p = results[i]
-      if (p.uploaded || p.uploading) continue
-      results[i] = { ...p, uploading: true }
-      setFiles([...results])
-      try {
-        const att = await api.uploadAttachment(p.file)
-        results[i] = { ...p, uploading: false, uploaded: att }
-      } catch (e) {
-        results[i] = { ...p, uploading: false, error: e instanceof Error ? e.message : 'Upload failed' }
-      }
-      setFiles([...results])
-    }
-    return results
-  }
-
   async function send() {
+    if (!userId || savingRef.current || restoringFiles) return
     let content = value.trim()
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      setSizeError(t('messageTooLong', { count: MAX_MESSAGE_LENGTH }))
+      return
+    }
 
     let sendTargetBotAppId: string | undefined
     if (content.startsWith('/')) {
@@ -299,91 +310,62 @@ export function UnifiedInput({
       }
     }
 
-    let finalFiles = files
-    const pending = files.filter((f) => !f.uploaded && !f.error)
-    if (pending.length > 0) {
-      finalFiles = await uploadFiles(files)
-    }
-
-    const attachmentIds = finalFiles.filter((f) => f.uploaded).map((f) => f.uploaded!.id)
-
-    if (!content && attachmentIds.length === 0) return
-
-    if (isDm) {
-      if (useDmStore.getState().hasNewer) {
-        useDmStore.getState().clearMessages()
-        await useDmStore.getState().fetchMessages(contextId)
-      }
-      getSocket()?.emit('dm:send', {
-        conversationId: contextId,
-        content: content || undefined,
-        replyToId: replyTarget?.id,
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
-        targetBotAppId: sendTargetBotAppId
-      }, (res: { ok?: boolean; message?: Message }) => {
-        if (res?.ok && res.message) useDmStore.getState().addMessage(res.message)
-      })
-    } else {
-      if (!threadParentId && useMessageStore.getState().hasNewer) {
-        useMessageStore.getState().clearMessages()
-        await useMessageStore.getState().fetchMessages(contextId)
-      }
-      getSocket()?.emit('message:send', {
-        channelId: contextId,
-        content: content || undefined,
-        replyToId: threadParentId ? undefined : replyTarget?.id,
+    if (!content && !files.length) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await useOutboxStore.getState().enqueue({
+        userId,
+        mode,
+        contextId,
+        content,
+        files,
         threadParentId,
-        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+        replyToId: threadParentId ? undefined : replyTarget?.id,
         targetBotAppId: sendTargetBotAppId
-      }, (res: { ok?: boolean; message?: Message; error?: string }) => {
-        if (res?.ok && res.message) {
-          if (threadParentId) {
-            useThreadStore.getState().addMessage(res.message)
-            window.dispatchEvent(new CustomEvent('forum-reply', { detail: res.message }))
-          } else {
-            useMessageStore.getState().addMessage(res.message)
-          }
-        } else if (res?.error) {
-          setSizeError(res.error)
-          setTimeout(() => setSizeError(null), 5000)
-        }
       })
+      useDraftStore.getState().update(draftKey, { text: '', reply: null, bot: null, fileCount: 0 })
+      try {
+        await useDraftStore.getState().setFiles(draftKey, [])
+      } catch (error) {
+        console.error('Message queued, but draft attachment cleanup failed', error)
+        setSizeError(t('draftSaveFailed'))
+      }
+      onCancelReply()
+      emitTypingStop()
+      onSent?.()
+    } catch (error) {
+      console.error('Failed to save outgoing message on this device', error)
+      setSizeError(t('outboxStorageFailed'))
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
-
-    setValue('')
-    setTargetBot(null)
-    setFiles([])
-    onCancelReply()
-    emitTypingStop()
-    onSent?.()
   }
 
   async function addFiles(newFiles: FileList | File[]) {
-    const maxMb = await api.getMaxUploadSizeMb()
-    const maxBytes = maxMb * 1024 * 1024
-    const arr = Array.from(newFiles)
-    const tooLarge = arr.filter((f) => f.size > maxBytes)
-    if (tooLarge.length > 0) {
-      setSizeError(`File too large. Max ${maxMb} MB allowed.`)
-      setTimeout(() => setSizeError(null), 5000)
+    const next = [...files, ...Array.from(newFiles)]
+    if (next.length > 20) {
+      setSizeError(t('tooManyAttachments'))
+      return
     }
-    const valid = tooLarge.length > 0 ? arr.filter((f) => f.size <= maxBytes) : arr
-    if (valid.length === 0) return
-    const pending: PendingFile[] = valid.map((file) => ({
-      file,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-      uploading: false
-    }))
-    setFiles((prev) => [...prev, ...pending])
+    try {
+      await useDraftStore.getState().setFiles(draftKey, next)
+    } catch {
+      setSizeError(t('draftSaveFailed'))
+    }
   }
 
   function removeFile(index: number) {
-    setFiles((prev) => {
-      const next = [...prev]
-      const removed = next.splice(index, 1)[0]
-      if (removed?.preview) URL.revokeObjectURL(removed.preview)
-      return next
-    })
+    void useDraftStore
+      .getState()
+      .setFiles(
+        draftKey,
+        files.filter((_, i) => i !== index)
+      )
+      .catch(() => {
+        setSizeError(t('draftSaveFailed'))
+      })
   }
 
   function handlePaste(e: React.ClipboardEvent) {
@@ -422,12 +404,32 @@ export function UnifiedInput({
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
     >
+      <OutboxMessages mode={mode} contextId={contextId} threadParentId={threadParentId} />
+      {draftError && (
+        <p role="alert" className="mb-2 text-sm text-red-400">
+          {t('draftSaveFailed')}
+        </p>
+      )}
+      {restoringFiles && (
+        <button
+          type="button"
+          className="mb-2 min-h-11 text-sm text-primary"
+          onClick={() => void useDraftStore.getState().loadFiles(draftKey)}
+        >
+          {t('restoreAttachments')}
+        </button>
+      )}
       {replyTarget && (
         <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-surface-dark px-3 py-1.5 text-xs text-gray-300">
           <span className="text-gray-500">Replying to</span>
           <span className="font-semibold text-white">{replyTarget.authorName}</span>
           <span className="flex-1 truncate text-gray-400">{replyTarget.content || '[attachment]'}</span>
-          <button type="button" onClick={onCancelReply} aria-label={t('cancelReply')} className="text-gray-500 transition hover:text-white">
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label={t('cancelReply')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-gray-500 transition hover:text-white"
+          >
             <XSmallIcon />
           </button>
         </div>
@@ -437,29 +439,20 @@ export function UnifiedInput({
 
       {files.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {files.map((f, i) => (
-            <div key={`${f.file.name}-${i}`} className="relative rounded-lg bg-surface-dark p-1 ring-1 ring-white/10">
-              {f.preview ? (
-                <img src={f.preview} alt={f.file.name} className="h-20 w-20 rounded object-cover" />
+          {files.map((file, i) => (
+            <div key={`${file.name}-${i}`} className="relative rounded-lg bg-surface-dark p-1 ring-1 ring-white/10">
+              {previews[i] ? (
+                <img src={previews[i]} alt={file.name} className="h-20 w-20 rounded object-cover" />
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded text-xs text-gray-400">
-                  {f.file.name.split('.').pop()?.toUpperCase()}
-                </div>
-              )}
-              {f.uploading && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-500 border-t-white" />
-                </div>
-              )}
-              {f.error && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-red-900/50 px-1 text-center text-[10px] text-red-300">
-                  Failed
+                  {file.name.split('.').pop()?.toUpperCase()}
                 </div>
               )}
               <button
                 type="button"
                 onClick={() => removeFile(i)}
-                className="absolute -right-1.5 -top-1.5 rounded-full bg-red-600 p-1 text-white shadow transition hover:bg-red-500"
+                aria-label={t('removeAttachment', { name: file.name })}
+                className="absolute -right-1.5 -top-1.5 flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white shadow transition hover:bg-red-500"
               >
                 <XSmallIcon />
               </button>
@@ -479,7 +472,7 @@ export function UnifiedInput({
             onFilesPicked={(fl) => addFiles(fl)}
             onPaste={handlePaste}
             placeholder={placeholder}
-            disabled={!contextId}
+            disabled={!contextId || saving || restoringFiles}
             hasAttachments={files.length > 0}
             members={mentionMembers.length > 0 ? mentionMembers : undefined}
             channels={mentionChannels}
