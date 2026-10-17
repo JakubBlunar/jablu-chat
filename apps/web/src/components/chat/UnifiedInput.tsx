@@ -21,8 +21,11 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { XSmallIcon } from '@/components/chat/chatIcons'
 import { useComposerPrefillStore } from '@/stores/composer-prefill.store'
 import { composerKey, EMPTY_DRAFT_FILES, useDraftStore } from '@/stores/draft.store'
-import { useOutboxStore } from '@/stores/outbox.store'
+import { OutboxActionError, useOutboxStore } from '@/stores/outbox.store'
 import { OutboxMessages } from './OutboxMessages'
+import { api } from '@/lib/api'
+import { formatBytes } from '@/lib/format-bytes'
+import { findOversizedAttachment } from '@/lib/attachmentLimits'
 
 const EDIT_LOOKBACK = 10
 
@@ -83,6 +86,33 @@ export function UnifiedInput({
   const savingRef = useRef(false)
   const [dragOver, setDragOver] = useState(false)
   const [sizeError, setSizeError] = useState<string | null>(null)
+  const [maxUploadMb, setMaxUploadMb] = useState<number | null>(null)
+  const [limitFailed, setLimitFailed] = useState(false)
+  const [limitAttempt, setLimitAttempt] = useState(0)
+  useEffect(() => {
+    if (!files.length) return
+    let cancelled = false
+    const check = () => {
+      void api.getMaxUploadSizeMb().then(
+        (max) => {
+          if (!cancelled) {
+            setMaxUploadMb(max)
+            setLimitFailed(false)
+          }
+        },
+        (error) => {
+          console.error('Could not check attachment limits', error)
+          if (!cancelled) setLimitFailed(true)
+        }
+      )
+    }
+    check()
+    window.addEventListener('online', check)
+    return () => {
+      cancelled = true
+      window.removeEventListener('online', check)
+    }
+  }, [files.length, draftKey, limitAttempt])
   const lastTypingEmit = useRef(0)
   const previews = useMemo(
     () => files.map((file) => (file.type.startsWith('image/') ? URL.createObjectURL(file) : null)),
@@ -314,6 +344,25 @@ export function UnifiedInput({
     savingRef.current = true
     setSaving(true)
     try {
+      if (files.length) {
+        let max = maxUploadMb
+        if (max === null && navigator.onLine) {
+          try {
+            max = await api.getMaxUploadSizeMb()
+            setMaxUploadMb(max)
+            setLimitFailed(false)
+          } catch (error) {
+            console.error('Could not validate attachments before sending', error)
+            setSizeError(t('attachmentLimitFailed'))
+            return
+          }
+        }
+        const invalid = max === null ? undefined : findOversizedAttachment(files, max)
+        if (invalid) {
+          setSizeError(t('attachmentTooLarge', { name: invalid.name, max }))
+          return
+        }
+      }
       await useOutboxStore.getState().enqueue({
         userId,
         mode,
@@ -322,6 +371,8 @@ export function UnifiedInput({
         files,
         threadParentId,
         replyToId: threadParentId ? undefined : replyTarget?.id,
+        reply: threadParentId ? undefined : (replyTarget ?? undefined),
+        clientMessageId: useDraftStore.getState().drafts[draftKey]?.outboxId,
         targetBotAppId: sendTargetBotAppId
       })
       useDraftStore.getState().update(draftKey, { text: '', reply: null, bot: null, fileCount: 0 })
@@ -336,7 +387,7 @@ export function UnifiedInput({
       onSent?.()
     } catch (error) {
       console.error('Failed to save outgoing message on this device', error)
-      setSizeError(t('outboxStorageFailed'))
+      setSizeError(t(error instanceof OutboxActionError ? error.message : 'outboxStorageFailed'))
     } finally {
       savingRef.current = false
       setSaving(false)
@@ -344,9 +395,15 @@ export function UnifiedInput({
   }
 
   async function addFiles(newFiles: FileList | File[]) {
+    setSizeError(null)
     const next = [...files, ...Array.from(newFiles)]
     if (next.length > 20) {
       setSizeError(t('tooManyAttachments'))
+      return
+    }
+    const invalid = maxUploadMb === null ? undefined : findOversizedAttachment(next, maxUploadMb)
+    if (invalid) {
+      setSizeError(t('attachmentTooLarge', { name: invalid.name, max: maxUploadMb }))
       return
     }
     try {
@@ -357,6 +414,7 @@ export function UnifiedInput({
   }
 
   function removeFile(index: number) {
+    setSizeError(null)
     void useDraftStore
       .getState()
       .setFiles(
@@ -423,7 +481,7 @@ export function UnifiedInput({
       {replyTarget && (
         <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-surface-dark px-3 py-1.5 text-xs text-gray-300">
           <span className="text-gray-500">{t('replyingTo')}</span>
-          <span className="font-semibold text-white">{replyTarget.authorName}</span>
+          <span className="font-semibold text-white">{replyTarget.authorName || t('unknownUser')}</span>
           <span className="flex-1 truncate text-gray-400">{replyTarget.content || t('conversationAttachment')}</span>
           <button
             type="button"
@@ -439,15 +497,41 @@ export function UnifiedInput({
       {sizeError && <div className="mb-2 rounded bg-red-500/15 px-3 py-1.5 text-xs text-red-400">{sizeError}</div>}
 
       {files.length > 0 && (
+        <p className="mb-2 text-xs text-gray-400">
+          {maxUploadMb !== null ? t('attachmentLimit', { max: maxUploadMb }) : t('attachmentLimitPending')}
+          {limitFailed && (
+            <button
+              type="button"
+              className="ml-2 min-h-11 text-primary"
+              onClick={() => setLimitAttempt((attempt) => attempt + 1)}
+            >
+              {t('attachmentCheckAgain')}
+            </button>
+          )}
+        </p>
+      )}
+      {files.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {files.map((file, i) => (
-            <div key={`${file.name}-${i}`} className="relative rounded-lg bg-surface-dark p-1 ring-1 ring-white/10">
+            <div
+              key={`${file.name}-${i}`}
+              className="relative w-32 rounded-lg bg-surface-dark p-1 ring-1 ring-white/10"
+            >
               {previews[i] ? (
                 <img src={previews[i]} alt={file.name} className="h-20 w-20 rounded object-cover" />
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded text-xs text-gray-400">
                   {file.name.split('.').pop()?.toUpperCase()}
                 </div>
+              )}
+              <p className="mt-1 truncate text-xs text-gray-200" title={file.name}>
+                {file.name}
+              </p>
+              <p className="text-xs text-gray-400">{formatBytes(file.size)}</p>
+              {maxUploadMb !== null && file.size > maxUploadMb * 1024 * 1024 && (
+                <p role="alert" className="text-xs text-red-400">
+                  {t('attachmentTooLarge', { name: file.name, max: maxUploadMb })}
+                </p>
               )}
               <button
                 type="button"

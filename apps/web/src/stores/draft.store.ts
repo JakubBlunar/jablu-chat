@@ -9,6 +9,7 @@ import i18next from 'i18next'
 export type ComposerMode = 'channel' | 'dm'
 export type DraftReply = { id: string; content: string | null; authorName: string }
 type Draft = {
+  outboxId?: string
   text: string
   reply: DraftReply | null
   bot: { botAppId: string; commandName: string } | null

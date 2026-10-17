@@ -10,6 +10,8 @@ import { useForumStore } from '@/stores/forum.store'
 import { useOutboxStore, mutateOutbox, type OutboxMessage } from '@/stores/outbox.store'
 import { cacheAddMessage } from '@/lib/cache/contextMutations'
 import { channelKey, dmKey } from '@/lib/cache/messageCache'
+import i18next from 'i18next'
+import { findOversizedAttachment } from '@/lib/attachmentLimits'
 
 type SendAck = { ok?: boolean; message?: Message; error?: string; retryable?: boolean }
 const LEASE_MS = 60_000
@@ -27,8 +29,9 @@ export function startMessageOutbox(socket: Socket, userId: string): () => void {
   let stopped = false
   let running = false
   let timer: ReturnType<typeof setTimeout> | undefined
+  let uploadController: AbortController | undefined
   const store = useOutboxStore
-  store.setState({ userId, items: [], error: null })
+  store.setState({ userId, items: [], error: null, progress: {} })
   const active = () => !stopped && useAuthStore.getState().user?.id === userId && getSocket() === socket
   const schedule = (delay = 0) => {
     if (!active()) return
@@ -99,13 +102,30 @@ export function startMessageOutbox(socket: Socket, userId: string): () => void {
         await refresh()
         if (claimed.files.length) {
           const maxMb = await api.getMaxUploadSizeMb()
-          if (claimed.files.some((file) => file.size > maxMb * 1024 * 1024)) {
-            throw new DeliveryError(`File too large. Max ${maxMb} MB allowed.`, false)
+          const invalid = findOversizedAttachment(claimed.files, maxMb)
+          if (invalid) {
+            throw new DeliveryError(i18next.t('chat:attachmentTooLarge', { name: invalid.name, max: maxMb }), false)
           }
         }
         while (claimed.attachmentIds.length < claimed.files.length) {
           if (!active() || !socket.connected) throw new DeliveryError('Connection lost', true)
-          const attachment = await api.uploadAttachment(claimed.files[claimed.attachmentIds.length])
+          const fileIndex = claimed.attachmentIds.length
+          const file = claimed.files[fileIndex]
+          uploadController = new AbortController()
+          store.setState((state) => ({
+            progress: { ...state.progress, [item.id]: { fileIndex, loaded: 0, total: file.size } }
+          }))
+          const attachment = await api.uploadAttachment(
+            file,
+            (loaded, total) => {
+              if (active())
+                store.setState((state) => ({
+                  progress: { ...state.progress, [item.id]: { fileIndex, loaded, total } }
+                }))
+            },
+            uploadController.signal
+          )
+          uploadController = undefined
           claimed = { ...claimed, attachmentIds: [...claimed.attachmentIds, attachment.id] }
           const uploaded = claimed
           const saved = await mutateOutbox(item.id, (current) => ({
@@ -115,6 +135,11 @@ export function startMessageOutbox(socket: Socket, userId: string): () => void {
           }))
           if (!saved) throw new DeliveryError('Delivery is being handled by another window', true)
         }
+        const fileCount = claimed.files.length
+        if (fileCount && active())
+          store.setState((state) => ({
+            progress: { ...state.progress, [item.id]: { fileIndex: fileCount, loaded: 0, total: 0 } }
+          }))
         if (!active() || !socket.connected) throw new DeliveryError('Connection lost', true)
         const response: SendAck = await socket
           .timeout(10_000)
@@ -166,6 +191,13 @@ export function startMessageOutbox(socket: Socket, userId: string): () => void {
         }))
       } finally {
         clearInterval(renew)
+        uploadController = undefined
+        if (active())
+          store.setState((state) => {
+            const progress = { ...state.progress }
+            delete progress[item.id]
+            return { progress }
+          })
       }
     } catch (error) {
       console.error('Failed to persist message delivery state', error)
@@ -186,12 +218,16 @@ export function startMessageOutbox(socket: Socket, userId: string): () => void {
     if (!document.hidden) schedule()
   }
   socket.on('connect', onChange)
+  const abortUpload = () => uploadController?.abort()
+  socket.on('disconnect', abortUpload)
   window.addEventListener('online', onChange)
   window.addEventListener('jablu-outbox-changed', onChange)
   document.addEventListener('visibilitychange', onVisible)
   schedule()
   return () => {
     stopped = true
+    abortUpload()
+    socket.off('disconnect', abortUpload)
     clearTimeout(timer)
     socket.off('connect', onChange)
     window.removeEventListener('online', onChange)

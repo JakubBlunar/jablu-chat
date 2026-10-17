@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth.store'
-import { useOutboxStore } from '@/stores/outbox.store'
-import type { ComposerMode } from '@/stores/draft.store'
+import { OutboxActionError, useOutboxStore } from '@/stores/outbox.store'
+import { composerKey, useDraftStore, type ComposerMode } from '@/stores/draft.store'
+import { formatBytes } from '@/lib/format-bytes'
+import { useState } from 'react'
 
 export function OutboxMessages({
   mode,
@@ -16,6 +18,9 @@ export function OutboxMessages({
   const userId = useAuthStore((s) => s.user?.id)
   const items = useOutboxStore((s) => s.items)
   const error = useOutboxStore((s) => s.error)
+  const progress = useOutboxStore((s) => s.progress)
+  const editingId = useDraftStore((s) => s.drafts[composerKey(userId ?? '', mode, contextId, threadParentId)]?.outboxId)
+  const [busy, setBusy] = useState<string | null>(null)
   const pending = items.filter(
     (item) =>
       item.userId === userId &&
@@ -28,7 +33,7 @@ export function OutboxMessages({
       await action()
     } catch (error) {
       console.error('Failed to update queued message', error)
-      useOutboxStore.setState({ error: 'outboxStorageFailed' })
+      useOutboxStore.setState({ error: error instanceof OutboxActionError ? error.message : 'outboxStorageFailed' })
     }
   }
   return (
@@ -48,6 +53,33 @@ export function OutboxMessages({
               {item.files.length > 0 && (
                 <p className="truncate text-xs text-gray-400">{item.files.map((file) => file.name).join(', ')}</p>
               )}
+              {item.status === 'sending' && progress[item.id] && (
+                <div className="text-xs text-gray-300">
+                  {progress[item.id].fileIndex < item.files.length ? (
+                    <>
+                      <p>
+                        {t('outboxUploading', { index: progress[item.id].fileIndex + 1, count: item.files.length })} —{' '}
+                        {item.files[progress[item.id].fileIndex]?.name}
+                      </p>
+                      <progress
+                        className="w-full accent-primary"
+                        aria-label={t('outboxUploading', {
+                          index: progress[item.id].fileIndex + 1,
+                          count: item.files.length
+                        })}
+                        value={progress[item.id].loaded}
+                        max={Math.max(1, progress[item.id].total)}
+                      />
+                      <p>
+                        {formatBytes(progress[item.id].loaded)} / {formatBytes(progress[item.id].total)}
+                      </p>
+                    </>
+                  ) : (
+                    <p>{t('outboxConfirming')}</p>
+                  )}
+                </div>
+              )}
+              {editingId === item.id && <p className="text-xs text-primary">{t('outboxEditing')}</p>}
               <div className="flex items-center gap-2">
                 <span
                   role="status"
@@ -58,10 +90,24 @@ export function OutboxMessages({
                 {item.status === 'failed' && (
                   <button
                     type="button"
+                    disabled={editingId === item.id}
                     className="min-h-11 px-2 text-primary"
                     onClick={() => void run(() => useOutboxStore.getState().retry(item.id))}
                   >
                     {t('conversationRetry')}
+                  </button>
+                )}
+                {item.status === 'failed' && editingId !== item.id && (
+                  <button
+                    type="button"
+                    disabled={busy === item.id}
+                    className="min-h-11 px-2 text-primary disabled:opacity-40"
+                    onClick={() => {
+                      setBusy(item.id)
+                      void run(() => useOutboxStore.getState().restore(item.id)).finally(() => setBusy(null))
+                    }}
+                  >
+                    {t('outboxRestore')}
                   </button>
                 )}
                 <button

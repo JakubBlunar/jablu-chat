@@ -334,9 +334,7 @@ export class ApiClient {
     return this.get('/api/activity/detectables')
   }
 
-  resolveSteamApp(
-    appId: string
-  ): Promise<{ name: string; iconUrl: string; headerUrl: string } | null> {
+  resolveSteamApp(appId: string): Promise<{ name: string; iconUrl: string; headerUrl: string } | null> {
     return this.get(`/api/activity/steam/${appId}`)
   }
 
@@ -450,20 +448,30 @@ export class ApiClient {
   private _maxSizeMb: number | null = null
   async getMaxUploadSizeMb(): Promise<number> {
     if (this._maxSizeMb !== null) return this._maxSizeMb
-    try {
-      const cfg = await this.getUploadConfig()
-      this._maxSizeMb = cfg.maxSizeMb
-    } catch {
-      this._maxSizeMb = 50
-    }
+    const cfg = await this.getUploadConfig()
+    const raw: unknown = cfg.maxSizeMb
+    const max = typeof raw === 'string' && raw.trim() ? Number(raw) : raw
+    if (typeof max !== 'number' || !Number.isFinite(max) || max <= 0)
+      throw new Error('Invalid upload size configuration')
+    this._maxSizeMb = max
     return this._maxSizeMb
   }
 
-  async uploadAttachment(file: File): Promise<Attachment> {
-    return this.fetchWithFormData<Attachment>('/api/uploads/attachments', 'file', file)
+  async uploadAttachment(
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+    signal?: AbortSignal
+  ): Promise<Attachment> {
+    return this.fetchWithFormData<Attachment>('/api/uploads/attachments', 'file', file, onProgress, signal)
   }
 
-  private async fetchWithFormData<T>(path: string, fieldName: string, file: File): Promise<T> {
+  private async fetchWithFormData<T>(
+    path: string,
+    fieldName: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+    signal?: AbortSignal
+  ): Promise<T> {
     const formData = new FormData()
     formData.append(fieldName, file)
 
@@ -473,21 +481,53 @@ export class ApiClient {
       headers.Authorization = `Bearer ${accessToken}`
     }
 
-    let res = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      headers,
-      body: formData
-    })
+    const send = (): Promise<Pick<Response, 'ok' | 'status' | 'json'>> => {
+      if (!onProgress) return fetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: formData, signal })
+      return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+          reject(new DOMException('Upload aborted', 'AbortError'))
+          return
+        }
+        const xhr = new XMLHttpRequest()
+        const abort = () => xhr.abort()
+        const cleanup = () => signal?.removeEventListener('abort', abort)
+        xhr.open('POST', `${this.baseUrl}${path}`)
+        xhr.responseType = 'json'
+        for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value)
+        xhr.upload.onprogress = (event) =>
+          onProgress(
+            Math.min(
+              file.size,
+              event.lengthComputable && event.total > 0
+                ? Math.round((event.loaded / event.total) * file.size)
+                : event.loaded
+            ),
+            file.size
+          )
+        xhr.onload = () => {
+          cleanup()
+          resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: async () => xhr.response })
+        }
+        xhr.onerror = () => {
+          cleanup()
+          reject(new TypeError('Upload connection failed'))
+        }
+        xhr.onabort = () => {
+          cleanup()
+          reject(new DOMException('Upload aborted', 'AbortError'))
+        }
+        signal?.addEventListener('abort', abort, { once: true })
+        xhr.send(formData)
+      })
+    }
+    let res = await send()
 
     if (res.status === 401) {
       const refreshed = await this.tryRefreshToken()
       if (refreshed && !(refreshed as unknown as { _networkError?: boolean })._networkError) {
         headers.Authorization = `Bearer ${refreshed.accessToken}`
-        res = await fetch(`${this.baseUrl}${path}`, {
-          method: 'POST',
-          headers,
-          body: formData
-        })
+        if (signal?.aborted) throw new DOMException('Upload aborted', 'AbortError')
+        res = await send()
       } else if (!refreshed) {
         this.onAuthFailure?.()
       }
@@ -527,11 +567,14 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/onboarding`)
   }
 
-  updateOnboardingConfig(serverId: string, data: {
-    enabled?: boolean
-    message?: string | null
-    selfAssignableRoleIds?: string[]
-  }): Promise<OnboardingConfig> {
+  updateOnboardingConfig(
+    serverId: string,
+    data: {
+      enabled?: boolean
+      message?: string | null
+      selfAssignableRoleIds?: string[]
+    }
+  ): Promise<OnboardingConfig> {
     return this.patch(`/api/servers/${serverId}/onboarding`, data)
   }
 
@@ -553,7 +596,9 @@ export class ApiClient {
   }
 
   async getSelfAssignableRoles(serverId: string): Promise<{ id: string; name: string; color: string | null }[]> {
-    const data = await this.get<{ roles: { id: string; name: string; color: string | null }[] }>(`/api/servers/${serverId}/onboarding/wizard`)
+    const data = await this.get<{ roles: { id: string; name: string; color: string | null }[] }>(
+      `/api/servers/${serverId}/onboarding/wizard`
+    )
     return data.roles
   }
 
@@ -641,11 +686,25 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/roles`)
   }
 
-  createRole(serverId: string, data: { name: string; color?: string; permissions?: string }): Promise<import('@chat/shared').Role> {
+  createRole(
+    serverId: string,
+    data: { name: string; color?: string; permissions?: string }
+  ): Promise<import('@chat/shared').Role> {
     return this.post(`/api/servers/${serverId}/roles`, data)
   }
 
-  updateRole(serverId: string, roleId: string, data: { name?: string; color?: string | null; permissions?: string; position?: number; selfAssignable?: boolean; isAdmin?: boolean }): Promise<import('@chat/shared').Role> {
+  updateRole(
+    serverId: string,
+    roleId: string,
+    data: {
+      name?: string
+      color?: string | null
+      permissions?: string
+      position?: number
+      selfAssignable?: boolean
+      isAdmin?: boolean
+    }
+  ): Promise<import('@chat/shared').Role> {
     return this.patch(`/api/servers/${serverId}/roles/${roleId}`, data)
   }
 
@@ -657,11 +716,19 @@ export class ApiClient {
     return this.patch(`/api/servers/${serverId}/roles/reorder`, { roleIds })
   }
 
-  getChannelOverrides(channelId: string): Promise<(import('@chat/shared').ChannelPermissionOverride & { roleName: string })[]> {
+  getChannelOverrides(
+    channelId: string
+  ): Promise<(import('@chat/shared').ChannelPermissionOverride & { roleName: string })[]> {
     return this.get(`/api/channels/${channelId}/overrides`)
   }
 
-  upsertChannelOverride(serverId: string, channelId: string, roleId: string, allow: string, deny: string): Promise<import('@chat/shared').ChannelPermissionOverride> {
+  upsertChannelOverride(
+    serverId: string,
+    channelId: string,
+    roleId: string,
+    allow: string,
+    deny: string
+  ): Promise<import('@chat/shared').ChannelPermissionOverride> {
     return this.put(`/api/servers/${serverId}/channels/${channelId}/overrides/${roleId}`, { allow, deny })
   }
 
@@ -797,7 +864,18 @@ export class ApiClient {
     return this.delete(`/api/webhooks/${webhookId}`)
   }
 
-  updateServer(serverId: string, data: { name?: string; vanityCode?: string | null; welcomeChannelId?: string | null; welcomeMessage?: string | null; afkChannelId?: string | null; afkTimeout?: number; xpEnabled?: boolean }): Promise<unknown> {
+  updateServer(
+    serverId: string,
+    data: {
+      name?: string
+      vanityCode?: string | null
+      welcomeChannelId?: string | null
+      welcomeMessage?: string | null
+      afkChannelId?: string | null
+      afkTimeout?: number
+      xpEnabled?: boolean
+    }
+  ): Promise<unknown> {
     return this.patch(`/api/servers/${serverId}`, data)
   }
 
@@ -813,19 +891,24 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}`)
   }
 
-  getXpLeaderboard(serverId: string, limit?: number): Promise<Array<{
-    rank: number
-    userId: string
-    xp: number
-    level: number
-    user: {
-      id: string
-      username: string
-      displayName: string | null
-      avatarUrl: string | null
-      isBot: boolean
-    }
-  }>> {
+  getXpLeaderboard(
+    serverId: string,
+    limit?: number
+  ): Promise<
+    Array<{
+      rank: number
+      userId: string
+      xp: number
+      level: number
+      user: {
+        id: string
+        username: string
+        displayName: string | null
+        avatarUrl: string | null
+        isBot: boolean
+      }
+    }>
+  > {
     const qs = limit ? `?limit=${limit}` : ''
     return this.get(`/api/servers/${serverId}/xp/leaderboard${qs}`)
   }
@@ -840,7 +923,10 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/xp/me`)
   }
 
-  getMemberXpProgress(serverId: string, userId: string): Promise<{
+  getMemberXpProgress(
+    serverId: string,
+    userId: string
+  ): Promise<{
     xp: number
     level: number
     xpIntoLevel: number
@@ -872,12 +958,7 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/bans/${userId}`)
   }
 
-  timeoutMember(
-    serverId: string,
-    userId: string,
-    duration: number,
-    reason?: string
-  ): Promise<{ mutedUntil: string }> {
+  timeoutMember(serverId: string, userId: string, duration: number, reason?: string): Promise<{ mutedUntil: string }> {
     return this.post(`/api/servers/${serverId}/members/${userId}/timeout`, {
       duration,
       ...(reason ? { reason } : {})
@@ -888,14 +969,16 @@ export class ApiClient {
     return this.request<void>('DELETE', `/api/servers/${serverId}/members/${userId}/timeout`)
   }
 
-  getBans(serverId: string): Promise<Array<{
-    id: string
-    userId: string
-    user: { id: string; username: string; displayName: string | null; avatarUrl: string | null }
-    bannedBy: { id: string; username: string; displayName: string | null }
-    reason: string | null
-    createdAt: string
-  }>> {
+  getBans(serverId: string): Promise<
+    Array<{
+      id: string
+      userId: string
+      user: { id: string; username: string; displayName: string | null; avatarUrl: string | null }
+      bannedBy: { id: string; username: string; displayName: string | null }
+      reason: string | null
+      createdAt: string
+    }>
+  > {
     return this.get(`/api/servers/${serverId}/bans`)
   }
 
@@ -958,7 +1041,11 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/categories`, { name })
   }
 
-  updateCategory(serverId: string, categoryId: string, data: { name?: string; position?: number }): Promise<ChannelCategory> {
+  updateCategory(
+    serverId: string,
+    categoryId: string,
+    data: { name?: string; position?: number }
+  ): Promise<ChannelCategory> {
     return this.patch(`/api/servers/${serverId}/categories/${categoryId}`, data)
   }
 
@@ -986,7 +1073,12 @@ export class ApiClient {
     return this.get(`/api/dm/${id}`)
   }
 
-  getDmAttachments(conversationId: string, kind: 'media' | 'files', page: number, limit = 30): Promise<{
+  getDmAttachments(
+    conversationId: string,
+    kind: 'media' | 'files',
+    page: number,
+    limit = 30
+  ): Promise<{
     items: import('./types').ConversationAttachment[]
     total: number
   }> {
@@ -994,7 +1086,11 @@ export class ApiClient {
     return this.get(`/api/dm/${conversationId}/attachments?${params}`)
   }
 
-  getDmLinks(conversationId: string, page: number, limit = 30): Promise<{ items: import('./types').ConversationLinkMessage[]; total: number }> {
+  getDmLinks(
+    conversationId: string,
+    page: number,
+    limit = 30
+  ): Promise<{ items: import('./types').ConversationLinkMessage[]; total: number }> {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) })
     return this.get(`/api/dm/${conversationId}/links?${params}`)
   }
@@ -1003,7 +1099,10 @@ export class ApiClient {
     return this.patch(`/api/dm/${conversationId}/close`)
   }
 
-  updateDmPreferences(conversationId: string, data: { isFavorite?: boolean; muted?: boolean }): Promise<DmConversation> {
+  updateDmPreferences(
+    conversationId: string,
+    data: { isFavorite?: boolean; muted?: boolean }
+  ): Promise<DmConversation> {
     return this.patch(`/api/dm/${conversationId}/preferences`, data)
   }
 
@@ -1135,22 +1234,26 @@ export class ApiClient {
     return this.post(`/api/servers/${serverId}/events/${eventId}/cancel`)
   }
 
-  toggleEventInterest(
-    serverId: string,
-    eventId: string
-  ): Promise<{ interested: boolean; count: number }> {
+  toggleEventInterest(serverId: string, eventId: string): Promise<{ interested: boolean; count: number }> {
     return this.post(`/api/servers/${serverId}/events/${eventId}/interest`)
   }
 
   getEventInterestedUsers(
     serverId: string,
     eventId: string
-  ): Promise<{ userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]> {
+  ): Promise<
+    { userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]
+  > {
     return this.get(`/api/servers/${serverId}/events/${eventId}/interested`)
   }
 
   // Bot management
-  createBot(data: { username: string; displayName: string; description?: string; public?: boolean }): Promise<BotApplication & { token: string }> {
+  createBot(data: {
+    username: string
+    displayName: string
+    description?: string
+    public?: boolean
+  }): Promise<BotApplication & { token: string }> {
     return this.post('/api/bots', data)
   }
 
@@ -1162,7 +1265,10 @@ export class ApiClient {
     return this.get(`/api/bots/${botId}`)
   }
 
-  updateBot(botId: string, data: { displayName?: string; description?: string; public?: boolean }): Promise<BotApplication> {
+  updateBot(
+    botId: string,
+    data: { displayName?: string; description?: string; public?: boolean }
+  ): Promise<BotApplication> {
     return this.patch(`/api/bots/${botId}`, data)
   }
 
@@ -1174,7 +1280,9 @@ export class ApiClient {
     return this.post(`/api/bots/${botId}/regenerate-token`)
   }
 
-  searchBots(query: string): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null }[]> {
+  searchBots(
+    query: string
+  ): Promise<{ id: string; username: string; displayName: string | null; avatarUrl: string | null }[]> {
     return this.get(`/api/bots/search?q=${encodeURIComponent(query)}`)
   }
 
@@ -1187,12 +1295,14 @@ export class ApiClient {
     return this.delete(`/api/servers/${serverId}/bots/${botUserId}`)
   }
 
-  listServerBots(serverId: string): Promise<{
-    userId: string
-    user: { id: string; username: string; displayName: string | null; avatarUrl: string | null; isBot: boolean }
-    joinedAt: string
-    roles: { id: string; name: string; color: string | null }[]
-  }[]> {
+  listServerBots(serverId: string): Promise<
+    {
+      userId: string
+      user: { id: string; username: string; displayName: string | null; avatarUrl: string | null; isBot: boolean }
+      joinedAt: string
+      roles: { id: string; name: string; color: string | null }[]
+    }[]
+  > {
     return this.get(`/api/servers/${serverId}/bots`)
   }
 

@@ -228,12 +228,46 @@ describe('ApiClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1)
     })
 
-    it('falls back to 50 on error', async () => {
+    it('surfaces a failed limit check and does not cache an invented default', async () => {
       mockFetch.mockResolvedValue(jsonResponse({ message: 'error' }, 500))
+      await expect(client.getMaxUploadSizeMb()).rejects.toThrow('error')
+      mockFetch.mockResolvedValue(jsonResponse({ maxSizeMb: 10 }))
+      expect(await client.getMaxUploadSizeMb()).toBe(10)
+    })
 
-      const result = await client.getMaxUploadSizeMb()
+    it.each([0, -1, null, 'invalid', ''])('rejects an invalid server limit %p', async (maxSizeMb) => {
+      mockFetch.mockResolvedValue(jsonResponse({ maxSizeMb }))
+      await expect(client.getMaxUploadSizeMb()).rejects.toThrow('Invalid upload')
+    })
 
-      expect(result).toBe(50)
+    it('accepts the numeric string returned by deployments using environment configuration', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ maxSizeMb: '50' }))
+      expect(await client.getMaxUploadSizeMb()).toBe(50)
+    })
+  })
+
+  describe('upload progress', () => {
+    afterEach(() => jest.restoreAllMocks())
+    it('reports actual file-byte progress and returns the server attachment', async () => {
+      const xhr = new XMLHttpRequest()
+      jest.spyOn(globalThis, 'XMLHttpRequest').mockImplementation(() => xhr)
+      jest.spyOn(xhr, 'open').mockImplementation(() => {})
+      jest.spyOn(xhr, 'setRequestHeader').mockImplementation(() => {})
+      jest.spyOn(xhr, 'send').mockImplementation(() => {})
+      const progress = jest.fn()
+      const result = client.uploadAttachment(new File(['12345678'], 'test.txt'), progress)
+      xhr.upload.dispatchEvent(new ProgressEvent('progress', { loaded: 50, total: 100, lengthComputable: true }))
+      expect(progress).toHaveBeenCalledWith(4, 8)
+      Object.defineProperties(xhr, { status: { value: 201 }, response: { value: { id: 'attachment' } } })
+      xhr.dispatchEvent(new Event('load'))
+      expect(await result).toEqual({ id: 'attachment' })
+    })
+
+    it('does not start an upload after cancellation', async () => {
+      const signal = AbortSignal.abort()
+      await expect(client.uploadAttachment(new File(['a'], 'a.txt'), jest.fn(), signal)).rejects.toMatchObject({
+        name: 'AbortError'
+      })
     })
   })
 })

@@ -55,6 +55,18 @@ automatically. Stable UUID message IDs prevent duplicate messages when the
 server saved a message but its acknowledgement was lost. Queued messages never
 send under a different signed-in account.
 
+Selected files show their names, sizes and the server's size limit. Oversized
+files are flagged before sending when the limit is known. If no limit is
+available offline, files can still be queued and are checked before upload.
+Uploads show progress for the current file and distinguish uploading from
+waiting for message confirmation.
+
+**Restore to composer** copies a permanently failed message and its files into
+an empty draft without discarding the failed copy. Edit the text or replace a
+file, then Send to replace that failed attempt using the same deduplication ID.
+An existing draft is never intentionally overwritten. Retry is disabled while
+that message is being edited in the current composer.
+
 ## Search
 
 Search starts in the current conversation. Scope controls can widen it to all

@@ -116,12 +116,7 @@ export function CreatePostModal({
   const addFiles = async (newFiles: FileList | File[]) => {
     setSelectingFiles(true)
     try {
-      let maxMb = 50
-      try {
-        maxMb = await api.getMaxUploadSizeMb()
-      } catch {
-        // Fallback to server default if config request fails.
-      }
+      const maxMb = await api.getMaxUploadSizeMb()
       const maxBytes = maxMb * 1024 * 1024
       const arr = Array.from(newFiles)
       const tooLarge = arr.filter((f) => f.size > maxBytes)
@@ -130,13 +125,11 @@ export function CreatePostModal({
         return
       }
       setFiles((prev) => {
-        const next: PendingFile[] = arr
-          .slice(0, Math.max(0, 20 - prev.length))
-          .map((file) => ({
-            file,
-            preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-            uploading: false
-          }))
+        const next: PendingFile[] = arr.slice(0, Math.max(0, 20 - prev.length)).map((file) => ({
+          file,
+          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+          uploading: false
+        }))
         return [...prev, ...next]
       })
     } finally {
@@ -201,7 +194,10 @@ export function CreatePostModal({
         {files.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {files.map((f, i) => (
-              <div key={`${f.file.name}-${i}`} className="relative rounded-md bg-surface-darkest p-1 ring-1 ring-white/10">
+              <div
+                key={`${f.file.name}-${i}`}
+                className="relative rounded-md bg-surface-darkest p-1 ring-1 ring-white/10"
+              >
                 {f.preview ? (
                   <img src={f.preview} alt={f.file.name} className="h-16 w-16 rounded object-cover" />
                 ) : (
