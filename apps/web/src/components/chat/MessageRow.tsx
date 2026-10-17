@@ -1,4 +1,5 @@
 import type { Message } from '@chat/shared'
+import { useTranslation } from 'react-i18next'
 import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { lazyWithRetry } from '@/lib/lazyWithRetry'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -72,6 +73,7 @@ export const MessageRow = memo(function MessageRow({
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
 }) {
+  const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
   const isDm = mode === 'dm'
   const threadDraft = useHasDraft(mode, contextId, message.id)
@@ -79,7 +81,7 @@ export const MessageRow = memo(function MessageRow({
   const isAuthor = message.authorId === userId
   const name = isWebhook
     ? message.webhook!.name
-    : (message.author?.displayName ?? message.author?.username ?? 'Deleted User')
+    : (message.author?.displayName ?? message.author?.username ?? t('deletedUser'))
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
   const storeMembers = useMemberStore((s) => s.members)
   const authorRoleColor = useMemo(() => {
@@ -278,7 +280,7 @@ export const MessageRow = memo(function MessageRow({
           <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
             <ReplyIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} />
             <span className="font-medium text-gray-300">
-              {message.replyTo.author?.displayName ?? message.replyTo.author?.username ?? 'Deleted User'}
+              {message.replyTo.author?.displayName ?? message.replyTo.author?.username ?? t('deletedUser')}
             </span>
             <span className="truncate">{message.replyTo.content || '[attachment]'}</span>
           </div>

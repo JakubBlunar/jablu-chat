@@ -13,8 +13,10 @@ import 'yet-another-react-lightbox/plugins/thumbnails.css'
 import { DownloadIcon } from '@/components/chat/chatIcons'
 import { useMediaDownload } from '@/hooks/useMediaDownload'
 import { buildMessageMediaSlides } from './messageMediaSlides'
+import { useTranslation } from 'react-i18next'
 
 function MediaDownloadButton() {
+  const { t } = useTranslation('common')
   const { currentSlide } = useLightboxState()
   const image = currentSlide?.type === undefined || currentSlide?.type === 'image' ? currentSlide : undefined
   const source = typeof image?.download === 'object' ? image.download : undefined
@@ -29,7 +31,7 @@ function MediaDownloadButton() {
   }
   const { preparing, saving, failed, download } = useMediaDownload(url, filename)
   if (!image) return null
-  const label = preparing ? 'Preparing download' : saving ? 'Saving' : failed ? 'Retry download' : 'Download'
+  const label = t(preparing ? 'preparingDownload' : saving ? 'saving' : failed ? 'retryDownload' : 'download')
   return (
     <IconButton
       label="Download"
@@ -37,7 +39,9 @@ function MediaDownloadButton() {
       title={label}
       icon={DownloadIcon}
       disabled={preparing || saving}
-      onClick={() => { void download() }}
+      onClick={() => {
+        void download()
+      }}
     />
   )
 }
@@ -67,6 +71,7 @@ interface MessageMediaProviderProps {
 }
 
 export function MessageMediaProvider({ attachments, linkPreviews, children }: MessageMediaProviderProps) {
+  const { t } = useTranslation('common')
   const [index, setIndex] = useState(-1)
 
   const { slides, indexByKey } = useMemo(
@@ -94,7 +99,21 @@ export function MessageMediaProvider({ attachments, linkPreviews, children }: Me
         close={() => setIndex(-1)}
         index={index < 0 ? 0 : index}
         slides={slides}
-        plugins={hasMultiple ? [Zoom, Video, Fullscreen, Download, Counter, Thumbnails] : [Zoom, Video, Fullscreen, Download]}
+        labels={{
+          Close: t('close'),
+          Next: t('next'),
+          Previous: t('previous'),
+          Download: t('download'),
+          'Zoom in': t('zoomIn'),
+          'Zoom out': t('zoomOut'),
+          'Enter Fullscreen': t('enterFullscreen'),
+          'Exit Fullscreen': t('exitFullscreen'),
+          'Show thumbnails': t('showThumbnails'),
+          'Hide thumbnails': t('hideThumbnails')
+        }}
+        plugins={
+          hasMultiple ? [Zoom, Video, Fullscreen, Download, Counter, Thumbnails] : [Zoom, Video, Fullscreen, Download]
+        }
         render={{ buttonDownload: () => <MediaDownloadButton /> }}
         carousel={{ finite: !hasMultiple }}
         controller={{ closeOnBackdropClick: true }}

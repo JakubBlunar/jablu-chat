@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { BookmarkIcon } from '@/components/chat/chatIcons'
 import { SavedMessagesList } from '@/components/chat/SavedMessagesList'
 import { useNavigationStore } from '@/stores/navigation.store'
+import { useTranslation } from 'react-i18next'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 
 export function SavedMessagesBell({
   className = '',
@@ -11,6 +14,7 @@ export function SavedMessagesBell({
   className?: string
   size?: 'sm' | 'md' | 'rail'
 }) {
+  const { t } = useTranslation('chat')
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState<{
     left: number
@@ -20,6 +24,8 @@ export function SavedMessagesBell({
   } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open && !!panelPos, () => setOpen(false))
+  useBackGestureClose(open, () => setOpen(false))
 
   // Anchor the dropdown to the button and clamp it within the viewport so it
   // works from the title bar, server rail, or mobile rail alike. Flips upward
@@ -54,10 +60,7 @@ export function SavedMessagesBell({
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
-      if (
-        panelRef.current?.contains(e.target as Node) ||
-        btnRef.current?.contains(e.target as Node)
-      ) {
+      if (panelRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) {
         return
       }
       setOpen(false)
@@ -66,10 +69,7 @@ export function SavedMessagesBell({
     return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
-  const handleJump = (
-    messageId: string,
-    opts: { channelId?: string; serverId?: string; conversationId?: string }
-  ) => {
+  const handleJump = (messageId: string, opts: { channelId?: string; serverId?: string; conversationId?: string }) => {
     setOpen(false)
     if (opts.conversationId) {
       void useNavigationStore.getState().navigateToDm({
@@ -91,6 +91,9 @@ export function SavedMessagesBell({
     createPortal(
       <div
         ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('savedMessagesTitle')}
         className="fixed z-[140] flex w-[min(100vw-16px,384px)] flex-col overflow-hidden rounded-lg border border-white/10 bg-surface-dark shadow-2xl ring-1 ring-black/40"
         style={{
           left: panelPos.left,
@@ -112,8 +115,9 @@ export function SavedMessagesBell({
       <button
         ref={btnRef}
         type="button"
-        aria-label="Saved messages"
-        title="Saved messages"
+        aria-label={t('savedMessagesTitle')}
+        title={t('savedMessagesTitle')}
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`relative flex ${buttonSize} shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white ${className}`}
       >

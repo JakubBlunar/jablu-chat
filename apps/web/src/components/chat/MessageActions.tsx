@@ -30,7 +30,7 @@ import {
   ReplyIcon,
   SmileIcon,
   ThreadIcon,
-  TrashIcon,
+  TrashIcon
 } from '@/components/chat/chatIcons'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
 import { TranslateModal } from '@/components/chat/TranslateModal'
@@ -49,6 +49,7 @@ import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useTranslationStore } from '@/stores/translation.store'
+import { setMessagePinned } from '@/lib/messagePins'
 
 interface MessageActionsProps {
   message: Message
@@ -134,14 +135,10 @@ export function MessageActions({
 
   const shareableUrl = useMemo(() => {
     if (isDm) {
-      return getMessageShareUrl(
-        buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id })
-      )
+      return getMessageShareUrl(buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id }))
     }
     return serverId != null
-      ? getMessageShareUrl(
-          buildMessageJumpPath('channel', { serverId, channelId: contextId, messageId: message.id })
-        )
+      ? getMessageShareUrl(buildMessageJumpPath('channel', { serverId, channelId: contextId, messageId: message.id }))
       : null
   }, [isDm, serverId, contextId, message.id])
 
@@ -191,14 +188,11 @@ export function MessageActions({
   }, [isDm, message.id, message.threadParentId, contextId])
 
   const handlePin = useCallback(() => {
-    if (isDm) {
-      const event = message.pinned ? 'dm:unpin' : 'dm:pin'
-      getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
-    } else {
-      const event = message.pinned ? 'message:unpin' : 'message:pin'
-      getSocket()?.emit(event, { messageId: message.id, channelId: contextId })
-    }
-  }, [isDm, message.id, message.pinned, contextId])
+    void setMessagePinned(mode, contextId, message.id, !message.pinned).catch((error) => {
+      console.error('Failed to update message pin', error)
+      showToast(t('pinnedMessagesTitle'), t('pinActionFailed'))
+    })
+  }, [mode, message.id, message.pinned, contextId, t])
 
   const openEmojiPicker = useCallback(() => {
     if (btnRef.current) {
@@ -276,7 +270,12 @@ export function MessageActions({
       })
     }
     if (message.content) {
-      items.push({ id: 'copy-text', label: t('actionCopyText'), icon: <CopyIcon className="h-4 w-4" />, onClick: handleCopyText })
+      items.push({
+        id: 'copy-text',
+        label: t('actionCopyText'),
+        icon: <CopyIcon className="h-4 w-4" />,
+        onClick: handleCopyText
+      })
     }
     if (message.content && translationLoaded && translationEnabled) {
       items.push({ id: 'translate', label: t('actionTranslate'), icon: <GlobeIcon />, onClick: handleTranslate })
@@ -298,15 +297,35 @@ export function MessageActions({
         id: 'bookmark',
         label: isBookmarked ? t('actionRemoveBookmark') : t('actionSaveMessage'),
         icon: <BookmarkIcon filled={isBookmarked} />,
-        onClick: () => void toggleBookmark(message.id)
+        onClick: () =>
+          void toggleBookmark(message.id).catch((error) => {
+            console.error('Failed to update saved message', error)
+            showToast(t('savedMessagesTitle'), t('bookmarkActionFailed'))
+          })
       })
     }
     if (shareableUrl) {
-      items.push({ id: 'copy-link', label: t('actionCopyMessageLink'), icon: <LinkIcon className="h-4 w-4" />, onClick: copyMessageLink })
-      items.push({ id: 'share', label: t('actionShareMessage'), icon: <ShareIcon />, onClick: () => void shareMessage() })
+      items.push({
+        id: 'copy-link',
+        label: t('actionCopyMessageLink'),
+        icon: <LinkIcon className="h-4 w-4" />,
+        onClick: copyMessageLink
+      })
+      items.push({
+        id: 'share',
+        label: t('actionShareMessage'),
+        icon: <ShareIcon />,
+        onClick: () => void shareMessage()
+      })
     }
     if (canDelete) {
-      items.push({ id: 'delete', label: t('actionDelete'), icon: <TrashIcon />, danger: true, onClick: () => setShowDeleteConfirm(true) })
+      items.push({
+        id: 'delete',
+        label: t('actionDelete'),
+        icon: <TrashIcon />,
+        danger: true,
+        onClick: () => setShowDeleteConfirm(true)
+      })
     }
     return items
   }, [
@@ -353,18 +372,11 @@ export function MessageActions({
         <IconButton label={t('actionReply')} onClick={handleReply}>
           <ReplyIcon />
         </IconButton>
-        <IconButton
-          ref={moreBtnRef}
-          label={t('actionMore')}
-          active={showMenu}
-          onClick={() => setShowMenu((p) => !p)}
-        >
+        <IconButton ref={moreBtnRef} label={t('actionMore')} active={showMenu} onClick={() => setShowMenu((p) => !p)}>
           <MoreIcon />
         </IconButton>
       </div>
-      {showMenu && (
-        <MessageActionsMenu anchorRef={moreBtnRef} items={menuItems} onClose={() => setShowMenu(false)} />
-      )}
+      {showMenu && <MessageActionsMenu anchorRef={moreBtnRef} items={menuItems} onClose={() => setShowMenu(false)} />}
       {showDeleteConfirm && (
         <ConfirmDialog
           title="Delete Message"
@@ -376,43 +388,41 @@ export function MessageActions({
         />
       )}
       {showForwardModal && (
-        <ForwardMessageModal
-          message={message}
-          sourceChannelId={contextId}
-          onClose={() => setShowForwardModal(false)}
-        />
+        <ForwardMessageModal message={message} sourceChannelId={contextId} onClose={() => setShowForwardModal(false)} />
       )}
       {showTranslateModal && <TranslateModal messageId={message.id} onClose={() => setShowTranslateModal(false)} />}
-      {showEmojiPicker && pickerPos && createPortal(
-        <div
-          ref={pickerRef}
-          className="fixed z-[130]"
-          style={{
-            left: pickerPos.left,
-            top: pickerAbove ? undefined : pickerPos.top,
-            bottom: pickerAbove ? window.innerHeight - pickerPos.top : undefined
-          }}
-        >
-          <ErrorBoundary
-            fallback={null}
-            onError={() => {
-              setShowEmojiPicker(false)
-              showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+      {showEmojiPicker &&
+        pickerPos &&
+        createPortal(
+          <div
+            ref={pickerRef}
+            className="fixed z-[130]"
+            style={{
+              left: pickerPos.left,
+              top: pickerAbove ? undefined : pickerPos.top,
+              bottom: pickerAbove ? window.innerHeight - pickerPos.top : undefined
             }}
           >
-            <Suspense fallback={<PickerLoading />}>
-              <EmojiPicker
-                onSelect={handleEmojiSelect}
-                onClose={() => setShowEmojiPicker(false)}
-                customEmojis={isDm ? undefined : customEmojis}
-                reactionMode
-                onCustomSelect={isDm ? undefined : handleCustomReaction}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        </div>,
-        document.body
-      )}
+            <ErrorBoundary
+              fallback={null}
+              onError={() => {
+                setShowEmojiPicker(false)
+                showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+              }}
+            >
+              <Suspense fallback={<PickerLoading />}>
+                <EmojiPicker
+                  onSelect={handleEmojiSelect}
+                  onClose={() => setShowEmojiPicker(false)}
+                  customEmojis={isDm ? undefined : customEmojis}
+                  reactionMode
+                  onCustomSelect={isDm ? undefined : handleCustomReaction}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

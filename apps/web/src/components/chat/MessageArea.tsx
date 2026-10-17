@@ -354,6 +354,8 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
         <PinnedPanel
           messages={pinned.pinnedMessages}
           loading={pinned.pinnedLoading}
+          error={pinned.pinnedError}
+          onRetry={() => void pinned.loadPinned()}
           onClose={() => pinned.setPinnedOpen(false)}
           canUnpin={isDm || isAdminOrOwner}
           channelId={channelId ?? undefined}

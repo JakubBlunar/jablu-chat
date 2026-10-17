@@ -7,6 +7,8 @@ import { IconButton } from '@/components/ui'
 export function PinnedPanel({
   messages,
   loading,
+  error = false,
+  onRetry,
   onClose,
   canUnpin,
   channelId,
@@ -15,6 +17,8 @@ export function PinnedPanel({
 }: {
   messages: Message[]
   loading: boolean
+  error?: boolean
+  onRetry?: () => void
   onClose: () => void
   canUnpin: boolean
   channelId?: string
@@ -36,16 +40,26 @@ export function PinnedPanel({
         </IconButton>
       </div>
       <SimpleBar className="flex-1">
-        <PinnedMessagesList
-          messages={messages}
-          loading={loading}
-          canUnpin={canUnpin}
-          channelId={channelId}
-          conversationId={conversationId}
-          onJump={onJump}
-          emptyLabel={emptyLabel}
-          jumpLabel={t('jumpToMessage')}
-        />
+        {error && (
+          <div role="alert" className="px-3 py-3 text-sm text-red-300">
+            <p>{t('conversationLoadFailed')}</p>
+            <button type="button" onClick={onRetry} disabled={loading} className="min-h-11 text-primary">
+              {tCommon('retry')}
+            </button>
+          </div>
+        )}
+        {(!error || messages.length > 0) && (
+          <PinnedMessagesList
+            messages={messages}
+            loading={loading}
+            canUnpin={canUnpin}
+            channelId={channelId}
+            conversationId={conversationId}
+            onJump={onJump}
+            emptyLabel={emptyLabel}
+            jumpLabel={t('jumpToMessage')}
+          />
+        )}
       </SimpleBar>
     </div>
   )

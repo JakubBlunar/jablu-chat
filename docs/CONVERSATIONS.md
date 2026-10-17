@@ -83,6 +83,12 @@ are not deleted by muting.
 read receipts already shown to other participants. Reopening and reading the
 conversation clears the reminder.
 
+Inbox, saved messages and pinned-message lists distinguish failed loads from
+empty results and keep already loaded entries available when a refresh fails.
+Retry repeats the failed load or mark-as-seen operation. Removing a saved
+message or pin only succeeds after server confirmation; failures are reported
+without intentionally removing the entry.
+
 ## Group management
 
 Any current participant can rename the group, upload/remove its avatar, and add
@@ -121,6 +127,10 @@ A fresh installation selects the first supported device/browser language:
 English, Czech or Slovak, including regional variants. Unsupported preferences
 fall back to English. An existing saved language always takes precedence.
 Change the interface language in **Settings > Appearance**.
+
+Conversation dates, relative day labels, Inbox titles, saved-message controls,
+reply controls and media-viewer actions follow the selected app language,
+including Czech and Slovak plurals.
 
 Installation suggestions recommend the native desktop app on Windows and the
 web app on macOS and mobile devices. macOS Safari's Add to Dock requires macOS

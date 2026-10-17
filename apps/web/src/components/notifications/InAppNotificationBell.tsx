@@ -9,89 +9,70 @@ import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { CountBadge } from '@/components/ui'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { getDmCallUrl, messageNotificationUrl } from '@chat/shared'
+import type { TFunction } from 'i18next'
+import { showToast } from '@/stores/toast.store'
 
-function titleFor(n: InAppNotificationDto, incomingCallTitle: string): string {
+function titleFor(n: InAppNotificationDto, t: TFunction<'nav'>, language: string): string {
   const p = n.payload
+  const author = typeof p.authorName === 'string' ? p.authorName : t('notificationSomeone')
+  const channel = typeof p.channelName === 'string' ? p.channelName : t('notificationChannel')
+  const server = typeof p.serverName === 'string' ? p.serverName : t('notificationServer')
+  const count = typeof p.count === 'number' && p.count > 0 ? p.count : 1
   switch (n.kind) {
-    case 'mention': {
-      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
-      const ch = typeof p.channelName === 'string' ? p.channelName : 'channel'
-      return `${name} mentioned you in #${ch}`
-    }
-    case 'dm_message': {
-      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
-      const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} messages` : 'Direct message'
-      return `${name} — ${c}`
-    }
-    case 'dm_call': {
-      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
-      return `${name} — ${incomingCallTitle}`
-    }
-    case 'thread_reply': {
-      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
-      const ch = typeof p.channelName === 'string' ? p.channelName : 'channel'
-      const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} replies` : 'Thread reply'
-      return `${name} in #${ch} — ${c}`
-    }
-    case 'channel_message': {
-      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
-      const ch = typeof p.channelName === 'string' ? p.channelName : 'channel'
-      const c = typeof p.count === 'number' && p.count > 1 ? `${p.count} new messages` : 'New message'
-      return `${name} in #${ch} — ${c}`
-    }
-    case 'reply': {
-      const name = typeof p.authorName === 'string' ? p.authorName : 'Someone'
-      const ch = typeof p.channelName === 'string' ? p.channelName : 'channel'
-      return `${name} replied to you in #${ch}`
-    }
+    case 'mention':
+      return t('notificationMention', { author, channel })
+    case 'dm_message':
+      return t('notificationDm', { author, count })
+    case 'dm_call':
+      return t('notificationCall', { author })
+    case 'thread_reply':
+      return t('notificationThread', { author, channel, count })
+    case 'channel_message':
+      return t('notificationMessage', { author, channel, count })
+    case 'reply':
+      return t('notificationReply', { author, channel })
     case 'friend_request': {
-      const name = typeof p.requesterName === 'string' ? p.requesterName : 'Someone'
-      return `${name} sent a friend request`
+      const name = typeof p.requesterName === 'string' ? p.requesterName : t('notificationSomeone')
+      return t('notificationFriendRequest', { name })
     }
     case 'friend_accepted': {
-      const name = typeof p.userName === 'string' ? p.userName : 'Someone'
-      return `${name} accepted your friend request`
+      const name = typeof p.userName === 'string' ? p.userName : t('notificationSomeone')
+      return t('notificationFriendAccepted', { name })
     }
     case 'moderation': {
-      const server = typeof p.serverName === 'string' ? p.serverName : 'a server'
       const action = p.action
-      if (action === 'ban') return `You were banned from ${server}`
-      if (action === 'kick') return `You were removed from ${server}`
-      return `You were timed out in ${server}`
+      if (action === 'ban') return t('notificationBanned', { server })
+      if (action === 'kick') return t('notificationKicked', { server })
+      return t('notificationTimeout', { server })
     }
     case 'role_changed': {
-      const server = typeof p.serverName === 'string' ? p.serverName : 'a server'
-      const added = Array.isArray(p.added) ? (p.added as string[]) : []
-      const removed = Array.isArray(p.removed) ? (p.removed as string[]) : []
+      const added = Array.isArray(p.added) ? p.added.filter((name): name is string => typeof name === 'string') : []
+      const removed = Array.isArray(p.removed)
+        ? p.removed.filter((name): name is string => typeof name === 'string')
+        : []
       if (added.length > 0 && removed.length === 0) {
-        return `You were given ${formatList(added)} in ${server}`
+        return t('notificationRolesAdded', { roles: new Intl.ListFormat(language).format(added), server })
       }
       if (removed.length > 0 && added.length === 0) {
-        return `You lost ${formatList(removed)} in ${server}`
+        return t('notificationRolesRemoved', { roles: new Intl.ListFormat(language).format(removed), server })
       }
-      return `Your roles changed in ${server}`
+      return t('notificationRolesChanged', { server })
     }
     case 'level_up': {
-      const server = typeof p.serverName === 'string' ? p.serverName : 'a server'
       const level = typeof p.level === 'number' ? p.level : null
-      return level === null ? `You levelled up in ${server}` : `You reached level ${level} in ${server}`
+      return level === null ? t('notificationLevelUp', { server }) : t('notificationLevel', { server, level })
     }
     case 'server_event': {
-      const name = typeof p.eventName === 'string' ? p.eventName : 'An event'
-      return p.state === 'soon' ? `${name} starts soon` : `${name} is starting now`
+      const name = typeof p.eventName === 'string' ? p.eventName : t('notificationEvent')
+      return t(p.state === 'soon' ? 'notificationEventSoon' : 'notificationEventNow', { name })
     }
     case 'announcement': {
       const title = typeof p.title === 'string' ? p.title : null
-      return title ?? 'Announcement'
+      return title ?? t('notificationAnnouncement')
     }
     default:
-      return 'Notification'
+      return t('notificationGeneric')
   }
-}
-
-function formatList(names: string[]): string {
-  if (names.length === 1) return names[0]!
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
 function snippetFor(n: InAppNotificationDto): string {
@@ -210,6 +191,12 @@ export function InAppNotificationBell({
   const unreadCount = useNotificationCenterStore((s) => s.unreadCount)
   const items = useNotificationCenterStore((s) => s.items)
   const listLoading = useNotificationCenterStore((s) => s.listLoading)
+  const listError = useNotificationCenterStore((s) => s.listError)
+  const unreadError = useNotificationCenterStore((s) => s.unreadError)
+  const actionError = useNotificationCenterStore((s) => s.actionError)
+  const retryAction = useNotificationCenterStore((s) => s.retryAction)
+  const markAllPending = useNotificationCenterStore((s) => s.markAllPending)
+  const pendingIds = useNotificationCenterStore((s) => s.pendingIds)
   const nextCursor = useNotificationCenterStore((s) => s.nextCursor)
   const fetchUnread = useNotificationCenterStore((s) => s.fetchUnread)
   const fetchList = useNotificationCenterStore((s) => s.fetchList)
@@ -217,11 +204,14 @@ export function InAppNotificationBell({
   const markAllRead = useNotificationCenterStore((s) => s.markAllRead)
   const showLoading = useDelayedFlag(listLoading)
   const { navigate } = useAppNavigate()
-  const { t: tVoice } = useTranslation('voice')
-  const { t } = useTranslation('nav')
+  const { t, i18n } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
   useFocusTrap(panelRef, open && !!panelPos, () => setOpen(false))
   useBackGestureClose(open, () => setOpen(false), size === 'navigation')
+
+  useEffect(() => {
+    if (actionError && !open) showToast(t('mobileInbox'), t('inboxActionFailed'))
+  }, [actionError, open, t])
 
   useEffect(() => {
     void fetchUnread()
@@ -355,6 +345,7 @@ export function InAppNotificationBell({
               type="button"
               className="min-h-11 text-xs font-medium text-primary hover:underline"
               onClick={() => void markAllRead()}
+              disabled={markAllPending || pendingIds.length > 0}
             >
               {t('inboxMarkAll')}
             </button>
@@ -369,6 +360,29 @@ export function InAppNotificationBell({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {(listError || unreadError || actionError) && (
+            <div role="alert" className="border-b border-white/10 px-3 py-3 text-sm text-red-300">
+              <p>
+                {t(
+                  actionError ? 'inboxActionFailed' : unreadError && !listError ? 'inboxCountFailed' : 'inboxLoadFailed'
+                )}
+              </p>
+              <button
+                type="button"
+                className="min-h-11 text-primary disabled:opacity-50"
+                disabled={listLoading}
+                onClick={() => {
+                  if (actionError) void retryAction()
+                  else {
+                    void fetchUnread()
+                    void fetchList({ append: listError === 'append' })
+                  }
+                }}
+              >
+                {tCommon('retry')}
+              </button>
+            </div>
+          )}
           {items.length === 0 && showLoading ? (
             <ul aria-hidden>
               {Array.from({ length: 6 }).map((_, i) => (
@@ -380,11 +394,11 @@ export function InAppNotificationBell({
             </ul>
           ) : items.length === 0 && listLoading ? (
             <div className="h-full" />
-          ) : items.length === 0 ? (
+          ) : items.length === 0 && !listError ? (
             <div className="flex h-full items-center justify-center px-3">
               <p className="text-sm text-gray-500">{t('inboxCaughtUp')}</p>
             </div>
-          ) : (
+          ) : items.length > 0 ? (
             <ul>
               {items.map((n) => (
                 <li key={n.id} className="border-b border-white/5 last:border-0">
@@ -399,7 +413,7 @@ export function InAppNotificationBell({
                       {iconFor(n.kind)}
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-sm font-medium text-white">{titleFor(n, tVoice('incomingCall'))}</span>
+                      <span className="text-sm font-medium text-white">{titleFor(n, t, i18n.language)}</span>
                       {snippetFor(n) ? (
                         <span className="line-clamp-2 text-xs text-gray-400">{snippetFor(n)}</span>
                       ) : null}
@@ -408,7 +422,7 @@ export function InAppNotificationBell({
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
           {nextCursor && !listLoading ? (
             <div className="border-t border-white/10 px-2 py-2">
               <button
@@ -420,7 +434,11 @@ export function InAppNotificationBell({
               </button>
             </div>
           ) : null}
-          {listLoading && items.length > 0 ? <p className="py-2 text-center text-xs text-gray-500">Loading…</p> : null}
+          {listLoading && items.length > 0 ? (
+            <p role="status" className="py-2 text-center text-xs text-gray-500">
+              {tCommon('loading')}
+            </p>
+          ) : null}
         </div>
       </div>,
       document.body

@@ -422,9 +422,9 @@ export function UnifiedInput({
       )}
       {replyTarget && (
         <div className="mb-1 flex items-center gap-2 rounded-t-lg bg-surface-dark px-3 py-1.5 text-xs text-gray-300">
-          <span className="text-gray-500">Replying to</span>
+          <span className="text-gray-500">{t('replyingTo')}</span>
           <span className="font-semibold text-white">{replyTarget.authorName}</span>
-          <span className="flex-1 truncate text-gray-400">{replyTarget.content || '[attachment]'}</span>
+          <span className="flex-1 truncate text-gray-400">{replyTarget.content || t('conversationAttachment')}</span>
           <button
             type="button"
             onClick={onCancelReply}

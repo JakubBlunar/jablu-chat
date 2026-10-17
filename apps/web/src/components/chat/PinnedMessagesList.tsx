@@ -1,12 +1,13 @@
 import type { Message } from '@chat/shared'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { LinkPreviewCard } from '@/components/LinkPreviewCard'
 import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
-import { getSocket } from '@/lib/socket'
+import { setMessagePinned } from '@/lib/messagePins'
 import { IconButton, Spinner } from '@/components/ui'
 
 export function PinnedMessagesList({
@@ -30,22 +31,33 @@ export function PinnedMessagesList({
   jumpLabel: string
   className?: string
 }) {
+  const { t } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
+  const [pending, setPending] = useState<string[]>([])
+  const [failedId, setFailedId] = useState<string | null>(null)
   const handleUnpin = useCallback(
-    (messageId: string) => {
-      if (conversationId) {
-        getSocket()?.emit('dm:unpin', { messageId, conversationId })
-      } else if (channelId) {
-        getSocket()?.emit('message:unpin', { messageId, channelId })
+    async (messageId: string) => {
+      const contextId = conversationId ?? channelId
+      if (!contextId) return
+      setPending((ids) => [...ids, messageId])
+      setFailedId(null)
+      try {
+        await setMessagePinned(conversationId ? 'dm' : 'channel', contextId, messageId, false)
+      } catch (error) {
+        console.error('Failed to unpin message', error)
+        setFailedId(messageId)
+      } finally {
+        setPending((ids) => ids.filter((id) => id !== messageId))
       }
     },
     [channelId, conversationId]
   )
 
-  if (loading) {
+  if (loading && messages.length === 0) {
     return (
       <div className={`flex flex-col items-center justify-center gap-2 py-8 ${className}`}>
         <Spinner size="lg" />
-        <p className="text-center text-sm text-gray-400">Loading…</p>
+        <p className="text-center text-sm text-gray-400">{tCommon('loading')}</p>
       </div>
     )
   }
@@ -56,8 +68,21 @@ export function PinnedMessagesList({
 
   return (
     <div className={`divide-y divide-white/5 ${className}`}>
+      {loading && (
+        <p role="status" className="px-3 py-2 text-sm text-gray-400">
+          {tCommon('loading')}
+        </p>
+      )}
+      {failedId && (
+        <div role="alert" className="px-3 py-2 text-sm text-red-300">
+          <p>{t('pinActionFailed')}</p>
+          <button type="button" className="min-h-11 text-primary" onClick={() => void handleUnpin(failedId)}>
+            {tCommon('retry')}
+          </button>
+        </div>
+      )}
       {messages.map((m) => {
-        const name = m.author?.displayName ?? m.author?.username ?? 'Deleted User'
+        const name = m.author?.displayName ?? m.author?.username ?? t('deletedUser')
         const attachments = m.attachments ?? []
         const linkPreviews = m.linkPreviews ?? []
         return (
@@ -95,16 +120,17 @@ export function PinnedMessagesList({
                 </MessageMediaProvider>
 
                 {!m.content && attachments.length === 0 && (
-                  <p className="mt-0.5 text-sm italic text-gray-500">[empty message]</p>
+                  <p className="mt-0.5 text-sm italic text-gray-500">{t('emptyMessage')}</p>
                 )}
               </div>
               {canUnpin && (
                 <IconButton
-                  label="Unpin message"
+                  label={t('actionUnpin')}
+                  disabled={pending.includes(m.id)}
                   variant="danger"
                   size="sm"
                   className="shrink-0 opacity-60 hover:opacity-100"
-                  onClick={() => handleUnpin(m.id)}
+                  onClick={() => void handleUnpin(m.id)}
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path d="M6 18 18 6M6 6l12 12" />

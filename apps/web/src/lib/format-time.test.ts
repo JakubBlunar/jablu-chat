@@ -1,4 +1,14 @@
-import { formatTimeOnly, formatSmartTimestamp, formatDateSeparator, formatFullDateTime, isDifferentDay } from './format-time'
+import {
+  formatTimeOnly,
+  formatSmartTimestamp,
+  formatDateSeparator,
+  formatFullDateTime,
+  isDifferentDay
+} from './format-time'
+import i18n from 'i18next'
+import en from '@/i18n/locales/en/common.json'
+import cs from '@/i18n/locales/cs/common.json'
+import sk from '@/i18n/locales/sk/common.json'
 
 function isoAt(year: number, month: number, day: number, h = 12, m = 0): string {
   return new Date(year, month - 1, day, h, m).toISOString()
@@ -93,6 +103,39 @@ describe('formatFullDateTime', () => {
 describe('isDifferentDay', () => {
   it('returns true for different days', () => {
     expect(isDifferentDay(isoAt(2025, 6, 15), isoAt(2025, 6, 16))).toBe(true)
+  })
+
+  describe('selected app language', () => {
+    beforeAll(async () => {
+      await i18n.init({ lng: 'en', resources: { en: { common: en }, cs: { common: cs }, sk: { common: sk } } })
+    })
+    beforeEach(() => {
+      jest.useFakeTimers()
+      jest.setSystemTime(new Date(2025, 5, 15, 10))
+    })
+    afterEach(async () => {
+      jest.useRealTimers()
+      await i18n.changeLanguage('en')
+    })
+
+    it.each(['cs', 'sk'])('localizes relative days and full dates in %s', async (language) => {
+      await i18n.changeLanguage(language)
+      expect(formatDateSeparator(isoAt(2025, 6, 15))).toBe('Dnes')
+      expect(formatSmartTimestamp(isoAt(2025, 6, 14, 9))).toBe('Včera 09:00')
+      const expected = new Date(2025, 2, 10).toLocaleDateString(language === 'cs' ? 'cs-CZ' : 'sk-SK', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric'
+      })
+      expect(formatDateSeparator(isoAt(2025, 3, 10))).toBe(expected)
+    })
+
+    it('uses the manual app choice instead of navigator.language', async () => {
+      await i18n.changeLanguage('cs')
+      expect(formatDateSeparator(isoAt(2025, 6, 15))).toBe('Dnes')
+      await i18n.changeLanguage('en')
+      expect(formatDateSeparator(isoAt(2025, 6, 15))).toBe('Today')
+    })
   })
 
   it('returns false for same day different times', () => {

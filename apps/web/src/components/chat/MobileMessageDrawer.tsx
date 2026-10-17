@@ -15,6 +15,7 @@ import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useServerStore } from '@/stores/server.store'
 import { useTranslationStore } from '@/stores/translation.store'
 import { showToast } from '@/stores/toast.store'
+import { setMessagePinned } from '@/lib/messagePins'
 import { useThreadStore } from '@/stores/thread.store'
 import { addRecentReaction } from '@/stores/reactions.store'
 import {
@@ -30,7 +31,7 @@ import {
   ShareIcon,
   SmileIcon,
   ThreadIcon,
-  TrashIcon,
+  TrashIcon
 } from '@/components/chat/chatIcons'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👀', '🎉']
@@ -41,15 +42,6 @@ function extractLinks(content: string | null): string[] {
   if (!content) return []
   const matches = content.match(URL_RE)
   return matches ? [...new Set(matches)] : []
-}
-
-function downloadLabel(type: string): string {
-  switch (type) {
-    case 'image': return 'Save Image'
-    case 'gif': return 'Save GIF'
-    case 'video': return 'Save Video'
-    default: return 'Download File'
-  }
 }
 
 interface MobileMessageDrawerProps {
@@ -104,9 +96,7 @@ export function MobileMessageDrawer({
 
   const messageJumpUrl = useMemo(() => {
     if (isDm) {
-      return getMessageShareUrl(
-        buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id })
-      )
+      return getMessageShareUrl(buildMessageJumpPath('dm', { conversationId: contextId, messageId: message.id }))
     }
     if (serverId) {
       return getMessageShareUrl(
@@ -155,14 +145,17 @@ export function MobileMessageDrawer({
     close()
   }, [message.content, close])
 
-  const handleCopyLink = useCallback((url: string) => {
-    try {
-      void navigator.clipboard.writeText(url)
-    } catch {
-      /* clipboard unavailable */
-    }
-    close()
-  }, [close])
+  const handleCopyLink = useCallback(
+    (url: string) => {
+      try {
+        void navigator.clipboard.writeText(url)
+      } catch {
+        /* clipboard unavailable */
+      }
+      close()
+    },
+    [close]
+  )
 
   const handleCopyMessageJumpLink = useCallback(() => {
     if (!messageJumpUrl) return
@@ -209,15 +202,12 @@ export function MobileMessageDrawer({
   }, [defaultTarget, translate, message.id, t, close])
 
   const handlePin = useCallback(() => {
-    if (isDm) {
-      const event = message.pinned ? 'dm:unpin' : 'dm:pin'
-      getSocket()?.emit(event, { messageId: message.id, conversationId: contextId })
-    } else {
-      const event = message.pinned ? 'message:unpin' : 'message:pin'
-      getSocket()?.emit(event, { messageId: message.id, channelId: contextId })
-    }
+    void setMessagePinned(mode, contextId, message.id, !message.pinned).catch((error) => {
+      console.error('Failed to update message pin', error)
+      showToast(t('pinnedMessagesTitle'), t('pinActionFailed'))
+    })
     close()
-  }, [message.id, message.pinned, isDm, contextId, close])
+  }, [message.id, message.pinned, mode, contextId, close, t])
 
   const handleDelete = useCallback(() => {
     if (isDm) {
@@ -231,9 +221,9 @@ export function MobileMessageDrawer({
   if (confirmDelete) {
     return (
       <ConfirmDialog
-        title="Delete Message"
-        description="Are you sure you want to delete this message? This cannot be undone."
-        confirmLabel="Delete"
+        title={t('actionDelete')}
+        description={t('deleteMessageWarning')}
+        confirmLabel={t('actionDelete')}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}
       />
@@ -271,7 +261,10 @@ export function MobileMessageDrawer({
         ))}
         <button
           type="button"
-          onClick={() => { onClose(); onOpenEmojiPicker?.() }}
+          onClick={() => {
+            onClose()
+            onOpenEmojiPicker?.()
+          }}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-light text-gray-400 active:bg-white/10"
           aria-label={t('moreEmojis')}
         >
@@ -282,30 +275,32 @@ export function MobileMessageDrawer({
       <div className="border-t border-white/5" />
 
       <div className="flex flex-col gap-1.5 px-3 pt-3">
-        <SheetBtn icon={<ReplyIcon className="h-5 w-5" />} label="Reply" onClick={handleReply} />
+        <SheetBtn icon={<ReplyIcon className="h-5 w-5" />} label={t('actionReply')} onClick={handleReply} />
         {!isDm && !message.threadParentId && (
           <SheetBtn
             icon={<ThreadIcon className="h-5 w-5" />}
-            label={(message.threadCount ?? 0) > 0 ? 'View Thread' : 'Reply in Thread'}
+            label={t((message.threadCount ?? 0) > 0 ? 'actionViewThread' : 'actionCreateThread')}
             onClick={handleThread}
           />
         )}
         {!isDm && serverId && (
           <SheetBtn
             icon={<ForwardIcon className="h-5 w-5" />}
-            label="Forward to channel"
+            label={t('actionForward')}
             onClick={() => setForwardOpen(true)}
           />
         )}
         {messageJumpUrl && (
-          <SheetBtn icon={<LinkIcon />} label="Copy message link" onClick={handleCopyMessageJumpLink} />
+          <SheetBtn icon={<LinkIcon />} label={t('actionCopyMessageLink')} onClick={handleCopyMessageJumpLink} />
         )}
         {messageJumpUrl && (
-          <SheetBtn icon={<ShareIcon className="h-5 w-5" />} label="Share message" onClick={() => void handleShareMessageJump()} />
+          <SheetBtn
+            icon={<ShareIcon className="h-5 w-5" />}
+            label={t('actionShareMessage')}
+            onClick={() => void handleShareMessageJump()}
+          />
         )}
-        {message.content && (
-          <SheetBtn icon={<CopyIcon />} label="Copy Text" onClick={handleCopy} />
-        )}
+        {message.content && <SheetBtn icon={<CopyIcon />} label={t('actionCopyText')} onClick={handleCopy} />}
         {message.content && translationLoaded && translationEnabled && (
           <SheetBtn icon={<GlobeIcon className="h-5 w-5" />} label={t('actionTranslate')} onClick={handleTranslate} />
         )}
@@ -313,31 +308,32 @@ export function MobileMessageDrawer({
           <SheetBtn
             key={url}
             icon={<LinkIcon />}
-            label="Copy Link"
+            label={t('actionCopyLink')}
             subtitle={url}
             onClick={() => handleCopyLink(url)}
           />
         ))}
         {attachments.map((att) => (
-          <AttachmentDownloadButton
-            key={att.id}
-            attachment={att}
-            onSaved={close}
-          />
+          <AttachmentDownloadButton key={att.id} attachment={att} onSaved={close} />
         ))}
         {isAuthor && onEdit && (
-          <SheetBtn icon={<EditIcon className="h-5 w-5" />} label="Edit Message" onClick={handleEdit} />
+          <SheetBtn icon={<EditIcon className="h-5 w-5" />} label={t('actionEdit')} onClick={handleEdit} />
         )}
         {!hideBookmarkAction && <BookmarkDrawerBtn messageId={message.id} onClose={close} />}
         {!hidePinAction && (isDm || isAdminOrOwner) && (
           <SheetBtn
             icon={<MessagePinIcon className="h-5 w-5" />}
-            label={message.pinned ? 'Unpin Message' : 'Pin Message'}
+            label={t(message.pinned ? 'actionUnpin' : 'actionPin')}
             onClick={handlePin}
           />
         )}
         {canDelete && (
-          <SheetBtn icon={<TrashIcon className="h-5 w-5" />} label="Delete Message" onClick={() => setConfirmDelete(true)} danger />
+          <SheetBtn
+            icon={<TrashIcon className="h-5 w-5" />}
+            label={t('actionDelete')}
+            onClick={() => setConfirmDelete(true)}
+            danger
+          />
         )}
       </div>
     </BottomSheet>
@@ -345,19 +341,25 @@ export function MobileMessageDrawer({
 }
 
 function AttachmentDownloadButton({ attachment, onSaved }: { attachment: Attachment; onSaved: () => void }) {
+  const { t } = useTranslation('common')
   const { preparing, saving, failed, download } = useMediaDownload(attachment.url, attachment.filename)
   return (
     <SheetBtn
       icon={<DownloadIcon />}
-      label={preparing ? 'Preparing download...' : saving ? 'Saving...' : failed ? 'Retry download' : downloadLabel(attachment.type)}
+      label={t(preparing ? 'preparingDownload' : saving ? 'saving' : failed ? 'retryDownload' : 'download')}
       subtitle={attachment.filename}
       disabled={preparing || saving}
-      onClick={() => { void download().then((saved) => { if (saved) onSaved() }) }}
+      onClick={() => {
+        void download().then((saved) => {
+          if (saved) onSaved()
+        })
+      }}
     />
   )
 }
 
 function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const { t } = useTranslation('chat')
   const { isBookmarked, toggleBookmark } = useBookmarkStore(
     useShallow((s) => ({
       isBookmarked: s.bookmarkedIds.has(messageId),
@@ -367,8 +369,14 @@ function BookmarkDrawerBtn({ messageId, onClose }: { messageId: string; onClose:
   return (
     <SheetBtn
       icon={<BookmarkIcon className="h-5 w-5" filled={isBookmarked} />}
-      label={isBookmarked ? 'Remove Bookmark' : 'Save Message'}
-      onClick={() => { void toggleBookmark(messageId); onClose() }}
+      label={t(isBookmarked ? 'actionRemoveBookmark' : 'actionSaveMessage')}
+      onClick={() => {
+        void toggleBookmark(messageId).catch((error) => {
+          console.error('Failed to update saved message', error)
+          showToast(t('savedMessagesTitle'), t('bookmarkActionFailed'))
+        })
+        onClose()
+      }}
     />
   )
 }

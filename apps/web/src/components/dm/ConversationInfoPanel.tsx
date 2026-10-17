@@ -165,14 +165,15 @@ export function ConversationInfoPanel({
           <ConversationLinksList conversationId={conversation.id} onJump={jump} />
         ) : tab === 'pins' ? (
           <SimpleBar className="h-full">
-            {pinned.pinnedError ? (
+            {pinned.pinnedError && (
               <div role="alert" className="px-3 py-8 text-center text-sm text-gray-400">
                 <p>{t('conversationLoadFailed')}</p>
                 <button type="button" onClick={() => void pinned.loadPinned()} className="mt-2 text-primary">
                   {t('conversationRetry')}
                 </button>
               </div>
-            ) : (
+            )}
+            {(!pinned.pinnedError || pinned.pinnedMessages.length > 0) && (
               <PinnedMessagesList
                 messages={pinned.pinnedMessages}
                 loading={pinned.pinnedLoading}
