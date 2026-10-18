@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import SimpleBar from 'simplebar-react'
 import type { InAppNotificationDto } from '@/lib/api/types'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
@@ -359,7 +360,7 @@ export function InAppNotificationBell({
             &times;
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <SimpleBar className="min-h-0 flex-1">
           {(listError || unreadError || actionError) && (
             <div role="alert" className="border-b border-white/10 px-3 py-3 text-sm text-red-300">
               <p>
@@ -439,7 +440,7 @@ export function InAppNotificationBell({
               {tCommon('loading')}
             </p>
           ) : null}
-        </div>
+        </SimpleBar>
       </div>,
       document.body
     )

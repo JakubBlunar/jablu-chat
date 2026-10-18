@@ -1,4 +1,5 @@
-import { renderHook, act, waitFor } from '@testing-library/react'
+import { createElement } from 'react'
+import { render, renderHook, act, fireEvent, waitFor } from '@testing-library/react'
 import { useMessageScroll, type ScrollStoreAdapter } from './useMessageScroll'
 import { makeMessage, makeMessages, resetMsgSeq } from '@/test/factories'
 import type { Message } from '@chat/shared'
@@ -555,6 +556,99 @@ describe('useMessageScroll', () => {
       })
 
       expect(sp.scrollTop).toBe(100)
+    })
+  })
+
+  describe('mobile viewport height changes', () => {
+    const resizeObservers: { callback: ResizeObserverCallback; targets: Set<Element>; observer: ResizeObserver }[] = []
+
+    beforeEach(() => {
+      jest.useFakeTimers()
+      resizeObservers.length = 0
+      jest.spyOn(globalThis, 'ResizeObserver').mockImplementation((callback) => {
+        const targets = new Set<Element>()
+        const observer = {
+          observe: (target: Element) => {
+            targets.add(target)
+          },
+          unobserve: (target: Element) => {
+            targets.delete(target)
+          },
+          disconnect: () => {
+            targets.clear()
+          }
+        }
+        resizeObservers.push({ callback, targets, observer })
+        return observer
+      })
+    })
+
+    afterEach(() => {
+      jest.clearAllTimers()
+      jest.useRealTimers()
+      jest.restoreAllMocks()
+    })
+
+    function mountScrollableHistory() {
+      const viewport = { width: 320, height: 400 }
+      const adapter = makeAdapter({ messages: makeMessages(1), getLoadedForId: () => 'ch-1' })
+      let scroll!: ReturnType<typeof useMessageScroll>
+      function Harness() {
+        scroll = useMessageScroll('ch-1', adapter)
+        return createElement('div', {
+          ref: (element: HTMLDivElement | null) => {
+            scroll.scrollParentRef.current = element
+            if (!element) return
+            Object.defineProperties(element, {
+              clientWidth: { configurable: true, get: () => viewport.width },
+              clientHeight: { configurable: true, get: () => viewport.height },
+              scrollHeight: { configurable: true, value: 1000 }
+            })
+          }
+        })
+      }
+      render(createElement(Harness))
+      act(() => {
+        jest.advanceTimersByTime(1100)
+      })
+      const element = scroll.scrollParentRef.current!
+      element.scrollTop = 600
+      const resize = () => {
+        act(() => {
+          for (const entry of resizeObservers) {
+            if (entry.targets.has(element)) entry.callback([], entry.observer)
+          }
+        })
+      }
+      return { element, viewport, resize, getScroll: () => scroll }
+    }
+
+    it('keeps the last message visible when the bottom navigation returns', () => {
+      const { element, viewport, resize, getScroll } = mountScrollableHistory()
+      viewport.height = 456
+      element.scrollTop = 544
+      resize()
+
+      element.scrollTop = 544
+      viewport.height = 400
+      fireEvent.scroll(element)
+      resize()
+
+      expect(element.scrollTop).toBe(1000)
+      expect(getScroll().atBottom).toBe(true)
+    })
+
+    it('does not jump to the bottom when the user is reading older messages', () => {
+      const { element, viewport, resize, getScroll } = mountScrollableHistory()
+      element.scrollTop = 200
+      fireEvent.scroll(element)
+      expect(getScroll().atBottom).toBe(false)
+
+      viewport.height = 344
+      resize()
+
+      expect(element.scrollTop).toBe(200)
+      expect(getScroll().atBottom).toBe(false)
     })
   })
 

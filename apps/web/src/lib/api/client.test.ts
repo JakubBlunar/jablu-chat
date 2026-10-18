@@ -82,7 +82,8 @@ describe('ApiClient', () => {
       expect(mockFetch).toHaveBeenCalledWith('/api/test', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok123' },
-        body: undefined
+        body: undefined,
+        signal: expect.any(AbortSignal)
       })
       expect(result).toEqual({ data: 'ok' })
     })
@@ -95,7 +96,8 @@ describe('ApiClient', () => {
       expect(mockFetch).toHaveBeenCalledWith('/api/items', {
         method: 'POST',
         headers: expect.any(Object),
-        body: '{"name":"test"}'
+        body: '{"name":"test"}',
+        signal: expect.any(AbortSignal)
       })
     })
 
@@ -109,6 +111,24 @@ describe('ApiClient', () => {
   })
 
   describe('error handling', () => {
+    it('aborts a stalled request and clears its deadline', async () => {
+      jest.useFakeTimers()
+      try {
+        mockFetch.mockImplementationOnce(
+          (_url: string, { signal }: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              signal!.addEventListener('abort', () => reject(signal!.reason), { once: true })
+            })
+        )
+        const result = expect(client.get('/api/stalled')).rejects.toMatchObject({ name: 'TimeoutError' })
+        await jest.advanceTimersByTimeAsync(30_000)
+        await result
+        expect(jest.getTimerCount()).toBe(0)
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
     it('throws ApiError with JSON error body', async () => {
       mockFetch.mockResolvedValue(jsonResponse({ message: 'Not found' }, 404))
 
@@ -164,6 +184,104 @@ describe('ApiClient', () => {
   })
 
   describe('401 retry with token refresh', () => {
+    it('preserves the session on a temporary refresh failure and can recover later', async () => {
+      client.onAuthFailure = jest.fn()
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+        .mockResolvedValueOnce(jsonResponse({ message: 'Temporarily unavailable' }, 503))
+
+      await expect(client.get('/api/protected')).rejects.toMatchObject({ status: 503 })
+      expect(client.onAuthFailure).not.toHaveBeenCalled()
+      expect(mockWriteAuth).not.toHaveBeenCalled()
+
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+        .mockResolvedValueOnce(jsonResponse({ accessToken: 'new-tok', refreshToken: 'new-ref' }))
+        .mockResolvedValueOnce(jsonResponse({ data: 'recovered' }))
+
+      await expect(client.get('/api/protected')).resolves.toEqual({ data: 'recovered' })
+    })
+
+    it('releases a stalled refresh so a later request can recover', async () => {
+      jest.useFakeTimers()
+      try {
+        client.onAuthFailure = jest.fn()
+        mockFetch.mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401)).mockImplementationOnce(
+          (_url: string, { signal }: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              signal!.addEventListener('abort', () => reject(signal!.reason), { once: true })
+            })
+        )
+        const result = expect(client.get('/api/protected')).rejects.toMatchObject({ name: 'TimeoutError' })
+        await jest.advanceTimersByTimeAsync(30_000)
+        await result
+        expect(client.onAuthFailure).not.toHaveBeenCalled()
+        expect(jest.getTimerCount()).toBe(0)
+
+        mockFetch
+          .mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+          .mockResolvedValueOnce(jsonResponse({ accessToken: 'new-tok', refreshToken: 'new-ref' }))
+          .mockResolvedValueOnce(jsonResponse({ data: 'recovered' }))
+        await expect(client.get('/api/protected')).resolves.toEqual({ data: 'recovered' })
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('reuses refreshed credentials when an older request returns a late 401', async () => {
+      let resolveLateResponse!: (response: ReturnType<typeof jsonResponse>) => void
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveLateResponse = resolve
+          })
+      )
+      const lateRequest = client.get('/api/late')
+      mockWriteAuth.mockImplementationOnce((accessToken, refreshToken) => {
+        mockReadAuth.mockReturnValue({ accessToken, refreshToken })
+      })
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+        .mockResolvedValueOnce(jsonResponse({ accessToken: 'new-tok', refreshToken: 'new-ref' }))
+        .mockResolvedValueOnce(jsonResponse({ data: 'first' }))
+        .mockResolvedValueOnce(jsonResponse({ data: 'late' }))
+
+      await expect(client.get('/api/first')).resolves.toEqual({ data: 'first' })
+      resolveLateResponse(jsonResponse({ message: 'Unauthorized' }, 401))
+      await expect(lateRequest).resolves.toEqual({ data: 'late' })
+
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(1)
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        '/api/late',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer new-tok' })
+        })
+      )
+    })
+
+    it('shares a refresh between explicit session recovery and a protected request', async () => {
+      const tokens = { accessToken: 'new-tok', refreshToken: 'new-ref' }
+      let resolveRefresh!: (response: ReturnType<typeof jsonResponse>) => void
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve
+          })
+      )
+      const sessionRefresh = client.refreshToken('ref456')
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))
+        .mockResolvedValue(jsonResponse({ data: 'success' }))
+      const protectedRequest = client.get('/api/protected')
+      await Promise.resolve()
+      resolveRefresh(jsonResponse(tokens))
+
+      await expect(sessionRefresh).resolves.toEqual(tokens)
+      await expect(protectedRequest).resolves.toEqual({ data: 'success' })
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(1)
+      expect(mockWriteAuth).toHaveBeenCalledWith('new-tok', 'new-ref')
+    })
+
     it('refreshes token and retries on 401', async () => {
       mockFetch
         .mockResolvedValueOnce(jsonResponse({ message: 'Unauthorized' }, 401))

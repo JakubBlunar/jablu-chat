@@ -53,40 +53,45 @@ export class ApiClient {
   onAuthFailure: (() => void) | null = null
   onTokenRefresh: ((accessToken: string, refreshToken: string) => void) | null = null
   onApiError: ((error: ApiError) => void) | null = null
-  private refreshPromise: Promise<AuthResponse> | null = null
+  private refreshPromise: { token: string; promise: Promise<AuthResponse> } | null = null
 
   private async tryRefreshToken(): Promise<AuthResponse | null> {
     const { refreshToken } = readPersistedAuth()
     if (!refreshToken) return null
 
-    if (this.refreshPromise) return this.refreshPromise
-
-    this.refreshPromise = (async () => {
-      try {
-        const res = await fetch(`${this.baseUrl}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        })
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) return null as unknown as AuthResponse
-          return { _networkError: true } as unknown as AuthResponse
-        }
-        const data = (await res.json()) as AuthResponse
+    try {
+      const data = await this.refreshToken(refreshToken)
+      if (readPersistedAuth().refreshToken === refreshToken) {
         writePersistedAuth(data.accessToken, data.refreshToken)
         this.onTokenRefresh?.(data.accessToken, data.refreshToken)
-        return data
-      } catch {
-        return { _networkError: true } as unknown as AuthResponse
-      } finally {
-        this.refreshPromise = null
       }
-    })()
-
-    return this.refreshPromise
+      return data
+    } catch (error) {
+      const status = (error as { status?: number }).status
+      if (status === 401 || status === 403) return null
+      throw error
+    }
   }
 
   protected async request<T>(method: string, path: string, body?: unknown, skipRefresh = false): Promise<T> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => {
+      controller.abort(new DOMException('Request timed out', 'TimeoutError'))
+    }, 30_000)
+    try {
+      return await this.requestWithSignal<T>(method, path, body, skipRefresh, controller.signal)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  private async requestWithSignal<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    skipRefresh: boolean,
+    signal: AbortSignal
+  ): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     }
@@ -99,7 +104,8 @@ export class ApiClient {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal
     })
 
     if (
@@ -109,8 +115,12 @@ export class ApiClient {
       !path.includes('/auth/register') &&
       !path.includes('/auth/refresh')
     ) {
+      const currentToken = readPersistedAuth().accessToken
+      if (currentToken && currentToken !== accessToken) {
+        return this.request<T>(method, path, body, true)
+      }
       const refreshed = await this.tryRefreshToken()
-      if (refreshed && !(refreshed as unknown as { _networkError?: boolean })._networkError) {
+      if (refreshed) {
         return this.request<T>(method, path, body, true)
       }
       if (!refreshed) {
@@ -198,9 +208,16 @@ export class ApiClient {
     return this.get<{ mode: string }>('/api/auth/registration-mode')
   }
 
-  refreshToken(token: string): Promise<AuthResponse> {
+  async refreshToken(token: string): Promise<AuthResponse> {
+    if (this.refreshPromise?.token === token) return this.refreshPromise.promise
     const payload: RefreshTokenRequest = { refreshToken: token }
-    return this.post<AuthResponse>('/api/auth/refresh', payload)
+    const promise = this.post<AuthResponse>('/api/auth/refresh', payload)
+    this.refreshPromise = { token, promise }
+    try {
+      return await promise
+    } finally {
+      if (this.refreshPromise?.promise === promise) this.refreshPromise = null
+    }
   }
 
   forgotPassword(email: string): Promise<{ message: string }> {

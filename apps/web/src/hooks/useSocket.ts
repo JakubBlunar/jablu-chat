@@ -67,16 +67,24 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (channelId) {
         socket.emit('channel:join', { channelId })
         const msgStore = useMessageStore.getState()
-        if (msgStore.loadedForChannelId === channelId && !msgStore.hasNewer) {
-          msgStore.fetchNewerMessages(channelId).catch(() => {})
+        if (!msgStore.isLoading && !msgStore.hasNewer) {
+          if (msgStore.loadedForChannelId !== channelId || !msgStore.messages.length) {
+            msgStore.fetchMessages(channelId).catch(() => {})
+          } else {
+            msgStore.fetchNewerMessages(channelId).catch(() => {})
+          }
         }
       }
       const convId = useDmStore.getState().currentConversationId
       if (convId) {
         socket.emit('dm:join', { conversationId: convId })
         const dmStore = useDmStore.getState()
-        if (dmStore.loadedForConvId === convId && !dmStore.hasNewer) {
-          dmStore.fetchNewerMessages(convId).catch(() => {})
+        if (!dmStore.isLoading && !dmStore.hasNewer) {
+          if (dmStore.loadedForConvId !== convId || !dmStore.messages.length) {
+            dmStore.fetchMessages(convId).catch(() => {})
+          } else {
+            dmStore.fetchNewerMessages(convId).catch(() => {})
+          }
         }
       }
 

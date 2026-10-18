@@ -229,6 +229,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
 
   const atBottomRef = useRef(true)
   atBottomRef.current = atBottom
+  const viewportHeightRef = useRef<number | null>(null)
 
   const FORCE_BOTTOM_WINDOW_MS = 1000
   const forceBottomUntilRef = useRef(0)
@@ -640,21 +641,31 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     if (!sp) return
 
     let prevWidth = sp.clientWidth
+    viewportHeightRef.current = sp.clientHeight
     let rafId: number
 
     const ro = new ResizeObserver(() => {
       const w = sp.clientWidth
-      if (w === prevWidth) return
+      const height = sp.clientHeight
+      const widthChanged = w !== prevWidth
+      const heightChanged = height !== viewportHeightRef.current
+      if (!widthChanged && !heightChanged) return
       prevWidth = w
+      viewportHeightRef.current = height
 
       if (atBottomRef.current) {
         cancelAnimationFrame(rafId)
-        rafId = requestAnimationFrame(() => {
+        if (heightChanged) {
           sp.scrollTop = sp.scrollHeight
-        })
+        } else {
+          rafId = requestAnimationFrame(() => {
+            sp.scrollTop = sp.scrollHeight
+          })
+        }
         return
       }
 
+      if (!widthChanged) return
       const id = anchorMsgRef.current
       if (!id) return
       cancelAnimationFrame(rafId)
@@ -678,7 +689,10 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     const AT_BOTTOM_THRESHOLD = 30
 
     const check = () => {
-      setAtBottom(sp.scrollHeight - sp.scrollTop - sp.clientHeight < AT_BOTTOM_THRESHOLD)
+      if (viewportHeightRef.current !== null && sp.clientHeight !== viewportHeightRef.current) return
+      const isAtBottom = sp.scrollHeight - sp.scrollTop - sp.clientHeight < AT_BOTTOM_THRESHOLD
+      atBottomRef.current = isAtBottom
+      setAtBottom(isAtBottom)
     }
 
     sp.addEventListener('scroll', check, { passive: true })

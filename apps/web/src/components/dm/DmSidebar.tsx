@@ -18,13 +18,13 @@ import { GroupDmModal } from './GroupDmModal'
 import { ConversationPreview } from './ConversationPreview'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
-import { PANEL_LIMITS, useSettingsStore } from '@/stores/settings.store'
+import { CHANNEL_SIDEBAR_MIN, CHANNEL_SIDEBAR_MAX, useSettingsStore } from '@/stores/settings.store'
 
 export function DmSidebar() {
   const { t } = useTranslation('nav')
   const { t: tChat } = useTranslation('chat')
-  const width = useSettingsStore((s) => s.panelWidths.dm)
-  const setWidth = useSettingsStore((s) => s.setPanelWidth)
+  const width = useSettingsStore((s) => s.channelSidebarWidth)
+  const setWidth = useSettingsStore((s) => s.setChannelSidebarWidth)
   const user = useAuthStore((s) => s.user)
   const { conversations, currentConvId, fetchConversations, closeConversation, isLoading } = useDmStore(
     useShallow((s) => ({
@@ -122,11 +122,11 @@ export function DmSidebar() {
       <PanelResizeHandle
         label={t('resizeDmSidebar')}
         value={width}
-        min={PANEL_LIMITS.dm.min}
-        max={PANEL_LIMITS.dm.max}
+        min={CHANNEL_SIDEBAR_MIN}
+        max={CHANNEL_SIDEBAR_MAX}
         edge="right"
-        onChange={(value) => setWidth('dm', value)}
-        onReset={() => setWidth('dm', PANEL_LIMITS.dm.default)}
+        onChange={setWidth}
+        onReset={() => setWidth(256)}
       />
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
         <span className="text-[15px] font-semibold text-white">{t('directMessages')}</span>
