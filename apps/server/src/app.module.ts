@@ -33,6 +33,7 @@ import { InAppNotificationsModule } from './in-app-notifications/in-app-notifica
 import { NotificationsModule } from './notifications/notifications.module'
 import { XpModule } from './xp/xp.module'
 import { ActivityModule } from './activity/activity.module'
+import { InboxModule } from './inbox/inbox.module'
 
 @Module({
   imports: [
@@ -79,7 +80,8 @@ import { ActivityModule } from './activity/activity.module'
     InAppNotificationsModule,
     NotificationsModule,
     XpModule,
-    ActivityModule
+    ActivityModule,
+    InboxModule
   ]
 })
 export class AppModule {}

@@ -198,7 +198,9 @@ describe('ReadStateService', () => {
 
       await service.ackServer(userId, serverId)
 
-      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(2)
+      expect(prisma.$executeRaw.mock.calls[1][0].join('?')).toContain('INSERT INTO inbox_thread_read_states')
+      expect(prisma.$executeRaw.mock.calls[1]).toContainEqual(['ch-1', 'ch-2'])
       expect(prisma.channelReadState.upsert).not.toHaveBeenCalled()
     })
 

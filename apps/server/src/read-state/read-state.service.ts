@@ -124,16 +124,33 @@ export class ReadStateService {
       ON CONFLICT (user_id, channel_id) DO UPDATE
         SET last_read_at = EXCLUDED.last_read_at, mention_count = 0
     `
+    await this.ackThreads(userId, visibleIds, now)
     await this.inApp.markServerChannelsRead(userId, visibleIds).catch(() => {})
   }
 
   async ackChannel(userId: string, channelId: string) {
+    const now = new Date()
     await this.prisma.channelReadState.upsert({
       where: { userId_channelId: { userId, channelId } },
-      update: { lastReadAt: new Date(), mentionCount: 0 },
-      create: { userId, channelId, lastReadAt: new Date(), mentionCount: 0 }
+      update: { lastReadAt: now, mentionCount: 0 },
+      create: { userId, channelId, lastReadAt: now, mentionCount: 0 }
     })
+    await this.ackThreads(userId, [channelId], now)
     await this.inApp.markChannelRead(userId, channelId).catch(() => {})
+  }
+
+  private async ackThreads(userId: string, channelIds: string[], at: Date) {
+    await this.prisma.$executeRaw`
+      INSERT INTO inbox_thread_read_states (user_id, thread_parent_id, last_read_at)
+      SELECT ${userId}, m.id, ${at} FROM messages m
+      WHERE m.channel_id = ANY(${channelIds}::text[])
+        AND m.thread_parent_id IS NULL AND EXISTS (
+          SELECT 1 FROM messages reply WHERE reply.thread_parent_id = m.id
+        )
+      ORDER BY m.id
+      ON CONFLICT (user_id, thread_parent_id) DO UPDATE
+        SET last_read_at = GREATEST(inbox_thread_read_states.last_read_at, EXCLUDED.last_read_at)
+    `
   }
 
   async ackDm(userId: string, conversationId: string) {
