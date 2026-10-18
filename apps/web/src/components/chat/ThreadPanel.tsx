@@ -14,6 +14,7 @@ import { useThreadStore } from '@/stores/thread.store'
 import { useDraftReply } from '@/stores/draft.store'
 import { useThreadSurfaceAdapter } from '@/hooks/useThreadSurfaceAdapter'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
+import { useInboxAnchor } from '@/hooks/useInboxAnchor'
 import { IconButton, Spinner } from '@/components/ui'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 
@@ -29,13 +30,25 @@ export function ThreadPanel({
   onCommand?: (cmd: string, args?: string) => boolean | void
 }) {
   const { t } = useTranslation('chat')
-  const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore(useShallow((s) => ({
-    isOpen: s.isOpen, parentMessage: s.parentMessage, channelId: s.channelId,
-    closeThread: s.closeThread, reconcileToLatest: s.reconcileToLatest
-  })))
+  const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore(
+    useShallow((s) => ({
+      isOpen: s.isOpen,
+      parentMessage: s.parentMessage,
+      channelId: s.channelId,
+      closeThread: s.closeThread,
+      reconcileToLatest: s.reconcileToLatest
+    }))
+  )
   const adapter = useThreadSurfaceAdapter()
   const contextId = isOpen && parentMessage ? parentMessage.id : null
   const scroll = useMessageScroll(contextId, adapter)
+  useInboxAnchor(
+    'channel',
+    channelId,
+    contextId,
+    scroll.scrollParentRef,
+    !adapter.isLoading && !scroll.settling && !adapter.scrollToMessageId
+  )
 
   const [replyTarget, setReplyTarget] = useDraftReply('channel', channelId, parentMessage?.id)
 

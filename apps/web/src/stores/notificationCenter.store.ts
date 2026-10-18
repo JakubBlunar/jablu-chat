@@ -23,7 +23,11 @@ type State = {
   /** Set by the bell so socket bumps know whether the list is on screen. */
   setPanelOpen: (open: boolean) => void
   panelOpen: boolean
+  reset: () => void
 }
+
+let epoch = 0
+let unreadRequest = 0
 
 export const useNotificationCenterStore = create<State>((set, get) => ({
   unreadCount: 0,
@@ -44,21 +48,25 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
   markAllPending: false,
 
   fetchUnread: async () => {
+    const generation = epoch
+    const request = ++unreadRequest
     set({ loading: true })
     try {
       const { count } = await api.getInAppNotificationUnreadCount()
+      if (generation !== epoch || request !== unreadRequest) return
       set({ unreadCount: count, unreadError: false })
     } catch (error) {
       console.error('Failed to refresh notification count', error)
-      set({ unreadError: true })
+      if (generation === epoch && request === unreadRequest) set({ unreadError: true })
     } finally {
-      set({ loading: false })
+      if (generation === epoch && request === unreadRequest) set({ loading: false })
     }
   },
 
   fetchList: async (opts) => {
     if (get().listLoading) return
     const append = opts?.append ?? false
+    const generation = epoch
     set({ listLoading: true, listError: null })
     try {
       const cursor = append ? get().nextCursor : undefined
@@ -66,6 +74,7 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
         limit: 30,
         ...(cursor ? { cursor } : {})
       })
+      if (generation !== epoch) return
       set({
         items: append
           ? [...get().items, ...items.filter((item) => !get().items.some((old) => old.id === item.id))]
@@ -75,9 +84,9 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
       await get().fetchUnread()
     } catch (error) {
       console.error('Failed to load notifications', error)
-      set({ listError: append ? 'append' : 'initial' })
+      if (generation === epoch) set({ listError: append ? 'append' : 'initial' })
     } finally {
-      set({ listLoading: false })
+      if (generation === epoch) set({ listLoading: false })
     }
   },
 
@@ -85,36 +94,42 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
     if (get().pendingIds.includes(id) || get().markAllPending) return
     set((s) => ({ pendingIds: [...s.pendingIds, id], actionError: false, failedAction: null }))
     const wasUnread = get().items.some((it) => it.id === id && !it.readAt)
+    const generation = epoch
     try {
       await api.markInAppNotificationRead(id)
+      if (generation !== epoch) return
       set((s) => ({
         items: s.items.map((it) => (it.id === id ? { ...it, readAt: new Date().toISOString() } : it)),
         unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount
       }))
     } catch (error) {
       console.error('Failed to mark notification read', error)
+      if (generation !== epoch) return
       set({ actionError: true, failedAction: id })
       await get().fetchUnread()
     } finally {
-      set((s) => ({ pendingIds: s.pendingIds.filter((pending) => pending !== id) }))
+      if (generation === epoch) set((s) => ({ pendingIds: s.pendingIds.filter((pending) => pending !== id) }))
     }
   },
 
   markAllRead: async () => {
     if (get().markAllPending || get().pendingIds.length) return
     set({ markAllPending: true, actionError: false, failedAction: null })
+    const generation = epoch
     try {
       await api.markAllInAppNotificationsRead()
+      if (generation !== epoch) return
       set((s) => ({
         unreadCount: 0,
         items: s.items.map((it) => ({ ...it, readAt: it.readAt ?? new Date().toISOString() }))
       }))
     } catch (error) {
       console.error('Failed to mark all notifications read', error)
+      if (generation !== epoch) return
       set({ actionError: true, failedAction: 'all' })
       await get().fetchUnread()
     } finally {
-      set({ markAllPending: false })
+      if (generation === epoch) set({ markAllPending: false })
     }
   },
 
@@ -129,5 +144,10 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
   },
 
   panelOpen: false,
-  setPanelOpen: (open) => set({ panelOpen: open })
+  setPanelOpen: (open) => set({ panelOpen: open }),
+  reset: () => {
+    epoch++
+    unreadRequest++
+    set(useNotificationCenterStore.getInitialState())
+  }
 }))

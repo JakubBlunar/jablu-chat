@@ -13,6 +13,10 @@ import type {
   ForumTag,
   GameDetectable,
   Invite,
+  InboxPage,
+  InboxSessionResult,
+  InboxTarget,
+  InboxView,
   LoginRequest,
   Message,
   Poll,
@@ -1331,6 +1335,40 @@ export class ApiClient {
 
   getBotUserCommands(botUserId: string): Promise<BotCommandWithBot[]> {
     return this.get(`/api/bots/user/${botUserId}/commands`)
+  }
+
+  getInbox(view: InboxView, cursor?: string): Promise<InboxPage> {
+    const query = new URLSearchParams({ view, limit: '30' })
+    if (cursor) query.set('cursor', cursor)
+    return this.get(`/api/inbox?${query}`)
+  }
+
+  getInboxSession(): Promise<InboxSessionResult> {
+    return this.get('/api/inbox/session')
+  }
+
+  startInboxSession(view: InboxView, replace = false): Promise<InboxSessionResult> {
+    return this.post('/api/inbox/session', { view, replace })
+  }
+
+  saveInboxAnchor(id: string, revision: number, target: InboxTarget): Promise<InboxSessionResult> {
+    return this.request('PUT', '/api/inbox/session/anchor', { id, revision, target })
+  }
+
+  advanceInboxSession(id: string, revision: number, action: 'done' | 'later' | 'skip'): Promise<InboxSessionResult> {
+    return this.post('/api/inbox/session/advance', { id, revision, action })
+  }
+
+  saveInboxLater(target: InboxTarget): Promise<{ ok: true }> {
+    return this.request('PUT', '/api/inbox/later', { target })
+  }
+
+  removeInboxLater(target: InboxTarget): Promise<{ ok: true }> {
+    return this.request('DELETE', '/api/inbox/later', { target })
+  }
+
+  markInboxRead(target: InboxTarget, throughAt: string): Promise<{ ok: true }> {
+    return this.post('/api/inbox/read', { target, throughAt })
   }
 
   getInAppNotifications(params?: { limit?: number; cursor?: string }): Promise<{

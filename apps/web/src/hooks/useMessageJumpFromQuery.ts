@@ -13,6 +13,7 @@ import { useForumReplyStore } from '@/stores/forumReply.store'
 import { showToast } from '@/stores/toast.store'
 import { useTranslation } from 'react-i18next'
 import { historyErrorKey } from '@/lib/messageHistory'
+import { useInboxStore } from '@/stores/inbox.store'
 
 /**
  * Reads `?m=<messageId>` on channel or DM routes and scrolls to that message, then strips the param.
@@ -103,6 +104,9 @@ export function useMessageJumpFromQuery() {
         }
       }
       if (cancelled) return
+      const contextId = isDmRoute ? conversationId : channelId
+      if (contextId)
+        useInboxStore.getState().confirmNavigation(isDmRoute ? 'dm' : 'channel', contextId, jumpId, threadId)
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev)

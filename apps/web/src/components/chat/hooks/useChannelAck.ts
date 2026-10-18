@@ -2,11 +2,16 @@ import { useEffect, type RefObject } from 'react'
 import { isAppFocused, subscribeAppVisibility } from '@/lib/appVisibility'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { inboxPausesRead, useInboxStore } from '@/stores/inbox.store'
 
 export function useChannelAck(
   mode: 'channel' | 'dm',
   contextId: string | null,
-  { ready, atBottom, scrollParentRef }: {
+  {
+    ready,
+    atBottom,
+    scrollParentRef
+  }: {
     ready: boolean
     atBottom: boolean
     scrollParentRef: RefObject<HTMLDivElement | null>
@@ -14,6 +19,9 @@ export function useChannelAck(
 ): void {
   const readState = useReadStateStore((s) =>
     contextId ? (mode === 'channel' ? s.channels : s.dms).get(contextId) : undefined
+  )
+  const inboxPaused = useInboxStore(
+    (s) => s.open || (s.reader?.target.mode === mode && s.reader.target.contextId === contextId)
   )
 
   useEffect(() => {
@@ -37,13 +45,18 @@ export function useChannelAck(
   }, [mode, contextId])
 
   useEffect(() => {
-    if (!contextId || !ready || !atBottom) return
+    if (!contextId || !ready || !atBottom || inboxPaused) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const canRead = () => {
       const el = scrollParentRef.current
-      return isAppFocused() && !useVoiceConnectionStore.getState().viewingVoiceRoom &&
+      return (
+        isAppFocused() &&
+        !inboxPausesRead(mode, contextId) &&
+        !useVoiceConnectionStore.getState().viewingVoiceRoom &&
         !(mode === 'dm' && useReadStateStore.getState().pausedDmAcks.has(contextId)) &&
-        !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 30
+        !!el &&
+        el.scrollHeight - el.scrollTop - el.clientHeight < 30
+      )
     }
     const schedule = () => {
       clearTimeout(timer)
@@ -60,5 +73,5 @@ export function useChannelAck(
       clearTimeout(timer)
       unsubscribe()
     }
-  }, [mode, contextId, readState, ready, atBottom, scrollParentRef])
+  }, [mode, contextId, readState, ready, atBottom, scrollParentRef, inboxPaused])
 }

@@ -7,6 +7,7 @@ import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MessageSurface } from '@/components/chat/MessageSurface'
 import { useProfileCard } from '@/components/chat/hooks/useProfileCard'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
+import { useInboxAnchor } from '@/hooks/useInboxAnchor'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { UserAvatar } from '@/components/UserAvatar'
 import { MarkdownContent } from '@/components/MarkdownContent'
@@ -56,6 +57,13 @@ export function ForumPostPanel({
 
   const adapter = useForumSurfaceAdapter(channelId)
   const scroll = useMessageScroll(currentPostId, adapter)
+  useInboxAnchor(
+    'channel',
+    channelId,
+    currentPostId,
+    scroll.scrollParentRef,
+    !adapter.isLoading && !scroll.settling && !adapter.scrollToMessageId
+  )
 
   const [replyTarget, setReplyTarget] = useDraftReply('channel', channelId, currentPostId)
 

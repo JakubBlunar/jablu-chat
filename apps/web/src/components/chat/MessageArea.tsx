@@ -35,6 +35,8 @@ import { useDraftReply } from '@/stores/draft.store'
 
 import { useChannelAck } from '@/components/chat/hooks/useChannelAck'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
+import { useInboxAnchor } from '@/hooks/useInboxAnchor'
+import { useInboxStore } from '@/stores/inbox.store'
 import { useProfileCard } from '@/components/chat/hooks/useProfileCard'
 import { usePinnedMessages } from '@/components/chat/hooks/usePinnedMessages'
 import { useTypingIndicators, formatTyping } from '@/components/chat/hooks/useTypingIndicators'
@@ -90,13 +92,21 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   )
   const store = useMessageStoreAdapter(mode, contextId)
   const { messages, isLoading, hasMore, hasNewer } = store
-  const dmMessagesError = useDmStore((s) => isDm ? s.messagesError : null)
-  const channelMessagesError = useMessageStore((s) => isDm ? null : s.messagesError)
+  const dmMessagesError = useDmStore((s) => (isDm ? s.messagesError : null))
+  const channelMessagesError = useMessageStore((s) => (isDm ? null : s.messagesError))
   const messagesError = isDm ? dmMessagesError : channelMessagesError
 
   const userId = useAuthStore((s) => s.user?.id)
 
   const scroll = useMessageScroll(contextId, store)
+  useInboxAnchor(
+    mode,
+    contextId,
+    null,
+    scroll.scrollParentRef,
+    !isLoading && !scroll.settling && !store.scrollToMessageId && !messagesError
+  )
+  const catchupReader = useInboxStore((s) => s.reader?.target.mode === mode && s.reader.target.contextId === contextId)
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
   useChannelAck(mode, contextId, {
     ready:
@@ -127,6 +137,10 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const handleMarkAsRead = useCallback(() => {
     if (!contextId) return
+    if (catchupReader) {
+      useInboxStore.getState().show()
+      return
+    }
     const rs = useReadStateStore.getState()
     if (isDm) {
       void rs.ackDm(contextId)
@@ -134,7 +148,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       void rs.ackChannel(contextId)
     }
     scroll.stickToBottom()
-  }, [isDm, contextId, scroll])
+  }, [isDm, contextId, scroll, catchupReader])
 
   const dm = useDmContext(isDm, userId)
   const { cardUser, cardRect, closeCard, handleUserClick, handleMentionClick } = useProfileCard(isDm, dm.currentConv)
@@ -163,10 +177,12 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const channelPerms = useChannelPermissionsStore((s) => (contextId ? (s.permissionsMap[contextId] ?? null) : null))
   const canSend = isDm || channelPerms === null ? true : hasPermFlag(channelPerms, SharedPermission.SEND_MESSAGES)
 
-  const { mutedUntil, mutedReason, mutedById } = useMemberStore(useShallow((s) => {
-    const member = isDm ? undefined : s.members.find((m) => m.userId === userId && m.serverId === currentServerId)
-    return { mutedUntil: member?.mutedUntil, mutedReason: member?.mutedReason, mutedById: member?.mutedById }
-  }))
+  const { mutedUntil, mutedReason, mutedById } = useMemberStore(
+    useShallow((s) => {
+      const member = isDm ? undefined : s.members.find((m) => m.userId === userId && m.serverId === currentServerId)
+      return { mutedUntil: member?.mutedUntil, mutedReason: member?.mutedReason, mutedById: member?.mutedById }
+    })
+  )
   const isMuted = !!mutedUntil && new Date(mutedUntil) > new Date()
 
   const [searchOpen, setSearchOpen] = useState(false)
@@ -372,7 +388,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
         unreadCount={unreadSnapshot?.unreadCount ?? 0}
         unreadSince={unreadSnapshot?.lastReadAt ?? null}
         onJumpToUnread={handleJumpToUnread}
-        onMarkAsRead={handleMarkAsRead}
+        onMarkAsRead={catchupReader ? undefined : handleMarkAsRead}
       />
 
       <div aria-live="polite" aria-atomic="true" className="px-4 py-1 text-xs text-gray-400">

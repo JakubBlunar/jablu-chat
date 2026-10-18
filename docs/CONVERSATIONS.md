@@ -51,6 +51,39 @@ date, source-message ID and available preview titles/descriptions.
 Counts include messages containing HTTP(S) URL candidates. Malformed links are
 not clickable; the entry explains the issue and still lets you open its source.
 
+## Inbox and catch-up
+
+The Inbox opens as a wide workspace on desktop and a full-screen view on phones.
+**Unread**, **Mentions**, **Replies** and **Later** group activity by conversation
+or thread, across servers and DMs. **Activity** retains the existing notification
+feed, including friend requests, calls and system notices. Mentions continue to
+use the existing permission- and notification-preference-aware delivery pipeline;
+a reply that also mentions you can appear in both relevant views.
+Unread conversations come from message history and read state, not the capped
+notification feed. Mentions/replies retain the existing delivery and retention
+rules; saved Later entries and frozen queues are stored independently.
+
+**Continue reading** opens the source without marking it read. **Start catch-up**
+freezes an ordered queue; newly arriving activity does not reorder your reading.
+**Done** acknowledges only activity up to the session's starting snapshot, leaving
+newer messages unread. **Skip** advances without acknowledging. **Later** saves
+the current conversation/thread and position without marking it read. These are
+not timed reminders. Saved items remain until explicitly removed or completed,
+independently of notification retention.
+
+Unfinished queues and message/thread positions are saved to your account, so
+**Continue catch-up** resumes on another device. Explicit message links still take
+priority. Conflicting progress from another device is reported and reloaded rather
+than silently overwritten. Unavailable targets can be skipped; failed loads never
+display an all-caught-up success state. Normal reading outside Inbox continues to
+mark visible latest messages read as before.
+
+The authenticated `/api/inbox` API filters and groups before cursor pagination.
+It exposes `/session`, `/session/anchor`, `/session/advance`, `/later` and `/read`
+for persisted queues, revision-protected progress, saved targets and bounded read
+acknowledgements. Deploy the API, web client and the additive
+`20261018223000_inbox_catchup` migration together.
+
 ## Message actions
 
 Edits, deletes and reactions require a live connection and bounded server

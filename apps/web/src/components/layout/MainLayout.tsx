@@ -47,6 +47,7 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { CommandPaletteButton } from '@/components/CommandPaletteButton'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { OnboardingWizard } from '@/components/server/OnboardingWizard'
+import { InboxReadingBar } from '@/components/notifications/InboxReadingBar'
 
 const SettingsModal = lazy(() =>
   import('@/components/settings/SettingsModal').then((m) => ({ default: m.SettingsModal }))
@@ -288,6 +289,7 @@ export function MainLayout() {
         <NavigationErrorBanner />
         <UpdateBanner />
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
+          <InboxReadingBar />
           {viewMode === 'dm' ? (
             <MessageArea mode="dm" contextId={currentConvId} />
           ) : serversLoading && servers.length === 0 ? (
@@ -381,6 +383,7 @@ export function MainLayout() {
             <UserFooter onOpenSettings={openSettings} className="px-2 py-2.5" />
           </div>
           <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
+            <InboxReadingBar />
             <MessageArea mode="dm" contextId={currentConvId} compactNavigation={isTablet} />
           </div>
         </div>
@@ -431,6 +434,7 @@ export function MainLayout() {
           <UserFooter onOpenSettings={openSettings} className="px-2 py-2.5" />
         </div>
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
+          <InboxReadingBar />
           {isTablet && servers.length === 0 && (
             <header className="flex h-12 shrink-0 items-center border-b border-white/10 px-2">
               <button

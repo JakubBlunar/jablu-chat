@@ -12,6 +12,7 @@ import { useMessageStore } from '@/stores/message.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
+import { useInboxStore } from '@/stores/inbox.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useDmCallStore } from '@/stores/dmCall.store'
 import { createChannelHandlers } from './socket/channelHandlers'
@@ -111,6 +112,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         }
       }
       hasConnectedBefore = true
+      useInboxStore.getState().bump()
 
       if (!document.hidden || useVoiceConnectionStore.getState().room) {
         socket.emit('activity:heartbeat')
@@ -240,9 +242,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
     const onInAppNotificationNew = () => {
       useNotificationCenterStore.getState().applySocketBump()
+      useInboxStore.getState().bump()
       throttledReadStateSync()
     }
     socket.on('in_app_notification:new', onInAppNotificationNew)
+    const onInboxActivity = () => useInboxStore.getState().bump()
+    socket.on('message:new', onInboxActivity)
+    socket.on('dm:new', onInboxActivity)
 
     // Sent when the user reads something on any of their devices, so this one
     // can take its now-stale toast down.
@@ -333,6 +339,8 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:removed', srv.onFriendRemoved)
       socket.off('bot:command-error', onBotCommandError)
       socket.off('in_app_notification:new', onInAppNotificationNew)
+      socket.off('message:new', onInboxActivity)
+      socket.off('dm:new', onInboxActivity)
       socket.off('notification:clear', onNotificationClear)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       if (readSyncTimer) {

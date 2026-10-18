@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { isAppFocused, subscribeAppVisibility } from '@/lib/appVisibility'
 import { useChannelAck } from './useChannelAck'
 import { useReadStateStore } from '@/stores/readState.store'
+import { useInboxStore } from '@/stores/inbox.store'
 
 jest.mock('@/lib/api', () => ({
   api: { ackChannel: jest.fn(), ackDm: jest.fn() }
@@ -17,7 +18,10 @@ jest.mock('@/stores/voice-connection.store', () => ({
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 const unread = {
-  unreadCount: 3, mentionCount: 1, firstUnreadMessageId: 'm1', lastReadAt: '2025-01-01T00:00:00Z'
+  unreadCount: 3,
+  mentionCount: 1,
+  firstUnreadMessageId: 'm1',
+  lastReadAt: '2025-01-01T00:00:00Z'
 }
 let ackChannel: jest.Mock
 let ackDm: jest.Mock
@@ -36,8 +40,11 @@ function options(overrides = {}) {
 beforeEach(() => {
   jest.useFakeTimers()
   jest.clearAllMocks()
+  useInboxStore.getState().reset()
   jest.mocked(isAppFocused).mockReturnValue(true)
-  jest.mocked(useVoiceConnectionStore.getState).mockReturnValue({ viewingVoiceRoom: false } as ReturnType<typeof useVoiceConnectionStore.getState>)
+  jest
+    .mocked(useVoiceConnectionStore.getState)
+    .mockReturnValue({ viewingVoiceRoom: false } as ReturnType<typeof useVoiceConnectionStore.getState>)
   ackChannel = jest.fn().mockResolvedValue(true)
   ackDm = jest.fn().mockResolvedValue(true)
   clearChannelView = jest.fn()
@@ -45,15 +52,21 @@ beforeEach(() => {
   useReadStateStore.setState({
     channels: new Map([['ch1', unread]]),
     dms: new Map([['dm1', unread]]),
-    ackChannel, ackDm, clearChannelView, captureChannelView,
-    captureDmView: jest.fn(), clearDmView: jest.fn()
+    ackChannel,
+    ackDm,
+    clearChannelView,
+    captureChannelView,
+    captureDmView: jest.fn(),
+    clearDmView: jest.fn()
   })
 })
 
 afterEach(() => jest.useRealTimers())
 
 async function flushAck() {
-  await act(async () => { jest.advanceTimersByTime(250) })
+  await act(async () => {
+    jest.advanceTimersByTime(250)
+  })
 }
 
 it.each(['channel', 'dm'] as const)('automatically reads a focused %s at the latest messages', async (mode) => {
@@ -63,16 +76,15 @@ it.each(['channel', 'dm'] as const)('automatically reads a focused %s at the lat
   expect(mode === 'channel' ? ackChannel : ackDm).toHaveBeenCalledTimes(1)
 })
 
-it.each([
-  { ready: false },
-  { atBottom: false },
-  { scrollParentRef: { current: null } }
-])('does not read while the message surface is not ready: %j', async (override) => {
-  renderHook(() => useChannelAck('channel', 'ch1', options(override)))
-  await flushAck()
-  expect(ackChannel).not.toHaveBeenCalled()
-  expect(captureChannelView).toHaveBeenCalledWith('ch1')
-})
+it.each([{ ready: false }, { atBottom: false }, { scrollParentRef: { current: null } }])(
+  'does not read while the message surface is not ready: %j',
+  async (override) => {
+    renderHook(() => useChannelAck('channel', 'ch1', options(override)))
+    await flushAck()
+    expect(ackChannel).not.toHaveBeenCalled()
+    expect(captureChannelView).toHaveBeenCalledWith('ch1')
+  }
+)
 
 it('checks actual scroll geometry, not just stale atBottom state', async () => {
   const opts = options()
@@ -104,7 +116,9 @@ it('rechecks focus when an acknowledgement is about to run', async () => {
 })
 
 it('does not read a conversation covered by a voice room', async () => {
-  jest.mocked(useVoiceConnectionStore.getState).mockReturnValue({ viewingVoiceRoom: true } as ReturnType<typeof useVoiceConnectionStore.getState>)
+  jest
+    .mocked(useVoiceConnectionStore.getState)
+    .mockReturnValue({ viewingVoiceRoom: true } as ReturnType<typeof useVoiceConnectionStore.getState>)
   renderHook(() => useChannelAck('dm', 'dm1', options()))
   await flushAck()
   expect(ackDm).not.toHaveBeenCalled()
@@ -127,4 +141,46 @@ it('acknowledges subsequent incoming messages while staying at the bottom', asyn
   })
   await flushAck()
   expect(ackChannel).toHaveBeenCalledTimes(2)
+})
+
+it.each(['channel', 'dm'] as const)('never automatically acknowledges a %s while Inbox covers it', async (mode) => {
+  const { rerender } = renderHook(() => useChannelAck(mode, mode === 'channel' ? 'ch1' : 'dm1', options()))
+  act(() => useInboxStore.getState().show())
+  await flushAck()
+  expect(ackChannel).not.toHaveBeenCalled()
+  expect(ackDm).not.toHaveBeenCalled()
+  act(() => useInboxStore.getState().close())
+  rerender()
+  await flushAck()
+  expect(mode === 'channel' ? ackChannel : ackDm).toHaveBeenCalledTimes(1)
+})
+
+it('keeps new messages unread during a catch-up preview, even at the bottom', async () => {
+  useInboxStore.setState({
+    reader: {
+      requestId: 1,
+      navigated: true,
+      sessionId: null,
+      snapshotAt: '2026-01-01T00:00:00Z',
+      target: { mode: 'channel', contextId: 'ch1', serverId: 's1', threadParentId: null, messageId: 'm1' },
+      group: {
+        key: 'ch1',
+        name: 'general',
+        serverName: 'Test',
+        target: { mode: 'channel', contextId: 'ch1', serverId: 's1', threadParentId: null, messageId: 'm1' },
+        unreadCount: 3,
+        mentionCount: 0,
+        replyCount: 0,
+        latestAt: '2026-01-01T00:00:00Z',
+        highlights: [],
+        savedAt: null
+      }
+    }
+  })
+  const opts = options()
+  renderHook(() => useChannelAck('channel', 'ch1', opts))
+  await flushAck()
+  act(() => useReadStateStore.setState({ channels: new Map([['ch1', { ...unread, unreadCount: 4 }]]) }))
+  await flushAck()
+  expect(ackChannel).not.toHaveBeenCalled()
 })

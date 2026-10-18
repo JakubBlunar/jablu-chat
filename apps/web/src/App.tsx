@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui'
 import { LocaleSync } from '@/i18n/LocaleSync'
 import { LoginPage } from './pages/LoginPage'
 import { useAuthStore } from './stores/auth.store'
+import { InboxWorkspace } from '@/components/notifications/InboxWorkspace'
 
 const Router = isElectron ? HashRouter : BrowserRouter
 
@@ -130,6 +131,7 @@ export default function App() {
           <LocaleSync>
             <AuthBootstrap />
             <NotificationRouterBridge />
+            <InboxWorkspace />
             <Suspense fallback={<LazyFallback />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
