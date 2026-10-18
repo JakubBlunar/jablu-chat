@@ -33,7 +33,7 @@ export function InAppNotificationBell({
       title={t('mobileInbox')}
       aria-expanded={open}
       aria-haspopup="dialog"
-      onClick={() => (open ? useInboxStore.getState().close() : useInboxStore.getState().show())}
+      onClick={() => (open ? useInboxStore.getState().close() : useInboxStore.getState().show({ preferNotifications: true }))}
       className={`relative flex ${buttonSize} shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white ${className}`}
     >
       <svg

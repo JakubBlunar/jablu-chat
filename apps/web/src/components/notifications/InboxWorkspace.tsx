@@ -7,13 +7,14 @@ import { useShallow } from 'zustand/react/shallow'
 import { inboxTargetPath } from '@/lib/inbox'
 import { useAuthStore } from '@/stores/auth.store'
 import { useInboxStore, type InboxTab } from '@/stores/inbox.store'
+import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { useIsMobile } from '@/hooks/useMobile'
 import { InboxActivity } from './InboxActivity'
-import { Spinner } from '@/components/ui'
+import { CountBadge, Spinner } from '@/components/ui'
 
 export function InboxWorkspace() {
   const userId = useAuthStore((s) => (s.isAuthenticated ? (s.user?.id ?? null) : null))
@@ -34,7 +35,7 @@ export function InboxWorkspace() {
   return userId && open ? <InboxPanel /> : null
 }
 
-const TABS: InboxTab[] = ['unread', 'mentions', 'replies', 'later', 'activity']
+const TABS: InboxTab[] = ['activity', 'unread', 'mentions', 'replies', 'later']
 const button = 'min-h-11 rounded-lg px-3 py-2 text-sm font-medium transition hover:bg-white/10 disabled:opacity-50'
 
 function InboxPanel() {
@@ -42,8 +43,9 @@ function InboxPanel() {
   const { t: common } = useTranslation('common')
   const isMobile = useIsMobile()
   const panel = useRef<HTMLDivElement>(null)
+  const tablist = useRef<HTMLDivElement>(null)
   const close = useCallback(() => useInboxStore.getState().close(), [])
-  const { tab, counts, groups, loading, pending, error, nextCursor, session, sessionLoaded, newActivity } =
+  const { tab, counts, groups, loading, pending, error, nextCursor, session, sessionLoaded, newActivity, keepCurrentView } =
     useInboxStore(
       useShallow((s) => ({
         tab: s.tab,
@@ -55,9 +57,13 @@ function InboxPanel() {
         nextCursor: s.nextCursor,
         session: s.session,
         sessionLoaded: s.sessionLoaded,
-        newActivity: s.newActivity
+        newActivity: s.newActivity,
+        keepCurrentView: s.keepCurrentView
       }))
     )
+  const { notificationCount, notificationError } = useNotificationCenterStore(
+    useShallow((s) => ({ notificationCount: s.unreadCount, notificationError: s.unreadError }))
+  )
   useFocusTrap(panel, true, close)
   useBackGestureClose(true, close, isMobile)
   useEffect(() => {
@@ -66,6 +72,15 @@ function InboxPanel() {
   useEffect(() => {
     void useInboxStore.getState().loadSession()
   }, [])
+  useEffect(() => {
+    const container = tablist.current
+    const selected = container?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!container || !selected) return
+    const bounds = container.getBoundingClientRect()
+    const active = selected.getBoundingClientRect()
+    if (active.left < bounds.left) container.scrollLeft += active.left - bounds.left
+    else if (active.right > bounds.right) container.scrollLeft += active.right - bounds.right
+  }, [tab])
   const unfinished = !!session && session.index < session.groups.length
   const refresh = () => {
     void useInboxStore.getState().fetchPage()
@@ -86,6 +101,10 @@ function InboxPanel() {
         role="dialog"
         aria-modal="true"
         aria-label={t('mobileInbox')}
+        onPointerDownCapture={keepCurrentView}
+        onKeyDownCapture={keepCurrentView}
+        onWheelCapture={keepCurrentView}
+        onTouchMoveCapture={keepCurrentView}
         className="flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden bg-surface-dark pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-gray-200 shadow-2xl md:h-[min(85dvh,850px)] md:max-w-4xl md:rounded-2xl md:ring-1 md:ring-white/10"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 md:px-6">
@@ -98,6 +117,7 @@ function InboxPanel() {
           </button>
         </header>
         <div
+          ref={tablist}
           role="tablist"
           aria-label={t('inboxViews')}
           className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none"
@@ -109,7 +129,11 @@ function InboxPanel() {
               role="tab"
               id={`inbox-tab-${view}`}
               aria-controls="inbox-content"
-              aria-label={`${t(`inboxTab_${view}`)}${view === 'activity' ? '' : ` ${counts[view]}`}`}
+              aria-label={
+                view === 'activity'
+                  ? `${t('inboxTab_activity')} ${notificationError ? t('inboxCountFailed') : notificationCount}`
+                  : `${t(`inboxTab_${view}`)} ${counts[view]}`
+              }
               aria-selected={tab === view}
               tabIndex={tab === view ? 0 : -1}
               onKeyDown={(event) => {
@@ -125,10 +149,18 @@ function InboxPanel() {
                 }
               }}
               onClick={() => useInboxStore.getState().selectTab(view)}
-              className={`${button} shrink-0 ${tab === view ? 'bg-primary/20 text-white ring-1 ring-primary/40' : 'text-gray-400'}`}
+              className={`${button} flex shrink-0 items-center ${tab === view ? 'bg-primary/20 text-white ring-1 ring-primary/40' : 'text-gray-400'}`}
             >
               {t(`inboxTab_${view}`)}
-              {view !== 'activity' && <span className="ml-1.5 text-xs opacity-70">{counts[view]}</span>}
+              {view === 'activity' ? (
+                notificationError ? (
+                  <span aria-hidden="true" className="ml-1.5 text-red-300" title={t('inboxCountFailed')}>!</span>
+                ) : (
+                  <CountBadge count={notificationCount} className="ml-1.5" />
+                )
+              ) : (
+                <span className="ml-1.5 text-xs opacity-70">{counts[view]}</span>
+              )}
             </button>
           ))}
         </div>
@@ -138,8 +170,38 @@ function InboxPanel() {
           aria-labelledby={`inbox-tab-${tab}`}
           className="flex min-h-0 flex-1 flex-col"
         >
+          {error && (
+            <div role="alert" className="mx-4 mt-3 shrink-0 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
+              <p>{t(`inboxError_${error}`)}</p>
+              <button
+                type="button"
+                className={button}
+                disabled={loading || pending}
+                onClick={() => void useInboxStore.getState().retry()}
+              >
+                {common('retry')}
+              </button>
+            </div>
+          )}
           {tab === 'activity' ? (
-            <InboxActivity onNavigate={close} />
+            <>
+              {unfinished && session && (
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-primary/5 px-4 py-3 md:px-6">
+                  <p className="text-sm text-gray-300">
+                    {t('inboxProgress', { current: session.index + 1, total: session.groups.length })}
+                  </p>
+                  <button
+                    className={`${button} bg-primary text-white hover:bg-primary/80`}
+                    type="button"
+                    disabled={pending || !sessionLoaded}
+                    onClick={start}
+                  >
+                    {t('inboxContinueCatchup')}
+                  </button>
+                </div>
+              )}
+              <InboxActivity onNavigate={close} />
+            </>
           ) : (
             <>
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-4 py-3 md:px-6">
@@ -175,19 +237,6 @@ function InboxPanel() {
                 >
                   {t('inboxNewActivity')}
                 </button>
-              )}
-              {error && (
-                <div role="alert" className="mx-4 mt-3 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
-                  <p>{t(`inboxError_${error}`)}</p>
-                  <button
-                    type="button"
-                    className={button}
-                    disabled={loading || pending}
-                    onClick={() => void useInboxStore.getState().retry()}
-                  >
-                    {common('retry')}
-                  </button>
-                </div>
               )}
               <div
                 className="chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 md:p-6"

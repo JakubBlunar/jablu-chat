@@ -94,14 +94,26 @@ it('keeps cached entries visible in the panel after a failed refresh', async () 
   expect(document.querySelector('.simplebar-track.simplebar-vertical')).toBeInTheDocument()
 })
 
-it('opens the global Inbox without mounting or reading the legacy feed', async () => {
+it('opens Notifications for unread activity without mounting or acknowledging the feed itself', async () => {
   render(<InAppNotificationBell />)
-  fireEvent.click(screen.getByRole('button', { name: 'mobileInbox' }))
+  await waitFor(() => expect(useNotificationCenterStore.getState().unreadCount).toBe(1))
+  fireEvent.click(screen.getByRole('button'))
   expect(useInboxStore.getState().open).toBe(true)
+  expect(useInboxStore.getState().tab).toBe('activity')
   expect(api.getInAppNotifications).not.toHaveBeenCalled()
   expect(api.markAllInAppNotificationsRead).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'mobileInbox' }))
+  expect(api.markInAppNotificationRead).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button'))
   expect(useInboxStore.getState().open).toBe(false)
+})
+
+it('opens the last chosen view when there are no unread notifications', async () => {
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 0 })
+  useInboxStore.getState().selectTab('later')
+  render(<InAppNotificationBell />)
+  await waitFor(() => expect(useNotificationCenterStore.getState().loading).toBe(false))
+  fireEvent.click(screen.getByRole('button'))
+  expect(useInboxStore.getState()).toMatchObject({ open: true, tab: 'later' })
 })
 
 it('discards legacy notification responses arriving after account cleanup', async () => {

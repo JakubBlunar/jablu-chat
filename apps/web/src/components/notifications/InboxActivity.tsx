@@ -310,7 +310,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
         ) : items.length > 0 ? (
           <ul>
             {items.map((n) => (
-              <li key={n.id} className="border-b border-white/5 last:border-0">
+              <li key={n.id} className={`border-b border-white/5 last:border-0 ${n.readAt ? '' : 'bg-primary/5'}`}>
                 <button
                   type="button"
                   onClick={() => void onItemClick(n)}
@@ -318,7 +318,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
                     n.readAt ? 'opacity-70' : ''
                   }`}
                 >
-                  <span className="mt-0.5 text-gray-400" aria-hidden>
+                  <span className={`mt-0.5 ${n.readAt ? 'text-gray-400' : 'text-primary'}`} aria-hidden>
                     {iconFor(n.kind)}
                   </span>
                   <span className="flex min-w-0 flex-col gap-0.5">

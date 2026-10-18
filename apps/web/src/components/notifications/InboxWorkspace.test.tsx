@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { InboxGroup, InboxSession } from '@chat/shared'
 import { api } from '@/lib/api'
 import { useInboxStore } from '@/stores/inbox.store'
+import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { InboxWorkspace } from './InboxWorkspace'
 import { inboxTargetPath } from '@/lib/inbox'
 
@@ -19,7 +20,8 @@ jest.mock('@/lib/api', () => ({
     startInboxSession: jest.fn(),
     saveInboxLater: jest.fn(),
     removeInboxLater: jest.fn(),
-    markInboxRead: jest.fn()
+    markInboxRead: jest.fn(),
+    getInAppNotificationUnreadCount: jest.fn()
   }
 }))
 jest.mock('@/stores/auth.store', () => ({
@@ -85,6 +87,8 @@ beforeEach(() => {
   jest.spyOn(console, 'error').mockImplementation(() => {})
   useInboxStore.getState().reset()
   useInboxStore.getState().syncUser('alice')
+  useNotificationCenterStore.getState().reset()
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 0 })
   useInboxStore.getState().show()
   jest.mocked(api.getInbox).mockResolvedValue({
     groups: [group],
@@ -100,6 +104,7 @@ afterEach(() => jest.restoreAllMocks())
 
 it('renders grouped views and expands highlights without acknowledging them', async () => {
   mount()
+  await waitFor(() => expect(screen.getByRole('tab', { name: /inboxTab_mentions/ })).toHaveTextContent('1'))
   expect(await screen.findByRole('heading', { name: '#general' })).toBeInTheDocument()
   expect(screen.getByText('My community')).toBeInTheDocument()
   expect(screen.getAllByRole('tab')).toHaveLength(5)
@@ -109,7 +114,7 @@ it('renders grouped views and expands highlights without acknowledging them', as
   expect(api.markInboxRead).not.toHaveBeenCalled()
 })
 
-it('filters on the server and retains the legacy Activity view', async () => {
+it('filters on the server and retains the notification feed', async () => {
   mount()
   fireEvent.click(screen.getByRole('tab', { name: /inboxTab_mentions/ }))
   await waitFor(() => expect(api.getInbox).toHaveBeenLastCalledWith('mentions', undefined))
@@ -123,6 +128,68 @@ it('supports keyboard tab navigation', async () => {
   fireEvent.keyDown(screen.getByRole('tab', { name: /inboxTab_unread/ }), { key: 'ArrowRight' })
   expect(screen.getByRole('tab', { name: /inboxTab_mentions/ })).toHaveAttribute('aria-selected', 'true')
   expect(document.activeElement).toBe(screen.getByRole('tab', { name: /inboxTab_mentions/ }))
+  fireEvent.keyDown(document.activeElement!, { key: 'Home' })
+  expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getAllByRole('tab')[0]).toHaveAccessibleName('inboxTab_activity 0')
+  fireEvent.keyDown(document.activeElement!, { key: 'End' })
+  expect(screen.getByRole('tab', { name: /inboxTab_later/ })).toHaveFocus()
+})
+
+it('puts Notifications first and updates its badge without interrupting the selected view', async () => {
+  useNotificationCenterStore.setState({ unreadCount: 4 })
+  mount()
+  await screen.findByRole('heading', { name: '#general' })
+  const notifications = screen.getAllByRole('tab')[0]
+  expect(notifications).toHaveAccessibleName('inboxTab_activity 4')
+  expect(notifications).toHaveTextContent('4')
+  fireEvent.click(screen.getByRole('tab', { name: /inboxTab_mentions/ }))
+  act(() => useNotificationCenterStore.setState({ unreadCount: 5 }))
+  expect(notifications).toHaveAccessibleName('inboxTab_activity 5')
+  expect(notifications).toHaveAttribute('aria-selected', 'false')
+  expect(screen.getByRole('tab', { name: /inboxTab_mentions/ })).toHaveAttribute('aria-selected', 'true')
+})
+
+it('makes count failures visible on the Notifications tab instead of showing a zero badge', () => {
+  useNotificationCenterStore.setState({ unreadError: true })
+  mount()
+  expect(screen.getAllByRole('tab')[0]).toHaveAccessibleName('inboxTab_activity inboxCountFailed')
+  expect(screen.getAllByRole('tab')[0]).toHaveTextContent('!')
+})
+
+it('does not switch away from a view the user is already reading while the opening count loads', async () => {
+  let resolve!: (result: { count: number }) => void
+  jest.mocked(api.getInAppNotificationUnreadCount).mockReturnValueOnce(
+    new Promise((done) => { resolve = done })
+  )
+  useInboxStore.getState().close()
+  useInboxStore.getState().show({ preferNotifications: true })
+  mount()
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.wheel(dialog)
+  await act(async () => { resolve({ count: 8 }) })
+  expect(screen.getByRole('tab', { name: /inboxTab_unread/ })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getAllByRole('tab')[0]).toHaveAccessibleName('inboxTab_activity 8')
+})
+
+it('continues an unfinished catch-up from Notifications without changing its queue or progress', async () => {
+  useInboxStore.getState().selectTab('activity')
+  jest.mocked(api.getInboxSession).mockResolvedValue({ session })
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'inboxContinueCatchup' }))
+  await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/channels/s1/c1?m=m1'))
+  expect(api.startInboxSession).toHaveBeenCalledWith('unread', false)
+  expect(useInboxStore.getState()).toMatchObject({ tab: 'mentions', session })
+  expect(api.markInboxRead).not.toHaveBeenCalled()
+})
+
+it('shows retryable catch-up loading failures even when Notifications is selected', async () => {
+  useInboxStore.getState().selectTab('activity')
+  jest.mocked(api.getInboxSession).mockRejectedValue(new Error('offline'))
+  mount()
+  expect(await screen.findByRole('alert')).toHaveTextContent('inboxError_resume')
+  jest.mocked(api.getInboxSession).mockResolvedValue({ session })
+  fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+  expect(await screen.findByRole('button', { name: 'inboxContinueCatchup' })).toBeEnabled()
 })
 
 it('shows errors instead of an empty-success message and retries', async () => {

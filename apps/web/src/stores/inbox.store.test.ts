@@ -1,6 +1,7 @@
 import type { InboxGroup, InboxPage, InboxSession, InboxSessionResult } from '@chat/shared'
 import { api } from '@/lib/api'
 import { inboxPausesRead, useInboxStore } from './inbox.store'
+import { useNotificationCenterStore } from './notificationCenter.store'
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -11,7 +12,8 @@ jest.mock('@/lib/api', () => ({
     advanceInboxSession: jest.fn(),
     saveInboxLater: jest.fn(),
     removeInboxLater: jest.fn(),
-    markInboxRead: jest.fn()
+    markInboxRead: jest.fn(),
+    getInAppNotificationUnreadCount: jest.fn()
   }
 }))
 
@@ -69,6 +71,8 @@ beforeEach(() => {
   jest.spyOn(console, 'error').mockImplementation(() => {})
   useInboxStore.getState().reset()
   useInboxStore.getState().syncUser('alice')
+  useNotificationCenterStore.getState().reset()
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 0 })
   jest.mocked(api.getInbox).mockResolvedValue(page)
   jest.mocked(api.getInboxSession).mockResolvedValue({ session })
   jest.mocked(api.saveInboxAnchor).mockImplementation(async (_id, revision, target) => ({
@@ -83,6 +87,107 @@ beforeEach(() => {
 })
 afterEach(() => jest.restoreAllMocks())
 
+it('opens Notifications immediately for known unread notifications without acknowledging them', () => {
+  useNotificationCenterStore.setState({ unreadCount: 7 })
+  useInboxStore.getState().show({ preferNotifications: true })
+  expect(useInboxStore.getState()).toMatchObject({ open: true, tab: 'activity', lastTab: 'unread' })
+  expect(api.markInboxRead).not.toHaveBeenCalled()
+  expect(api.advanceInboxSession).not.toHaveBeenCalled()
+})
+
+it('remembers the last chosen view rather than an automatically selected Notifications tab', async () => {
+  useInboxStore.getState().selectTab('later')
+  useNotificationCenterStore.setState({ unreadCount: 2 })
+  useInboxStore.getState().show({ preferNotifications: true })
+  expect(useInboxStore.getState().tab).toBe('activity')
+  useInboxStore.getState().close()
+  await useNotificationCenterStore.getState().fetchUnread()
+  useInboxStore.getState().show({ preferNotifications: true })
+  expect(useInboxStore.getState()).toMatchObject({ open: true, tab: 'later', lastTab: 'later' })
+})
+
+it('reveals new notifications discovered by the opening refresh', async () => {
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 3 })
+  useInboxStore.getState().show({ preferNotifications: true })
+  expect(useInboxStore.getState().tab).toBe('unread')
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(useInboxStore.getState().tab).toBe('activity')
+})
+
+it.each(['tab', 'same-tab', 'interaction', 'close', 'account', 'catch-up'] as const)(
+  'does not redirect a late opening refresh after %s',
+  async (action) => {
+    const waiting = deferred<{ count: number }>()
+    jest.mocked(api.getInAppNotificationUnreadCount).mockReturnValueOnce(waiting.promise)
+    useInboxStore.getState().show({ preferNotifications: true })
+    let expectedTab = 'unread'
+    if (action === 'tab') {
+      useInboxStore.getState().selectTab('mentions')
+      expectedTab = 'mentions'
+    } else if (action === 'same-tab') useInboxStore.getState().selectTab('unread')
+    else if (action === 'interaction') useInboxStore.getState().keepCurrentView()
+    else if (action === 'close') {
+      useInboxStore.getState().close()
+      useInboxStore.getState().show()
+    } else if (action === 'account') useInboxStore.getState().syncUser('bob')
+    else {
+      begin()
+      await useInboxStore.getState().returnToInbox()
+    }
+    waiting.resolve({ count: 4 })
+    await waiting.promise
+    await Promise.resolve()
+    expect(useInboxStore.getState().tab).toBe(expectedTab)
+  }
+)
+
+it('updates the count without changing tabs for notifications arriving after opening', async () => {
+  useInboxStore.getState().selectTab('replies')
+  useInboxStore.getState().show({ preferNotifications: true })
+  await Promise.resolve()
+  await Promise.resolve()
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 5 })
+  await useNotificationCenterStore.getState().fetchUnread()
+  expect(useInboxStore.getState().tab).toBe('replies')
+  expect(useNotificationCenterStore.getState().unreadCount).toBe(5)
+})
+
+it('keeps the chosen view on count failures and exposes the count error', async () => {
+  jest.mocked(api.getInAppNotificationUnreadCount).mockRejectedValue(new Error('offline'))
+  useInboxStore.getState().selectTab('mentions')
+  useInboxStore.getState().show({ preferNotifications: true })
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(useInboxStore.getState().tab).toBe('mentions')
+  expect(useNotificationCenterStore.getState().unreadError).toBe(true)
+})
+
+it('returns from Notifications catch-up to its original review view without changing the queue', async () => {
+  useInboxStore.getState().selectTab('activity')
+  begin()
+  expect(useInboxStore.getState()).toMatchObject({ tab: 'unread', session, lastTab: 'activity' })
+  await useInboxStore.getState().returnToInbox()
+  expect(useInboxStore.getState()).toMatchObject({ open: true, tab: 'unread', session })
+  expect(api.advanceInboxSession).not.toHaveBeenCalled()
+  expect(api.markInboxRead).not.toHaveBeenCalled()
+})
+
+it.each(['done', 'later', 'skip'] as const)('returns to the review summary after finishing with %s', async (action) => {
+  const single = { ...session, view: 'replies' as const, groups: [group], anchor: group.target }
+  const finished = { ...single, index: 1, revision: 1, completed: action === 'done' ? 1 : 0, deferred: action === 'later' ? 1 : 0 }
+  useInboxStore.getState().selectTab('activity')
+  useInboxStore.setState({ session: single })
+  useNotificationCenterStore.setState({ unreadCount: 5 })
+  useInboxStore.getState().resume()
+  useInboxStore.getState().confirmNavigation('channel', 'c1', 'm1', null)
+  jest.mocked(api.advanceInboxSession).mockResolvedValue({ session: finished })
+  expect(await useInboxStore.getState().advance(action)).toBe(true)
+  expect(useInboxStore.getState()).toMatchObject({
+    open: true, tab: 'replies', reader: null, session: finished
+  })
+})
+
 it('pages the selected server view, deduplicates groups and keeps the original order', async () => {
   await useInboxStore.getState().fetchPage()
   jest.mocked(api.getInbox).mockResolvedValueOnce({ ...page, groups: [group, second], nextCursor: undefined })
@@ -92,6 +197,23 @@ it('pages the selected server view, deduplicates groups and keeps the original o
   useInboxStore.getState().selectTab('mentions')
   await useInboxStore.getState().fetchPage()
   expect(api.getInbox).toHaveBeenLastCalledWith('mentions', undefined)
+})
+
+it('refreshes grouped tab counts from Notifications without creating a preview snapshot or queue', async () => {
+  useInboxStore.getState().selectTab('activity')
+  await useInboxStore.getState().fetchPage()
+  expect(api.getInbox).toHaveBeenCalledWith('unread', undefined)
+  expect(useInboxStore.getState()).toMatchObject({
+    tab: 'activity',
+    counts: page.counts,
+    groups: [],
+    snapshotAt: null,
+    nextCursor: undefined,
+    session: null
+  })
+  await useInboxStore.getState().fetchPage(true)
+  expect(api.getInbox).toHaveBeenCalledTimes(1)
+  expect(api.markInboxRead).not.toHaveBeenCalled()
 })
 
 it('keeps cached conversations and the retry cursor after failed requests', async () => {

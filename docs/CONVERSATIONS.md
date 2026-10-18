@@ -55,10 +55,16 @@ not clickable; the entry explains the issue and still lets you open its source.
 
 The Inbox opens as a wide workspace on desktop and a full-screen view on phones.
 **Unread**, **Mentions**, **Replies** and **Later** group activity by conversation
-or thread, across servers and DMs. **Activity** retains the existing notification
-feed, including friend requests, calls and system notices. Mentions continue to
-use the existing permission- and notification-preference-aware delivery pipeline;
-a reply that also mentions you can appear in both relevant views.
+or thread, across servers and DMs. **Notifications** is the first tab and retains
+the notification feed, including friend requests, calls and system notices. Its
+live unread badge matches the Inbox button. Opening Inbox selects Notifications
+when there are unread notifications; otherwise it remembers the last view you
+chose. A count refresh may reveal new notifications on opening, but does not
+switch views after you interact with Inbox. Incoming notifications update the
+badge without switching your current tab. Continue catch-up is also available
+from Notifications; returning from catch-up preserves its conversation view.
+Mentions continue to use the existing permission- and notification-preference-aware
+delivery pipeline; a reply that also mentions you can appear in both relevant views.
 Unread conversations come from message history and read state, not the capped
 notification feed. Mentions/replies retain the existing delivery and retention
 rules; saved Later entries and frozen queues are stored independently.

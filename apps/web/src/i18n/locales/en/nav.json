@@ -4,7 +4,7 @@
   "inboxTab_mentions": "Mentions",
   "inboxTab_replies": "Replies",
   "inboxTab_later": "Later",
-  "inboxTab_activity": "Activity",
+  "inboxTab_activity": "Notifications",
   "inboxActivity": "All notifications",
   "inboxReviewHint": "Check what matters, without losing your place.",
   "inboxConversationCount_one": "{{count}} conversation needs attention",

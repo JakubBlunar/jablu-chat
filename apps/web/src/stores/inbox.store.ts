@@ -1,6 +1,7 @@
 import type { InboxGroup, InboxSession, InboxTarget, InboxView } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { useNotificationCenterStore } from './notificationCenter.store'
 
 export type InboxTab = InboxView | 'activity'
 export interface InboxReader {
@@ -16,6 +17,7 @@ interface InboxState {
   userId: string | null
   open: boolean
   tab: InboxTab
+  lastTab: InboxTab
   groups: InboxGroup[]
   counts: Record<InboxView, number>
   snapshotAt: string | null
@@ -28,7 +30,8 @@ interface InboxState {
   reader: InboxReader | null
   newActivity: boolean
   syncUser: (userId: string | null) => void
-  show: () => void
+  show: (options?: { preferNotifications: boolean }) => void
+  keepCurrentView: () => void
   close: () => void
   selectTab: (tab: InboxTab) => void
   fetchPage: (append?: boolean) => Promise<void>
@@ -58,6 +61,7 @@ const initial = {
   userId: null,
   open: false,
   tab: 'unread' as InboxTab,
+  lastTab: 'unread' as InboxTab,
   groups: [] as InboxGroup[],
   counts: { unread: 0, mentions: 0, replies: 0, later: 0 },
   snapshotAt: null,
@@ -76,14 +80,21 @@ let sessionRequest = 0
 let writes: Promise<unknown> = Promise.resolve()
 let readerRequest = 0
 let activityRevision = 0
+let openingRequest = 0
 let failedOperation: (() => Promise<boolean>) | null = null
 
 export const useInboxStore = create<InboxState>((set, get) => {
+  function switchTab(tab: InboxTab) {
+    if (get().tab === tab) return
+    pageRequest++
+    set({ tab, groups: [], nextCursor: undefined, snapshotAt: null, error: null, loading: tab !== 'activity' })
+  }
   async function mutate(operation: () => Promise<void>): Promise<boolean> {
     const generation = epoch
     const run = async () => {
       if (generation !== epoch) return false
       sessionRequest++
+      openingRequest++
       set({ pending: true, error: null })
       failedOperation = null
       try {
@@ -145,34 +156,60 @@ export const useInboxStore = create<InboxState>((set, get) => {
       epoch++
       pageRequest++
       sessionRequest++
+      openingRequest++
       writes = Promise.resolve()
       failedOperation = null
       set(initial)
     },
-    show: () => set((s) => ({ open: true, loading: s.tab !== 'activity' && !s.snapshotAt })),
-    close: () => set({ open: false }),
+    show: (options) => {
+      if (get().open) return
+      if (options?.preferNotifications) {
+        const notifications = useNotificationCenterStore.getState()
+        switchTab(notifications.unreadCount > 0 ? 'activity' : get().lastTab)
+      }
+      set((s) => ({ open: true, loading: s.tab !== 'activity' && !s.snapshotAt }))
+      if (!options?.preferNotifications) return
+      const generation = epoch
+      const request = ++openingRequest
+      void useNotificationCenterStore.getState().fetchUnread().then(() => {
+        if (generation !== epoch || request !== openingRequest || !get().open) return
+        const latest = useNotificationCenterStore.getState()
+        if (!latest.unreadError && latest.unreadCount > 0) switchTab('activity')
+      })
+    },
+    keepCurrentView: () => {
+      openingRequest++
+    },
+    close: () => {
+      openingRequest++
+      set({ open: false })
+    },
     selectTab: (tab) => {
-      if (get().tab === tab) return
-      pageRequest++
-      set({ tab, groups: [], nextCursor: undefined, snapshotAt: null, error: null, loading: false })
+      openingRequest++
+      if (get().lastTab !== tab) set({ lastTab: tab })
+      switchTab(tab)
     },
     fetchPage: async (append = false) => {
       const { tab, nextCursor } = get()
-      if (tab === 'activity' || (append && (!nextCursor || get().loading))) return
+      if (append && (tab === 'activity' || !nextCursor || get().loading)) return
       const generation = epoch
       const request = ++pageRequest
       const activityAtStart = activityRevision
       set({ loading: true, error: null })
       try {
-        const page = await api.getInbox(tab, append ? nextCursor : undefined)
+        const page = await api.getInbox(tab === 'activity' ? 'unread' : tab, append ? nextCursor : undefined)
         if (generation !== epoch || request !== pageRequest) return
         set((s) => ({
-          groups: append
-            ? [...s.groups, ...page.groups.filter((group) => !s.groups.some((old) => old.key === group.key))]
-            : page.groups,
           counts: page.counts,
-          snapshotAt: page.snapshotAt,
-          nextCursor: page.nextCursor,
+          ...(tab === 'activity'
+            ? {}
+            : {
+                groups: append
+                  ? [...s.groups, ...page.groups.filter((group) => !s.groups.some((old) => old.key === group.key))]
+                  : page.groups,
+                snapshotAt: page.snapshotAt,
+                nextCursor: page.nextCursor
+              }),
           newActivity: append ? s.newActivity : activityRevision !== activityAtStart
         }))
       } catch (error) {
@@ -213,6 +250,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
       })
     },
     read: (group, inSession = false) => {
+      openingRequest++
       const session = get().session
       const target = inSession && session?.anchor ? session.anchor : group.target
       const snapshotAt =
@@ -224,6 +262,7 @@ export const useInboxStore = create<InboxState>((set, get) => {
         set({ error: 'load', open: true })
         return
       }
+      if (inSession && session) switchTab(session.view)
       set({
         open: false,
         error: null,
@@ -238,12 +277,14 @@ export const useInboxStore = create<InboxState>((set, get) => {
       })
     },
     resume: () => {
+      openingRequest++
       const session = get().session
       const group = session?.groups[session.index]
       if (group) get().read(group, true)
       else set({ open: true, reader: null })
     },
     returnToInbox: async () => {
+      openingRequest++
       const reader = get().reader
       if (
         reader?.sessionId &&
