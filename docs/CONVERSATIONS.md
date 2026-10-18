@@ -68,8 +68,15 @@ freezes an ordered queue; newly arriving activity does not reorder your reading.
 **Done** acknowledges only activity up to the session's starting snapshot, leaving
 newer messages unread. **Skip** advances without acknowledging. **Later** saves
 the current conversation/thread and position without marking it read. These are
-not timed reminders. Saved items remain until explicitly removed or completed,
-independently of notification retention.
+not timed reminders. Each account keeps up to **1,000 saved Later items**;
+saving more automatically removes the oldest saved entries. Saving an existing
+item refreshes its saved position without duplicating it. This cleanup does not
+delete messages, change read state, or alter a frozen catch-up queue.
+
+Notification history is capped separately at **1,000 records per account** by
+default (`IN_APP_NOTIFICATION_CAP`). On delivery, cleanup removes read records
+first, then the oldest remaining records if necessary. Existing explicit
+environment overrides still apply. No age-based expiry is enabled by default.
 
 Unfinished queues and message/thread positions are saved to your account, so
 **Continue catch-up** resumes on another device. Explicit message links still take

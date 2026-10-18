@@ -78,7 +78,13 @@ Pagination is a live snapshot-bounded keyset, not a durable session: concurrent
 reads, permission changes, deletions, and coalescing may remove a group from later
 pages. Start a session when a complete frozen queue is required. Directed activity
 is intentionally limited by existing notification eligibility and retention;
-Later and frozen sessions are not.
+Later is capped separately at 1,000 saved targets per account, removing the oldest
+entries on save. Saves and session deferrals enforce this cap atomically under
+the same per-account lock, including concurrent devices. Re-saving a target
+refreshes its saved position and always retains that target. Frozen sessions and
+read watermarks are not pruned, so cleanup neither marks messages read nor
+rewrites an in-progress queue. Notification history defaults to 1,000 records
+(`IN_APP_NOTIFICATION_CAP`); read entries are evicted first.
 
 ## Focused tests
 

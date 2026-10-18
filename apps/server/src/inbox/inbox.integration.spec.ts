@@ -6,9 +6,10 @@ import type { InboxTarget } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
-import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
+import { IN_APP_NOTIFICATION_CAP_DEFAULT, InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { ReadStateService } from '../read-state/read-state.service'
-import { InboxService } from './inbox.service'
+import { INBOX_LATER_CAP, InboxService } from './inbox.service'
+import { groupKey } from './inbox.validation'
 
 const databaseUrl = process.env.INBOX_TEST_DATABASE_URL
 const databaseDescribe = databaseUrl ? describe : describe.skip
@@ -40,6 +41,20 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
   const message = (extra: Record<string, unknown> = {}) => prisma.message.create({
     data: { id: randomUUID(), channelId, authorId: other, content: 'Hello', createdAt: oldAt, ...extra }
   })
+  async function seedLater(count = INBOX_LATER_CAP) {
+    const ids = Array.from({ length: count }, () => randomUUID())
+    await prisma.message.createMany({
+      data: ids.map((id) => ({ id, channelId, authorId: other, content: 'Saved thread', createdAt: oldAt }))
+    })
+    const targets = ids.map((id) => channelTarget(id, id))
+    await prisma.inboxLater.createMany({
+      data: targets.map((target, index) => ({
+        userId, key: groupKey(target), target: { ...target },
+        savedAt: new Date(oldAt.getTime() + index)
+      }))
+    })
+    return targets
+  }
   async function notification(kind: 'mention' | 'reply' | 'thread_reply', id: string, extra = {}) {
     return prisma.inAppNotification.create({
       data: {
@@ -61,7 +76,18 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
     await prisma.onModuleInit()
     events = new EventBusService()
     const roles = new RolesService(prisma, events)
-    inApp = new InAppNotificationsService(prisma, events)
+    const oldCap = process.env.IN_APP_NOTIFICATION_CAP
+    const oldTtl = process.env.IN_APP_NOTIFICATION_TTL_DAYS
+    process.env.IN_APP_NOTIFICATION_CAP = String(IN_APP_NOTIFICATION_CAP_DEFAULT)
+    process.env.IN_APP_NOTIFICATION_TTL_DAYS = '0'
+    try {
+      inApp = new InAppNotificationsService(prisma, events)
+    } finally {
+      if (oldCap === undefined) delete process.env.IN_APP_NOTIFICATION_CAP
+      else process.env.IN_APP_NOTIFICATION_CAP = oldCap
+      if (oldTtl === undefined) delete process.env.IN_APP_NOTIFICATION_TTL_DAYS
+      else process.env.IN_APP_NOTIFICATION_TTL_DAYS = oldTtl
+    }
     readState = new ReadStateService(prisma, roles, inApp)
     inbox = new InboxService(prisma, roles, events)
     await prisma.user.createMany({ data: [userId, other, outsider].map((id) => ({
@@ -258,16 +284,16 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
     expect(page.groups[0]).toMatchObject({ serverName: null, target: { mode: 'dm', messageId: first.id } })
   })
 
-  it('persists Later independently of notification cap and read status, dedupes and removes only explicitly or on saved Done', async () => {
+  it('persists Later independently of notification cap and read status, dedupes and removes on saved Done', async () => {
     const first = await message()
     await inbox.saveLater(userId, { target: channelTarget(first.id) })
     await inbox.saveLater(userId, { target: channelTarget(first.id) })
     // The bell cap trims these, without touching Later.
-    await prisma.inAppNotification.createMany({ data: Array.from({ length: 510 }, (_, i) => ({
+    await prisma.inAppNotification.createMany({ data: Array.from({ length: IN_APP_NOTIFICATION_CAP_DEFAULT + 10 }, (_, i) => ({
       userId, kind: 'mention' as const, dedupeKey: `old-${i}`, payload: { messageId: first.id, channelId }
     })) })
     await inApp.record([userId], { kind: 'announcement', payload: { title: 'cap trigger' } })
-    expect(await prisma.inAppNotification.count({ where: { userId } })).toBeLessThanOrEqual(500)
+    expect(await prisma.inAppNotification.count({ where: { userId } })).toBe(IN_APP_NOTIFICATION_CAP_DEFAULT)
     await inbox.read(userId, { target: channelTarget(first.id), throughAt: new Date().toISOString() })
     expect((await inbox.page(userId, { view: 'later' })).groups).toHaveLength(1)
     expect(await prisma.inboxLater.count({ where: { userId } })).toBe(1)
@@ -443,5 +469,102 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
     expect((await inbox.page(userId, { view: 'replies' })).groups[0]).toMatchObject({ unreadCount: 1 })
     await inbox.read(userId, { target: channelTarget(), throughAt: new Date().toISOString() })
     expect((await inbox.page(userId, { view: 'replies' })).groups[0]).toMatchObject({ unreadCount: 1 })
+  })
+
+  it('keeps exactly 1,000 Later entries, refreshes existing saves and evicts excess only for that account', async () => {
+    expect(INBOX_LATER_CAP).toBe(1000)
+    const saved = await seedLater(999)
+    const root = await message()
+    const dm = await message({ channelId: null, directConversationId: dmId })
+    await inbox.saveLater(other, { target: channelTarget(root.id) })
+    await inbox.saveLater(userId, { target: channelTarget(root.id) })
+    expect(await prisma.inboxLater.count({ where: { userId } })).toBe(1000)
+    expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(saved[0]) } } }))
+      .not.toBeNull()
+
+    await inbox.saveLater(userId, { target: saved[0] })
+    expect(await prisma.inboxLater.count({ where: { userId } })).toBe(1000)
+    await inbox.saveLater(userId, { target: dmTarget(dm.id) })
+
+    expect(await prisma.inboxLater.count({ where: { userId } })).toBe(1000)
+    expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(saved[0]) } } }))
+      .not.toBeNull()
+    expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(saved[1]) } } }))
+      .toBeNull()
+    expect(await prisma.inboxLater.count({ where: { userId: other } })).toBe(1)
+    expect(await prisma.message.count({ where: { authorId: other } })).toBe(1001)
+    expect(await prisma.channelReadState.count({ where: { userId } })).toBe(0)
+    expect(await prisma.dmReadState.count({ where: { userId } })).toBe(0)
+  })
+
+  it('serializes concurrent Later saves at the limit without losing either new item', async () => {
+    const saved = await seedLater()
+    const root = await message()
+    const dm = await message({ channelId: null, directConversationId: dmId })
+    await Promise.all([
+      inbox.saveLater(userId, { target: channelTarget(root.id) }),
+      inbox.saveLater(userId, { target: dmTarget(dm.id) })
+    ])
+    expect(await prisma.inboxLater.count({ where: { userId } })).toBe(1000)
+    for (const target of [channelTarget(root.id), dmTarget(dm.id)]) {
+      expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(target) } } }))
+        .not.toBeNull()
+    }
+    for (const target of saved.slice(0, 2)) {
+      expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(target) } } }))
+        .toBeNull()
+    }
+  })
+
+  it('does not remove an evicted Later entry from an already frozen catch-up queue', async () => {
+    const saved = await seedLater()
+    const session = (await inbox.startSession(userId, { view: 'later' })).session
+    expect(session.groups).toHaveLength(1000)
+    const root = await message()
+    await inbox.saveLater(userId, { target: channelTarget(root.id) })
+    expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(saved[0]) } } }))
+      .toBeNull()
+    const resumed = (await inbox.getSession(userId)).session
+    expect(resumed).toMatchObject({
+      id: session.id, revision: session.revision, index: 0, completed: 0, deferred: 0,
+      snapshotAt: session.snapshotAt
+    })
+    expect(resumed?.groups.map((group) => group.key)).toEqual(session.groups.map((group) => group.key))
+  })
+
+  it('enforces Later retention on catch-up deferrals without acknowledging messages', async () => {
+    const saved = await seedLater()
+    const session = await frozenSession()
+    const result = await inbox.advance(userId, { id: session.id, revision: session.revision, action: 'later' })
+    expect(result.session).toMatchObject({ index: 1, completed: 0, deferred: 1 })
+    expect(await prisma.inboxLater.count({ where: { userId } })).toBe(1000)
+    expect(await prisma.inboxLater.findUnique({ where: { userId_key: { userId, key: groupKey(saved[0]) } } }))
+      .toBeNull()
+    expect(await prisma.channelReadState.count({ where: { userId } })).toBe(0)
+    expect(await prisma.inboxThreadReadState.count({ where: { userId } })).toBe(0)
+    expect(await prisma.message.count({ where: { authorId: other } })).toBe(1000)
+  })
+
+  it('caps concurrent notification deliveries at 1,000, removing read entries before older unread entries', async () => {
+    const ids = Array.from({ length: 1000 }, () => randomUUID())
+    await prisma.inAppNotification.createMany({
+      data: ids.map((id, index) => ({
+        id, userId, kind: 'announcement', payload: {},
+        createdAt: new Date(oldAt.getTime() + index), updatedAt: oldAt,
+        readAt: index === 999 ? snapshot : null
+      }))
+    })
+    const outside = await prisma.inAppNotification.create({
+      data: { userId: other, kind: 'announcement', payload: {}, createdAt: oldAt }
+    })
+    await Promise.all(Array.from({ length: 3 }, (_, index) =>
+      inApp.record([userId], { kind: 'announcement', payload: { title: `New ${index}` } })
+    ))
+    expect(await prisma.inAppNotification.count({ where: { userId } })).toBe(1000)
+    for (const id of [ids[999], ids[0], ids[1]]) {
+      expect(await prisma.inAppNotification.findUnique({ where: { id } })).toBeNull()
+    }
+    expect(await prisma.inAppNotification.findUnique({ where: { id: ids[2] } })).not.toBeNull()
+    expect(await prisma.inAppNotification.findUnique({ where: { id: outside.id } })).not.toBeNull()
   })
 })

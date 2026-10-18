@@ -30,7 +30,7 @@
   "inboxViewEmpty": "Nothing waiting here",
   "inboxEmptyHint": "Choose another view, or refresh to check for new activity.",
   "inboxLaterEmpty": "Nothing saved for later",
-  "inboxLaterHint": "Save a conversation or thread here and return when you have time. It stays even after you read it.",
+  "inboxLaterHint": "Save a conversation or thread here and return when you have time. It stays even after you read it. Up to 1,000 saved items; saving more removes the oldest.",
   "inboxLess": "Show less",
   "inboxHighlights_one": "Show {{count}} highlight",
   "inboxHighlights_other": "Show {{count}} highlights",

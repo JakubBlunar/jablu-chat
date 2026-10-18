@@ -28,6 +28,7 @@ describe('InAppNotificationsService', () => {
     }
     $transaction: jest.Mock
     $executeRaw: jest.Mock
+    $queryRaw: jest.Mock
   }
   let events: { emit: jest.Mock }
 
@@ -50,7 +51,8 @@ describe('InAppNotificationsService', () => {
         updateMany: jest.fn()
       },
       $transaction: jest.fn(),
-      $executeRaw: jest.fn().mockResolvedValue(1)
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      $queryRaw: jest.fn().mockResolvedValue([])
     }
     prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<void>) => fn(prisma))
     events = { emit: jest.fn() }
@@ -70,6 +72,22 @@ describe('InAppNotificationsService', () => {
     const [strings, ...values] = prisma.$executeRaw.mock.calls[index]
     return Prisma.sql(strings, ...values)
   }
+
+  it('defaults to 1,000 records and locks the account before writing and pruning', async () => {
+    delete process.env.IN_APP_NOTIFICATION_CAP
+    const defaults = await Test.createTestingModule({
+      providers: [
+        InAppNotificationsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: EventBusService, useValue: events }
+      ]
+    }).compile()
+    await defaults.get(InAppNotificationsService).record(['u1'], { kind: InAppNotificationKind.announcement, payload: {} })
+    expect(IN_APP_NOTIFICATION_CAP_DEFAULT).toBe(1000)
+    expect(executedQuery(1).values).toContain(1000)
+    expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(prisma.$executeRaw.mock.invocationCallOrder[0])
+    await defaults.close()
+  })
 
   it('skips muted users for mentions', async () => {
     prisma.channelNotifPref.findMany.mockResolvedValue([{ userId: 'u1', level: 'none' }])
@@ -111,7 +129,7 @@ describe('InAppNotificationsService', () => {
     expect(executedQuery().values).toContainEqual(expect.stringContaining('"threadParentId":"parent"'))
   })
 
-  it('resolves preferences once for 5,000 recipients and uses two statements per batch', async () => {
+  it('resolves preferences once for 5,000 recipients and locks recipients before enforcing the cap', async () => {
     const recipients = Array.from({ length: 5000 }, (_, i) => `u${i}`)
     await service.recordChannelMessage(recipients, {
       serverId: 's1', channelId: 'c1', channelName: 'general',
@@ -123,6 +141,7 @@ describe('InAppNotificationsService', () => {
     expect(prisma.serverMember.findMany).toHaveBeenCalledTimes(1)
     expect(prisma.$transaction).toHaveBeenCalledTimes(50)
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(100)
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(50)
     expect(events.emit).toHaveBeenCalledTimes(50)
     expect(executedQuery().text).toContain("notification.payload->>'count'")
     expect(executedQuery().text).toContain('notification.read_at IS NOT NULL')

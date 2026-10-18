@@ -3,7 +3,7 @@ import { InAppNotificationKind, Prisma } from '../prisma-client'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 
-export const IN_APP_NOTIFICATION_CAP_DEFAULT = 500
+export const IN_APP_NOTIFICATION_CAP_DEFAULT = 1000
 
 /** Recipients per transaction for every notification kind. */
 const RECORD_BATCH_SIZE = 100
@@ -163,6 +163,10 @@ export class InAppNotificationsService {
       const batch = targets.slice(i, i + RECORD_BATCH_SIZE)
       const now = new Date()
       await this.prisma.$transaction(async (tx) => {
+        // Different notification keys must still share one per-account retention boundary.
+        await tx.$queryRaw`
+          SELECT id FROM users WHERE id = ANY(${batch}::text[]) ORDER BY id FOR UPDATE
+        `
         // A consistent recipient order also gives overlapping fan-outs the same lock order.
         await tx.$executeRaw`
           INSERT INTO in_app_notifications AS notification

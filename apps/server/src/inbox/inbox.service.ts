@@ -32,6 +32,7 @@ type UnreadRow = {
   latestAt: Date; ids: string[]
 }
 type Database = Prisma.TransactionClient
+export const INBOX_LATER_CAP = 1000
 
 @Injectable()
 export class InboxService {
@@ -409,17 +410,31 @@ export class InboxService {
     const input = object(body, ['target'])
     const t = target(input.target)
     await this.requireTarget(userId, t)
-    await this.putLater(this.prisma, userId, t)
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
+      await this.putLater(tx, userId, t)
+    })
     this.bump(userId)
     return { ok: true as const }
   }
 
   private async putLater(tx: Database, userId: string, t: InboxTarget) {
+    const key = groupKey(t)
     await tx.inboxLater.upsert({
-      where: { userId_key: { userId, key: groupKey(t) } },
-      create: { userId, key: groupKey(t), target: t as unknown as Prisma.InputJsonValue },
+      where: { userId_key: { userId, key } },
+      create: { userId, key, target: t as unknown as Prisma.InputJsonValue },
       update: { target: t as unknown as Prisma.InputJsonValue, savedAt: new Date() }
     })
+    // Always retain this save, including when saved timestamps tie.
+    await tx.$executeRaw`
+      DELETE FROM inbox_later
+      WHERE user_id = ${userId} AND key IN (
+        SELECT key FROM inbox_later
+        WHERE user_id = ${userId} AND key <> ${key}
+        ORDER BY saved_at DESC, key DESC
+        OFFSET ${INBOX_LATER_CAP - 1}
+      )
+    `
   }
 
   async removeLater(userId: string, body: unknown) {
@@ -636,6 +651,7 @@ export class InboxService {
     let receipt: Date | null = null
     let receiptTarget: InboxTarget | undefined
     const session = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
       const row = await tx.inboxSession.findUnique({ where: { userId } })
       if (!row || row.id !== id) throw new NotFoundException('Inbox session not found')
       if (row.revision !== revision) throw new ConflictException('Inbox session revision conflict')

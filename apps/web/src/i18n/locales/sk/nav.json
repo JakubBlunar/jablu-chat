@@ -35,7 +35,7 @@
   "inboxViewEmpty": "Tu nič nečaká",
   "inboxEmptyHint": "Zvoľte iný prehľad alebo skontrolujte novú aktivitu obnovením.",
   "inboxLaterEmpty": "Nič uložené na neskôr",
-  "inboxLaterHint": "Uložte si sem konverzáciu či vlákno a vráťte sa, keď budete mať čas. Zostane tu aj po prečítaní.",
+  "inboxLaterHint": "Uložte si sem konverzáciu či vlákno a vráťte sa, keď budete mať čas. Zostane tu aj po prečítaní. Limit je 1 000 položiek; pri ukladaní ďalších sa najstaršie odstránia.",
   "inboxLess": "Zobraziť menej",
   "inboxHighlights_one": "Zobraziť {{count}} správu",
   "inboxHighlights_few": "Zobraziť {{count}} správy",
