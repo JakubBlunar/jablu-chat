@@ -115,7 +115,7 @@ export const useAuthStore = create<AuthState>()(
         const attempt = ++authAttempt
         const data = await api.login(email, password)
         const u = normalizeAuthUser(data.user)
-        if (!await prepareSession(u.id, attempt)) return
+        if (!(await prepareSession(u.id, attempt))) return
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
@@ -130,7 +130,7 @@ export const useAuthStore = create<AuthState>()(
         const attempt = ++authAttempt
         const data = await api.register(username, email, password, inviteCode)
         const u = normalizeAuthUser(data.user)
-        if (!await prepareSession(u.id, attempt)) return
+        if (!(await prepareSession(u.id, attempt))) return
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
@@ -151,7 +151,12 @@ export const useAuthStore = create<AuthState>()(
         }
         let timeout: ReturnType<typeof setTimeout> | undefined
         try {
-          const remote = Promise.race([cleanup(), new Promise<void>((resolve) => { timeout = setTimeout(resolve, 5000) })])
+          const remote = Promise.race([
+            cleanup(),
+            new Promise<void>((resolve) => {
+              timeout = setTimeout(resolve, 5000)
+            })
+          ])
           // End the local session immediately; a slow revocation must never
           // clear an account that signs in while the request is finishing.
           const [sessionResult, remoteResult] = await Promise.allSettled([clearSession(), remote])
@@ -170,7 +175,9 @@ export const useAuthStore = create<AuthState>()(
           try {
             const raw = localStorage.getItem('chat-auth')
             if (raw) rt = (JSON.parse(raw) as { state?: { refreshToken?: string } }).state?.refreshToken ?? null
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
         if (!rt) return
         let data: AuthResponse
@@ -185,7 +192,7 @@ export const useAuthStore = create<AuthState>()(
         }
         if (revision !== sessionRevision || attempt !== authAttempt) return
         const u = normalizeAuthUser(data.user)
-        if (!await prepareSession(u.id, attempt, revision)) return
+        if (!(await prepareSession(u.id, attempt, revision))) return
         set({
           accessToken: data.accessToken,
           refreshToken: data.refreshToken,
@@ -271,7 +278,9 @@ export const useAuthStore = create<AuthState>()(
               accessToken = accessToken || parsed?.accessToken || null
               refreshToken = refreshToken || parsed?.refreshToken || null
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
         set({ isLoading: true })
 
@@ -308,7 +317,7 @@ export const useAuthStore = create<AuthState>()(
             return
           }
         }
-        if (!await prepareSession(u.id, attempt, revision)) return
+        if (!(await prepareSession(u.id, attempt, revision))) return
         set({
           ...(refreshed && { accessToken: refreshed.accessToken, refreshToken: refreshed.refreshToken }),
           user: u,
@@ -333,9 +342,10 @@ export const useAuthStore = create<AuthState>()(
 useAuthStore.subscribe((state, previous) => {
   if (
     state.user?.id !== previous.user?.id ||
-    state.accessToken !== previous.accessToken ||
-    state.refreshToken !== previous.refreshToken ||
+    Boolean(state.accessToken) !== Boolean(previous.accessToken) ||
+    Boolean(state.refreshToken) !== Boolean(previous.refreshToken) ||
     state.isAuthenticated !== previous.isAuthenticated
-  ) sessionRevision++
+  )
+    sessionRevision++
   if (state.user?.id !== previous.user?.id) useTranslationStore.getState().reset()
 })
