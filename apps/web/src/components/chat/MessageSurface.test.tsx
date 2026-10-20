@@ -1,14 +1,24 @@
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MessageSurface, type MessageSurfaceProps } from './MessageSurface'
 import type { ScrollState } from './hooks/useMessageScroll'
-import { makeMessages, resetMsgSeq } from '@/test/factories'
+import { makeMessage, makeMessages, resetMsgSeq } from '@/test/factories'
 import React from 'react'
 
 jest.mock('@/components/chat/MessageRow', () => ({
-  MessageRow: ({ message }: { message: { id: string; content: string | null } }) => (
-    <div data-testid={`msg-${message.id}`}>{message.content}</div>
-  )
+  MessageRow: ({
+    message,
+    onJumpToMessage,
+    showHead
+  }: React.ComponentProps<typeof import('./MessageRow').MessageRow>) => {
+    const replyTo = message.replyTo
+    return (
+      <div data-testid={`msg-${message.id}`} data-show-head={showHead}>
+        {message.content}
+        {replyTo && <button onClick={() => onJumpToMessage(replyTo.id)}>Jump to original</button>}
+      </div>
+    )
+  }
 }))
 
 jest.mock('@/components/ScrollToBottomButton', () => ({
@@ -80,6 +90,33 @@ describe('MessageSurface', () => {
     for (const msg of msgs) {
       expect(screen.getByTestId(`msg-${msg.id}`)).toBeInTheDocument()
     }
+  })
+
+  it.each(['channel', 'dm'] as const)('routes reply jumps through the %s surface scroll handler', (mode) => {
+    const original = { id: 'original', content: 'Original message', author: null }
+    const scroll = makeScroll()
+    renderSurface({
+      mode,
+      scroll,
+      messages: [makeMessage({ replyToId: original.id, replyTo: original })]
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to original' }))
+    expect(scroll.handleJumpToMessage).toHaveBeenCalledTimes(1)
+    expect(scroll.handleJumpToMessage).toHaveBeenCalledWith(original.id)
+  })
+
+  it('starts a new group for replies from the same author and keeps follow-up messages compact', () => {
+    const original = makeMessage()
+    const reply = makeMessage({
+      replyToId: original.id,
+      replyTo: { id: original.id, content: 'Original message', author: null }
+    })
+    const followUp = makeMessage()
+    renderSurface({ messages: [original, reply, followUp] })
+    expect(screen.getByTestId(`msg-${original.id}`)).toHaveAttribute('data-show-head', 'true')
+    expect(screen.getByTestId(`msg-${reply.id}`)).toHaveAttribute('data-show-head', 'true')
+    expect(screen.getByTestId(`msg-${followUp.id}`)).toHaveAttribute('data-show-head', 'false')
   })
 
   it('renders loading spinner only when loading with no messages', () => {

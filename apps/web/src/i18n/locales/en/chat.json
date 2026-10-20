@@ -1,4 +1,5 @@
 {
+  "profileLoadFailed": "Some profile details could not be loaded. Close and reopen the profile to try again.",
   "messageAction_offline": "Not connected. Reconnect and try again; this action has not been queued.",
   "messageAction_unconfirmed": "The server did not confirm this action. Check the message before trying again.",
   "messageAction_rejected": "The server could not complete this action. Please try again.",

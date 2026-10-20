@@ -112,7 +112,8 @@ export const MessageSurface = memo(function MessageSurface({
       const msg = messages[i]
       const prev = i > 0 ? messages[i - 1] : undefined
       const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
-      const showHead = newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
+      const showHead =
+        !!msg.replyToId || !!msg.replyTo || newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
       const isLastOwn = lastOwnMsgId != null && lastOwnMsgId === msg.id
       items.push({ msg, showHead, newDay, isLastOwn })
     }
@@ -163,7 +164,7 @@ export const MessageSurface = memo(function MessageSurface({
             </div>
           )}
           {renderedItems.map(({ msg, showHead, newDay, isLastOwn }) => (
-            <div key={msg.id} className="pb-0.5">
+            <div key={msg.id}>
               {newDay && <DateSeparator date={msg.createdAt} />}
               {firstUnreadId === msg.id && (
                 <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />
@@ -174,6 +175,7 @@ export const MessageSurface = memo(function MessageSurface({
                 showHead={showHead}
                 contextId={contextId}
                 onReply={onReply}
+                onJumpToMessage={scroll.handleJumpToMessage}
                 onUserClick={onUserClick}
                 onMentionClick={onMentionClick}
                 channels={channels}
@@ -181,6 +183,7 @@ export const MessageSurface = memo(function MessageSurface({
                 membersByUsername={lookups.membersByUsername}
                 rolesByLowerName={mode === 'dm' ? undefined : lookups.rolesByLowerName}
                 authorRoleColor={lookups.authorColors.get(msg.authorId ?? '') ?? null}
+                replyAuthorRoleColor={lookups.authorColors.get(msg.replyTo?.author?.id ?? '') ?? null}
                 hideThreadAction={hideThreadAction}
                 hidePinAction={hidePinAction}
                 hideBookmarkAction={hideBookmarkAction}
@@ -219,7 +222,7 @@ export const MessageSurface = memo(function MessageSurface({
         role="log"
         aria-label={tChat('messageListLabel')}
         aria-live="polite"
-        className={`chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-2 [overflow-anchor:none]${scroll.settling ? ' invisible' : ''}`}
+        className={`chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 [overflow-anchor:none]${scroll.settling ? ' invisible' : ''}`}
       >
         <div className="flex flex-col [overflow-anchor:none]">{scrollChildren}</div>
       </div>

@@ -36,13 +36,9 @@ type ProfileCardState = {
 
 async function fetchDetail(userId: string, isBot: boolean): Promise<ProfileCardDetail> {
   const [servers, friends, friendship] = await Promise.all([
-    api.getMutualServers(userId).then((r) => r.servers).catch(() => [] as MutualServer[]),
-    isBot
-      ? Promise.resolve([] as MutualFriend[])
-      : api.getMutualFriends(userId).then((r) => r.friends).catch(() => [] as MutualFriend[]),
-    isBot
-      ? Promise.resolve(null)
-      : api.getFriendshipStatus(userId).catch(() => null)
+    api.getMutualServers(userId).then((r) => r.servers),
+    isBot ? Promise.resolve([] as MutualFriend[]) : api.getMutualFriends(userId).then((r) => r.friends),
+    isBot ? Promise.resolve(null) : api.getFriendshipStatus(userId)
   ])
   return {
     mutualServers: servers,
@@ -95,12 +91,18 @@ export const useProfileCardStore = create<ProfileCardState>((set, get) => ({
     })
 
     // Stale cache: serve it immediately, let the refresh update in the background.
-    if (cached && !force) return Promise.resolve(cached)
+    if (cached && !force) {
+      void promise.catch((error: unknown) => console.error('Could not refresh cached profile details', error))
+      return Promise.resolve(cached)
+    }
     return promise
   }
 }))
 
 /** Fire-and-forget prefetch, e.g. on row hover, to warm the cache. */
 export function prefetchProfileCard(userId: string, isBot = false) {
-  void useProfileCardStore.getState().load(userId, { isBot }).catch(() => {})
+  void useProfileCardStore
+    .getState()
+    .load(userId, { isBot })
+    .catch(() => {})
 }

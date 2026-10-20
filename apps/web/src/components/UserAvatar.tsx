@@ -5,9 +5,11 @@ import { hashUsernameToHue } from '@/lib/username-color'
 import { resolveMediaUrl } from '@/lib/api'
 
 const sizeMap = {
+  xs: 'h-4 w-4 min-h-4 min-w-4 text-[10px]',
   sm: 'h-6 w-6 min-h-6 min-w-6 text-xs',
   md: 'h-8 w-8 min-h-8 min-w-8 text-sm',
   lg: 'h-10 w-10 min-h-10 min-w-10 text-base',
+  chat: 'h-12 w-12 min-h-12 min-w-12 text-lg',
   xl: 'h-20 w-20 min-h-20 min-w-20 text-2xl'
 } as const
 

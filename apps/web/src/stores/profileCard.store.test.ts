@@ -54,4 +54,32 @@ describe('profileCard.store', () => {
     await useProfileCardStore.getState().load('u1', { force: true })
     expect(mockApi.getMutualServers).toHaveBeenCalledTimes(2)
   })
+
+  it('reports failed details without caching a successful-looking empty profile', async () => {
+    const error = new Error('Offline')
+    mockApi.getMutualServers.mockRejectedValueOnce(error)
+    await expect(useProfileCardStore.getState().load('u1')).rejects.toThrow(error)
+    expect(useProfileCardStore.getState().cache.has('u1')).toBe(false)
+    expect(useProfileCardStore.getState().inflight.has('u1')).toBe(false)
+    await expect(useProfileCardStore.getState().load('u1')).resolves.toBeDefined()
+    expect(mockApi.getMutualServers).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a stale cached profile and logs a failed background refresh', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const cached = await useProfileCardStore.getState().load('u1')
+      cached.fetchedAt = Date.now() - 60_001
+      const error = new Error('Offline')
+      mockApi.getMutualServers.mockRejectedValueOnce(error)
+      const refresh = useProfileCardStore.getState().load('u1')
+      const pending = useProfileCardStore.getState().inflight.get('u1')
+      await expect(refresh).resolves.toBe(cached)
+      await expect(pending).rejects.toThrow(error)
+      expect(useProfileCardStore.getState().peek('u1')).toBe(cached)
+      expect(log).toHaveBeenCalledWith('Could not refresh cached profile details', error)
+    } finally {
+      log.mockRestore()
+    }
+  })
 })

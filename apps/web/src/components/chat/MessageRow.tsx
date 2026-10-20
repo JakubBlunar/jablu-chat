@@ -28,7 +28,6 @@ import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
-import { ReplyIcon } from '@/components/chat/chatIcons'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { useHasDraft } from '@/stores/draft.store'
 
@@ -48,6 +47,7 @@ export const MessageRow = memo(function MessageRow({
   showHead,
   contextId,
   onReply,
+  onJumpToMessage,
   onUserClick,
   onMentionClick,
   channels,
@@ -55,6 +55,7 @@ export const MessageRow = memo(function MessageRow({
   membersByUsername,
   rolesByLowerName,
   authorRoleColor,
+  replyAuthorRoleColor,
   hideThreadAction,
   hidePinAction,
   hideBookmarkAction
@@ -64,6 +65,7 @@ export const MessageRow = memo(function MessageRow({
   showHead: boolean
   contextId: string
   onReply: (msg: Message) => void
+  onJumpToMessage: (messageId: string) => void
   onUserClick?: (authorId: string, rect: DOMRect) => void
   onMentionClick?: (username: string, rect: DOMRect) => void
   channels?: ChannelRef[]
@@ -71,6 +73,7 @@ export const MessageRow = memo(function MessageRow({
   membersByUsername?: Map<string, MemberMentionRef>
   rolesByLowerName?: Map<string, RoleMentionRef>
   authorRoleColor?: string | null
+  replyAuthorRoleColor?: string | null
   hideThreadAction?: boolean
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
@@ -87,6 +90,9 @@ export const MessageRow = memo(function MessageRow({
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
+  const replyTo = message.replyTo
+  const replyAuthor = replyTo?.author
+  const replyName = replyAuthor?.displayName ?? replyAuthor?.username ?? t('deletedUser')
   const linkPreviews = useMemo(() => message.linkPreviews ?? [], [message.linkPreviews])
 
   const contentIsMediaLink = useMemo(() => {
@@ -216,9 +222,9 @@ export const MessageRow = memo(function MessageRow({
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       onContextMenu={handleContextMenu}
-      className={`group relative flex gap-4 rounded-md px-2 py-0.5 transition ${
+      className={`group relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 rounded-md px-2 py-0.5 transition ${
         editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
-      } ${showHead ? 'mt-4 first:mt-1' : '-mt-0.5'}`}
+      } ${showHead ? 'mt-4' : ''}`}
     >
       {drawerOpen && (
         <MobileMessageDrawer
@@ -248,18 +254,69 @@ export const MessageRow = memo(function MessageRow({
         />
       )}
 
+      {replyTo && (
+        <div className="relative col-start-2 mb-1 flex min-w-0 items-center gap-1 whitespace-nowrap text-[13px] leading-5 text-gray-400">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-10 top-1/2 h-4 w-8 rounded-tl-md border-l-2 border-t-2 border-gray-500/60"
+          />
+          <UserAvatar username={replyName} avatarUrl={replyAuthor?.avatarUrl} size="xs" />
+          {replyAuthor && onUserClick ? (
+            <button
+              type="button"
+              title={`@${replyName}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (longPressFired.current) {
+                  longPressFired.current = false
+                  return
+                }
+                onUserClick(replyAuthor.id, event.currentTarget.getBoundingClientRect())
+              }}
+              className="max-w-[40%] shrink-0 truncate rounded font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              style={replyAuthorRoleColor ? { color: replyAuthorRoleColor } : usernameAccentStyle(replyName)}
+            >
+              @{replyName}
+            </button>
+          ) : (
+            <span
+              className="max-w-[40%] shrink-0 truncate font-medium"
+              style={replyAuthorRoleColor ? { color: replyAuthorRoleColor } : usernameAccentStyle(replyName)}
+            >
+              {replyAuthor ? `@${replyName}` : replyName}
+            </span>
+          )}
+          <button
+            type="button"
+            aria-label={t('jumpToMessage')}
+            title={t('jumpToMessage')}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (longPressFired.current) {
+                longPressFired.current = false
+                return
+              }
+              onJumpToMessage(replyTo.id)
+            }}
+            className="min-w-0 flex-1 truncate rounded text-left transition-colors hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            {replyTo.content || '[attachment]'}
+          </button>
+        </div>
+      )}
+
       {showHead ? (
         isWebhook ? (
-          <div className="shrink-0 self-start">
-            <UserAvatar username={name} avatarUrl={avatarUrl} size="lg" />
+          <div className="col-start-1 mt-0.5 self-start">
+            <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
           </div>
         ) : (
-          <button type="button" onClick={handleAuthorClick} className="shrink-0 self-start">
-            <UserAvatar username={name} avatarUrl={avatarUrl} size={isDm ? 'md' : 'lg'} />
+          <button type="button" onClick={handleAuthorClick} className="col-start-1 mt-0.5 self-start">
+            <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
           </button>
         )
       ) : (
-        <div className={`flex ${isDm ? 'w-8' : 'w-10'} shrink-0 justify-center pt-1`}>
+        <div className="col-start-1 flex w-12 justify-center pt-1">
           {!isDm && (
             <span className="text-[10px] text-gray-500 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
               {formatTimeOnly(message.createdAt)}
@@ -268,19 +325,9 @@ export const MessageRow = memo(function MessageRow({
         </div>
       )}
 
-      <div className="min-w-0 flex-1 pb-0.5">
-        {message.replyTo && (
-          <div className="mb-0.5 flex items-center gap-1.5 text-xs text-gray-400">
-            <ReplyIcon className="h-3 w-3 shrink-0" strokeWidth={2.5} />
-            <span className="font-medium text-gray-300">
-              {message.replyTo.author?.displayName ?? message.replyTo.author?.username ?? t('deletedUser')}
-            </span>
-            <span className="truncate">{message.replyTo.content || '[attachment]'}</span>
-          </div>
-        )}
-
+      <div className="col-start-2 min-w-0">
         {showHead && (
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 leading-5">
             {isWebhook ? (
               <span
                 className="text-[15px] font-semibold"
@@ -301,7 +348,7 @@ export const MessageRow = memo(function MessageRow({
             {(isWebhook || message.webhookId || message.author?.isBot) && (
               <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
             )}
-            <time className="text-xs text-gray-500" dateTime={message.createdAt}>
+            <time className="text-[11px] text-gray-500" dateTime={message.createdAt}>
               {formatSmartTimestamp(message.createdAt)}
             </time>
             {message.pinned && (
@@ -387,6 +434,7 @@ export const MessageRow = memo(function MessageRow({
         ) : message.content && !contentIsMediaLink ? (
           <div>
             <MarkdownContent
+              className="[&_p]:leading-normal"
               content={message.content}
               onMentionClick={onMentionClick}
               channels={channels}

@@ -19,6 +19,15 @@ link previews; full previews remain the default.
 - **Links** collects shared HTTP(S) links, including links without a generated preview.
 - **Pins** shows pinned messages and supports unpinning.
 
+Desktop profile popups fit within the browser window wherever they are opened.
+They wait for the initial profile details, messaging permissions and member XP,
+then measure and reveal the completed card at its final position without an
+intermediate jump. They adjust when the window is resized or live content changes,
+and scroll internally if the card is too tall. Failed initial requests show an
+error instead of leaving the popup hidden; Escape or an outside click can cancel
+while it loads.
+Mobile profiles keep their modal presentation.
+
 Media and files are paginated across the entire conversation history, not just
 the messages loaded in the chat. **Jump to message** opens the original context.
 Deleted messages are excluded. Only current conversation members can list
@@ -34,6 +43,12 @@ The full-screen gallery supports opening and downloading both images and videos.
 Message jumps load missing history before highlighting the target. An unavailable
 target or failed request does not replace already loaded messages; a notice
 provides Retry and Dismiss. Thread and forum replies open in their own context.
+Click or tap the quoted message text above a reply to jump to its original
+message, or the quoted author's name to open their profile. These are separate
+controls; keyboard users can focus either and activate it with Enter or Space.
+Replies start a new message group and show a compact author avatar and quote
+above the sender, connected to the avatar gutter. Message avatars are 48 pixels
+in channels and DMs; consecutive non-reply messages keep compact spacing.
 Saved-message jumps update the route and retain the reply's parent-thread target.
 Copied and shared message links also retain the parent thread, on both desktop
 and mobile.

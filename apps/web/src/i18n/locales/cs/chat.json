@@ -1,4 +1,5 @@
 {
+  "profileLoadFailed": "Některé údaje profilu se nepodařilo načíst. Zavřete a znovu otevřete profil.",
   "messageAction_offline": "Nejste připojeni. Připojte se a zkuste to znovu; tato akce nebyla zařazena do fronty.",
   "messageAction_unconfirmed": "Server tuto akci nepotvrdil. Před dalším pokusem zkontrolujte zprávu.",
   "messageAction_rejected": "Server nemohl tuto akci dokončit. Zkuste to prosím znovu.",

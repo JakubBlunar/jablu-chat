@@ -60,6 +60,47 @@ describe('useMessageScroll', () => {
       errorLog.mockRestore()
     })
 
+    it.each([true, false])('centers and highlights an original message (already loaded: %s)', async (loaded) => {
+      const target = makeMessage({ id: 'original' })
+      const snapshot = {
+        messages: loaded ? [target] : [makeMessage({ id: 'visible' })],
+        isLoading: false,
+        hasMore: true,
+        hasNewer: false
+      }
+      const element = document.createElement('div')
+      element.id = 'msg-original'
+      element.scrollIntoView = jest.fn()
+      if (loaded) document.body.appendChild(element)
+      const adapter = makeAdapter({
+        messages: snapshot.messages,
+        getLoadedForId: () => 'ch-1',
+        getSnapshot: () => snapshot,
+        fetchMessagesAround: jest.fn(async () => {
+          snapshot.messages = [target]
+          document.body.appendChild(element)
+        })
+      })
+      const { result, rerender, unmount } = renderHook(() => useMessageScroll('ch-1', adapter))
+      try {
+        act(() => result.current.handleJumpToMessage(target.id))
+        expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(target.id)
+        await act(async () => {
+          adapter.scrollToMessageId = target.id
+          rerender()
+        })
+        await waitFor(() => expect(element.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' }))
+        expect(element.classList.contains('bg-primary/10')).toBe(true)
+        expect(result.current.atBottom).toBe(false)
+        expect(adapter.fetchMessagesAround).toHaveBeenCalledTimes(loaded ? 0 : 1)
+        if (!loaded) expect(adapter.fetchMessagesAround).toHaveBeenCalledWith('ch-1', target.id)
+        expect(adapter.setScrollToMessageId).toHaveBeenLastCalledWith(null)
+      } finally {
+        unmount()
+        element.remove()
+      }
+    })
+
     it('preserves visible messages after a failed jump and retries the original target', async () => {
       const visible = makeMessage({ id: 'visible' })
       const target = makeMessage({ id: 'target' })

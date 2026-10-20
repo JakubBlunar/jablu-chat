@@ -1,6 +1,7 @@
 import type { FriendshipStatusResponse, UserStatus } from '@chat/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { RoleBadge } from '@/components/ui/RoleBadge'
 import { SectionHeading } from '@/components/ui/SectionHeading'
@@ -54,18 +55,61 @@ function formatDate(iso?: string): string {
   })
 }
 
-export function ProfileCard({
-  user,
-  onClose,
-  anchorRect
-}: {
+type ProfileCardProps = {
   user: ProfileCardUser
   onClose: () => void
   anchorRect: DOMRect | null
-}) {
-  const cardRef = useRef<HTMLDivElement>(null)
+}
+
+export function ProfileCard(props: ProfileCardProps) {
   const isMobile = useIsMobile()
-  useFocusTrap(cardRef, !isMobile, onClose)
+  return <ProfileCardPopup key={`${props.user.id}:${isMobile}`} {...props} isMobile={isMobile} />
+}
+
+function ProfileCardPopup({ user, onClose, anchorRect, isMobile }: ProfileCardProps & { isMobile: boolean }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [contentReady, setContentReady] = useState(false)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  const visible = contentReady && position !== null
+  const handleContentReady = useCallback(() => setContentReady(true), [])
+  useFocusTrap(cardRef, !isMobile && visible, onClose)
+
+  useLayoutEffect(() => {
+    if (isMobile || !contentReady) return
+    const card = cardRef.current
+    if (!card) return
+
+    const updatePosition = () => {
+      const gap = 8
+      const { width, height } = card.getBoundingClientRect()
+      const maxLeft = Math.max(gap, window.innerWidth - width - gap)
+      const maxTop = Math.max(gap, window.innerHeight - height - gap)
+      let left = (window.innerWidth - width) / 2
+      let top = (window.innerHeight - height) / 2
+
+      if (anchorRect) {
+        if (window.innerWidth - anchorRect.right - gap * 2 >= width) {
+          left = anchorRect.right + gap
+        } else if (anchorRect.left - gap * 2 >= width) {
+          left = anchorRect.left - width - gap
+        }
+        top = anchorRect.top + height <= window.innerHeight - gap ? anchorRect.top : anchorRect.bottom - height
+      }
+
+      left = Math.max(gap, Math.min(left, maxLeft))
+      top = Math.max(gap, Math.min(top, maxTop))
+      setPosition((previous) => (previous?.left === left && previous.top === top ? previous : { left, top }))
+    }
+
+    updatePosition()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(updatePosition)
+    observer?.observe(card)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [anchorRect, isMobile, contentReady])
 
   useEffect(() => {
     if (isMobile) return
@@ -105,37 +149,19 @@ export function ProfileCard({
     )
   }
 
-  const style: React.CSSProperties = {}
-  if (anchorRect) {
-    style.position = 'fixed'
-    const cardWidth = 320
-    const rightSpace = window.innerWidth - anchorRect.right - 8
-    const leftSpace = anchorRect.left - 8
-
-    if (rightSpace >= cardWidth) {
-      style.left = anchorRect.right + 8
-    } else if (leftSpace >= cardWidth) {
-      style.left = anchorRect.left - cardWidth - 8
-    } else {
-      style.left = Math.max(8, (window.innerWidth - cardWidth) / 2)
-    }
-
-    const cardHeight = 320
-    if (anchorRect.top + cardHeight > window.innerHeight) {
-      style.bottom = Math.max(8, window.innerHeight - anchorRect.bottom)
-    } else {
-      style.top = anchorRect.top
-    }
-  }
-
-  return (
+  return createPortal(
     <div
       ref={cardRef}
-      style={style}
-      className="z-[90] w-[300px] overflow-hidden rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
+      role="dialog"
+      aria-modal="true"
+      aria-label={user.displayName ?? user.username}
+      aria-busy={!contentReady}
+      style={{ left: position?.left ?? 8, top: position?.top ?? 8, visibility: visible ? 'visible' : 'hidden' }}
+      className="fixed z-[90] max-h-[calc(100dvh-16px)] w-[300px] max-w-[calc(100vw-16px)] overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
     >
-      <ProfileCardContent user={user} onClose={onClose} />
-    </div>
+      <ProfileCardContent user={user} onClose={onClose} onReady={handleContentReady} />
+    </div>,
+    document.body
   )
 }
 
@@ -153,9 +179,23 @@ type MutualFriend = {
   status: string
 }
 
-function ProfileCardContent({ user, onClose }: { user: ProfileCardUser; onClose: () => void }) {
+type XpProgress = Awaited<ReturnType<typeof api.getMemberXpProgress>>
+
+function ProfileCardContent({
+  user,
+  onClose,
+  onReady
+}: {
+  user: ProfileCardUser
+  onClose: () => void
+  onReady?: () => void
+}) {
+  const { t } = useTranslation('chat')
   const currentUserId = useAuthStore((s) => s.user?.id)
   const currentServerId = useServerStore((s) => s.currentServerId)
+  const currentServer = useServerStore((s) =>
+    s.currentServerId ? (s.servers.find((sv) => sv.id === s.currentServerId) ?? null) : null
+  )
   const adminRole = useMemberStore((s) => {
     if (!currentServerId) return null
     const member = s.members.find((m) => m.userId === user.id && m.serverId === currentServerId)
@@ -166,36 +206,85 @@ function ProfileCardContent({ user, onClose }: { user: ProfileCardUser; onClose:
   const [mutualServers, setMutualServers] = useState<MutualServer[]>([])
   const [mutualFriends, setMutualFriends] = useState<MutualFriend[]>([])
   const [friendshipStatus, setFriendshipStatus] = useState<FriendshipStatusResponse | null>(null)
+  const [canDm, setCanDm] = useState<boolean | null>(null)
+  const [progress, setProgress] = useState<XpProgress | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const dmRequest = useRef({ version: 0 })
   const activity = useActivityStore((s) => s.activities.get(user.id))
   const { orchestratedGoToChannel } = useAppNavigate()
 
-  useEffect(() => {
-    if (!user.id || user.id === currentUserId) return
-    let cancelled = false
+  const refreshCanDm = useCallback(async () => {
+    const requestState = dmRequest.current
+    const request = ++requestState.version
+    const result = await api.canDmUser(user.id)
+    if (request === requestState.version) setCanDm(result.allowed)
+  }, [user.id])
 
-    // Serve any cached detail synchronously so the card never "pops in".
-    const cached = useProfileCardStore.getState().peek(user.id)
-    if (cached) {
-      setMutualServers(cached.mutualServers)
-      setMutualFriends(cached.mutualFriends)
-      setFriendshipStatus(cached.friendshipStatus)
+  useEffect(() => {
+    let cancelled = false
+    const requestState = dmRequest.current
+    const requests: Promise<void>[] = []
+    setLoadFailed(false)
+
+    if (user.id !== currentUserId) {
+      const cached = useProfileCardStore.getState().peek(user.id)
+      if (cached) {
+        setMutualServers(cached.mutualServers)
+        setMutualFriends(cached.mutualFriends)
+        setFriendshipStatus(cached.friendshipStatus)
+      }
+      requests.push(
+        (async () => {
+          const request = useProfileCardStore.getState().load(user.id, { isBot: user.isBot })
+          const detail = await (useProfileCardStore.getState().inflight.get(user.id) ?? request)
+          if (cancelled) return
+          setMutualServers(detail.mutualServers)
+          setMutualFriends(detail.mutualFriends)
+          setFriendshipStatus(detail.friendshipStatus)
+        })(),
+        refreshCanDm()
+      )
     }
 
-    void useProfileCardStore
-      .getState()
-      .load(user.id, { isBot: user.isBot })
-      .then((detail) => {
+    if (currentServer?.xpEnabled) {
+      requests.push(
+        api.getMemberXpProgress(currentServer.id, user.id).then((result) => {
+          if (!cancelled) setProgress(result)
+        })
+      )
+    } else {
+      setProgress(null)
+    }
+
+    if (requests.length === 0) {
+      onReady?.()
+    } else {
+      void Promise.allSettled(requests).then((results) => {
         if (cancelled) return
-        setMutualServers(detail.mutualServers)
-        setMutualFriends(detail.mutualFriends)
-        setFriendshipStatus(detail.friendshipStatus)
+        const failures = results.filter((result) => result.status === 'rejected')
+        for (const failure of failures) console.error('Could not load profile content', failure.reason)
+        setLoadFailed(failures.length > 0)
+        onReady?.()
       })
-      .catch(() => {})
+    }
 
     return () => {
       cancelled = true
+      requestState.version++
     }
-  }, [user.id, user.isBot, currentUserId])
+  }, [user.id, user.isBot, currentUserId, currentServer?.id, currentServer?.xpEnabled, onReady, refreshCanDm])
+
+  const handleFriendshipStatusChange = useCallback(
+    (status: FriendshipStatusResponse) => {
+      setFriendshipStatus(status)
+      setCanDm(null)
+      void refreshCanDm().catch((error: unknown) => {
+        console.error('Could not refresh direct-message permissions', error)
+        setLoadFailed(true)
+      })
+    },
+    [refreshCanDm]
+  )
 
   return (
     <>
@@ -291,12 +380,17 @@ function ProfileCardContent({ user, onClose }: { user: ProfileCardUser; onClose:
         )}
 
         <RoleBadges userId={user.id} />
-        <XpProgressSection userId={user.id} />
+        <XpProgressSection progress={currentServer?.xpEnabled ? progress : null} />
         <VoiceVolumeSlider userId={user.id} />
-        {!user.isBot && (
-          <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={setFriendshipStatus} />
+        {loadFailed && (
+          <p role="alert" className="mb-3 text-xs text-red-400">
+            {t('profileLoadFailed')}
+          </p>
         )}
-        <SendDmButton userId={user.id} onClose={onClose} friendshipStatus={friendshipStatus} />
+        {!user.isBot && (
+          <FriendButton userId={user.id} status={friendshipStatus} onStatusChange={handleFriendshipStatusChange} />
+        )}
+        <SendDmButton userId={user.id} onClose={onClose} canDm={canDm} />
       </div>
     </>
   )
@@ -460,29 +554,12 @@ function FriendButton({
   )
 }
 
-function SendDmButton({
-  userId,
-  onClose,
-  friendshipStatus
-}: {
-  userId: string
-  onClose: () => void
-  friendshipStatus: FriendshipStatusResponse | null
-}) {
+function SendDmButton({ userId, onClose, canDm }: { userId: string; onClose: () => void; canDm: boolean | null }) {
   const currentUserId = useAuthStore((s) => s.user?.id)
   const { goToDm } = useAppNavigate()
   const addOrUpdateConv = useDmStore((s) => s.addOrUpdateConversation)
   const [loading, setLoading] = useState(false)
   const [dmError, setDmError] = useState<string | null>(null)
-  const [canDm, setCanDm] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    if (!userId || userId === currentUserId) return
-    api
-      .canDmUser(userId)
-      .then((res) => setCanDm(res.allowed))
-      .catch(() => setCanDm(true))
-  }, [userId, currentUserId, friendshipStatus])
 
   const handleClick = useCallback(async () => {
     if (!userId || userId === currentUserId) return
@@ -551,37 +628,8 @@ function RoleBadges({ userId }: { userId: string }) {
   )
 }
 
-function XpProgressSection({ userId }: { userId: string }) {
-  const currentServer = useServerStore((s) =>
-    s.currentServerId ? (s.servers.find((sv) => sv.id === s.currentServerId) ?? null) : null
-  )
-  const [progress, setProgress] = useState<{
-    xp: number
-    level: number
-    xpIntoLevel: number
-    xpNeededForLevel: number
-  } | null>(null)
-
-  useEffect(() => {
-    if (!currentServer?.id || !currentServer.xpEnabled) {
-      setProgress(null)
-      return
-    }
-    let cancelled = false
-    api
-      .getMemberXpProgress(currentServer.id, userId)
-      .then((res) => {
-        if (!cancelled) setProgress(res)
-      })
-      .catch(() => {
-        if (!cancelled) setProgress(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [currentServer?.id, currentServer?.xpEnabled, userId])
-
-  if (!currentServer?.xpEnabled || !progress) return null
+function XpProgressSection({ progress }: { progress: XpProgress | null }) {
+  if (!progress) return null
 
   const pct =
     progress.xpNeededForLevel > 0
