@@ -58,6 +58,45 @@
   "participantCount_few": "{{count}} účastníci",
   "participantCount_many": "{{count}} účastníkov",
   "participantCount_other": "{{count}} účastníkov",
+  "cameraSetup": {
+    "startTitle": "Nastavenia kamery",
+    "editTitle": "Zmeniť nastavenia kamery",
+    "resolution": "Rozlíšenie",
+    "backgroundBlur": "Rozmazanie pozadia",
+    "blurBackground": "Rozmazať pozadie",
+    "blurBackgroundHint": "Používa segmentáciu pomocou AI. Na starších zariadeniach môže znížiť výkon.",
+    "blurUnsupported": "Tento prehliadač nepodporuje rozmazanie pozadia.",
+    "startCamera": "Spustiť kameru",
+    "applyChanges": "Použiť zmeny"
+  },
+  "screenShareSetup": {
+    "title": "Nastavenia zdieľania obrazovky",
+    "resolution": "Rozlíšenie",
+    "frameRate": "Snímková frekvencia",
+    "fpsUnit": "snímok/s",
+    "audio": "Zvuk",
+    "includeAudio": "Zahrnúť zvuk",
+    "includeAudioHint": "Zdieľajte zvuk systému alebo karty spolu s obrazovkou",
+    "betterAudio": "Lepší zvuk pre zdieľaný obsah",
+    "betterAudioHint": "Stereo a vyšší dátový tok pre hudbu alebo video. Spotrebuje viac šírky pásma a výkonu procesora.",
+    "shareScreen": "Zdieľať obrazovku"
+  },
+  "screenSharePicker": {
+    "title": "Zdieľať obrazovku",
+    "screens": "Obrazovky",
+    "applicationWindows": "Okná aplikácií",
+    "betterAudio": "Lepší zvuk pre zdieľaný obsah",
+    "betterAudioHint": "Stereo / vyšší dátový tok — vyššia spotreba šírky pásma a procesora.",
+    "resolution": "Rozlíšenie",
+    "native": "Natívne",
+    "fps": "FPS",
+    "startSharing": "Začať zdieľať"
+  },
+  "screenShareAudio": {
+    "volume": "Hlasitosť zvuku zdieľania obrazovky",
+    "mute": "Stlmiť zvuk zdieľanej obrazovky",
+    "unmute": "Zapnúť zvuk zdieľanej obrazovky"
+  },
   "settings": {
     "whenJoining": "Pri pripojení k hlasovému chatu",
     "joinMuted": "Pripojiť sa so stíšeným mikrofónom",

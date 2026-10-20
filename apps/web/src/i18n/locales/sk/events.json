@@ -1,0 +1,101 @@
+{
+  "schedule": {
+    "today": "Dnes",
+    "tomorrow": "Zajtra",
+    "yesterday": "Včera",
+    "atTime": "{{date}} o {{time}}",
+    "endsAt": "Končí o {{time}}",
+    "endedAt": "Skončila {{date}} o {{time}}",
+    "live": "NAŽIVO",
+    "withDuration": "{{dateTime}} ({{duration}})"
+  },
+  "duration": {
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "hours": "{{hours}} h",
+    "minutes": "{{minutes}} min"
+  },
+  "recurrence": {
+    "daily": "Denne",
+    "weekly": "Týždenne",
+    "biweekly": "Každé dva týždne",
+    "monthly": "Mesačne"
+  },
+  "list": {
+    "happeningNow": "PRÁVE PREBIEHA",
+    "interested": "Mám záujem",
+    "interestedQuestion": "Máte záujem?",
+    "join": "Pripojiť sa",
+    "noUpcoming": "Žiadne nadchádzajúce udalosti",
+    "createToGetStarted": "Začnite vytvorením udalosti",
+    "upcoming": "NADCHÁDZAJÚCE",
+    "loading": "Načítavanie…",
+    "loadMore": "Načítať ďalšie"
+  },
+  "scheduleFields": {
+    "start": "Začiatok *",
+    "ends": "Koniec",
+    "duration": "Trvanie",
+    "endTime": "Čas konca",
+    "noEndTime": "Bez času konca",
+    "custom": "Vlastné…",
+    "hours": "hodín",
+    "minutes": "minút",
+    "presets": {
+      "30Minutes": "30 minút",
+      "1Hour": "1 hodina",
+      "1Hour30Minutes": "1 hodina 30 minút",
+      "2Hours": "2 hodiny",
+      "3Hours": "3 hodiny",
+      "4Hours": "4 hodiny",
+      "allDay": "Celý deň"
+    }
+  },
+  "create": {
+    "back": "Späť",
+    "chooseLocation": "Vyberte miesto",
+    "eventDetails": "Podrobnosti udalosti",
+    "review": "Kontrola",
+    "voiceChannel": "Hlasový kanál",
+    "voiceChannelDescription": "Usporiadajte udalosť v hlasovom kanáli",
+    "somewhereElse": "Inde",
+    "somewhereElseDescription": "Pridajte odkaz alebo vlastné miesto",
+    "location": "Miesto",
+    "customLocationPlaceholder": "napr. Discord Stage alebo externý odkaz…",
+    "eventName": "Názov udalosti *",
+    "namePlaceholder": "Herný večer, filmový večer…",
+    "description": "Popis",
+    "descriptionPlaceholder": "Opíšte ostatným, o čom udalosť bude…",
+    "repeat": "Opakovanie",
+    "noRepeat": "Bez opakovania",
+    "next": "Ďalej",
+    "creating": "Vytváranie…",
+    "createEvent": "Vytvoriť udalosť",
+    "failed": "Udalosť sa nepodarilo vytvoriť",
+    "voiceFallback": "Hlasový kanál",
+    "customLocationFallback": "Vlastné miesto",
+    "repeatSummary": "Opakuje sa: {{rule}}"
+  },
+  "detail": {
+    "back": "Späť na udalosti",
+    "title": "Podrobnosti udalosti",
+    "descriptionPlaceholder": "Popis…",
+    "saving": "Ukladanie…",
+    "save": "Uložiť",
+    "cancel": "Zrušiť",
+    "voiceFallback": "Hlasový kanál",
+    "customLocationFallback": "Vlastné miesto",
+    "createdBy": "Vytvoril(a): {{name}}",
+    "markInterested": "Mám záujem",
+    "joinVoice": "Pripojiť sa k hlasovému kanálu",
+    "edit": "Upraviť",
+    "cancelling": "Rušenie…",
+    "cancelEvent": "Zrušiť udalosť",
+    "interestedCount": "Záujemcovia: {{count}}",
+    "noInterested": "Zatiaľ nikto neprejavil záujem",
+    "cancelConfirmTitle": "Zrušiť udalosť",
+    "cancelConfirmDescription": "Naozaj chcete túto udalosť zrušiť?",
+    "startTimeRequired": "Je potrebné zadať platný čas začiatku",
+    "endAfterStart": "Čas konca musí byť neskorší ako čas začiatku",
+    "updateFailed": "Aktualizácia zlyhala"
+  }
+}

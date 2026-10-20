@@ -10,15 +10,10 @@ import { CreateEventWizard } from './CreateEventWizard'
 import { EventDetail } from './EventDetail'
 
 function RecurrenceBadge({ rule }: { rule: string }) {
-  const labels: Record<string, string> = {
-    daily: 'Daily',
-    weekly: 'Weekly',
-    biweekly: 'Biweekly',
-    monthly: 'Monthly'
-  }
+  const { t } = useTranslation('events')
   return (
     <Badge variant="primary" className="px-2 py-0.5 text-[10px] font-medium">
-      {labels[rule] ?? rule}
+      {t(`recurrence.${rule}`, { defaultValue: rule })}
     </Badge>
   )
 }
@@ -34,6 +29,7 @@ function EventCard({
   onToggleInterest: () => void
   onJoinVoice?: () => void
 }) {
+  const { t } = useTranslation('events')
   const isActive = event.status === 'active'
 
   return (
@@ -55,14 +51,14 @@ function EventCard({
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          <span className="text-[11px] font-semibold text-emerald-400">HAPPENING NOW</span>
+          <span className="text-[11px] font-semibold text-emerald-400">{t('list.happeningNow')}</span>
         </div>
       )}
 
       <h4 className="truncate text-sm font-semibold text-white">{event.name}</h4>
 
       <p className="mt-0.5 text-xs text-gray-400">
-        {formatEventSchedule(event.startAt, event.endAt, event.status)}
+        {formatEventSchedule(event.startAt, event.endAt, event.status, t)}
       </p>
 
       {event.description && (
@@ -129,7 +125,7 @@ function EventCard({
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
             </svg>
-            {event.isInterested ? 'Interested' : 'Interested?'}
+            {event.isInterested ? t('list.interested') : t('list.interestedQuestion')}
             {event.interestedCount > 0 && (
               <span className="ml-0.5 opacity-70">{event.interestedCount}</span>
             )}
@@ -148,7 +144,7 @@ function EventCard({
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                 <path d="M17 12a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V22h2v-3.07A7 7 0 0 0 19 12h-2z" />
               </svg>
-              Join
+              {t('list.join')}
             </button>
           )}
         </div>
@@ -165,7 +161,8 @@ type Props = {
 }
 
 export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
-  const { t } = useTranslation('nav')
+  const { t: tNav } = useTranslation('nav')
+  const { t: tEvents } = useTranslation('events')
   const { t: tCommon } = useTranslation('common')
   const events = useEventStore((s) => s.events)
   const loadedServerId = useEventStore((s) => s.loadedServerId)
@@ -200,11 +197,11 @@ export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
   const handleJoinVoice = useCallback(
     (channelId: string, channelName: string | null) => {
       import('@/lib/voiceConnect').then(({ joinVoiceChannel }) =>
-        joinVoiceChannel(serverId, channelId, channelName ?? 'Voice')
+        joinVoiceChannel(serverId, channelId, channelName ?? tEvents('create.voiceFallback'))
       )
       onClose()
     },
-    [serverId, onClose]
+    [serverId, onClose, tEvents]
   )
 
   const selectedEvent = events.find((e) => e.id === selectedEventId)
@@ -230,14 +227,14 @@ export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-lg" noPadding className="flex max-h-[70vh] flex-col">
       <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-        <h2 className="text-lg font-bold text-white">{t('events')}</h2>
+        <h2 className="text-lg font-bold text-white">{tNav('events')}</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setShowCreate(true)}
             className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text transition hover:bg-primary/90"
           >
-            {t('createEvent')}
+            {tNav('createEvent')}
           </button>
           <button
             type="button"
@@ -264,8 +261,8 @@ export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
             <svg className="mb-3 h-12 w-12 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
               <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <h3 className="text-sm font-medium text-gray-400">No upcoming events</h3>
-            <p className="mt-1 text-xs text-gray-500">Create an event to get started</p>
+            <h3 className="text-sm font-medium text-gray-400">{tEvents('list.noUpcoming')}</h3>
+            <p className="mt-1 text-xs text-gray-500">{tEvents('list.createToGetStarted')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -290,7 +287,7 @@ export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
             {scheduledEvents.length > 0 && (
               <div className="space-y-2">
                 {activeEvents.length > 0 && (
-                  <SectionHeading as="h3" className="px-1">UPCOMING</SectionHeading>
+                  <SectionHeading as="h3" className="px-1">{tEvents('list.upcoming')}</SectionHeading>
                 )}
                 {scheduledEvents.map((event) => (
                   <EventCard
@@ -315,7 +312,7 @@ export function EventsPanel({ serverId, onClose, initialEventId }: Props) {
                 disabled={isLoading}
                 className="w-full rounded-lg bg-white/5 py-2 text-xs font-medium text-gray-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
               >
-                {isLoading ? 'Loading...' : 'Load More'}
+                {isLoading ? tEvents('list.loading') : tEvents('list.loadMore')}
               </button>
             )}
           </div>

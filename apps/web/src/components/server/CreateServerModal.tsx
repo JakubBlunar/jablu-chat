@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input, ModalFooter } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -10,6 +11,7 @@ type CreateServerModalProps = {
 }
 
 export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
+  const { t } = useTranslation('server')
   const createServer = useServerStore((s) => s.createServer)
   const { orchestratedGoToChannel } = useAppNavigate()
   const [name, setName] = useState('')
@@ -21,7 +23,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
   async function handleCreate() {
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Enter a server name.')
+      setError(t('createServer.nameRequired'))
       return
     }
     setBusy(true)
@@ -32,7 +34,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
       setName('')
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create server.')
+      setError(e instanceof Error ? e.message : t('createServer.createFailed'))
     } finally {
       setBusy(false)
     }
@@ -40,16 +42,16 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-xl font-semibold text-white">Create a Server</h2>
-        <p className="mt-2 text-sm text-gray-400">Give your new server a name. You can change it later.</p>
+      <h2 className="text-xl font-semibold text-white">{t('createServer.title')}</h2>
+        <p className="mt-2 text-sm text-gray-400">{t('createServer.description')}</p>
         <div className="mt-5">
           <Input
             id="create-server-name"
-            label="Server name"
+            label={t('createServer.nameLabel')}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="My cool server"
+            placeholder={t('createServer.namePlaceholder')}
             maxLength={100}
             autoFocus
             onKeyDown={(e) => {
@@ -69,8 +71,8 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
             onClose()
           }}
           onConfirm={() => void handleCreate()}
-          cancelLabel="Cancel"
-          confirmLabel="Create"
+          cancelLabel={t('actions.cancel')}
+          confirmLabel={t('actions.create')}
           loading={busy}
         />
     </ModalOverlay>

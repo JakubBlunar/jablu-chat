@@ -52,7 +52,7 @@ it('renders ranked server activity outside clipping ancestors with a full overla
   expect(container).not.toContainElement(dialog)
   expect(dialog.parentElement?.parentElement).toBe(document.body)
   expect(dialog.parentElement).toHaveClass('fixed', 'inset-0', 'z-[120]')
-  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  fireEvent.click(screen.getByRole('button', { name: 'close' }))
   expect(close).toHaveBeenCalledTimes(1)
 })
 

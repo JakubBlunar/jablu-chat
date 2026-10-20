@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -12,6 +13,7 @@ type SelectableRole = {
 }
 
 export function OnboardingWizard() {
+  const { t } = useTranslation('server')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const currentServer = useServerStore((s) => s.servers.find((sv) => sv.id === s.currentServerId))
   const userId = useAuthStore((s) => s.user?.id)
@@ -69,7 +71,7 @@ export function OnboardingWizard() {
       <div className="mx-4 w-full max-w-md rounded-xl bg-surface-dark p-6 shadow-2xl ring-1 ring-white/10">
         <div className="mb-1 text-center">
           <h2 className="text-xl font-bold text-white">
-            Welcome to {currentServer?.name}!
+            {t('onboarding.welcome', { serverName: currentServer?.name })}
           </h2>
           {currentServer?.onboardingMessage && (
             <p className="mt-2 text-sm text-gray-300">{currentServer.onboardingMessage}</p>
@@ -82,7 +84,7 @@ export function OnboardingWizard() {
           </div>
         ) : roles.length > 0 ? (
           <div className="mt-5">
-            <p className="mb-3 text-sm font-medium text-gray-300">Choose your roles:</p>
+            <p className="mb-3 text-sm font-medium text-gray-300">{t('onboarding.chooseRoles')}</p>
             <div className="max-h-60 space-y-1.5 overflow-y-auto pr-1">
               {roles.map((role) => {
                 const isSelected = selectedRoleIds.has(role.id)
@@ -128,7 +130,11 @@ export function OnboardingWizard() {
           disabled={submitting}
           className="mt-6 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
-          {submitting ? 'Getting you set up...' : roles.length > 0 ? 'Continue' : 'Get Started'}
+          {submitting
+            ? t('onboarding.settingUp')
+            : roles.length > 0
+              ? t('onboarding.continue')
+              : t('onboarding.getStarted')}
         </button>
       </div>
     </div>

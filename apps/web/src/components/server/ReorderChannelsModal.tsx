@@ -1,5 +1,6 @@
 import type { Channel, ChannelCategory } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -125,6 +126,7 @@ type CategoryState = {
 }
 
 export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('server')
   const channels = useChannelStore((s) => s.channels)
   const categories = useChannelStore((s) => s.categories)
   const serverId = useServerStore((s) => s.currentServerId)
@@ -217,19 +219,20 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
       }
       onClose()
     } catch {
-      setError('Failed to save order. Please try again.')
+      setError(t('reorderChannels.saveFailed'))
     } finally {
       setSaving(false)
     }
-  }, [serverId, catOrder, uncatChannels, initialCatIds, onClose])
+  }, [serverId, catOrder, uncatChannels, initialCatIds, onClose, t])
 
   return (
     <ModalOverlay onClose={onClose} noPadding className="flex max-h-[80vh] flex-col">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <h3 className="text-lg font-semibold text-white">Reorder Channels</h3>
+        <h3 className="text-lg font-semibold text-white">{t('reorderChannels.title')}</h3>
         <button
           type="button"
           onClick={onClose}
+          aria-label={t('actions.close')}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -240,12 +243,14 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
 
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         <p className="text-sm text-gray-400">
-          Drag channels to reorder within their group. Drag categories to reorder them relative to each other.
+          {t('reorderChannels.description')}
         </p>
 
         {uncatChannels.length > 0 && (
           <div>
-            <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">Uncategorized</h4>
+            <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+              {t('reorderChannels.uncategorized')}
+            </h4>
             <ChannelSortableList items={uncatChannels} onReorder={setUncatChannels} />
           </div>
         )}
@@ -277,7 +282,7 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
           disabled={saving}
           className="rounded-md px-4 py-2 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
         >
-          Cancel
+          {t('actions.cancel')}
         </button>
         <button
           type="button"
@@ -285,7 +290,7 @@ export function ReorderChannelsModal({ onClose }: { onClose: () => void }) {
           disabled={saving || !hasChanges}
           className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-text transition hover:bg-primary/80 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('actions.saving') : t('actions.save')}
         </button>
       </div>
     </ModalOverlay>

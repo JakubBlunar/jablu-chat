@@ -6,8 +6,8 @@
 
 ## Adding strings
 
-1. Add a key to the right namespace JSON under `locales/en/` (e.g. `settings.json`, `chat.json`, `a11y.json`, `common.json`).
-2. Mirror the key in `locales/cs/` and `locales/sk/` when you have a translation (optional — missing keys fall back to English).
+1. Add a key to the right namespace JSON under `locales/en/` (e.g. `settings.json`, `chat.json`, `server.json`, `server-settings.json`, `profile.json`, `events.json`, `channels.json`, or `common.json`).
+2. Mirror the key in `locales/cs/` and `locales/sk/`. Keep all locale bundles in sync; missing keys fall back to English.
 3. In components: `const { t } = useTranslation('settings')` then `t('tabs.account')` or `t('appearance.language')`.
 
 Nested keys use dot paths. Do **not** translate user-generated content (messages, names, channel titles).

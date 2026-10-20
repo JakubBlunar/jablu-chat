@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input, InlineAlert, Select } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import type { Server } from '@/stores/server.store'
 import type { WebhookItem } from '../serverSettingsTypes'
 import { TrashIcon } from '../serverSettingsIcons'
+import { getAppIntlLocale } from '@/lib/format-time'
 
 export function WebhooksTab({ server: _server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const channels = useChannelStore((s) => s.channels)
   const textChannels = useMemo(() => channels.filter((c) => c.type === 'text'), [channels])
   const [webhooks, setWebhooks] = useState<WebhookItem[]>([])
@@ -44,11 +47,11 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
       setName('')
       await fetchWebhooks()
     } catch {
-      setWebhookError('Failed to create webhook')
+      setWebhookError(t('webhooks.createFailed'))
     } finally {
       setCreating(false)
     }
-  }, [name, channelId, fetchWebhooks])
+  }, [name, channelId, fetchWebhooks, t])
 
   const handleDelete = useCallback(async (id: string) => {
     setWebhookError(null)
@@ -56,9 +59,9 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
       await api.deleteWebhook(id)
       setWebhooks((prev) => prev.filter((w) => w.id !== id))
     } catch {
-      setWebhookError('Failed to delete webhook')
+      setWebhookError(t('webhooks.deleteFailed'))
     }
-  }, [])
+  }, [t])
 
   const copyUrl = useCallback((wh: WebhookItem) => {
     const base = window.location.origin
@@ -69,7 +72,7 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
   }, [])
 
   if (loading) {
-    return <p className="text-sm text-gray-400">Loading…</p>
+    return <p className="text-sm text-gray-400">{t('actions.loading')}</p>
   }
 
   return (
@@ -78,21 +81,21 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
         <InlineAlert variant="error">{webhookError}</InlineAlert>
       )}
       <div className="rounded-md bg-surface-dark p-4">
-        <h3 className="mb-3 text-sm font-semibold text-white">Create Webhook</h3>
+        <h3 className="mb-3 text-sm font-semibold text-white">{t('webhooks.createTitle')}</h3>
         <div className="flex items-end gap-3">
           <div className="min-w-0 flex-1">
             <Input
               id="webhook-name"
-              label="Name"
+              label={t('webhooks.nameLabel')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
-              placeholder="My Webhook"
+              placeholder={t('webhooks.namePlaceholder')}
             />
           </div>
           <div className="w-40">
             <Select
-              label="Channel"
+              label={t('webhooks.channelLabel')}
               value={channelId}
               onChange={(e) => setChannelId(e.target.value)}
             >
@@ -109,13 +112,13 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
             loading={creating}
             onClick={() => void handleCreate()}
           >
-            Create
+            {t('webhooks.create')}
           </Button>
         </div>
       </div>
 
       {webhooks.length === 0 ? (
-        <p className="text-center text-sm text-gray-500">No webhooks yet.</p>
+        <p className="text-center text-sm text-gray-500">{t('webhooks.noWebhooks')}</p>
       ) : (
         <div className="space-y-2">
           {webhooks.map((wh) => {
@@ -125,7 +128,7 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white">{wh.name}</p>
                   <p className="text-xs text-gray-500">
-                    #{ch?.name ?? 'unknown'} &middot; {new Date(wh.createdAt).toLocaleDateString()}
+                    #{ch?.name ?? t('webhooks.unknownChannel')} &middot; {new Date(wh.createdAt).toLocaleDateString(getAppIntlLocale())}
                   </p>
                 </div>
                 <Button
@@ -135,13 +138,14 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
                   onClick={() => copyUrl(wh)}
                   className="text-xs font-medium text-primary"
                 >
-                  {copiedId === wh.id ? 'Copied!' : 'Copy URL'}
+                  {copiedId === wh.id ? t('webhooks.copied') : t('webhooks.copyUrl')}
                 </Button>
                 <button
                   type="button"
                   onClick={() => void handleDelete(wh.id)}
+                  aria-label={t('webhooks.delete')}
                   className="rounded p-1 text-red-400 transition hover:bg-red-500/20"
-                  title="Delete webhook"
+                  title={t('webhooks.delete')}
                 >
                   <TrashIcon />
                 </button>

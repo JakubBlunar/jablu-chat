@@ -7,6 +7,7 @@ import {
   VideoQuality
 } from 'livekit-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useServerDisplayName } from '@/lib/serverProfile'
 
@@ -135,6 +136,7 @@ export function ScreenShareTile({
 }
 
 function ScreenAudioControls({ participantIdentity }: { participantIdentity: string }) {
+  const { t } = useTranslation('voice')
   const volumeKey = `${participantIdentity}:screenAudio`
   const volume = useVoiceConnectionStore((s) => s.volumeOverrides[volumeKey] ?? 100)
   const setVolumeOverride = useVoiceConnectionStore((s) => s.setVolumeOverride)
@@ -191,7 +193,7 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
           onClick={(e) => e.stopPropagation()}
           className="h-2 w-20 cursor-pointer accent-primary"
           title={`${isMuted ? 0 : volume}%`}
-          aria-label="Screen share audio volume"
+          aria-label={t('screenShareAudio.volume')}
           aria-valuetext={`${isMuted ? 0 : volume}%`}
         />
       )}
@@ -199,7 +201,7 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
         type="button"
         onClick={handleMuteToggle}
         className="p-0.5 text-white transition hover:text-gray-300"
-        title={isMuted ? 'Unmute screen audio' : 'Mute screen audio'}
+        title={isMuted ? t('screenShareAudio.unmute') : t('screenShareAudio.mute')}
       >
         {isMuted ? (
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">

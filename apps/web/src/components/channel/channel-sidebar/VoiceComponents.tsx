@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { RoomEvent, type Participant } from 'livekit-client'
+import { useTranslation } from 'react-i18next'
 import type { UserStatus } from '@chat/shared'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
@@ -10,11 +11,18 @@ import { useMemberStore, type Member } from '@/stores/member.store'
 import { memberDisplayName } from '@/lib/serverProfile'
 
 export function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
+  const { t } = useTranslation('channels')
   const icons: React.ReactNode[] = []
 
   if (participant.muted) {
     icons.push(
-      <svg key="muted" className="h-3.5 w-3.5 text-red-400" viewBox="0 0 24 24" fill="currentColor" aria-label="Muted">
+      <svg
+        key="muted"
+        className="h-3.5 w-3.5 text-red-400"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-label={t('voice.muted')}
+      >
         <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
       </svg>
     )
@@ -27,7 +35,7 @@ export function VoiceStatusIcons({ participant }: { participant: VoiceParticipan
         className="h-3.5 w-3.5 text-red-400"
         viewBox="0 0 24 24"
         fill="currentColor"
-        aria-label="Deafened"
+        aria-label={t('voice.deafened')}
       >
         <path d="M3.63 3.63a.996.996 0 000 1.41L7.29 8.7 7 9H4c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h3l3.29 3.29c.63.63 1.71.18 1.71-.71v-4.17l4.18 4.18c-.49.37-1.02.68-1.59.91-.36.15-.58.53-.58.92 0 .72.73 1.18 1.39.91.8-.33 1.55-.77 2.22-1.31l1.34 1.34a.996.996 0 101.41-1.41L5.05 3.63c-.39-.39-1.02-.39-1.42 0zM19 12c0 .82-.15 1.61-.41 2.34l1.53 1.53c.56-1.17.88-2.48.88-3.87 0-3.83-2.4-7.11-5.78-8.4-.59-.23-1.22.23-1.22.86v.19c0 .45.3.87.74 1C17.01 6.54 19 9.06 19 12zm-7-8l-1.88 1.88L12 7.76zm4.5 8A4.5 4.5 0 0014 7.97v1.79l2.48 2.48c.01-.08.02-.16.02-.24z" />
       </svg>
@@ -41,7 +49,7 @@ export function VoiceStatusIcons({ participant }: { participant: VoiceParticipan
         className="h-3.5 w-3.5 text-emerald-400"
         viewBox="0 0 24 24"
         fill="currentColor"
-        aria-label="Camera on"
+        aria-label={t('voice.cameraOn')}
       >
         <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
       </svg>
@@ -55,7 +63,7 @@ export function VoiceStatusIcons({ participant }: { participant: VoiceParticipan
         className="h-3.5 w-3.5 text-emerald-400"
         viewBox="0 0 24 24"
         fill="currentColor"
-        aria-label="Sharing screen"
+        aria-label={t('voice.sharingScreen')}
       >
         <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" />
       </svg>

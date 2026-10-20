@@ -1,0 +1,37 @@
+{
+  "status": {
+    "online": "Online",
+    "idle": "Idle",
+    "dnd": "Do Not Disturb",
+    "offline": "Offline"
+  },
+  "bot": "BOT",
+  "activity": {
+    "listeningToSpotify": "LISTENING TO SPOTIFY",
+    "playingGame": "PLAYING A GAME"
+  },
+  "aboutMe": "ABOUT ME",
+  "memberSince": "MEMBER SINCE",
+  "mutualFriends": "MUTUAL FRIENDS — {{count}}",
+  "mutualServers": "MUTUAL SERVERS — {{count}}",
+  "more": "+{{count}} more",
+  "voiceVolume": "VOICE VOLUME",
+  "resetVolume": "Reset to 100%",
+  "friendship": {
+    "friends": "Friends",
+    "requestSent": "Request Sent",
+    "cancel": "Cancel",
+    "acceptRequest": "Accept Request",
+    "addFriend": "Add Friend"
+  },
+  "dm": {
+    "friendsRequired": "Become friends to send messages.",
+    "failed": "Failed to open conversation",
+    "opening": "Opening…",
+    "message": "Message"
+  },
+  "roles": "ROLES",
+  "level": "LEVEL",
+  "levelLabel": "Level {{level}}",
+  "xp": "XP"
+}

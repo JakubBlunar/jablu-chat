@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
@@ -9,6 +10,7 @@ interface JoinInviteModalProps {
 }
 
 export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
+  const { t } = useTranslation('server')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +35,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
       await fetchServers()
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to join')
+      setError(e instanceof Error ? e.message : t('join.failed'))
     } finally {
       setLoading(false)
     }
@@ -41,8 +43,8 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-sm">
-      <h2 className="mb-1 text-lg font-bold text-white">Join a Server</h2>
-      <p className="mb-4 text-sm text-gray-400">Enter an invite code to join an existing server.</p>
+      <h2 className="mb-1 text-lg font-bold text-white">{t('join.title')}</h2>
+      <p className="mb-4 text-sm text-gray-400">{t('join.description')}</p>
 
       <div className="mb-3">
         <Input
@@ -50,7 +52,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter invite code"
+          placeholder={t('join.placeholder')}
           onKeyDown={(e) => {
             if (e.key === 'Enter') void handleJoin()
           }}
@@ -62,7 +64,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" type="button" onClick={onClose}>
-          Cancel
+          {t('actions.cancel')}
         </Button>
         <Button
           variant="primary"
@@ -71,7 +73,7 @@ export function JoinInviteModal({ onClose }: JoinInviteModalProps) {
           loading={loading}
           onClick={() => void handleJoin()}
         >
-          Join Server
+          {loading ? t('join.joining') : t('join.join')}
         </Button>
       </div>
     </ModalOverlay>

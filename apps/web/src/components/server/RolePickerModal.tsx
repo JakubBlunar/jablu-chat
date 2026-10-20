@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Button, ColorDot } from '@/components/ui'
 import { api } from '@/lib/api'
@@ -9,6 +10,7 @@ import { useServerStore } from '@/stores/server.store'
 type AvailableRole = { id: string; name: string; color: string | null }
 
 export function RolePickerModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation('server')
   const userId = useAuthStore((s) => s.user?.id)
   const serverId = useServerStore((s) => s.currentServerId)
   const myMember = useMemberStore((s) =>
@@ -35,11 +37,11 @@ export function RolePickerModal({ onClose }: { onClose: () => void }) {
       )
       setSelectedIds(currentSelfIds)
     } catch {
-      setError('Failed to load roles')
+      setError(t('rolePicker.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [serverId])
+  }, [serverId, t])
 
   useEffect(() => { void fetchRoles() }, [fetchRoles])
 
@@ -61,7 +63,7 @@ export function RolePickerModal({ onClose }: { onClose: () => void }) {
       await useMemberStore.getState().fetchMembers(serverId)
       onClose()
     } catch {
-      setError('Failed to save roles')
+      setError(t('rolePicker.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -69,8 +71,8 @@ export function RolePickerModal({ onClose }: { onClose: () => void }) {
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-sm">
-      <h2 className="mb-1 text-lg font-semibold text-white">Change Your Roles</h2>
-      <p className="mb-4 text-sm text-gray-400">Pick the roles you want to have on this server.</p>
+      <h2 className="mb-1 text-lg font-semibold text-white">{t('rolePicker.title')}</h2>
+      <p className="mb-4 text-sm text-gray-400">{t('rolePicker.description')}</p>
 
       {error && (
         <div className="mb-3 rounded-md bg-red-900/30 px-3 py-2 text-sm text-red-300 ring-1 ring-red-500/30">
@@ -84,7 +86,7 @@ export function RolePickerModal({ onClose }: { onClose: () => void }) {
         </div>
       ) : availableRoles.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-500">
-          No self-assignable roles are available on this server.
+          {t('rolePicker.empty')}
         </p>
       ) : (
         <div className="mb-4 max-h-64 space-y-1 overflow-y-auto">
@@ -118,10 +120,10 @@ export function RolePickerModal({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="flex items-center justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button type="button" variant="secondary" onClick={onClose}>{t('actions.cancel')}</Button>
         {availableRoles.length > 0 && (
           <Button type="button" onClick={() => void handleSave()} loading={saving}>
-            Save
+            {t('actions.save')}
           </Button>
         )}
       </div>

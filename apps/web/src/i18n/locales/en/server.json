@@ -1,0 +1,105 @@
+{
+  "members": {
+    "title": "Members — {{count}}",
+    "online": "Online — {{count}}",
+    "offline": "Offline — {{count}}",
+    "bot": "Bot"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "create": "Create",
+    "creating": "Creating…",
+    "generate": "Generate",
+    "loading": "Loading…",
+    "remove": "Remove",
+    "save": "Save",
+    "saving": "Saving…",
+    "join": "Join"
+  },
+  "createServer": {
+    "title": "Create a Server",
+    "description": "Give your new server a name. You can change it later.",
+    "nameLabel": "Server name",
+    "namePlaceholder": "My cool server",
+    "nameRequired": "Enter a server name.",
+    "createFailed": "Could not create server."
+  },
+  "invite": {
+    "title": "Invite to {{serverName}}",
+    "vanityUrl": "Vanity URL",
+    "neverExpires": "Never expires",
+    "30Minutes": "30 minutes",
+    "1Hour": "1 hour",
+    "6Hours": "6 hours",
+    "12Hours": "12 hours",
+    "24Hours": "24 hours",
+    "7Days": "7 days",
+    "noUseLimit": "No limit",
+    "1Use": "1 use",
+    "5Uses": "5 uses",
+    "10Uses": "10 uses",
+    "25Uses": "25 uses",
+    "50Uses": "50 uses",
+    "100Uses": "100 uses",
+    "uses": "uses",
+    "expiresOn": "expires {{date}}",
+    "noInvites": "No invites yet. Create one above.",
+    "delete": "Delete invite",
+    "loadFailed": "Failed to load invites",
+    "createFailed": "Failed to create invite",
+    "deleteFailed": "Failed to delete invite"
+  },
+  "join": {
+    "title": "Join a Server",
+    "description": "Enter an invite code to join an existing server.",
+    "placeholder": "Enter invite code",
+    "failed": "Failed to join",
+    "join": "Join Server",
+    "joining": "Joining…"
+  },
+  "leaderboard": {
+    "empty": "No one has earned XP in this server yet. Send a message to get things started!",
+    "level": "Level {{level}}",
+    "yourLevel": "Your level",
+    "totalXp": "{{xp}} total",
+    "loadFailed": "Failed to load leaderboard"
+  },
+  "onboarding": {
+    "welcome": "Welcome to {{serverName}}!",
+    "chooseRoles": "Choose your roles:",
+    "settingUp": "Getting you set up…",
+    "continue": "Continue",
+    "getStarted": "Get Started"
+  },
+  "reorderChannels": {
+    "title": "Reorder Channels",
+    "description": "Drag channels to reorder within their group. Drag categories to reorder them relative to each other.",
+    "uncategorized": "Uncategorized",
+    "saveFailed": "Failed to save order. Please try again."
+  },
+  "rolePicker": {
+    "title": "Change Your Roles",
+    "description": "Pick the roles you want to have on this server.",
+    "loadFailed": "Failed to load roles",
+    "saveFailed": "Failed to save roles",
+    "empty": "No self-assignable roles are available on this server."
+  },
+  "notifications": {
+    "title": "Notification Settings",
+    "serverDefault": "Server Default",
+    "allMessages": "All Messages",
+    "allMessagesDescription": "Get notified for every new message",
+    "mentionsOnly": "Only @mentions",
+    "mentionsDescription": "Only when you are directly mentioned",
+    "nothing": "Nothing",
+    "nothingDescription": "Mute all notifications from this server",
+    "channelOverrides": "Channel Overrides",
+    "channelOverridesDescription": "Override the server default for specific channels.",
+    "default": "Default",
+    "mentions": "Mentions Only",
+    "muted": "Muted"
+  }
+}

@@ -22,7 +22,8 @@ const QUALITY_OPTIONS = Object.keys(CAMERA_PRESETS) as CameraQuality[]
 const canBlur = supportsBackgroundBlur()
 
 export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
-  const { t } = useTranslation('common')
+  const { t: tCommon } = useTranslation('common')
+  const { t } = useTranslation('voice')
   const [quality, setQuality] = useState<CameraQuality>(getSavedCameraQuality)
   const [blur, setBlur] = useState(canBlur ? getSavedBlurEnabled() : false)
 
@@ -36,12 +37,12 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
     <ModalOverlay onClose={onClose} zIndex="z-[200]" noPadding>
       <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <h2 className="text-lg font-semibold text-white">
-            {mode === 'start' ? 'Camera Settings' : 'Change Camera Settings'}
+            {mode === 'start' ? t('cameraSetup.startTitle') : t('cameraSetup.editTitle')}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label={t('close')}
+            aria-label={tCommon('close')}
             className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -52,7 +53,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
 
         <div className="space-y-5 px-6 py-5">
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Resolution</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">{t('cameraSetup.resolution')}</h3>
             <div className="flex gap-2">
               {QUALITY_OPTIONS.map((q) => {
                 const preset = CAMERA_PRESETS[q]
@@ -76,7 +77,7 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
           </div>
 
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Background Blur</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">{t('cameraSetup.backgroundBlur')}</h3>
             {canBlur ? (
               <div
                 onClick={() => setBlur(!blur)}
@@ -84,15 +85,15 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
               >
                 <Toggle checked={blur} onChange={setBlur} />
                 <div className="text-left">
-                  <span className="block text-sm text-gray-200">Blur background</span>
+                  <span className="block text-sm text-gray-200">{t('cameraSetup.blurBackground')}</span>
                   <span className="block text-[11px] text-gray-500">
-                    Uses AI segmentation. May impact performance on older devices.
+                    {t('cameraSetup.blurBackgroundHint')}
                   </span>
                 </div>
               </div>
             ) : (
               <p className="rounded-md bg-surface-darkest px-4 py-3 text-[11px] text-gray-500">
-                Background blur is not supported on this browser.
+                {t('cameraSetup.blurUnsupported')}
               </p>
             )}
           </div>
@@ -104,14 +105,14 @@ export function CameraSettingsModal({ mode, onConfirm, onClose }: Props) {
             onClick={onClose}
             className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10"
           >
-            Cancel
+            {tCommon('cancel')}
           </button>
           <button
             type="button"
             onClick={handleConfirm}
             className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
           >
-            {mode === 'start' ? 'Start Camera' : 'Apply Changes'}
+            {mode === 'start' ? t('cameraSetup.startCamera') : t('cameraSetup.applyChanges')}
           </button>
         </div>
     </ModalOverlay>

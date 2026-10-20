@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Spinner } from '@/components/ui'
 import { api, type OnboardingConfig } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 import { useServerStore } from '@/stores/server.store'
 
 export function OnboardingTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -23,9 +25,9 @@ export function OnboardingTab({ server }: { server: Server }) {
         setEnabled(cfg.onboardingEnabled)
         setMessage(cfg.onboardingMessage ?? '')
       })
-      .catch(() => setError('Failed to load onboarding config'))
+      .catch(() => setError(t('onboarding.loadFailed')))
       .finally(() => setLoading(false))
-  }, [server.id])
+  }, [server.id, t])
 
   const handleSave = async () => {
     setSaving(true)
@@ -38,7 +40,7 @@ export function OnboardingTab({ server }: { server: Server }) {
       setConfig(updated)
       useServerStore.getState().updateServerInList(server.id, { onboardingEnabled: enabled, onboardingMessage: message || null })
     } catch {
-      setError('Failed to save onboarding config')
+      setError(t('onboarding.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -61,9 +63,9 @@ export function OnboardingTab({ server }: { server: Server }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-white">Onboarding</h2>
+        <h2 className="text-base font-semibold text-white">{t('onboarding.title')}</h2>
         <p className="mt-0.5 text-xs text-gray-400">
-          Configure a welcome wizard for new members when they join
+          {t('onboarding.description')}
         </p>
       </div>
 
@@ -74,38 +76,39 @@ export function OnboardingTab({ server }: { server: Server }) {
           onChange={(e) => setEnabled(e.target.checked)}
           className="h-4 w-4 rounded border-gray-600 bg-surface-dark text-primary accent-primary"
         />
-        <span className="text-sm text-gray-200">Enable onboarding for new members</span>
+        <span className="text-sm text-gray-200">{t('onboarding.enable')}</span>
       </label>
 
       {enabled && (
         <>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-300">Welcome Message</label>
+            <label className="mb-1 block text-sm font-medium text-gray-300">{t('onboarding.welcomeMessage')}</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Welcome to the server! Pick a role to get started."
+              placeholder={t('onboarding.welcomePlaceholder')}
               maxLength={2000}
               rows={3}
               className="w-full rounded-md border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-primary focus:outline-none"
             />
-            <p className="mt-1 text-[11px] text-gray-500">{message.length}/2000</p>
+            <p className="mt-1 text-[11px] text-gray-500">{t('onboarding.messageLength', { count: message.length })}</p>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-300">
-              Selectable Roles
+              {t('onboarding.selectableRoles')}
             </label>
             {selfAssignableRoles.length === 0 ? (
               <p className="text-sm text-gray-500">
-                No roles are marked as self-assignable. Go to the <strong className="text-gray-300">Roles</strong> tab and
-                enable "Self-assignable" on the roles you want new members to choose from.
+                {t('onboarding.emptyRoles', {
+                  rolesTab: t('tabs.roles'),
+                  selfAssignable: t('roles.selfAssignable')
+                })}
               </p>
             ) : (
               <>
                 <p className="mb-2 text-xs text-gray-400">
-                  These roles are available for members to pick during onboarding and from their profile.
-                  Manage them in the Roles tab.
+                  {t('onboarding.rolesDescription')}
                 </p>
                 <div className="space-y-1">
                   {selfAssignableRoles.map((role) => (
@@ -130,7 +133,7 @@ export function OnboardingTab({ server }: { server: Server }) {
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <Button type="button" onClick={handleSave} disabled={saving} loading={saving}>
-        Save Changes
+        {t('actions.saveChanges')}
       </Button>
     </div>
   )

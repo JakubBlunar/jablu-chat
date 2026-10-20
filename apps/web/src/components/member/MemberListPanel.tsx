@@ -1,5 +1,6 @@
 import type { UserStatus } from '@chat/shared'
 import { memo, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
@@ -34,6 +35,7 @@ export const MemberListPanel = memo(function MemberListPanel({
   onMemberClick: (member: Member, presence: UserStatus, rect: DOMRect) => void
   className?: string
 }) {
+  const { t } = useTranslation('server')
   const { online, offline } = useMemo(() => {
     const on: Member[] = []
     const off: Member[] = []
@@ -60,7 +62,7 @@ export const MemberListPanel = memo(function MemberListPanel({
 
       <section className="mb-4">
         <SectionHeading as="h3" className="mb-2 px-2">
-          ONLINE — {online.length}
+          {t('members.online', { count: online.length })}
         </SectionHeading>
         <ul className="space-y-0.5">
           {online.map((m) => (
@@ -78,7 +80,7 @@ export const MemberListPanel = memo(function MemberListPanel({
 
       <section>
         <SectionHeading as="h3" className="mb-2 px-2">
-          OFFLINE — {offline.length}
+          {t('members.offline', { count: offline.length })}
         </SectionHeading>
         <ul className="space-y-0.5">
           {offline.map((m) => (
@@ -110,6 +112,7 @@ const MemberRow = memo(function MemberRow({
   onClick: (member: Member, presence: UserStatus, rect: DOMRect) => void
   isOwner: boolean
 }) {
+  const { t } = useTranslation('server')
   const name = memberDisplayName(member)
   const roleColor = getRoleColor(member)
   const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
@@ -152,7 +155,7 @@ const MemberRow = memo(function MemberRow({
             </span>
             {isBot && (
               <span className="shrink-0 rounded bg-primary/25 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                Bot
+                {t('members.bot')}
               </span>
             )}
             {isOwner && (

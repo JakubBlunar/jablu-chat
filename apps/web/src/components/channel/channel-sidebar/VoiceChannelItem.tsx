@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Channel } from '@chat/shared'
 import type { Member } from '@/stores/member.store'
 import { type VoiceParticipant } from '@/stores/voice.store'
@@ -40,6 +41,7 @@ export function VoiceChannelItem({
   handleVoiceParticipantClick: (p: VoiceParticipant, e: React.MouseEvent) => void
   setEditingChannel: (ch: Channel) => void
 }) {
+  const { t } = useTranslation('channels')
   const participants = voiceParticipants[ch.id] ?? []
   const inThisChannel = currentVoiceChannelId === ch.id && viewingVoiceRoom
   return (
@@ -72,7 +74,7 @@ export function VoiceChannelItem({
           {isAdminOrOwner && !isMobile && (
             <button
               type="button"
-              aria-label="Edit channel"
+              aria-label={t('voice.editChannel')}
               className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition hover:text-white group-hover/ch:opacity-100"
               onClick={(e) => {
                 e.stopPropagation()
@@ -99,7 +101,7 @@ export function VoiceChannelItem({
             })}
           </ul>
         ) : (
-          <p className="mt-1 text-xs text-gray-500">No one connected</p>
+          <p className="mt-1 text-xs text-gray-500">{t('voice.noOneConnected')}</p>
         )}
       </div>
     </li>

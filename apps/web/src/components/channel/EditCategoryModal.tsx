@@ -1,5 +1,6 @@
 import type { ChannelCategory } from '@chat/shared'
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input, ModalFooter } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
@@ -7,6 +8,8 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 
 export function EditCategoryModal({ category, onClose }: { category: ChannelCategory; onClose: () => void }) {
+  const { t: tChannels } = useTranslation('channels')
+  const { t: tCommon } = useTranslation('common')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const updateCategory = useChannelStore((s) => s.updateCategory)
   const removeCategory = useChannelStore((s) => s.removeCategory)
@@ -31,11 +34,11 @@ export function EditCategoryModal({ category, onClose }: { category: ChannelCate
       updateCategory(updated)
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update category.')
+      setError(e instanceof Error ? e.message : tChannels('errors.updateCategoryFailed'))
     } finally {
       setSaving(false)
     }
-  }, [currentServerId, category, name, updateCategory, onClose])
+  }, [currentServerId, category, name, updateCategory, onClose, tChannels])
 
   const handleDelete = useCallback(async () => {
     if (!currentServerId) return
@@ -46,17 +49,17 @@ export function EditCategoryModal({ category, onClose }: { category: ChannelCate
       removeCategory(category.id)
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not delete category.')
+      setError(e instanceof Error ? e.message : tChannels('errors.deleteCategoryFailed'))
       setDeleting(false)
     }
-  }, [currentServerId, category.id, removeCategory, onClose])
+  }, [currentServerId, category.id, removeCategory, onClose, tChannels])
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-xl font-semibold text-white">Edit Category</h2>
+      <h2 className="text-xl font-semibold text-white">{tChannels('category.editTitle')}</h2>
       <div className="mt-4">
         <Input
-          label="Category name"
+          label={tChannels('category.nameLabel')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={100}
@@ -70,15 +73,15 @@ export function EditCategoryModal({ category, onClose }: { category: ChannelCate
         <div>
           {!confirmDelete ? (
             <Button variant="ghost" className="text-red-400 hover:bg-red-500/10" onClick={() => setConfirmDelete(true)}>
-              Delete Category
+              {tChannels('category.delete')}
             </Button>
           ) : (
             <div className="flex items-center gap-2">
               <Button variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting}>
-                {deleting ? 'Deleting…' : 'Confirm'}
+                {deleting ? tCommon('deleting') : tCommon('confirm')}
               </Button>
               <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                Cancel
+                {tCommon('cancel')}
               </Button>
             </div>
           )}
@@ -87,8 +90,8 @@ export function EditCategoryModal({ category, onClose }: { category: ChannelCate
           className="!mt-0"
           onCancel={onClose}
           onConfirm={() => void handleSave()}
-          cancelLabel="Cancel"
-          confirmLabel="Save"
+          cancelLabel={tCommon('cancel')}
+          confirmLabel={tCommon('save')}
           loading={saving}
           disabled={!name.trim() || name.trim() === category.name}
         />

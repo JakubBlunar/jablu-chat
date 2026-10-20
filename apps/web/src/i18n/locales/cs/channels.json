@@ -1,0 +1,110 @@
+{
+  "sidebar": {
+    "reorderChannels": "Změnit pořadí kanálů",
+    "createCategory": "Vytvořit kategorii",
+    "markAllAsRead": "Označit vše jako přečtené",
+    "notificationSettings": "Nastavení oznámení"
+  },
+  "category": {
+    "createTitle": "Vytvořit kategorii",
+    "editTitle": "Upravit kategorii",
+    "nameLabel": "Název kategorie",
+    "namePlaceholder": "např. Informace",
+    "delete": "Smazat kategorii"
+  },
+  "channelForm": {
+    "createTitle": "Vytvořit kanál",
+    "editTitle": "Upravit kanál",
+    "nameRules": "Názvy se ukládají malými písmeny a mezery se nahrazují spojovníky.",
+    "nameLabel": "Název kanálu",
+    "namePlaceholder": "novy-kanal",
+    "willCreateAs": "Bude vytvořen jako",
+    "willRenameTo": "Bude přejmenován na",
+    "descriptionOptional": "Popis (volitelný)",
+    "descriptionPlaceholder": "O čem je tento kanál?",
+    "typeLabel": "Typ kanálu",
+    "categoryLabel": "Kategorie",
+    "noCategory": "Bez kategorie",
+    "archive": "Archivovat kanál",
+    "archiveHint": "(pouze pro čtení, skrytý v běžném zobrazení)",
+    "delete": "Smazat kanál",
+    "confirmDelete": "Potvrdit smazání"
+  },
+  "channelTypes": {
+    "text": "Text",
+    "textHint": "Posílejte zprávy",
+    "textChannel": "Textový kanál",
+    "voice": "Hlas",
+    "voiceHint": "Povídejte si hlasem",
+    "voiceChannel": "Hlasový kanál",
+    "forum": "Fórum",
+    "forumHint": "Vytvářejte příspěvky s názvy a štítky",
+    "forumChannel": "Fórový kanál"
+  },
+  "forum": {
+    "settingsTitle": "Nastavení fóra",
+    "defaultLayout": "Výchozí rozvržení",
+    "layout": {
+      "list": "Seznam",
+      "grid": "Mřížka"
+    },
+    "defaultSort": "Výchozí řazení",
+    "sort": {
+      "latestActivity": "Nedávná aktivita",
+      "newest": "Nejnovější"
+    },
+    "postGuidelines": "Pravidla příspěvků",
+    "createGuidelinesPlaceholder": "Volitelná pravidla zobrazená nad seznamem příspěvků…",
+    "editGuidelinesPlaceholder": "Volitelná pravidla zobrazená nad příspěvky",
+    "requireTags": "U příspěvků vyžadovat štítky",
+    "tagsOptionalTitle": "Štítky fóra (volitelné)",
+    "tagsTitle": "Štítky fóra",
+    "createTagsDescription": "Vytvořte pro tento kanál úvodní štítky.",
+    "editTagsDescription": "Vytvářejte a spravujte štítky používané u příspěvků ve fóru.",
+    "tagName": "Název štítku",
+    "newTagColor": "Barva nového štítku",
+    "colorForTag": "Barva štítku {{tagName}}",
+    "addingTag": "Přidávání…",
+    "loadingTags": "Načítání štítků…",
+    "emptyTags": "Zatím nebyly vytvořeny žádné štítky."
+  },
+  "permissions": {
+    "title": "Oprávnění kanálu",
+    "description": "Přidejte výjimky oprávnění pro role. Neuvedené role používají základní oprávnění serveru.",
+    "loadingRoles": "Načítání rolí…",
+    "empty": "Nejsou nastavené žádné výjimky pro role.",
+    "role": "Role",
+    "view": "Zobrazit",
+    "send": "Odesílat",
+    "allow": "Povolit",
+    "deny": "Zakázat",
+    "removeOverride": "Odebrat výjimku",
+    "addRoleOverride": "Přidat výjimku role…",
+    "saving": "Ukládání oprávnění…",
+    "save": "Uložit oprávnění"
+  },
+  "voice": {
+    "editChannel": "Upravit kanál",
+    "noOneConnected": "Nikdo není připojen",
+    "muted": "Ztlumený mikrofon",
+    "deafened": "Vypnutý poslech",
+    "cameraOn": "Kamera zapnutá",
+    "sharingScreen": "Sdílí obrazovku"
+  },
+  "errors": {
+    "categoryNameRequired": "Název je povinný.",
+    "createCategoryFailed": "Kategorii se nepodařilo vytvořit.",
+    "updateCategoryFailed": "Kategorii se nepodařilo upravit.",
+    "deleteCategoryFailed": "Kategorii se nepodařilo smazat.",
+    "noServerSelected": "Není vybrán žádný server.",
+    "invalidChannelName": "Použijte pouze malá písmena, čísla a spojovníky (např. {{example}}).",
+    "createChannelFailed": "Kanál se nepodařilo vytvořit.",
+    "updateChannelFailed": "Kanál se nepodařilo upravit.",
+    "deleteChannelFailed": "Kanál se nepodařilo smazat.",
+    "removeOverrideFailed": "Výjimku se nepodařilo odebrat.",
+    "createTagFailed": "Štítek se nepodařilo vytvořit.",
+    "updateTagFailed": "Štítek se nepodařilo upravit.",
+    "deleteTagFailed": "Štítek se nepodařilo smazat.",
+    "updatePermissionsFailed": "Oprávnění se nepodařilo upravit."
+  }
+}

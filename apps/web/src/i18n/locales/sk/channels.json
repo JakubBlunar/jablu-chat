@@ -1,0 +1,110 @@
+{
+  "sidebar": {
+    "reorderChannels": "Zmeniť poradie kanálov",
+    "createCategory": "Vytvoriť kategóriu",
+    "markAllAsRead": "Označiť všetko ako prečítané",
+    "notificationSettings": "Nastavenia upozornení"
+  },
+  "category": {
+    "createTitle": "Vytvoriť kategóriu",
+    "editTitle": "Upraviť kategóriu",
+    "nameLabel": "Názov kategórie",
+    "namePlaceholder": "napr. Informácie",
+    "delete": "Odstrániť kategóriu"
+  },
+  "channelForm": {
+    "createTitle": "Vytvoriť kanál",
+    "editTitle": "Upraviť kanál",
+    "nameRules": "Názvy sa ukladajú malými písmenami a medzery sa nahrádzajú spojovníkmi.",
+    "nameLabel": "Názov kanála",
+    "namePlaceholder": "novy-kanal",
+    "willCreateAs": "Vytvorí sa ako",
+    "willRenameTo": "Premenuje sa na",
+    "descriptionOptional": "Popis (voliteľný)",
+    "descriptionPlaceholder": "O čom je tento kanál?",
+    "typeLabel": "Typ kanála",
+    "categoryLabel": "Kategória",
+    "noCategory": "Bez kategórie",
+    "archive": "Archivovať kanál",
+    "archiveHint": "(iba na čítanie, skrytý v predvolenom zobrazení)",
+    "delete": "Odstrániť kanál",
+    "confirmDelete": "Potvrdiť odstránenie"
+  },
+  "channelTypes": {
+    "text": "Text",
+    "textHint": "Posielajte správy",
+    "textChannel": "Textový kanál",
+    "voice": "Hlas",
+    "voiceHint": "Rozprávajte sa hlasom",
+    "voiceChannel": "Hlasový kanál",
+    "forum": "Fórum",
+    "forumHint": "Vytvárajte príspevky s názvami a štítkami",
+    "forumChannel": "Fórový kanál"
+  },
+  "forum": {
+    "settingsTitle": "Nastavenia fóra",
+    "defaultLayout": "Predvolené rozloženie",
+    "layout": {
+      "list": "Zoznam",
+      "grid": "Mriežka"
+    },
+    "defaultSort": "Predvolené zoradenie",
+    "sort": {
+      "latestActivity": "Nedávna aktivita",
+      "newest": "Najnovšie"
+    },
+    "postGuidelines": "Pravidlá príspevkov",
+    "createGuidelinesPlaceholder": "Voliteľné pravidlá zobrazené nad zoznamom príspevkov…",
+    "editGuidelinesPlaceholder": "Voliteľné pravidlá zobrazené nad príspevkami",
+    "requireTags": "Vyžadovať štítky pri príspevkoch",
+    "tagsOptionalTitle": "Štítky fóra (voliteľné)",
+    "tagsTitle": "Štítky fóra",
+    "createTagsDescription": "Vytvorte pre tento kanál úvodné štítky.",
+    "editTagsDescription": "Vytvárajte a spravujte štítky používané pri príspevkoch vo fóre.",
+    "tagName": "Názov štítka",
+    "newTagColor": "Farba nového štítka",
+    "colorForTag": "Farba štítka {{tagName}}",
+    "addingTag": "Pridávanie…",
+    "loadingTags": "Načítavajú sa štítky…",
+    "emptyTags": "Zatiaľ neboli vytvorené žiadne štítky."
+  },
+  "permissions": {
+    "title": "Oprávnenia kanála",
+    "description": "Pridajte výnimky oprávnení pre roly. Neuvedené roly používajú základné oprávnenia servera.",
+    "loadingRoles": "Načítavajú sa roly…",
+    "empty": "Nie sú nastavené žiadne výnimky pre roly.",
+    "role": "Rola",
+    "view": "Zobraziť",
+    "send": "Odosielať",
+    "allow": "Povoliť",
+    "deny": "Zakázať",
+    "removeOverride": "Odstrániť výnimku",
+    "addRoleOverride": "Pridať výnimku roly…",
+    "saving": "Ukladajú sa oprávnenia…",
+    "save": "Uložiť oprávnenia"
+  },
+  "voice": {
+    "editChannel": "Upraviť kanál",
+    "noOneConnected": "Nikto nie je pripojený",
+    "muted": "Stlmený mikrofón",
+    "deafened": "Vypnuté počúvanie",
+    "cameraOn": "Kamera je zapnutá",
+    "sharingScreen": "Zdieľa obrazovku"
+  },
+  "errors": {
+    "categoryNameRequired": "Názov je povinný.",
+    "createCategoryFailed": "Kategóriu sa nepodarilo vytvoriť.",
+    "updateCategoryFailed": "Kategóriu sa nepodarilo upraviť.",
+    "deleteCategoryFailed": "Kategóriu sa nepodarilo odstrániť.",
+    "noServerSelected": "Nie je vybraný žiadny server.",
+    "invalidChannelName": "Použite iba malé písmená, čísla a spojovníky (napr. {{example}}).",
+    "createChannelFailed": "Kanál sa nepodarilo vytvoriť.",
+    "updateChannelFailed": "Kanál sa nepodarilo upraviť.",
+    "deleteChannelFailed": "Kanál sa nepodarilo odstrániť.",
+    "removeOverrideFailed": "Výnimku sa nepodarilo odstrániť.",
+    "createTagFailed": "Štítok sa nepodarilo vytvoriť.",
+    "updateTagFailed": "Štítok sa nepodarilo upraviť.",
+    "deleteTagFailed": "Štítok sa nepodarilo odstrániť.",
+    "updatePermissionsFailed": "Oprávnenia sa nepodarilo upraviť."
+  }
+}

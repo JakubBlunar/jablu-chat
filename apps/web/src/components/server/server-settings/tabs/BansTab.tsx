@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui'
 import { UserAvatar } from '@/components/UserAvatar'
 import { api } from '@/lib/api'
@@ -7,6 +8,7 @@ import type { Server } from '@/stores/server.store'
 type Ban = Awaited<ReturnType<typeof api.getBans>>[number]
 
 export function BansTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const [bans, setBans] = useState<Ban[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -16,11 +18,11 @@ export function BansTab({ server }: { server: Server }) {
       const result = await api.getBans(server.id)
       setBans(result)
     } catch {
-      setError('Failed to load bans')
+      setError(t('bans.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [server.id])
+  }, [server.id, t])
 
   useEffect(() => {
     void fetchBans()
@@ -28,15 +30,15 @@ export function BansTab({ server }: { server: Server }) {
 
   const handleUnban = useCallback(
     async (ban: Ban) => {
-      if (!confirm(`Unban ${ban.user.displayName ?? ban.user.username}?`)) return
+      if (!confirm(t('bans.unbanConfirm', { name: ban.user.displayName ?? ban.user.username }))) return
       try {
         await api.unbanMember(server.id, ban.userId)
         setBans((prev) => prev.filter((b) => b.id !== ban.id))
       } catch {
-        setError('Failed to unban user')
+        setError(t('bans.unbanFailed'))
       }
     },
-    [server.id]
+    [server.id, t]
   )
 
   if (loading) {
@@ -49,9 +51,9 @@ export function BansTab({ server }: { server: Server }) {
 
   return (
     <div>
-      <h2 className="mb-1 text-base font-semibold text-white">Server Bans</h2>
+      <h2 className="mb-1 text-base font-semibold text-white">{t('bans.title')}</h2>
       <p className="mb-4 text-sm text-gray-400">
-        {bans.length === 0 ? 'No users are banned from this server.' : `${bans.length} banned user${bans.length !== 1 ? 's' : ''}`}
+        {bans.length === 0 ? t('bans.none') : t('bans.count', { count: bans.length })}
       </p>
 
       {error && (
@@ -71,9 +73,9 @@ export function BansTab({ server }: { server: Server }) {
                 {ban.user.displayName ?? ban.user.username}
               </p>
               <p className="truncate text-xs text-gray-500">
-                {ban.reason ? `Reason: ${ban.reason}` : 'No reason provided'}
+                {ban.reason ? t('bans.reason', { reason: ban.reason }) : t('bans.noReason')}
                 {' \u00b7 '}
-                Banned by {ban.bannedBy.displayName ?? ban.bannedBy.username}
+                {t('bans.bannedBy', { name: ban.bannedBy.displayName ?? ban.bannedBy.username })}
               </p>
             </div>
             <Button
@@ -83,7 +85,7 @@ export function BansTab({ server }: { server: Server }) {
               onClick={() => void handleUnban(ban)}
               className="shrink-0 hover:bg-red-500/10 hover:text-red-400"
             >
-              Unban
+              {t('bans.unban')}
             </Button>
           </div>
         ))}

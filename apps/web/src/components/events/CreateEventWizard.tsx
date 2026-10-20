@@ -1,10 +1,12 @@
 import type { CreateEventInput, EventLocationType, RecurrenceRule } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, IconButton, Input, Textarea } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { toLocalDatetimeString } from '@/lib/eventDuration'
 import { formatDuration } from '@/lib/eventTime'
+import { getAppIntlLocale } from '@/lib/format-time'
 import { useChannelStore } from '@/stores/channel.store'
 import { useEventStore } from '@/stores/event.store'
 import { EventScheduleFields } from './EventScheduleFields'
@@ -19,7 +21,7 @@ type Props = {
 
 function formatPreviewTime(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleString('en-US', {
+  return d.toLocaleString(getAppIntlLocale(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -30,6 +32,7 @@ function formatPreviewTime(iso: string): string {
 }
 
 export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
+  const { t } = useTranslation('events')
   const channels = useChannelStore((s) => s.channels)
   const voiceChannels = channels.filter((c) => c.type === 'voice')
 
@@ -77,11 +80,11 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
       useEventStore.getState().addEvent(event)
       onClose()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create event')
+      setError(err instanceof Error ? err.message : t('create.failed'))
     } finally {
       setSubmitting(false)
     }
-  }, [serverId, name, description, locationType, channelId, locationText, startAt, endISO, recurrenceRule, onClose])
+  }, [serverId, name, description, locationType, channelId, locationText, startAt, endISO, recurrenceRule, onClose, t])
 
   const canAdvanceToDetails =
     locationType === 'voice_channel' ? !!channelId : locationText.trim().length > 0
@@ -93,7 +96,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
         <div className="flex items-center gap-2">
           <IconButton
             type="button"
-            label="Back"
+            label={t('create.back')}
             onClick={step === 'location' ? onBack : () => setStep(step === 'review' ? 'details' : 'location')}
             size="lg"
             className="rounded-lg p-1"
@@ -103,7 +106,11 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
             </svg>
           </IconButton>
           <h2 className="text-base font-bold text-white">
-            {step === 'location' ? 'Choose Location' : step === 'details' ? 'Event Details' : 'Review'}
+            {step === 'location'
+              ? t('create.chooseLocation')
+              : step === 'details'
+                ? t('create.eventDetails')
+                : t('create.review')}
           </h2>
         </div>
 
@@ -132,8 +139,8 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
                   className="accent-primary"
                 />
                 <div>
-                  <div className="text-sm font-medium text-white">Voice Channel</div>
-                  <div className="text-xs text-gray-400">Host the event in a voice channel</div>
+                  <div className="text-sm font-medium text-white">{t('create.voiceChannel')}</div>
+                  <div className="text-xs text-gray-400">{t('create.voiceChannelDescription')}</div>
                 </div>
               </label>
 
@@ -146,15 +153,15 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
                   className="accent-primary"
                 />
                 <div>
-                  <div className="text-sm font-medium text-white">Somewhere Else</div>
-                  <div className="text-xs text-gray-400">Add a link or custom location</div>
+                  <div className="text-sm font-medium text-white">{t('create.somewhereElse')}</div>
+                  <div className="text-xs text-gray-400">{t('create.somewhereElseDescription')}</div>
                 </div>
               </label>
             </div>
 
             {locationType === 'voice_channel' && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-400">Voice Channel</label>
+                <label className="mb-1 block text-xs font-medium text-gray-400">{t('create.voiceChannel')}</label>
                 <select
                   value={channelId}
                   onChange={(e) => setChannelId(e.target.value)}
@@ -172,11 +179,11 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
             {locationType === 'custom' && (
               <Input
                 id="create-event-location"
-                label="Location"
+                label={t('create.location')}
                 type="text"
                 value={locationText}
                 onChange={(e) => setLocationText(e.target.value)}
-                placeholder="e.g., Discord stage, external link..."
+                placeholder={t('create.customLocationPlaceholder')}
                 maxLength={200}
                 className="rounded-lg ring-white/10 focus:ring-primary"
               />
@@ -188,21 +195,21 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
           <div className="space-y-4">
             <Input
               id="create-event-name"
-              label="Event Name *"
+              label={t('create.eventName')}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Game Night, Movie Watch Party..."
+              placeholder={t('create.namePlaceholder')}
               maxLength={100}
               className="rounded-lg ring-white/10 focus:ring-primary"
             />
 
             <Textarea
               id="create-event-description"
-              label="Description"
+              label={t('create.description')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tell people what this event is about..."
+              placeholder={t('create.descriptionPlaceholder')}
               maxLength={1000}
               rows={3}
               className="rounded-lg ring-white/10 focus:ring-primary"
@@ -216,17 +223,17 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
             />
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-400">Repeat</label>
+              <label className="mb-1 block text-xs font-medium text-gray-400">{t('create.repeat')}</label>
               <select
                 value={recurrenceRule}
                 onChange={(e) => setRecurrenceRule(e.target.value as RecurrenceRule | '')}
                 className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
               >
-                <option value="">No repeat</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Biweekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="">{t('create.noRepeat')}</option>
+                <option value="daily">{t('recurrence.daily')}</option>
+                <option value="weekly">{t('recurrence.weekly')}</option>
+                <option value="biweekly">{t('recurrence.biweekly')}</option>
+                <option value="monthly">{t('recurrence.monthly')}</option>
               </select>
             </div>
           </div>
@@ -247,7 +254,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
                   {endISO && <span>- {formatPreviewTime(endISO)}</span>}
                   {endISO && (
                     <span className="text-gray-500">
-                      ({formatDuration(new Date(endISO).getTime() - new Date(startAt).getTime())})
+                      ({formatDuration(new Date(endISO).getTime() - new Date(startAt).getTime(), t)})
                     </span>
                   )}
                 </div>
@@ -259,8 +266,8 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
                   </svg>
                   <span>
                     {locationType === 'voice_channel'
-                      ? voiceChannels.find((c) => c.id === channelId)?.name ?? 'Voice Channel'
-                      : locationText || 'Custom location'}
+                      ? voiceChannels.find((c) => c.id === channelId)?.name ?? t('create.voiceFallback')
+                      : locationText || t('create.customLocationFallback')}
                   </span>
                 </div>
 
@@ -269,7 +276,7 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                       <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    <span>Repeats {recurrenceRule}</span>
+                    <span>{t('create.repeatSummary', { rule: t(`recurrence.${recurrenceRule}`) })}</span>
                   </div>
                 )}
               </div>
@@ -283,17 +290,17 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
       <div className="flex items-center justify-end gap-2 border-t border-white/5 px-5 py-3">
         {step === 'location' && (
           <Button type="button" onClick={() => setStep('details')} disabled={!canAdvanceToDetails} className="rounded-lg">
-            Next
+            {t('create.next')}
           </Button>
         )}
         {step === 'details' && (
           <Button type="button" onClick={() => setStep('review')} disabled={!canAdvanceToReview} className="rounded-lg">
-            Review
+            {t('create.review')}
           </Button>
         )}
         {step === 'review' && (
           <Button type="button" onClick={handleSubmit} disabled={submitting} className="rounded-lg">
-            {submitting ? 'Creating...' : 'Create Event'}
+            {submitting ? t('create.creating') : t('create.createEvent')}
           </Button>
         )}
       </div>

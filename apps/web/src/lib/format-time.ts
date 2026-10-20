@@ -3,7 +3,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function timeOnly(d: Date): string {
-  return d.toLocaleTimeString(dateLocale(), {
+  return d.toLocaleTimeString(getAppIntlLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
@@ -29,7 +29,7 @@ export function formatSmartTimestamp(iso: string): string {
   if (isSameDay(d, yesterday)) return `${relativeDay('yesterday')} ${timeOnly(d)}`
 
   const sameYear = d.getFullYear() === now.getFullYear()
-  const datePart = d.toLocaleDateString(dateLocale(), {
+  const datePart = d.toLocaleDateString(getAppIntlLocale(), {
     month: 'short',
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' })
@@ -48,7 +48,7 @@ export function formatDateSeparator(iso: string): string {
   if (isSameDay(d, now)) return relativeDay('today')
   if (isSameDay(d, yesterday)) return relativeDay('yesterday')
 
-  return d.toLocaleDateString(dateLocale(), {
+  return d.toLocaleDateString(getAppIntlLocale(), {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -59,7 +59,7 @@ export function formatDateSeparator(iso: string): string {
 export function formatFullDateTime(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(dateLocale(), {
+  return d.toLocaleString(getAppIntlLocale(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -77,7 +77,7 @@ export function isDifferentDay(a: string, b: string): boolean {
 }
 import i18n from 'i18next'
 
-function dateLocale(): string {
+export function getAppIntlLocale(): string {
   const language = (i18n.resolvedLanguage ?? i18n.language ?? 'en').split('-')[0]
   return language === 'cs' ? 'cs-CZ' : language === 'sk' ? 'sk-SK' : 'en-US'
 }

@@ -2,7 +2,21 @@ import i18n from 'i18next'
 import { detectAppLocale, isAppLocale, type AppLocale } from './locales'
 
 /** All JSON namespaces under locales/{lng}/ — keep in sync with files on disk. */
-export const I18N_NAMESPACES = ['common', 'settings', 'chat', 'a11y', 'nav', 'voice', 'auth', 'search'] as const
+export const I18N_NAMESPACES = [
+  'common',
+  'settings',
+  'chat',
+  'a11y',
+  'nav',
+  'voice',
+  'auth',
+  'search',
+  'server',
+  'server-settings',
+  'profile',
+  'events',
+  'channels'
+] as const
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number]
 

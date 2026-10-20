@@ -1,0 +1,101 @@
+{
+  "schedule": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday",
+    "atTime": "{{date}} at {{time}}",
+    "endsAt": "Ends at {{time}}",
+    "endedAt": "Ended {{date}} at {{time}}",
+    "live": "LIVE",
+    "withDuration": "{{dateTime}} ({{duration}})"
+  },
+  "duration": {
+    "hoursMinutes": "{{hours}}h {{minutes}}m",
+    "hours": "{{hours}}h",
+    "minutes": "{{minutes}}m"
+  },
+  "recurrence": {
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "biweekly": "Biweekly",
+    "monthly": "Monthly"
+  },
+  "list": {
+    "happeningNow": "HAPPENING NOW",
+    "interested": "Interested",
+    "interestedQuestion": "Interested?",
+    "join": "Join",
+    "noUpcoming": "No upcoming events",
+    "createToGetStarted": "Create an event to get started",
+    "upcoming": "UPCOMING",
+    "loading": "Loading…",
+    "loadMore": "Load More"
+  },
+  "scheduleFields": {
+    "start": "Start *",
+    "ends": "Ends",
+    "duration": "Duration",
+    "endTime": "End time",
+    "noEndTime": "No end time",
+    "custom": "Custom…",
+    "hours": "hours",
+    "minutes": "minutes",
+    "presets": {
+      "30Minutes": "30 minutes",
+      "1Hour": "1 hour",
+      "1Hour30Minutes": "1 hour 30 minutes",
+      "2Hours": "2 hours",
+      "3Hours": "3 hours",
+      "4Hours": "4 hours",
+      "allDay": "All day"
+    }
+  },
+  "create": {
+    "back": "Back",
+    "chooseLocation": "Choose Location",
+    "eventDetails": "Event Details",
+    "review": "Review",
+    "voiceChannel": "Voice Channel",
+    "voiceChannelDescription": "Host the event in a voice channel",
+    "somewhereElse": "Somewhere Else",
+    "somewhereElseDescription": "Add a link or custom location",
+    "location": "Location",
+    "customLocationPlaceholder": "e.g., Discord stage, external link…",
+    "eventName": "Event Name *",
+    "namePlaceholder": "Game Night, Movie Watch Party…",
+    "description": "Description",
+    "descriptionPlaceholder": "Tell people what this event is about…",
+    "repeat": "Repeat",
+    "noRepeat": "No repeat",
+    "next": "Next",
+    "creating": "Creating…",
+    "createEvent": "Create Event",
+    "failed": "Failed to create event",
+    "voiceFallback": "Voice Channel",
+    "customLocationFallback": "Custom location",
+    "repeatSummary": "Repeats {{rule}}"
+  },
+  "detail": {
+    "back": "Back to events",
+    "title": "Event Details",
+    "descriptionPlaceholder": "Description…",
+    "saving": "Saving…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "voiceFallback": "Voice Channel",
+    "customLocationFallback": "Custom location",
+    "createdBy": "Created by {{name}}",
+    "markInterested": "Mark Interested",
+    "joinVoice": "Join Voice",
+    "edit": "Edit",
+    "cancelling": "Cancelling…",
+    "cancelEvent": "Cancel Event",
+    "interestedCount": "{{count}} interested",
+    "noInterested": "No one has marked interest yet",
+    "cancelConfirmTitle": "Cancel Event",
+    "cancelConfirmDescription": "Are you sure you want to cancel this event?",
+    "startTimeRequired": "A valid start time is required",
+    "endAfterStart": "End time must be after start time",
+    "updateFailed": "Failed to update"
+  }
+}

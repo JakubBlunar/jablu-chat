@@ -1,11 +1,13 @@
 import { Permission } from '@chat/shared'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, InlineAlert, Input, Spinner } from '@/components/ui'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api, resolveMediaUrl, type CustomEmoji, type EmojiStat } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 
 export function EmojiStatsTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const { has: hasPerm } = usePermissions(server.id)
   const canManage = hasPerm(Permission.MANAGE_EMOJIS)
 
@@ -31,9 +33,9 @@ export function EmojiStatsTab({ server }: { server: Server }) {
       api.getEmojiStats(server.id)
     ])
       .then(([e, s]) => { setEmojis(e); setStats(s) })
-      .catch(() => setError('Failed to load emojis'))
+      .catch(() => setError(t('emojiStats.loadFailed')))
       .finally(() => setLoading(false))
-  }, [server.id])
+  }, [server.id, t])
 
   const statsMap = new Map(stats.map((s) => [s.emoji, s]))
 
@@ -60,7 +62,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
       setUploadPreview(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
+      setError(e instanceof Error ? e.message : t('emojiStats.uploadFailed'))
     } finally {
       setUploading(false)
     }
@@ -74,18 +76,18 @@ export function EmojiStatsTab({ server }: { server: Server }) {
       setEmojis((prev) => prev.map((e) => (e.id === emojiId ? updated : e)))
       setRenamingId(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Rename failed')
+      setError(e instanceof Error ? e.message : t('emojiStats.renameFailed'))
     }
   }
 
   const handleDelete = async (emoji: CustomEmoji) => {
-    if (!confirm(`Delete :${emoji.name}:? This cannot be undone.`)) return
+    if (!confirm(t('emojiStats.deleteConfirm', { name: emoji.name }))) return
     setError(null)
     try {
       await api.deleteEmoji(server.id, emoji.id)
       setEmojis((prev) => prev.filter((e) => e.id !== emoji.id))
     } catch {
-      setError('Failed to delete emoji')
+      setError(t('emojiStats.deleteFailed'))
     }
   }
 
@@ -105,12 +107,13 @@ export function EmojiStatsTab({ server }: { server: Server }) {
 
       {canManage && (
         <div className="space-y-3 rounded-lg bg-surface-darkest p-4">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Upload Emoji</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t('emojiStats.uploadTitle')}</h4>
           <div className="flex items-end gap-3">
             <div>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
+                aria-label={t('emojiStats.selectImage')}
                 className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-white/10 transition hover:border-primary/50"
               >
                 {uploadPreview ? (
@@ -131,11 +134,11 @@ export function EmojiStatsTab({ server }: { server: Server }) {
             </div>
             <div className="min-w-0 flex-1">
               <Input
-                label="Name"
+                label={t('emojiStats.nameLabel')}
                 type="text"
                 value={uploadName}
                 onChange={(e) => setUploadName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase().slice(0, 32))}
-                placeholder="emoji_name"
+                placeholder={t('emojiStats.namePlaceholder')}
                 className="bg-surface"
               />
             </div>
@@ -146,19 +149,19 @@ export function EmojiStatsTab({ server }: { server: Server }) {
               loading={uploading}
               className="shrink-0"
             >
-              Upload
+              {t('actions.upload')}
             </Button>
           </div>
-          <p className="text-[11px] text-gray-500">PNG, JPG, GIF, or WebP. Max 200 KB. Will be resized to 128x128.</p>
+          <p className="text-[11px] text-gray-500">{t('emojiStats.fileInfo')}</p>
         </div>
       )}
 
       <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-          Emojis — {emojis.length}/50
+          {t('emojiStats.count', { count: emojis.length })}
         </h4>
         {emojis.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-500">No custom emojis yet.</p>
+          <p className="py-8 text-center text-sm text-gray-500">{t('emojiStats.empty')}</p>
         ) : (
           <div className="space-y-1">
             {emojis.map((e) => {
@@ -190,7 +193,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                       <span className="text-sm font-medium text-white">:{e.name}:</span>
                       {stat && (
                         <span className="ml-2 text-xs text-gray-500">
-                          {stat.usageCount} reaction{stat.usageCount !== 1 ? 's' : ''}
+                          {t('emojiStats.reactions', { count: stat.usageCount })}
                         </span>
                       )}
                     </div>
@@ -206,7 +209,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                             onClick={() => void handleRename(e.id)}
                             className="text-primary hover:bg-primary/10 hover:text-primary"
                           >
-                            Save
+                            {t('actions.save')}
                           </Button>
                           <Button
                             type="button"
@@ -214,7 +217,7 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                             variant="ghost"
                             onClick={() => setRenamingId(null)}
                           >
-                            Cancel
+                            {t('emojiStats.cancel')}
                           </Button>
                         </>
                       ) : (
@@ -222,7 +225,8 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                           <button
                             type="button"
                             onClick={() => { setRenamingId(e.id); setRenameValue(e.name) }}
-                            title="Rename"
+                            title={t('emojiStats.rename')}
+                            aria-label={t('emojiStats.rename')}
                             className="rounded p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                           >
                             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -232,7 +236,8 @@ export function EmojiStatsTab({ server }: { server: Server }) {
                           <button
                             type="button"
                             onClick={() => void handleDelete(e)}
-                            title="Delete"
+                            title={t('emojiStats.delete')}
+                            aria-label={t('emojiStats.delete')}
                             className="rounded p-1.5 text-gray-400 transition hover:bg-red-500/10 hover:text-red-400"
                           >
                             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

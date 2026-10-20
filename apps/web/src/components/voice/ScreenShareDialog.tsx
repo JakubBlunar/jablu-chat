@@ -22,7 +22,8 @@ export function ScreenShareDialog({
   onConfirm: (settings: ScreenShareSettings) => void
   onClose: () => void
 }) {
-  const { t } = useTranslation('common')
+  const { t: tCommon } = useTranslation('common')
+  const { t } = useTranslation('voice')
   const [resolution, setResolution] = useState<ScreenShareSettings['resolution']>('1080p')
   const [fps, setFps] = useState<ScreenShareSettings['fps']>(30)
   const [audio, setAudio] = useState(false)
@@ -34,11 +35,11 @@ export function ScreenShareDialog({
   return (
     <ModalOverlay onClose={onClose} zIndex="z-[200]" noPadding>
       <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
-        <h2 className="text-lg font-semibold text-white">Screen Share Settings</h2>
+        <h2 className="text-lg font-semibold text-white">{t('screenShareSetup.title')}</h2>
         <button
           type="button"
           onClick={onClose}
-          aria-label={t('close')}
+          aria-label={tCommon('close')}
           className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -49,7 +50,7 @@ export function ScreenShareDialog({
 
       <div className="space-y-5 px-6 py-5">
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Resolution</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">{t('screenShareSetup.resolution')}</h3>
           <div className="flex gap-2">
             {RESOLUTION_OPTIONS.map((r) => (
               <button
@@ -60,14 +61,14 @@ export function ScreenShareDialog({
                   resolution === r ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                 }`}
               >
-                {r}
+                {r === 'native' ? t('screenSharePicker.native') : r}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Frame Rate</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">{t('screenShareSetup.frameRate')}</h3>
           <div className="flex gap-2">
             {FPS_OPTIONS.map((f) => (
               <button
@@ -78,7 +79,7 @@ export function ScreenShareDialog({
                   fps === f ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                 }`}
               >
-                {f} fps
+                {f} {t('screenShareSetup.fpsUnit')}
               </button>
             ))}
           </div>
@@ -86,15 +87,15 @@ export function ScreenShareDialog({
 
         {supportsAudio && (
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Audio</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">{t('screenShareSetup.audio')}</h3>
             <div
               onClick={() => setAudio(!audio)}
               className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-surface-darkest px-4 py-3 transition hover:bg-white/5"
             >
               <Toggle checked={audio} onChange={setAudio} />
               <div className="text-left">
-                <span className="block text-sm text-gray-200">Include audio</span>
-                <span className="block text-[11px] text-gray-500">Share system or tab audio alongside your screen</span>
+                <span className="block text-sm text-gray-200">{t('screenShareSetup.includeAudio')}</span>
+                <span className="block text-[11px] text-gray-500">{t('screenShareSetup.includeAudioHint')}</span>
               </div>
             </div>
             {audio && (
@@ -114,9 +115,9 @@ export function ScreenShareDialog({
                   }}
                 />
                 <div className="text-left">
-                  <span className="block text-sm text-gray-200">Better audio for shared content</span>
+                  <span className="block text-sm text-gray-200">{t('screenShareSetup.betterAudio')}</span>
                   <span className="block text-[11px] text-gray-500">
-                    Stereo and higher bitrate for music or video. Uses more bandwidth and CPU.
+                    {t('screenShareSetup.betterAudioHint')}
                   </span>
                 </div>
               </div>
@@ -131,14 +132,14 @@ export function ScreenShareDialog({
           onClick={onClose}
           className="rounded-md px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10"
         >
-          Cancel
+          {tCommon('cancel')}
         </button>
         <button
           type="button"
           onClick={() => onConfirm({ resolution, fps, audio, highQualityAudio: audio ? highQualityAudio : false })}
           className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
         >
-          Share Screen
+          {t('screenShareSetup.shareScreen')}
         </button>
       </div>
     </ModalOverlay>

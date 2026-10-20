@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
@@ -6,6 +7,8 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 
 export function CreateCategoryModal({ onClose }: { onClose: () => void }) {
+  const { t: tChannels } = useTranslation('channels')
+  const { t: tCommon } = useTranslation('common')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const addCategory = useChannelStore((s) => s.addCategory)
 
@@ -17,7 +20,7 @@ export function CreateCategoryModal({ onClose }: { onClose: () => void }) {
     if (!currentServerId) return
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Name is required.')
+      setError(tChannels('errors.categoryNameRequired'))
       return
     }
     setBusy(true)
@@ -27,7 +30,7 @@ export function CreateCategoryModal({ onClose }: { onClose: () => void }) {
       addCategory(created)
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create category.')
+      setError(e instanceof Error ? e.message : tChannels('errors.createCategoryFailed'))
     } finally {
       setBusy(false)
     }
@@ -35,15 +38,15 @@ export function CreateCategoryModal({ onClose }: { onClose: () => void }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-xl font-semibold text-white">Create Category</h2>
+      <h2 className="text-xl font-semibold text-white">{tChannels('category.createTitle')}</h2>
       <div className="mt-4">
         <Input
           id="create-category-name"
-          label="Category name"
+          label={tChannels('category.nameLabel')}
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Information"
+          placeholder={tChannels('category.namePlaceholder')}
           maxLength={100}
           autoFocus
         />
@@ -53,10 +56,10 @@ export function CreateCategoryModal({ onClose }: { onClose: () => void }) {
       )}
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose} disabled={busy}>
-          Cancel
+          {tCommon('cancel')}
         </Button>
         <Button onClick={() => void handleCreate()} disabled={busy || !name.trim()} loading={busy}>
-          {busy ? 'Creating…' : 'Create'}
+          {busy ? tCommon('creating') : tCommon('create')}
         </Button>
       </div>
     </ModalOverlay>

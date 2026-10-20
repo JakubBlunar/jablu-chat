@@ -71,8 +71,8 @@ it('updates online/offline counts and preserves profile click and hover behavior
   const { rerender } = render(
     <MemberListPanel members={members} onlineIds={onlineIds} isLoading={false} ownerId="alice" onMemberClick={onMemberClick} />
   )
-  expect(screen.getByText('ONLINE — 1')).toBeInTheDocument()
-  expect(screen.getByText('OFFLINE — 1')).toBeInTheDocument()
+  expect(screen.getByText('members.online')).toBeInTheDocument()
+  expect(screen.getByText('members.offline')).toBeInTheDocument()
   const alice = screen.getByRole('button', { name: /alice$/ })
   fireEvent.mouseEnter(alice)
   expect(prefetchProfileCard).toHaveBeenCalledWith('alice', undefined)
@@ -82,8 +82,8 @@ it('updates online/offline counts and preserves profile click and hover behavior
   rerender(
     <MemberListPanel members={members} onlineIds={new Set(['alice', 'bob'])} isLoading={false} ownerId="alice" onMemberClick={onMemberClick} />
   )
-  expect(screen.getByText('ONLINE — 2')).toBeInTheDocument()
-  expect(screen.getByText('OFFLINE — 0')).toBeInTheDocument()
+  expect(screen.getByText('members.online')).toBeInTheDocument()
+  expect(screen.getByText('members.offline')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /bob$/ }))
   expect(onMemberClick).toHaveBeenLastCalledWith(members[1], 'online', expect.anything())
 })

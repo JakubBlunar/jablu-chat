@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui'
 import {
   DURATION_PRESETS,
@@ -58,6 +59,7 @@ export function EventScheduleFields({
   endISO: string | null
   onEndChange: (iso: string | null) => void
 }) {
+  const { t } = useTranslation('events')
   const initial = useRef(deriveInitial(startLocal, endISO))
   const [mode, setMode] = useState<Mode>(initial.current.mode)
   const [durationSel, setDurationSel] = useState<DurationSel>(initial.current.durationSel)
@@ -89,7 +91,7 @@ export function EventScheduleFields({
     <div className="space-y-3">
       <Input
         id="event-start"
-        label="Start *"
+        label={t('scheduleFields.start')}
         type="datetime-local"
         value={startLocal}
         onChange={(e) => onStartChange(e.target.value)}
@@ -98,7 +100,7 @@ export function EventScheduleFields({
 
       <div>
         <div className="mb-1 flex items-center gap-1">
-          <label className="text-xs font-medium text-gray-400">Ends</label>
+          <label className="text-xs font-medium text-gray-400">{t('scheduleFields.ends')}</label>
           <div className="ml-auto flex rounded-lg bg-surface-dark p-0.5 text-xs">
             <button
               type="button"
@@ -107,7 +109,7 @@ export function EventScheduleFields({
                 mode === 'duration' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Duration
+              {t('scheduleFields.duration')}
             </button>
             <button
               type="button"
@@ -116,7 +118,7 @@ export function EventScheduleFields({
                 mode === 'end' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              End time
+              {t('scheduleFields.endTime')}
             </button>
           </div>
         </div>
@@ -131,13 +133,13 @@ export function EventScheduleFields({
               }}
               className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
             >
-              <option value="none">No end time</option>
+              <option value="none">{t('scheduleFields.noEndTime')}</option>
               {DURATION_PRESETS.map((p) => (
                 <option key={p.minutes} value={p.minutes}>
-                  {p.label}
+                  {t(p.labelKey)}
                 </option>
               ))}
-              <option value="custom">Custom...</option>
+              <option value="custom">{t('scheduleFields.custom')}</option>
             </select>
 
             {durationSel === 'custom' && (
@@ -150,7 +152,7 @@ export function EventScheduleFields({
                   onChange={(e) => setCustomH(Math.max(0, Number(e.target.value) || 0))}
                   className="w-16 rounded-lg border border-white/10 bg-surface-dark px-2 py-1.5 text-sm text-white outline-none focus:border-primary"
                 />
-                <span className="text-xs text-gray-400">hours</span>
+                <span className="text-xs text-gray-400">{t('scheduleFields.hours')}</span>
                 <input
                   type="number"
                   min={0}
@@ -159,7 +161,7 @@ export function EventScheduleFields({
                   onChange={(e) => setCustomM(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
                   className="w-16 rounded-lg border border-white/10 bg-surface-dark px-2 py-1.5 text-sm text-white outline-none focus:border-primary"
                 />
-                <span className="text-xs text-gray-400">minutes</span>
+                <span className="text-xs text-gray-400">{t('scheduleFields.minutes')}</span>
               </div>
             )}
           </div>

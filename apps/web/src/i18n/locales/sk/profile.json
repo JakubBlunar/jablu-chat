@@ -1,0 +1,37 @@
+{
+  "status": {
+    "online": "Online",
+    "idle": "Nečinný",
+    "dnd": "Nevyrušovať",
+    "offline": "Offline"
+  },
+  "bot": "BOT",
+  "activity": {
+    "listeningToSpotify": "POČÚVA SPOTIFY",
+    "playingGame": "HRÁ HRU"
+  },
+  "aboutMe": "O MNE",
+  "memberSince": "ČLENOM OD",
+  "mutualFriends": "SPOLOČNÍ PRIATELIA — {{count}}",
+  "mutualServers": "SPOLOČNÉ SERVERY — {{count}}",
+  "more": "+{{count}} ďalších",
+  "voiceVolume": "HLASITOSŤ POUŽÍVATEĽA",
+  "resetVolume": "Obnoviť na 100 %",
+  "friendship": {
+    "friends": "Priatelia",
+    "requestSent": "Žiadosť odoslaná",
+    "cancel": "Zrušiť",
+    "acceptRequest": "Prijať žiadosť",
+    "addFriend": "Pridať priateľa"
+  },
+  "dm": {
+    "friendsRequired": "Ak chcete posielať správy, staňte sa priateľmi.",
+    "failed": "Konverzáciu sa nepodarilo otvoriť",
+    "opening": "Otváranie…",
+    "message": "Správa"
+  },
+  "roles": "ROLY",
+  "level": "ÚROVEŇ",
+  "levelLabel": "Úroveň {{level}}",
+  "xp": "XP"
+}

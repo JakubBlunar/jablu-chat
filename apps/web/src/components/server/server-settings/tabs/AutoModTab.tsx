@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input, Select, Spinner, Toggle } from '@/components/ui'
 import { api, type AutoModRule } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
@@ -39,6 +40,7 @@ function WordFilterConfig({
   config: { words?: string[]; action?: string }
   onSave: (config: Record<string, unknown>) => void
 }) {
+  const { t } = useTranslation('server-settings')
   const [input, setInput] = useState('')
   const words = config.words ?? []
   const action = config.action ?? 'block'
@@ -58,15 +60,15 @@ function WordFilterConfig({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 mb-1">
-        <label className="text-xs text-gray-400">Action:</label>
+        <label className="text-xs text-gray-400">{t('automod.action')}</label>
         <Select
           size="sm"
           wrapperClassName="w-auto"
           value={action}
           onChange={(e) => onSave({ words, action: e.target.value })}
         >
-          <option value="block">Block message</option>
-          <option value="flag">Flag for review</option>
+          <option value="block">{t('automod.blockMessage')}</option>
+          <option value="flag">{t('automod.flagForReview')}</option>
         </Select>
       </div>
       <div className="flex items-end gap-2">
@@ -77,12 +79,12 @@ function WordFilterConfig({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addWord()}
-            placeholder="Add a word..."
+            placeholder={t('automod.addWordPlaceholder')}
             className="bg-surface"
           />
         </div>
         <Button type="button" size="sm" onClick={addWord}>
-          Add
+          {t('automod.add')}
         </Button>
       </div>
       {words.length > 0 && (
@@ -108,6 +110,7 @@ function LinkFilterConfig({
   config: { blockAll?: boolean; allowedDomains?: string[] }
   onSave: (config: Record<string, unknown>) => void
 }) {
+  const { t } = useTranslation('server-settings')
   const [input, setInput] = useState('')
   const blockAll = config.blockAll ?? false
   const allowedDomains = config.allowedDomains ?? []
@@ -133,7 +136,7 @@ function LinkFilterConfig({
           onChange={(e) => onSave({ blockAll: e.target.checked, allowedDomains })}
           className="rounded border-white/20 bg-surface text-primary focus:ring-primary/50"
         />
-        Block all links (except allowed domains)
+        {t('automod.blockAllLinks')}
       </label>
       {blockAll && (
         <>
@@ -145,12 +148,12 @@ function LinkFilterConfig({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addDomain()}
-                placeholder="e.g. youtube.com"
+                placeholder={t('automod.exampleDomain')}
                 className="bg-surface"
               />
             </div>
             <Button type="button" size="sm" onClick={addDomain}>
-              Allow
+              {t('automod.allow')}
             </Button>
           </div>
           {allowedDomains.length > 0 && (
@@ -178,6 +181,7 @@ function SpamDetectionConfig({
   config: { maxDuplicates?: number; windowSeconds?: number; maxMessagesPerMinute?: number }
   onSave: (config: Record<string, unknown>) => void
 }) {
+  const { t } = useTranslation('server-settings')
   const maxDuplicates = config.maxDuplicates ?? 3
   const windowSeconds = config.windowSeconds ?? 60
   const maxMessagesPerMinute = config.maxMessagesPerMinute ?? 10
@@ -186,7 +190,7 @@ function SpamDetectionConfig({
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-300">Max messages per minute</span>
+          <span className="text-gray-300">{t('automod.maxMessagesPerMinute')}</span>
           <span className="font-mono text-white">{maxMessagesPerMinute}</span>
         </div>
         <input
@@ -202,7 +206,7 @@ function SpamDetectionConfig({
       </div>
       <div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-300">Max duplicate messages</span>
+          <span className="text-gray-300">{t('automod.maxDuplicateMessages')}</span>
           <span className="font-mono text-white">{maxDuplicates}</span>
         </div>
         <input
@@ -218,8 +222,8 @@ function SpamDetectionConfig({
       </div>
       <div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-300">Duplicate window (seconds)</span>
-          <span className="font-mono text-white">{windowSeconds}s</span>
+          <span className="text-gray-300">{t('automod.duplicateWindowSeconds')}</span>
+          <span className="font-mono text-white">{t('automod.duplicateWindowValue', { seconds: windowSeconds })}</span>
         </div>
         <input
           type="range"
@@ -238,6 +242,7 @@ function SpamDetectionConfig({
 }
 
 export function AutoModTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const [rules, setRules] = useState<AutoModRule[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -297,12 +302,12 @@ export function AutoModTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-400">Configure automatic content filtering and spam prevention for this server.</p>
+      <p className="text-sm text-gray-400">{t('automod.description')}</p>
 
       {wordRule && (
         <AutoModCard
-          title="Word Filter"
-          description="Block messages containing specific words"
+          title={t('automod.wordFilter.title')}
+          description={t('automod.wordFilter.description')}
           enabled={wordRule.enabled}
           saving={saving === 'word_filter'}
           onToggle={(enabled) => handleToggle('word_filter', enabled)}
@@ -316,8 +321,8 @@ export function AutoModTab({ server }: { server: Server }) {
 
       {linkRule && (
         <AutoModCard
-          title="Link Filter"
-          description="Control which links can be shared"
+          title={t('automod.linkFilter.title')}
+          description={t('automod.linkFilter.description')}
           enabled={linkRule.enabled}
           saving={saving === 'link_filter'}
           onToggle={(enabled) => handleToggle('link_filter', enabled)}
@@ -331,8 +336,8 @@ export function AutoModTab({ server }: { server: Server }) {
 
       {spamRule && (
         <AutoModCard
-          title="Spam Detection"
-          description="Limit message rate and duplicate content"
+          title={t('automod.spamDetection.title')}
+          description={t('automod.spamDetection.description')}
           enabled={spamRule.enabled}
           saving={saving === 'spam_detection'}
           onToggle={(enabled) => handleToggle('spam_detection', enabled)}

@@ -18,28 +18,30 @@ import { KickIcon } from '../serverSettingsIcons'
 import { ServerProfileModal } from '@/components/server/ServerProfileModal'
 import { memberDisplayName } from '@/lib/serverProfile'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
 const TIMEOUT_OPTIONS = [
-  { label: '60 sec', value: 60 },
-  { label: '5 min', value: 300 },
-  { label: '10 min', value: 600 },
-  { label: '1 hour', value: 3600 },
-  { label: '1 day', value: 86400 },
-  { label: '1 week', value: 604800 },
+  { labelKey: '60Seconds', value: 60 },
+  { labelKey: '5Minutes', value: 300 },
+  { labelKey: '10Minutes', value: 600 },
+  { labelKey: '1Hour', value: 3600 },
+  { labelKey: '1Day', value: 86400 },
+  { labelKey: '1Week', value: 604800 },
 ]
 
-function formatTimeLeft(iso: string): string {
+function formatTimeLeft(iso: string, t: TFunction<'server-settings'>): string {
   const diff = new Date(iso).getTime() - Date.now()
   if (diff <= 0) return ''
   const mins = Math.ceil(diff / 60_000)
-  if (mins < 60) return `${mins}m left`
+  if (mins < 60) return t('members.timeLeftMinutes', { count: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h left`
-  return `${Math.floor(hrs / 24)}d left`
+  if (hrs < 24) return t('members.timeLeftHours', { count: hrs })
+  return t('members.timeLeftDays', { count: Math.floor(hrs / 24) })
 }
 
 export function MembersTab({ server }: { server: Server }) {
-  const { t } = useTranslation('nav')
+  const { t: tNav } = useTranslation('nav')
+  const { t } = useTranslation('server-settings')
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const currentUser = useAuthStore((s) => s.user)
   const { members, onlineIds, fetchMembers } = useMemberStore(
@@ -71,45 +73,45 @@ export function MembersTab({ server }: { server: Server }) {
         await api.assignRoles(server.id, member.userId, nextRoleIds)
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to change roles for ${member.user.displayName ?? member.user.username}`)
+        setMemberError(t('members.changeRolesFailed', { name: member.user.displayName ?? member.user.username }))
       }
     },
-    [server.id, fetchMembers]
+    [server.id, fetchMembers, t]
   )
 
   const handleKick = useCallback(
     async (member: Member) => {
-      if (!confirm(`Kick ${member.user.displayName ?? member.user.username} from the server?`)) return
+      if (!confirm(t('members.kickConfirm', { name: member.user.displayName ?? member.user.username }))) return
       setMemberError(null)
       try {
         await api.kickMember(server.id, member.userId)
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to kick ${member.user.displayName ?? member.user.username}`)
+        setMemberError(t('members.kickFailed', { name: member.user.displayName ?? member.user.username }))
       }
     },
-    [server.id, fetchMembers]
+    [server.id, fetchMembers, t]
   )
 
   const handleBan = useCallback(
     async (member: Member) => {
-      const reason = prompt(`Ban ${member.user.displayName ?? member.user.username}? Enter an optional reason:`)
+      const reason = prompt(t('members.banPrompt', { name: member.user.displayName ?? member.user.username }))
       if (reason === null) return
       setMemberError(null)
       try {
         await api.banMember(server.id, member.userId, reason || undefined)
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to ban ${member.user.displayName ?? member.user.username}`)
+        setMemberError(t('members.banFailed', { name: member.user.displayName ?? member.user.username }))
       }
     },
-    [server.id, fetchMembers]
+    [server.id, fetchMembers, t]
   )
 
   const handleTimeout = useCallback(
     async (member: Member, duration: number) => {
       const name = member.user.displayName ?? member.user.username
-      const reasonInput = prompt(`Timeout ${name}. Optional reason:`)
+      const reasonInput = prompt(t('members.timeoutPrompt', { name }))
       if (reasonInput === null) return
       const reason = reasonInput.trim()
       setMemberError(null)
@@ -117,10 +119,10 @@ export function MembersTab({ server }: { server: Server }) {
         await api.timeoutMember(server.id, member.userId, duration, reason || undefined)
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to timeout ${name}`)
+        setMemberError(t('members.timeoutFailed', { name }))
       }
     },
-    [server.id, fetchMembers]
+    [server.id, fetchMembers, t]
   )
 
   const handleRemoveTimeout = useCallback(
@@ -130,10 +132,10 @@ export function MembersTab({ server }: { server: Server }) {
         await api.removeTimeout(server.id, member.userId)
         fetchMembers(server.id)
       } catch {
-        setMemberError(`Failed to remove timeout for ${member.user.displayName ?? member.user.username}`)
+        setMemberError(t('members.removeTimeoutFailed', { name: member.user.displayName ?? member.user.username }))
       }
     },
-    [server.id, fetchMembers]
+    [server.id, fetchMembers, t]
   )
 
   const assignableRoles = roles.filter((r) => !r.isDefault)
@@ -151,7 +153,7 @@ export function MembersTab({ server }: { server: Server }) {
         const memberRoles = (m.roles ?? []).filter((r) => !r.isDefault)
         const roleColor = getRoleColor(m)
         const isMuted = m.mutedUntil ? new Date(m.mutedUntil) > new Date() : false
-        const timeLeft = isMuted && m.mutedUntil ? formatTimeLeft(m.mutedUntil) : ''
+        const timeLeft = isMuted && m.mutedUntil ? formatTimeLeft(m.mutedUntil, t) : ''
         const showActions = !isSelf && !isMemberOwner
 
         return (
@@ -182,8 +184,8 @@ export function MembersTab({ server }: { server: Server }) {
                     className="rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400"
                     title={m.mutedReason ?? undefined}
                   >
-                    Timed out {timeLeft && `· ${timeLeft}`}
-                    {m.mutedReason ? ' · with reason' : ''}
+                    {t('members.timedOut', { timeLeft })}
+                    {m.mutedReason ? ` · ${t('members.withReason')}` : ''}
                   </span>
                 )}
               </div>
@@ -191,7 +193,7 @@ export function MembersTab({ server }: { server: Server }) {
 
             {canManageProfiles && (!isMemberOwner || isSelf) && (
               <Button type="button" variant="secondary" size="sm" onClick={() => setProfileUserId(m.userId)}>
-                {t('profileEdit')}
+                {tNav('profileEdit')}
               </Button>
             )}
             {showActions && (
@@ -199,7 +201,7 @@ export function MembersTab({ server }: { server: Server }) {
                 {canManageRoles && assignableRoles.length > 0 && (
                   <MultiSelect
                     size="sm"
-                    buttonLabel="Roles"
+                    buttonLabel={t('members.roles')}
                     icon={<RolesIcon />}
                     options={assignableRoles.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
                     value={(m.roleIds ?? []).filter((id) => assignableRoles.some((r) => r.id === id))}
@@ -213,10 +215,10 @@ export function MembersTab({ server }: { server: Server }) {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleRemoveTimeout(m)}
-                      title="Remove timeout"
+                      title={t('members.removeTimeout')}
                       className="text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-400"
                     >
-                      Untimeout
+                      {t('members.untimeout')}
                     </Button>
                   ) : (
                     <Select
@@ -228,11 +230,11 @@ export function MembersTab({ server }: { server: Server }) {
                         if (val > 0) handleTimeout(m, val)
                         e.target.value = ''
                       }}
-                      title="Timeout member"
+                      title={t('members.timeout')}
                     >
-                      <option value="" disabled>Timeout</option>
+                      <option value="" disabled>{t('members.timeout')}</option>
                       {TIMEOUT_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
+                        <option key={o.value} value={o.value}>{t(`members.timeouts.${o.labelKey}`)}</option>
                       ))}
                     </Select>
                   )
@@ -243,7 +245,7 @@ export function MembersTab({ server }: { server: Server }) {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleKick(m)}
-                    title="Kick member"
+                    title={t('members.kick')}
                     className="px-2 text-red-400 hover:bg-red-500/20 hover:text-red-400"
                   >
                     <KickIcon />
@@ -255,10 +257,10 @@ export function MembersTab({ server }: { server: Server }) {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleBan(m)}
-                    title="Ban member"
+                    title={t('members.ban')}
                     className="text-red-400 hover:bg-red-500/20 hover:text-red-400"
                   >
-                    Ban
+                    {t('members.ban')}
                   </Button>
                 )}
               </div>

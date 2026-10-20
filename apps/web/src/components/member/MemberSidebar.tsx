@@ -10,7 +10,8 @@ import { MemberListPanel } from '@/components/member/MemberListPanel'
 import { useTranslation } from 'react-i18next'
 
 export function MemberSidebar({ onClose }: { onClose?: () => void } = {}) {
-  const { t } = useTranslation('common')
+  const { t: tCommon } = useTranslation('common')
+  const { t: tServer } = useTranslation('server')
   const members = useMemberStore((s) => s.members)
   const onlineIds = useMemberStore((s) => s.onlineUserIds)
   const isLoading = useMemberStore((s) => s.isLoading)
@@ -47,11 +48,11 @@ export function MemberSidebar({ onClose }: { onClose?: () => void } = {}) {
   return (
     <aside className="flex h-full w-full shrink-0 flex-col bg-surface-dark">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4">
-        <SectionHeading as="h2">MEMBERS — {total}</SectionHeading>
+        <SectionHeading as="h2">{tServer('members.title', { count: total })}</SectionHeading>
         {onClose && (
           <button
             type="button"
-            aria-label={t('close')}
+            aria-label={tCommon('close')}
             onClick={onClose}
             className="h-11 w-11 rounded text-gray-400 hover:bg-white/10"
           >

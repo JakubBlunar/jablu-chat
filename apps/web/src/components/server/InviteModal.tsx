@@ -1,9 +1,11 @@
 import type { Invite } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { Button, InlineAlert } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
+import { getAppIntlLocale } from '@/lib/format-time'
 
 interface InviteModalProps {
   serverId: string
@@ -15,6 +17,7 @@ interface InviteModalProps {
 }
 
 export function InviteModal({ serverId, serverName, vanityCode, onClose, overlayZIndex }: InviteModalProps) {
+  const { t } = useTranslation('server')
   const [invites, setInvites] = useState<Invite[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -30,11 +33,11 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
       const data = await api.getInvites(serverId)
       setInvites(data)
     } catch {
-      setError('Failed to load invites')
+      setError(t('invite.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [serverId])
+  }, [serverId, t])
 
   useEffect(() => {
     void fetchInvites()
@@ -50,7 +53,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
       })
       setInvites((prev) => [invite, ...prev])
     } catch {
-      setError('Failed to create invite')
+      setError(t('invite.createFailed'))
     } finally {
       setCreating(false)
     }
@@ -62,7 +65,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
       await api.deleteInvite(id)
       setInvites((prev) => prev.filter((i) => i.id !== id))
     } catch {
-      setError('Failed to delete invite')
+      setError(t('invite.deleteFailed'))
     }
   }
 
@@ -80,17 +83,17 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-lg" zIndex={overlayZIndex ?? 'z-50'}>
-      <div ref={dialogRef} tabIndex={-1} className="outline-none" aria-label={`Invite to ${serverName}`}>
+      <div ref={dialogRef} tabIndex={-1} className="outline-none" aria-label={t('invite.title', { serverName })}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Invite to {serverName}</h2>
-          <button type="button" onClick={onClose} className="text-gray-400 transition hover:text-white">
+          <h2 className="text-lg font-bold text-white">{t('invite.title', { serverName })}</h2>
+          <button type="button" onClick={onClose} aria-label={t('actions.close')} className="text-gray-400 transition hover:text-white">
             <XIcon />
           </button>
         </div>
 
         {vanityCode && (
           <div className="mb-4 rounded-lg bg-primary/10 px-3 py-2.5">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-primary">Vanity URL</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-primary">{t('invite.vanityUrl')}</div>
             <div className="flex items-center gap-2">
               <code className="flex-1 truncate text-sm font-medium text-white">
                 {window.location.origin}/invite/{vanityCode}
@@ -104,7 +107,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
                 }}
                 className="rounded bg-primary/20 px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary/30"
               >
-                {vanityCopied ? 'Copied!' : 'Copy'}
+                {vanityCopied ? t('actions.copied') : t('actions.copy')}
               </button>
             </div>
           </div>
@@ -116,26 +119,26 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
             onChange={(e) => setExpiresIn(e.target.value)}
             className="rounded bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none"
           >
-            <option value="">Never expires</option>
-            <option value="30">30 minutes</option>
-            <option value="60">1 hour</option>
-            <option value="360">6 hours</option>
-            <option value="720">12 hours</option>
-            <option value="1440">24 hours</option>
-            <option value="10080">7 days</option>
+            <option value="">{t('invite.neverExpires')}</option>
+            <option value="30">{t('invite.30Minutes')}</option>
+            <option value="60">{t('invite.1Hour')}</option>
+            <option value="360">{t('invite.6Hours')}</option>
+            <option value="720">{t('invite.12Hours')}</option>
+            <option value="1440">{t('invite.24Hours')}</option>
+            <option value="10080">{t('invite.7Days')}</option>
           </select>
           <select
             value={maxUses}
             onChange={(e) => setMaxUses(e.target.value)}
             className="rounded bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none"
           >
-            <option value="">No limit</option>
-            <option value="1">1 use</option>
-            <option value="5">5 uses</option>
-            <option value="10">10 uses</option>
-            <option value="25">25 uses</option>
-            <option value="50">50 uses</option>
-            <option value="100">100 uses</option>
+            <option value="">{t('invite.noUseLimit')}</option>
+            <option value="1">{t('invite.1Use')}</option>
+            <option value="5">{t('invite.5Uses')}</option>
+            <option value="10">{t('invite.10Uses')}</option>
+            <option value="25">{t('invite.25Uses')}</option>
+            <option value="50">{t('invite.50Uses')}</option>
+            <option value="100">{t('invite.100Uses')}</option>
           </select>
           <Button
             type="button"
@@ -144,7 +147,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
             loading={creating}
             onClick={() => void handleCreate()}
           >
-            {creating ? 'Creating...' : 'Generate'}
+            {creating ? t('actions.creating') : t('actions.generate')}
           </Button>
         </div>
 
@@ -154,28 +157,30 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
 
         <SimpleBar className="max-h-64 space-y-2">
           {loading ? (
-            <p className="py-4 text-center text-sm text-gray-400">Loading...</p>
+            <p className="py-4 text-center text-sm text-gray-400">{t('actions.loading')}</p>
           ) : invites.length === 0 ? (
-            <p className="py-4 text-center text-sm text-gray-400">No invites yet. Create one above.</p>
+            <p className="py-4 text-center text-sm text-gray-400">{t('invite.noInvites')}</p>
           ) : (
             invites.map((inv) => (
               <div key={inv.id} className="flex items-center gap-3 rounded bg-surface-darkest px-3 py-2">
                 <code className="flex-1 truncate text-sm font-medium text-white">{inv.code}</code>
                 <span className="text-xs text-gray-400">
                   {inv.useCount}
-                  {inv.maxUses != null ? `/${inv.maxUses}` : ''} uses
-                  {inv.expiresAt ? <> &middot; expires {new Date(inv.expiresAt).toLocaleDateString()}</> : null}
+                  {inv.maxUses != null ? `/${inv.maxUses}` : ''} {t('invite.uses')}
+                  {inv.expiresAt ? <> &middot; {t('invite.expiresOn', { date: new Date(inv.expiresAt).toLocaleDateString(getAppIntlLocale()) })}</> : null}
                 </span>
                 <button
                   type="button"
                   onClick={() => copyCode(inv.code, inv.id)}
                   className="rounded bg-primary/20 px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary/30"
                 >
-                  {copiedId === inv.id ? 'Copied!' : 'Copy'}
+                  {copiedId === inv.id ? t('actions.copied') : t('actions.copy')}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleDelete(inv.id)}
+                  aria-label={t('invite.delete')}
+                  title={t('invite.delete')}
                   className="text-gray-500 transition hover:text-red-400"
                 >
                   <TrashIcon />

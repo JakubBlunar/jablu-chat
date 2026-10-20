@@ -1,0 +1,110 @@
+{
+  "sidebar": {
+    "reorderChannels": "Reorder Channels",
+    "createCategory": "Create Category",
+    "markAllAsRead": "Mark All as Read",
+    "notificationSettings": "Notification Settings"
+  },
+  "category": {
+    "createTitle": "Create Category",
+    "editTitle": "Edit Category",
+    "nameLabel": "Category name",
+    "namePlaceholder": "e.g. Information",
+    "delete": "Delete Category"
+  },
+  "channelForm": {
+    "createTitle": "Create Channel",
+    "editTitle": "Edit Channel",
+    "nameRules": "Names are saved in lowercase with hyphens instead of spaces.",
+    "nameLabel": "Channel name",
+    "namePlaceholder": "new-channel",
+    "willCreateAs": "Will be created as",
+    "willRenameTo": "Will be renamed to",
+    "descriptionOptional": "Description (optional)",
+    "descriptionPlaceholder": "What is this channel about?",
+    "typeLabel": "Channel type",
+    "categoryLabel": "Category",
+    "noCategory": "No category",
+    "archive": "Archive channel",
+    "archiveHint": "(read-only, hidden from default view)",
+    "delete": "Delete Channel",
+    "confirmDelete": "Confirm Delete"
+  },
+  "channelTypes": {
+    "text": "Text",
+    "textHint": "Post messages",
+    "textChannel": "Text Channel",
+    "voice": "Voice",
+    "voiceHint": "Hang out with voice",
+    "voiceChannel": "Voice Channel",
+    "forum": "Forum",
+    "forumHint": "Create posts with titles and tags",
+    "forumChannel": "Forum Channel"
+  },
+  "forum": {
+    "settingsTitle": "Forum Settings",
+    "defaultLayout": "Default layout",
+    "layout": {
+      "list": "List",
+      "grid": "Grid"
+    },
+    "defaultSort": "Default sort",
+    "sort": {
+      "latestActivity": "Latest Activity",
+      "newest": "Newest"
+    },
+    "postGuidelines": "Post guidelines",
+    "createGuidelinesPlaceholder": "Optional guidelines shown above the post list...",
+    "editGuidelinesPlaceholder": "Optional guidelines shown above posts",
+    "requireTags": "Require tags on posts",
+    "tagsOptionalTitle": "Forum tags (optional)",
+    "tagsTitle": "Forum tags",
+    "createTagsDescription": "Create starter tags for this channel.",
+    "editTagsDescription": "Create and manage tags used on forum posts.",
+    "tagName": "Tag name",
+    "newTagColor": "New tag color",
+    "colorForTag": "Color for {{tagName}}",
+    "addingTag": "Adding…",
+    "loadingTags": "Loading tags…",
+    "emptyTags": "No tags created yet."
+  },
+  "permissions": {
+    "title": "Channel Permissions",
+    "description": "Add role overrides to control access. Roles not listed use their base server permissions.",
+    "loadingRoles": "Loading roles…",
+    "empty": "No role overrides configured.",
+    "role": "Role",
+    "view": "View",
+    "send": "Send",
+    "allow": "Allow",
+    "deny": "Deny",
+    "removeOverride": "Remove override",
+    "addRoleOverride": "Add role override…",
+    "saving": "Saving permissions…",
+    "save": "Save Permissions"
+  },
+  "voice": {
+    "editChannel": "Edit channel",
+    "noOneConnected": "No one connected",
+    "muted": "Muted",
+    "deafened": "Deafened",
+    "cameraOn": "Camera on",
+    "sharingScreen": "Sharing screen"
+  },
+  "errors": {
+    "categoryNameRequired": "Name is required.",
+    "createCategoryFailed": "Could not create category.",
+    "updateCategoryFailed": "Could not update category.",
+    "deleteCategoryFailed": "Could not delete category.",
+    "noServerSelected": "No server selected.",
+    "invalidChannelName": "Use lowercase letters, numbers, and hyphens only (e.g. {{example}}).",
+    "createChannelFailed": "Could not create channel.",
+    "updateChannelFailed": "Could not update channel.",
+    "deleteChannelFailed": "Could not delete channel.",
+    "removeOverrideFailed": "Failed to remove override.",
+    "createTagFailed": "Failed to create tag.",
+    "updateTagFailed": "Failed to update tag.",
+    "deleteTagFailed": "Failed to delete tag.",
+    "updatePermissionsFailed": "Could not update permissions."
+  }
+}

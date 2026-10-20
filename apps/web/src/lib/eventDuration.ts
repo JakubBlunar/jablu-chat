@@ -1,12 +1,12 @@
-/** Duration presets (in minutes) offered when scheduling an event. */
-export const DURATION_PRESETS: { minutes: number; label: string }[] = [
-  { minutes: 30, label: '30 minutes' },
-  { minutes: 60, label: '1 hour' },
-  { minutes: 90, label: '1 hour 30 minutes' },
-  { minutes: 120, label: '2 hours' },
-  { minutes: 180, label: '3 hours' },
-  { minutes: 240, label: '4 hours' },
-  { minutes: 1440, label: 'All day' }
+/** Duration presets offered when scheduling an event. */
+export const DURATION_PRESETS: { minutes: number; labelKey: string }[] = [
+  { minutes: 30, labelKey: 'scheduleFields.presets.30Minutes' },
+  { minutes: 60, labelKey: 'scheduleFields.presets.1Hour' },
+  { minutes: 90, labelKey: 'scheduleFields.presets.1Hour30Minutes' },
+  { minutes: 120, labelKey: 'scheduleFields.presets.2Hours' },
+  { minutes: 180, labelKey: 'scheduleFields.presets.3Hours' },
+  { minutes: 240, labelKey: 'scheduleFields.presets.4Hours' },
+  { minutes: 1440, labelKey: 'scheduleFields.presets.allDay' }
 ]
 
 /** Format a Date as a `datetime-local` input value in local wall time. */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, InlineAlert, Input } from '@/components/ui'
 import { api, resolveMediaUrl } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
@@ -6,6 +7,7 @@ import type { Server } from '@/stores/server.store'
 import { CameraIcon } from '../serverSettingsIcons'
 
 export function OverviewTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const [name, setName] = useState(server.name)
   const [saving, setSaving] = useState(false)
   const [iconPreview, setIconPreview] = useState<string | null>(resolveMediaUrl(server.iconUrl) ?? null)
@@ -26,11 +28,11 @@ export function OverviewTab({ server }: { server: Server }) {
       await api.updateServer(server.id, { name: name.trim() })
       updateServerInList(server.id, { name: name.trim() })
     } catch {
-      setError('Failed to update server name')
+      setError(t('overview.nameFailed'))
     } finally {
       setSaving(false)
     }
-  }, [name, server, updateServerInList])
+  }, [name, server, updateServerInList, t])
 
   const handleIconChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,10 +57,10 @@ export function OverviewTab({ server }: { server: Server }) {
           if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
           return server.iconUrl
         })
-        setError('Failed to upload server icon')
+        setError(t('overview.uploadFailed'))
       }
     },
-    [server, updateServerInList]
+    [server, updateServerInList, t]
   )
 
   const removeIcon = useCallback(async () => {
@@ -67,9 +69,9 @@ export function OverviewTab({ server }: { server: Server }) {
       updateServerInList(server.id, { iconUrl: null })
       setIconPreview(null)
     } catch {
-      setError('Failed to remove icon')
+      setError(t('overview.removeFailed'))
     }
-  }, [server.id, updateServerInList])
+  }, [server.id, updateServerInList, t])
 
   useEffect(() => {
     return () => {
@@ -85,10 +87,11 @@ export function OverviewTab({ server }: { server: Server }) {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
+            aria-label={t('overview.changeIcon')}
             className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary text-3xl font-bold text-primary-text transition hover:opacity-80"
           >
             {iconPreview ? (
-              <img src={iconPreview} alt="Server icon" className="h-full w-full object-cover" />
+              <img src={iconPreview} alt={t('overview.iconAlt', { serverName: server.name })} className="h-full w-full object-cover" />
             ) : (
               server.name.charAt(0).toUpperCase()
             )}
@@ -105,7 +108,7 @@ export function OverviewTab({ server }: { server: Server }) {
               onClick={removeIcon}
               className="text-xs text-red-400 hover:underline"
             >
-              Remove
+              {t('actions.remove')}
             </Button>
           )}
         </div>
@@ -115,7 +118,7 @@ export function OverviewTab({ server }: { server: Server }) {
             <div className="min-w-0 flex-1">
               <Input
                 id="overview-server-name"
-                label="Server Name"
+                label={t('overview.nameLabel')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
@@ -128,15 +131,15 @@ export function OverviewTab({ server }: { server: Server }) {
               onClick={saveName}
               className="w-full sm:w-auto"
             >
-              Save
+              {t('actions.save')}
             </Button>
           </div>
         </div>
       </div>
 
       <div className="space-y-2">
-        <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Vanity URL</label>
-        <p className="text-xs text-gray-500">A custom invite link for your server. 3-32 lowercase characters, numbers, and hyphens.</p>
+        <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t('overview.vanityUrl')}</label>
+        <p className="text-xs text-gray-500">{t('overview.vanityDescription')}</p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="flex min-w-0 flex-1 items-center rounded-md border border-white/10 bg-surface-darkest text-sm">
             <span className="min-w-0 truncate pl-3 text-gray-500">{window.location.origin}/invite/</span>
@@ -144,7 +147,7 @@ export function OverviewTab({ server }: { server: Server }) {
               value={vanityCode}
               onChange={(e) => setVanityCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
               maxLength={32}
-              placeholder="my-server"
+              placeholder={t('overview.vanityPlaceholder')}
               className="min-w-0 flex-1 bg-transparent px-1 py-2 text-white outline-none placeholder:text-gray-600"
             />
           </div>
@@ -159,13 +162,13 @@ export function OverviewTab({ server }: { server: Server }) {
                 await api.updateServer(server.id, { vanityCode: vanityCode || null })
                 updateServerInList(server.id, { vanityCode: vanityCode || null })
               } catch (e) {
-                setVanityError(e instanceof Error ? e.message : 'Failed to update vanity URL')
+                setVanityError(e instanceof Error ? e.message : t('overview.vanityUpdateFailed'))
               } finally {
                 setSavingVanity(false)
               }
             }}
           >
-            {savingVanity ? 'Saving…' : 'Save'}
+            {savingVanity ? t('actions.saving') : t('actions.save')}
           </Button>
         </div>
         {vanityError && <p className="text-xs text-red-400">{vanityError}</p>}

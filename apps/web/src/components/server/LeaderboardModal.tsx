@@ -7,12 +7,15 @@ import { Spinner } from '@/components/ui'
 import { api } from '@/lib/api'
 import { serverDisplayName } from '@/lib/serverProfile'
 import { useMemberStore } from '@/stores/member.store'
+import { getAppIntlLocale } from '@/lib/format-time'
 
 type LeaderboardRow = Awaited<ReturnType<typeof api.getXpLeaderboard>>[number]
 type Progress = Awaited<ReturnType<typeof api.getMyXpProgress>>
 
 export function LeaderboardModal({ serverId, onClose }: { serverId: string; onClose: () => void }) {
   const { t } = useTranslation('nav')
+  const { t: tServer } = useTranslation('server')
+  const { t: tCommon } = useTranslation('common')
   const members = useMemberStore((s) => s.members)
   const [rows, setRows] = useState<LeaderboardRow[] | null>(null)
   const [me, setMe] = useState<Progress | null>(null)
@@ -32,13 +35,13 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
       })
       .catch((e) => {
         if (cancelled) return
-        setError(e instanceof Error ? e.message : 'Failed to load leaderboard')
+        setError(e instanceof Error ? e.message : tServer('leaderboard.loadFailed'))
         setRows([])
       })
     return () => {
       cancelled = true
     }
-  }, [serverId])
+  }, [serverId, tServer])
 
   return createPortal(
     <ModalOverlay onClose={onClose} maxWidth="max-w-[520px]" zIndex="z-[120]">
@@ -48,7 +51,7 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
           type="button"
           onClick={onClose}
           className="rounded p-1 text-gray-400 transition hover:text-white"
-          aria-label="Close"
+          aria-label={tCommon('close')}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18L18 6M6 6l12 12" />
@@ -69,7 +72,7 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
           </div>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-gray-400">
-            No one has earned XP in this server yet. Send a message to get things started!
+            {tServer('leaderboard.empty')}
           </p>
         ) : (
           rows.map((r) => (
@@ -89,10 +92,10 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
                 <div className="truncate text-sm font-medium text-white">
                   {serverDisplayName(r.user, serverId, members)}
                 </div>
-                <div className="text-xs text-gray-400">Level {r.level}</div>
+                <div className="text-xs text-gray-400">{tServer('leaderboard.level', { level: r.level })}</div>
               </div>
               <div className="shrink-0 text-xs text-gray-400 tabular-nums">
-                {r.xp.toLocaleString()} XP
+                {r.xp.toLocaleString(getAppIntlLocale())} XP
               </div>
             </div>
           ))
@@ -111,6 +114,8 @@ function rankColor(rank: number): string {
 }
 
 function MyProgressCard({ progress }: { progress: Progress }) {
+  const { t } = useTranslation('server')
+  const locale = getAppIntlLocale()
   const pct =
     progress.xpNeededForLevel > 0
       ? Math.min(100, Math.round((progress.xpIntoLevel / progress.xpNeededForLevel) * 100))
@@ -119,12 +124,12 @@ function MyProgressCard({ progress }: { progress: Progress }) {
     <div className="mt-4 rounded-md border border-white/10 bg-surface-darkest p-3">
       <div className="flex items-baseline justify-between">
         <div>
-          <span className="text-xs uppercase tracking-wide text-gray-400">Your level</span>
-          <div className="text-2xl font-semibold text-white">Level {progress.level}</div>
+          <span className="text-xs uppercase tracking-wide text-gray-400">{t('leaderboard.yourLevel')}</span>
+          <div className="text-2xl font-semibold text-white">{t('leaderboard.level', { level: progress.level })}</div>
         </div>
         <div className="text-right text-xs text-gray-400 tabular-nums">
-          <div>{progress.xpIntoLevel.toLocaleString()} / {progress.xpNeededForLevel.toLocaleString()} XP</div>
-          <div className="mt-0.5">{progress.xp.toLocaleString()} total</div>
+          <div>{progress.xpIntoLevel.toLocaleString(locale)} / {progress.xpNeededForLevel.toLocaleString(locale)} XP</div>
+          <div className="mt-0.5">{t('leaderboard.totalXp', { xp: progress.xp.toLocaleString(locale) })}</div>
         </div>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">

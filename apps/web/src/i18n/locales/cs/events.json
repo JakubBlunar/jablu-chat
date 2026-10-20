@@ -1,0 +1,101 @@
+{
+  "schedule": {
+    "today": "Dnes",
+    "tomorrow": "Zítra",
+    "yesterday": "Včera",
+    "atTime": "{{date}} v {{time}}",
+    "endsAt": "Končí v {{time}}",
+    "endedAt": "Skončila {{date}} v {{time}}",
+    "live": "ŽIVĚ",
+    "withDuration": "{{dateTime}} ({{duration}})"
+  },
+  "duration": {
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "hours": "{{hours}} h",
+    "minutes": "{{minutes}} min"
+  },
+  "recurrence": {
+    "daily": "Denně",
+    "weekly": "Týdně",
+    "biweekly": "Jednou za dva týdny",
+    "monthly": "Měsíčně"
+  },
+  "list": {
+    "happeningNow": "PRÁVĚ PROBÍHÁ",
+    "interested": "Mám zájem",
+    "interestedQuestion": "Máte zájem?",
+    "join": "Připojit se",
+    "noUpcoming": "Žádné nadcházející události",
+    "createToGetStarted": "Začněte vytvořením události",
+    "upcoming": "NADCHÁZEJÍCÍ",
+    "loading": "Načítání…",
+    "loadMore": "Načíst další"
+  },
+  "scheduleFields": {
+    "start": "Začátek *",
+    "ends": "Konec",
+    "duration": "Délka",
+    "endTime": "Čas konce",
+    "noEndTime": "Bez času konce",
+    "custom": "Vlastní…",
+    "hours": "hodin",
+    "minutes": "minut",
+    "presets": {
+      "30Minutes": "30 minut",
+      "1Hour": "1 hodina",
+      "1Hour30Minutes": "1 hodina 30 minut",
+      "2Hours": "2 hodiny",
+      "3Hours": "3 hodiny",
+      "4Hours": "4 hodiny",
+      "allDay": "Celý den"
+    }
+  },
+  "create": {
+    "back": "Zpět",
+    "chooseLocation": "Vyberte místo",
+    "eventDetails": "Podrobnosti události",
+    "review": "Kontrola",
+    "voiceChannel": "Hlasový kanál",
+    "voiceChannelDescription": "Uspořádejte událost v hlasovém kanálu",
+    "somewhereElse": "Jinde",
+    "somewhereElseDescription": "Přidejte odkaz nebo vlastní místo",
+    "location": "Místo",
+    "customLocationPlaceholder": "např. Discord Stage nebo externí odkaz…",
+    "eventName": "Název události *",
+    "namePlaceholder": "Herní večer, filmový večer…",
+    "description": "Popis",
+    "descriptionPlaceholder": "Popište ostatním, o čem událost bude…",
+    "repeat": "Opakování",
+    "noRepeat": "Bez opakování",
+    "next": "Další",
+    "creating": "Vytváření…",
+    "createEvent": "Vytvořit událost",
+    "failed": "Událost se nepodařilo vytvořit",
+    "voiceFallback": "Hlasový kanál",
+    "customLocationFallback": "Vlastní místo",
+    "repeatSummary": "Opakuje se: {{rule}}"
+  },
+  "detail": {
+    "back": "Zpět na události",
+    "title": "Podrobnosti události",
+    "descriptionPlaceholder": "Popis…",
+    "saving": "Ukládání…",
+    "save": "Uložit",
+    "cancel": "Zrušit",
+    "voiceFallback": "Hlasový kanál",
+    "customLocationFallback": "Vlastní místo",
+    "createdBy": "Vytvořil(a): {{name}}",
+    "markInterested": "Mám zájem",
+    "joinVoice": "Připojit se k hlasovému kanálu",
+    "edit": "Upravit",
+    "cancelling": "Rušení…",
+    "cancelEvent": "Zrušit událost",
+    "interestedCount": "Zájemci: {{count}}",
+    "noInterested": "Zatím nikdo neprojevil zájem",
+    "cancelConfirmTitle": "Zrušit událost",
+    "cancelConfirmDescription": "Opravdu chcete tuto událost zrušit?",
+    "startTimeRequired": "Je nutné zadat platný čas začátku",
+    "endAfterStart": "Čas konce musí být pozdější než čas začátku",
+    "updateFailed": "Aktualizace se nezdařila"
+  }
+}

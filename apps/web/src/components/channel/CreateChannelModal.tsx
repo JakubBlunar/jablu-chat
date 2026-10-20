@@ -1,5 +1,6 @@
 import type { ChannelType, ForumLayout } from '@chat/shared'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input, Label, ModalFooter, TagChip } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
@@ -29,6 +30,8 @@ type DraftForumTag = {
 }
 
 export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateChannelModalProps) {
+  const { t: tChannels } = useTranslation('channels')
+  const { t: tCommon } = useTranslation('common')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const fetchChannels = useChannelStore((s) => s.fetchChannels)
   const categories = useChannelStore((s) => s.categories)
@@ -53,11 +56,11 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
 
   async function handleCreate() {
     if (!currentServerId) {
-      setError('No server selected.')
+      setError(tChannels('errors.noServerSelected'))
       return
     }
     if (!name || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) {
-      setError('Use lowercase letters, numbers, and hyphens only (e.g. my-channel).')
+      setError(tChannels('errors.invalidChannelName', { example: 'my-channel' }))
       return
     }
     setBusy(true)
@@ -99,7 +102,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
       setDraftTagColor('#7c3aed')
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create channel.')
+      setError(e instanceof Error ? e.message : tChannels('errors.createChannelFailed'))
     } finally {
       setBusy(false)
     }
@@ -107,34 +110,34 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-xl font-semibold text-white">Create Channel</h2>
-        <p className="mt-2 text-sm text-gray-400">Names are saved in lowercase with hyphens instead of spaces.</p>
+      <h2 className="text-xl font-semibold text-white">{tChannels('channelForm.createTitle')}</h2>
+        <p className="mt-2 text-sm text-gray-400">{tChannels('channelForm.nameRules')}</p>
         <div className="mt-5">
           <Input
             id="create-channel-name"
-            label="Channel name"
+            label={tChannels('channelForm.nameLabel')}
             type="text"
             value={rawName}
             onChange={(e) => setRawName(e.target.value)}
-            placeholder="new-channel"
+            placeholder={tChannels('channelForm.namePlaceholder')}
             maxLength={100}
             autoFocus
           />
         </div>
         {name ? (
           <p className="mt-1.5 text-xs text-gray-500">
-            Will be created as <span className="text-gray-300">#{name}</span>
+            {tChannels('channelForm.willCreateAs')} <span className="text-gray-300">#{name}</span>
           </p>
         ) : null}
 
         {type === 'text' && (
           <div className="mt-5">
-            <Label htmlFor="create-channel-description">Description (optional)</Label>
+            <Label htmlFor="create-channel-description">{tChannels('channelForm.descriptionOptional')}</Label>
             <textarea
               id="create-channel-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What is this channel about?"
+              placeholder={tChannels('channelForm.descriptionPlaceholder')}
               maxLength={500}
               rows={2}
               className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
@@ -142,13 +145,13 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
           </div>
         )}
 
-        <Label className="mt-5 block">Channel type</Label>
+        <Label className="mt-5 block">{tChannels('channelForm.typeLabel')}</Label>
         <div className="mt-2 flex flex-col gap-2">
           {(
             [
-              { value: 'text' as const, label: 'Text', hint: 'Post messages' },
-              { value: 'voice' as const, label: 'Voice', hint: 'Hang out with voice' },
-              { value: 'forum' as const, label: 'Forum', hint: 'Create posts with titles and tags' }
+              { value: 'text' as const, labelKey: 'text', hintKey: 'textHint' },
+              { value: 'voice' as const, labelKey: 'voice', hintKey: 'voiceHint' },
+              { value: 'forum' as const, labelKey: 'forum', hintKey: 'forumHint' }
             ] as const
           ).map((opt) => (
             <label
@@ -168,8 +171,10 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
                 className="h-4 w-4 accent-primary"
               />
               <span>
-                <span className="block text-sm font-medium text-white">{opt.label}</span>
-                <span className="text-xs text-gray-500">{opt.hint}</span>
+                <span className="block text-sm font-medium text-white">
+                  {tChannels(`channelTypes.${opt.labelKey}`)}
+                </span>
+                <span className="text-xs text-gray-500">{tChannels(`channelTypes.${opt.hintKey}`)}</span>
               </span>
             </label>
           ))}
@@ -177,14 +182,14 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
 
         {categories.length > 0 && (
           <div className="mt-5">
-            <Label htmlFor="create-channel-category">Category</Label>
+            <Label htmlFor="create-channel-category">{tChannels('channelForm.categoryLabel')}</Label>
             <select
               id="create-channel-category"
               value={categoryId ?? ''}
               onChange={(e) => setCategoryId(e.target.value || null)}
               className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
             >
-              <option value="">No category</option>
+              <option value="">{tChannels('channelForm.noCategory')}</option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
@@ -194,9 +199,11 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
 
         {type === 'forum' && (
           <div className="mt-5 space-y-4 rounded-lg border border-white/10 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Forum Settings</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              {tChannels('forum.settingsTitle')}
+            </p>
             <div>
-              <Label>Default layout</Label>
+              <Label>{tChannels('forum.defaultLayout')}</Label>
               <div className="mt-1.5 flex gap-2">
                 {(['list', 'grid'] as const).map((v) => (
                   <button
@@ -209,18 +216,18 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
                         : 'bg-surface-darkest text-gray-400 hover:text-white'
                     }`}
                   >
-                    {v}
+                    {tChannels(`forum.layout.${v}`)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <Label htmlFor="post-guidelines">Post guidelines</Label>
+              <Label htmlFor="post-guidelines">{tChannels('forum.postGuidelines')}</Label>
               <textarea
                 id="post-guidelines"
                 value={postGuidelines}
                 onChange={(e) => setPostGuidelines(e.target.value)}
-                placeholder="Optional guidelines shown above the post list..."
+                placeholder={tChannels('forum.createGuidelinesPlaceholder')}
                 maxLength={2000}
                 rows={2}
                 className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
@@ -233,17 +240,19 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
                 onChange={(e) => setRequireTags(e.target.checked)}
                 className="h-4 w-4 accent-primary"
               />
-              Require tags on posts
+              {tChannels('forum.requireTags')}
             </label>
             <div className="rounded-md bg-surface-darkest p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Forum tags (optional)</p>
-              <p className="mt-1 text-xs text-gray-500">Create starter tags for this channel.</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {tChannels('forum.tagsOptionalTitle')}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">{tChannels('forum.createTagsDescription')}</p>
               <div className="mt-3 flex flex-wrap items-end gap-2">
                 <input
                   type="text"
                   value={draftTagName}
                   onChange={(e) => setDraftTagName(e.target.value)}
-                  placeholder="Tag name"
+                  placeholder={tChannels('forum.tagName')}
                   maxLength={32}
                   className="min-w-0 flex-1 rounded-md border-0 bg-surface px-2.5 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
                 />
@@ -252,7 +261,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
                   value={draftTagColor}
                   onChange={(e) => setDraftTagColor(e.target.value)}
                   className="h-9 w-11 rounded border-0 bg-surface p-1 ring-1 ring-white/10"
-                  aria-label="New tag color"
+                  aria-label={tChannels('forum.newTagColor')}
                 />
                 <button
                   type="button"
@@ -266,7 +275,7 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
                   disabled={!draftTagName.trim()}
                   className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
                 >
-                  Add tag
+                  {tCommon('add')}
                 </button>
               </div>
               {draftTags.length > 0 && (
@@ -307,8 +316,8 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
             onClose()
           }}
           onConfirm={() => void handleCreate()}
-          cancelLabel="Cancel"
-          confirmLabel="Create"
+          cancelLabel={tCommon('cancel')}
+          confirmLabel={tCommon('create')}
           loading={busy}
         />
     </ModalOverlay>

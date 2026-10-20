@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui'
 import { api, type ServerInsights } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
+import { getAppIntlLocale } from '@/lib/format-time'
 
 function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
     <div className="rounded-lg bg-surface-dark p-4 ring-1 ring-white/5">
       <p className="text-xs font-medium text-gray-400">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-white">{typeof value === 'number' ? value.toLocaleString() : value}</p>
+      <p className="mt-1 text-2xl font-bold text-white">
+        {typeof value === 'number' ? value.toLocaleString(getAppIntlLocale()) : value}
+      </p>
       {sub && <p className="mt-0.5 text-[11px] text-gray-500">{sub}</p>}
     </div>
   )
@@ -19,7 +23,8 @@ function BarChart({ data, labelKey, valueKey, color = '#6366f1' }: {
   valueKey: string
   color?: string
 }) {
-  if (data.length === 0) return <p className="text-sm text-gray-500">No data yet</p>
+  const { t } = useTranslation('server-settings')
+  if (data.length === 0) return <p className="text-sm text-gray-500">{t('insights.noDataYet')}</p>
   const max = Math.max(...data.map((d) => Number(d[valueKey]) || 0), 1)
 
   return (
@@ -36,7 +41,7 @@ function BarChart({ data, labelKey, valueKey, color = '#6366f1' }: {
                 style={{ width: `${pct}%`, backgroundColor: color }}
               />
               <span className="relative z-10 flex h-full items-center px-2 text-[11px] font-medium text-white">
-                {val.toLocaleString()}
+                {val.toLocaleString(getAppIntlLocale())}
               </span>
             </div>
           </div>
@@ -52,7 +57,8 @@ function AreaChart({ data, labelKey, valueKey, color = '#6366f1' }: {
   valueKey: string
   color?: string
 }) {
-  if (data.length === 0) return <p className="text-sm text-gray-500">No data yet</p>
+  const { t } = useTranslation('server-settings')
+  if (data.length === 0) return <p className="text-sm text-gray-500">{t('insights.noDataYet')}</p>
 
   const values = data.map((d) => Number(d[valueKey]) || 0)
   const max = Math.max(...values, 1)
@@ -105,6 +111,7 @@ function ContributorRow({ user, count, rank }: {
   count: number
   rank: number
 }) {
+  const { t } = useTranslation('server-settings')
   return (
     <div className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/5">
       <span className="w-5 shrink-0 text-center text-xs font-semibold text-gray-500">#{rank}</span>
@@ -118,12 +125,15 @@ function ContributorRow({ user, count, rank }: {
       <span className="min-w-0 flex-1 truncate text-sm text-gray-200">
         {user.displayName ?? user.username}
       </span>
-      <span className="shrink-0 text-xs font-medium text-gray-400">{count.toLocaleString()} msgs</span>
+      <span className="shrink-0 text-xs font-medium text-gray-400">
+        {t('insights.messageCount', { count: count.toLocaleString(getAppIntlLocale()) })}
+      </span>
     </div>
   )
 }
 
 export function InsightsTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const [data, setData] = useState<ServerInsights | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,9 +144,9 @@ export function InsightsTab({ server }: { server: Server }) {
     api
       .getServerInsights(server.id)
       .then(setData)
-      .catch(() => setError('Failed to load insights. You may not have permission.'))
+      .catch(() => setError(t('insights.loadFailed')))
       .finally(() => setLoading(false))
-  }, [server.id])
+  }, [server.id, t])
 
   if (loading) {
     return (
@@ -147,7 +157,7 @@ export function InsightsTab({ server }: { server: Server }) {
   }
 
   if (error || !data) {
-    return <p className="py-8 text-center text-sm text-red-400">{error ?? 'No data'}</p>
+    return <p className="py-8 text-center text-sm text-red-400">{error ?? t('insights.noData')}</p>
   }
 
   const { overview } = data
@@ -155,25 +165,33 @@ export function InsightsTab({ server }: { server: Server }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-white">Server Insights</h2>
-        <p className="mt-0.5 text-xs text-gray-400">Analytics for the last 30 days</p>
+        <h2 className="text-base font-semibold text-white">{t('insights.title')}</h2>
+        <p className="mt-0.5 text-xs text-gray-400">{t('insights.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Members" value={overview.totalMembers} />
-        <StatCard label="Channels" value={overview.totalChannels} sub={`${overview.textChannels} text · ${overview.voiceChannels} voice`} />
-        <StatCard label="Total Messages" value={overview.totalMessages} />
+        <StatCard label={t('insights.members')} value={overview.totalMembers} />
         <StatCard
-          label="Msgs / Day (avg)"
+          label={t('insights.channels')}
+          value={overview.totalChannels}
+          sub={t('insights.channelBreakdown', { text: overview.textChannels, voice: overview.voiceChannels })}
+        />
+        <StatCard label={t('insights.totalMessages')} value={overview.totalMessages} />
+        <StatCard
+          label={t('insights.messagesPerDay')}
           value={data.messagesByDay.length > 0
             ? Math.round(data.messagesByDay.reduce((s, d) => s + d.count, 0) / data.messagesByDay.length)
             : 0}
         />
-        <StatCard label="Active Days" value={data.messagesByDay.filter((d) => d.count > 0).length} sub="out of 30" />
+        <StatCard
+          label={t('insights.activeDays')}
+          value={data.messagesByDay.filter((d) => d.count > 0).length}
+          sub={t('insights.outOf30')}
+        />
       </div>
 
       <section>
-        <h3 className="mb-2 text-sm font-semibold text-gray-300">Message Activity</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-300">{t('insights.messageActivity')}</h3>
         <div className="rounded-lg bg-surface-dark p-4 ring-1 ring-white/5">
           <AreaChart data={data.messagesByDay} labelKey="day" valueKey="count" color="#818cf8" />
         </div>
@@ -181,17 +199,17 @@ export function InsightsTab({ server }: { server: Server }) {
 
       <div className="grid gap-6 md:grid-cols-2">
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-gray-300">Top Channels</h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-300">{t('insights.topChannels')}</h3>
           <div className="rounded-lg bg-surface-dark p-4 ring-1 ring-white/5">
             <BarChart data={data.topChannels} labelKey="name" valueKey="count" color="#34d399" />
           </div>
         </section>
 
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-gray-300">Top Contributors</h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-300">{t('insights.topContributors')}</h3>
           <div className="rounded-lg bg-surface-dark p-3 ring-1 ring-white/5">
             {data.topContributors.length === 0 ? (
-              <p className="text-sm text-gray-500">No data yet</p>
+              <p className="text-sm text-gray-500">{t('insights.noDataYet')}</p>
             ) : (
               <div className="space-y-0.5">
                 {data.topContributors.map((c, i) => (
@@ -210,7 +228,7 @@ export function InsightsTab({ server }: { server: Server }) {
 
       {data.membersByWeek.length > 0 && (
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-gray-300">Member Joins (by week)</h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-300">{t('insights.memberJoinsByWeek')}</h3>
           <div className="rounded-lg bg-surface-dark p-4 ring-1 ring-white/5">
             <BarChart data={data.membersByWeek} labelKey="week" valueKey="count" color="#f59e0b" />
           </div>

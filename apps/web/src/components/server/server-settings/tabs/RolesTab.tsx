@@ -1,6 +1,7 @@
 import type { Role } from '@chat/shared'
 import { Permission, PERMISSION_LABELS, permsToBigInt } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   DndContext,
   closestCenter,
@@ -71,6 +72,7 @@ function SortableRoleItem({ role, isSelected, onClick, isDraggable }: {
 }
 
 export function RolesTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const { has: hasPerm, isOwner, topRole } = usePermissions(server.id)
   const canManage = hasPerm(Permission.MANAGE_ROLES)
   const [roles, setRoles] = useState<Role[]>([])
@@ -96,11 +98,11 @@ export function RolesTab({ server }: { server: Server }) {
       const data = await api.getRoles(server.id)
       setRoles(data)
     } catch {
-      setError('Failed to load roles')
+      setError(t('roles.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [server.id])
+  }, [server.id, t])
 
   useEffect(() => { void fetchRoles() }, [fetchRoles])
 
@@ -128,7 +130,7 @@ export function RolesTab({ server }: { server: Server }) {
     try {
       await api.reorderRoles(server.id, reordered.map((r) => r.id))
     } catch {
-      setError('Failed to reorder roles')
+      setError(t('roles.reorderFailed'))
       void fetchRoles()
     }
   }
@@ -136,11 +138,11 @@ export function RolesTab({ server }: { server: Server }) {
   const handleCreate = async () => {
     setError(null)
     try {
-      const role = await api.createRole(server.id, { name: 'New Role', permissions: '0', color: '#99aab5' })
+      const role = await api.createRole(server.id, { name: t('roles.newRole'), permissions: '0', color: '#99aab5' })
       await fetchRoles()
       setSelected(role)
     } catch {
-      setError('Failed to create role')
+      setError(t('roles.createFailed'))
     }
   }
 
@@ -159,7 +161,7 @@ export function RolesTab({ server }: { server: Server }) {
       setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
       setSelected(updated)
     } catch {
-      setError('Failed to save role')
+      setError(t('roles.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -167,14 +169,14 @@ export function RolesTab({ server }: { server: Server }) {
 
   const handleDelete = async () => {
     if (!selected || selected.isDefault) return
-    if (!confirm(`Delete role "${selected.name}"? Members with this role will lose it.`)) return
+    if (!confirm(t('roles.deleteConfirm', { name: selected.name }))) return
     setError(null)
     try {
       await api.deleteRole(server.id, selected.id)
       setRoles((prev) => prev.filter((r) => r.id !== selected.id))
       setSelected(null)
     } catch {
-      setError('Failed to delete role')
+      setError(t('roles.deleteFailed'))
     }
   }
 
@@ -182,7 +184,7 @@ export function RolesTab({ server }: { server: Server }) {
     setEditPerms((prev) => (prev & flag) === flag ? prev & ~flag : prev | flag)
   }
 
-  if (loading) return <p className="py-4 text-center text-sm text-gray-500">Loading roles…</p>
+  if (loading) return <p className="py-4 text-center text-sm text-gray-500">{t('actions.loading')}</p>
 
   const draggableRoles = roles.filter((r) => !r.isDefault)
   const everyoneRole = roles.find((r) => r.isDefault)
@@ -238,12 +240,12 @@ export function RolesTab({ server }: { server: Server }) {
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-gray-400 transition hover:bg-white/[0.04] hover:text-white"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M12 4v16m8-8H4" /></svg>
-            Create Role
+            {t('roles.createRole')}
           </button>
         )}
 
         {canManage && draggableRoles.length > 1 && (
-          <p className="px-2 pt-1 text-[10px] text-gray-600">Drag to reorder hierarchy</p>
+          <p className="px-2 pt-1 text-[10px] text-gray-600">{t('roles.dragToReorder')}</p>
         )}
       </div>
 
@@ -253,12 +255,12 @@ export function RolesTab({ server }: { server: Server }) {
         )}
 
         {!selected ? (
-          <p className="py-8 text-center text-sm text-gray-500">Select a role to edit</p>
+          <p className="py-8 text-center text-sm text-gray-500">{t('roles.selectRole')}</p>
         ) : (
           <div className="space-y-4">
             {!canEditSelected && canManage && (
               <InlineAlert variant="warning">
-                This role is at or above your highest role — view only.
+                {t('roles.viewOnly')}
               </InlineAlert>
             )}
 
@@ -266,7 +268,7 @@ export function RolesTab({ server }: { server: Server }) {
               <div className="flex-1">
                 <Input
                   id="role-edit-name"
-                  label="Role Name"
+                  label={t('roles.nameLabel')}
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
@@ -274,7 +276,7 @@ export function RolesTab({ server }: { server: Server }) {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-400">Color</label>
+                <label className="mb-1 block text-xs font-medium text-gray-400">{t('roles.colorLabel')}</label>
                 <input
                   type="color"
                   value={editColor}
@@ -286,7 +288,7 @@ export function RolesTab({ server }: { server: Server }) {
             </div>
 
             <div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Permissions</h4>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{t('roles.permissions')}</h4>
               <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                 {Object.entries(Permission).map(([key, flag]) => (
                   <label
@@ -302,7 +304,7 @@ export function RolesTab({ server }: { server: Server }) {
                       disabled={!canEditSelected}
                       className="accent-primary"
                     />
-                    {PERMISSION_LABELS[key] ?? key}
+                    {t(`permissions.${key}`, { defaultValue: PERMISSION_LABELS[key] ?? key })}
                   </label>
                 ))}
               </div>
@@ -323,10 +325,10 @@ export function RolesTab({ server }: { server: Server }) {
                       disabled={!canEditSelected}
                       className="accent-primary"
                     />
-                    Self-assignable
+                    {t('roles.selfAssignable')}
                   </label>
                   <p className="mt-0.5 px-3 text-[11px] text-gray-500">
-                    Members can pick this role during onboarding or change to it later
+                    {t('roles.selfAssignableDescription')}
                   </p>
                 </div>
                 <div>
@@ -342,10 +344,10 @@ export function RolesTab({ server }: { server: Server }) {
                       disabled={!canEditSelected}
                       className="accent-primary"
                     />
-                    Admin role
+                    {t('roles.adminRole')}
                   </label>
                   <p className="mt-0.5 px-3 text-[11px] text-gray-500">
-                    Shows a shield icon next to members with this role in the member list
+                    {t('roles.adminRoleDescription')}
                   </p>
                 </div>
               </div>
@@ -354,11 +356,11 @@ export function RolesTab({ server }: { server: Server }) {
             {canEditSelected && (
               <div className="flex items-center gap-2 border-t border-white/5 pt-4">
                 <Button type="button" onClick={() => void handleSave()} loading={saving}>
-                  Save Changes
+                  {t('roles.saveChanges')}
                 </Button>
                 {!selected.isDefault && (
                   <Button type="button" variant="danger" onClick={() => void handleDelete()}>
-                    Delete Role
+                    {t('roles.deleteRole')}
                   </Button>
                 )}
               </div>

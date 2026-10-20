@@ -8,6 +8,7 @@ import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
 import { resolveMediaUrl } from '@/lib/api'
+import { getAppIntlLocale } from '@/lib/format-time'
 import { useActivityStore } from '@/stores/activity.store'
 import { useProfileCardStore } from '@/stores/profileCard.store'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
@@ -39,18 +40,11 @@ export type ProfileCardUser = {
   roleColor?: string | null
 }
 
-const statusLabel: Record<UserStatus, string> = {
-  online: 'Online',
-  idle: 'Idle',
-  dnd: 'Do Not Disturb',
-  offline: 'Offline'
-}
-
 function formatDate(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(getAppIntlLocale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -193,7 +187,8 @@ function ProfileCardContent({
   onClose: () => void
   onReady?: () => void
 }) {
-  const { t } = useTranslation('chat')
+  const { t: tChat } = useTranslation('chat')
+  const { t: tProfile } = useTranslation('profile')
   const currentUserId = useAuthStore((s) => s.user?.id)
   const displayName = useServerDisplayName(user, user.serverId)
   const serverBio = useMemberStore((s) =>
@@ -308,7 +303,9 @@ function ProfileCardContent({
         <div className="mt-1 flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{displayName}</h3>
           {user.isBot && (
-            <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
+            <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              {tProfile('bot')}
+            </span>
           )}
           {adminRole && <RoleBadge name={adminRole.name} color={adminRole.color} size="sm" showDot={false} />}
         </div>
@@ -316,13 +313,15 @@ function ProfileCardContent({
         {displayName !== user.username && (
           <p className="text-xs text-gray-400">@{user.username}</p>
         )}
-        <p className="text-xs text-gray-400">{statusLabel[user.status]}</p>
+        <p className="text-xs text-gray-400">{tProfile(`status.${user.status}`)}</p>
         {user.customStatus && <p className="mt-0.5 text-xs text-gray-300 italic">{user.customStatus}</p>}
 
         {activity && (
           <div className="mt-3 rounded-md bg-black/20 p-2.5">
             <SectionHeading className="mb-1.5">
-              {activity.kind === 'music' ? 'LISTENING TO SPOTIFY' : 'PLAYING A GAME'}
+              {activity.kind === 'music'
+                ? tProfile('activity.listeningToSpotify')
+                : tProfile('activity.playingGame')}
             </SectionHeading>
             <ActivityLine activity={activity} variant="card" />
           </div>
@@ -339,21 +338,21 @@ function ProfileCardContent({
 
         {user.bio && (
           <div className="mb-3">
-            <SectionHeading className="mb-0.5">ABOUT ME</SectionHeading>
+            <SectionHeading className="mb-0.5">{tProfile('aboutMe')}</SectionHeading>
             <p className="whitespace-pre-wrap text-sm text-gray-200">{user.bio}</p>
           </div>
         )}
 
         {user.joinedAt && (
           <div className="mb-3">
-            <SectionHeading className="mb-0.5">MEMBER SINCE</SectionHeading>
+            <SectionHeading className="mb-0.5">{tProfile('memberSince')}</SectionHeading>
             <p className="text-sm text-gray-200">{formatDate(user.joinedAt)}</p>
           </div>
         )}
 
         {mutualFriends.length > 0 && (
           <div className="mb-3">
-            <SectionHeading className="mb-1">MUTUAL FRIENDS — {mutualFriends.length}</SectionHeading>
+            <SectionHeading className="mb-1">{tProfile('mutualFriends', { count: mutualFriends.length })}</SectionHeading>
             <div className="flex flex-wrap gap-1.5">
               {mutualFriends.slice(0, 8).map((f) => (
                 <div
@@ -366,7 +365,9 @@ function ProfileCardContent({
                 </div>
               ))}
               {mutualFriends.length > 8 && (
-                <span className="flex items-center px-1.5 text-xs text-gray-500">+{mutualFriends.length - 8} more</span>
+                <span className="flex items-center px-1.5 text-xs text-gray-500">
+                  {tProfile('more', { count: mutualFriends.length - 8 })}
+                </span>
               )}
             </div>
           </div>
@@ -374,7 +375,7 @@ function ProfileCardContent({
 
         {mutualServers.length > 0 && (
           <div className="mb-3">
-            <SectionHeading className="mb-1">MUTUAL SERVERS — {mutualServers.length}</SectionHeading>
+            <SectionHeading className="mb-1">{tProfile('mutualServers', { count: mutualServers.length })}</SectionHeading>
             <div className="space-y-0.5">
               {mutualServers.map((s) => (
                 <button
@@ -399,7 +400,7 @@ function ProfileCardContent({
         <VoiceVolumeSlider userId={user.id} />
         {loadFailed && (
           <p role="alert" className="mb-3 text-xs text-red-400">
-            {t('profileLoadFailed')}
+            {tChat('profileLoadFailed')}
           </p>
         )}
         {!user.isBot && (
@@ -423,6 +424,7 @@ function ServerIcon({ name, iconUrl }: { name: string; iconUrl: string | null })
 }
 
 function VoiceVolumeSlider({ userId }: { userId: string }) {
+  const { t } = useTranslation('profile')
   const currentUserId = useAuthStore((s) => s.user?.id)
   const currentChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const voiceParticipants = useVoiceStore((s) => s.participants)
@@ -436,7 +438,7 @@ function VoiceVolumeSlider({ userId }: { userId: string }) {
 
   return (
     <div className="mb-3">
-      <SectionHeading className="mb-1">VOICE VOLUME</SectionHeading>
+      <SectionHeading className="mb-1">{t('voiceVolume')}</SectionHeading>
       <div className="flex items-center gap-3 rounded-md bg-surface-darkest px-3 py-2">
         <svg className="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
@@ -457,7 +459,7 @@ function VoiceVolumeSlider({ userId }: { userId: string }) {
           onClick={() => setVolumeOverride(userId, 100)}
           className="mt-1 text-[11px] text-gray-500 transition hover:text-gray-300"
         >
-          Reset to 100%
+          {t('resetVolume')}
         </button>
       )}
     </div>
@@ -473,6 +475,7 @@ function FriendButton({
   status: FriendshipStatusResponse | null
   onStatusChange: (s: FriendshipStatusResponse) => void
 }) {
+  const { t } = useTranslation('profile')
   const currentUserId = useAuthStore((s) => s.user?.id)
   const [loading, setLoading] = useState(false)
 
@@ -519,7 +522,9 @@ function FriendButton({
   if (status.status === 'friends') {
     return (
       <div className="mt-3">
-        <span className="block rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-green-400">Friends</span>
+        <span className="block rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-green-400">
+          {t('friendship.friends')}
+        </span>
       </div>
     )
   }
@@ -527,14 +532,16 @@ function FriendButton({
   if (status.status === 'pending_outgoing') {
     return (
       <div className="mt-3 flex items-center gap-2">
-        <span className="flex-1 rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-gray-400">Request Sent</span>
+        <span className="flex-1 rounded-md bg-white/5 px-3 py-1.5 text-center text-sm text-gray-400">
+          {t('friendship.requestSent')}
+        </span>
         <button
           type="button"
           disabled={loading}
           onClick={handleCancel}
           className="rounded-md bg-white/5 px-3 py-1.5 text-sm text-gray-400 transition hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
         >
-          Cancel
+          {t('friendship.cancel')}
         </button>
       </div>
     )
@@ -549,7 +556,7 @@ function FriendButton({
           onClick={handleAccept}
           className="flex-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
         >
-          Accept Request
+          {t('friendship.acceptRequest')}
         </button>
       </div>
     )
@@ -563,13 +570,14 @@ function FriendButton({
         onClick={handleSendRequest}
         className="w-full rounded-md bg-white/5 px-3 py-1.5 text-sm font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-50"
       >
-        Add Friend
+        {t('friendship.addFriend')}
       </button>
     </div>
   )
 }
 
 function SendDmButton({ userId, onClose, canDm }: { userId: string; onClose: () => void; canDm: boolean | null }) {
+  const { t } = useTranslation('profile')
   const currentUserId = useAuthStore((s) => s.user?.id)
   const { goToDm } = useAppNavigate()
   const addOrUpdateConv = useDmStore((s) => s.addOrUpdateConversation)
@@ -590,19 +598,19 @@ function SendDmButton({ userId, onClose, canDm }: { userId: string; onClose: () 
       goToDm(conv.id)
       onClose()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to open conversation'
-      setDmError(msg.includes('friends') ? msg : 'Failed to open conversation')
+      const msg = err instanceof Error ? err.message : ''
+      setDmError(msg.includes('friends') ? t('dm.friendsRequired') : t('dm.failed'))
     } finally {
       setLoading(false)
     }
-  }, [userId, currentUserId, addOrUpdateConv, goToDm, onClose])
+  }, [userId, currentUserId, addOrUpdateConv, goToDm, onClose, t])
 
   if (userId === currentUserId) return null
 
   if (canDm === false) {
     return (
       <div className="mt-3">
-        <p className="text-xs text-gray-500">Become friends to send messages.</p>
+        <p className="text-xs text-gray-500">{t('dm.friendsRequired')}</p>
       </div>
     )
   }
@@ -616,13 +624,14 @@ function SendDmButton({ userId, onClose, canDm }: { userId: string; onClose: () 
         onClick={handleClick}
         className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
       >
-        {loading ? 'Opening…' : 'Message'}
+        {loading ? t('dm.opening') : t('dm.message')}
       </button>
     </div>
   )
 }
 
 function RoleBadges({ userId }: { userId: string }) {
+  const { t } = useTranslation('profile')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const member = useMemberStore((s) => s.members.find((m) => m.userId === userId && m.serverId === currentServerId))
 
@@ -633,7 +642,7 @@ function RoleBadges({ userId }: { userId: string }) {
 
   return (
     <div className="mb-3">
-      <SectionHeading className="mb-1">ROLES</SectionHeading>
+      <SectionHeading className="mb-1">{t('roles')}</SectionHeading>
       <div className="flex flex-wrap gap-1">
         {roles.map((role) => (
           <RoleBadge key={role.id} name={role.name} color={role.color} size="md" />
@@ -644,6 +653,7 @@ function RoleBadges({ userId }: { userId: string }) {
 }
 
 function XpProgressSection({ progress }: { progress: XpProgress | null }) {
+  const { t } = useTranslation('profile')
   if (!progress) return null
 
   const pct =
@@ -653,12 +663,12 @@ function XpProgressSection({ progress }: { progress: XpProgress | null }) {
 
   return (
     <div className="mb-3">
-      <SectionHeading className="mb-1">LEVEL</SectionHeading>
+      <SectionHeading className="mb-1">{t('level')}</SectionHeading>
       <div className="rounded-md bg-white/5 p-2">
         <div className="flex items-baseline justify-between text-sm">
-          <span className="font-semibold text-white">Level {progress.level}</span>
+          <span className="font-semibold text-white">{t('levelLabel', { level: progress.level })}</span>
           <span className="text-xs text-gray-400 tabular-nums">
-            {progress.xpIntoLevel.toLocaleString()} / {progress.xpNeededForLevel.toLocaleString()} XP
+            {progress.xpIntoLevel.toLocaleString(getAppIntlLocale())} / {progress.xpNeededForLevel.toLocaleString(getAppIntlLocale())} {t('xp')}
           </span>
         </div>
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">

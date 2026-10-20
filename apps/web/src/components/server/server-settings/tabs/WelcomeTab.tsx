@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, InlineAlert, Select, Textarea } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
@@ -6,6 +7,7 @@ import { useServerStore } from '@/stores/server.store'
 import type { Server } from '@/stores/server.store'
 
 export function WelcomeTab({ server }: { server: Server }) {
+  const { t } = useTranslation('server-settings')
   const channels = useChannelStore((s) => s.channels)
   const textChannels = channels.filter((c) => c.type === 'text' && !c.isArchived)
   const updateServerInList = useServerStore((s) => s.updateServerInList)
@@ -36,11 +38,11 @@ export function WelcomeTab({ server }: { server: Server }) {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save welcome settings')
+      setError(e instanceof Error ? e.message : t('welcome.saveFailed'))
     } finally {
       setSaving(false)
     }
-  }, [server.id, channelId, message, updateServerInList])
+  }, [server.id, channelId, message, updateServerInList, t])
 
   const handleDisable = useCallback(async () => {
     setSaving(true)
@@ -54,35 +56,35 @@ export function WelcomeTab({ server }: { server: Server }) {
       setChannelId('')
       setMessage('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to disable welcome messages')
+      setError(e instanceof Error ? e.message : t('welcome.disableFailed'))
     } finally {
       setSaving(false)
     }
-  }, [server.id, updateServerInList])
+  }, [server.id, updateServerInList, t])
 
   const previewText = message
-    ? message.replace(/\{user\}/g, 'NewMember').replace(/\{server\}/g, server.name)
+    ? message.replace(/\{user\}/g, t('welcome.previewMember')).replace(/\{server\}/g, server.name)
     : ''
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-semibold text-white">Welcome Messages</h3>
+        <h3 className="text-base font-semibold text-white">{t('welcome.title')}</h3>
         <p className="mt-1 text-sm text-gray-400">
-          Automatically post a message when a new member joins. Use <code className="rounded bg-surface-darkest px-1 text-primary">{'{user}'}</code> and <code className="rounded bg-surface-darkest px-1 text-primary">{'{server}'}</code> as placeholders.
+          {t('welcome.description', { userPlaceholder: '{user}', serverPlaceholder: '{server}' })}
         </p>
       </div>
 
       {error && <InlineAlert variant="error">{error}</InlineAlert>}
-      {success && <InlineAlert variant="success">Welcome settings saved!</InlineAlert>}
+      {success && <InlineAlert variant="success">{t('welcome.saved')}</InlineAlert>}
 
       <div className="space-y-4">
         <Select
-          label="Welcome Channel"
+          label={t('welcome.channelLabel')}
           value={channelId}
           onChange={(e) => setChannelId(e.target.value)}
         >
-          <option value="">Disabled — no welcome messages</option>
+          <option value="">{t('welcome.channelDisabled')}</option>
           {textChannels.map((ch) => (
             <option key={ch.id} value={ch.id}>#{ch.name}</option>
           ))}
@@ -90,17 +92,17 @@ export function WelcomeTab({ server }: { server: Server }) {
 
         <Textarea
           id="welcome-message"
-          label="Welcome Message"
+          label={t('welcome.messageLabel')}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Welcome {user} to {server}! 🎉"
+          placeholder={t('welcome.messagePlaceholder', { userPlaceholder: '{user}', serverPlaceholder: '{server}' })}
           rows={3}
           maxLength={2000}
         />
 
         {previewText && (
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Preview</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t('welcome.preview')}</span>
             <div className="mt-1.5 rounded-md bg-surface-darkest px-3 py-2.5 text-sm text-gray-300">
               {previewText}
             </div>
@@ -115,7 +117,7 @@ export function WelcomeTab({ server }: { server: Server }) {
           loading={saving}
           onClick={() => void handleSave()}
         >
-          Save
+          {t('actions.save')}
         </Button>
         {(server.welcomeChannelId || server.welcomeMessage) && (
           <Button
@@ -124,7 +126,7 @@ export function WelcomeTab({ server }: { server: Server }) {
             disabled={saving}
             onClick={() => void handleDisable()}
           >
-            Disable
+            {t('actions.disable')}
           </Button>
         )}
       </div>

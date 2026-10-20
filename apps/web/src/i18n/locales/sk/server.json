@@ -1,0 +1,105 @@
+{
+  "members": {
+    "title": "Členovia — {{count}}",
+    "online": "Online — {{count}}",
+    "offline": "Offline — {{count}}",
+    "bot": "Bot"
+  },
+  "actions": {
+    "cancel": "Zrušiť",
+    "close": "Zavrieť",
+    "copy": "Kopírovať",
+    "copied": "Skopírované!",
+    "create": "Vytvoriť",
+    "creating": "Vytváranie…",
+    "generate": "Vygenerovať",
+    "loading": "Načítavanie…",
+    "remove": "Odstrániť",
+    "save": "Uložiť",
+    "saving": "Ukladanie…",
+    "join": "Pripojiť sa"
+  },
+  "createServer": {
+    "title": "Vytvoriť server",
+    "description": "Pomenujte svoj nový server. Názov môžete neskôr zmeniť.",
+    "nameLabel": "Názov servera",
+    "namePlaceholder": "Môj skvelý server",
+    "nameRequired": "Zadajte názov servera.",
+    "createFailed": "Server sa nepodarilo vytvoriť."
+  },
+  "invite": {
+    "title": "Pozvať na server {{serverName}}",
+    "vanityUrl": "Vlastná URL",
+    "neverExpires": "Bez vypršania",
+    "30Minutes": "30 minút",
+    "1Hour": "1 hodina",
+    "6Hours": "6 hodín",
+    "12Hours": "12 hodín",
+    "24Hours": "24 hodín",
+    "7Days": "7 dní",
+    "noUseLimit": "Bez obmedzenia",
+    "1Use": "1 použitie",
+    "5Uses": "5 použití",
+    "10Uses": "10 použití",
+    "25Uses": "25 použití",
+    "50Uses": "50 použití",
+    "100Uses": "100 použití",
+    "uses": "použití",
+    "expiresOn": "vyprší {{date}}",
+    "noInvites": "Zatiaľ tu nie sú žiadne pozvánky. Vytvorte jednu vyššie.",
+    "delete": "Odstrániť pozvánku",
+    "loadFailed": "Pozvánky sa nepodarilo načítať",
+    "createFailed": "Pozvánku sa nepodarilo vytvoriť",
+    "deleteFailed": "Pozvánku sa nepodarilo odstrániť"
+  },
+  "join": {
+    "title": "Pripojiť sa k serveru",
+    "description": "Zadajte kód pozvánky a pripojte sa k existujúcemu serveru.",
+    "placeholder": "Zadajte kód pozvánky",
+    "failed": "Pripojenie zlyhalo",
+    "join": "Pripojiť sa k serveru",
+    "joining": "Pripájanie…"
+  },
+  "leaderboard": {
+    "empty": "Na tomto serveri zatiaľ nikto nezískal XP. Napíšte správu a začnite!",
+    "level": "Úroveň {{level}}",
+    "yourLevel": "Vaša úroveň",
+    "totalXp": "spolu {{xp}}",
+    "loadFailed": "Rebríček sa nepodarilo načítať"
+  },
+  "onboarding": {
+    "welcome": "Vitajte na serveri {{serverName}}!",
+    "chooseRoles": "Vyberte si roly:",
+    "settingUp": "Pripravujeme všetko…",
+    "continue": "Pokračovať",
+    "getStarted": "Začať"
+  },
+  "reorderChannels": {
+    "title": "Zmeniť poradie kanálov",
+    "description": "Potiahnutím zmeníte poradie kanálov v skupine. Kategórie môžete presúvať a zoradiť navzájom.",
+    "uncategorized": "Bez kategórie",
+    "saveFailed": "Poradie sa nepodarilo uložiť. Skúste to znova."
+  },
+  "rolePicker": {
+    "title": "Zmeniť vlastné roly",
+    "description": "Vyberte si roly, ktoré chcete mať na tomto serveri.",
+    "loadFailed": "Roly sa nepodarilo načítať",
+    "saveFailed": "Roly sa nepodarilo uložiť",
+    "empty": "Na tomto serveri nie sú dostupné žiadne roly, ktoré si môžete priradiť."
+  },
+  "notifications": {
+    "title": "Nastavenia upozornení",
+    "serverDefault": "Predvolené nastavenie servera",
+    "allMessages": "Všetky správy",
+    "allMessagesDescription": "Upozorniť na každú novú správu",
+    "mentionsOnly": "Iba @zmienky",
+    "mentionsDescription": "Iba pri priamom označení",
+    "nothing": "Žiadne",
+    "nothingDescription": "Stíšiť všetky upozornenia z tohto servera",
+    "channelOverrides": "Vlastné nastavenia kanálov",
+    "channelOverridesDescription": "Prepísať predvolené nastavenie servera pre konkrétne kanály.",
+    "default": "Predvolené",
+    "mentions": "Iba zmienky",
+    "muted": "Stíšené"
+  }
+}

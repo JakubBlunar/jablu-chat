@@ -56,6 +56,45 @@
   "micModePtt": "PTT",
   "participantCount_one": "{{count}} participant",
   "participantCount_other": "{{count}} participants",
+  "cameraSetup": {
+    "startTitle": "Camera Settings",
+    "editTitle": "Change Camera Settings",
+    "resolution": "Resolution",
+    "backgroundBlur": "Background Blur",
+    "blurBackground": "Blur background",
+    "blurBackgroundHint": "Uses AI segmentation. May impact performance on older devices.",
+    "blurUnsupported": "Background blur is not supported on this browser.",
+    "startCamera": "Start Camera",
+    "applyChanges": "Apply Changes"
+  },
+  "screenShareSetup": {
+    "title": "Screen Share Settings",
+    "resolution": "Resolution",
+    "frameRate": "Frame Rate",
+    "fpsUnit": "fps",
+    "audio": "Audio",
+    "includeAudio": "Include audio",
+    "includeAudioHint": "Share system or tab audio alongside your screen",
+    "betterAudio": "Better audio for shared content",
+    "betterAudioHint": "Stereo and higher bitrate for music or video. Uses more bandwidth and CPU.",
+    "shareScreen": "Share Screen"
+  },
+  "screenSharePicker": {
+    "title": "Share Your Screen",
+    "screens": "Screens",
+    "applicationWindows": "Application Windows",
+    "betterAudio": "Better audio for shared content",
+    "betterAudioHint": "Stereo / higher bitrate — more bandwidth and CPU.",
+    "resolution": "Resolution",
+    "native": "Native",
+    "fps": "FPS",
+    "startSharing": "Start Sharing"
+  },
+  "screenShareAudio": {
+    "volume": "Screen share audio volume",
+    "mute": "Mute screen audio",
+    "unmute": "Unmute screen audio"
+  },
   "settings": {
     "whenJoining": "When joining voice",
     "joinMuted": "Join muted",

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Toggle } from '@/components/ui/Toggle'
@@ -17,6 +18,8 @@ const RESOLUTION_OPTIONS = ['720p', '1080p', 'native'] as const
 const FPS_OPTIONS = [5, 15, 20, 30] as const
 
 export function ScreenSharePicker() {
+  const { t } = useTranslation('voice')
+  const { t: tCommon } = useTranslation('common')
   const [sources, setSources] = useState<ScreenSource[]>([])
   const [open, setOpen] = useState(false)
   const [selectedSource, setSelectedSource] = useState<string | null>(null)
@@ -80,10 +83,11 @@ export function ScreenSharePicker() {
   return (
     <ModalOverlay onClose={() => setOpen(false)} zIndex="z-[200]" maxWidth="max-w-4xl" noPadding>
       <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
-          <h2 className="text-lg font-semibold text-white">Share Your Screen</h2>
+          <h2 className="text-lg font-semibold text-white">{t('screenSharePicker.title')}</h2>
           <button
             type="button"
             onClick={() => setOpen(false)}
+            aria-label={tCommon('close')}
             className="rounded p-1 text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -96,7 +100,9 @@ export function ScreenSharePicker() {
         <SimpleBar className="max-h-[400px] px-6 py-4">
           {screens.length > 0 && (
             <>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Screens</h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+                {t('screenSharePicker.screens')}
+              </h3>
               <div className="mb-4 grid grid-cols-3 gap-3">
                 {screens.map((s) => (
                   <SourceCard key={s.id} source={s} selected={selectedSource === s.id} onSelect={setSelectedSource} />
@@ -107,7 +113,9 @@ export function ScreenSharePicker() {
 
           {windows.length > 0 && (
             <>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">Application Windows</h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+                {t('screenSharePicker.applicationWindows')}
+              </h3>
               <div className="grid grid-cols-3 gap-3">
                 {windows.map((s) => (
                   <SourceCard key={s.id} source={s} selected={selectedSource === s.id} onSelect={setSelectedSource} />
@@ -136,14 +144,18 @@ export function ScreenSharePicker() {
                 }}
               />
               <div className="text-left">
-                <span className="block text-xs font-medium text-gray-200">Better audio for shared content</span>
-                <span className="block text-[10px] text-gray-500">Stereo / higher bitrate — more bandwidth and CPU.</span>
+                <span className="block text-xs font-medium text-gray-200">
+                  {t('screenSharePicker.betterAudio')}
+                </span>
+                <span className="block text-[10px] text-gray-500">
+                  {t('screenSharePicker.betterAudioHint')}
+                </span>
               </div>
             </div>
           )}
           <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-400">Resolution</span>
+            <span className="text-xs font-medium text-gray-400">{t('screenSharePicker.resolution')}</span>
             <div className="flex gap-1">
               {RESOLUTION_OPTIONS.map((r) => (
                 <button
@@ -157,14 +169,14 @@ export function ScreenSharePicker() {
                     resolution === r ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                   }`}
                 >
-                  {r === 'native' ? 'Native' : r}
+                  {r === 'native' ? t('screenSharePicker.native') : r}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-400">FPS</span>
+            <span className="text-xs font-medium text-gray-400">{t('screenSharePicker.fps')}</span>
             <div className="flex gap-1">
               {FPS_OPTIONS.map((f) => (
                 <button
@@ -191,7 +203,7 @@ export function ScreenSharePicker() {
               onClick={handleStart}
               className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Start Sharing
+              {t('screenSharePicker.startSharing')}
             </button>
           </div>
           </div>

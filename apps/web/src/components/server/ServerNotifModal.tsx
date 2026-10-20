@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
 import { useNotifPrefStore, type NotifLevel } from '@/stores/notifPref.store'
 import { useChannelStore } from '@/stores/channel.store'
 
-const LEVELS: { value: NotifLevel; label: string; desc: string }[] = [
-  { value: 'all', label: 'All Messages', desc: 'Get notified for every new message' },
-  { value: 'mentions', label: 'Only @mentions', desc: 'Only when you are directly mentioned' },
-  { value: 'none', label: 'Nothing', desc: 'Mute all notifications from this server' }
+const LEVELS: { value: NotifLevel; labelKey: string; descriptionKey: string }[] = [
+  { value: 'all', labelKey: 'notifications.allMessages', descriptionKey: 'notifications.allMessagesDescription' },
+  { value: 'mentions', labelKey: 'notifications.mentionsOnly', descriptionKey: 'notifications.mentionsDescription' },
+  { value: 'none', labelKey: 'notifications.nothing', descriptionKey: 'notifications.nothingDescription' }
 ]
 
 export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: string; serverName: string; onClose: () => void }) {
+  const { t } = useTranslation('server')
   const getServerLevel = useNotifPrefStore((s) => s.getServerLevel)
   const setServerPref = useNotifPrefStore((s) => s.setServer)
   const removeServerPref = useNotifPrefStore((s) => s.removeServer)
@@ -74,13 +76,13 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
     <ModalOverlay onClose={onClose} maxWidth="max-w-md">
       <div className="space-y-5">
         <div>
-          <h2 className="text-lg font-semibold text-white">Notification Settings</h2>
+          <h2 className="text-lg font-semibold text-white">{t('notifications.title')}</h2>
           <p className="mt-0.5 text-sm text-gray-400">{serverName}</p>
         </div>
 
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Server Default
+            {t('notifications.serverDefault')}
           </label>
           <div className="space-y-1">
             {LEVELS.map((opt) => (
@@ -101,9 +103,9 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
                 </div>
                 <div>
                   <span className={`text-sm font-medium ${serverLevel === opt.value ? 'text-white' : 'text-gray-300'}`}>
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </span>
-                  <p className="text-[11px] text-gray-500">{opt.desc}</p>
+                  <p className="text-[11px] text-gray-500">{t(opt.descriptionKey)}</p>
                 </div>
               </button>
             ))}
@@ -113,10 +115,10 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
         {textChannels.length > 0 && (
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Channel Overrides
+              {t('notifications.channelOverrides')}
             </label>
             <p className="text-[11px] text-gray-500">
-              Override the server default for specific channels.
+              {t('notifications.channelOverridesDescription')}
             </p>
             <div className="max-h-48 space-y-1 overflow-y-auto">
               {textChannels.map((ch) => (
@@ -127,10 +129,10 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
                     onChange={(e) => void handleChannelOverride(ch.id, e.target.value as NotifLevel | 'default')}
                     className="rounded border border-white/10 bg-surface-darkest px-2 py-1 text-xs text-white outline-none"
                   >
-                    <option value="default">Default</option>
-                    <option value="all">All Messages</option>
-                    <option value="mentions">Mentions Only</option>
-                    <option value="none">Muted</option>
+                    <option value="default">{t('notifications.default')}</option>
+                    <option value="all">{t('notifications.allMessages')}</option>
+                    <option value="mentions">{t('notifications.mentions')}</option>
+                    <option value="none">{t('notifications.muted')}</option>
                   </select>
                 </div>
               ))}

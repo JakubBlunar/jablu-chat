@@ -12,12 +12,13 @@ import { useEventStore } from '@/stores/event.store'
 import { UserAvatar } from '@/components/UserAvatar'
 import { isoToLocalDatetimeString, localToISO } from '@/lib/eventDuration'
 import { formatDuration } from '@/lib/eventTime'
+import { getAppIntlLocale } from '@/lib/format-time'
 import { EventScheduleFields } from './EventScheduleFields'
 import { serverDisplayName } from '@/lib/serverProfile'
 import { useMemberStore } from '@/stores/member.store'
 
 function formatFullTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
+  return new Date(iso).toLocaleString(getAppIntlLocale(), {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -29,7 +30,7 @@ function formatFullTime(iso: string): string {
 }
 
 function formatTimeOnly(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Date(iso).toLocaleTimeString(getAppIntlLocale(), { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 type Props = {
@@ -40,7 +41,8 @@ type Props = {
 }
 
 export function EventDetail({ event, serverId, onBack, onClose }: Props) {
-  const { t } = useTranslation('common')
+  const { t: tCommon } = useTranslation('common')
+  const { t: tEvents } = useTranslation('events')
   const userId = useAuthStore((s) => s.user?.id)
   const members = useMemberStore((s) => s.members)
 
@@ -105,14 +107,14 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
 
       const startISO = localToISO(editStartLocal)
       if (!startISO) {
-        setEditError('A valid start time is required')
+        setEditError(tEvents('detail.startTimeRequired'))
         setSaving(false)
         return
       }
       if (startISO !== event.startAt) input.startAt = startISO
       if ((editEndISO ?? null) !== (event.endAt ?? null)) input.endAt = editEndISO
       if (editEndISO && new Date(editEndISO).getTime() <= new Date(startISO).getTime()) {
-        setEditError('End time must be after start time')
+        setEditError(tEvents('detail.endAfterStart'))
         setSaving(false)
         return
       }
@@ -125,11 +127,11 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
       useEventStore.getState().updateEvent(updated)
       setIsEditing(false)
     } catch (err: unknown) {
-      setEditError(err instanceof Error ? err.message : 'Failed to update')
+      setEditError(err instanceof Error ? err.message : tEvents('detail.updateFailed'))
     } finally {
       setSaving(false)
     }
-  }, [serverId, event, editName, editDescription, editStartLocal, editEndISO])
+  }, [serverId, event, editName, editDescription, editStartLocal, editEndISO, tEvents])
 
   const handleCancelConfirmed = useCallback(async () => {
     setShowCancelConfirm(false)
@@ -145,13 +147,13 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
 
   const handleJoinVoice = useCallback(() => {
     if (event.channelId) {
-      const chName = event.channelName ?? 'Voice'
+      const chName = event.channelName ?? tEvents('detail.voiceFallback')
       import('@/lib/voiceConnect').then(({ joinVoiceChannel }) =>
         joinVoiceChannel(serverId, event.channelId!, chName)
       )
     }
     onClose()
-  }, [serverId, event.channelId, event.channelName, onClose])
+  }, [serverId, event.channelId, event.channelName, onClose, tEvents])
 
   const isActive = event.status === 'active'
 
@@ -161,7 +163,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
         <div className="flex items-center gap-2">
           <IconButton
             type="button"
-            label="Back to events"
+            label={tEvents('detail.back')}
             onClick={onBack}
             size="lg"
             className="rounded-lg p-1"
@@ -170,9 +172,9 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               <path d="M15 19l-7-7 7-7" />
             </svg>
           </IconButton>
-          <h2 className="text-base font-bold text-white">Event Details</h2>
+          <h2 className="text-base font-bold text-white">{tEvents('detail.title')}</h2>
         </div>
-        <IconButton type="button" label={t('close')} onClick={onClose} size="lg" className="rounded-lg">
+        <IconButton type="button" label={tCommon('close')} onClick={onClose} size="lg" className="rounded-lg">
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -186,7 +188,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-            <span className="text-xs font-semibold text-emerald-400">HAPPENING NOW</span>
+            <span className="text-xs font-semibold text-emerald-400">{tEvents('list.happeningNow')}</span>
           </div>
         )}
 
@@ -204,7 +206,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               onChange={(e) => setEditDescription(e.target.value)}
               maxLength={1000}
               rows={3}
-              placeholder="Description..."
+              placeholder={tEvents('detail.descriptionPlaceholder')}
               className="rounded-lg ring-white/10 focus:ring-primary"
             />
             <EventScheduleFields
@@ -221,7 +223,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 onClick={handleSaveEdit}
                 disabled={saving || !editName.trim()}
               >
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? tEvents('detail.saving') : tEvents('detail.save')}
               </Button>
               <Button
                 type="button"
@@ -237,7 +239,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 }}
                 className="rounded-lg bg-white/5 hover:bg-white/10"
               >
-                Cancel
+                {tEvents('detail.cancel')}
               </Button>
             </div>
           </div>
@@ -260,7 +262,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               </div>
               {event.endAt && (
                 <div className="text-xs text-gray-500">
-                  {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime())}
+                  {formatDuration(new Date(event.endAt).getTime() - new Date(event.startAt).getTime(), tEvents)}
                 </div>
               )}
             </div>
@@ -277,10 +279,10 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 onClick={handleJoinVoice}
                 className="text-emerald-400 transition hover:text-emerald-300 hover:underline"
               >
-                {event.channelName ?? 'Voice Channel'}
+                {event.channelName ?? tEvents('detail.voiceFallback')}
               </button>
             ) : (
-              <span>{event.locationText ?? 'Custom location'}</span>
+              <span>{event.locationText ?? tEvents('detail.customLocationFallback')}</span>
             )}
           </div>
 
@@ -290,7 +292,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               <Badge variant="primary" className="capitalize">
-                {event.recurrenceRule}
+                {tEvents(`recurrence.${event.recurrenceRule}`, { defaultValue: event.recurrenceRule })}
               </Badge>
             </div>
           )}
@@ -300,7 +302,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               <svg className="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span>Created by {serverDisplayName(event.creator, serverId, members)}</span>
+              <span>{tEvents('detail.createdBy', { name: serverDisplayName(event.creator, serverId, members) })}</span>
             </div>
           )}
         </div>
@@ -318,7 +320,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
             </svg>
-            {event.isInterested ? 'Interested' : 'Mark Interested'}
+            {event.isInterested ? tEvents('list.interested') : tEvents('detail.markInterested')}
           </Button>
 
           {isActive && event.locationType === 'voice_channel' && event.channelId && (
@@ -332,7 +334,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                 <path d="M17 12a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V22h2v-3.07A7 7 0 0 0 19 12h-2z" />
               </svg>
-              Join Voice
+              {tEvents('detail.joinVoice')}
             </Button>
           )}
 
@@ -344,7 +346,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 onClick={() => setIsEditing(true)}
                 className="rounded-lg bg-white/5 hover:bg-white/10"
               >
-                Edit
+                {tEvents('detail.edit')}
               </Button>
               <Button
                 type="button"
@@ -353,7 +355,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                 disabled={cancelling}
                 className="rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300"
               >
-                {cancelling ? 'Cancelling...' : 'Cancel Event'}
+                {cancelling ? tEvents('detail.cancelling') : tEvents('detail.cancelEvent')}
               </Button>
             </>
           )}
@@ -370,7 +372,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
             </svg>
-            {event.interestedCount} interested
+            {tEvents('detail.interestedCount', { count: event.interestedCount })}
             <svg
               className={`h-3 w-3 transition ${showInterestedList ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24"
@@ -391,7 +393,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                   ))}
                 </div>
               ) : interestedUsers.length === 0 ? (
-                <p className="text-xs text-gray-500">No one has marked interest yet</p>
+                <p className="text-xs text-gray-500">{tEvents('detail.noInterested')}</p>
               ) : (
                 interestedUsers.map((item) => (
                   <div key={item.userId} className="flex items-center gap-2 rounded-lg px-2 py-1.5">
@@ -412,9 +414,10 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
       </div>
       {showCancelConfirm && (
         <ConfirmDialog
-          title="Cancel Event"
-          description="Are you sure you want to cancel this event?"
-          confirmLabel="Cancel Event"
+          title={tEvents('detail.cancelConfirmTitle')}
+          description={tEvents('detail.cancelConfirmDescription')}
+          confirmLabel={tEvents('detail.cancelEvent')}
+          cancelLabel={tEvents('detail.cancel')}
           onConfirm={handleCancelConfirmed}
           onCancel={() => setShowCancelConfirm(false)}
         />

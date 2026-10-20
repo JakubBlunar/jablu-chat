@@ -80,7 +80,9 @@ const EventsPanel = React.lazy(() =>
 
 export function ChannelSidebar() {
   const { t } = useTranslation('nav')
+  const { t: tEvents } = useTranslation('events')
   const { t: tA11y } = useTranslation('a11y')
+  const { t: tChannels } = useTranslation('channels')
   const user = useAuthStore((s) => s.user)
 
   const { currentServer, removeServer } = useServerStore(
@@ -400,7 +402,7 @@ export function ChannelSidebar() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
                 >
                   <GearIcon />
-                  Server Settings
+                  {t('serverSettings')}
                 </button>
               )}
               {isAdminOrOwner && (
@@ -413,7 +415,7 @@ export function ChannelSidebar() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
                 >
                   <ReorderIcon />
-                  Reorder Channels
+                  {tChannels('sidebar.reorderChannels')}
                 </button>
               )}
               {isAdminOrOwner && (
@@ -426,7 +428,7 @@ export function ChannelSidebar() {
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text"
                 >
                   <PlusSmallIcon />
-                  Create Category
+                  {tChannels('sidebar.createCategory')}
                 </button>
               )}
               {hasServerActions && <div className="my-1 border-t border-white/10" />}
@@ -469,7 +471,7 @@ export function ChannelSidebar() {
                     d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                Mark All as Read
+                {tChannels('sidebar.markAllAsRead')}
               </button>
               <button
                 type="button"
@@ -483,7 +485,7 @@ export function ChannelSidebar() {
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                 </svg>
-                Notification Settings
+                {tChannels('sidebar.notificationSettings')}
               </button>
               <button
                 type="button"
@@ -605,8 +607,8 @@ export function ChannelSidebar() {
               <span className="truncate">{nextEvent.name}</span>
               <span className="ml-auto shrink-0 text-[11px] text-gray-500">
                 {nextEvent.status === 'active'
-                  ? 'LIVE'
-                  : formatEventSchedule(nextEvent.startAt, nextEvent.endAt, nextEvent.status)}
+                  ? tEvents('schedule.live')
+                  : formatEventSchedule(nextEvent.startAt, nextEvent.endAt, nextEvent.status, tEvents)}
               </span>
             </button>
           )}

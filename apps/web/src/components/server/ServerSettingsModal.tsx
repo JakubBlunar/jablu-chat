@@ -25,7 +25,8 @@ import { AfkTab } from './server-settings/tabs/AfkTab'
 import { LevelingTab } from './server-settings/tabs/LevelingTab'
 
 export function ServerSettingsModal({ server, onClose }: { server: Server; onClose: () => void }) {
-  const { t } = useTranslation('nav')
+  const { t: tNav } = useTranslation('nav')
+  const { t: tServerSettings } = useTranslation('server-settings')
   const { t: tCommon } = useTranslation('common')
   const [tab, setTab] = useState<Tab>('overview')
   const isMobile = useIsMobile()
@@ -33,7 +34,7 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   useFocusTrap(mobileRef, isMobile, onClose)
   useBackGestureClose(isMobile, onClose, isMobile)
 
-  const currentLabel = SERVER_TABS.find((t) => t.key === tab)?.label ?? 'Settings'
+  const currentLabel = tServerSettings(`tabs.${tab}`)
 
   const tabContent = (
     <>
@@ -62,14 +63,14 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
         className="fixed inset-0 z-50 flex flex-col bg-surface"
         role="dialog"
         aria-modal="true"
-        aria-label={t('serverSettings')}
+        aria-label={tNav('serverSettings')}
       >
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
             onClick={onClose}
             className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label={t('closeServerSettings')}
+            aria-label={tNav('closeServerSettings')}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M15 19l-7-7 7-7" />
@@ -79,16 +80,16 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
         </div>
         <div className="shrink-0 overflow-x-auto border-b border-white/10 scrollbar-none">
           <div className="flex gap-1 px-2 py-1.5">
-            {SERVER_TABS.map((t) => (
+            {SERVER_TABS.map((tabKey) => (
               <button
-                key={t.key}
+                key={tabKey}
                 type="button"
-                onClick={() => setTab(t.key)}
+                onClick={() => setTab(tabKey)}
                 className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                  tab === t.key ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
+                  tab === tabKey ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
                 }`}
               >
-                {t.label}
+                {tServerSettings(`tabs.${tabKey}`)}
               </button>
             ))}
           </div>
@@ -110,21 +111,21 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
     >
       <SimpleBar className="w-44 shrink-0 bg-surface-darkest p-3">
         <h2 className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          {t('serverSettings')}
+          {tNav('serverSettings')}
         </h2>
         <nav className="flex flex-col gap-0.5">
-          {SERVER_TABS.map((t) => (
+          {SERVER_TABS.map((tabKey) => (
             <button
-              key={t.key}
+              key={tabKey}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(tabKey)}
               className={`rounded-md px-2 py-1.5 text-left text-sm transition ${
-                tab === t.key
+                tab === tabKey
                   ? 'bg-surface-selected text-white'
                   : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
               }`}
             >
-              {t.label}
+              {tServerSettings(`tabs.${tabKey}`)}
             </button>
           ))}
         </nav>
