@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import i18n from 'i18next'
 import { api } from '@/lib/api'
 import { clearNotifications } from '@/lib/notifications'
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
+import { isAppLocale } from '@/i18n/locales'
 import { showToast } from '@/stores/toast.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -128,7 +130,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       if (wasInCall) useVoiceConnectionStore.getState().disconnect()
       useDmCallStore.getState().reset()
       if (wasInCall)
-        useDmCallStore.setState({ error: 'Call disconnected. Reconnect and start or join the call again.' })
+        useDmCallStore.setState({ error: i18n.t('voice.callDisconnected') })
     }
     const onConnectError = async () => {
       if (handlingAuthError) return
@@ -228,6 +230,19 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('category:deleted', srv.onCategoryDeleted)
     socket.on('category:reorder', srv.onCategoryReorder)
     socket.on('server:updated', srv.onServerUpdated)
+    const onUserLocale = (data: { userId?: unknown; locale?: unknown }) => {
+      const user = useAuthStore.getState().user
+      if (
+        !user ||
+        data.userId !== user.id ||
+        typeof data.locale !== 'string' ||
+        !isAppLocale(data.locale)
+      ) {
+        return
+      }
+      useAuthStore.getState().setUser({ ...user, locale: data.locale })
+    }
+    socket.on('user:locale', onUserLocale)
     socket.on('user:profile', srv.onUserProfile)
     socket.on('friend:request', srv.onFriendRequest)
     socket.on('friend:accepted', srv.onFriendAccepted)
@@ -236,7 +251,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     socket.on('friend:removed', srv.onFriendRemoved)
 
     const onBotCommandError = (data: { error?: string }) => {
-      showToast('Command failed', data.error ?? 'Could not run this command')
+      showToast(i18n.t('chat:commandFailed'), data.error ?? i18n.t('chat:commandCouldNotRun'))
     }
     socket.on('bot:command-error', onBotCommandError)
 
@@ -331,6 +346,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('category:deleted', srv.onCategoryDeleted)
       socket.off('category:reorder', srv.onCategoryReorder)
       socket.off('server:updated', srv.onServerUpdated)
+      socket.off('user:locale', onUserLocale)
       socket.off('user:profile', srv.onUserProfile)
       socket.off('friend:request', srv.onFriendRequest)
       socket.off('friend:accepted', srv.onFriendAccepted)

@@ -1,9 +1,11 @@
 import type { Poll } from '@chat/shared'
 import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getSocket } from '@/lib/socket'
 import { CheckIcon, PollIcon } from '@/components/chat/chatIcons'
 
 export function PollDisplay({ poll }: { poll: Poll }) {
+  const { t, i18n } = useTranslation('chat')
   const totalVotes = useMemo(
     () => poll.options.reduce((sum, o) => sum + o.voteCount, 0),
     [poll.options]
@@ -27,7 +29,7 @@ export function PollDisplay({ poll }: { poll: Poll }) {
       </div>
 
       {poll.multiSelect && (
-        <p className="mb-2 text-[11px] text-gray-500">Select multiple options</p>
+        <p className="mb-2 text-[11px] text-gray-500">{t('poll.selectMultiple')}</p>
       )}
 
       <div className="space-y-1.5">
@@ -62,10 +64,10 @@ export function PollDisplay({ poll }: { poll: Poll }) {
       </div>
 
       <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500">
-        <span>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
-        {expired && <span className="text-yellow-500/70">Poll ended</span>}
+        <span>{t('poll.vote', { count: totalVotes })}</span>
+        {expired && <span className="text-yellow-500/70">{t('poll.ended')}</span>}
         {poll.expiresAt && !expired && (
-          <span>Ends {new Date(poll.expiresAt).toLocaleDateString()}</span>
+          <span>{t('poll.ends', { date: new Date(poll.expiresAt).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language) })}</span>
         )}
       </div>
     </div>

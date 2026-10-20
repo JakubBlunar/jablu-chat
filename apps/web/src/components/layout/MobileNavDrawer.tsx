@@ -78,6 +78,7 @@ export function MobileNavDrawer({
   onOpenSettings: (tab?: string) => void
   onOpenQuickSwitcher: () => void
 }) {
+  const { t: tChannels } = useTranslation('channels')
   const { t } = useTranslation('nav')
   const { t: tChat } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
@@ -430,10 +431,10 @@ export function MobileNavDrawer({
                     {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
                       <>
                         <div className="mb-1 flex items-center justify-between px-2">
-                          <SectionHeading as="span">TEXT CHANNELS</SectionHeading>
+                          <SectionHeading as="span">{tChannels('sidebar.textChannels').toUpperCase()}</SectionHeading>
                           {isAdminOrOwner && (
                             <IconButton
-                              label="Create channel"
+                              label={tChannels('sidebar.createChannel')}
                               size="sm"
                               onClick={() => {
                                 close()
@@ -638,10 +639,10 @@ export function MobileNavDrawer({
                     {uncategorizedVoice.length > 0 && (
                       <>
                         <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                          <SectionHeading as="span">VOICE CHANNELS</SectionHeading>
+                          <SectionHeading as="span">{tChannels('sidebar.voiceChannels').toUpperCase()}</SectionHeading>
                           {isAdminOrOwner && (
                             <IconButton
-                              label="Create channel"
+                              label={tChannels('sidebar.createChannel')}
                               size="sm"
                               onClick={() => {
                                 close()
@@ -711,10 +712,10 @@ export function MobileNavDrawer({
                     {uncategorizedForum.length > 0 && (
                       <>
                         <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                          <SectionHeading as="span">FORUM CHANNELS</SectionHeading>
+                          <SectionHeading as="span">{tChannels('sidebar.forumChannels').toUpperCase()}</SectionHeading>
                           {isAdminOrOwner && (
                             <IconButton
-                              label="Create channel"
+                              label={tChannels('sidebar.createChannel')}
                               size="sm"
                               onClick={() => {
                                 close()

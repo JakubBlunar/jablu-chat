@@ -147,6 +147,7 @@ export function playSound(kind: NotifSoundKind = 'message') {
 // ─── Web Push Subscription ─────────────────────────────────────
 
 let pushSubscribed = false
+let pushSubscribedLocale: string | null = null
 
 async function getVapidKey(): Promise<string | null> {
   try {
@@ -175,7 +176,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
  *   `requestPermission()` outside one, which would burn the prompt for good.
  */
 export async function subscribeToPush(token: string, promptForPermission = false): Promise<void> {
-  if (pushSubscribed) return
+  const locale = useSettingsStore.getState().locale
+  if (pushSubscribed && pushSubscribedLocale === locale) return
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
   if (Notification.permission === 'denied') return
@@ -213,11 +215,13 @@ export async function subscribeToPush(token: string, promptForPermission = false
         endpoint: sub.endpoint,
         p256dh: subJson.keys?.p256dh ?? '',
         auth: subJson.keys?.auth ?? '',
-        deviceId: getDeviceId()
+        deviceId: getDeviceId(),
+        locale
       })
     })
 
     pushSubscribed = true
+    pushSubscribedLocale = locale
   } catch {
     // Push subscription failed -- non-critical
   }
@@ -245,6 +249,7 @@ export async function unsubscribeFromPush(token: string): Promise<void> {
 
     await sub.unsubscribe()
     pushSubscribed = false
+    pushSubscribedLocale = null
   } catch {
     // Unsubscribe failed -- non-critical
   }

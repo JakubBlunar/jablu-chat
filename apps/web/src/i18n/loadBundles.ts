@@ -15,7 +15,9 @@ export const I18N_NAMESPACES = [
   'server-settings',
   'profile',
   'events',
-  'channels'
+  'channels',
+  'friends',
+  'forum'
 ] as const
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number]

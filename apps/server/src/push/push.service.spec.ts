@@ -76,8 +76,15 @@ describe('PushService', () => {
 
       expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith({
         where: { endpoint: 'https://push.example.com' },
-        create: { userId: 'u1', endpoint: 'https://push.example.com', p256dh: 'p256', auth: 'auth', deviceId: null },
-        update: { p256dh: 'p256', auth: 'auth' }
+        create: {
+          userId: 'u1',
+          endpoint: 'https://push.example.com',
+          p256dh: 'p256',
+          auth: 'auth',
+          deviceId: null,
+          locale: 'en'
+        },
+        update: { p256dh: 'p256', auth: 'auth', locale: 'en' }
       })
     })
 
@@ -85,12 +92,40 @@ describe('PushService', () => {
       prisma.pushSubscription.findUnique.mockResolvedValue(null)
       prisma.pushSubscription.upsert.mockResolvedValue({})
 
-      await service.subscribe('u1', 'https://push.example.com', 'p256', 'auth', 'device-9')
+      await service.subscribe('u1', 'https://push.example.com', 'p256', 'auth', 'device-9', 'cs')
 
       expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith({
         where: { endpoint: 'https://push.example.com' },
-        create: { userId: 'u1', endpoint: 'https://push.example.com', p256dh: 'p256', auth: 'auth', deviceId: 'device-9' },
-        update: { p256dh: 'p256', auth: 'auth', deviceId: 'device-9' }
+        create: {
+          userId: 'u1',
+          endpoint: 'https://push.example.com',
+          p256dh: 'p256',
+          auth: 'auth',
+          deviceId: 'device-9',
+          locale: 'cs'
+        },
+        update: { p256dh: 'p256', auth: 'auth', locale: 'cs', deviceId: 'device-9' }
+      })
+    })
+
+    it('uses the saved account locale instead of a different device locale', async () => {
+      prisma.user.findUnique.mockResolvedValue({ locale: 'sk' })
+      prisma.pushSubscription.findUnique.mockResolvedValue(null)
+      prisma.pushSubscription.upsert.mockResolvedValue({})
+
+      await service.subscribe('u1', 'https://push.example.com', 'p256', 'auth', undefined, 'cs')
+
+      expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith({
+        where: { endpoint: 'https://push.example.com' },
+        create: {
+          userId: 'u1',
+          endpoint: 'https://push.example.com',
+          p256dh: 'p256',
+          auth: 'auth',
+          deviceId: null,
+          locale: 'sk'
+        },
+        update: { p256dh: 'p256', auth: 'auth', locale: 'sk' }
       })
     })
 
@@ -288,6 +323,57 @@ describe('PushService', () => {
         JSON.stringify({ title: 'T', body: 'B' }),
         { TTL: 3600, urgency: 'high', timeout: 10_000 }
       )
+    })
+
+    it('queues one localized copy per recipient language group, not the full locale map', async () => {
+      service.onModuleInit()
+      redis.client.rpush.mockResolvedValue(3)
+      prisma.user.findMany.mockImplementation((args: {
+        where?: { id?: { in: string[] } }
+        select?: { locale?: boolean }
+      }) => {
+        const ids = args?.where?.id?.in ?? []
+        if (args?.select?.locale) {
+          return Promise.resolve([
+            { id: 'u-en', locale: 'en' },
+            { id: 'u-cs', locale: 'cs' },
+            { id: 'u-sk', locale: 'sk' }
+          ])
+        }
+        return Promise.resolve(ids.map((id) => ({
+          id,
+          pushSuppressAll: false,
+          pushQuietHoursEnabled: false,
+          pushQuietHoursTz: null,
+          pushQuietHoursStartMin: 0,
+          pushQuietHoursEndMin: 0
+        })))
+      })
+
+      await service.sendToUsers(['u-en', 'u-cs', 'u-sk'], {
+        title: 'English title',
+        body: 'English body',
+        localized: {
+          en: { title: 'English title', body: 'English body' },
+          cs: { title: 'Český nadpis', body: 'Český text' },
+          sk: { title: 'Slovenský nadpis', body: 'Slovenský text' }
+        }
+      })
+
+      type QueueJob = {
+          userIds: string[]
+          payload: { title: string; body: string; localized?: unknown }
+          attempt: number
+      }
+      const queued: QueueJob[] = redis.client.rpush.mock.calls[0].slice(1).map((value: string) =>
+        JSON.parse(value) as QueueJob
+      )
+      expect(queued).toEqual([
+        { userIds: ['u-en'], payload: { title: 'English title', body: 'English body' }, attempt: 0 },
+        { userIds: ['u-cs'], payload: { title: 'Český nadpis', body: 'Český text' }, attempt: 0 },
+        { userIds: ['u-sk'], payload: { title: 'Slovenský nadpis', body: 'Slovenský text' }, attempt: 0 }
+      ])
+      expect(queued.every((job: QueueJob) => job.payload.localized === undefined)).toBe(true)
     })
 
     it('limits call push TTL to the remaining ringing time', async () => {

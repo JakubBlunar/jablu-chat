@@ -1,4 +1,5 @@
 import type { ForwardedFromSnapshot } from '@chat/shared'
+import { useTranslation } from 'react-i18next'
 import { ForwardIcon } from '@/components/chat/chatIcons'
 import { MarkdownContent } from '@/components/MarkdownContent'
 import { formatSmartTimestamp } from '@/lib/format-time'
@@ -13,8 +14,10 @@ type Props = {
  * source was edited, deleted, or lives in a channel the viewer can't see.
  */
 export function ForwardedCard({ snapshot }: Props) {
-  const author = snapshot.authorName?.trim() || 'Unknown'
-  const where = snapshot.channelName ? snapshot.channelName : 'direct message'
+  const { t: tChat } = useTranslation('chat')
+  const { t: tCommon } = useTranslation('common')
+  const author = snapshot.authorName?.trim() || tCommon('unknown')
+  const where = snapshot.channelName ? snapshot.channelName : tChat('forwardedDirectMessage')
   const prefix = snapshot.channelName && !snapshot.dmId ? '#' : ''
   const hasContent = !!snapshot.content?.trim()
 
@@ -22,9 +25,9 @@ export function ForwardedCard({ snapshot }: Props) {
     <div className="mt-1 rounded border border-white/10 bg-white/[0.02] px-3 py-2 text-sm">
       <div className="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-400">
         <ForwardIcon className="h-3.5 w-3.5 shrink-0 text-primary/70" strokeWidth={2.5} />
-        <span className="font-medium text-gray-300">Forwarded from</span>
+        <span className="font-medium text-gray-300">{tChat('forwardedFrom')}</span>
         <span className="font-medium text-gray-200">{author}</span>
-        <span className="text-gray-500">in</span>
+        <span className="text-gray-500">{tChat('forwardedIn')}</span>
         <span className="font-medium text-gray-300">
           {prefix}
           {where}
@@ -43,7 +46,7 @@ export function ForwardedCard({ snapshot }: Props) {
           <MarkdownContent content={snapshot.content!.trim()} />
         </div>
       ) : (
-        <p className="italic text-gray-500">[attachment]</p>
+        <p className="italic text-gray-500">{tChat('forwardedAttachment')}</p>
       )}
     </div>
   )

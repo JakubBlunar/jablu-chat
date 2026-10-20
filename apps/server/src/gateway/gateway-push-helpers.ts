@@ -1,5 +1,6 @@
 import { hasPermission, messageNotificationUrl, messagePreviewText, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { messagePushCopy } from '../push/push-copy'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
 import type { RolesService } from '../roles/roles.service'
@@ -31,6 +32,19 @@ export function describePushPreview(
     : 'a file'
   if (attachments.length === 1) return `sent ${label}`
   return `sent ${attachments.length} files`
+}
+
+export function getMessageNotificationPreview(
+  content: string | undefined,
+  attachments?: { type: string }[]
+): { snippet?: string; attachmentType?: string; attachmentCount?: number } {
+  const snippet = messagePreviewText(content)
+  if (snippet) return { snippet }
+  if (!attachments || attachments.length === 0) return {}
+  return {
+    attachmentType: attachments[0].type,
+    attachmentCount: attachments.length
+  }
 }
 
 export async function getChannelNotifPrefs(
@@ -133,10 +147,14 @@ export async function sendPushToOfflineMembers(
 
   if (eligibleIds.length === 0) return
 
-  const preview = describePushPreview(content, attachments)
+  const copy = messagePushCopy(
+    { en: senderName, cs: senderName, sk: senderName },
+    content,
+    attachments
+  )
   await ctx.push.sendToUsers(eligibleIds, {
-    title: senderName,
-    body: preview,
+    ...copy.en,
+    localized: copy,
     url
   })
 }
@@ -210,10 +228,18 @@ export async function sendPushToThreadParticipants(
 
   if (eligibleIds.length === 0) return
 
-  const preview = describePushPreview(content, attachments)
+  const copy = messagePushCopy(
+    {
+      en: `${senderName} replied in a thread`,
+      cs: `Odpověď ve vlákně od ${senderName}`,
+      sk: `Odpoveď vo vlákne od ${senderName}`
+    },
+    content,
+    attachments
+  )
   await ctx.push.sendToUsers(eligibleIds, {
-    title: `${senderName} replied in a thread`,
-    body: preview,
+    ...copy.en,
+    localized: copy,
     url: messageId
       ? messageNotificationUrl(`/channels/${serverId}/${channelId}`, messageId, parentId)
       : `/channels/${serverId}/${channelId}`

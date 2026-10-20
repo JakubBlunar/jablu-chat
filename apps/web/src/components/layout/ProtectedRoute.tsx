@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -8,6 +9,7 @@ type ProtectedRouteProps = {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const { t } = useTranslation('common')
   const location = useLocation()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
@@ -18,7 +20,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         <div aria-hidden>
           <Spinner size="xl" />
         </div>
-        <span className="sr-only">Loading session</span>
+        <span className="sr-only">{t('loadingSession')}</span>
       </div>
     )
   }

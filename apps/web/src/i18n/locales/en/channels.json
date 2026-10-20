@@ -3,7 +3,11 @@
     "reorderChannels": "Reorder Channels",
     "createCategory": "Create Category",
     "markAllAsRead": "Mark All as Read",
-    "notificationSettings": "Notification Settings"
+    "notificationSettings": "Notification Settings",
+    "textChannels": "Text Channels",
+    "voiceChannels": "Voice Channels",
+    "forumChannels": "Forum Channels",
+    "createChannel": "Create channel"
   },
   "category": {
     "createTitle": "Create Category",
@@ -90,6 +94,17 @@
     "deafened": "Deafened",
     "cameraOn": "Camera on",
     "sharingScreen": "Sharing screen"
+  },
+  "notifications": {
+    "channelAlerts": "Channel alerts",
+    "settingsLabel": "Channel notification settings",
+    "allMessages": "All Messages",
+    "allMessagesDescription": "Get notified for every message",
+    "mentionsOnly": "Mentions Only",
+    "mentionsDescription": "Only @mentions",
+    "muted": "Muted",
+    "mutedDescription": "No notifications",
+    "current": "Current"
   },
   "errors": {
     "categoryNameRequired": "Name is required.",

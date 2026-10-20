@@ -3,6 +3,7 @@ import type { ChatGateway } from './gateway.gateway'
 import { deliverChannelMessage, deliverDmMessage } from './message-notifications'
 import { InAppNotificationKind } from '../prisma-client'
 import { mapMessageToWire, messageInclude } from '../messages/message-wire'
+import { friendAcceptedPushCopy, friendRequestPushCopy, moderationPushCopy } from '../push/push-copy'
 
 export async function routeDmSlashCommand(
   gw: ChatGateway,
@@ -79,12 +80,7 @@ async function notifyModeration(
     .catch(() => null)
   const serverName = server?.name ?? 'a server'
 
-  const body =
-    input.action === 'ban'
-      ? `You were banned from ${serverName}`
-      : input.action === 'kick'
-        ? `You were removed from ${serverName}`
-        : `You were timed out in ${serverName}`
+  const copy = moderationPushCopy(input.action, serverName, input.reason)
 
   await gw.notifications.dispatch({
     userIds: [input.userId],
@@ -99,8 +95,9 @@ async function notifyModeration(
       reason: input.reason ?? null,
       until: input.until ?? null
     },
-    title: serverName,
-    body: input.reason ? `${body}: ${input.reason}` : body,
+    title: copy.en.title,
+    body: copy.en.body,
+    localized: copy,
     url: input.action === 'timeout' ? `/channels/${input.serverId}` : '/channels/@me',
     push: true
   })
@@ -405,6 +402,13 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on(
+    'user:locale',
+    (payload: { userId: string; locale: string }) => {
+      gw.server.to(`user:${payload.userId}`).emit('user:locale', payload)
+    }
+  )
+
+  gw.events.on(
     'user:profile',
     async (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
       const memberships = await gw.prisma.serverMember.findMany({
@@ -580,6 +584,7 @@ export function registerEventListeners(gw: ChatGateway) {
         (requester as { displayName?: string }).displayName ??
         (requester as { username?: string }).username ??
         'Someone'
+      const copy = friendRequestPushCopy(requesterName)
 
       gw.server.to(`user:${addresseeId}`).emit('friend:request', {
         friendshipId,
@@ -593,8 +598,9 @@ export function registerEventListeners(gw: ChatGateway) {
         kind: InAppNotificationKind.friend_request,
         dedupeKey: `friend:${friendshipId}`,
         payload: { friendshipId, requesterId, requesterName },
-        title: 'Friend Request',
-        body: `${requesterName} sent you a friend request`,
+        title: copy.en.title,
+        body: copy.en.body,
+        localized: copy,
         url: '/channels/@me',
         push: true
       })
@@ -624,13 +630,15 @@ export function registerEventListeners(gw: ChatGateway) {
         (addressee as { displayName?: string }).displayName ??
         (addressee as { username?: string }).username ??
         'Someone'
+      const copy = friendAcceptedPushCopy(addresseeName)
       void gw.notifications.dispatch({
         userIds: [requesterId],
         kind: InAppNotificationKind.friend_accepted,
         dedupeKey: `friend-accepted:${friendshipId}`,
         payload: { friendshipId, userId: addresseeId, userName: addresseeName },
-        title: 'Friend request accepted',
-        body: `${addresseeName} accepted your friend request`,
+        title: copy.en.title,
+        body: copy.en.body,
+        localized: copy,
         url: '/channels/@me',
         push: true
       })

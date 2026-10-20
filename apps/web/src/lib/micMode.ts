@@ -1,6 +1,7 @@
 export type MicMode = 'always' | 'activity' | 'push-to-talk'
 
 import { Track } from 'livekit-client'
+import i18n from 'i18next'
 import { useSettingsStore } from '@/stores/settings.store'
 import { desktopAPI, isDesktop } from '@/lib/desktop'
 import { showToast } from '@/stores/toast.store'
@@ -229,7 +230,7 @@ function startPTT(): MicCleanup {
     // push-to-talk silently non-functional.
     const offError = api.onPttError((message) => {
       console.error('[push-to-talk]', message)
-      showToast('Push-to-talk unavailable', message)
+      showToast(i18n.t('voice.pushToTalkUnavailable'), message)
     })
     return (skipUnmute?: boolean) => {
       off()

@@ -81,6 +81,7 @@ function GifPickerContent({
   onClose: () => void
   searchPlaceholder: string
 }) {
+  const { t } = useTranslation('chat')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<GifResult[]>([])
   const [nextPos, setNextPos] = useState('')
@@ -166,17 +167,17 @@ function GifPickerContent({
           <div className="py-8 text-center text-sm text-gray-500">
             {error ? (
               <>
-                <p>Failed to load GIFs</p>
+                <p>{t('gifLoadFailed')}</p>
                 <button
                   type="button"
                   className="mt-2 text-xs text-primary hover:underline"
                   onClick={() => fetchGifs(query)}
                 >
-                  Try again
+                  {t('gifTryAgain')}
                 </button>
               </>
             ) : query ? (
-              'No GIFs found'
+              t('gifNotFound')
             ) : null}
           </div>
         )}
@@ -202,7 +203,7 @@ function GifPickerContent({
       </div>
 
       <div className="shrink-0 border-t border-white/10 px-3 py-1.5">
-        <p className="text-center text-[10px] text-gray-500">Powered by GIPHY</p>
+        <p className="text-center text-[10px] text-gray-500">{t('gifPoweredBy')}</p>
       </div>
     </>
   )

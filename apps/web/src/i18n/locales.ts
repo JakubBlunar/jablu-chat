@@ -1,5 +1,8 @@
-export const APP_LOCALES = ['en', 'cs', 'sk'] as const
-export type AppLocale = (typeof APP_LOCALES)[number]
+import { APP_LOCALES } from '@chat/shared'
+import type { AppLocale } from '@chat/shared'
+
+export { APP_LOCALES }
+export type { AppLocale }
 
 export function detectAppLocale(
   languages: readonly string[] = typeof navigator === 'undefined'

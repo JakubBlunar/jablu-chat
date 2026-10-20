@@ -2,11 +2,11 @@
 
 ## Stack
 
-- **i18next** + **react-i18next** — `initI18n()` in `config.ts` (called from `main.tsx` before first paint) loads locale JSON via Vite `import.meta.glob` so each language/namespace is a separate async chunk. `LocaleSync` loads additional languages when the user switches. Persisted locale is read from the same `jablu-settings` key as the settings store.
+- **i18next** + **react-i18next** — `initI18n()` in `config.ts` (called from `main.tsx` before first paint) loads locale JSON via Vite `import.meta.glob` so each language/namespace is a separate async chunk. `LocaleSync` loads additional languages when the user switches. The local setting is read from `jablu-settings`; authenticated users sync it to their account so other devices use the same locale.
 
 ## Adding strings
 
-1. Add a key to the right namespace JSON under `locales/en/` (e.g. `settings.json`, `chat.json`, `server.json`, `server-settings.json`, `profile.json`, `events.json`, `channels.json`, or `common.json`).
+1. Add a key to the right namespace JSON under `locales/en/` (e.g. `settings.json`, `chat.json`, `server.json`, `server-settings.json`, `profile.json`, `events.json`, `channels.json`, `friends.json`, `forum.json`, or `common.json`).
 2. Mirror the key in `locales/cs/` and `locales/sk/`. Keep all locale bundles in sync; missing keys fall back to English.
 3. In components: `const { t } = useTranslation('settings')` then `t('tabs.account')` or `t('appearance.language')`.
 

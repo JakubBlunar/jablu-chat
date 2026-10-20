@@ -57,6 +57,7 @@ describe('AuthService', () => {
     manualStatus: null,
     manualStatusExpiresAt: null,
     customStatus: null,
+    locale: null,
     dmPrivacy: 'everyone',
     pushSuppressAll: false,
     pushQuietHoursEnabled: false,
@@ -497,6 +498,28 @@ describe('AuthService', () => {
         userId: 'user-1',
         displayName: 'New Name',
       })
+    })
+  })
+
+  describe('updateLocale', () => {
+    it('saves the account locale, updates its push devices, and emits a sync event', async () => {
+      prisma.$transaction.mockImplementation((callback) => callback(prisma))
+      prisma.user.update.mockResolvedValue({ ...mockProfile, locale: 'cs' })
+      prisma.pushSubscription.updateMany.mockResolvedValue({ count: 2 })
+
+      const result = await service.updateLocale('user-1', 'cs')
+
+      expect(result.locale).toBe('cs')
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { locale: 'cs' },
+        select: expect.objectContaining({ locale: true })
+      })
+      expect(prisma.pushSubscription.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+        data: { locale: 'cs' }
+      })
+      expect(events.emit).toHaveBeenCalledWith('user:locale', { userId: 'user-1', locale: 'cs' })
     })
   })
 

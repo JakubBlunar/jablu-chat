@@ -3,7 +3,11 @@
     "reorderChannels": "Změnit pořadí kanálů",
     "createCategory": "Vytvořit kategorii",
     "markAllAsRead": "Označit vše jako přečtené",
-    "notificationSettings": "Nastavení oznámení"
+    "notificationSettings": "Nastavení oznámení",
+    "textChannels": "Textové kanály",
+    "voiceChannels": "Hlasové kanály",
+    "forumChannels": "Fórové kanály",
+    "createChannel": "Vytvořit kanál"
   },
   "category": {
     "createTitle": "Vytvořit kategorii",
@@ -90,6 +94,17 @@
     "deafened": "Vypnutý poslech",
     "cameraOn": "Kamera zapnutá",
     "sharingScreen": "Sdílí obrazovku"
+  },
+  "notifications": {
+    "channelAlerts": "Oznámení kanálu",
+    "settingsLabel": "Nastavení oznámení kanálu",
+    "allMessages": "Všechny zprávy",
+    "allMessagesDescription": "Upozornit na každou zprávu",
+    "mentionsOnly": "Pouze zmínky",
+    "mentionsDescription": "Pouze při zmínce",
+    "muted": "Ztlumeno",
+    "mutedDescription": "Bez oznámení",
+    "current": "Aktuální"
   },
   "errors": {
     "categoryNameRequired": "Název je povinný.",

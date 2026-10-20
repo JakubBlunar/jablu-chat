@@ -5,7 +5,7 @@ import SimpleBar from 'simplebar-react'
 import { Button, Input } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { UserAvatar } from '@/components/UserAvatar'
-import { api, ApiError, type DmConversation } from '@/lib/api'
+import { api, type DmConversation } from '@/lib/api'
 
 export function GroupDmModal({
   conversations,
@@ -95,8 +95,8 @@ export function GroupDmModal({
           ? await api.createDm(selected[0])
           : await api.createGroupDm(selected, groupName.trim() || undefined)
       onCreated(conv)
-    } catch (error) {
-      setError(error instanceof ApiError ? error.message : tChat('groupDmCreateError'))
+    } catch {
+      setError(tChat('groupDmCreateError'))
     }
     setCreating(false)
   }
@@ -141,7 +141,12 @@ export function GroupDmModal({
                 className="flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary"
               >
                 {selectedUsers[id] ?? id.slice(0, 8)}
-                <button type="button" onClick={() => toggle(id)} aria-label="Remove" className="hover:text-white">
+                <button
+                  type="button"
+                  onClick={() => toggle(id)}
+                  aria-label={tChat('conversationRemoveMember')}
+                  className="hover:text-white"
+                >
                   ✕
                 </button>
               </span>
@@ -151,8 +156,8 @@ export function GroupDmModal({
       )}
 
       <SimpleBar className="max-h-40 space-y-1">
-        {loading && <p className="text-xs text-gray-400">Searching…</p>}
-        {searchError && !loading && <p className="text-xs text-red-400">Search failed. Try again.</p>}
+        {loading && <p className="text-xs text-gray-400">{tChat('conversationSearchingUsers')}</p>}
+        {searchError && !loading && <p className="text-xs text-red-400">{tChat('conversationSearchFailed')}</p>}
         {results
           .filter(
             (r) =>
@@ -194,10 +199,10 @@ export function GroupDmModal({
         {addToConversation
           ? tChat('conversationAddMembers')
           : creating
-            ? 'Creating…'
+            ? tChat('conversationCreating')
             : selected.length <= 1
-              ? 'Create DM'
-              : `Create Group DM (${selected.length} members)`}
+              ? tChat('conversationCreateDm')
+              : tChat('conversationCreateGroupDm', { count: selected.length })}
       </Button>
     </ModalOverlay>,
     document.body

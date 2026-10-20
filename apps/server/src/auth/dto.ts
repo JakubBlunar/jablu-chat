@@ -14,6 +14,7 @@ import {
   Min,
   MinLength
 } from 'class-validator'
+import { APP_LOCALES, type AppLocale } from '@chat/shared'
 
 export class RegisterDto {
   @IsString()
@@ -79,6 +80,11 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(190)
   bio?: string
+}
+
+export class UpdateLocaleDto {
+  @IsIn(APP_LOCALES)
+  locale: AppLocale
 }
 
 export class ChangePasswordDto {

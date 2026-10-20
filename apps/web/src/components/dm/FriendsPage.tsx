@@ -13,15 +13,9 @@ import { useLayoutStore } from '@/stores/layout.store'
 
 type Tab = 'online' | 'all' | 'pending'
 
-const STATUS_LABELS: Record<string, string> = {
-  online: 'Online',
-  idle: 'Idle',
-  dnd: 'Do Not Disturb',
-  offline: 'Offline'
-}
-
 export function FriendsPage() {
   const { t } = useTranslation('nav')
+  const { t: tFriends } = useTranslation('friends')
   const { t: tA11y } = useTranslation('a11y')
   const friends = useFriendStore((s) => s.friends)
   const pending = useFriendStore((s) => s.pending)
@@ -76,7 +70,7 @@ export function FriendsPage() {
               setAddFriendOpen(false)
             }}
           >
-            Online
+            {tFriends('tabs.online')}
           </TabBtn>
           <TabBtn
             active={tab === 'all'}
@@ -85,7 +79,7 @@ export function FriendsPage() {
               setAddFriendOpen(false)
             }}
           >
-            All
+            {tFriends('tabs.all')}
           </TabBtn>
           {(pending.length > 0 || tab === 'pending') && (
             <TabBtn
@@ -95,7 +89,7 @@ export function FriendsPage() {
                 setAddFriendOpen(false)
               }}
             >
-              Pending
+              {tFriends('tabs.pending')}
               {pending.length > 0 && (
                 <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
                   {pending.length}
@@ -112,7 +106,7 @@ export function FriendsPage() {
             addFriendOpen ? 'bg-transparent text-gray-300' : 'bg-green-600 text-white hover:bg-green-700'
           }`}
         >
-          Add Friend
+          {tFriends('addFriend')}
         </button>
       </header>
 
@@ -124,7 +118,9 @@ export function FriendsPage() {
         ) : (
           <>
             <div className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-gray-400">
-              {tab === 'online' ? `Online — ${onlineFriends.length}` : `All Friends — ${friends.length}`}
+              {tab === 'online'
+                ? tFriends('headings.online', { count: onlineFriends.length })
+                : tFriends('headings.all', { count: friends.length })}
             </div>
             {isLoading && friends.length === 0 ? (
               <div className="space-y-2 px-4 py-3">
@@ -140,7 +136,7 @@ export function FriendsPage() {
               </div>
             ) : displayedFriends.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-gray-500">
-                {tab === 'online' ? 'No friends are online right now.' : 'No friends yet. Add someone to get started!'}
+                {tab === 'online' ? tFriends('empty.online') : tFriends('empty.all')}
               </div>
             ) : (
               displayedFriends.map((f) => <FriendRow key={f.id} friend={f} isMobile={isMobile} />)
@@ -169,6 +165,8 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 }
 
 function FriendRow({ friend, isMobile }: { friend: Friend; isMobile: boolean }) {
+  const { t } = useTranslation('friends')
+  const { t: tProfile } = useTranslation('profile')
   const removeFriend = useFriendStore((s) => s.removeFriend)
   const addOrUpdateConversation = useDmStore((s) => s.addOrUpdateConversation)
   const { goToDm } = useAppNavigate()
@@ -206,21 +204,21 @@ function FriendRow({ friend, isMobile }: { friend: Friend; isMobile: boolean }) 
         <p className="truncate text-sm font-medium text-white">{friend.displayName ?? friend.username}</p>
         <div className="flex items-center gap-1.5">
           <StatusDot status={friend.status} />
-          <span className="text-xs text-gray-400">{STATUS_LABELS[friend.status]}</span>
+          <span className="text-xs text-gray-400">{tProfile(`status.${friend.status}`)}</span>
         </div>
       </div>
       <div ref={actionsRef} className="relative flex items-center gap-1">
-        <ActionBtn title="Message" onClick={handleMessage}>
+        <ActionBtn title={t('actions.message')} onClick={handleMessage}>
           <MessageIcon />
         </ActionBtn>
-        <ActionBtn title="Remove friend" onClick={() => setShowConfirm(true)}>
+        <ActionBtn title={t('actions.removeFriend')} onClick={() => setShowConfirm(true)}>
           <RemoveIcon />
         </ActionBtn>
         {showConfirm && (
           <ConfirmDialog
-            title="Remove Friend"
-            description={`Are you sure you want to remove ${friend.displayName ?? friend.username}?`}
-            confirmLabel="Remove"
+            title={t('removeFriendTitle')}
+            description={t('removeFriendDescription', { name: friend.displayName ?? friend.username })}
+            confirmLabel={t('actions.remove')}
             anchorRef={actionsRef}
             onConfirm={handleRemove}
             onCancel={() => setShowConfirm(false)}
@@ -232,6 +230,7 @@ function FriendRow({ friend, isMobile }: { friend: Friend; isMobile: boolean }) 
 }
 
 function PendingList({ items }: { items: FriendRequest[] }) {
+  const { t } = useTranslation('friends')
   const incoming = useMemo(() => items.filter((i) => i.direction === 'incoming'), [items])
   const outgoing = useMemo(() => items.filter((i) => i.direction === 'outgoing'), [items])
 
@@ -240,7 +239,7 @@ function PendingList({ items }: { items: FriendRequest[] }) {
       {incoming.length > 0 && (
         <>
           <div className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-gray-400">
-            Incoming — {incoming.length}
+            {t('headings.incoming', { count: incoming.length })}
           </div>
           {incoming.map((r) => (
             <PendingRow key={r.friendshipId} request={r} />
@@ -250,7 +249,7 @@ function PendingList({ items }: { items: FriendRequest[] }) {
       {outgoing.length > 0 && (
         <>
           <div className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-gray-400">
-            Outgoing — {outgoing.length}
+            {t('headings.outgoing', { count: outgoing.length })}
           </div>
           {outgoing.map((r) => (
             <PendingRow key={r.friendshipId} request={r} />
@@ -258,13 +257,14 @@ function PendingList({ items }: { items: FriendRequest[] }) {
         </>
       )}
       {items.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-gray-500">No pending friend requests.</div>
+        <div className="px-4 py-8 text-center text-sm text-gray-500">{t('empty.pending')}</div>
       )}
     </div>
   )
 }
 
 function PendingRow({ request }: { request: FriendRequest }) {
+  const { t } = useTranslation('friends')
   const acceptRequest = useFriendStore((s) => s.acceptRequest)
   const declineRequest = useFriendStore((s) => s.declineRequest)
   const cancelRequest = useFriendStore((s) => s.cancelRequest)
@@ -281,20 +281,20 @@ function PendingRow({ request }: { request: FriendRequest }) {
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-white">{request.user.displayName ?? request.user.username}</p>
-        <p className="text-xs text-gray-400">{isIncoming ? 'Incoming Friend Request' : 'Outgoing Friend Request'}</p>
+        <p className="text-xs text-gray-400">{isIncoming ? t('incomingRequest') : t('outgoingRequest')}</p>
       </div>
       <div className="flex items-center gap-1.5">
         {isIncoming ? (
           <>
-            <ActionBtn title="Accept" onClick={() => acceptRequest(request.friendshipId)}>
+            <ActionBtn title={t('actions.accept')} onClick={() => acceptRequest(request.friendshipId)}>
               <CheckIcon />
             </ActionBtn>
-            <ActionBtn title="Decline" onClick={() => declineRequest(request.friendshipId)} danger>
+            <ActionBtn title={t('actions.decline')} onClick={() => declineRequest(request.friendshipId)} danger>
               <XIcon />
             </ActionBtn>
           </>
         ) : (
-          <ActionBtn title="Cancel" onClick={() => cancelRequest(request.friendshipId)} danger>
+          <ActionBtn title={t('actions.cancel')} onClick={() => cancelRequest(request.friendshipId)} danger>
             <XIcon />
           </ActionBtn>
         )}
@@ -304,7 +304,7 @@ function PendingRow({ request }: { request: FriendRequest }) {
 }
 
 function AddFriendSection({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation('nav')
+  const { t } = useTranslation('friends')
   const { t: tCommon } = useTranslation('common')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<
@@ -347,13 +347,13 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
       } catch {
         if (gen !== searchGenRef.current) return
         setResults([])
-        setSearchError('Search failed. Please try again.')
+        setSearchError(t('searchFailed'))
       } finally {
         if (gen === searchGenRef.current) setSearching(false)
       }
     }, 300)
     return () => clearTimeout(timeout)
-  }, [query])
+  }, [query, t])
 
   const handleSend = useCallback(async (userId: string) => {
     setSendError('')
@@ -361,9 +361,9 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
       await useFriendStore.getState().sendRequest(userId)
       setSent((prev) => new Set(prev).add(userId))
     } catch {
-      setSendError('Failed to send request. Please try again.')
+      setSendError(t('sendFailed'))
     }
-  }, [])
+  }, [t])
 
   return (
     <div className="border-b border-white/5 bg-surface-dark px-4 py-3">
@@ -409,11 +409,7 @@ function AddFriendSection({ onClose }: { onClose: () => void }) {
           })}
         </div>
       )}
-      {results.length > 0 && (
-        <p className="mt-1 text-[11px] text-gray-500">
-          {results.length} result{results.length !== 1 ? 's' : ''}
-        </p>
-      )}
+      {results.length > 0 && <p className="mt-1 text-[11px] text-gray-500">{t('resultCount', { count: results.length })}</p>}
     </div>
   )
 }
@@ -427,15 +423,16 @@ function FriendActionLabel({
   alreadySent: boolean
   onSend: () => void
 }) {
+  const { t } = useTranslation('friends')
   if (!status) return null
   if (status.status === 'friends') {
-    return <span className="text-xs text-green-400">Friends</span>
+    return <span className="text-xs text-green-400">{t('relationship.friends')}</span>
   }
   if (status.status === 'pending_outgoing' || alreadySent) {
-    return <span className="text-xs text-gray-400">Request Sent</span>
+    return <span className="text-xs text-gray-400">{t('relationship.requestSent')}</span>
   }
   if (status.status === 'pending_incoming') {
-    return <span className="text-xs text-yellow-400">Pending</span>
+    return <span className="text-xs text-yellow-400">{t('relationship.pending')}</span>
   }
   return (
     <button
@@ -443,7 +440,7 @@ function FriendActionLabel({
       onClick={onSend}
       className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-text transition hover:bg-primary/80"
     >
-      Send Request
+      {t('actions.sendRequest')}
     </button>
   )
 }

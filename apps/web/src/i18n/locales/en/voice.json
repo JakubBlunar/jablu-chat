@@ -5,6 +5,7 @@
   "checkingCall": "Checking whether this call is still active…",
   "checkCallFailed": "Could not check this call. Reconnect or try again.",
   "callEnded": "This call has ended.",
+  "callDisconnected": "Call disconnected. Reconnect and start or join the call again.",
   "callStillActive": "This voice call is still active. Join when you are ready.",
   "callOnAnotherDevice": "You already joined this call on another device.",
   "joinCall": "Join call",
@@ -54,6 +55,7 @@
   "scrollRight": "Scroll right",
   "micModeVad": "VAD",
   "micModePtt": "PTT",
+  "pushToTalkUnavailable": "Push-to-talk unavailable",
   "participantCount_one": "{{count}} participant",
   "participantCount_other": "{{count}} participants",
   "cameraSetup": {
@@ -95,6 +97,8 @@
     "mute": "Mute screen audio",
     "unmute": "Unmute screen audio"
   },
+  "screenShareStartFailed": "Failed to start screen sharing.",
+  "screenShareStopFailed": "Failed to stop screen sharing.",
   "settings": {
     "whenJoining": "When joining voice",
     "joinMuted": "Join muted",

@@ -78,15 +78,22 @@ type CommandItem = {
   botUser?: { username: string; avatarUrl: string | null }
 }
 
-const BUILTIN_COMMANDS: CommandItem[] = [
-  { key: 'b:poll', name: 'poll', description: 'Create a poll', tag: 'Tools' },
-  { key: 'b:shrug', name: 'shrug', description: 'Append ¯\\_(ツ)_/¯ to your message', tag: 'Fun' },
-  { key: 'b:tableflip', name: 'tableflip', description: 'Send (╯°□°)╯︵ ┻━┻', tag: 'Fun' },
-  { key: 'b:unflip', name: 'unflip', description: 'Send ┬─┬ ノ( ゜-゜ノ)', tag: 'Fun' },
-  { key: 'b:lenny', name: 'lenny', description: 'Append ( ͡° ͜ʖ ͡°) to your message', tag: 'Fun' },
-  { key: 'b:spoiler', name: 'spoiler', description: 'Wrap your text in a spoiler ||text||', tag: 'Formatting' },
-  { key: 'b:me', name: 'me', description: 'Send an action message in italics', tag: 'Formatting' },
-  { key: 'b:nick', name: 'nick', description: 'Change your server display name', tag: 'Settings' }
+type BuiltinCommandItem = {
+  key: string
+  name: string
+  descriptionKey: 'poll' | 'shrug' | 'tableflip' | 'unflip' | 'lenny' | 'spoiler' | 'me' | 'nick'
+  tagKey: 'tools' | 'fun' | 'formatting' | 'settings'
+}
+
+const BUILTIN_COMMANDS: BuiltinCommandItem[] = [
+  { key: 'b:poll', name: 'poll', descriptionKey: 'poll', tagKey: 'tools' },
+  { key: 'b:shrug', name: 'shrug', descriptionKey: 'shrug', tagKey: 'fun' },
+  { key: 'b:tableflip', name: 'tableflip', descriptionKey: 'tableflip', tagKey: 'fun' },
+  { key: 'b:unflip', name: 'unflip', descriptionKey: 'unflip', tagKey: 'fun' },
+  { key: 'b:lenny', name: 'lenny', descriptionKey: 'lenny', tagKey: 'fun' },
+  { key: 'b:spoiler', name: 'spoiler', descriptionKey: 'spoiler', tagKey: 'formatting' },
+  { key: 'b:me', name: 'me', descriptionKey: 'me', tagKey: 'formatting' },
+  { key: 'b:nick', name: 'nick', descriptionKey: 'nick', tagKey: 'settings' }
 ]
 
 function botToCommandItems(bots: BotCommandWithBot[]): CommandItem[] {
@@ -194,15 +201,25 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     return channels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 10)
   }, [popupMode, query, channels])
 
+  const builtinCommandItems = useMemo(
+    () =>
+      BUILTIN_COMMANDS.map(({ descriptionKey, tagKey, ...command }) => ({
+        ...command,
+        description: t(`builtinCommandDescription.${descriptionKey}`),
+        tag: t(`builtinCommandCategory.${tagKey}`)
+      })),
+    [t]
+  )
+
   const botCommandItems = useMemo(() => botToCommandItems(botCommands ?? []), [botCommands])
 
   const filteredCommands = useMemo(() => {
     if (popupMode !== 'command') return []
     const q = query.toLowerCase()
-    const builtIn = BUILTIN_COMMANDS.filter((c) => c.name.startsWith(q))
+    const builtIn = builtinCommandItems.filter((c) => c.name.startsWith(q))
     const bots = botCommandItems.filter((c) => c.name.toLowerCase().startsWith(q))
     return [...builtIn, ...bots]
-  }, [popupMode, query, botCommandItems])
+  }, [popupMode, query, builtinCommandItems, botCommandItems])
 
   const filteredEmojis = useMemo(() => {
     if (popupMode !== 'emoji' || !customEmojis?.length) return []
@@ -502,7 +519,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => wrapSelection('**', '**')}
             className="rounded p-1 text-xs font-bold text-gray-400 transition hover:bg-white/10 hover:text-white"
-            title="Bold (Ctrl+B)"
+            title={t('formatting.bold')}
           >
             B
           </button>
@@ -511,7 +528,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => wrapSelection('*', '*')}
             className="rounded p-1 text-xs italic text-gray-400 transition hover:bg-white/10 hover:text-white"
-            title="Italic (Ctrl+I)"
+            title={t('formatting.italic')}
           >
             I
           </button>
@@ -520,7 +537,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => wrapSelection('~~', '~~')}
             className="rounded p-1 text-xs text-gray-400 line-through transition hover:bg-white/10 hover:text-white"
-            title="Strikethrough"
+            title={t('formatting.strikethrough')}
           >
             S
           </button>
@@ -529,7 +546,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => wrapSelection('||', '||')}
             className="rounded p-1 text-xs text-gray-400 transition hover:bg-white/10 hover:text-white"
-            title="Spoiler"
+            title={t('formatting.spoiler')}
           >
             <EyeSlashIcon />
           </button>
@@ -538,7 +555,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => wrapSelection('`', '`')}
             className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white"
-            title="Inline code"
+            title={t('formatting.inlineCode')}
           >
             {'\u{60}'}
           </button>
@@ -547,7 +564,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => wrapSelection('```\n', '\n```')}
             className="rounded p-1 font-mono text-xs text-gray-400 transition hover:bg-white/10 hover:text-white"
-            title="Code block"
+            title={t('formatting.codeBlock')}
           >
             {'\u{60}\u{60}\u{60}'}
           </button>
@@ -558,7 +575,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
         {onFilesPicked && (
           <label
             className="shrink-0 cursor-pointer p-3 text-gray-400 transition hover:text-white"
-            title="Attach file"
+            title={t('attachFile')}
             aria-label={t('attachFile')}
           >
             <PlusCircleIcon />
@@ -610,7 +627,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
               setEmojiOpen(false)
             }}
             className="min-h-11 min-w-11 shrink-0 px-1.5 py-3 text-gray-400 transition hover:text-white"
-            title="GIF"
+            title={t('gifPicker')}
             aria-label={t('gifPicker')}
           >
             <GifIcon />
@@ -624,7 +641,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             setGifOpen(false)
           }}
           className="min-h-11 min-w-11 shrink-0 pl-1.5 pr-3 py-3 text-gray-400 transition hover:text-white"
-          title="Emoji"
+          title={t('emojiPicker')}
           aria-label={t('emojiPicker')}
         >
           <SmileIcon className="h-5 w-5" />
@@ -767,10 +784,10 @@ function MentionPopup({
               </span>
               {isBroadcast && (
                 <span className="block truncate text-xs text-gray-500">
-                  {m.userId === '__everyone__' ? 'Notify all members' : 'Notify online members'}
+                  {m.userId === '__everyone__' ? t('mention.notifyEveryone') : t('mention.notifyOnline')}
                 </span>
               )}
-              {isRole && <span className="block truncate text-xs text-gray-500">Notify everyone with this role</span>}
+              {isRole && <span className="block truncate text-xs text-gray-500">{t('mention.notifyRole')}</span>}
               {!isBroadcast && !isRole && m.displayName && m.displayName !== m.username && (
                 <span className="block truncate text-xs text-gray-500">@{m.username}</span>
               )}

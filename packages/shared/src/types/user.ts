@@ -1,4 +1,5 @@
 import type { ActivityDefaultSharing } from './activity.js'
+import type { AppLocale } from './locale.js'
 
 export type DmPrivacy = 'everyone' | 'friends_only'
 
@@ -18,6 +19,7 @@ export interface User {
   /** ISO datetime when manual status ends; null with manualStatus set means no auto-expiry. */
   manualStatusExpiresAt: string | null
   customStatus: string | null
+  locale: AppLocale | null
   dmPrivacy: DmPrivacy
   /** Server-side: no web push when true. */
   pushSuppressAll: boolean

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ChannelNotifPrefTriggerIcon } from '@/components/channel/ChannelNotifPrefTriggerIcon'
 import { IconButton } from '@/components/ui/IconButton'
@@ -9,10 +10,10 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 type NotifLevel = 'all' | 'mentions' | 'none'
 
-const LEVELS: { value: NotifLevel; label: string; desc: string }[] = [
-  { value: 'all', label: 'All Messages', desc: 'Get notified for every message' },
-  { value: 'mentions', label: 'Mentions Only', desc: 'Only @mentions' },
-  { value: 'none', label: 'Muted', desc: 'No notifications' }
+const LEVELS: { value: NotifLevel; labelKey: string; descriptionKey: string }[] = [
+  { value: 'all', labelKey: 'notifications.allMessages', descriptionKey: 'notifications.allMessagesDescription' },
+  { value: 'mentions', labelKey: 'notifications.mentionsOnly', descriptionKey: 'notifications.mentionsDescription' },
+  { value: 'none', labelKey: 'notifications.muted', descriptionKey: 'notifications.mutedDescription' }
 ]
 
 export function NotifBellMenu({
@@ -25,6 +26,7 @@ export function NotifBellMenu({
   /** Override the trigger button box (e.g. to match a toolbar's icon sizing). */
   triggerClassName?: string
 }) {
+  const { t } = useTranslation('channels')
   const [open, setOpen] = useState(false)
   const storeLevel = useNotifPrefStore((s) => s.getEffective(channelId, serverId))
   const [optimistic, setOptimistic] = useState<NotifLevel | null>(null)
@@ -89,7 +91,7 @@ export function NotifBellMenu({
       <IconButton
         ref={btnRef}
         size="lg"
-        label="Channel notification settings"
+        label={t('notifications.settingsLabel')}
         onClick={(e) => {
           e.stopPropagation()
           setOpen((p) => !p)
@@ -117,9 +119,9 @@ export function NotifBellMenu({
               >
                 <span className="flex items-center gap-2 text-sm font-medium">
                   {level === opt.value && <CheckIcon />}
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </span>
-                <span className="text-[11px] text-gray-500">{opt.desc}</span>
+                <span className="text-[11px] text-gray-500">{t(opt.descriptionKey)}</span>
               </button>
             ))}
           </div>,

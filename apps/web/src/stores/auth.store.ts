@@ -1,5 +1,6 @@
 import type {
   AuthResponse,
+  AppLocale,
   ChangeEmailInput,
   ChangePasswordInput,
   DmPrivacy,
@@ -30,7 +31,8 @@ function normalizeAuthUser(raw: User | AuthResponse['user']): AuthUser {
     pushQuietHoursEnabled: r.pushQuietHoursEnabled ?? false,
     pushQuietHoursTz: r.pushQuietHoursTz ?? null,
     pushQuietHoursStartMin: r.pushQuietHoursStartMin ?? 22 * 60,
-    pushQuietHoursEndMin: r.pushQuietHoursEndMin ?? 8 * 60
+    pushQuietHoursEndMin: r.pushQuietHoursEndMin ?? 8 * 60,
+    locale: r.locale ?? null
   }
 }
 
@@ -89,6 +91,7 @@ type AuthState = {
   refreshSession: () => Promise<void>
   checkAuth: () => Promise<void>
   updateProfile: (data: UpdateProfileInput) => Promise<void>
+  updateLocale: (locale: AppLocale) => Promise<void>
   uploadAvatar: (file: File) => Promise<void>
   deleteAvatar: () => Promise<void>
   changePassword: (data: ChangePasswordInput) => Promise<void>
@@ -208,6 +211,15 @@ export const useAuthStore = create<AuthState>()(
         set({ user: u, isManualStatus: manualPresenceActive(u) })
         const { useMemberStore } = await import('@/stores/member.store')
         useMemberStore.getState().updateUserProfile(u.id, u)
+      },
+
+      updateLocale: async (locale) => {
+        const userId = get().user?.id
+        if (!userId) throw new Error('Cannot update locale without an authenticated user')
+        const user = await api.updateLocale(locale)
+        if (get().user?.id !== userId) return
+        const u = normalizeAuthUser(user)
+        set({ user: u, isManualStatus: manualPresenceActive(u) })
       },
 
       uploadAvatar: async (file) => {

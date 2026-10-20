@@ -1,6 +1,7 @@
 import type {
   ActivitySettings,
   Attachment,
+  AppLocale,
   AuthResponse,
   BotApplication,
   BotCommandWithBot,
@@ -430,6 +431,10 @@ export class ApiClient {
 
   updateProfile(data: UpdateProfileInput): Promise<User> {
     return this.patch<User>('/api/auth/profile', data)
+  }
+
+  updateLocale(locale: AppLocale): Promise<User> {
+    return this.patch<User>('/api/auth/locale', { locale })
   }
 
   async uploadAvatar(file: File): Promise<User> {

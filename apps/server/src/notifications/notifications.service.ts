@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { InAppNotificationKind } from '../prisma-client'
 import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { PushService } from '../push/push.service'
+import type { LocalizedPushCopy } from '../push/push-copy'
 
 /**
  * Decides whether a user is already looking at the app, and so does not need a
@@ -20,6 +21,7 @@ export type DispatchInput = {
   /** Toast title. Omit to record silently in the bell only. */
   title?: string
   body?: string
+  localized?: LocalizedPushCopy
   /** In-app path the notification points at. */
   url?: string
   /**
@@ -93,6 +95,7 @@ export class NotificationsService {
       await this.push.sendToUsers(awayIds, {
         title: input.title,
         body: input.body ?? '',
+        ...(input.localized ? { localized: input.localized } : {}),
         url: input.url,
         ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {})
       })

@@ -71,11 +71,20 @@ function titleFor(n: InAppNotificationDto, t: TFunction<'nav'>, language: string
   }
 }
 
-function snippetFor(n: InAppNotificationDto): string {
+function snippetFor(n: InAppNotificationDto, t: TFunction<'chat'>): string {
   const p = n.payload
   // Message-shaped kinds carry a `snippet`; the rest carry their detail under
   // whatever field made sense for them.
-  if (typeof p.snippet === 'string') return p.snippet
+  if (typeof p.snippet === 'string' && p.snippet.length > 0) return p.snippet
+  if (typeof p.attachmentType === 'string') {
+    const count = typeof p.attachmentCount === 'number' ? p.attachmentCount : 1
+    if (count > 1) return t('notificationAttachments.multiple', { count })
+    const type =
+      p.attachmentType === 'image' || p.attachmentType === 'video' || p.attachmentType === 'gif'
+        ? p.attachmentType
+        : 'file'
+    return t(`notificationAttachments.${type}`)
+  }
   if (n.kind === 'announcement' && typeof p.body === 'string') return p.body
   if (n.kind === 'moderation' && typeof p.reason === 'string') return p.reason
   return ''
@@ -187,6 +196,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
   const { navigate } = useAppNavigate()
   const { t, i18n } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
+  const { t: tChat } = useTranslation('chat')
 
   useEffect(() => {
     void fetchUnread()
@@ -309,25 +319,28 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           </div>
         ) : items.length > 0 ? (
           <ul>
-            {items.map((n) => (
-              <li key={n.id} className={`border-b border-white/5 last:border-0 ${n.readAt ? '' : 'bg-primary/5'}`}>
-                <button
-                  type="button"
-                  onClick={() => void onItemClick(n)}
-                  className={`flex min-h-11 w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
-                    n.readAt ? 'opacity-70' : ''
-                  }`}
-                >
-                  <span className={`mt-0.5 ${n.readAt ? 'text-gray-400' : 'text-primary'}`} aria-hidden>
-                    {iconFor(n.kind)}
-                  </span>
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-sm font-medium text-white">{titleFor(n, t, i18n.language)}</span>
-                    {snippetFor(n) ? <span className="line-clamp-2 text-xs text-gray-400">{snippetFor(n)}</span> : null}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {items.map((n) => {
+              const snippet = snippetFor(n, tChat)
+              return (
+                <li key={n.id} className={`border-b border-white/5 last:border-0 ${n.readAt ? '' : 'bg-primary/5'}`}>
+                  <button
+                    type="button"
+                    onClick={() => void onItemClick(n)}
+                    className={`flex min-h-11 w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
+                      n.readAt ? 'opacity-70' : ''
+                    }`}
+                  >
+                    <span className={`mt-0.5 ${n.readAt ? 'text-gray-400' : 'text-primary'}`} aria-hidden>
+                      {iconFor(n.kind)}
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-sm font-medium text-white">{titleFor(n, t, i18n.language)}</span>
+                      {snippet ? <span className="line-clamp-2 text-xs text-gray-400">{snippet}</span> : null}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         ) : null}
         {nextCursor && !listLoading ? (

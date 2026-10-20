@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { PublicLocaleSwitcher } from './PublicLocaleSwitcher'
 
 type AuthLayoutProps = {
   children: ReactNode
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { t } = useTranslation('auth')
+
   return (
     // The app disables body scrolling globally (`body { position: fixed }`), so this
     // must be its own scroll container. The inner wrapper uses `min-h-full` + flex
@@ -21,8 +25,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="mb-8 flex flex-col items-center gap-2">
           <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Jablu" className="h-14 w-14 mb-4 rounded-2xl shadow-lg shadow-primary/25" />
           <h1 className="text-2xl font-semibold tracking-tight text-white">Jablu</h1>
-          <p className="text-sm text-gray-400">Your corner of the internet</p>
+          <p className="text-sm text-gray-400">{t('tagline')}</p>
         </div>
+
+        <PublicLocaleSwitcher />
 
         <div className="w-full max-w-[420px] rounded-xl border border-white/10 bg-surface-dark p-8 shadow-xl shadow-black/40">
           {children}

@@ -1,7 +1,9 @@
 import type { UserStatus } from '@chat/shared'
+import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { UserAvatar } from '@/components/UserAvatar'
 import { resolveMediaUrl } from '@/lib/api'
+import { getAppIntlLocale } from '@/lib/format-time'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useMemberStore } from '@/stores/member.store'
 
@@ -14,18 +16,11 @@ export function UserProfileIcon() {
   )
 }
 
-const statusLabel: Record<string, string> = {
-  online: 'Online',
-  idle: 'Idle',
-  dnd: 'Do Not Disturb',
-  offline: 'Offline'
-}
-
 function dmFormatDate(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('en-US', {
+  return d.toLocaleDateString(getAppIntlLocale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
@@ -58,6 +53,7 @@ export function DmProfilePanel({
   }
   mutualServers?: { id: string; name: string; iconUrl: string | null; channels: { id: string; name: string }[] }[]
 }) {
+  const { t } = useTranslation('profile')
   const onlineIds = useMemberStore((s) => s.onlineUserIds)
   const resolvedStatus: UserStatus = onlineIds.has(member.userId)
     ? member.status === 'idle' || member.status === 'dnd'
@@ -87,20 +83,20 @@ export function DmProfilePanel({
           {member.displayName != null && member.displayName !== '' && member.displayName !== member.username && (
             <p className="text-sm text-gray-400">@{member.username}</p>
           )}
-          <p className="text-xs text-gray-400">{statusLabel[resolvedStatus] ?? 'Offline'}</p>
+          <p className="text-xs text-gray-400">{t(`status.${resolvedStatus}`)}</p>
 
           <div className="my-3 border-t border-white/10" />
 
           {member.bio && (
             <div className="mb-3">
-              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">About Me</p>
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('aboutMe')}</p>
               <p className="whitespace-pre-wrap text-sm text-gray-200">{member.bio}</p>
             </div>
           )}
 
           {member.createdAt && (
             <div className="mb-3">
-              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Member Since</p>
+              <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('memberSince')}</p>
               <p className="text-sm text-gray-200">{dmFormatDate(member.createdAt)}</p>
             </div>
           )}
@@ -108,7 +104,7 @@ export function DmProfilePanel({
           {mutualServers && mutualServers.length > 0 && (
             <div>
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                Mutual Servers — {mutualServers.length}
+                {t('mutualServers', { count: mutualServers.length })}
               </p>
               <div className="space-y-1">
                 {mutualServers.map((s) => (

@@ -4,6 +4,7 @@ import * as webPush from 'web-push'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { filterUserIdsForWebPush } from './push-user-allow'
+import type { LocalizedPushCopy, PushLocale } from './push-copy'
 
 const PUSH_QUEUE_KEY = 'push:queue'
 const MAX_RETRIES = 3
@@ -18,6 +19,7 @@ const PUSH_TTL_S = 60 * 60
 export type PushPayload = {
   title: string
   body: string
+  localized?: Partial<LocalizedPushCopy>
   url?: string
   expiresAt?: number
 }
@@ -26,6 +28,14 @@ type PushJob = {
   userIds: string[]
   payload: PushPayload
   attempt: number
+}
+
+function isPushLocale(locale: unknown): locale is PushLocale {
+  return locale === 'en' || locale === 'cs' || locale === 'sk'
+}
+
+function normalizePushLocale(locale: unknown): PushLocale {
+  return isPushLocale(locale) ? locale : 'en'
 }
 
 @Injectable()
@@ -70,15 +80,27 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     return this.config.get<string>('VAPID_PUBLIC_KEY') ?? null
   }
 
-  async subscribe(userId: string, endpoint: string, p256dh: string, auth: string, deviceId?: string) {
+  async subscribe(
+    userId: string,
+    endpoint: string,
+    p256dh: string,
+    auth: string,
+    deviceId?: string,
+    locale: PushLocale = 'en'
+  ) {
+    const account = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { locale: true }
+    })
+    const preferredLocale = isPushLocale(account?.locale) ? account.locale : locale
     const existing = await this.prisma.pushSubscription.findUnique({ where: { endpoint } })
     if (existing && existing.userId !== userId) {
       await this.prisma.pushSubscription.delete({ where: { endpoint } })
     }
     await this.prisma.pushSubscription.upsert({
       where: { endpoint },
-      create: { userId, endpoint, p256dh, auth, deviceId: deviceId ?? null },
-      update: { p256dh, auth, ...(deviceId ? { deviceId } : {}) }
+      create: { userId, endpoint, p256dh, auth, deviceId: deviceId ?? null, locale: preferredLocale },
+      update: { p256dh, auth, locale: preferredLocale, ...(deviceId ? { deviceId } : {}) }
     })
   }
 
@@ -118,9 +140,37 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private async enqueue(userIds: string[], payload: PushPayload) {
     if (!this.enabled || userIds.length === 0) return
     if (payload.expiresAt !== undefined && payload.expiresAt <= Date.now()) return
+
+    const groups = new Map<PushLocale | null, string[]>()
+    if (payload.localized) {
+      const locales = await this.resolveUserLocales(userIds)
+      for (const userId of userIds) {
+        const locale = locales.get(userId) ?? 'en'
+        const recipients = groups.get(locale) ?? []
+        recipients.push(userId)
+        groups.set(locale, recipients)
+      }
+    } else {
+      groups.set(null, userIds)
+    }
+
+    const basePayload: PushPayload = {
+      title: payload.title,
+      body: payload.body,
+      ...(payload.url !== undefined ? { url: payload.url } : {}),
+      ...(payload.expiresAt !== undefined ? { expiresAt: payload.expiresAt } : {})
+    }
     const jobs: PushJob[] = []
-    for (let i = 0; i < userIds.length; i += PUSH_JOB_BATCH_SIZE) {
-      jobs.push({ userIds: userIds.slice(i, i + PUSH_JOB_BATCH_SIZE), payload, attempt: 0 })
+    for (const [locale, recipients] of groups) {
+      const copy = locale === null ? undefined : payload.localized?.[locale]
+      const queuedPayload = copy ? { ...basePayload, ...copy } : basePayload
+      for (let i = 0; i < recipients.length; i += PUSH_JOB_BATCH_SIZE) {
+        jobs.push({
+          userIds: recipients.slice(i, i + PUSH_JOB_BATCH_SIZE),
+          payload: queuedPayload,
+          attempt: 0
+        })
+      }
     }
     try {
       await this.redis.client.rpush(PUSH_QUEUE_KEY, ...jobs.map((job) => JSON.stringify(job)))
@@ -128,6 +178,37 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('Failed to enqueue push job, sending inline', err)
       for (const job of jobs) await this.processJob(job)
     }
+  }
+
+  private async resolveUserLocales(userIds: string[]): Promise<Map<string, PushLocale>> {
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: [...new Set(userIds)] } },
+      select: { id: true, locale: true }
+    })
+    const locales = new Map<string, PushLocale>()
+    const unsetLocaleUserIds: string[] = []
+    for (const user of users) {
+      if (isPushLocale(user.locale)) locales.set(user.id, user.locale)
+      else unsetLocaleUserIds.push(user.id)
+    }
+
+    if (unsetLocaleUserIds.length > 0) {
+      const subscriptions = await this.prisma.pushSubscription.findMany({
+        where: { userId: { in: unsetLocaleUserIds } },
+        select: { userId: true, locale: true, createdAt: true, id: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
+      })
+      for (const subscription of subscriptions) {
+        if (!locales.has(subscription.userId) && isPushLocale(subscription.locale)) {
+          locales.set(subscription.userId, subscription.locale)
+        }
+      }
+    }
+
+    for (const userId of userIds) {
+      if (!locales.has(userId)) locales.set(userId, 'en')
+    }
+    return locales
   }
 
   private async withPushSlot(send: () => Promise<void>): Promise<void> {
@@ -189,8 +270,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         where: { userId: { in: job.userIds } }
       })
       if (subs.length === 0) return
+      const locales = job.payload.localized ? await this.resolveUserLocales(job.userIds) : undefined
 
-      const jsonPayload = JSON.stringify(job.payload)
       const stale: string[] = []
       let sent = 0
       let failed = 0
@@ -206,6 +287,14 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
                 : Math.min(PUSH_TTL_S, Math.floor((job.payload.expiresAt - Date.now()) / 1000))
             if (ttl <= 0) return
             try {
+              const locale = locales?.get(sub.userId) ?? normalizePushLocale(sub.locale)
+              const localized = job.payload.localized?.[locale]
+              const jsonPayload = JSON.stringify({
+                title: localized?.title ?? job.payload.title,
+                body: localized?.body ?? job.payload.body,
+                ...(job.payload.url !== undefined ? { url: job.payload.url } : {}),
+                ...(job.payload.expiresAt !== undefined ? { expiresAt: job.payload.expiresAt } : {})
+              })
               await webPush.sendNotification(
                 { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
                 jsonPayload,

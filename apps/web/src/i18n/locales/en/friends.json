@@ -1,0 +1,48 @@
+{
+  "tabs": {
+    "online": "Online",
+    "all": "All",
+    "pending": "Pending"
+  },
+  "addFriend": "Add Friend",
+  "addFriendHint": "Search for people by username.",
+  "enterUsernamePlaceholder": "Enter a username...",
+  "searchingUsers": "Searching users…",
+  "searchFailed": "Search failed. Please try again.",
+  "sendFailed": "Failed to send request. Please try again.",
+  "headings": {
+    "online": "Online — {{count}}",
+    "all": "All Friends — {{count}}",
+    "incoming": "Incoming — {{count}}",
+    "outgoing": "Outgoing — {{count}}"
+  },
+  "empty": {
+    "online": "No friends are online right now.",
+    "all": "No friends yet. Add someone to get started!",
+    "pending": "No pending friend requests."
+  },
+  "removeFriendTitle": "Remove Friend",
+  "removeFriendDescription": "Are you sure you want to remove {{name}}?",
+  "actions": {
+    "message": "Message",
+    "removeFriend": "Remove friend",
+    "remove": "Remove",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Cancel",
+    "sendRequest": "Send Request"
+  },
+  "incomingRequest": "Incoming Friend Request",
+  "outgoingRequest": "Outgoing Friend Request",
+  "relationship": {
+    "friends": "Friends",
+    "requestSent": "Request Sent",
+    "pending": "Pending"
+  },
+  "resultCount_one": "{{count}} result",
+  "resultCount_other": "{{count}} results",
+  "notifications": {
+    "requestTitle": "Friend Request",
+    "requestBody": "{{name}} sent you a friend request"
+  }
+}

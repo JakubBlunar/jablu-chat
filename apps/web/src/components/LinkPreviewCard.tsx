@@ -1,15 +1,18 @@
 import type { LinkPreview } from '@chat/shared'
 import { memo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { extractYouTubeId, isGifUrl, isImageUrl } from '@/lib/mediaUrl'
 import { useMessageMedia } from '@/components/media/MessageMediaGallery'
 import { CollapsiblePreview } from '@/components/media/CollapsiblePreview'
 
 export { isGifUrl, isImageUrl }
 
-function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
+function MediaEmbed({ lp, label }: { lp: LinkPreview; label: 'gif' | 'image' }) {
+  const { t } = useTranslation('common')
   const [loaded, setLoaded] = useState(false)
   const { openByKey } = useMessageMedia()
   const imgUrl = lp.imageUrl ?? lp.url
+  const fallbackAlt = label === 'gif' ? 'GIF' : t('image')
 
   return (
     <button
@@ -20,7 +23,7 @@ function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
     >
       <img
         src={imgUrl}
-        alt={lp.title ?? label}
+        alt={lp.title ?? fallbackAlt}
         className="h-auto max-h-[300px] w-auto max-w-full rounded-lg object-contain"
         loading="lazy"
         onLoad={() => setLoaded(true)}
@@ -30,7 +33,9 @@ function MediaEmbed({ lp, label }: { lp: LinkPreview; label: string }) {
 }
 
 function YouTubeEmbed({ lp, videoId }: { lp: LinkPreview; videoId: string }) {
+  const { t } = useTranslation('common')
   const [loaded, setLoaded] = useState(false)
+  const fallbackTitle = t('youtubeVideo')
 
   if (!loaded) {
     const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
@@ -39,7 +44,7 @@ function YouTubeEmbed({ lp, videoId }: { lp: LinkPreview; videoId: string }) {
         <button type="button" className="group relative block w-full" onClick={() => setLoaded(true)}>
           <img
             src={thumbUrl}
-            alt={lp.title ?? 'YouTube video'}
+            alt={lp.title ?? fallbackTitle}
             className="aspect-video w-full object-cover"
             loading="lazy"
           />
@@ -72,7 +77,7 @@ function YouTubeEmbed({ lp, videoId }: { lp: LinkPreview; videoId: string }) {
       <div className="aspect-video w-full">
         <iframe
           src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
-          title={lp.title ?? 'YouTube video'}
+          title={lp.title ?? fallbackTitle}
           className="h-full w-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
@@ -120,9 +125,9 @@ export const LinkPreviewCard = memo(function LinkPreviewCard({ lp }: { lp: LinkP
   const content = youtubeId ? (
     <YouTubeEmbed lp={lp} videoId={youtubeId} />
   ) : isGifUrl(lp) ? (
-    <MediaEmbed lp={lp} label="GIF" />
+    <MediaEmbed lp={lp} label="gif" />
   ) : isImageUrl(lp) ? (
-    <MediaEmbed lp={lp} label="Image" />
+    <MediaEmbed lp={lp} label="image" />
   ) : (
     <DefaultPreview lp={lp} />
   )

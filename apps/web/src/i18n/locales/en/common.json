@@ -54,5 +54,20 @@
   "noServersHintMobile": "Use the menu to join a server.",
   "noServersHintDesktop": "Use the + button in the server list to create your first server.",
   "activityPlaying": "Playing",
-  "activityListeningTo": "Listening to"
+  "activityListeningTo": "Listening to",
+  "loadingSession": "Loading session…",
+  "back": "Back",
+  "forward": "Forward",
+  "reload": "Reload",
+  "unexpectedErrorTitle": "Something went wrong",
+  "unexpectedErrorDescription": "An unexpected error occurred. Please reload the page to continue.",
+  "newVersionAvailable": "A new version is available!",
+  "later": "Later",
+  "updateFailed": "Update failed: {{message}}",
+  "clientTooNew": "This app is newer than the server supports (max {{version}}). Ask your server admin to upgrade.",
+  "clientTooOld": "This app is older than the server requires (min {{version}}). Please update manually from the Downloads page.",
+  "serverIncompatible": "This app is not compatible with the configured server.",
+  "unknown": "Unknown",
+  "image": "Image",
+  "youtubeVideo": "YouTube video"
 }

@@ -14,6 +14,7 @@ import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { InAppNotificationKind } from '../prisma-client'
+import { eventReminderPushCopy, eventStartedPushCopy } from '../push/push-copy'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
 import type { CreateEventInput, UpdateEventInput } from '@chat/shared'
@@ -273,6 +274,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
       select: { userId: true }
     })
     if (interestedUsers.length > 0) {
+      const copy = eventStartedPushCopy(event.name, event.description)
       await this.notifications.dispatch({
         userIds: interestedUsers.map((u) => u.userId),
         kind: InAppNotificationKind.server_event,
@@ -283,8 +285,9 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
           eventName: event.name,
           state: 'started'
         },
-        title: `Event starting: ${event.name}`,
-        body: event.description?.slice(0, 100) ?? 'An event is starting now!',
+        title: copy.en.title,
+        body: copy.en.body,
+        localized: copy,
         url: `/channels/${event.serverId}`,
         push: true
       })
@@ -462,6 +465,7 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
     })
     if (interestedUsers.length === 0) return
 
+    const copy = eventReminderPushCopy(event.name)
     await this.notifications.dispatch({
       userIds: interestedUsers.map((u) => u.userId),
       kind: InAppNotificationKind.server_event,
@@ -474,8 +478,9 @@ export class ServerEventsService implements OnModuleInit, OnModuleDestroy {
         eventName: event.name,
         state: 'soon'
       },
-      title: `Starting soon: ${event.name}`,
-      body: 'This event starts in 30 minutes!',
+      title: copy.en.title,
+      body: copy.en.body,
+      localized: copy,
       url: `/channels/${event.serverId}`,
       push: true
     })

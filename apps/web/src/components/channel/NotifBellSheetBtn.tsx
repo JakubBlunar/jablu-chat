@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChannelNotifPrefTriggerIcon } from '@/components/channel/ChannelNotifPrefTriggerIcon'
 import { api } from '@/lib/api'
 import { BottomSheet } from '@/components/ui/BottomSheet'
@@ -7,13 +8,14 @@ import { useNotifPrefStore } from '@/stores/notifPref.store'
 
 type NotifLevel = 'all' | 'mentions' | 'none'
 
-const LEVELS: { value: NotifLevel; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'All Messages', icon: <BellIcon /> },
-  { value: 'mentions', label: 'Mentions Only', icon: <AtIcon /> },
-  { value: 'none', label: 'Muted', icon: <BellMutedIcon /> }
+const LEVELS: { value: NotifLevel; labelKey: string; icon: React.ReactNode }[] = [
+  { value: 'all', labelKey: 'notifications.allMessages', icon: <BellIcon /> },
+  { value: 'mentions', labelKey: 'notifications.mentionsOnly', icon: <AtIcon /> },
+  { value: 'none', labelKey: 'notifications.muted', icon: <BellMutedIcon /> }
 ]
 
 export function NotifBellSheetBtn({ channelId, serverId, onClose }: { channelId: string; serverId?: string; onClose: () => void }) {
+  const { t } = useTranslation('channels')
   const [subOpen, setSubOpen] = useState(false)
   const storeLevel = useNotifPrefStore((s) => s.getEffective(channelId, serverId))
   const [optimistic, setOptimistic] = useState<NotifLevel | null>(null)
@@ -37,13 +39,13 @@ export function NotifBellSheetBtn({ channelId, serverId, onClose }: { channelId:
     }
   }, [channelId, onClose])
 
-  const currentLabel = LEVELS.find((l) => l.value === level)?.label ?? 'Notifications'
+  const currentLabel = t(LEVELS.find((l) => l.value === level)?.labelKey ?? 'notifications.allMessages')
 
   return (
     <>
       <SheetBtn
         icon={<ChannelNotifPrefTriggerIcon level={level} />}
-        label="Channel alerts"
+        label={t('notifications.channelAlerts')}
         subtitle={currentLabel}
         onClick={() => setSubOpen(true)}
       />
@@ -53,8 +55,8 @@ export function NotifBellSheetBtn({ channelId, serverId, onClose }: { channelId:
             <SheetBtn
               key={opt.value}
               icon={opt.icon}
-              label={opt.label}
-              subtitle={level === opt.value ? 'Current' : undefined}
+              label={t(opt.labelKey)}
+              subtitle={level === opt.value ? t('notifications.current') : undefined}
               onClick={() => void handleChange(opt.value)}
             />
           ))}

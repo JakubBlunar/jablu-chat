@@ -1,11 +1,13 @@
 import { resetPasswordSchema } from '@chat/shared'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button, Input } from '@/components/ui'
 import { AuthLayout } from '../components/layout/AuthLayout'
-import { ApiError, api } from '../lib/api'
+import { api } from '../lib/api'
 
 export function ResetPasswordPage() {
+  const { t } = useTranslation('auth')
   const [searchParams] = useSearchParams()
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams])
 
@@ -23,32 +25,28 @@ export function ResetPasswordPage() {
     setSuccess(null)
 
     if (tokenInvalid) {
-      setError('Invalid or missing reset link. Request a new reset email.')
+      setError(t('invalidOrMissingResetLink'))
       return
     }
 
     const combined = resetPasswordSchema.safeParse({ token, password })
     if (!combined.success) {
-      const first = combined.error.issues[0]?.message ?? 'Invalid input'
-      setError(first)
+      const issue = combined.error.issues[0]
+      setError(issue?.path[0] === 'password' ? t('passwordMinLength') : t('invalidInput'))
       return
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.')
+      setError(t('passwordsMismatch'))
       return
     }
 
     setIsSubmitting(true)
     try {
-      const res = await api.resetPassword(token, password)
-      setSuccess(res.message)
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError('Something went wrong. Please try again.')
-      }
+      await api.resetPassword(token, password)
+      setSuccess(t('passwordResetSuccess'))
+    } catch {
+      setError(t('genericError'))
     } finally {
       setIsSubmitting(false)
     }
@@ -56,15 +54,15 @@ export function ResetPasswordPage() {
 
   return (
     <AuthLayout>
-      <h2 className="mb-2 text-xl font-semibold text-white">New password</h2>
-      <p className="mb-6 text-sm text-gray-400">Choose a strong password for your account.</p>
+      <h2 className="mb-2 text-xl font-semibold text-white">{t('newPasswordTitle')}</h2>
+      <p className="mb-6 text-sm text-gray-400">{t('newPasswordDescription')}</p>
 
       {tokenInvalid ? (
         <div
           className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
           role="alert"
         >
-          This reset link is invalid or expired. Please request a new one from the forgot password page.
+          {t('invalidResetLink')}
         </div>
       ) : null}
 
@@ -80,7 +78,7 @@ export function ResetPasswordPage() {
             to="/login"
             className="block w-full rounded-md bg-primary py-2.5 text-center text-sm font-semibold text-primary-text transition hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
           >
-            Go to Login
+            {t('goToLogin')}
           </Link>
         </div>
       ) : (
@@ -96,7 +94,7 @@ export function ResetPasswordPage() {
 
           <Input
             id="password"
-            label="New password"
+            label={t('newPasswordTitle')}
             name="password"
             type="password"
             autoComplete="new-password"
@@ -104,13 +102,13 @@ export function ResetPasswordPage() {
             onChange={(e) => setPassword(e.target.value)}
             disabled={tokenInvalid}
             className="disabled:cursor-not-allowed"
-            placeholder="At least 8 characters"
+            placeholder={t('passwordMinPlaceholder')}
             required
           />
 
           <Input
             id="confirmPassword"
-            label="Confirm password"
+            label={t('confirmPassword')}
             name="confirmPassword"
             type="password"
             autoComplete="new-password"
@@ -118,7 +116,7 @@ export function ResetPasswordPage() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={tokenInvalid}
             className="disabled:cursor-not-allowed"
-            placeholder="Repeat password"
+            placeholder={t('confirmPasswordPlaceholder')}
             required
           />
 
@@ -131,7 +129,7 @@ export function ResetPasswordPage() {
             disabled={isSubmitting || tokenInvalid}
             loading={isSubmitting}
           >
-            {isSubmitting ? 'Resetting…' : 'Reset Password'}
+            {isSubmitting ? t('resetting') : t('resetPassword')}
           </Button>
         </form>
       )}
@@ -141,7 +139,7 @@ export function ResetPasswordPage() {
           to="/login"
           className="font-medium text-primary hover:underline focus:outline-none focus-visible:underline"
         >
-          Back to Login
+          {t('logInLink')}
         </Link>
       </p>
     </AuthLayout>

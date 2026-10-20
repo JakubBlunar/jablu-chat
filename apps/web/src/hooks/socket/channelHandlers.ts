@@ -1,4 +1,5 @@
 import { messageNotificationUrl, type ForumPost, type Message, type Poll } from '@chat/shared'
+import i18n from 'i18next'
 import {
   cacheAddMessage,
   cacheAddReaction,
@@ -61,8 +62,8 @@ function notifyThreadReply(
       ? messageNotificationUrl(`/channels/${msg.serverId}/${msg.channelId}`, msg.id, msg.threadParentId)
       : undefined
   showNotification(
-    'Thread reply',
-    `${author}: ${notifBody(msg)}`,
+    i18n.t('chat:notification.threadReplyTitle'),
+    i18n.t('chat:notification.message', { author, preview: notifBody(msg) }),
     url,
     undefined,
     isMentioned ? 'mention' : 'message'
@@ -107,8 +108,16 @@ export function createChannelHandlers() {
           ? messageNotificationUrl(`/channels/${msg.serverId}/${msg.channelId}`, msg.id)
           : undefined
         const ch = useChannelStore.getState().channels.find((c) => c.id === msg.channelId)
-        const channelTitle = ch ? `#${ch.name}` : `#${msg.channelId.slice(0, 8)}`
-        showNotification(channelTitle, `${author}: ${preview}`, url, undefined, isMentioned ? 'mention' : 'message')
+        const channelTitle = i18n.t('chat:notification.channelTitle', {
+          channel: ch?.name ?? msg.channelId.slice(0, 8)
+        })
+        showNotification(
+          channelTitle,
+          i18n.t('chat:notification.message', { author, preview }),
+          url,
+          undefined,
+          isMentioned ? 'mention' : 'message'
+        )
       }
     }
   }

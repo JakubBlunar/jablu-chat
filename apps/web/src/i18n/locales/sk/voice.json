@@ -4,6 +4,7 @@
   "checkingCall": "Overovanie, či hovor stále prebieha…",
   "checkCallFailed": "Hovor sa nepodarilo overiť. Pripojte sa znova alebo to skúste znova.",
   "callEnded": "Tento hovor sa už skončil.",
+  "callDisconnected": "Hovor sa prerušil. Znova sa pripojte a hovor spustite alebo sa k nemu pripojte.",
   "callStillActive": "Tento hlasový hovor stále prebieha. Pripojte sa, keď budete pripravení.",
   "callOnAnotherDevice": "K tomuto hovoru ste už pripojení na inom zariadení.",
   "joinCall": "Pripojiť sa k hovoru",
@@ -54,6 +55,7 @@
   "scrollRight": "Posunúť doprava",
   "micModeVad": "VAD",
   "micModePtt": "PTT",
+  "pushToTalkUnavailable": "Režim push-to-talk nie je k dispozícii",
   "participantCount_one": "{{count}} účastník",
   "participantCount_few": "{{count}} účastníci",
   "participantCount_many": "{{count}} účastníkov",
@@ -97,6 +99,8 @@
     "mute": "Stlmiť zvuk zdieľanej obrazovky",
     "unmute": "Zapnúť zvuk zdieľanej obrazovky"
   },
+  "screenShareStartFailed": "Nepodarilo sa začať zdieľanie obrazovky.",
+  "screenShareStopFailed": "Nepodarilo sa zastaviť zdieľanie obrazovky.",
   "settings": {
     "whenJoining": "Pri pripojení k hlasovému chatu",
     "joinMuted": "Pripojiť sa so stíšeným mikrofónom",

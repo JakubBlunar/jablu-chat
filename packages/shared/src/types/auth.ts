@@ -1,3 +1,5 @@
+import type { AppLocale } from './locale.js'
+
 export interface LoginRequest {
   email: string
   password: string
@@ -23,6 +25,7 @@ export interface AuthResponse {
     manualStatus: string | null
     manualStatusExpiresAt: string | null
     customStatus: string | null
+    locale: AppLocale | null
     dmPrivacy: string
     lastSeenAt: string | null
     createdAt: string

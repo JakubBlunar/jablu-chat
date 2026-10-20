@@ -1,4 +1,5 @@
 import { messageNotificationUrl, type Message } from '@chat/shared'
+import i18n from 'i18next'
 import { api, type DmConversation } from '@/lib/api'
 import {
   cacheAddMessage,
@@ -28,7 +29,10 @@ export function createDmHandlers() {
     } catch (error) {
       if (refreshRequests.get(conversationId) !== request) return
       console.error('Failed to refresh conversation', error)
-      showToast('Conversation update failed', 'Please reopen the conversation to retry.')
+      showToast(
+        i18n.t('chat:notification.conversationUpdateFailedTitle'),
+        i18n.t('chat:notification.conversationUpdateFailedBody')
+      )
     }
   }
   const onDmConversationRemoved = ({ conversationId }: { conversationId: string }) => {
@@ -53,7 +57,13 @@ export function createDmHandlers() {
       if (payload.authorId === myId || conversation.muted) return
       if (!isViewingConversation || !isAppFocused()) {
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
-        showNotification(`DM from ${author}`, notifBody(payload), messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id), undefined, 'mention')
+        showNotification(
+          i18n.t('chat:notification.dmTitle', { name: author }),
+          notifBody(payload),
+          messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id),
+          undefined,
+          'mention'
+        )
       }
     }
     if (payload.authorId !== myId) {

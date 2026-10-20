@@ -38,7 +38,8 @@ const user: User = {
   activityShareGames: true,
   activityShareMusic: true,
   lastSeenAt: null,
-  createdAt: '2025-01-01T00:00:00Z'
+  createdAt: '2025-01-01T00:00:00Z',
+  locale: 'en'
 }
 
 beforeEach(() => {

@@ -1,0 +1,49 @@
+{
+  "tabs": {
+    "online": "Online",
+    "all": "Všetci",
+    "pending": "Čakajúce"
+  },
+  "addFriend": "Pridať priateľa",
+  "addFriendHint": "Vyhľadajte ľudí podľa používateľského mena.",
+  "enterUsernamePlaceholder": "Zadajte používateľské meno…",
+  "searchingUsers": "Vyhľadávajú sa používatelia…",
+  "searchFailed": "Vyhľadávanie zlyhalo. Skúste to znova.",
+  "sendFailed": "Žiadosť sa nepodarilo odoslať. Skúste to znova.",
+  "headings": {
+    "online": "Online — {{count}}",
+    "all": "Všetci priatelia — {{count}}",
+    "incoming": "Prichádzajúce — {{count}}",
+    "outgoing": "Odchádzajúce — {{count}}"
+  },
+  "empty": {
+    "online": "Momentálne nie je online nikto z vašich priateľov.",
+    "all": "Zatiaľ nemáte žiadnych priateľov. Niekoho si pridajte!",
+    "pending": "Nemáte žiadne čakajúce žiadosti o priateľstvo."
+  },
+  "removeFriendTitle": "Odstrániť priateľa",
+  "removeFriendDescription": "Naozaj chcete odstrániť používateľa {{name}} z priateľov?",
+  "actions": {
+    "message": "Správa",
+    "removeFriend": "Odstrániť priateľa",
+    "remove": "Odstrániť",
+    "accept": "Prijať",
+    "decline": "Odmietnuť",
+    "cancel": "Zrušiť",
+    "sendRequest": "Odoslať žiadosť"
+  },
+  "incomingRequest": "Prichádzajúca žiadosť o priateľstvo",
+  "outgoingRequest": "Odchádzajúca žiadosť o priateľstvo",
+  "relationship": {
+    "friends": "Priatelia",
+    "requestSent": "Žiadosť odoslaná",
+    "pending": "Čaká na vybavenie"
+  },
+  "resultCount_one": "{{count}} výsledok",
+  "resultCount_few": "{{count}} výsledky",
+  "resultCount_other": "{{count}} výsledkov",
+  "notifications": {
+    "requestTitle": "Žiadosť o priateľstvo",
+    "requestBody": "{{name}} vám poslal(a) žiadosť o priateľstvo"
+  }
+}

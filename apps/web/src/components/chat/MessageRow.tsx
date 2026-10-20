@@ -556,6 +556,7 @@ function MobileEmojiPickerOverlay({
   mode: 'channel' | 'dm'
   onClose: () => void
 }) {
+  const { t } = useTranslation('chat')
   const serverId = useServerStore((s) => s.currentServerId)
   const customEmojis = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
 
@@ -590,7 +591,7 @@ function MobileEmojiPickerOverlay({
       fallback={null}
       onError={() => {
         onClose()
-        showToast('Emoji picker', 'Failed to load. Please check your connection and try again.')
+        showToast(t('emojiPicker'), t('emojiPickerFailed'))
       }}
     >
       <Suspense fallback={<ReactionPickerLoading />}>

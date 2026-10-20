@@ -12,6 +12,7 @@ export function PollCreator({
   onClose: () => void
 }) {
   const { t } = useTranslation('common')
+  const { t: tChat } = useTranslation('chat')
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [multiSelect, setMultiSelect] = useState(false)
@@ -45,17 +46,17 @@ export function PollCreator({
       const msg = await api.createPoll(channelId, question.trim(), validOptions, multiSelect)
       useMessageStore.getState().addMessage(msg)
       onClose()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create poll')
+    } catch {
+      setError(tChat('poll.createFailed'))
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, submitting, options, channelId, question, multiSelect, onClose])
+  }, [canSubmit, submitting, options, channelId, question, multiSelect, onClose, tChat])
 
   return (
     <div className="rounded-lg border border-white/10 bg-surface-dark p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">Create a Poll</h3>
+        <h3 className="text-sm font-semibold text-white">{tChat('poll.createTitle')}</h3>
         <IconButton type="button" label={t('close')} size="sm" onClick={onClose}>
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M6 18 18 6M6 6l12 12" />
@@ -66,17 +67,17 @@ export function PollCreator({
       <div className="space-y-3">
         <Input
           id="poll-question"
-          label="Question"
+          label={tChat('poll.question')}
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask a question..."
+          placeholder={tChat('poll.questionPlaceholder')}
           maxLength={200}
           className="rounded-md border-0 bg-surface ring-white/10 focus:ring-primary"
         />
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-400">Options</label>
+          <label className="mb-1 block text-xs font-medium text-gray-400">{tChat('poll.options')}</label>
           <div className="space-y-1.5">
             {options.map((opt, i) => (
               <div key={i} className="flex gap-1.5">
@@ -84,14 +85,14 @@ export function PollCreator({
                   type="text"
                   value={opt}
                   onChange={(e) => updateOption(i, e.target.value)}
-                  placeholder={`Option ${i + 1}`}
+                  placeholder={tChat('poll.optionPlaceholder', { number: i + 1 })}
                   maxLength={100}
                   className="min-w-0 flex-1 rounded-md border-0 bg-surface py-1.5 ring-white/10 focus:ring-primary"
                 />
                 {options.length > 2 && (
                   <IconButton
                     type="button"
-                    label="Remove option"
+                    label={tChat('poll.removeOption')}
                     size="md"
                     onClick={() => removeOption(i)}
                     className="text-gray-500 hover:text-red-400"
@@ -110,7 +111,7 @@ export function PollCreator({
               onClick={addOption}
               className="mt-1.5 text-xs font-medium text-primary/70 transition hover:text-primary"
             >
-              + Add option
+              + {tChat('poll.addOption')}
             </button>
           )}
         </div>
@@ -122,14 +123,14 @@ export function PollCreator({
             onChange={(e) => setMultiSelect(e.target.checked)}
             className="rounded border-white/20 bg-surface text-primary focus:ring-primary/50"
           />
-          Allow multiple selections
+          {tChat('poll.allowMultiple')}
         </label>
 
         {error && <p className="text-xs text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={onClose} className="rounded-md">
-            Cancel
+            {tChat('poll.cancel')}
           </Button>
           <Button
             type="button"
@@ -138,7 +139,7 @@ export function PollCreator({
             onClick={handleSubmit}
             className="rounded-md"
           >
-            {submitting ? 'Creating...' : 'Create Poll'}
+            {submitting ? tChat('poll.creating') : tChat('poll.create')}
           </Button>
         </div>
       </div>

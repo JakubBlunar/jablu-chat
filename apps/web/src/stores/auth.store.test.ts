@@ -11,6 +11,7 @@ jest.mock('../lib/api', () => ({
     refreshToken: jest.fn(),
     getProfile: jest.fn(),
     updateProfile: jest.fn(),
+    updateLocale: jest.fn(),
     changePassword: jest.fn(),
     changeEmail: jest.fn(),
     updateStatus: jest.fn(),
@@ -43,6 +44,7 @@ const mockUser: User = {
   manualStatus: null,
   manualStatusExpiresAt: null,
   customStatus: null,
+  locale: null,
   dmPrivacy: 'everyone',
   pushSuppressAll: false,
   pushQuietHoursEnabled: false,
@@ -127,6 +129,18 @@ describe('auth.store', () => {
       await useAuthStore.getState().register('testuser', 'test@example.com', 'pass')
 
       expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    })
+  })
+
+  describe('updateLocale', () => {
+    it('updates the account language preference', async () => {
+      signIn()
+      jest.mocked(api.updateLocale).mockResolvedValueOnce({ ...mockUser, locale: 'cs' })
+
+      await useAuthStore.getState().updateLocale('cs')
+
+      expect(api.updateLocale).toHaveBeenCalledWith('cs')
+      expect(useAuthStore.getState().user?.locale).toBe('cs')
     })
   })
 

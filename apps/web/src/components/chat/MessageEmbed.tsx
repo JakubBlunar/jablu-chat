@@ -1,6 +1,7 @@
 import type { MessageEmbed as EmbedType } from '@chat/shared'
 import { memo } from 'react'
 import { MarkdownContent } from '@/components/MarkdownContent'
+import { getAppIntlLocale } from '@/lib/format-time'
 
 function colorToHex(color?: number): string | undefined {
   if (color == null) return undefined
@@ -9,7 +10,7 @@ function colorToHex(color?: number): string | undefined {
 
 function formatTimestamp(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-US', {
+    return new Date(iso).toLocaleDateString(getAppIntlLocale(), {
       month: 'short',
       day: 'numeric',
       year: 'numeric'

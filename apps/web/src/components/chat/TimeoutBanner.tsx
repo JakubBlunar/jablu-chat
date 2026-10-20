@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import { useMemberStore } from '@/stores/member.store'
 
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return '0s'
+function formatRemaining(ms: number, t: TFunction<'chat'>): string {
+  if (ms <= 0) return t('timeout.units.second', { count: 0 })
   const totalSeconds = Math.ceil(ms / 1000)
   const days = Math.floor(totalSeconds / 86400)
   const hours = Math.floor((totalSeconds % 86400) / 3600)
@@ -10,10 +12,10 @@ function formatRemaining(ms: number): string {
   const seconds = totalSeconds % 60
 
   const parts: string[] = []
-  if (days > 0) parts.push(`${days}d`)
-  if (hours > 0) parts.push(`${hours}h`)
-  if (minutes > 0 && days === 0) parts.push(`${minutes}m`)
-  if (days === 0 && hours === 0) parts.push(`${seconds}s`)
+  if (days > 0) parts.push(t('timeout.units.day', { count: days }))
+  if (hours > 0) parts.push(t('timeout.units.hour', { count: hours }))
+  if (minutes > 0 && days === 0) parts.push(t('timeout.units.minute', { count: minutes }))
+  if (days === 0 && hours === 0) parts.push(t('timeout.units.second', { count: seconds }))
   return parts.join(' ')
 }
 
@@ -24,6 +26,7 @@ export interface TimeoutBannerProps {
 }
 
 export function TimeoutBanner({ mutedUntil, reason, mutedById }: TimeoutBannerProps) {
+  const { t } = useTranslation('chat')
   const until = useMemo(() => new Date(mutedUntil).getTime(), [mutedUntil])
   const [remaining, setRemaining] = useState(() => Math.max(0, until - Date.now()))
 
@@ -53,12 +56,11 @@ export function TimeoutBanner({ mutedUntil, reason, mutedById }: TimeoutBannerPr
         </svg>
         <div className="flex-1 space-y-0.5">
           <div>
-            You are timed out in this server. Time remaining:{' '}
-            <span className="font-medium">{formatRemaining(remaining)}</span>
-            {mutedByName ? <> · by <span className="font-medium">{mutedByName}</span></> : null}
+            {t('timeout.message', { time: formatRemaining(remaining, t) })}
+            {mutedByName ? <span className="font-medium">{t('timeout.by', { name: mutedByName })}</span> : null}
           </div>
           {reason ? (
-            <div className="text-xs text-yellow-400/80">Reason: {reason}</div>
+            <div className="text-xs text-yellow-400/80">{t('timeout.reason', { reason })}</div>
           ) : null}
         </div>
       </div>

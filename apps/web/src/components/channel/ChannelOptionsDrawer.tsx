@@ -1,5 +1,6 @@
 import type { Channel } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ChannelNotifPrefTriggerIcon } from '@/components/channel/ChannelNotifPrefTriggerIcon'
 import { api } from '@/lib/api'
@@ -7,10 +8,10 @@ import { useNotifPrefStore } from '@/stores/notifPref.store'
 
 type NotifLevel = 'all' | 'mentions' | 'none'
 
-const LEVELS: { value: NotifLevel; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'All Messages', icon: <BellIcon /> },
-  { value: 'mentions', label: 'Mentions Only', icon: <BellIcon /> },
-  { value: 'none', label: 'Muted', icon: <BellMutedIcon /> }
+const LEVELS: { value: NotifLevel; labelKey: string; icon: React.ReactNode }[] = [
+  { value: 'all', labelKey: 'notifications.allMessages', icon: <BellIcon /> },
+  { value: 'mentions', labelKey: 'notifications.mentionsOnly', icon: <BellIcon /> },
+  { value: 'none', labelKey: 'notifications.muted', icon: <BellMutedIcon /> }
 ]
 
 interface ChannelOptionsDrawerProps {
@@ -28,6 +29,8 @@ export function ChannelOptionsDrawer({
   onEditChannel,
   onOpenPinned
 }: ChannelOptionsDrawerProps) {
+  const { t } = useTranslation('channels')
+  const { t: tChat } = useTranslation('chat')
   const [visible, setVisible] = useState(false)
   const [notifLevel, setNotifLevel] = useState<NotifLevel>(() => {
     return (useNotifPrefStore.getState().prefs[channel.id] as NotifLevel) ?? 'all'
@@ -106,7 +109,7 @@ export function ChannelOptionsDrawer({
           {channel.type === 'text' && (
             <DrawerBtn
               icon={<PinIcon />}
-              label="Pinned Messages"
+              label={tChat('pinnedMessagesTitle')}
               onClick={() => {
                 close()
                 onOpenPinned()
@@ -119,8 +122,8 @@ export function ChannelOptionsDrawer({
             <>
               <DrawerBtn
                 icon={<ChannelNotifPrefTriggerIcon level={notifLevel} />}
-                label="Channel alerts"
-                subtitle={LEVELS.find((l) => l.value === notifLevel)?.label}
+                label={t('notifications.channelAlerts')}
+                subtitle={t(LEVELS.find((l) => l.value === notifLevel)?.labelKey ?? 'notifications.allMessages')}
                 onClick={() => setNotifExpanded(!notifExpanded)}
               />
               {notifExpanded && (
@@ -137,7 +140,7 @@ export function ChannelOptionsDrawer({
                       }`}
                     >
                       {opt.icon}
-                      <span>{opt.label}</span>
+                      <span>{t(opt.labelKey)}</span>
                       {notifLevel === opt.value && (
                         <svg className="ml-auto h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <polyline points="20 6 9 17 4 12" />
@@ -155,7 +158,7 @@ export function ChannelOptionsDrawer({
               <div className="my-1 border-t border-white/5" />
               <DrawerBtn
                 icon={<GearIcon />}
-                label="Edit Channel"
+                label={t('channelForm.editTitle')}
                 onClick={() => {
                   close()
                   onEditChannel()

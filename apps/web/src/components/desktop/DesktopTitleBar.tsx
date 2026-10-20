@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
 import { SavedMessagesBell } from '@/components/chat/SavedMessagesBell'
 import { DesktopUpdateButton } from './DesktopUpdateButton'
@@ -37,6 +38,8 @@ function ChevronRight() {
  * The right padding reserves space for the plugin's caption buttons.
  */
 export function DesktopTitleBar() {
+  const { t: tCommon } = useTranslation('common')
+  const { t: tNav } = useTranslation('nav')
   const nav = useNavHistory()
   const { serverName, channelName, dmName, isDm } = useToolbarTitle()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -56,8 +59,8 @@ export function DesktopTitleBar() {
       >
         <button
           type="button"
-          aria-label="Back"
-          title="Back"
+          aria-label={tCommon('back')}
+          title={tCommon('back')}
           disabled={!nav.canGoBack}
           onClick={nav.goBack}
           style={{ pointerEvents: 'auto' }}
@@ -67,8 +70,8 @@ export function DesktopTitleBar() {
         </button>
         <button
           type="button"
-          aria-label="Forward"
-          title="Forward"
+          aria-label={tCommon('forward')}
+          title={tCommon('forward')}
           disabled={!nav.canGoForward}
           onClick={nav.goForward}
           style={{ pointerEvents: 'auto' }}
@@ -79,7 +82,7 @@ export function DesktopTitleBar() {
 
         <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2">
           {isDm ? (
-            <span className="truncate font-medium text-gray-200">{dmName ?? 'Direct Messages'}</span>
+            <span className="truncate font-medium text-gray-200">{dmName ?? tNav('directMessages')}</span>
           ) : serverName ? (
             <>
               <span className="truncate font-semibold text-white">{serverName}</span>

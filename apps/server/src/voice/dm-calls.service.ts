@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto'
 import type { DmCall, DmCallEndReason } from '@chat/shared'
 import { getDmCallUrl } from '@chat/shared'
 import { InAppNotificationKind } from '../prisma-client'
+import { incomingVoiceCallPushCopy } from '../push/push-copy'
 import { NotificationsService } from '../notifications/notifications.service'
 import { DmService } from '../dm/dm.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -119,14 +120,16 @@ export class DmCallsService implements OnModuleDestroy {
     }
     this.sessions.set(id, session)
     this.broadcast(session)
+    const notification = incomingVoiceCallPushCopy(call.callerName)
     void this.notifications
       .dispatch({
         userIds: call.ringingUserIds,
         kind: InAppNotificationKind.dm_call,
         dedupeKey: `dm-call:${id}`,
         payload: { conversationId, callId: id, authorName: call.callerName },
-        title: 'Incoming voice call',
-        body: `${call.callerName} is calling. Open Jablu to join.`,
+        title: notification.en.title,
+        body: notification.en.body,
+        localized: notification,
         url: getDmCallUrl(conversationId, id),
         push: true,
         expiresAt

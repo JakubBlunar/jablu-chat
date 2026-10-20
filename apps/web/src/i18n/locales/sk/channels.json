@@ -3,7 +3,11 @@
     "reorderChannels": "Zmeniť poradie kanálov",
     "createCategory": "Vytvoriť kategóriu",
     "markAllAsRead": "Označiť všetko ako prečítané",
-    "notificationSettings": "Nastavenia upozornení"
+    "notificationSettings": "Nastavenia upozornení",
+    "textChannels": "Textové kanály",
+    "voiceChannels": "Hlasové kanály",
+    "forumChannels": "Fórové kanály",
+    "createChannel": "Vytvoriť kanál"
   },
   "category": {
     "createTitle": "Vytvoriť kategóriu",
@@ -90,6 +94,17 @@
     "deafened": "Vypnuté počúvanie",
     "cameraOn": "Kamera je zapnutá",
     "sharingScreen": "Zdieľa obrazovku"
+  },
+  "notifications": {
+    "channelAlerts": "Upozornenia kanála",
+    "settingsLabel": "Nastavenia upozornení kanála",
+    "allMessages": "Všetky správy",
+    "allMessagesDescription": "Upozorniť na každú správu",
+    "mentionsOnly": "Iba zmienky",
+    "mentionsDescription": "Iba pri označení",
+    "muted": "Stíšené",
+    "mutedDescription": "Bez upozornení",
+    "current": "Aktuálne"
   },
   "errors": {
     "categoryNameRequired": "Názov je povinný.",

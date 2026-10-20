@@ -14,6 +14,8 @@
   "messageCopyFailed": "Copy failed",
   "messageCopyFailedHint": "Clipboard access is unavailable or was denied. Try again or select and copy the text.",
   "emojiPickerFailed": "Could not load emojis. Check your connection and try again.",
+  "commandFailed": "Command failed",
+  "commandCouldNotRun": "Could not run this command",
   "editMessageText": "Edit message text",
   "editCancel": "Cancel",
   "editSave": "Save",
@@ -156,7 +158,26 @@
   "channelInfoActionSearch": "Search",
   "channelInfoActionSaved": "Saved",
   "channelInfoActionSettings": "Settings",
+  "channelSettingsLabel": "Channel settings",
+  "toggleMemberList": "Toggle member list",
+  "serverEmojis": "Server emojis",
   "channelInfoActionNotifications": "Alerts",
+  "builtinCommandDescription": {
+    "poll": "Create a poll",
+    "shrug": "Append ¯\\_(ツ)_/¯ to your message",
+    "tableflip": "Send (╯°□°)╯︵ ┻━┻",
+    "unflip": "Send ┬─┬ ノ( ゜-゜ノ)",
+    "lenny": "Append ( ͡° ͜ʖ ͡°) to your message",
+    "spoiler": "Wrap your text in a spoiler ||text||",
+    "me": "Send an action message in italics",
+    "nick": "Change your server display name"
+  },
+  "builtinCommandCategory": {
+    "tools": "Tools",
+    "fun": "Fun",
+    "formatting": "Formatting",
+    "settings": "Settings"
+  },
   "groupDmCreateError": "Failed to create conversation. Please try again.",
   "emojiPickerSheetTitle": "Emoji",
   "gifPickerSheetTitle": "GIFs",
@@ -193,5 +214,83 @@
   "reactedBy": "reacted by",
   "andOthers_one": "and 1 other",
   "andOthers_other": "and {{count}} others",
-  "unknownUser": "Unknown user"
+  "unknownUser": "Unknown user",
+  "poll": {
+    "createTitle": "Create a Poll",
+    "question": "Question",
+    "questionPlaceholder": "Ask a question...",
+    "options": "Options",
+    "optionPlaceholder": "Option {{number}}",
+    "removeOption": "Remove option",
+    "addOption": "Add option",
+    "allowMultiple": "Allow multiple selections",
+    "createFailed": "Failed to create poll.",
+    "cancel": "Cancel",
+    "creating": "Creating…",
+    "create": "Create Poll",
+    "selectMultiple": "Select multiple options",
+    "vote_one": "{{count}} vote",
+    "vote_other": "{{count}} votes",
+    "ended": "Poll ended",
+    "ends": "Ends {{date}}"
+  },
+  "timeout": {
+    "message": "You are timed out in this server. Time remaining: {{time}}",
+    "by": " · by {{name}}",
+    "reason": "Reason: {{reason}}",
+    "units": {
+      "day_one": "{{count}} day",
+      "day_other": "{{count}} days",
+      "hour_one": "{{count}} hour",
+      "hour_other": "{{count}} hours",
+      "minute_one": "{{count}} minute",
+      "minute_other": "{{count}} minutes",
+      "second_one": "{{count}} second",
+      "second_other": "{{count}} seconds"
+    }
+  },
+  "conversationSearchingUsers": "Searching…",
+  "conversationSearchFailed": "Search failed. Try again.",
+  "conversationRemoveMember": "Remove",
+  "conversationCreating": "Creating…",
+  "conversationCreateDm": "Create DM",
+  "conversationCreateGroupDm": "Create Group DM ({{count}} members)",
+  "notification": {
+    "dmTitle": "DM from {{name}}",
+    "threadReplyTitle": "Thread reply",
+    "message": "{{author}}: {{preview}}",
+    "channelTitle": "#{{channel}}",
+    "conversationUpdateFailedTitle": "Conversation update failed",
+    "conversationUpdateFailedBody": "Please reopen the conversation to retry."
+  },
+  "notificationAttachments": {
+    "empty": "[attachment]",
+    "image": "sent an image",
+    "video": "sent a video",
+    "gif": "sent a GIF",
+    "file": "sent a file",
+    "multiple_one": "sent {{count}} file",
+    "multiple_other": "sent {{count}} files"
+  },
+  "formatting": {
+    "bold": "Bold (Ctrl+B)",
+    "italic": "Italic (Ctrl+I)",
+    "strikethrough": "Strikethrough",
+    "spoiler": "Spoiler",
+    "inlineCode": "Inline code",
+    "codeBlock": "Code block"
+  },
+  "mention": {
+    "notifyEveryone": "Notify all members",
+    "notifyOnline": "Notify online members",
+    "notifyRole": "Notify everyone with this role"
+  },
+  "gifLoadFailed": "Failed to load GIFs",
+  "gifTryAgain": "Try again",
+  "gifNotFound": "No GIFs found",
+  "gifPoweredBy": "Powered by GIPHY",
+  "forwardedFrom": "Forwarded from",
+  "forwardedIn": "in",
+  "forwardedDirectMessage": "direct message",
+  "forwardedAttachment": "[attachment]"
 }

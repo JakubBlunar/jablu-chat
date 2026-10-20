@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator'
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PushService } from './push.service'
 
@@ -21,6 +21,10 @@ class SubscribeDto {
   @IsString()
   @MaxLength(128)
   deviceId?: string
+
+  @IsOptional()
+  @IsIn(['en', 'cs', 'sk'])
+  locale?: 'en' | 'cs' | 'sk'
 }
 
 class UnsubscribeDto {
@@ -41,7 +45,7 @@ export class PushController {
   @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async subscribe(@CurrentUser() user: { id: string }, @Body() dto: SubscribeDto) {
-    await this.push.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth, dto.deviceId)
+    await this.push.subscribe(user.id, dto.endpoint, dto.p256dh, dto.auth, dto.deviceId, dto.locale)
     return { ok: true }
   }
 
@@ -58,6 +62,11 @@ export class PushController {
     await this.push.sendTest(user.id, {
       title: 'Jablu test notification',
       body: 'Push is working on this device.',
+      localized: {
+        en: { title: 'Jablu test notification', body: 'Push is working on this device.' },
+        cs: { title: 'Testovací oznámení Jablu', body: 'Oznámení Jablu na tomto zařízení fungují.' },
+        sk: { title: 'Testovacie upozornenie Jablu', body: 'Upozornenia Jablu na tomto zariadení fungujú.' }
+      },
       url: '/channels/@me'
     })
     return { ok: true, devices }

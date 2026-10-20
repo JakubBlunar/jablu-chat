@@ -196,7 +196,9 @@ export class InAppNotificationsService {
       messageId: string
       threadParentId?: string | null
       authorName: string
-      snippet: string
+      snippet?: string
+      attachmentType?: string
+      attachmentCount?: number
     }
   ): Promise<void> {
     const prefs = await this.effectiveChannelPrefs(userIds, input.channelId)
@@ -211,7 +213,9 @@ export class InAppNotificationsService {
       messageId: input.messageId,
       ...(input.threadParentId ? { threadParentId: input.threadParentId } : {}),
       authorName: input.authorName,
-      snippet: input.snippet
+      ...(input.snippet ? { snippet: input.snippet } : {}),
+      ...(input.attachmentType ? { attachmentType: input.attachmentType } : {}),
+      ...(input.attachmentCount !== undefined ? { attachmentCount: input.attachmentCount } : {})
     }
 
     await this.writeNotifications(targets, {
@@ -236,7 +240,9 @@ export class InAppNotificationsService {
       channelName: string
       messageId: string
       authorName: string
-      snippet: string
+      snippet?: string
+      attachmentType?: string
+      attachmentCount?: number
     }
   ): Promise<void> {
     if (recipientIds.length === 0) return
@@ -337,7 +343,9 @@ export class InAppNotificationsService {
       conversationId: string
       messageId: string
       authorName: string
-      snippet: string
+      snippet?: string
+      attachmentType?: string
+      attachmentCount?: number
     }
   ): Promise<void> {
     if (recipientIds.length === 0) return
@@ -359,7 +367,9 @@ export class InAppNotificationsService {
       threadParentId: string
       messageId: string
       authorName: string
-      snippet: string
+      snippet?: string
+      attachmentType?: string
+      attachmentCount?: number
     }
   ): Promise<void> {
     const prefs = await this.effectiveChannelPrefs(participantIds, input.channelId)

@@ -1,16 +1,13 @@
 import { messagePreviewText, type Message } from '@chat/shared'
+import i18n from 'i18next'
 
 export function describeAttachments(msg: Message): string {
   const attachments = msg.attachments
-  if (!attachments || attachments.length === 0) return '[attachment]'
+  if (!attachments || attachments.length === 0) return i18n.t('chat:notificationAttachments.empty')
   const first = attachments[0]
-  const label =
-    first.type === 'image' ? 'an image'
-    : first.type === 'video' ? 'a video'
-    : first.type === 'gif' ? 'a GIF'
-    : 'a file'
-  if (attachments.length === 1) return `sent ${label}`
-  return `sent ${attachments.length} files`
+  const type = first.type === 'image' || first.type === 'video' || first.type === 'gif' ? first.type : 'file'
+  if (attachments.length === 1) return i18n.t(`chat:notificationAttachments.${type}`)
+  return i18n.t('chat:notificationAttachments.multiple', { count: attachments.length })
 }
 
 export function notifBody(msg: Message): string {

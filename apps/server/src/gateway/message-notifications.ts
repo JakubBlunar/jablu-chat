@@ -10,10 +10,11 @@ import type { InAppNotificationsService } from '../in-app-notifications/in-app-n
 import { InAppNotificationKind } from '../prisma-client'
 import type { DmService } from '../dm/dm.service'
 import {
-  describePushPreview,
+  getMessageNotificationPreview,
   sendPushToOfflineMembers,
   sendPushToThreadParticipants
 } from './gateway-push-helpers'
+import { messagePushCopy } from '../push/push-copy'
 
 export type MessageAuthor = {
   id?: string | null
@@ -177,8 +178,7 @@ export async function deliverChannelMessage(
 
   const authorName =
     message.author?.displayName ?? message.author?.username ?? senderDisplayName ?? 'Someone'
-  const snippet =
-    describePushPreview(message.content ?? undefined, message.attachments ?? undefined) || 'Message'
+  const preview = getMessageNotificationPreview(message.content ?? undefined, message.attachments ?? undefined)
 
   let channelName = params.channelName
   if (!channelName && !skipInApp) {
@@ -204,7 +204,7 @@ export async function deliverChannelMessage(
           messageId: message.id,
           ...(message.threadParentId ? { threadParentId: message.threadParentId } : {}),
           authorName,
-          snippet
+          ...preview
         })
         .catch((err) => log.warn(`recordMentions failed: ${(err as Error)?.message}`))
     }
@@ -221,7 +221,7 @@ export async function deliverChannelMessage(
             messageId: message.id,
             replyToId: message.replyToId,
             authorName,
-            snippet
+            ...preview
           }
         })
         .catch((err) => log.warn(`record reply failed: ${(err as Error)?.message}`))
@@ -242,7 +242,7 @@ export async function deliverChannelMessage(
             threadParentId: message.threadParentId!,
             messageId: message.id,
             authorName,
-            snippet
+            ...preview
           })
         } catch (err) {
           log.warn(`recordThreadActivity failed: ${(err as Error)?.message}`)
@@ -267,7 +267,7 @@ export async function deliverChannelMessage(
             channelName: safeChannelName,
             messageId: message.id,
             authorName,
-            snippet
+            ...preview
           })
         } catch (err) {
           log.warn(`recordChannelMessage failed: ${(err as Error)?.message}`)
@@ -450,8 +450,7 @@ export async function deliverDmMessage(
   })
 
   const authorName = message.author?.displayName ?? message.author?.username ?? 'Someone'
-  const snippet =
-    describePushPreview(message.content ?? undefined, message.attachments ?? undefined) || 'Message'
+  const preview = getMessageNotificationPreview(message.content ?? undefined, message.attachments ?? undefined)
 
   if (!skipInApp && notificationMemberIds.length > 0) {
     ctx.inApp
@@ -459,7 +458,7 @@ export async function deliverDmMessage(
         conversationId,
         messageId: message.id,
         authorName,
-        snippet
+        ...preview
       })
       .catch((err) => log.warn(`recordDmMessages failed: ${(err as Error)?.message}`))
   }
@@ -482,14 +481,19 @@ export async function deliverDmMessage(
   if (!skipPush) {
     const awayMembers = notificationMemberIds.filter((id) => !ctx.isUserActivelyEngaged(id))
     if (awayMembers.length > 0) {
-      const preview = describePushPreview(
+      const copy = messagePushCopy(
+        {
+          en: `DM from ${authorName}`,
+          cs: `Soukromá zpráva od ${authorName}`,
+          sk: `Súkromná správa od ${authorName}`
+        },
         message.content ?? undefined,
         message.attachments ?? undefined
       )
       ctx.push
         .sendToUsers(awayMembers, {
-          title: `DM from ${authorName}`,
-          body: preview,
+          ...copy.en,
+          localized: copy,
           url: messageNotificationUrl(`/channels/@me/${conversationId}`, message.id)
         })
         .catch((err) => log.warn(`DM push failed: ${(err as Error)?.message}`))

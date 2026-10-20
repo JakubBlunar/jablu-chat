@@ -35,7 +35,7 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
     return [
       {
         id: 'server',
-        name: 'Server',
+        name: t('serverEmojis'),
         emojis: customEmojis.map((e) => ({
           id: e.name,
           name: e.name,
@@ -44,7 +44,7 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
         }))
       }
     ]
-  }, [customEmojis])
+  }, [customEmojis, t])
 
   const handleEmojiSelect = (emoji: { native?: string; id?: string; src?: string }) => {
     if (emoji.native) {

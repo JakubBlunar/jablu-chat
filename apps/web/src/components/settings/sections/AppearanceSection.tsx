@@ -1,19 +1,41 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ACCENT_OPTIONS } from '@/lib/accent'
 import { APP_LOCALES, LOCALE_LABELS, type AppLocale } from '@/i18n/locales'
 import { FONT_SCALES, type FontScale, useSettingsStore } from '@/stores/settings.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { TranslationPreferenceSection } from '@/components/settings/sections/TranslationPreferenceSection'
 
 export function AppearanceSection() {
   const { t } = useTranslation('settings')
+  const [localeSaving, setLocaleSaving] = useState(false)
+  const [localeSaveFailed, setLocaleSaveFailed] = useState(false)
   const accent = useSettingsStore((s) => s.accent)
   const setAccent = useSettingsStore((s) => s.setAccent)
   const locale = useSettingsStore((s) => s.locale)
   const setLocale = useSettingsStore((s) => s.setLocale)
+  const updateAccountLocale = useAuthStore((s) => s.updateLocale)
   const compactPreviews = useSettingsStore((s) => s.compactPreviews)
   const setCompactPreviews = useSettingsStore((s) => s.setCompactPreviews)
   const fontScale = useSettingsStore((s) => s.fontScale)
   const setFontScale = useSettingsStore((s) => s.setFontScale)
+
+  const changeLocale = async (nextLocale: AppLocale) => {
+    const previousLocale = locale
+    setLocaleSaveFailed(false)
+    setLocale(nextLocale)
+    if (!useAuthStore.getState().user) return
+
+    setLocaleSaving(true)
+    try {
+      await updateAccountLocale(nextLocale)
+    } catch {
+      setLocaleSaveFailed(true)
+      setLocale(useAuthStore.getState().user?.locale ?? previousLocale)
+    } finally {
+      setLocaleSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -26,7 +48,8 @@ export function AppearanceSection() {
         <select
           id="jablu-locale-select"
           value={locale}
-          onChange={(e) => setLocale(e.target.value as AppLocale)}
+          disabled={localeSaving}
+          onChange={(e) => void changeLocale(e.target.value as AppLocale)}
           className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
         >
           {APP_LOCALES.map((code) => (
@@ -35,6 +58,11 @@ export function AppearanceSection() {
             </option>
           ))}
         </select>
+        {localeSaveFailed && (
+          <p role="alert" className="mt-2 text-sm text-red-300">
+            {t('appearance.languageSaveFailed')}
+          </p>
+        )}
       </div>
 
       <section className="border-t border-white/10 pt-6">

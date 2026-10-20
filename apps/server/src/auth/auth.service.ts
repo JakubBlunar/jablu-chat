@@ -20,6 +20,7 @@ import { RedisService } from '../redis/redis.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { MailService } from './mail.service'
 import { assertValidIanaTimeZone } from '../push/push-user-allow'
+import type { AppLocale } from '@chat/shared'
 
 const PROFILE_SELECT = {
   id: true,
@@ -32,6 +33,7 @@ const PROFILE_SELECT = {
   manualStatus: true,
   manualStatusExpiresAt: true,
   customStatus: true,
+  locale: true,
   dmPrivacy: true,
   pushSuppressAll: true,
   pushQuietHoursEnabled: true,
@@ -323,6 +325,23 @@ export class AuthService implements OnModuleInit {
       select: PROFILE_SELECT
     })
     this.events.emit('user:profile', { userId, ...data })
+    return user
+  }
+
+  async updateLocale(userId: string, locale: AppLocale) {
+    const user = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { locale },
+        select: PROFILE_SELECT
+      })
+      await tx.pushSubscription.updateMany({
+        where: { userId },
+        data: { locale }
+      })
+      return updated
+    })
+    this.events.emit('user:locale', { userId, locale })
     return user
   }
 

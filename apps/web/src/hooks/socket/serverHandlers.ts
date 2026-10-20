@@ -1,4 +1,5 @@
 import type { Channel, ChannelCategory, Role, ServerEvent, ServerProfile } from '@chat/shared'
+import i18n from 'i18next'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
@@ -184,7 +185,13 @@ export function createServerHandlers() {
     if (payload.direction === 'incoming') {
       const sender = payload.user as { displayName?: string; username?: string }
       const name = sender.displayName ?? sender.username ?? 'Someone'
-      showNotification('Friend Request', `${name} sent you a friend request`, '/channels/@me', undefined, 'friend')
+      showNotification(
+        i18n.t('friends:notifications.requestTitle'),
+        i18n.t('friends:notifications.requestBody', { name }),
+        '/channels/@me',
+        undefined,
+        'friend'
+      )
     }
   }
   const onFriendAccepted = (payload: { friendshipId: string; user: Record<string, unknown> }) => {

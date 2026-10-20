@@ -1,5 +1,6 @@
 import type { ForumTag } from '@chat/shared'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input, Label, ModalFooter, TagChip } from '@/components/ui'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
@@ -24,6 +25,7 @@ export function CreatePostModal({
   requireTags: boolean
   onClose: () => void
 }) {
+  const { t } = useTranslation('forum')
   const createPost = useForumStore((s) => s.createPost)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -49,19 +51,19 @@ export function CreatePostModal({
 
   const handleCreate = async () => {
     if (selectingFiles) {
-      setError('Please wait until selected files are ready.')
+      setError(t('create.waitForFiles'))
       return
     }
     if (!title.trim()) {
-      setError('Title is required')
+      setError(t('create.titleRequired'))
       return
     }
     if (!content.trim() && files.length === 0) {
-      setError('Post content or at least one attachment is required')
+      setError(t('create.contentRequired'))
       return
     }
     if (requireTags && selectedTags.length === 0) {
-      setError('At least one tag is required')
+      setError(t('create.tagRequired'))
       return
     }
     setBusy(true)
@@ -77,24 +79,24 @@ export function CreatePostModal({
           try {
             const attachment = await api.uploadAttachment(finalFiles[i].file)
             finalFiles[i] = { ...finalFiles[i], uploading: false, uploadedId: attachment.id }
-          } catch (uploadErr) {
+          } catch {
             finalFiles[i] = {
               ...finalFiles[i],
               uploading: false,
-              error: uploadErr instanceof Error ? uploadErr.message : 'Upload failed'
+              error: t('create.uploadError')
             }
           }
           setFiles([...finalFiles])
         }
       }
       if (finalFiles.some((f) => !!f.error)) {
-        setError('One or more attachments failed to upload. Remove failed files or try again.')
+        setError(t('create.multipleUploadsFailed'))
         setBusy(false)
         return
       }
       const attachmentIds = finalFiles.flatMap((f) => (f.uploadedId ? [f.uploadedId] : []))
       if (!content.trim() && attachmentIds.length === 0) {
-        setError('Post content or at least one successfully uploaded attachment is required')
+        setError(t('create.uploadedAttachmentRequired'))
         setBusy(false)
         return
       }
@@ -106,8 +108,8 @@ export function CreatePostModal({
         attachmentIds.length > 0 ? attachmentIds : undefined
       )
       onClose()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create post')
+    } catch {
+      setError(t('create.createFailed'))
     } finally {
       setBusy(false)
     }
@@ -121,7 +123,7 @@ export function CreatePostModal({
       const arr = Array.from(newFiles)
       const tooLarge = arr.filter((f) => f.size > maxBytes)
       if (tooLarge.length > 0) {
-        setError(`File too large. Max ${maxMb} MB allowed.`)
+        setError(t('create.fileTooLarge', { max: maxMb }))
         return
       }
       setFiles((prev) => {
@@ -148,33 +150,33 @@ export function CreatePostModal({
 
   return (
     <ModalOverlay onClose={onClose}>
-      <h2 className="text-xl font-semibold text-white">Create Post</h2>
+      <h2 className="text-xl font-semibold text-white">{t('create.title')}</h2>
       <div className="mt-5">
         <Input
           id="post-title"
-          label="Title"
+          label={t('create.titleLabel')}
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Post title"
+          placeholder={t('create.titlePlaceholder')}
           maxLength={200}
           autoFocus
         />
       </div>
       <div className="mt-4">
-        <Label htmlFor="post-content">Content</Label>
+        <Label htmlFor="post-content">{t('create.contentLabel')}</Label>
         <textarea
           id="post-content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Write your post..."
+          placeholder={t('create.contentPlaceholder')}
           maxLength={4000}
           rows={5}
           className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
         />
       </div>
       <div className="mt-4">
-        <Label>Attachments</Label>
+        <Label>{t('create.attachmentsLabel')}</Label>
         <div className="mt-1.5 flex items-center gap-2">
           <input
             type="file"
@@ -189,7 +191,7 @@ export function CreatePostModal({
               }
             }}
           />
-          <span className="text-xs text-gray-500">Up to 20 files</span>
+          <span className="text-xs text-gray-500">{t('create.filesLimit', { count: 20 })}</span>
         </div>
         {files.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
@@ -212,14 +214,14 @@ export function CreatePostModal({
                 )}
                 {f.error && (
                   <div className="absolute inset-0 flex items-center justify-center rounded-md bg-red-900/60 px-1 text-center text-[10px] text-red-200">
-                    Failed
+                    {t('create.uploadFailed')}
                   </div>
                 )}
                 <button
                   type="button"
                   onClick={() => removeFile(i)}
                   className="absolute -right-1 -top-1 rounded-full bg-red-600 p-1 text-white"
-                  aria-label="Remove attachment"
+                  aria-label={t('create.removeAttachment')}
                 >
                   <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path d="M6 18 18 6M6 6l12 12" />
@@ -232,7 +234,7 @@ export function CreatePostModal({
       </div>
       {tags.length > 0 && (
         <div className="mt-4">
-          <Label>Tags {requireTags && <span className="text-red-400">*</span>}</Label>
+          <Label>{t('create.tagsLabel')} {requireTags && <span className="text-red-400">*</span>}</Label>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {tags.map((tag) => (
               <TagChip
@@ -254,8 +256,8 @@ export function CreatePostModal({
       <ModalFooter
         onCancel={onClose}
         onConfirm={() => void handleCreate()}
-        cancelLabel="Cancel"
-        confirmLabel="Post"
+        cancelLabel={t('create.cancel')}
+        confirmLabel={t('create.post')}
         loading={busy || selectingFiles}
       />
     </ModalOverlay>

@@ -64,7 +64,6 @@ self.addEventListener('push', (event) => {
   } catch (_err) {
     event.waitUntil(
       self.registration.showNotification('Jablu', {
-        body: 'You have a new notification',
         icon: '/pwa-192x192.png'
       })
     )

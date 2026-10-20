@@ -1,0 +1,49 @@
+{
+  "tabs": {
+    "online": "Online",
+    "all": "Všichni",
+    "pending": "Čekající"
+  },
+  "addFriend": "Přidat přítele",
+  "addFriendHint": "Vyhledejte lidi podle uživatelského jména.",
+  "enterUsernamePlaceholder": "Zadejte uživatelské jméno…",
+  "searchingUsers": "Vyhledávání uživatelů…",
+  "searchFailed": "Vyhledávání se nezdařilo. Zkuste to znovu.",
+  "sendFailed": "Žádost se nepodařilo odeslat. Zkuste to znovu.",
+  "headings": {
+    "online": "Online — {{count}}",
+    "all": "Všichni přátelé — {{count}}",
+    "incoming": "Příchozí — {{count}}",
+    "outgoing": "Odchozí — {{count}}"
+  },
+  "empty": {
+    "online": "Žádný z vašich přátel není právě online.",
+    "all": "Zatím nemáte žádné přátele. Přidejte si někoho!",
+    "pending": "Nemáte žádné čekající žádosti o přátelství."
+  },
+  "removeFriendTitle": "Odebrat přítele",
+  "removeFriendDescription": "Opravdu chcete odebrat uživatele {{name}} z přátel?",
+  "actions": {
+    "message": "Zpráva",
+    "removeFriend": "Odebrat přítele",
+    "remove": "Odebrat",
+    "accept": "Přijmout",
+    "decline": "Odmítnout",
+    "cancel": "Zrušit",
+    "sendRequest": "Odeslat žádost"
+  },
+  "incomingRequest": "Příchozí žádost o přátelství",
+  "outgoingRequest": "Odchozí žádost o přátelství",
+  "relationship": {
+    "friends": "Přátelé",
+    "requestSent": "Žádost odeslána",
+    "pending": "Čeká na vyřízení"
+  },
+  "resultCount_one": "{{count}} výsledek",
+  "resultCount_few": "{{count}} výsledky",
+  "resultCount_other": "{{count}} výsledků",
+  "notifications": {
+    "requestTitle": "Žádost o přátelství",
+    "requestBody": "{{name}} vám poslal(a) žádost o přátelství"
+  }
+}

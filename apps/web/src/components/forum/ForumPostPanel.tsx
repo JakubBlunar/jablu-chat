@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { TagChip } from '@/components/ui/TagChip'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ProfileCard } from '@/components/ProfileCard'
 import { AttachmentPreview } from '@/components/AttachmentPreview'
 import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
@@ -34,6 +35,8 @@ export function ForumPostPanel({
   gifEnabled?: boolean
   onCommand?: (cmd: string, args?: string) => boolean | void
 }) {
+  const { t } = useTranslation('forum')
+  const { t: tCommon } = useTranslation('common')
   const currentPostId = useForumStore((s) => s.currentPostId)
   const posts = useForumStore((s) => s.posts)
   const channelId = useForumStore((s) => s.channelId)
@@ -45,7 +48,7 @@ export function ForumPostPanel({
 
   const userId = useAuthStore((s) => s.user?.id)
   const serverId = useServerStore((s) => s.currentServerId)
-  const authorName = useServerDisplayName(post?.author, serverId) ?? 'Deleted User'
+  const authorName = useServerDisplayName(post?.author, serverId) ?? tCommon('unknown')
   const { has: hasPerm } = usePermissions(serverId)
   const canManage = hasPerm(Permission.MANAGE_MESSAGES)
   const isAuthor = post?.authorId === userId
@@ -253,10 +256,10 @@ export function ForumPostPanel({
       setReplyTarget({
         id: msg.id,
         content: msg.content,
-        authorName: member ? memberDisplayName(member) : msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
+        authorName: member ? memberDisplayName(member) : msg.author?.displayName ?? msg.author?.username ?? tCommon('unknown')
       })
     },
-    [setReplyTarget, serverId]
+      [setReplyTarget, serverId, tCommon]
   )
 
   const isMobile = useIsMobile()
@@ -270,7 +273,7 @@ export function ForumPostPanel({
     <>
       {/* Reply count divider (appears below root post, above messages) */}
       <div className="px-2 py-1 text-[11px] font-semibold text-gray-500">
-        {post.replyCount} {post.replyCount === 1 ? 'reply' : 'replies'}
+        {t('counts.replies', { count: post.replyCount })}
       </div>
 
       {/* Root post body (appears at the very top of the scroll area) */}
@@ -299,7 +302,7 @@ export function ForumPostPanel({
               maxLength={4000}
               rows={4}
               className="w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-gray-300 outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
-              placeholder="Post content..."
+              placeholder={t('post.contentPlaceholder')}
             />
             <div className="flex justify-end gap-2">
               <button
@@ -307,7 +310,7 @@ export function ForumPostPanel({
                 onClick={cancelEdit}
                 className="rounded-md px-3 py-1.5 text-xs text-gray-400 transition hover:bg-white/5 hover:text-white"
               >
-                Cancel
+                {t('post.cancel')}
               </button>
               <button
                 type="button"
@@ -315,7 +318,7 @@ export function ForumPostPanel({
                 disabled={editSaving || !editTitle.trim()}
                 className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-text transition hover:bg-primary-hover disabled:opacity-50"
               >
-                {editSaving ? 'Saving...' : 'Save'}
+                {editSaving ? t('post.saving') : t('post.save')}
               </button>
             </div>
           </div>
@@ -345,7 +348,7 @@ export function ForumPostPanel({
                   {authorName}
                 </button>
                 <time className="text-[11px] text-gray-500">{formatSmartTimestamp(post.createdAt)}</time>
-                {post.editedAt && <span className="text-[10px] text-gray-600">(edited)</span>}
+                {post.editedAt && <span className="text-[10px] text-gray-600">({t('post.edited')})</span>}
               </div>
               {post.content && (
                 <div className="mt-0.5 text-sm text-gray-300">
@@ -370,7 +373,7 @@ export function ForumPostPanel({
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            This post is locked
+            {t('post.locked')}
           </div>
         )}
       </div>
@@ -383,7 +386,7 @@ export function ForumPostPanel({
         <Spinner size="md" />
       </div>
     ) : !adapter.isLoading && adapter.messages.length === 0 ? (
-      <p className="py-8 text-center text-xs text-gray-500">No replies yet. Be the first!</p>
+      <p className="py-8 text-center text-xs text-gray-500">{t('post.noReplies')}</p>
     ) : undefined
 
   return (
@@ -396,7 +399,7 @@ export function ForumPostPanel({
         <div className="flex items-center gap-1">
           {showActions && (
             <div className="relative" ref={menuRef}>
-              <IconButton label="Post actions" variant="ghost" size="md" onClick={() => setMenuOpen((v) => !v)}>
+              <IconButton label={t('post.actions')} variant="ghost" size="md" onClick={() => setMenuOpen((v) => !v)}>
                 <svg className="h-4 w-4 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="12" cy="5" r="1.8" />
                   <circle cx="12" cy="12" r="1.8" />
@@ -420,7 +423,7 @@ export function ForumPostPanel({
                       >
                         <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      Edit Post
+                      {t('post.edit')}
                     </button>
                   )}
                   {canManage && (
@@ -442,7 +445,7 @@ export function ForumPostPanel({
                           <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         )}
                       </svg>
-                      {post.isLocked ? 'Unlock Post' : 'Lock Post'}
+                      {post.isLocked ? t('post.unlock') : t('post.lock')}
                     </button>
                   )}
                   {(isAuthor || canManage) && (
@@ -466,7 +469,7 @@ export function ForumPostPanel({
                         >
                           <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        Delete Post
+                        {t('post.delete')}
                       </button>
                     </>
                   )}
@@ -474,7 +477,7 @@ export function ForumPostPanel({
               )}
             </div>
           )}
-          <IconButton label="Close post" variant="ghost" size="md" onClick={closePost}>
+          <IconButton label={t('post.close')} variant="ghost" size="md" onClick={closePost}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18 18 6M6 6l12 12" />
             </svg>
@@ -484,9 +487,9 @@ export function ForumPostPanel({
 
       {showDeleteConfirm && (
         <ConfirmDialog
-          title="Delete Post"
-          description="This will permanently delete this post and all its replies. This action cannot be undone."
-          confirmLabel="Delete"
+          title={t('post.deleteConfirmTitle')}
+          description={t('post.deleteConfirmDescription')}
+          confirmLabel={t('post.delete')}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />
@@ -525,7 +528,7 @@ export function ForumPostPanel({
           }}
           gifEnabled={gifEnabled}
           onCommand={onCommand}
-          placeholder="Reply to post..."
+          placeholder={t('post.replyPlaceholder')}
         />
       )}
       {cardUser && <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />}

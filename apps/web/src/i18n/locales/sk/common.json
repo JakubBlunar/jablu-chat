@@ -54,5 +54,20 @@
   "noServersHintMobile": "Pripojte sa k serveru cez menu.",
   "noServersHintDesktop": "Vytvorte prvý server pomocou tlačidla + v zozname serverov.",
   "activityPlaying": "Hrá",
-  "activityListeningTo": "Počúva"
+  "activityListeningTo": "Počúva",
+  "loadingSession": "Načítava sa relácia…",
+  "back": "Späť",
+  "forward": "Vpred",
+  "reload": "Znova načítať",
+  "unexpectedErrorTitle": "Niečo sa pokazilo",
+  "unexpectedErrorDescription": "Došlo k neočakávanej chybe. Ak chcete pokračovať, znova načítajte stránku.",
+  "newVersionAvailable": "Je k dispozícii nová verzia!",
+  "later": "Neskôr",
+  "updateFailed": "Aktualizácia zlyhala: {{message}}",
+  "clientTooNew": "Táto aplikácia je novšia, než server podporuje (maximum {{version}}). Požiadajte správcu servera o aktualizáciu.",
+  "clientTooOld": "Táto aplikácia je staršia, než server vyžaduje (minimum {{version}}). Aktualizujte ju manuálne zo stránky na stiahnutie.",
+  "serverIncompatible": "Táto aplikácia nie je kompatibilná s nakonfigurovaným serverom.",
+  "unknown": "Neznámy",
+  "image": "Obrázok",
+  "youtubeVideo": "Video na YouTube"
 }

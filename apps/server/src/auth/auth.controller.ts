@@ -33,6 +33,7 @@ import {
   ResetPasswordDto,
   UpdateCustomStatusDto,
   UpdateDmPrivacyDto,
+  UpdateLocaleDto,
   UpdateProfileDto,
   UpdatePushPrefsDto,
   UpdateStatusDto
@@ -155,6 +156,12 @@ export class AuthController {
   @UseGuards(UnifiedAuthGuard)
   async updateProfile(@CurrentUser() user: { id: string }, @Body() dto: UpdateProfileDto) {
     return this.auth.updateProfile(user.id, dto)
+  }
+
+  @Patch('locale')
+  @UseGuards(UnifiedAuthGuard)
+  async updateLocale(@CurrentUser() user: { id: string }, @Body() dto: UpdateLocaleDto) {
+    return this.auth.updateLocale(user.id, dto.locale)
   }
 
   @Post('avatar')

@@ -535,7 +535,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           {!isMobile && (
             <div className="flex shrink-0 items-center gap-0.5">
               <IconButton
-                label="Pinned messages"
+                label={tChat('pinnedMessagesTitle')}
                 size="lg"
                 className="relative"
                 onClick={() => void pinned.handleOpenPinned()}
@@ -553,12 +553,12 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
                 triggerClassName="relative shrink-0"
               />
               {isAdminOrOwner && (
-                <IconButton label="Channel settings" size="lg" onClick={() => setEditingChannel(true)}>
+                <IconButton label={tChat('channelSettingsLabel')} size="lg" onClick={() => setEditingChannel(true)}>
                   <SettingsCogIcon />
                 </IconButton>
               )}
               <IconButton
-                label="Toggle member list"
+                label={tChat('toggleMemberList')}
                 size="lg"
                 onClick={() => {
                   if (panels.membersOverlay) useLayoutStore.getState().openMemberDrawer()
@@ -674,7 +674,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
                   <MembersIcon />
                 </IconButton>
                 <IconButton
-                  label="Pinned messages"
+                  label={tChat('pinnedMessagesTitle')}
                   className="shrink-0"
                   active={dmSheetOpen && dmInfoTab === 'pins'}
                   onClick={() => {
