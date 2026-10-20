@@ -16,6 +16,7 @@ model User {
   displayName  String?  @map("display_name")
   avatarUrl    String?  @map("avatar_url")
   bio          String?
+  serverLayout Json     @default("[]") @map("server_layout")
   status       UserStatus @default(offline)
   /// Manual presence (idle / dnd / invisible) until expiry; null = follow automatic while connected.
   manualStatus          UserStatus? @map("manual_status")
@@ -213,6 +214,8 @@ model Server {
 model ServerMember {
   userId     String      @map("user_id")
   serverId   String      @map("server_id")
+  displayName String?     @map("display_name")
+  bio         String?
   notifLevel NotifLevel? @map("notif_level")
   mutedUntil          DateTime?   @map("muted_until")
   mutedReason         String?     @map("muted_reason")

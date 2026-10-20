@@ -1,12 +1,47 @@
-import { Controller, Get, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Put, UseGuards } from '@nestjs/common'
+import { IsArray } from 'class-validator'
+import { isServerLayout, reconcileServerLayout } from '@chat/shared'
 import { UnifiedAuthGuard } from './unified-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { CurrentUser } from './current-user.decorator'
+
+export class UpdateServerLayoutDto {
+  @IsArray()
+  entries: unknown[]
+}
 
 @Controller('users')
 @UseGuards(UnifiedAuthGuard)
 export class UsersController {
   constructor(private readonly prisma: PrismaService) {}
+
+  @Get('@me/server-layout')
+  async getServerLayout(@CurrentUser() user: { id: string }) {
+    const [account, memberships] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { serverLayout: true } }),
+      this.prisma.serverMember.findMany({
+        where: { userId: user.id }, select: { serverId: true }, orderBy: { server: { name: 'asc' } }
+      })
+    ])
+    if (!isServerLayout(account.serverLayout)) throw new BadRequestException('Invalid stored server layout')
+    return reconcileServerLayout(account.serverLayout, memberships.map((m) => m.serverId))
+  }
+
+  @Put('@me/server-layout')
+  async updateServerLayout(@CurrentUser() user: { id: string }, @Body() dto: UpdateServerLayoutDto) {
+    if (!isServerLayout(dto.entries)) throw new BadRequestException('Invalid server layout')
+    const memberships = await this.prisma.serverMember.findMany({
+      where: { userId: user.id }, select: { serverId: true }, orderBy: { server: { name: 'asc' } }
+    })
+    const allowed = new Set(memberships.map((m) => m.serverId))
+    for (const entry of dto.entries) {
+      const ids = entry.type === 'server' ? [entry.serverId] : entry.serverIds
+      if (ids.some((id) => !allowed.has(id))) throw new BadRequestException('Layout contains a server you have not joined')
+    }
+    const entries = reconcileServerLayout(dto.entries, memberships.map((m) => m.serverId))
+    await this.prisma.user.update({ where: { id: user.id }, data: { serverLayout: entries } })
+    return entries
+  }
 
   @Get(':id/mutual-servers')
   async getMutualServers(@CurrentUser() user: { id: string }, @Param('id', ParseUUIDPipe) targetId: string) {

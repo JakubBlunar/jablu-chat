@@ -8,8 +8,12 @@ import { useChannelStore } from '@/stores/channel.store'
 import { resolveMediaUrl } from '@/lib/api'
 import { CreatePostModal } from './CreatePostModal'
 import { ForumPostPanel } from './ForumPostPanel'
+import { useServerDisplayName } from '@/lib/serverProfile'
+import { useServerStore } from '@/stores/server.store'
 
 function ForumPostCard({ post, layout, onClick }: { post: ForumPost; layout: 'list' | 'grid'; onClick: () => void }) {
+  const serverId = useServerStore((s) => s.currentServerId)
+  const authorName = useServerDisplayName(post.author, serverId) ?? 'Unknown'
   const thumbnail = useMemo(() => {
     const att = (post.attachments as Array<{ type: string; url: string; thumbnailUrl?: string }>)?.find(
       (a) => a.type === 'image' || a.type === 'gif'
@@ -49,7 +53,7 @@ function ForumPostCard({ post, layout, onClick }: { post: ForumPost; layout: 'li
         )}
         <h3 className="line-clamp-2 text-sm font-semibold text-white">{post.title}</h3>
         <p className="mt-1 line-clamp-2 text-xs text-gray-400">
-          {post.author?.displayName ?? post.author?.username ?? 'Unknown'}: {post.content}
+          {authorName}: {post.content}
         </p>
         <div className="mt-auto flex items-center gap-3 pt-2 text-[11px] text-gray-500">
           {post.reactions.length > 0 && <span>{post.reactions.reduce((sum, r) => sum + r.count, 0)} reactions</span>}
@@ -76,7 +80,7 @@ function ForumPostCard({ post, layout, onClick }: { post: ForumPost; layout: 'li
         )}
         <h3 className="text-sm font-semibold text-white">{post.title}</h3>
         <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">
-          {post.author?.displayName ?? post.author?.username ?? 'Unknown'}: {post.content}
+          {authorName}: {post.content}
         </p>
         <div className="mt-1.5 flex items-center gap-3 text-[11px] text-gray-500">
           {post.reactions.length > 0 && (

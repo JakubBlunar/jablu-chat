@@ -20,6 +20,8 @@ export interface Server {
 export interface ServerMember {
   userId: string
   serverId: string
+  displayName?: string | null
+  bio?: string | null
   roleIds: string[]
   joinedAt: string
   onboardingCompleted?: boolean
@@ -31,3 +33,12 @@ export interface ServerMember {
     status: string
   }
 }
+
+export interface ServerProfile {
+  displayName: string | null
+  bio: string | null
+}
+
+export type ServerLayoutEntry =
+  | { type: 'server'; serverId: string }
+  | { type: 'folder'; id: string; name: string; collapsed: boolean; serverIds: string[] }

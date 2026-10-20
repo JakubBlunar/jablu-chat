@@ -1,4 +1,4 @@
-import type { Channel, ChannelCategory, Role, ServerEvent } from '@chat/shared'
+import type { Channel, ChannelCategory, Role, ServerEvent, ServerProfile } from '@chat/shared'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
@@ -29,9 +29,12 @@ export function createServerHandlers() {
     }
   }
 
-  const onMemberUpdated = (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: Role[]; mutedUntil?: string | null; mutedReason?: string | null; mutedById?: string | null; onboardingCompleted?: boolean }) => {
+  const onMemberUpdated = (payload: { serverId: string; userId: string; profile?: ServerProfile; roleIds?: string[]; roles?: Role[]; mutedUntil?: string | null; mutedReason?: string | null; mutedById?: string | null; onboardingCompleted?: boolean }) => {
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId !== currentServerId) return
+    if (payload.profile) {
+      useMemberStore.getState().updateServerProfile(payload.serverId, payload.userId, payload.profile)
+    }
     if (payload.roleIds) {
       useMemberStore.getState().updateMemberRoles(payload.serverId, payload.userId, payload.roleIds, payload.roles)
       const myId = useAuthStore.getState().user?.id

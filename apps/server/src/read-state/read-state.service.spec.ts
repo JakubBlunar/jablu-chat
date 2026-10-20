@@ -278,6 +278,14 @@ describe('ReadStateService', () => {
       expect(result.here).toBe(false)
     })
 
+    it('resolves server names and still accepts global names and usernames', async () => {
+      prisma.serverMember.findMany.mockResolvedValue(members.map((m) =>
+        m.userId === 'u-alice' ? { ...m, displayName: 'Server Alice' } : m))
+      for (const content of ['@"Server Alice"', '@"Alice Smith"', '@alice']) {
+        expect((await service.resolveMentions(content, serverId, 'u-bob')).userIds).toEqual(['u-alice'])
+      }
+    })
+
     it('resolves case-insensitively', async () => {
       const result = await service.resolveMentions('hey @ALICE', serverId, 'u-bob')
       expect(result.userIds).toEqual(['u-alice'])

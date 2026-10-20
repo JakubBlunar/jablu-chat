@@ -16,13 +16,13 @@ import { useChatPanelLayout } from '@/hooks/useChatPanelLayout'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
 import { useMessageStoreAdapter } from '@/hooks/useMessageStoreAdapter'
-import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { PANEL_LIMITS, useSettingsStore } from '@/stores/settings.store'
 import { useMemberStore } from '@/stores/member.store'
+import { memberDisplayName } from '@/lib/serverProfile'
 import { usePermissions, Permission } from '@/hooks/usePermissions'
 import { Permission as SharedPermission, hasPermission as hasPermFlag } from '@chat/shared'
 import { useDmStore } from '@/stores/dm.store'
@@ -221,13 +221,15 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const handleReply = useCallback(
     (msg: Message) => {
+      const member = isDm ? undefined : useMemberStore.getState().members.find((m) =>
+        m.userId === msg.authorId && m.serverId === useServerStore.getState().currentServerId)
       setReplyTarget({
         id: msg.id,
         content: msg.content,
-        authorName: msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser')
+        authorName: member ? memberDisplayName(member) : msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser')
       })
     },
-    [tChat, setReplyTarget]
+    [tChat, setReplyTarget, isDm]
   )
 
   const gifEnabled = useGifStore((s) => s.enabled)
@@ -250,27 +252,31 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const handleNick = useCallback(
     async (args?: string) => {
       const name = args?.trim()
+      const serverId = isDm ? null : useServerStore.getState().currentServerId
+      if (!serverId || !userId) {
+        setCommandToast(tChat('commandNickServerOnly'))
+        scheduleToastDismiss()
+        return
+      }
       if (!name) {
         setCommandToast(tChat('commandNickUsage'))
         scheduleToastDismiss()
         return
       }
-      if (name.length < 5 || name.length > 20) {
+      if (name.length > 32) {
         setCommandToast(tChat('commandNickLength'))
         scheduleToastDismiss()
         return
       }
       try {
-        const updated = await api.updateProfile({ displayName: name })
-        useAuthStore.getState().setUser(updated)
-        useMemberStore.getState().updateUserProfile(updated.id, { displayName: updated.displayName })
+        await useMemberStore.getState().saveServerProfile(serverId, userId, { displayName: name })
         setCommandToast(tChat('commandNickSuccess', { name }))
       } catch {
         setCommandToast(tChat('commandNickFailed'))
       }
       scheduleToastDismiss()
     },
-    [scheduleToastDismiss, tChat]
+    [scheduleToastDismiss, tChat, isDm, userId]
   )
 
   /* ── Empty states ── */

@@ -15,6 +15,9 @@ import type { Member } from '@/stores/member.store'
 import { getRoleColor, useMemberStore } from '@/stores/member.store'
 import type { Server } from '@/stores/server.store'
 import { KickIcon } from '../serverSettingsIcons'
+import { ServerProfileModal } from '@/components/server/ServerProfileModal'
+import { memberDisplayName } from '@/lib/serverProfile'
+import { useTranslation } from 'react-i18next'
 
 const TIMEOUT_OPTIONS = [
   { label: '60 sec', value: 60 },
@@ -36,6 +39,8 @@ function formatTimeLeft(iso: string): string {
 }
 
 export function MembersTab({ server }: { server: Server }) {
+  const { t } = useTranslation('nav')
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
   const currentUser = useAuthStore((s) => s.user)
   const { members, onlineIds, fetchMembers } = useMemberStore(
     useShallow((s) => ({
@@ -49,6 +54,7 @@ export function MembersTab({ server }: { server: Server }) {
   const canKick = hasPerm(Permission.KICK_MEMBERS)
   const canBan = hasPerm(Permission.BAN_MEMBERS)
   const canMute = hasPerm(Permission.MUTE_MEMBERS)
+  const canManageProfiles = hasPerm(Permission.MANAGE_SERVER)
   const [roles, setRoles] = useState<import('@chat/shared').Role[]>([])
 
   useEffect(() => {
@@ -162,7 +168,7 @@ export function MembersTab({ server }: { server: Server }) {
                 className="min-w-0 flex-1 truncate text-sm font-medium"
                 style={roleColor ? { color: roleColor } : { color: '#9ca3af' }}
               >
-                {m.user.displayName ?? m.user.username}
+                {memberDisplayName(m)}
               </span>
             </div>
 
@@ -183,6 +189,11 @@ export function MembersTab({ server }: { server: Server }) {
               </div>
             )}
 
+            {canManageProfiles && (!isMemberOwner || isSelf) && (
+              <Button type="button" variant="secondary" size="sm" onClick={() => setProfileUserId(m.userId)}>
+                {t('profileEdit')}
+              </Button>
+            )}
             {showActions && (
               <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-white/5 pt-2">
                 {canManageRoles && assignableRoles.length > 0 && (
@@ -256,6 +267,9 @@ export function MembersTab({ server }: { server: Server }) {
         )
       })}
       </div>
+      {profileUserId && (
+        <ServerProfileModal serverId={server.id} userId={profileUserId} onClose={() => setProfileUserId(null)} />
+      )}
     </div>
   )
 }

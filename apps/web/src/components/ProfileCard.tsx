@@ -21,9 +21,11 @@ import { useMemberStore } from '@/stores/member.store'
 import { useServerStore } from '@/stores/server.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore } from '@/stores/voice.store'
+import { useServerDisplayName } from '@/lib/serverProfile'
 
 export type ProfileCardUser = {
   id: string
+  serverId?: string
   username: string
   displayName?: string | null
   avatarUrl?: string | null
@@ -67,6 +69,7 @@ export function ProfileCard(props: ProfileCardProps) {
 }
 
 function ProfileCardPopup({ user, onClose, anchorRect, isMobile }: ProfileCardProps & { isMobile: boolean }) {
+  const profileName = useServerDisplayName(user, user.serverId)
   const cardRef = useRef<HTMLDivElement>(null)
   const [contentReady, setContentReady] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
@@ -154,7 +157,7 @@ function ProfileCardPopup({ user, onClose, anchorRect, isMobile }: ProfileCardPr
       ref={cardRef}
       role="dialog"
       aria-modal="true"
-      aria-label={user.displayName ?? user.username}
+      aria-label={profileName}
       aria-busy={!contentReady}
       style={{ left: position?.left ?? 8, top: position?.top ?? 8, visibility: visible ? 'visible' : 'hidden' }}
       className="fixed z-[90] max-h-[calc(100dvh-16px)] w-[300px] max-w-[calc(100vw-16px)] overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg bg-surface-overlay shadow-2xl ring-1 ring-black/30"
@@ -192,6 +195,11 @@ function ProfileCardContent({
 }) {
   const { t } = useTranslation('chat')
   const currentUserId = useAuthStore((s) => s.user?.id)
+  const displayName = useServerDisplayName(user, user.serverId)
+  const serverBio = useMemberStore((s) =>
+    user.serverId ? s.members.find((m) => m.serverId === user.serverId && m.userId === user.id)?.bio : undefined
+  )
+  const { t: tNav } = useTranslation('nav')
   const currentServerId = useServerStore((s) => s.currentServerId)
   const currentServer = useServerStore((s) =>
     s.currentServerId ? (s.servers.find((sv) => sv.id === s.currentServerId) ?? null) : null
@@ -298,14 +306,14 @@ function ProfileCardContent({
         </div>
 
         <div className="mt-1 flex items-center gap-2">
-          <h3 className="text-lg font-bold text-white">{user.displayName ?? user.username}</h3>
+          <h3 className="text-lg font-bold text-white">{displayName}</h3>
           {user.isBot && (
             <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
           )}
           {adminRole && <RoleBadge name={adminRole.name} color={adminRole.color} size="sm" showDot={false} />}
         </div>
 
-        {user.displayName && user.displayName !== user.username && (
+        {displayName !== user.username && (
           <p className="text-xs text-gray-400">@{user.username}</p>
         )}
         <p className="text-xs text-gray-400">{statusLabel[user.status]}</p>
@@ -321,6 +329,13 @@ function ProfileCardContent({
         )}
 
         <div className="my-3 border-t border-white/10" />
+
+        {serverBio && (
+          <div className="mb-3">
+            <SectionHeading className="mb-0.5">{tNav('profileDescription')}</SectionHeading>
+            <p className="whitespace-pre-wrap break-words text-sm text-gray-200">{serverBio}</p>
+          </div>
+        )}
 
         {user.bio && (
           <div className="mb-3">

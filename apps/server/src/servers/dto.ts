@@ -53,6 +53,18 @@ export class UpdateMemberRolesDto {
   roleIds: string[]
 }
 
+export class UpdateServerProfileDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  displayName?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  bio?: string | null
+}
+
 export class TimeoutMemberDto {
   @IsInt()
   @Min(1)

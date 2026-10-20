@@ -12,6 +12,8 @@ import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavSer
 import { HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
+import { ServerProfileModal } from '@/components/server/ServerProfileModal'
+import { memberDisplayName } from '@/lib/serverProfile'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
 )
@@ -23,6 +25,9 @@ const InviteModal = React.lazy(() =>
 )
 const ServerSettingsModal = React.lazy(() =>
   import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
+)
+const LeaderboardModal = React.lazy(() =>
+  import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
 )
 import { UserAvatar } from '@/components/UserAvatar'
 import { VoicePanel } from '@/components/voice/VoicePanel'
@@ -160,6 +165,8 @@ export function MobileNavDrawer({
 
   const [serverMenuOpen, setServerMenuOpen] = useState(false)
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [eventsOpen, setEventsOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
@@ -238,6 +245,18 @@ export function MobileNavDrawer({
   }, [conversations, dmFilter])
 
   const currentServer = useMemo(() => servers.find((s) => s.id === currentServerId) ?? null, [servers, currentServerId])
+  const openLeaderboard = useCallback(() => {
+    setServerMenuOpen(false)
+    close()
+    setLeaderboardOpen(true)
+  }, [close])
+
+  useEffect(() => {
+    if (viewMode !== 'server' || !currentServer?.xpEnabled) return
+    window.addEventListener('open-leaderboard', openLeaderboard)
+    return () => window.removeEventListener('open-leaderboard', openLeaderboard)
+  }, [viewMode, currentServer?.xpEnabled, openLeaderboard])
+
   const isOwner = currentServer?.ownerId === user?.id
   const eventCount = useEventStore((s) =>
     currentServerId && s.loadedServerId === currentServerId ? s.events.length : 0
@@ -675,7 +694,7 @@ export function MobileNavDrawer({
                                             size="sm"
                                           />
                                           <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-300">
-                                            {member?.user.displayName || p.username}
+                                            {member ? memberDisplayName(member) : p.username}
                                           </span>
                                           <VoiceStatusIcons participant={p} />
                                         </li>
@@ -856,6 +875,7 @@ export function MobileNavDrawer({
         <ServerMenuSheet
           server={currentServer}
           isAdminOrOwner={isAdminOrOwner}
+          canManageServer={hasPerm(Permission.MANAGE_SERVER)}
           isOwner={isOwner}
           eventCount={eventCount}
           onClose={() => setServerMenuOpen(false)}
@@ -864,6 +884,12 @@ export function MobileNavDrawer({
             close()
             setServerSettingsOpen(true)
           }}
+          onEditProfile={() => {
+            setServerMenuOpen(false)
+            close()
+            setProfileOpen(true)
+          }}
+          onLeaderboard={openLeaderboard}
           onReorder={() => {
             setServerMenuOpen(false)
             close()
@@ -917,6 +943,14 @@ export function MobileNavDrawer({
       {serverSettingsOpen && currentServer && (
         <Suspense fallback={null}>
           <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
+        </Suspense>
+      )}
+      {profileOpen && currentServer && user && (
+        <ServerProfileModal serverId={currentServer.id} userId={user.id} onClose={() => setProfileOpen(false)} />
+      )}
+      {leaderboardOpen && currentServer?.xpEnabled && (
+        <Suspense fallback={null}>
+          <LeaderboardModal serverId={currentServer.id} onClose={() => setLeaderboardOpen(false)} />
         </Suspense>
       )}
       {eventsOpen && currentServer && (

@@ -5,6 +5,7 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 ## Features
 
 ### Messaging
+
 - **Text channels** organized in categories with drag-and-drop reordering
 - **Direct messages** and **group DMs**
 - **Threads** for focused conversations within channels
@@ -19,6 +20,7 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **Webhooks** for external integrations
 
 ### Bot Support
+
 - **First-class bot users** with full messaging capabilities
 - **Slash commands** with autocomplete in the message input
 - **Permission-gated commands** — restrict bot commands to users with specific permissions
@@ -27,38 +29,48 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **FreeGameBot** — built-in example bot that monitors free game deals
 
 ### Voice & Video
+
 - **Voice channels** powered by [LiveKit](https://livekit.io/) (self-hosted WebRTC SFU)
 - **Video calls** with camera controls
 - **Screen sharing** (including native picker on the desktop app)
 - Works out of the box with the bundled self-hosted LiveKit, or swap in [LiveKit Cloud](https://livekit.io/cloud) by changing three env vars
 
 ### Servers & Permissions
+
 - **Servers** with categories, text channels, and voice channels
+- **Per-server profiles** with a server display name and description, separate from the global profile
+- **Activity leaderboard** available to every member from the server menu on desktop, tablet, and mobile when server leveling is enabled
+- **Personal server ordering and folders**, synchronized to the account and cached locally for fast startup
 - **Role-based permissions** with granular bitfield system (manage channels, messages, kick, ban, roles, webhooks, events, and more)
 - **Channel permission overrides** — allow/deny specific permissions per role per channel
 - **Invite system** with configurable codes
 
 ### Moderation
+
 - **AutoMod** — word filter (block/flag), link filter, spam detection
 - **Ban** and **kick** members
 - **Audit log** for tracking moderation actions
 - **Server-level** and **instance-level** moderation tools
 
 ### Events
+
 - **Server events** — create, schedule, and manage community events
 - **Interest tracking** so members can mark attendance
 
 ### Notifications
+
 - **Per-channel notification preferences** (all, mentions only, muted)
 - **Web Push notifications** (VAPID)
 - **Desktop notifications** with tray badge and window flash
 
 ### Customization
+
 - **Accent color picker** for personalized theming
 - **User status** (online, idle, DND) with custom status messages
 - **Profile** settings with avatar upload
 
 ### Admin Panel (`/admin`)
+
 - **Dashboard** with instance statistics
 - **Server management** — create, edit, delete servers
 - **User management** — view, edit, ban users
@@ -70,6 +82,7 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **Webhook** management
 
 ### Desktop App
+
 - **Tauri** app built for a specific Jablu instance (server URL baked in at build time)
 - **Auto-updates** via the built-in update server
 - **Tray support** with unread count
@@ -78,6 +91,7 @@ A fully self-hosted Discord alternative for small communities. Text chat, voice/
 - **Activity sharing** for sharing what you play / listen to
 
 ### Mobile
+
 - The web app is **fully responsive** and works well on mobile browsers
 - **PWA support** — installable from the browser with offline capabilities
 
@@ -156,14 +170,14 @@ jablu-chat/
 
 ## Tech Stack
 
-| Layer        | Technology                                       |
-| ------------ | ------------------------------------------------ |
-| **Backend**  | NestJS 11, Prisma, PostgreSQL, Redis, Socket.IO  |
+| Layer        | Technology                                             |
+| ------------ | ------------------------------------------------------ |
+| **Backend**  | NestJS 11, Prisma, PostgreSQL, Redis, Socket.IO        |
 | **Frontend** | React 19, TypeScript, Vite 8, Tailwind CSS v4, Zustand |
-| **Voice**    | LiveKit (self-hosted WebRTC SFU)                 |
-| **Desktop**  | Tauri v2 with signed auto-updates                |
-| **Bots**     | `@chat/sdk`, Socket.IO, better-sqlite3           |
-| **Tooling**  | pnpm workspaces, Turborepo                       |
+| **Voice**    | LiveKit (self-hosted WebRTC SFU)                       |
+| **Desktop**  | Tauri v2 with signed auto-updates                      |
+| **Bots**     | `@chat/sdk`, Socket.IO, better-sqlite3                 |
+| **Tooling**  | pnpm workspaces, Turborepo                             |
 
 ---
 
@@ -211,17 +225,17 @@ All configuration is done through a single `.env` file. Run `./setup.sh` to gene
 
 Key variables:
 
-| Variable            | Description                                         |
-| ------------------- | --------------------------------------------------- |
-| `SERVER_HOST`       | Public IP or domain                                 |
-| `TLS_MODE`          | `off`, `self-signed`, or `letsencrypt`              |
-| `REGISTRATION_MODE` | `open` or `invite`                                  |
-| `LIVEKIT_URL`       | WebSocket URL for voice/video                       |
-| `SMTP_*`            | Email settings for password resets                   |
-| `VAPID_*`           | Web Push notification keys                           |
-| `GIPHY_API_KEY`     | Optional — enables GIF picker                        |
-| `STORAGE_LIMIT_GB`  | Disk usage warning threshold                         |
-| `CLEANUP_ENABLED`   | Enable automatic old attachment cleanup               |
+| Variable            | Description                             |
+| ------------------- | --------------------------------------- |
+| `SERVER_HOST`       | Public IP or domain                     |
+| `TLS_MODE`          | `off`, `self-signed`, or `letsencrypt`  |
+| `REGISTRATION_MODE` | `open` or `invite`                      |
+| `LIVEKIT_URL`       | WebSocket URL for voice/video           |
+| `SMTP_*`            | Email settings for password resets      |
+| `VAPID_*`           | Web Push notification keys              |
+| `GIPHY_API_KEY`     | Optional — enables GIF picker           |
+| `STORAGE_LIMIT_GB`  | Disk usage warning threshold            |
+| `CLEANUP_ENABLED`   | Enable automatic old attachment cleanup |
 
 ---
 

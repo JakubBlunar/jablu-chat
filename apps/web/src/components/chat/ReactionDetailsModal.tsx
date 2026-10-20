@@ -10,6 +10,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useIsMobile } from '@/hooks/useMobile'
 import type { CustomEmoji } from '@/lib/api/types'
+import { memberDisplayName } from '@/lib/serverProfile'
 
 type Props = {
   reactions: ReactionGroup[]
@@ -136,9 +137,10 @@ function useResolveReactors(mode: 'channel' | 'dm', contextId: string): (userId:
   return useCallback(
     (userId: string): ResolvedUser => {
       if (self && userId === self.id) {
+        const member = mode === 'channel' ? members.find((m) => m.userId === userId) : undefined
         return {
           userId,
-          displayName: self.displayName ?? self.username,
+          displayName: member ? memberDisplayName(member) : self.displayName ?? self.username,
           username: self.username,
           avatarUrl: self.avatarUrl ?? null,
           isUnknown: false
@@ -149,7 +151,7 @@ function useResolveReactors(mode: 'channel' | 'dm', contextId: string): (userId:
         if (m) {
           return {
             userId,
-            displayName: m.user.displayName ?? m.user.username,
+            displayName: memberDisplayName(m),
             username: m.user.username,
             avatarUrl: m.user.avatarUrl ?? null,
             isUnknown: false

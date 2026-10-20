@@ -13,6 +13,8 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { isoToLocalDatetimeString, localToISO } from '@/lib/eventDuration'
 import { formatDuration } from '@/lib/eventTime'
 import { EventScheduleFields } from './EventScheduleFields'
+import { serverDisplayName } from '@/lib/serverProfile'
+import { useMemberStore } from '@/stores/member.store'
 
 function formatFullTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -40,6 +42,7 @@ type Props = {
 export function EventDetail({ event, serverId, onBack, onClose }: Props) {
   const { t } = useTranslation('common')
   const userId = useAuthStore((s) => s.user?.id)
+  const members = useMemberStore((s) => s.members)
 
   const [interestedUsers, setInterestedUsers] = useState<
     { userId: string; user: { id: string; username: string; displayName: string | null; avatarUrl: string | null } }[]
@@ -297,7 +300,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               <svg className="h-4 w-4 shrink-0 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span>Created by {event.creator.displayName ?? event.creator.username}</span>
+              <span>Created by {serverDisplayName(event.creator, serverId, members)}</span>
             </div>
           )}
         </div>
@@ -398,7 +401,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
                       size="sm"
                     />
                     <span className="text-sm text-gray-300">
-                      {item.user.displayName ?? item.user.username}
+                      {serverDisplayName(item.user, serverId, members)}
                     </span>
                   </div>
                 ))

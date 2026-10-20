@@ -14,6 +14,8 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { historyErrorKey, type HistoryErrorKey } from '@/lib/messageHistory'
 import { MediaPreview } from '@/components/media/MediaPreview'
+import { serverDisplayName } from '@/lib/serverProfile'
+import { useMemberStore } from '@/stores/member.store'
 
 type Scope = 'server' | 'channel' | 'conversation' | 'dm' | 'all'
 const PAGE_SIZE = 25
@@ -49,6 +51,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const { t: tCommon } = useTranslation('common')
   const { t: tChat } = useTranslation('chat')
   const currentServerId = useServerStore((s) => s.currentServerId)
+  const members = useMemberStore((s) => s.members)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
   const channels = useChannelStore((s) => s.channels)
   const currentChannel = channels.find((c) => c.id === currentChannelId)
@@ -487,7 +490,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="truncate text-sm font-medium text-white">
-                          {r.author?.displayName ?? r.author?.username ?? tChat('deletedUser')}
+                          {serverDisplayName(r.author, r.channel?.serverId, members) ?? tChat('deletedUser')}
                         </span>
                         {r.channel ? (
                           <span className="shrink-0 text-[11px] text-gray-500">#{r.channel.name}</span>

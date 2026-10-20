@@ -140,13 +140,19 @@ describe('XpService', () => {
   })
 
   describe('getLeaderboard', () => {
+    it('keeps leaderboard access disabled when server leveling is disabled', async () => {
+      prisma.server.findUnique.mockResolvedValue({ xpEnabled: false })
+      await expect(service.getLeaderboard(serverId, userId)).rejects.toThrow('Leveling is disabled for this server')
+      expect(prisma.serverMember.findMany).not.toHaveBeenCalled()
+    })
+
     it('rejects non-members', async () => {
       prisma.server.findUnique.mockResolvedValue({ xpEnabled: true })
       prisma.serverMember.findUnique.mockResolvedValue(null)
       await expect(service.getLeaderboard(serverId, userId)).rejects.toBeInstanceOf(ForbiddenException)
     })
 
-    it('returns a ranked list', async () => {
+    it('returns a ranked list to ordinary members without management permissions', async () => {
       prisma.server.findUnique.mockResolvedValue({ xpEnabled: true })
       prisma.serverMember.findUnique.mockResolvedValue({ userId })
       prisma.serverMember.findMany.mockResolvedValue([
@@ -158,6 +164,10 @@ describe('XpService', () => {
       expect(rows).toHaveLength(2)
       expect(rows[0].rank).toBe(1)
       expect(rows[1].rank).toBe(2)
+      expect(prisma.serverMember.findUnique).toHaveBeenCalledWith({
+        where: { userId_serverId: { userId, serverId } },
+        select: { userId: true }
+      })
     })
   })
 })

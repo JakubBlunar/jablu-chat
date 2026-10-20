@@ -196,7 +196,7 @@ export function UnifiedInput({
         .map((m) => ({
           userId: m.userId,
           username: m.user.username,
-          displayName: m.user.displayName,
+          displayName: m.displayName ?? m.user.displayName,
           avatarUrl: m.user.avatarUrl
         }))
       if (!canPingBroadcast) {

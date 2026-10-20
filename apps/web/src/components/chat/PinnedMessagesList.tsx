@@ -9,6 +9,9 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { setMessagePinned } from '@/lib/messagePins'
 import { IconButton, Spinner } from '@/components/ui'
+import { serverDisplayName } from '@/lib/serverProfile'
+import { useMemberStore } from '@/stores/member.store'
+import { useServerStore } from '@/stores/server.store'
 
 export function PinnedMessagesList({
   messages,
@@ -33,6 +36,8 @@ export function PinnedMessagesList({
 }) {
   const { t } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
+  const members = useMemberStore((s) => s.members)
+  const serverId = useServerStore((s) => s.currentServerId)
   const [pending, setPending] = useState<string[]>([])
   const [failedId, setFailedId] = useState<string | null>(null)
   const handleUnpin = useCallback(
@@ -82,7 +87,7 @@ export function PinnedMessagesList({
         </div>
       )}
       {messages.map((m) => {
-        const name = m.author?.displayName ?? m.author?.username ?? t('deletedUser')
+        const name = serverDisplayName(m.author, conversationId ? null : serverId, members) ?? t('deletedUser')
         const attachments = m.attachments ?? []
         const linkPreviews = m.linkPreviews ?? []
         return (

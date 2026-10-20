@@ -8,9 +8,9 @@ import { DmCallsService } from '../voice/dm-calls.service'
 import { EventBusService } from '../events/event-bus.service'
 import { VoiceService } from '../voice/voice.service'
 import { NotificationsService } from '../notifications/notifications.service'
+import { RedisService } from '../redis/redis.service'
 import { DmCallsGateway } from './dm-calls.gateway'
 import { WsJwtGuard } from './ws-jwt.guard'
-import { WsThrottleGuard } from './ws-throttle.guard'
 
 const conversationId = '00000000-0000-4000-8000-000000000001'
 
@@ -77,6 +77,7 @@ describe('DM call signaling over WebSocket', () => {
   let app: INestApplication
   let url: string
   const clients: SignalingClient[] = []
+  const throttle = { eval: jest.fn() }
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -84,6 +85,7 @@ describe('DM call signaling over WebSocket', () => {
         DmCallsGateway,
         DmCallsService,
         EventBusService,
+        { provide: RedisService, useValue: { client: throttle } },
         {
           provide: DmService,
           useValue: {
@@ -115,8 +117,6 @@ describe('DM call signaling over WebSocket', () => {
           return true
         }
       })
-      .overrideGuard(WsThrottleGuard)
-      .useValue({ canActivate: () => true })
       .compile()
     app = module.createNestApplication()
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }))
@@ -126,6 +126,10 @@ describe('DM call signaling over WebSocket', () => {
 
   afterEach(() => {
     for (const client of clients.splice(0)) client.close()
+  })
+
+  beforeEach(() => {
+    throttle.eval.mockReset().mockResolvedValue([1, 10])
   })
 
   afterAll(async () => {
@@ -170,11 +174,28 @@ describe('DM call signaling over WebSocket', () => {
       ok: false,
       error: 'Not a conversation member'
     })
-    const exception = stranger.once<{ message: string }>('exception')
-    // An invalid DTO produces the repository-standard exception event rather than an ack.
-    const invalid = stranger.request('dm:call:accept', { callId: 'not-a-uuid' }).catch(() => undefined)
-    expect((await exception).message).toContain('callId must be a UUID')
-    stranger.close()
-    await invalid
+    expect(await stranger.request('dm:call:accept', { callId: 'not-a-uuid' })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('callId must be a UUID'),
+      retryable: false
+    })
+  })
+
+  it('synchronizes calls without requiring a selected conversation', async () => {
+    const alice = await client('alice')
+    expect(await alice.request('dm:call:sync')).toEqual({ ok: true, data: [] })
+  })
+
+  it('acknowledges rate limits accurately and allows synchronization after the window', async () => {
+    const alice = await client('alice')
+    throttle.eval.mockResolvedValueOnce([11, 7])
+    expect(await alice.request('dm:call:sync')).toEqual({
+      ok: false,
+      error: 'Rate limit exceeded',
+      retryable: true,
+      event: 'dm:call:sync',
+      retryAfter: 7
+    })
+    expect(await alice.request('dm:call:sync')).toEqual({ ok: true, data: [] })
   })
 })

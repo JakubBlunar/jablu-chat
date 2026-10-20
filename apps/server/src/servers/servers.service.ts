@@ -106,6 +106,40 @@ export class ServersService {
     }))
   }
 
+  async updateMemberProfile(
+    serverId: string,
+    actorId: string,
+    targetUserId: string,
+    data: { displayName?: string | null; bio?: string | null }
+  ) {
+    await this.requireMembership(serverId, actorId)
+    if (actorId !== targetUserId) {
+      await this.roles.requirePermission(serverId, actorId, Permission.MANAGE_SERVER)
+      const server = await this.getServerOrThrow(serverId)
+      if (targetUserId === server.ownerId) {
+        throw new ForbiddenException('Cannot edit the server owner profile')
+      }
+    }
+    const target = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: targetUserId, serverId } }
+    })
+    if (!target) throw new NotFoundException('Member not found')
+    const patch: { displayName?: string | null; bio?: string | null } = {}
+    if (data.displayName !== undefined) patch.displayName = data.displayName?.trim() || null
+    if (data.bio !== undefined) patch.bio = data.bio?.trim() || null
+    if (Object.keys(patch).length === 0) throw new BadRequestException('No profile fields provided')
+    const member = await this.prisma.serverMember.update({
+      where: { userId_serverId: { userId: targetUserId, serverId } },
+      data: patch
+    })
+    if (actorId !== targetUserId) {
+      await this.auditLog.log(serverId, actorId, 'member.profile.update', 'user', targetUserId, 'Updated server profile')
+    }
+    const profile = { displayName: member.displayName, bio: member.bio }
+    this.events.emit('member:updated', { serverId, userId: targetUserId, profile })
+    return profile
+  }
+
   async getServer(serverId: string, userId: string) {
     const server = await this.prisma.server.findFirst({
       where: { id: serverId, members: { some: { userId } } },

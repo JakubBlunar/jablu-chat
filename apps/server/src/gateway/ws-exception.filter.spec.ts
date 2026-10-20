@@ -6,9 +6,10 @@ describe('WsExceptionFilter', () => {
   let filter: WsExceptionFilter
   let mockEmit: jest.Mock
 
-  function makeHost() {
+  function makeHost(acknowledge?: jest.Mock) {
     mockEmit = jest.fn()
     return {
+      getArgByIndex: () => acknowledge,
       switchToWs: () => ({
         getClient: () => ({ emit: mockEmit })
       })
@@ -64,6 +65,33 @@ describe('WsExceptionFilter', () => {
     expect(mockEmit).toHaveBeenCalledWith('exception', {
       status: 'error',
       message: 'Token expired'
+    })
+  })
+
+  it('acknowledges throttled requests with the real error and retry delay', () => {
+    const acknowledge = jest.fn()
+    filter.catch(
+      new WsException({ message: 'Rate limit exceeded', event: 'dm:call:sync', retryAfter: 7 }),
+      makeHost(acknowledge)
+    )
+    expect(acknowledge).toHaveBeenCalledWith({
+      ok: false,
+      error: 'Rate limit exceeded',
+      retryable: true,
+      event: 'dm:call:sync',
+      retryAfter: 7
+    })
+    expect(mockEmit).not.toHaveBeenCalled()
+  })
+
+  it('preserves rate-limit metadata for requests without an acknowledgement', () => {
+    filter.catch(new WsException({ message: 'Rate limit exceeded', event: 'typing:start', retryAfter: 3 }), makeHost())
+    expect(mockEmit).toHaveBeenCalledTimes(1)
+    expect(mockEmit).toHaveBeenCalledWith('exception', {
+      status: 'error',
+      message: 'Rate limit exceeded',
+      event: 'typing:start',
+      retryAfter: 3
     })
   })
 

@@ -26,6 +26,7 @@ function mockStore(name: string) {
 }
 
 jest.mock('./server.store', () => ({ useServerStore: mockStore('server') }))
+jest.mock('./serverLayout.store', () => ({ useServerLayoutStore: mockStore('serverLayout') }))
 jest.mock('./channel.store', () => ({ useChannelStore: mockStore('channel') }))
 jest.mock('./member.store', () => ({ useMemberStore: mockStore('member') }))
 jest.mock('./message.store', () => ({ useMessageStore: mockStore('message') }))
@@ -113,7 +114,8 @@ it('disconnects producers and persistence before clearing session state and awai
       'thread.closeThread',
       'forumReply.clearMessages',
       'forum.reset',
-      'inbox.reset'
+      'inbox.reset',
+      'serverLayout.reset'
     ])
   )
   expect(finished).toBe(false)

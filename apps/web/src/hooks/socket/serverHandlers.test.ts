@@ -91,6 +91,16 @@ describe('onMemberLeft', () => {
 })
 
 describe('onMemberUpdated', () => {
+  it('applies profile updates only to members in the current server', () => {
+    const update = jest.spyOn(useMemberStore.getState(), 'updateServerProfile')
+    const profile = { displayName: 'Local name', bio: 'Local bio' }
+    handlers.onMemberUpdated({ serverId: 'elsewhere', userId: 'me', profile })
+    expect(update).not.toHaveBeenCalled()
+    handlers.onMemberUpdated({ serverId: 's1', userId: 'me', profile })
+    expect(update).toHaveBeenCalledWith('s1', 'me', profile)
+    expect(useChannelStore.getState().fetchChannels).not.toHaveBeenCalled()
+    update.mockRestore()
+  })
   it('updates member roles and refetches channels/perms for self', () => {
     handlers.onMemberUpdated({
       serverId: 's1',

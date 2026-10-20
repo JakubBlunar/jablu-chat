@@ -53,6 +53,7 @@ export function useProfileCard(
           : (member.user.status as UserStatus) || 'online'
         setCardUser({
           id: member.userId,
+          serverId: member.serverId,
           username: member.user.username,
           displayName: member.user.displayName,
           avatarUrl: member.user.avatarUrl,
@@ -77,6 +78,7 @@ export function useProfileCard(
       : (member.user.status as UserStatus) || 'online'
     setCardUser({
       id: member.userId,
+      serverId: member.serverId,
       username: member.user.username,
       displayName: member.user.displayName,
       avatarUrl: member.user.avatarUrl,

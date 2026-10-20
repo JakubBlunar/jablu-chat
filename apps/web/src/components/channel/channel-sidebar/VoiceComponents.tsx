@@ -7,6 +7,7 @@ import { useActivityStore } from '@/stores/activity.store'
 import { type VoiceParticipant } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useMemberStore, type Member } from '@/stores/member.store'
+import { memberDisplayName } from '@/lib/serverProfile'
 
 export function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   const icons: React.ReactNode[] = []
@@ -132,7 +133,7 @@ export function VoiceParticipantRow({
             isSpeaking ? 'text-emerald-400' : 'text-gray-300 group-hover/vp:text-gray-100'
           }`}
         >
-          {member?.user.displayName || participant.username}
+          {member ? memberDisplayName(member) : participant.username}
         </span>
         {activity ? <ActivityLine activity={activity} /> : null}
       </div>

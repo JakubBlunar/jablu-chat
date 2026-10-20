@@ -11,6 +11,8 @@ export class WsExceptionFilter implements ExceptionFilter {
 
     let message: string
     let retryable = true
+    let event: string | undefined
+    let retryAfter: number | undefined
 
     if (exception instanceof HttpException) {
       retryable = exception.getStatus() >= 500 || exception.getStatus() === 429
@@ -24,6 +26,10 @@ export class WsExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof WsException) {
       const error = exception.getError()
       message = typeof error === 'string' ? error : String((error as { message?: string }).message ?? error)
+      if (typeof error === 'object' && error !== null) {
+        if ('event' in error && typeof error.event === 'string') event = error.event
+        if ('retryAfter' in error && typeof error.retryAfter === 'number') retryAfter = error.retryAfter
+      }
     } else if (exception instanceof Error) {
       this.logger.error('Unhandled WS exception', exception.stack)
       message = 'Internal error'
@@ -31,11 +37,15 @@ export class WsExceptionFilter implements ExceptionFilter {
       message = 'Internal error'
     }
 
+    const metadata = {
+      ...(event !== undefined ? { event } : {}),
+      ...(retryAfter !== undefined ? { retryAfter } : {})
+    }
     const acknowledge = host.getArgByIndex<unknown>(2)
     if (typeof acknowledge === 'function') {
-      acknowledge({ ok: false, error: message, retryable })
+      acknowledge({ ok: false, error: message, retryable, ...metadata })
     } else {
-      client.emit('exception', { status: 'error', message })
+      client.emit('exception', { status: 'error', message, ...metadata })
     }
   }
 }

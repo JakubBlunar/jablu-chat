@@ -1,10 +1,12 @@
-import type { Role } from '@chat/shared'
+import type { Role, ServerProfile } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
 
 export type Member = {
   userId: string
   serverId: string
+  displayName?: string | null
+  bio?: string | null
   roleIds: string[]
   joinedAt: string
   mutedUntil?: string | null
@@ -65,6 +67,8 @@ type MemberState = {
   setUserStatus: (userId: string, status: string) => void
   setUserCustomStatus: (userId: string, customStatus: string | null) => void
   updateUserProfile: (userId: string, data: Partial<Member['user']>) => void
+  updateServerProfile: (serverId: string, userId: string, profile: ServerProfile) => void
+  saveServerProfile: (serverId: string, userId: string, profile: Partial<ServerProfile>) => Promise<void>
   mergeFriendsPresence: (onlineFriendIds: string[], friendStatuses?: Record<string, string>) => void
   resolveStatus: (userId: string) => string
 }
@@ -243,6 +247,16 @@ export const useMemberStore = create<MemberState>((set, get) => ({
     set((s) => ({
       members: s.members.map((m) => (m.userId === userId ? { ...m, user: { ...m.user, ...data } } : m))
     })),
+
+  updateServerProfile: (serverId, userId, profile) =>
+    set((s) => ({
+      members: s.members.map((m) => m.serverId === serverId && m.userId === userId ? { ...m, ...profile } : m)
+    })),
+
+  saveServerProfile: async (serverId, userId, profile) => {
+    const updated = await api.patch<ServerProfile>(`/api/servers/${serverId}/members/${userId}/profile`, profile)
+    get().updateServerProfile(serverId, userId, updated)
+  },
 
   mergeFriendsPresence: (onlineFriendIds, friendStatuses) =>
     set((s) => {

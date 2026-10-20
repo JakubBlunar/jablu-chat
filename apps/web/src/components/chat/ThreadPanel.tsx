@@ -17,6 +17,8 @@ import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
 import { useInboxAnchor } from '@/hooks/useInboxAnchor'
 import { IconButton, Spinner } from '@/components/ui'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
+import { memberDisplayName, useServerDisplayName } from '@/lib/serverProfile'
+import { useMemberStore } from '@/stores/member.store'
 
 export function ThreadPanel({
   gifEnabled,
@@ -51,26 +53,27 @@ export function ThreadPanel({
   )
 
   const [replyTarget, setReplyTarget] = useDraftReply('channel', channelId, parentMessage?.id)
+  const serverId = useServerStore((s) => s.currentServerId)
 
   const handleReply = useCallback(
     (msg: Message) => {
+      const member = useMemberStore.getState().members.find((m) => m.userId === msg.authorId && m.serverId === serverId)
       setReplyTarget({
         id: msg.id,
         content: msg.content,
-        authorName: msg.author?.displayName ?? msg.author?.username ?? t('unknownUser')
+        authorName: member ? memberDisplayName(member) : msg.author?.displayName ?? msg.author?.username ?? t('unknownUser')
       })
     },
-    [setReplyTarget, t]
+    [setReplyTarget, t, serverId]
   )
 
   const isMobile = useIsMobile()
-  const serverId = useServerStore((s) => s.currentServerId)
+  const parentName = useServerDisplayName(parentMessage?.author, serverId) ?? t('deletedUser')
   const emojiArr = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
   const customEmojiMap = useMemo(() => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined), [emojiArr])
 
   if (!isOpen || !parentMessage || !channelId) return null
 
-  const parentName = parentMessage.author?.displayName ?? parentMessage.author?.username ?? t('deletedUser')
 
   const parentPreview = (
     <div className="border-b border-white/10 p-4">

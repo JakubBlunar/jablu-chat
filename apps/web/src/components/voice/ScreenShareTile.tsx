@@ -8,6 +8,7 @@ import {
 } from 'livekit-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useServerDisplayName } from '@/lib/serverProfile'
 
 export function ScreenShareTile({
   participant,
@@ -17,6 +18,9 @@ export function ScreenShareTile({
   publication: TrackPublication
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const serverId = useVoiceConnectionStore((s) => s.currentServerId)
+  const fallbackName = participant.name || participant.identity
+  const displayName = useServerDisplayName({ id: participant.identity, username: fallbackName }, serverId) ?? fallbackName
   const [hasTrack, setHasTrack] = useState(false)
   const [hasAudio, setHasAudio] = useState(false)
   const [loadTimeout, setLoadTimeout] = useState(false)
@@ -93,7 +97,6 @@ export function ScreenShareTile({
     return () => clearTimeout(t)
   }, [hasTrack])
 
-  const displayName = participant.name || participant.identity
   const isLocal = participant.isLocal
 
   return (

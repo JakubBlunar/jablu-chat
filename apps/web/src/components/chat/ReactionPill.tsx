@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useIsMobile } from '@/hooks/useMobile'
+import { memberDisplayName } from '@/lib/serverProfile'
 
 const HOVER_DELAY_MS = 250
 const HOVER_CLOSE_DELAY_MS = 120
@@ -290,11 +291,12 @@ function useReactorNameResolver(mode: 'channel' | 'dm', contextId: string): (use
   return useCallback(
     (userId: string) => {
       if (self && userId === self.id) {
-        return self.displayName ?? self.username
+        const member = mode === 'channel' ? members.find((m) => m.userId === userId) : undefined
+        return member ? memberDisplayName(member) : self.displayName ?? self.username
       }
       if (mode === 'channel') {
         const m = members.find((mem) => mem.userId === userId)
-        if (m) return m.user.displayName ?? m.user.username
+        if (m) return memberDisplayName(m)
       } else {
         const member = dmConversation?.members.find((mem) => mem.userId === userId)
         if (member) return member.displayName ?? member.username

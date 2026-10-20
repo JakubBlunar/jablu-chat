@@ -85,3 +85,17 @@ it('never uses another server membership for colors or mentions', () => {
   expect(lookups.rolesByLowerName.size).toBe(0)
   expect(lookups.authorColors.size).toBe(0)
 })
+
+it('renders server names in mentions while leaving DM names global', () => {
+  useMemberStore.setState({ members: [member({ displayName: 'Server Alice' })] })
+  const local = createChatLookupSelector('s1')(useMemberStore.getState())
+  const global = createChatLookupSelector(null)(useMemberStore.getState())
+  expect(processMentions('@alice', local.membersByUsername)).toBe('[@Server Alice](mention:alice)')
+  expect(processMentions('@alice', global.membersByUsername)).toBe('[@Alice](mention:alice)')
+  expect(processMentions('@"Alice"', local.membersByUsername)).toBe('[@Server Alice](mention:alice)')
+})
+
+it('renders brackets in server names as literal mention text', () => {
+  const local = createChatLookupSelector('s1')({ members: [member({ displayName: 'Alice [team]' })] })
+  expect(processMentions('@alice', local.membersByUsername)).toBe('[@Alice \\[team\\]](mention:alice)')
+})

@@ -8,12 +8,14 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
+import { ThreadPanel } from './ThreadPanel'
+import { api } from '@/lib/api'
 
 // ── heavy sub-components ──────────────────────────────────────────────────────
 jest.mock('@/components/chat/MessageSurface', () => ({ MessageSurface: () => null }))
 jest.mock('@/components/chat/UnifiedInput', () => ({ UnifiedInput: () => null }))
 jest.mock('@/components/chat/PinnedPanel', () => ({ PinnedPanel: () => null }))
-jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: () => null }))
+jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: jest.fn(() => null) }))
 jest.mock('@/components/chat/PollCreator', () => ({ PollCreator: () => null }))
 jest.mock('@/components/chat/ChannelInfoPanel', () => ({ ChannelInfoPanel: () => null }))
 jest.mock('@/components/chat/ChannelInfoDrawer', () => ({ ChannelInfoDrawer: () => null }))
@@ -155,6 +157,7 @@ jest.mock('@/lib/api', () => ({
   api: {
     getGifEnabled: jest.fn().mockResolvedValue({ enabled: false }),
     updateProfile: jest.fn(),
+    patch: jest.fn(),
   },
   resolveMediaUrl: (p: string) => p,
 }))
@@ -178,6 +181,17 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MessageArea', () => {
+  it('uses /nick to update the server profile rather than the global profile', async () => {
+    jest.mocked(api.patch).mockResolvedValue({ displayName: 'Server name', bio: null })
+    render(<MessageArea mode="channel" contextId="ch-1" />)
+    const onCommand = jest.mocked(ThreadPanel).mock.calls.at(-1)?.[0].onCommand
+    if (!onCommand) throw new Error('Missing thread command handler')
+    await act(async () => { onCommand('nick', 'Server name') })
+    expect(api.patch).toHaveBeenCalledWith('/api/servers/s1/members/u1/profile', { displayName: 'Server name' })
+    expect(api.updateProfile).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().user?.displayName).toBeNull()
+  })
+
   describe('hooks are always called unconditionally', () => {
     it('renders in channel mode without throwing', () => {
       expect(() =>

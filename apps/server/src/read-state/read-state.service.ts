@@ -289,6 +289,11 @@ export class ReadStateService {
         userIdSet.add(m.userId)
         consumedTokens.add(dn)
       }
+      const serverName = m.displayName?.trim().toLowerCase()
+      if (serverName && mentions.has(serverName)) {
+        userIdSet.add(m.userId)
+        consumedTokens.add(serverName)
+      }
     }
 
     if (senderIsPrivileged && !resolvedEveryone && !resolvedHere) {

@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { getSocket } from '@/lib/socket'
 import { useMessageStore } from '@/stores/message.store'
 import { useShallow } from 'zustand/react/shallow'
+import { useMemberStore } from '@/stores/member.store'
+import { useServerStore } from '@/stores/server.store'
+import { memberDisplayName } from '@/lib/serverProfile'
 
 export function useTypingIndicators(isDm: boolean, contextId: string | null, userId: string | undefined) {
+  const members = useMemberStore((s) => s.members)
+  const serverId = useServerStore((s) => s.currentServerId)
   const channelTypingNames = useMessageStore(
     useShallow((s) => {
       const out: string[] = []
       for (const [uid, entry] of s.typingUsers) {
-        if (uid !== userId) out.push(entry.username)
+        if (uid !== userId) {
+          const member = members.find((m) => m.userId === uid && m.serverId === serverId)
+          out.push(member ? memberDisplayName(member) : entry.username)
+        }
       }
       return out.length > 4 ? out.slice(0, 4) : out
     })

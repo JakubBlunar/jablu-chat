@@ -85,6 +85,73 @@ describe('ServersService', () => {
       expect(prisma.channel.findMany).not.toHaveBeenCalled()
     })
 
+    describe('updateMemberProfile', () => {
+      beforeEach(() => {
+        prisma.server.findUnique.mockResolvedValue(server)
+        prisma.serverMember.findUnique.mockResolvedValue({ userId })
+        prisma.serverMember.update.mockResolvedValue({ displayName: 'Local name', bio: 'Server bio' })
+      })
+
+      it('lets members edit themselves without management permission and emits a server-scoped update', async () => {
+        const profile = await service.updateMemberProfile(serverId, userId, userId, {
+          displayName: ' Local name ', bio: ' Server bio '
+        })
+        expect(profile).toEqual({ displayName: 'Local name', bio: 'Server bio' })
+        expect(roles.requirePermission).not.toHaveBeenCalled()
+        expect(prisma.serverMember.update).toHaveBeenCalledWith({
+          where: { userId_serverId: { userId, serverId } },
+          data: { displayName: 'Local name', bio: 'Server bio' }
+        })
+        expect(prisma.user.update).not.toHaveBeenCalled()
+        expect(events.emit).toHaveBeenCalledWith('member:updated', { serverId, userId, profile })
+      })
+
+      it('requires Manage Server and audits moderation of another member', async () => {
+        await service.updateMemberProfile(serverId, userId, 'target', { displayName: 'Local name' })
+        expect(roles.requirePermission).toHaveBeenCalledWith(serverId, userId, Permission.MANAGE_SERVER)
+        expect(auditLog.log).toHaveBeenCalledWith(serverId, userId, 'member.profile.update', 'user', 'target', expect.any(String))
+      })
+
+      it('denies unauthorized moderation before writing or broadcasting', async () => {
+        roles.requirePermission.mockRejectedValue(new ForbiddenException())
+        await expect(service.updateMemberProfile(serverId, userId, 'target', { bio: null })).rejects.toThrow(ForbiddenException)
+        expect(prisma.serverMember.update).not.toHaveBeenCalled()
+        expect(events.emit).not.toHaveBeenCalled()
+      })
+
+      it('denies non-members even for their own profile', async () => {
+        prisma.serverMember.findUnique.mockResolvedValue(null)
+        await expect(service.updateMemberProfile(serverId, userId, userId, { bio: null })).rejects.toThrow(ForbiddenException)
+        expect(prisma.serverMember.update).not.toHaveBeenCalled()
+      })
+
+      it('protects the owner from edits by other members', async () => {
+        await expect(service.updateMemberProfile(serverId, 'moderator', userId, { bio: null })).rejects.toThrow(ForbiddenException)
+        expect(prisma.serverMember.update).not.toHaveBeenCalled()
+      })
+
+      it('rejects missing targets', async () => {
+        prisma.serverMember.findUnique.mockResolvedValueOnce({ userId }).mockResolvedValueOnce(null)
+        await expect(service.updateMemberProfile(serverId, userId, 'missing', { bio: null })).rejects.toThrow(NotFoundException)
+      })
+
+      it('clears whitespace and null fields without changing other profile fields', async () => {
+        await service.updateMemberProfile(serverId, userId, userId, { displayName: '   ', bio: null })
+        expect(prisma.serverMember.update).toHaveBeenCalledWith(expect.objectContaining({
+          data: { displayName: null, bio: null }
+        }))
+        await service.updateMemberProfile(serverId, userId, userId, { displayName: null })
+        expect(prisma.serverMember.update).toHaveBeenLastCalledWith(expect.objectContaining({
+          data: { displayName: null }
+        }))
+      })
+
+      it('rejects an empty patch', async () => {
+        await expect(service.updateMemberProfile(serverId, userId, userId, {})).rejects.toThrow(BadRequestException)
+        expect(prisma.serverMember.update).not.toHaveBeenCalled()
+      })
+    })
+
     it('preserves not-found behavior without resolving permissions', async () => {
       prisma.server.findFirst.mockResolvedValue(null)
       await expect(service.getServer(serverId, userId)).rejects.toThrow(NotFoundException)

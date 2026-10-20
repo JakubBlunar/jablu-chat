@@ -27,6 +27,7 @@ export function MemberSidebar({ onClose }: { onClose?: () => void } = {}) {
     const topRole = getTopRole(member)
     setCardUser({
       id: member.userId,
+      serverId: member.serverId,
       username: member.user.username,
       displayName: member.user.displayName,
       avatarUrl: member.user.avatarUrl,

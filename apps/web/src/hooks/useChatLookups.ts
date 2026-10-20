@@ -19,12 +19,15 @@ export function createChatLookupSelector(serverId: string | null) {
     for (const member of members) {
       if (serverId && member.serverId !== serverId) continue
       const key = member.user.username.toLowerCase()
+      const displayName = (serverId ? member.displayName : null) ?? member.user.displayName
+      const globalDisplayName = serverId && member.displayName ? member.user.displayName : undefined
       const previous = result.membersByUsername.get(key)
       names.set(
         key,
-        previous?.user.username === member.user.username && previous.user.displayName === member.user.displayName
+        previous?.user.username === member.user.username && previous.user.displayName === displayName &&
+          previous.user.globalDisplayName === globalDisplayName
           ? previous
-          : { user: { username: member.user.username, displayName: member.user.displayName } }
+          : { user: { username: member.user.username, displayName, ...(globalDisplayName !== undefined ? { globalDisplayName } : {}) } }
       )
       colors.set(member.userId, getRoleColor(member))
       for (const role of member.roles ?? []) {

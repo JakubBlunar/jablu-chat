@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore } from '@/stores/voice.store'
+import { useServerDisplayName } from '@/lib/serverProfile'
 
 export function ParticipantTile({
   participant,
@@ -24,6 +25,9 @@ export function ParticipantTile({
   const [hasVideo, setHasVideo] = useState(false)
   const storeMuted = useVoiceConnectionStore((s) => s.isMuted)
   const currentChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
+  const serverId = useVoiceConnectionStore((s) => s.currentServerId)
+  const fallbackName = participant.name || participant.identity
+  const displayName = useServerDisplayName({ id: participant.identity, username: fallbackName }, serverId) ?? fallbackName
   const remoteExplicitMuted = useVoiceStore((s) => {
     if (participant.isLocal || !currentChannelId) return false
     const list = s.participants[currentChannelId]
@@ -127,7 +131,6 @@ export function ParticipantTile({
     }
   }, [participant, updateVideoState])
 
-  const displayName = participant.name || participant.identity
 
   return (
     <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-surface-darkest">

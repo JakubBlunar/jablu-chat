@@ -17,7 +17,7 @@ import {
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { CurrentUser } from '../auth/current-user.decorator'
-import { ChangeSelfRolesDto, CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRolesDto, UpdateOnboardingDto, UpdateServerDto } from './dto'
+import { ChangeSelfRolesDto, CompleteOnboardingDto, TimeoutMemberDto, UpdateMemberRolesDto, UpdateOnboardingDto, UpdateServerDto, UpdateServerProfileDto } from './dto'
 import { ServersService } from './servers.service'
 
 const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'])
@@ -124,6 +124,16 @@ export class ServersController {
     @Body() dto: UpdateMemberRolesDto
   ) {
     return this.servers.updateMemberRoles(id, user.id, targetUserId, dto.roleIds)
+  }
+
+  @Patch(':id/members/:userId/profile')
+  updateMemberProfile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpdateServerProfileDto
+  ) {
+    return this.servers.updateMemberProfile(id, user.id, targetUserId, dto)
   }
 
   @Delete(':id/members/:userId')

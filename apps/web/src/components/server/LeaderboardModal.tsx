@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Spinner } from '@/components/ui'
 import { api } from '@/lib/api'
+import { serverDisplayName } from '@/lib/serverProfile'
+import { useMemberStore } from '@/stores/member.store'
 
 type LeaderboardRow = Awaited<ReturnType<typeof api.getXpLeaderboard>>[number]
 type Progress = Awaited<ReturnType<typeof api.getMyXpProgress>>
 
 export function LeaderboardModal({ serverId, onClose }: { serverId: string; onClose: () => void }) {
+  const { t } = useTranslation('nav')
+  const members = useMemberStore((s) => s.members)
   const [rows, setRows] = useState<LeaderboardRow[] | null>(null)
   const [me, setMe] = useState<Progress | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -34,10 +40,10 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
     }
   }, [serverId])
 
-  return (
-    <ModalOverlay onClose={onClose} maxWidth="max-w-[520px]">
+  return createPortal(
+    <ModalOverlay onClose={onClose} maxWidth="max-w-[520px]" zIndex="z-[120]">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Leaderboard</h2>
+        <h2 className="text-lg font-semibold text-white">{t('leaderboard')}</h2>
         <button
           type="button"
           onClick={onClose}
@@ -81,7 +87,7 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
               />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-white">
-                  {r.user.displayName ?? r.user.username}
+                  {serverDisplayName(r.user, serverId, members)}
                 </div>
                 <div className="text-xs text-gray-400">Level {r.level}</div>
               </div>
@@ -92,7 +98,8 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
           ))
         )}
       </div>
-    </ModalOverlay>
+    </ModalOverlay>,
+    document.body
   )
 }
 

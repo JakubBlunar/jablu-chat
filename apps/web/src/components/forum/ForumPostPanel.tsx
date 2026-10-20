@@ -25,6 +25,7 @@ import { useServerStore } from '@/stores/server.store'
 import { api } from '@/lib/api'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { IconButton, Spinner } from '@/components/ui'
+import { memberDisplayName, useServerDisplayName } from '@/lib/serverProfile'
 
 export function ForumPostPanel({
   gifEnabled,
@@ -44,6 +45,7 @@ export function ForumPostPanel({
 
   const userId = useAuthStore((s) => s.user?.id)
   const serverId = useServerStore((s) => s.currentServerId)
+  const authorName = useServerDisplayName(post?.author, serverId) ?? 'Deleted User'
   const { has: hasPerm } = usePermissions(serverId)
   const canManage = hasPerm(Permission.MANAGE_MESSAGES)
   const isAuthor = post?.authorId === userId
@@ -247,20 +249,20 @@ export function ForumPostPanel({
 
   const handleReply = useCallback(
     (msg: Message) => {
+      const member = useMemberStore.getState().members.find((m) => m.serverId === serverId && m.userId === msg.authorId)
       setReplyTarget({
         id: msg.id,
         content: msg.content,
-        authorName: msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
+        authorName: member ? memberDisplayName(member) : msg.author?.displayName ?? msg.author?.username ?? 'Unknown'
       })
     },
-    [setReplyTarget]
+    [setReplyTarget, serverId]
   )
 
   const isMobile = useIsMobile()
 
   if (!currentPostId || !post || !channelId) return null
 
-  const authorName = post.author?.displayName ?? post.author?.username ?? 'Deleted User'
   const showActions = isAuthor || canManage
 
   /* ── Root post + reply count rendered at visual top via headerContent ── */

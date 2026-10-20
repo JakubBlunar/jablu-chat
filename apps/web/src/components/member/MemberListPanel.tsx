@@ -9,6 +9,7 @@ import { useServerStore } from '@/stores/server.store'
 import { prefetchProfileCard } from '@/stores/profileCard.store'
 import type { Member } from '@/stores/member.store'
 import { getRoleColor } from '@/stores/member.store'
+import { memberDisplayName } from '@/lib/serverProfile'
 
 export function resolveMemberPresence(m: Member, onlineIds: Set<string>): UserStatus {
   const s = m.user.status as UserStatus | undefined
@@ -109,7 +110,7 @@ const MemberRow = memo(function MemberRow({
   onClick: (member: Member, presence: UserStatus, rect: DOMRect) => void
   isOwner: boolean
 }) {
-  const name = member.user.displayName ?? member.user.username
+  const name = memberDisplayName(member)
   const roleColor = getRoleColor(member)
   const hasAdminRole = member.roles?.some((r) => r.isAdmin) ?? false
   const isBot = member.user.isBot

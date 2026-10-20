@@ -1,4 +1,4 @@
-export type MemberMentionRef = { user: { username: string; displayName: string | null } }
+export type MemberMentionRef = { user: { username: string; displayName: string | null; globalDisplayName?: string | null } }
 export type RoleMentionRef = { id: string; name: string; color: string | null }
 
 export function processMentions(
@@ -10,10 +10,10 @@ export function processMentions(
   out = out.replace(/@"([^"]+)"/g, (full, inner: string) => {
     const key = inner.trim().toLowerCase()
     const memberByDisplay = [...byUsername.values()].find(
-      (m) => m.user.displayName?.trim().toLowerCase() === key
+      (m) => m.user.displayName?.trim().toLowerCase() === key || m.user.globalDisplayName?.trim().toLowerCase() === key
     )
     if (memberByDisplay) {
-      const display = memberByDisplay.user.displayName ?? memberByDisplay.user.username
+      const display = (memberByDisplay.user.displayName ?? memberByDisplay.user.username).replace(/[\\[\]]/g, '\\$&')
       return `[@${display}](mention:${memberByDisplay.user.username})`
     }
     const role = rolesByLowerName?.get(key)
@@ -27,7 +27,7 @@ export function processMentions(
     if (lower === 'here') return `[@here](mention:here)`
     const member = byUsername.get(lower)
     if (member) {
-      const display = member.user.displayName ?? member.user.username
+      const display = (member.user.displayName ?? member.user.username).replace(/[\\[\]]/g, '\\$&')
       return `[@${display}](mention:${member.user.username})`
     }
     const role = rolesByLowerName?.get(lower)

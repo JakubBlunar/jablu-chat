@@ -6,6 +6,7 @@ export type MockRedisClient = {
   del: jest.Mock
   incr: jest.Mock
   expire: jest.Mock
+  eval: jest.Mock
   ping: jest.Mock
   ttl: jest.Mock
   setex: jest.Mock
@@ -34,6 +35,7 @@ export function createMockRedisClient(): MockRedisClient {
     del: jest.fn(),
     incr: jest.fn(),
     expire: jest.fn(),
+    eval: jest.fn(),
     ping: jest.fn().mockResolvedValue('PONG'),
     ttl: jest.fn(),
     setex: jest.fn(),

@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { useProfileCardStore } from '@/stores/profileCard.store'
 import { useServerStore } from '@/stores/server.store'
 import { makeServer } from '@/test/factories'
+import { useMemberStore, type Member } from '@/stores/member.store'
 
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: jest.fn(() => false) }))
 jest.mock('@/hooks/useAppNavigate', () => ({
@@ -47,6 +48,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   useProfileCardStore.setState({ cache: new Map(), inflight: new Map() })
   useServerStore.setState({ servers: [], currentServerId: null })
+  useMemberStore.setState({ members: [] })
   jest.mocked(api.getMutualServers).mockResolvedValue({ servers: [] })
   jest.mocked(api.getMutualFriends).mockResolvedValue({ friends: [] })
   jest.mocked(api.getFriendshipStatus).mockResolvedValue({ status: 'none', friendshipId: null })
@@ -90,6 +92,24 @@ function expectWithinViewport(card: HTMLElement) {
   expect(bounds.right).toBeLessThanOrEqual(window.innerWidth - 8)
   expect(bounds.bottom).toBeLessThanOrEqual(window.innerHeight - 8)
 }
+
+it('shows a live server name and description only for server-context profiles', () => {
+  const member: Member = {
+    userId: 'self', serverId: 'one', roleIds: [], joinedAt: '',
+    displayName: 'Local Alice', bio: 'Server description',
+    user: { id: 'self', username: 'Alice', displayName: 'Global Alice', bio: null, avatarUrl: null }
+  }
+  useMemberStore.setState({ members: [member] })
+  const { rerender } = render(<ProfileCard user={{ ...user, serverId: 'one' }} onClose={jest.fn()} anchorRect={null} />)
+  expect(screen.getByRole('dialog', { name: 'Local Alice' })).toBeInTheDocument()
+  expect(screen.getByText('Server description')).toBeInTheDocument()
+  act(() => useMemberStore.getState().updateServerProfile('one', 'self', { displayName: 'Moderated name', bio: null }))
+  expect(screen.getByRole('dialog', { name: 'Moderated name' })).toBeInTheDocument()
+  expect(screen.queryByText('Server description')).not.toBeInTheDocument()
+  rerender(<ProfileCard user={user} onClose={jest.fn()} anchorRect={null} />)
+  expect(screen.getByRole('dialog', { name: 'Alice' })).toBeInTheDocument()
+  expect(screen.queryByText('Moderated name')).not.toBeInTheDocument()
+})
 
 it.each([
   ['top left', new DOMRect(0, 0, 40, 20)],

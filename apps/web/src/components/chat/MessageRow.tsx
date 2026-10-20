@@ -30,6 +30,7 @@ import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { useHasDraft } from '@/stores/draft.store'
+import { useServerDisplayName } from '@/lib/serverProfile'
 
 const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -81,18 +82,21 @@ export const MessageRow = memo(function MessageRow({
   const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
   const isDm = mode === 'dm'
+  const serverId = useServerStore((s) => s.currentServerId)
+  const authorName = useServerDisplayName(message.author, isDm ? null : serverId)
+  const replyAuthorName = useServerDisplayName(message.replyTo?.author, isDm ? null : serverId)
   const threadDraft = useHasDraft(mode, contextId, message.id)
   const isWebhook = !isDm && !!message.webhook
   const isAuthor = message.authorId === userId
   const name = isWebhook
     ? message.webhook!.name
-    : (message.author?.displayName ?? message.author?.username ?? t('deletedUser'))
+    : (authorName ?? t('deletedUser'))
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
   const replyTo = message.replyTo
   const replyAuthor = replyTo?.author
-  const replyName = replyAuthor?.displayName ?? replyAuthor?.username ?? t('deletedUser')
+  const replyName = replyAuthorName ?? t('deletedUser')
   const linkPreviews = useMemo(() => message.linkPreviews ?? [], [message.linkPreviews])
 
   const contentIsMediaLink = useMemo(() => {
@@ -104,7 +108,6 @@ export const MessageRow = memo(function MessageRow({
   }, [message.content, linkPreviews])
 
   const isMobile = useIsMobile()
-  const serverId = useServerStore((s) => s.currentServerId)
   const emojiArr = useEmojiStore((s) => (serverId ? (s.byServer[serverId] ?? EMPTY_EMOJIS) : EMPTY_EMOJIS))
   const customEmojiMap = useMemo(() => (emojiArr.length > 0 ? buildNameMap(emojiArr) : undefined), [emojiArr])
 

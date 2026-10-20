@@ -4,10 +4,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } fr
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import SimpleBar from 'simplebar-react'
-import { useIsMobile } from '@/hooks/useMobile'
+import { useIsMobile, useIsTablet } from '@/hooks/useMobile'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
+import { ServerProfileModal } from '@/components/server/ServerProfileModal'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
 )
@@ -123,6 +124,7 @@ export function ChannelSidebar() {
 
   const { has: hasPerm } = usePermissions(currentServer?.id)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
+  const hasServerActions = isAdminOrOwner || hasPerm(Permission.MANAGE_SERVER)
 
   const isOwner = currentServer?.ownerId === user?.id
   const voiceParticipants = useVoiceStore((s) => s.participants)
@@ -154,10 +156,12 @@ export function ChannelSidebar() {
   )
 
   const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
   const [channelModalOpen, setChannelModalOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
@@ -188,7 +192,7 @@ export function ChannelSidebar() {
       if (canManageServer) setServerSettingsOpen(true)
     }
     const openLeaderboard = () => {
-      if (currentServer?.xpEnabled) setLeaderboardOpen(true)
+      if (!isTablet && currentServer.xpEnabled) setLeaderboardOpen(true)
     }
     window.addEventListener('open-create-channel', openChannel)
     window.addEventListener('open-server-settings', openServerSettings)
@@ -198,7 +202,7 @@ export function ChannelSidebar() {
       window.removeEventListener('open-server-settings', openServerSettings)
       window.removeEventListener('open-leaderboard', openLeaderboard)
     }
-  }, [currentServer, isAdminOrOwner, canManageServer])
+  }, [currentServer, isAdminOrOwner, canManageServer, isTablet])
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -271,6 +275,7 @@ export function ChannelSidebar() {
         : (member?.user.status as UserStatus) || 'online'
       setVoiceCardUser({
         id: p.userId,
+        serverId: member?.serverId,
         username: p.username,
         displayName: member?.user.displayName,
         avatarUrl: member?.user.avatarUrl,
@@ -382,7 +387,10 @@ export function ChannelSidebar() {
 
           {menuOpen && currentServer && (
             <div className="absolute left-2 right-2 top-12 z-40 overflow-hidden rounded-md bg-surface-darkest py-1.5 shadow-xl ring-1 ring-white/10">
-              {isAdminOrOwner && (
+              {hasServerActions && (
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase text-gray-500">{t('serverActions')}</p>
+              )}
+              {hasServerActions && (
                 <button
                   type="button"
                   onClick={() => {
@@ -421,6 +429,12 @@ export function ChannelSidebar() {
                   Create Category
                 </button>
               )}
+              {hasServerActions && <div className="my-1 border-t border-white/10" />}
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-gray-500">{t('personalServerActions')}</p>
+              <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true) }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-200 transition hover:bg-primary hover:text-primary-text">
+                {t('profileEdit')}
+              </button>
               {currentServer.xpEnabled && (
                 <button
                   type="button"
@@ -437,7 +451,7 @@ export function ChannelSidebar() {
                       d="M8 21h8M12 17v4M5 4h14v4a7 7 0 11-14 0V4zM5 8a3 3 0 01-3-3V4h3m14 4a3 3 0 003-3V4h-3"
                     />
                   </svg>
-                  Leaderboard
+                  {t('leaderboard')}
                 </button>
               )}
               <button
@@ -904,7 +918,10 @@ export function ChannelSidebar() {
           <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
         </Suspense>
       )}
-      {leaderboardOpen && currentServer && (
+      {profileOpen && currentServer && user && (
+        <ServerProfileModal serverId={currentServer.id} userId={user.id} onClose={() => setProfileOpen(false)} />
+      )}
+      {leaderboardOpen && currentServer && !isTablet && currentServer.xpEnabled && (
         <Suspense fallback={null}>
           <LeaderboardModal serverId={currentServer.id} onClose={() => setLeaderboardOpen(false)} />
         </Suspense>

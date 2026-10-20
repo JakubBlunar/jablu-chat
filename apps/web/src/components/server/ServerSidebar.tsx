@@ -12,8 +12,8 @@ import { useNavigationStore } from '@/stores/navigation.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useServerStore } from '@/stores/server.store'
-import { resolveMediaUrl } from '@/lib/api'
 import { computeServerBadges } from '@/lib/unread'
+import { ServerRailList } from './ServerRailList'
 
 function DmIcon() {
   return (
@@ -115,52 +115,9 @@ export function ServerSidebar() {
                 ))}
               </>
             ) : (
-              servers.map((server) => {
-                const active = viewMode === 'server' && server.id === currentServerId
-                const initial = server.name.trim().charAt(0).toUpperCase() || '?'
-                const badge = active ? null : serverBadges.get(server.id)
-                return (
-                  <div key={server.id} className="group/pill relative flex w-full justify-center">
-                    <span
-                      className={`absolute left-0 top-1/2 z-10 w-1 -translate-y-1/2 rounded-r-full bg-white transition-all duration-200 ${
-                        active ? 'h-10 opacity-100' : 'h-0 opacity-0 group-hover/pill:h-5 group-hover/pill:opacity-80'
-                      }`}
-                      aria-hidden
-                    />
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => void orchestratedGoToChannel(server.id)}
-                        title={server.name}
-                        className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-all duration-200 ease-out ${
-                          active
-                            ? 'rounded-2xl bg-primary'
-                            : 'rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary'
-                        }`}
-                      >
-                        {server.iconUrl ? (
-                          <img src={resolveMediaUrl(server.iconUrl)} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          initial
-                        )}
-                        {navigatingToServerId === server.id && (
-                          <div className="absolute inset-0 flex items-center justify-center rounded-[inherit] bg-black/50">
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                          </div>
-                        )}
-                      </button>
-                      {badge && badge.mentions > 0 && (
-                        <span className="absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white">
-                          {badge.mentions > 10 ? '10+' : badge.mentions}
-                        </span>
-                      )}
-                      {badge && badge.unread && badge.mentions === 0 && (
-                        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface-darkest bg-red-500" />
-                      )}
-                    </div>
-                  </div>
-                )
-              })
+              <ServerRailList servers={servers} isLoading={isLoading} currentServerId={currentServerId} viewMode={viewMode}
+                navigatingToServerId={navigatingToServerId} serverBadges={serverBadges}
+                onServerClick={(server) => void orchestratedGoToChannel(server.id)} />
             )}
           </div>
         </SimpleBar>
