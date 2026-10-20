@@ -105,7 +105,7 @@ export function SettingsModal({
   if (!open) return null
 
   const visibleTabs = tabEntries.filter((t) => t.show !== false)
-  const currentLabel = visibleTabs.find((t) => t.key === tab)?.label ?? 'Settings'
+  const currentLabel = visibleTabs.find((t) => t.key === tab)?.label ?? t('title')
 
   const settingsContent = (
     <>

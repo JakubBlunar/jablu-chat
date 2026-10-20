@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { inputFieldClassNames } from '@/components/ui/Input'
@@ -44,6 +45,7 @@ function useTimeZoneOptions(): string[] {
  * Server-side push delivery rules (silence all, quiet hours). Same UI for mobile and desktop — only the settings shell differs.
  */
 export function PushDeliverySettings() {
+  const { t } = useTranslation('settings')
   const tzFieldId = useId()
   const user = useAuthStore((s) => s.user)
   const updatePushPrefs = useAuthStore((s) => s.updatePushPrefs)
@@ -88,26 +90,24 @@ export function PushDeliverySettings() {
         pushQuietHoursStartMin: timeValueToMinutes(startTime),
         pushQuietHoursEndMin: timeValueToMinutes(endTime)
       })
-      setSuccess('Push preferences saved')
+      setSuccess(t('pushDelivery.saved'))
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save')
+      setError(e instanceof Error ? e.message : t('pushDelivery.saveFailed'))
     } finally {
       setSaving(false)
     }
-  }, [user, suppressAll, quietEnabled, tz, startTime, endTime, updatePushPrefs])
+  }, [user, suppressAll, quietEnabled, tz, startTime, endTime, updatePushPrefs, t])
 
   if (!user) return null
 
   return (
     <div className="space-y-4 rounded-lg bg-surface-dark p-4">
-      <h3 className="text-sm font-semibold text-gray-200">Push delivery (server)</h3>
-      <p className="text-xs text-gray-500">
-        Control when Jablu is allowed to send web push to your devices. Channel mute and mentions-only settings still apply.
-      </p>
+      <h3 className="text-sm font-semibold text-gray-200">{t('pushDelivery.title')}</h3>
+      <p className="text-xs text-gray-500">{t('pushDelivery.description')}</p>
 
       <ToggleRow
-        label="Silence all push"
-        description="Never send web push notifications to your account"
+        label={t('pushDelivery.silenceAll')}
+        description={t('pushDelivery.silenceAllDescription')}
         checked={suppressAll}
         onChange={() =>
           setSuppressAll((v) => {
@@ -119,8 +119,8 @@ export function PushDeliverySettings() {
       />
 
       <ToggleRow
-        label="Quiet hours"
-        description="No web push during a daily window in your chosen timezone"
+        label={t('pushDelivery.quietHours')}
+        description={t('pushDelivery.quietHoursDescription')}
         checked={quietEnabled}
         onChange={() => setQuietEnabled((v) => !v)}
         disabled={suppressAll}
@@ -130,7 +130,7 @@ export function PushDeliverySettings() {
         <div className="space-y-3 border-t border-white/10 pt-3">
           <div>
             <label htmlFor={tzFieldId} className="mb-1 block text-xs font-medium text-gray-400">
-              Timezone
+              {t('pushDelivery.timezone')}
             </label>
             {/* Native <select> so the menu is not clipped inside settings scroll (SimpleBar); datalist often fails there. */}
             <select
@@ -140,7 +140,7 @@ export function PushDeliverySettings() {
               className={cn(inputFieldClassNames, 'w-full cursor-pointer')}
             >
               {!sortedZones.includes(tz) && tz ? (
-                <option value={tz}>{tz} (unlisted — pick a replacement)</option>
+                <option value={tz}>{t('pushDelivery.timezoneUnlisted', { zone: tz })}</option>
               ) : null}
               {sortedZones.map((z) => (
                 <option key={z} value={z}>
@@ -152,7 +152,7 @@ export function PushDeliverySettings() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <label htmlFor="push-start" className="mb-1 block text-xs font-medium text-gray-400">
-                From
+                {t('pushDelivery.from')}
               </label>
               <input
                 id="push-start"
@@ -164,7 +164,7 @@ export function PushDeliverySettings() {
             </div>
             <div className="flex-1">
               <label htmlFor="push-end" className="mb-1 block text-xs font-medium text-gray-400">
-                To
+                {t('pushDelivery.to')}
               </label>
               <input
                 id="push-end"
@@ -175,15 +175,13 @@ export function PushDeliverySettings() {
               />
             </div>
           </div>
-          <p className="text-xs text-gray-500">
-            Uses the selected timezone. Overnight windows work (for example 22:00 to 08:00).
-          </p>
+          <p className="text-xs text-gray-500">{t('pushDelivery.overnightHint')}</p>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="primary" disabled={saving} onClick={() => void save()}>
-          {saving ? 'Saving…' : 'Save push preferences'}
+          {saving ? t('pushDelivery.saving') : t('pushDelivery.save')}
         </Button>
         {success && <span className="text-xs text-green-400">{success}</span>}
         {error && <span className="text-xs text-red-400">{error}</span>}

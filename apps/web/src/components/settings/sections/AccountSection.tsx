@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Button, Input } from '@/components/ui'
 import { SectionHeading } from '@/components/ui/SectionHeading'
@@ -14,6 +15,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function PasswordChangeForm() {
+  const { t } = useTranslation('settings')
   const changePassword = useAuthStore((s) => s.changePassword)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -28,23 +30,23 @@ function PasswordChangeForm() {
     setSuccess('')
 
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match')
+      setError(t('account.passwordMismatch'))
       return
     }
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('account.passwordTooShort', { count: 8 }))
       return
     }
 
     setLoading(true)
     try {
       await changePassword({ currentPassword, newPassword })
-      setSuccess('Password changed successfully')
+      setSuccess(t('account.passwordChanged'))
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to change password')
+      setError(err instanceof Error ? err.message : t('account.passwordChangeFailed'))
     } finally {
       setLoading(false)
     }
@@ -52,11 +54,21 @@ function PasswordChangeForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <h3 className="text-sm font-semibold text-white">Change Password</h3>
-      <Input label="Current Password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
-      <Input label="New Password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+      <h3 className="text-sm font-semibold text-white">{t('account.changePassword')}</h3>
       <Input
-        label="Confirm New Password"
+        label={t('account.currentPassword')}
+        type="password"
+        value={currentPassword}
+        onChange={(e) => setCurrentPassword(e.target.value)}
+      />
+      <Input
+        label={t('account.newPassword')}
+        type="password"
+        value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)}
+      />
+      <Input
+        label={t('account.confirmNewPassword')}
         type="password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -64,13 +76,14 @@ function PasswordChangeForm() {
       {error && <p className="text-sm text-red-400">{error}</p>}
       {success && <p className="text-sm text-emerald-400">{success}</p>}
       <Button type="submit" variant="primary" disabled={loading}>
-        {loading ? 'Saving...' : 'Change Password'}
+        {loading ? t('account.saving') : t('account.changePassword')}
       </Button>
     </form>
   )
 }
 
 function EmailChangeForm() {
+  const { t } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
   const changeEmail = useAuthStore((s) => s.changeEmail)
   const [email, setEmail] = useState('')
@@ -86,11 +99,11 @@ function EmailChangeForm() {
     setLoading(true)
     try {
       await changeEmail({ email, password })
-      setSuccess('Email changed successfully')
+      setSuccess(t('account.emailChanged'))
       setEmail('')
       setPassword('')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to change email')
+      setError(err instanceof Error ? err.message : t('account.emailChangeFailed'))
     } finally {
       setLoading(false)
     }
@@ -98,28 +111,29 @@ function EmailChangeForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <h3 className="text-sm font-semibold text-white">Change Email</h3>
+      <h3 className="text-sm font-semibold text-white">{t('account.changeEmail')}</h3>
       <p className="text-xs text-gray-400">
-        Current: <span className="text-gray-200">{user?.email}</span>
+        {t('account.currentEmailLabel')} <span className="text-gray-200">{user?.email}</span>
       </p>
-      <Input label="New Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Input label={t('account.newEmail')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Input
-        label="Password"
+        label={t('account.password')}
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Confirm your password"
+        placeholder={t('account.confirmPassword')}
       />
       {error && <p className="text-sm text-red-400">{error}</p>}
       {success && <p className="text-sm text-emerald-400">{success}</p>}
       <Button type="submit" variant="primary" disabled={loading}>
-        {loading ? 'Saving...' : 'Change Email'}
+        {loading ? t('account.saving') : t('account.changeEmail')}
       </Button>
     </form>
   )
 }
 
 export function AccountSection() {
+  const { t } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
 
   return (
@@ -137,9 +151,9 @@ export function AccountSection() {
             </p>
           </div>
           <div className="mt-4 space-y-3 rounded-lg bg-surface-dark p-4">
-            <InfoRow label="USERNAME" value={user?.username ?? ''} />
-            <InfoRow label="DISPLAY NAME" value={user?.displayName ?? user?.username ?? ''} />
-            <InfoRow label="EMAIL" value={user?.email ?? ''} />
+            <InfoRow label={t('account.usernameLabel')} value={user?.username ?? ''} />
+            <InfoRow label={t('account.displayNameLabel')} value={user?.displayName ?? user?.username ?? ''} />
+            <InfoRow label={t('account.emailLabel')} value={user?.email ?? ''} />
           </div>
         </div>
       </div>

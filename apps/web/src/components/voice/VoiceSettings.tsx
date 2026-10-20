@@ -1,11 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { isElectron } from '@/lib/electron'
-import {
-  getSavedAudioInput,
-  getSavedAudioOutput,
-  getSavedCamera,
-  getValidatedDevices
-} from '@/lib/deviceSettings'
+import { getSavedAudioInput, getSavedAudioOutput, getSavedCamera, getValidatedDevices } from '@/lib/deviceSettings'
 import { getNoiseReductionCapabilities } from '@/lib/noiseReductionCapabilities'
 import { restartMicrophonePipeline } from '@/lib/voiceMicPipelineRestart'
 import { changeVoiceDevice, reportVoiceDeviceError } from '@/lib/voiceDevices'
@@ -27,7 +24,6 @@ import {
   setMicMode as saveMicMode,
   getPttBinding,
   setPttBinding as savePttBinding,
-  pttBindingLabel,
   getVadThreshold,
   setVadThreshold as saveVadThreshold,
   type VadMode,
@@ -46,7 +42,22 @@ type DeviceInfo = {
 
 const supportsSinkId = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype
 
+function formatPttBindingLabel(binding: PttBinding, t: TFunction<'voice'>): string {
+  if (binding.type === 'mouse') {
+    const labels: Record<number, string> = {
+      0: t('settings.mouseLeftClick'),
+      1: t('settings.mouseMiddleClick'),
+      2: t('settings.mouseRightClick')
+    }
+    return labels[binding.button] ?? t('settings.mouseButton', { button: binding.button + 1 })
+  }
+  if (binding.key === ' ') return t('settings.space')
+  if (binding.key.length === 1) return binding.key.toUpperCase()
+  return binding.key
+}
+
 export function VoiceSettings() {
+  const { t } = useTranslation('voice')
   const [audioInputs, setAudioInputs] = useState<DeviceInfo[]>([])
   const [audioOutputs, setAudioOutputs] = useState<DeviceInfo[]>([])
   const [videoInputs, setVideoInputs] = useState<DeviceInfo[]>([])
@@ -64,18 +75,27 @@ export function VoiceSettings() {
     const devices = await navigator.mediaDevices.enumerateDevices()
     const inputs = devices
       .filter((d) => d.kind === 'audioinput')
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Mic ${d.deviceId.slice(0, 6)}` }))
+      .map((d) => ({
+        deviceId: d.deviceId,
+        label: d.label || t('settings.microphoneWithId', { id: d.deviceId.slice(0, 6) })
+      }))
     const outputs = devices
       .filter((d) => d.kind === 'audiooutput')
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${d.deviceId.slice(0, 6)}` }))
+      .map((d) => ({
+        deviceId: d.deviceId,
+        label: d.label || t('settings.speakerWithId', { id: d.deviceId.slice(0, 6) })
+      }))
     const cameras = devices
       .filter((d) => d.kind === 'videoinput')
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 6)}` }))
+      .map((d) => ({
+        deviceId: d.deviceId,
+        label: d.label || t('settings.cameraWithId', { id: d.deviceId.slice(0, 6) })
+      }))
     setAudioInputs(inputs)
     setAudioOutputs(outputs)
     setVideoInputs(cameras)
     return { inputs, cameras }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     let cancelled = false
@@ -151,12 +171,12 @@ export function VoiceSettings() {
   }, [enumerateDevices])
 
   const micModeOptions = useMemo(() => {
-    const all: { value: MicMode; label: string }[] = [
-      { value: 'always', label: 'Always On' },
-      { value: 'activity', label: 'Voice Activity' }
+    const all: { value: MicMode; labelKey: string }[] = [
+      { value: 'always', labelKey: 'settings.micModeAlways' },
+      { value: 'activity', labelKey: 'settings.micModeActivity' }
     ]
     if (isElectron) {
-      all.push({ value: 'push-to-talk', label: 'Push to Talk' })
+      all.push({ value: 'push-to-talk', labelKey: 'settings.micModePtt' })
     }
     return all
   }, [])
@@ -196,7 +216,7 @@ export function VoiceSettings() {
       if (m === 'rnnoise' && !noiseCaps.audioWorklet) {
         window.dispatchEvent(
           new CustomEvent('voice:error', {
-            detail: { message: 'RNNoise needs AudioWorklet support (not available in this browser).' }
+            detail: { message: t('settings.rnnoiseUnsupportedError') }
           })
         )
         return
@@ -205,30 +225,33 @@ export function VoiceSettings() {
       saveNoiseReductionMode(m)
       void applyNoisePipeline()
     },
-    [applyNoisePipeline, noiseCaps.audioWorklet]
+    [applyNoisePipeline, noiseCaps.audioWorklet, t]
   )
 
   const noiseModeOptions = useMemo(
     () =>
       [
-        { value: 'standard' as const, label: 'Standard', hint: 'Browser WebRTC noise handling.' },
+        {
+          value: 'standard' as const,
+          labelKey: 'settings.noiseStandard',
+          hintKey: 'settings.noiseStandardHint'
+        },
         {
           value: 'enhanced_browser' as const,
-          label: 'Enhanced',
-          hint: noiseCaps.voiceIsolation
-            ? 'Includes voice isolation when supported (Chrome / Edge / some Electron).'
-            : 'Tunable capture; voice isolation not reported by this browser.'
+          labelKey: 'settings.noiseEnhanced',
+          hintKey: noiseCaps.voiceIsolation
+            ? 'settings.noiseEnhancedIsolationHint'
+            : 'settings.noiseEnhancedNoIsolationHint'
         },
         {
           value: 'rnnoise' as const,
-          label: 'RNNoise',
-          hint: noiseCaps.audioWorklet
-            ? 'In-app CPU denoise. May use more battery on phones.'
-            : 'Not available (no AudioWorklet).'
+          labelKey: 'settings.noiseRnnoise',
+          hintKey: noiseCaps.audioWorklet ? 'settings.noiseRnnoiseHint' : 'settings.noiseUnavailableHint'
         }
       ] as const,
     [noiseCaps.audioWorklet, noiseCaps.voiceIsolation]
   )
+  const noiseModeHint = noiseModeOptions.find((option) => option.value === noiseMode)?.hintKey
 
   useEffect(() => {
     return () => {
@@ -296,27 +319,27 @@ export function VoiceSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">When joining voice</h3>
+        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{t('settings.whenJoining')}</h3>
         <div className="space-y-2 rounded-md bg-surface-darkest/80 p-3">
           <label className="flex cursor-pointer items-center gap-3">
             <Toggle checked={voiceJoinMuted} onChange={(v) => setVoiceJoinMuted(v)} />
             <div>
-              <span className="block text-sm text-gray-200">Join muted</span>
-              <span className="block text-[11px] text-gray-500">Microphone stays off until you unmute.</span>
+              <span className="block text-sm text-gray-200">{t('settings.joinMuted')}</span>
+              <span className="block text-[11px] text-gray-500">{t('settings.joinMutedHint')}</span>
             </div>
           </label>
           <label className="flex cursor-pointer items-center gap-3">
             <Toggle checked={voiceJoinDeafened} onChange={(v) => setVoiceJoinDeafened(v)} />
             <div>
-              <span className="block text-sm text-gray-200">Join deafened</span>
-              <span className="block text-[11px] text-gray-500">Mutes your mic and silences others until you undeafen.</span>
+              <span className="block text-sm text-gray-200">{t('settings.joinDeafened')}</span>
+              <span className="block text-[11px] text-gray-500">{t('settings.joinDeafenedHint')}</span>
             </div>
           </label>
         </div>
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Microphone Mode</h3>
+        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{t('settings.microphoneMode')}</h3>
         <div className="flex gap-2">
           {micModeOptions.map((opt) => (
             <Button
@@ -327,20 +350,20 @@ export function VoiceSettings() {
               onClick={() => handleMicModeChange(opt.value)}
               className={micMode === opt.value ? '' : 'bg-surface-darkest hover:bg-white/10'}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </Button>
           ))}
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
-          {micMode === 'always' && 'Your mic stays on while unmuted.'}
-          {micMode === 'activity' && 'Mic activates when you speak.'}
-          {micMode === 'push-to-talk' && 'Hold a key to transmit your voice.'}
+          {micMode === 'always' && t('settings.micModeAlwaysHint')}
+          {micMode === 'activity' && t('settings.micModeActivityHint')}
+          {micMode === 'push-to-talk' && t('settings.micModePttHint')}
         </p>
 
         {micMode === 'activity' && (
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">Threshold:</span>
+              <span className="text-xs text-gray-400">{t('settings.threshold')}</span>
               {(['auto', 'manual'] as const).map((m) => (
                 <Button
                   key={m}
@@ -353,17 +376,17 @@ export function VoiceSettings() {
                   }}
                   className={vadMode === m ? '' : 'bg-surface-darkest hover:bg-white/10'}
                 >
-                  {m === 'auto' ? 'Auto' : 'Manual'}
+                  {m === 'auto' ? t('settings.auto') : t('settings.manual')}
                 </Button>
               ))}
             </div>
             {vadMode === 'auto' ? (
-              <p className="text-[11px] text-gray-500">
-                Automatically calibrates from ambient noise when you join or unmute.
-              </p>
+              <p className="text-[11px] text-gray-500">{t('settings.autoCalibrateHint')}</p>
             ) : (
               <>
-                <label className="block text-xs text-gray-400">Sensitivity: {vadThreshold}</label>
+                <label className="block text-xs text-gray-400">
+                  {t('settings.sensitivity', { value: vadThreshold })}
+                </label>
                 <input
                   type="range"
                   min={1}
@@ -377,8 +400,8 @@ export function VoiceSettings() {
                   className="w-full accent-primary"
                 />
                 <div className="mt-0.5 flex justify-between text-[10px] text-gray-500">
-                  <span>Sensitive</span>
-                  <span>Less sensitive</span>
+                  <span>{t('settings.sensitive')}</span>
+                  <span>{t('settings.lessSensitive')}</span>
                 </div>
                 <div className="mt-2">
                   <MicLevelMeter deviceId={selectedInput} threshold={vadThreshold} />
@@ -390,7 +413,7 @@ export function VoiceSettings() {
 
         {micMode === 'push-to-talk' && (
           <div className="mt-3 flex items-center gap-3">
-            <span className="text-xs text-gray-400">Bind:</span>
+            <span className="text-xs text-gray-400">{t('settings.bind')}</span>
             <button
               type="button"
               onClick={handlePttRecord}
@@ -400,15 +423,15 @@ export function VoiceSettings() {
                   : 'bg-surface-darkest text-white ring-white/10 hover:bg-white/10'
               }`}
             >
-              {recordingPtt ? 'Press any key or mouse button...' : pttBindingLabel(pttBinding)}
+              {recordingPtt ? t('settings.recordBinding') : formatPttBindingLabel(pttBinding, t)}
             </button>
-            {recordingPtt && <span className="text-[10px] text-gray-500">Esc to cancel</span>}
+            {recordingPtt && <span className="text-[10px] text-gray-500">{t('settings.cancelBinding')}</span>}
           </div>
         )}
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Noise reduction</h3>
+        <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{t('settings.noiseReduction')}</h3>
         <div className="flex flex-wrap gap-2">
           {noiseModeOptions.map((opt) => (
             <Button
@@ -420,19 +443,15 @@ export function VoiceSettings() {
               onClick={() => handleNoiseModeChange(opt.value)}
               className={noiseMode === opt.value ? '' : 'bg-surface-darkest hover:bg-white/10'}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </Button>
           ))}
         </div>
-        <p className="mt-1.5 text-xs text-gray-500">
-          {noiseModeOptions.find((o) => o.value === noiseMode)?.hint}
-        </p>
+        <p className="mt-1.5 text-xs text-gray-500">{noiseModeHint ? t(noiseModeHint) : null}</p>
 
         <div className="mt-3 space-y-2 rounded-md bg-surface-darkest/80 p-3">
-          <p className="text-[11px] font-medium uppercase text-gray-500">Capture processing</p>
-          <label
-            className={`flex cursor-pointer items-center gap-3 ${noiseMode === 'rnnoise' ? 'opacity-60' : ''}`}
-          >
+          <p className="text-[11px] font-medium uppercase text-gray-500">{t('settings.captureProcessing')}</p>
+          <label className={`flex cursor-pointer items-center gap-3 ${noiseMode === 'rnnoise' ? 'opacity-60' : ''}`}>
             <Toggle
               checked={capNoiseSuppression}
               disabled={noiseMode === 'rnnoise'}
@@ -442,7 +461,7 @@ export function VoiceSettings() {
                 void applyNoisePipeline()
               }}
             />
-            <span className="text-sm text-gray-200">Noise suppression</span>
+            <span className="text-sm text-gray-200">{t('settings.noiseSuppression')}</span>
           </label>
           <label className="flex cursor-pointer items-center gap-3">
             <Toggle
@@ -453,7 +472,7 @@ export function VoiceSettings() {
                 void applyNoisePipeline()
               }}
             />
-            <span className="text-sm text-gray-200">Automatic gain</span>
+            <span className="text-sm text-gray-200">{t('settings.automaticGain')}</span>
           </label>
           <label className="flex cursor-pointer items-center gap-3">
             <Toggle
@@ -464,45 +483,45 @@ export function VoiceSettings() {
                 void applyNoisePipeline()
               }}
             />
-            <span className="text-sm text-gray-200">Echo cancellation</span>
+            <span className="text-sm text-gray-200">{t('settings.echoCancellation')}</span>
           </label>
-          {noiseMode === 'rnnoise' && (
-            <p className="text-[11px] text-gray-500">
-              Browser noise suppression is off for RNNoise; echo cancellation and gain still apply to the raw mic.
-            </p>
-          )}
+          {noiseMode === 'rnnoise' && <p className="text-[11px] text-gray-500">{t('settings.rnnoiseCaptureHint')}</p>}
         </div>
       </div>
 
       {micDenied ? (
         <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-          Microphone access was denied. Grant permission in your browser&apos;s site settings to select audio devices.
+          {t('settings.microphoneDenied')}
         </div>
       ) : !micGranted ? (
         <div className="rounded-md bg-surface-dark px-4 py-3">
-          <p className="text-sm text-gray-300">Microphone access needed to list audio devices.</p>
+          <p className="text-sm text-gray-300">{t('settings.microphoneNeeded')}</p>
           <Button type="button" size="sm" onClick={() => void requestMicAccess()} className="mt-2 rounded-md">
-            Allow Microphone Access
+            {t('settings.allowMicrophone')}
           </Button>
         </div>
       ) : (
         <>
           <DeviceSelect
-            label="Audio Input"
+            label={t('audioinput')}
             value={selectedInput}
             devices={audioInputs}
             onChange={(v) => {
-              void changeVoiceDevice('audioinput', v).then(() => setSelectedInput(v)).catch(reportVoiceDeviceError)
+              void changeVoiceDevice('audioinput', v)
+                .then(() => setSelectedInput(v))
+                .catch(reportVoiceDeviceError)
             }}
           />
 
           {supportsSinkId && (
             <DeviceSelect
-              label="Audio Output"
+              label={t('audiooutput')}
               value={selectedOutput}
               devices={audioOutputs}
               onChange={(v) => {
-                void changeVoiceDevice('audiooutput', v).then(() => setSelectedOutput(v)).catch(reportVoiceDeviceError)
+                void changeVoiceDevice('audiooutput', v)
+                  .then(() => setSelectedOutput(v))
+                  .catch(reportVoiceDeviceError)
               }}
             />
           )}
@@ -510,35 +529,34 @@ export function VoiceSettings() {
       )}
 
       {cameraDenied ? (
-        <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
-          Camera access was denied. Grant permission in your browser&apos;s site settings to select a camera.
-        </div>
+        <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-400">{t('settings.cameraDenied')}</div>
       ) : !cameraGranted ? (
         <div className="rounded-md bg-surface-dark px-4 py-3">
-          <p className="text-sm text-gray-300">Camera access needed to list video devices.</p>
+          <p className="text-sm text-gray-300">{t('settings.cameraNeeded')}</p>
           <Button type="button" size="sm" onClick={() => void requestCameraAccess()} className="mt-2 rounded-md">
-            Allow Camera Access
+            {t('settings.allowCamera')}
           </Button>
         </div>
       ) : (
         <DeviceSelect
-          label="Camera"
+          label={t('videoinput')}
           value={selectedCamera}
           devices={videoInputs}
           onChange={(v) => {
-            void changeVoiceDevice('videoinput', v).then(() => setSelectedCamera(v)).catch(reportVoiceDeviceError)
+            void changeVoiceDevice('videoinput', v)
+              .then(() => setSelectedCamera(v))
+              .catch(reportVoiceDeviceError)
           }}
         />
       )}
 
-      <p className="text-xs text-gray-500">
-        Camera resolution, background blur, and screen share quality can be configured when starting a call.
-      </p>
+      <p className="text-xs text-gray-500">{t('settings.callQualityHint')}</p>
     </div>
   )
 }
 
 function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: number }) {
+  const { t } = useTranslation('voice')
   const [level, setLevel] = useState(0)
   const cleanupRef = useRef<(() => void) | null>(null)
 
@@ -602,7 +620,7 @@ function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: n
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
-        <span>Mic level:</span>
+        <span>{t('settings.micLevel')}</span>
         <span className="font-mono">{Math.round(level)}</span>
       </div>
       <div className="relative h-3 w-full overflow-hidden rounded-full bg-surface-darkest">
@@ -615,12 +633,10 @@ function MicLevelMeter({ deviceId, threshold }: { deviceId: string; threshold: n
         <div
           className="absolute inset-y-0 w-0.5 bg-primary"
           style={{ left: `${threshPct}%` }}
-          title={`Threshold: ${threshold}`}
+          title={t('settings.thresholdTitle', { value: threshold })}
         />
       </div>
-      <p className="text-[10px] text-gray-500">
-        The colored line is your threshold. Speak and adjust so green exceeds it.
-      </p>
+      <p className="text-[10px] text-gray-500">{t('settings.thresholdExplanation')}</p>
     </div>
   )
 }
@@ -636,12 +652,15 @@ function DeviceSelect({
   devices: DeviceInfo[]
   onChange: (v: string) => void
 }) {
+  const { t } = useTranslation('voice')
   const isMissing = value !== '' && devices.length > 0 && !devices.some((d) => d.deviceId === value)
   const selectId = `voice-device-${label.toLowerCase().replace(/\s+/g, '-')}`
 
   return (
     <div>
-      <label htmlFor={selectId} className="mb-3 block text-sm font-semibold uppercase text-gray-400">{label}</label>
+      <label htmlFor={selectId} className="mb-3 block text-sm font-semibold uppercase text-gray-400">
+        {label}
+      </label>
       <select
         id={selectId}
         value={isMissing ? '__missing__' : value}
@@ -653,10 +672,10 @@ function DeviceSelect({
           isMissing ? 'ring-amber-500/50' : 'ring-white/10'
         }`}
       >
-        <option value="">Default</option>
+        <option value="">{t('settings.defaultDevice')}</option>
         {isMissing && (
           <option value="__missing__" disabled className="text-amber-400">
-            Saved device (unavailable) — using default
+            {t('settings.missingDevice')}
           </option>
         )}
         {devices.map((d) => (
@@ -665,11 +684,7 @@ function DeviceSelect({
           </option>
         ))}
       </select>
-      {isMissing && (
-        <p className="mt-1 text-xs text-amber-400/80">
-          Your saved device is disconnected. Reconnect it or select a different one.
-        </p>
-      )}
+      {isMissing && <p className="mt-1 text-xs text-amber-400/80">{t('settings.missingDeviceHint')}</p>}
     </div>
   )
 }

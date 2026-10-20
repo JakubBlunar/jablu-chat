@@ -2,16 +2,16 @@ import { useTranslation } from 'react-i18next'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 
 const GUIDES = {
-  ios: { label: 'iOS / iPadOS', steps: ['ios1', 'ios2', 'ios3'] },
-  safari: { label: 'Safari (macOS)', steps: ['safari1', 'safari2', 'safari3'] },
-  chrome: { label: 'Chrome', steps: ['chrome1', 'chrome2', 'chrome3'] },
-  chromeAndroid: { label: 'Chrome (Android)', steps: ['android1', 'android2', 'android3'] },
-  edge: { label: 'Microsoft Edge', steps: ['edge1', 'edge2', 'chrome3'] },
-  edgeMobile: { label: 'Microsoft Edge (mobile)', steps: ['edgeMobile1', 'edgeMobile2', 'android3'] },
-  firefox: { label: 'Firefox', steps: ['firefoxDesktop'] },
-  firefoxAndroid: { label: 'Firefox (Android)', steps: ['firefoxAndroid1', 'android3'] },
-  samsung: { label: 'Samsung Internet', steps: ['samsung1', 'android3'] },
-  unknown: { label: '', steps: ['generic'] }
+  ios: { labelKey: 'ios', steps: ['ios1', 'ios2', 'ios3'] },
+  safari: { labelKey: 'safari', steps: ['safari1', 'safari2', 'safari3'] },
+  chrome: { labelKey: 'chrome', steps: ['chrome1', 'chrome2', 'chrome3'] },
+  chromeAndroid: { labelKey: 'chromeAndroid', steps: ['android1', 'android2', 'android3'] },
+  edge: { labelKey: 'edge', steps: ['edge1', 'edge2', 'chrome3'] },
+  edgeMobile: { labelKey: 'edgeMobile', steps: ['edgeMobile1', 'edgeMobile2', 'android3'] },
+  firefox: { labelKey: 'firefox', steps: ['firefoxDesktop'] },
+  firefoxAndroid: { labelKey: 'firefoxAndroid', steps: ['firefoxAndroid1', 'android3'] },
+  samsung: { labelKey: 'samsung', steps: ['samsung1', 'android3'] },
+  unknown: { labelKey: 'unknown', steps: ['generic'] }
 } as const
 
 type Guide = keyof typeof GUIDES
@@ -50,7 +50,7 @@ export function PwaInstallGuide() {
       )}
       <section>
         <h3 className="mb-3 text-sm font-semibold text-white">
-          {t('install.how')} {GUIDES[guide].label}
+          {t('install.how')} {t(`installBrowserLabels.${GUIDES[guide].labelKey}`)}
         </h3>
         <Steps guide={guide} />
       </section>
@@ -62,7 +62,7 @@ export function PwaInstallGuide() {
           .map((key) => (
             <details key={key} className="rounded-lg bg-surface-darkest">
               <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-medium text-gray-300">
-                {GUIDES[key].label}
+                {t(`installBrowserLabels.${GUIDES[key].labelKey}`)}
               </summary>
               <div className="px-4 pb-4">
                 <Steps guide={key} />

@@ -19,35 +19,35 @@ export type Tab =
 
 export const STATUS_OPTIONS: {
   value: UserStatus
-  label: string
+  labelKey: string
   color: string
-  subtitle?: string
+  subtitleKey?: string
   /** Open duration submenu (Discord-style); Online is automatic. */
   pickDuration?: boolean
 }[] = [
-  { value: 'online', label: 'Online', color: 'bg-emerald-500' },
-  { value: 'idle', label: 'Idle', color: 'bg-amber-400', pickDuration: true },
+  { value: 'online', labelKey: 'status.presence.online', color: 'bg-emerald-500' },
+  { value: 'idle', labelKey: 'status.presence.idle', color: 'bg-amber-400', pickDuration: true },
   {
     value: 'dnd',
-    label: 'Do Not Disturb',
+    labelKey: 'status.presence.dnd',
     color: 'bg-red-500',
-    subtitle: 'You will not receive desktop notifications.',
+    subtitleKey: 'status.subtitles.dnd',
     pickDuration: true
   },
   {
     value: 'offline',
-    label: 'Invisible',
+    labelKey: 'status.presence.offline',
     color: 'bg-zinc-500',
-    subtitle: 'You will appear offline to others.',
+    subtitleKey: 'status.subtitles.offline',
     pickDuration: true
   }
 ]
 
-export const STATUS_DURATION_OPTIONS: { value: StatusDurationPreset; label: string }[] = [
-  { value: '15m', label: 'For 15 minutes' },
-  { value: '1h', label: 'For 1 hour' },
-  { value: '8h', label: 'For 8 hours' },
-  { value: '24h', label: 'For 24 hours' },
-  { value: '3d', label: 'For 3 days' },
-  { value: 'forever', label: 'Forever' }
+export const STATUS_DURATION_OPTIONS: { value: StatusDurationPreset; labelKey: string }[] = [
+  { value: '15m', labelKey: 'status.duration.15m' },
+  { value: '1h', labelKey: 'status.duration.1h' },
+  { value: '8h', labelKey: 'status.duration.8h' },
+  { value: '24h', labelKey: 'status.duration.24h' },
+  { value: '3d', labelKey: 'status.duration.3d' },
+  { value: 'forever', labelKey: 'status.duration.forever' }
 ]

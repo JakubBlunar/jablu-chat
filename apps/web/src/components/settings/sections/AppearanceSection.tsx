@@ -92,7 +92,7 @@ export function AppearanceSection() {
               }`}
             >
               <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: opt.color }} />
-              {opt.label}
+              {t(`accentColors.${opt.key}`)}
             </button>
           ))}
         </div>

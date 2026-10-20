@@ -1,23 +1,27 @@
 import type { BotApplication } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input, InlineAlert } from '@/components/ui'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { api } from '@/lib/api'
 
 const USERNAME_PATTERN = /^[a-z0-9_-]{2,32}$/
 
-function validateUsername(raw: string): string | null {
+type UsernameErrorKey = 'bots.usernameLengthError' | 'bots.usernameCharactersError'
+
+function validateUsername(raw: string): UsernameErrorKey | null {
   const v = raw.trim().toLowerCase()
   if (v.length < 2 || v.length > 32) {
-    return 'Username must be 2–32 characters.'
+    return 'bots.usernameLengthError'
   }
   if (!USERNAME_PATTERN.test(v)) {
-    return 'Use lowercase letters, numbers, hyphens, and underscores only.'
+    return 'bots.usernameCharactersError'
   }
   return null
 }
 
 export function MyBotsSection() {
+  const { t, i18n } = useTranslation('settings')
   const [bots, setBots] = useState<BotApplication[]>([])
   const [loading, setLoading] = useState(true)
   const [username, setUsername] = useState('')
@@ -39,12 +43,12 @@ export function MyBotsSection() {
       const list = await api.listOwnBots()
       setBots(list)
     } catch {
-      setSectionError('Failed to load your bots.')
+      setSectionError(t('bots.loadFailed'))
       setBots([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void fetchBots()
@@ -59,10 +63,10 @@ export function MyBotsSection() {
   const handleCreate = useCallback(async () => {
     const u = username.trim().toLowerCase()
     const nameErr = validateUsername(u)
-    setUsernameError(nameErr)
+    setUsernameError(nameErr ? t(nameErr) : null)
     if (nameErr) return
     if (!displayName.trim()) {
-      setSectionError('Display name is required.')
+      setSectionError(t('bots.displayNameRequired'))
       return
     }
     setSectionError(null)
@@ -81,11 +85,11 @@ export function MyBotsSection() {
       setDisplayName('')
       setDescription('')
     } catch {
-      setSectionError('Could not create bot. Check the username and try again.')
+      setSectionError(t('bots.createFailed'))
     } finally {
       setCreating(false)
     }
-  }, [username, displayName, description])
+  }, [username, displayName, description, isPublic, t])
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
@@ -97,25 +101,28 @@ export function MyBotsSection() {
       setNewBotToken(null)
       if (regenerated?.botId === deleteTarget.id) setRegenerated(null)
     } catch {
-      setSectionError('Failed to delete bot.')
+      setSectionError(t('bots.deleteFailed'))
       setDeleteTarget(null)
     }
-  }, [deleteTarget, regenerated?.botId])
+  }, [deleteTarget, regenerated?.botId, t])
 
   const [editingBot, setEditingBot] = useState<BotApplication | null>(null)
   const [editDescription, setEditDescription] = useState('')
   const [editDisplayName, setEditDisplayName] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const handleTogglePublic = useCallback(async (bot: BotApplication) => {
-    setSectionError(null)
-    try {
-      const updated = await api.updateBot(bot.id, { public: !bot.public })
-      setBots((prev) => prev.map((b) => (b.id === bot.id ? { ...b, public: updated.public } : b)))
-    } catch {
-      setSectionError('Failed to update bot visibility.')
-    }
-  }, [])
+  const handleTogglePublic = useCallback(
+    async (bot: BotApplication) => {
+      setSectionError(null)
+      try {
+        const updated = await api.updateBot(bot.id, { public: !bot.public })
+        setBots((prev) => prev.map((b) => (b.id === bot.id ? { ...b, public: updated.public } : b)))
+      } catch {
+        setSectionError(t('bots.visibilityFailed'))
+      }
+    },
+    [t]
+  )
 
   const handleStartEdit = useCallback((bot: BotApplication) => {
     setEditingBot(bot)
@@ -135,28 +142,31 @@ export function MyBotsSection() {
       setBots((prev) => prev.map((b) => (b.id === editingBot.id ? { ...b, ...updated } : b)))
       setEditingBot(null)
     } catch {
-      setSectionError('Failed to update bot.')
+      setSectionError(t('bots.updateFailed'))
     } finally {
       setSaving(false)
     }
-  }, [editingBot, editDisplayName, editDescription])
+  }, [editingBot, editDisplayName, editDescription, t])
 
-  const handleRegenerate = useCallback(async (botId: string) => {
-    setSectionError(null)
-    setRegeneratingId(botId)
-    try {
-      const { token } = await api.regenerateBotToken(botId)
-      setNewBotToken(null)
-      setRegenerated({ botId, token })
-    } catch {
-      setSectionError('Failed to regenerate token.')
-    } finally {
-      setRegeneratingId(null)
-    }
-  }, [])
+  const handleRegenerate = useCallback(
+    async (botId: string) => {
+      setSectionError(null)
+      setRegeneratingId(botId)
+      try {
+        const { token } = await api.regenerateBotToken(botId)
+        setNewBotToken(null)
+        setRegenerated({ botId, token })
+      } catch {
+        setSectionError(t('bots.regenerateFailed'))
+      } finally {
+        setRegeneratingId(null)
+      }
+    },
+    [t]
+  )
 
   if (loading) {
-    return <p className="text-sm text-gray-400">Loading…</p>
+    return <p className="text-sm text-gray-400">{t('bots.loading')}</p>
   }
 
   return (
@@ -175,16 +185,14 @@ export function MyBotsSection() {
               setRegenerated(null)
             }}
             className="absolute right-3 top-3 rounded p-1 text-amber-200 transition hover:bg-amber-500/20 hover:text-white"
-            aria-label="Dismiss token notice"
+            aria-label={t('bots.dismissTokenNotice')}
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z" />
             </svg>
           </button>
-          <p className="pr-10 text-sm font-bold text-amber-100">Save this token now — you will not see it again</p>
-          <p className="mt-2 text-xs text-amber-200/90">
-            Anyone with this token can act as your bot. Store it securely. If you lose it, use &quot;Regenerate Token&quot; (this invalidates the old one).
-          </p>
+          <p className="pr-10 text-sm font-bold text-amber-100">{t('bots.saveTokenWarning')}</p>
+          <p className="mt-2 text-xs text-amber-200/90">{t('bots.tokenWarningDescription')}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <code className="max-w-full flex-1 break-all rounded bg-black/40 px-3 py-2 font-mono text-xs text-amber-50">
               {newBotToken ?? regenerated?.token}
@@ -197,27 +205,27 @@ export function MyBotsSection() {
                 void copyToken(newBotToken ?? regenerated!.token, newBotToken ? 'new' : `regen-${regenerated!.botId}`)
               }
             >
-              {copiedKey === (newBotToken ? 'new' : `regen-${regenerated?.botId}`) ? 'Copied!' : 'Copy token'}
+              {copiedKey === (newBotToken ? 'new' : `regen-${regenerated?.botId}`)
+                ? t('bots.copied')
+                : t('bots.copyToken')}
             </Button>
           </div>
         </div>
       )}
 
       <div className="rounded-md bg-surface-dark p-4">
-        <h3 className="mb-1 text-sm font-semibold text-white">Create Bot</h3>
-        <p className="mb-4 text-xs text-gray-500">
-          Bots use their own account. The username becomes their @handle (2–32 chars, lowercase letters, numbers, _ and -).
-        </p>
+        <h3 className="mb-1 text-sm font-semibold text-white">{t('bots.createBot')}</h3>
+        <p className="mb-4 text-xs text-gray-500">{t('bots.createBotDescription')}</p>
         <div className="space-y-4">
           <Input
             id="bot-username"
-            label="Username"
+            label={t('bots.username')}
             value={username}
             onChange={(e) => {
               setUsername(e.target.value.toLowerCase())
               setUsernameError(null)
             }}
-            placeholder="my-cool-bot"
+            placeholder={t('bots.usernamePlaceholder')}
             maxLength={32}
             autoComplete="off"
             spellCheck={false}
@@ -225,18 +233,18 @@ export function MyBotsSection() {
           />
           <Input
             id="bot-display-name"
-            label="Display name"
+            label={t('bots.displayName')}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="My Cool Bot"
+            placeholder={t('bots.displayNamePlaceholder')}
             maxLength={80}
           />
           <Input
             id="bot-description"
-            label="Description (optional)"
+            label={t('bots.descriptionOptional')}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What this bot does"
+            placeholder={t('bots.descriptionPlaceholder')}
             maxLength={500}
           />
           <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -246,8 +254,8 @@ export function MyBotsSection() {
               onChange={(e) => setIsPublic(e.target.checked)}
               className="h-4 w-4 rounded border-white/20 bg-surface-darkest text-primary accent-primary"
             />
-            <span className="text-sm text-gray-300">Public</span>
-            <span className="text-xs text-gray-500">— anyone can find and add this bot to their server</span>
+            <span className="text-sm text-gray-300">{t('bots.public')}</span>
+            <span className="text-xs text-gray-500">{t('bots.publicDescription')}</span>
           </label>
           <Button
             type="button"
@@ -255,15 +263,15 @@ export function MyBotsSection() {
             disabled={!username.trim() || !displayName.trim()}
             onClick={() => void handleCreate()}
           >
-            Create bot
+            {t('bots.create')}
           </Button>
         </div>
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-white">Your bots</h3>
+        <h3 className="mb-3 text-sm font-semibold text-white">{t('bots.yourBots')}</h3>
         {bots.length === 0 ? (
-          <p className="text-center text-sm text-gray-500">You have not created any bots yet.</p>
+          <p className="text-center text-sm text-gray-500">{t('bots.empty')}</p>
         ) : (
           <ul className="space-y-2">
             {bots.map((bot) => {
@@ -271,33 +279,30 @@ export function MyBotsSection() {
               const dname = bot.user.displayName?.trim() || bot.name
               const isEditing = editingBot?.id === bot.id
               return (
-                <li
-                  key={bot.id}
-                  className="rounded-md bg-surface-dark px-4 py-3"
-                >
+                <li key={bot.id} className="rounded-md bg-surface-dark px-4 py-3">
                   {isEditing ? (
                     <div className="space-y-3">
                       <Input
                         id={`edit-display-${bot.id}`}
-                        label="Display name"
+                        label={t('bots.displayName')}
                         value={editDisplayName}
                         onChange={(e) => setEditDisplayName(e.target.value)}
                         maxLength={80}
                       />
                       <Input
                         id={`edit-desc-${bot.id}`}
-                        label="Description"
+                        label={t('bots.description')}
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
-                        placeholder="What this bot does"
+                        placeholder={t('bots.descriptionPlaceholder')}
                         maxLength={500}
                       />
                       <div className="flex gap-2">
                         <Button type="button" size="xs" loading={saving} onClick={() => void handleSaveEdit()}>
-                          Save
+                          {t('bots.save')}
                         </Button>
                         <Button type="button" variant="ghost" size="xs" onClick={() => setEditingBot(null)}>
-                          Cancel
+                          {t('bots.cancel')}
                         </Button>
                       </div>
                     </div>
@@ -308,13 +313,17 @@ export function MyBotsSection() {
                           @{uname}
                           <span className="font-normal text-gray-400"> · {dname}</span>
                           {!bot.public && (
-                            <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-gray-400">PRIVATE</span>
+                            <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-gray-400">
+                              {t('bots.private')}
+                            </span>
                           )}
                         </p>
-                        {bot.description && (
-                          <p className="mt-0.5 text-xs text-gray-400">{bot.description}</p>
-                        )}
-                        <p className="text-xs text-gray-500">Created {new Date(bot.createdAt).toLocaleDateString()}</p>
+                        {bot.description && <p className="mt-0.5 text-xs text-gray-400">{bot.description}</p>}
+                        <p className="text-xs text-gray-500">
+                          {t('bots.createdAt', {
+                            date: new Date(bot.createdAt).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language)
+                          })}
+                        </p>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <Button
@@ -324,7 +333,7 @@ export function MyBotsSection() {
                           onClick={() => handleStartEdit(bot)}
                           className="text-xs font-medium text-gray-400 hover:text-gray-200"
                         >
-                          Edit
+                          {t('bots.edit')}
                         </Button>
                         <Button
                           type="button"
@@ -333,7 +342,7 @@ export function MyBotsSection() {
                           onClick={() => void handleTogglePublic(bot)}
                           className="text-xs font-medium text-gray-400 hover:text-gray-200"
                         >
-                          {bot.public ? 'Make private' : 'Make public'}
+                          {bot.public ? t('bots.makePrivate') : t('bots.makePublic')}
                         </Button>
                         <Button
                           type="button"
@@ -343,7 +352,7 @@ export function MyBotsSection() {
                           onClick={() => void handleRegenerate(bot.id)}
                           className="text-xs font-medium text-amber-300 hover:text-amber-200"
                         >
-                          Regenerate token
+                          {t('bots.regenerateToken')}
                         </Button>
                         <Button
                           type="button"
@@ -352,7 +361,7 @@ export function MyBotsSection() {
                           onClick={() => setDeleteTarget(bot)}
                           className="text-xs font-medium text-red-400 hover:text-red-300"
                         >
-                          Delete
+                          {t('bots.delete')}
                         </Button>
                       </div>
                     </div>
@@ -366,10 +375,10 @@ export function MyBotsSection() {
 
       {deleteTarget && (
         <ConfirmDialog
-          title="Delete bot?"
-          description={`This will remove @${deleteTarget.user.username} and revoke its token. This cannot be undone.`}
-          confirmLabel="Delete bot"
-          cancelLabel="Cancel"
+          title={t('bots.deleteTitle')}
+          description={t('bots.deleteDescription', { username: deleteTarget.user.username })}
+          confirmLabel={t('bots.deleteConfirm')}
+          cancelLabel={t('bots.cancel')}
           onConfirm={() => void handleDelete()}
           onCancel={() => setDeleteTarget(null)}
         />

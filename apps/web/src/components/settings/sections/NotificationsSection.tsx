@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   getNotifSettings,
   saveNotifSettings,
@@ -15,6 +16,7 @@ import { PushDeliverySettings } from '@/components/settings/sections/PushDeliver
 import { isDesktop } from '@/lib/desktop'
 
 export function NotificationsSection() {
+  const { t } = useTranslation('settings')
   const [settings, setSettings] = useState(getNotifSettings)
   const [permStatus, setPermStatus] = useState<string>(
     'Notification' in window ? Notification.permission : 'unsupported'
@@ -70,10 +72,10 @@ export function NotificationsSection() {
         const reg = await navigator.serviceWorker.ready
         const sub = await reg.pushManager.getSubscription()
         setPushStatus(sub ? 'active' : 'error')
-        setPushError(sub ? null : 'Push subscription failed. See troubleshooting below.')
+        setPushError(sub ? null : t('notifications.pushSubscriptionMissing'))
       } catch (e: unknown) {
         setPushStatus('error')
-        setPushError(e instanceof Error ? e.message : 'Push subscription failed')
+        setPushError(e instanceof Error ? e.message : t('notifications.pushSubscriptionFailed'))
       }
     }
   }
@@ -86,10 +88,10 @@ export function NotificationsSection() {
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       setPushStatus(sub ? 'active' : 'error')
-      if (!sub) setPushError('Push subscription failed. See troubleshooting below.')
+      if (!sub) setPushError(t('notifications.pushSubscriptionMissing'))
     } catch (e: unknown) {
       setPushStatus('error')
-      setPushError(e instanceof Error ? e.message : 'Push subscription failed')
+      setPushError(e instanceof Error ? e.message : t('notifications.pushSubscriptionFailed'))
     }
   }
 
@@ -97,16 +99,16 @@ export function NotificationsSection() {
     setTestResult(null)
     // Local first, so a failure here isolates the OS/permission layer from the
     // server-to-device push transport that follows.
-    showNotification('Jablu test notification', 'This is how a message will look.', '/channels/@me')
+    showNotification(t('notifications.testNotificationTitle'), t('notifications.testNotificationBody'), '/channels/@me')
     try {
       const res = await api.post<{ devices: number }>('/push/test', {})
       setTestResult(
         res.devices > 0
-          ? `Sent to ${res.devices} registered device${res.devices === 1 ? '' : 's'}.`
-          : 'No devices are registered for push yet.'
+          ? t('notifications.sentToDevices', { count: res.devices })
+          : t('notifications.noRegisteredDevices')
       )
     } catch (e: unknown) {
-      setTestResult(e instanceof Error ? e.message : 'Could not send the test push.')
+      setTestResult(e instanceof Error ? e.message : t('notifications.testPushFailed'))
     }
   }
 
@@ -114,23 +116,19 @@ export function NotificationsSection() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-gray-400">Control how Jablu notifies you about new messages.</p>
+      <p className="text-sm text-gray-400">{t('notifications.description')}</p>
 
       {!isDesktop && permStatus !== 'granted' && permStatus !== 'unsupported' && (
         <div className="rounded-lg bg-surface-dark p-4">
           <p className="text-sm text-gray-300">
-            Browser notifications are {permStatus === 'denied' ? 'blocked' : 'not enabled'}.
+            {t(permStatus === 'denied' ? 'notifications.browserBlocked' : 'notifications.browserNotEnabled')}
           </p>
           {permStatus !== 'denied' && (
             <Button type="button" variant="primary" className="mt-2" onClick={() => void handleRequestPermission()}>
-              Enable Notifications
+              {t('notifications.enableNotifications')}
             </Button>
           )}
-          {permStatus === 'denied' && (
-            <p className="mt-1 text-xs text-gray-500">
-              You have blocked notifications for this site. Update your browser settings to allow them.
-            </p>
-          )}
+          {permStatus === 'denied' && <p className="mt-1 text-xs text-gray-500">{t('notifications.blockedHint')}</p>}
         </div>
       )}
 
@@ -150,19 +148,17 @@ export function NotificationsSection() {
             />
             <p className="text-sm font-medium text-gray-200">
               {pushStatus === 'active'
-                ? 'Push notifications are active'
+                ? t('notifications.pushActive')
                 : pushStatus === 'checking'
-                  ? 'Checking push status...'
-                  : 'Push notifications are not active'}
+                  ? t('notifications.checkingPush')
+                  : t('notifications.pushInactive')}
             </p>
           </div>
-          {pushStatus === 'active' && (
-            <p className="mt-1 text-xs text-gray-500">You will receive notifications even when the app is closed.</p>
-          )}
+          {pushStatus === 'active' && <p className="mt-1 text-xs text-gray-500">{t('notifications.appClosedHint')}</p>}
           {(pushStatus === 'inactive' || pushStatus === 'error') && (
             <>
               <Button type="button" variant="primary" className="mt-2" onClick={() => void handleEnablePush()}>
-                Enable Push Notifications
+                {t('notifications.enablePush')}
               </Button>
               {pushError && <p className="mt-2 text-xs text-red-400">{pushError}</p>}
             </>
@@ -172,48 +168,47 @@ export function NotificationsSection() {
 
       {!isDesktop && permStatus === 'granted' && pushStatus !== 'active' && pushStatus !== 'checking' && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
-          <p className="text-sm font-medium text-yellow-400">Troubleshooting</p>
+          <p className="text-sm font-medium text-yellow-400">{t('notifications.troubleshooting')}</p>
           <ul className="mt-2 space-y-1.5 text-xs text-gray-400">
             {isBrave && (
               <li>
-                <strong className="text-gray-300">Brave Browser:</strong> Go to{' '}
+                <strong className="text-gray-300">{t('notifications.braveBrowser')}:</strong>{' '}
+                {t('notifications.braveGoTo')}{' '}
                 <span className="rounded bg-surface-darkest px-1.5 py-0.5 font-mono text-gray-300">
                   brave://settings/privacy
                 </span>{' '}
-                and enable <strong className="text-gray-300">"Use Google services for push messaging"</strong>. This is
-                required for push notifications to work.
+                {t('notifications.braveEnable')}{' '}
+                <strong className="text-gray-300">"{t('notifications.braveServicesOption')}"</strong>.{' '}
+                {t('notifications.braveRequired')}
               </li>
             )}
-            <li>Make sure notifications are allowed in your operating system settings for this browser.</li>
-            <li>If you are using a VPN or firewall, ensure it does not block push service connections.</li>
-            <li>Try closing all tabs and reopening the app, then click "Enable Push Notifications" again.</li>
+            <li>{t('notifications.osPermissionHint')}</li>
+            <li>{t('notifications.vpnHint')}</li>
+            <li>{t('notifications.retryHint')}</li>
           </ul>
         </div>
       )}
 
       <div className="space-y-3">
         <ToggleRow
-          label="Notifications"
-          description="Show notifications when you receive new messages"
+          label={t('notifications.notificationsLabel')}
+          description={t('notifications.notificationsDescription')}
           checked={settings.enabled}
           onChange={() => toggle('enabled')}
         />
         <ToggleRow
-          label="Notification Sound"
-          description="Play a sound when you receive a notification"
+          label={t('notifications.soundLabel')}
+          description={t('notifications.soundDescription')}
           checked={settings.soundEnabled}
           onChange={() => toggle('soundEnabled')}
         />
       </div>
 
       <div className="rounded-lg bg-surface-dark p-4">
-        <p className="text-sm font-medium text-gray-200">Test this device</p>
-        <p className="mt-1 text-xs text-gray-500">
-          Shows a notification here, then sends a push to every device you are signed in on. Run it
-          on each device to find one that is not receiving.
-        </p>
+        <p className="text-sm font-medium text-gray-200">{t('notifications.testDevice')}</p>
+        <p className="mt-1 text-xs text-gray-500">{t('notifications.testDeviceDescription')}</p>
         <Button type="button" variant="secondary" className="mt-2" onClick={() => void handleTestNotification()}>
-          Send test notification
+          {t('notifications.sendTest')}
         </Button>
         {testResult && <p className="mt-2 text-xs text-gray-400">{testResult}</p>}
       </div>

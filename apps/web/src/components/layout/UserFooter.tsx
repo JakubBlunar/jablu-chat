@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { UserAvatar } from '@/components/UserAvatar'
 import { IconButton } from '@/components/ui'
 import { UserFooterStatusPopover } from './UserFooterStatusPopover'
@@ -21,8 +22,10 @@ type UserFooterProps = {
 }
 
 export function UserFooter({ onOpenSettings, className, children }: UserFooterProps) {
+  const { t, i18n } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
-  const presenceHint = user ? manualPresenceSubtitle(user) : null
+  const locale = i18n.resolvedLanguage ?? i18n.language
+  const presenceHint = user ? manualPresenceSubtitle(user, t, locale) : null
   const [statusPickerOpen, setStatusPickerOpen] = useState(false)
   const avatarBtnRef = useRef<HTMLButtonElement>(null)
 
@@ -33,12 +36,12 @@ export function UserFooter({ onOpenSettings, className, children }: UserFooterPr
         type="button"
         aria-expanded={statusPickerOpen}
         aria-haspopup="dialog"
-        aria-label="Set status"
+        aria-label={t('status.setStatus')}
         onClick={() => setStatusPickerOpen((o) => !o)}
         className="shrink-0 rounded-full transition hover:opacity-80"
       >
         <UserAvatar
-          username={user?.username ?? 'User'}
+          username={user?.username ?? t('status.unknownUser')}
           avatarUrl={user?.avatarUrl}
           size="md"
           showStatus
@@ -51,27 +54,29 @@ export function UserFooter({ onOpenSettings, className, children }: UserFooterPr
         anchorRef={avatarBtnRef}
         onEditFullSettings={() => onOpenSettings('status')}
       />
-      <button type="button" onClick={() => onOpenSettings('profile')} className="min-w-0 flex-1 text-left transition hover:opacity-80">
-        <p className="truncate text-sm font-semibold text-white">
-          {user?.displayName ?? user?.username ?? '…'}
-        </p>
+      <button
+        type="button"
+        onClick={() => onOpenSettings('profile')}
+        className="min-w-0 flex-1 text-left transition hover:opacity-80"
+      >
+        <p className="truncate text-sm font-semibold text-white">{user?.displayName ?? user?.username ?? '…'}</p>
         <p className="truncate text-xs text-gray-400">
           {user?.customStatus ? (
             user.customStatus
           ) : presenceHint && user ? (
             <>
-              <span>{footerPresenceLabel(user)}</span>
+              <span>{footerPresenceLabel(user, t)}</span>
               <span className="text-gray-500"> · </span>
               <span>{presenceHint}</span>
             </>
           ) : (
-            <span className="capitalize">{user?.status ?? 'online'}</span>
+            <span>{t(`status.presence.${user?.status ?? 'online'}`)}</span>
           )}
         </p>
       </button>
       <div className="flex shrink-0 items-center gap-0.5">
         {children}
-        <IconButton label="User settings" onClick={() => onOpenSettings()}>
+        <IconButton label={t('settingsButton')} onClick={() => onOpenSettings()}>
           <GearIcon />
         </IconButton>
       </div>

@@ -1,10 +1,12 @@
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { UserAvatar } from '@/components/UserAvatar'
 import { CameraIcon } from '@/components/settings/SettingsModal'
 import { Button, Input, SectionHeading, Textarea } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function ProfileSection() {
+  const { t } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
   const updateProfile = useAuthStore((s) => s.updateProfile)
   const uploadAvatar = useAuthStore((s) => s.uploadAvatar)
@@ -25,20 +27,20 @@ export function ProfileSection() {
       try {
         await uploadAvatar(file)
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to upload avatar')
+        setError(err instanceof Error ? err.message : t('profile.uploadFailed'))
       }
       if (fileInputRef.current) fileInputRef.current.value = ''
     },
-    [uploadAvatar]
+    [uploadAvatar, t]
   )
 
   const handleDeleteAvatar = useCallback(async () => {
     try {
       await deleteAvatar()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to remove avatar')
+      setError(err instanceof Error ? err.message : t('profile.removeAvatarFailed'))
     }
-  }, [deleteAvatar])
+  }, [deleteAvatar, t])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,9 +54,9 @@ export function ProfileSection() {
       if (Object.keys(data).length > 0) {
         await updateProfile(data)
       }
-      setSuccess('Profile updated')
+      setSuccess(t('profile.updated'))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile')
+      setError(err instanceof Error ? err.message : t('profile.updateFailed'))
     } finally {
       setLoading(false)
     }
@@ -70,7 +72,7 @@ export function ProfileSection() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"
-            title="Change avatar"
+            title={t('profile.changeAvatarTitle')}
           >
             <CameraIcon />
           </button>
@@ -88,7 +90,7 @@ export function ProfileSection() {
             onClick={() => fileInputRef.current?.click()}
             className="text-sm font-medium text-primary transition hover:underline"
           >
-            Change Avatar
+            {t('profile.changeAvatar')}
           </button>
           {user?.avatarUrl && (
             <button
@@ -96,7 +98,7 @@ export function ProfileSection() {
               onClick={handleDeleteAvatar}
               className="block text-sm text-gray-400 transition hover:text-red-400"
             >
-              Remove Avatar
+              {t('profile.removeAvatar')}
             </button>
           )}
         </div>
@@ -105,15 +107,22 @@ export function ProfileSection() {
       {/* Profile form */}
       <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <SectionHeading as="label" className="mb-1 block">USERNAME</SectionHeading>
+          <SectionHeading as="label" className="mb-1 block">
+            {t('profile.username')}
+          </SectionHeading>
           <div className="w-full rounded-md border border-surface-darkest bg-surface-darkest/50 px-3 py-2 text-sm text-gray-500">
             {user?.username}
           </div>
         </div>
-        <Input label="Display Name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={20} />
+        <Input
+          label={t('profile.displayName')}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          maxLength={20}
+        />
         <div>
           <Textarea
-            label="Bio"
+            label={t('profile.bio')}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             maxLength={190}
@@ -124,7 +133,7 @@ export function ProfileSection() {
         {error && <p className="text-sm text-red-400">{error}</p>}
         {success && <p className="text-sm text-emerald-400">{success}</p>}
         <Button type="submit" variant="primary" disabled={loading}>
-          {loading ? 'Saving...' : 'Save Changes'}
+          {loading ? t('profile.saving') : t('profile.saveChanges')}
         </Button>
       </form>
     </div>

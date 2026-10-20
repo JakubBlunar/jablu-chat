@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { StatusPickerCore } from '@/components/user/StatusPickerCore'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -24,6 +25,7 @@ type Props = {
 }
 
 export function UserFooterStatusPopover({ open, onClose, anchorRef, onEditFullSettings }: Props) {
+  const { t } = useTranslation('settings')
   const isMobile = useIsMobile()
   const popoverRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null)
@@ -64,8 +66,8 @@ export function UserFooterStatusPopover({ open, onClose, anchorRef, onEditFullSe
     return (
       <ModalOverlay onClose={onClose} maxWidth="max-w-sm" zIndex="z-[250]">
         <div data-status-picker="mobile-shell">
-          <h2 className="text-lg font-semibold text-white">Set status</h2>
-          <p className="mt-0.5 text-sm text-gray-400">Choose how others see you.</p>
+          <h2 className="text-lg font-semibold text-white">{t('status.setStatus')}</h2>
+          <p className="mt-0.5 text-sm text-gray-400">{t('status.chooseHowOthersSeeYou')}</p>
           <div className="mt-4 border-t border-white/10 pt-4">
             <StatusPickerCore variant="compact" onRequestClose={onClose} onEditFullSettings={onEditFullSettings} />
           </div>
@@ -84,9 +86,9 @@ export function UserFooterStatusPopover({ open, onClose, anchorRef, onEditFullSe
       style={{ left: pos.left, bottom: pos.bottom }}
       role="dialog"
       aria-modal="true"
-      aria-label="Set status"
+      aria-label={t('status.setStatus')}
     >
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Set status</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{t('status.setStatus')}</p>
       <StatusPickerCore variant="compact" onRequestClose={onClose} onEditFullSettings={onEditFullSettings} />
     </div>
   )

@@ -1,5 +1,6 @@
 import type { StatusDurationPreset, UserStatus } from '@chat/shared'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { STATUS_DURATION_OPTIONS, STATUS_OPTIONS } from '@/components/settings/settingsTypes'
@@ -45,6 +46,7 @@ export function StatusPickerCore({
   onEditFullSettings,
   className = ''
 }: StatusPickerCoreProps) {
+  const { t, i18n } = useTranslation('settings')
   const user = useAuthStore((s) => s.user)
   const updateStatus = useAuthStore((s) => s.updateStatus)
   const [loading, setLoading] = useState<UserStatus | null>(null)
@@ -54,7 +56,8 @@ export function StatusPickerCore({
   const flyoutRef = useRef<HTMLDivElement>(null)
 
   const currentStatus = user?.status ?? 'online'
-  const manualHint = user ? manualPresenceSubtitle(user) : null
+  const locale = i18n.resolvedLanguage ?? i18n.language
+  const manualHint = user ? manualPresenceSubtitle(user, t, locale) : null
   const compact = variant === 'compact'
 
   useEffect(() => {
@@ -133,13 +136,10 @@ export function StatusPickerCore({
     <div className={className} data-status-picker="root">
       {!compact ? (
         <>
-          <p className="text-sm text-gray-400">
-            Online follows your activity automatically. Idle, Do Not Disturb, and Invisible can run for a chosen time,
-            then return to automatic presence.
-          </p>
+          <p className="text-sm text-gray-400">{t('status.presenceIntro')}</p>
           {manualHint && user?.manualStatus ? (
             <p className="mt-2 rounded-lg border border-white/10 bg-surface-darkest/80 px-3 py-2 text-sm text-gray-200">
-              <span className="font-medium text-white">{statusDisplayLabel(user.manualStatus)}</span>
+              <span className="font-medium text-white">{statusDisplayLabel(user.manualStatus, t)}</span>
               <span className="text-gray-500"> · </span>
               <span className="text-gray-400">{manualHint}</span>
             </p>
@@ -147,7 +147,7 @@ export function StatusPickerCore({
         </>
       ) : manualHint && user?.manualStatus ? (
         <p className="mb-2 rounded-md border border-white/10 bg-surface-darkest/60 px-2 py-1.5 text-xs text-gray-300">
-          <span className="font-medium text-white">{statusDisplayLabel(user.manualStatus)}</span>
+          <span className="font-medium text-white">{statusDisplayLabel(user.manualStatus, t)}</span>
           <span className="text-gray-500"> · </span>
           <span>{manualHint}</span>
         </p>
@@ -162,24 +162,22 @@ export function StatusPickerCore({
               type="button"
               disabled={loading !== null}
               onClick={(e) => onStatusRowClick(opt, e.currentTarget)}
-              className={`flex w-full items-start gap-2 rounded-lg text-left transition ${
-                rowPad
-              } ${
+              className={`flex w-full items-start gap-2 rounded-lg text-left transition ${rowPad} ${
                 active ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
               }`}
             >
               <StatusDot status={opt.value} size="md" className="mt-0.5" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{opt.label}</span>
+                  <span className="text-sm font-medium">{t(opt.labelKey)}</span>
                   {opt.pickDuration ? <ChevronRight /> : null}
                 </div>
-                {showSubtitles && opt.subtitle ? (
-                  <span className="mt-0.5 block text-xs text-gray-500">{opt.subtitle}</span>
+                {showSubtitles && opt.subtitleKey ? (
+                  <span className="mt-0.5 block text-xs text-gray-500">{t(opt.subtitleKey)}</span>
                 ) : null}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-0.5">
-                {active ? <span className="text-xs text-gray-400">Current</span> : null}
+                {active ? <span className="text-xs text-gray-400">{t('status.current')}</span> : null}
                 {loading === opt.value ? <span className="text-xs text-gray-400">...</span> : null}
               </div>
             </button>
@@ -196,7 +194,7 @@ export function StatusPickerCore({
             onRequestClose?.()
           }}
         >
-          Custom status & more…
+          {t('status.customMore')}
         </button>
       ) : null}
 
@@ -209,7 +207,7 @@ export function StatusPickerCore({
           role="menu"
         >
           <p className="border-b border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Clear after
+            {t('status.clearAfter')}
           </p>
           {STATUS_DURATION_OPTIONS.map((d) => (
             <button
@@ -219,7 +217,7 @@ export function StatusPickerCore({
               className="w-full px-3 py-2.5 text-left text-sm text-gray-200 transition hover:bg-white/10"
               onClick={() => void applyWithDuration(flyout.status, d.value)}
             >
-              {d.label}
+              {t(d.labelKey)}
             </button>
           ))}
         </div>
@@ -228,8 +226,8 @@ export function StatusPickerCore({
       {mobileDurationFor ? (
         <ModalOverlay onClose={() => setMobileDurationFor(null)} maxWidth="max-w-sm" zIndex="z-[270]">
           <div data-status-picker="duration-modal">
-            <h2 className="text-lg font-semibold text-white">{statusDisplayLabel(mobileDurationFor)}</h2>
-            <p className="mt-1 text-sm text-gray-400">How long should this status stay?</p>
+            <h2 className="text-lg font-semibold text-white">{statusDisplayLabel(mobileDurationFor, t)}</h2>
+            <p className="mt-1 text-sm text-gray-400">{t('status.durationQuestion')}</p>
             <div className="mt-4 space-y-1">
               {STATUS_DURATION_OPTIONS.map((d) => (
                 <button
@@ -238,7 +236,7 @@ export function StatusPickerCore({
                   className="w-full rounded-lg px-3 py-3 text-left text-sm text-gray-200 transition hover:bg-white/10"
                   onClick={() => void applyWithDuration(mobileDurationFor, d.value)}
                 >
-                  {d.label}
+                  {t(d.labelKey)}
                 </button>
               ))}
             </div>
@@ -247,7 +245,7 @@ export function StatusPickerCore({
               className="mt-4 text-sm text-gray-400 transition hover:text-white"
               onClick={() => setMobileDurationFor(null)}
             >
-              Cancel
+              {t('status.cancel')}
             </button>
           </div>
         </ModalOverlay>
