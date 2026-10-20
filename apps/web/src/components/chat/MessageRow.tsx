@@ -79,7 +79,7 @@ export const MessageRow = memo(function MessageRow({
   const userId = useAuthStore((s) => s.user?.id)
   const isDm = mode === 'dm'
   const threadDraft = useHasDraft(mode, contextId, message.id)
-  const isWebhook = !isDm && !!message.webhookId && !!message.webhook
+  const isWebhook = !isDm && !!message.webhook
   const isAuthor = message.authorId === userId
   const name = isWebhook
     ? message.webhook!.name
@@ -298,7 +298,7 @@ export const MessageRow = memo(function MessageRow({
                 {name}
               </button>
             )}
-            {(message.webhookId || message.author?.isBot) && (
+            {(isWebhook || message.webhookId || message.author?.isBot) && (
               <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">BOT</span>
             )}
             <time className="text-xs text-gray-500" dateTime={message.createdAt}>
@@ -511,7 +511,9 @@ function MobileEmojiPickerOverlay({
   const active = useRef(false)
   useEffect(() => {
     active.current = true
-    return () => { active.current = false }
+    return () => {
+      active.current = false
+    }
   }, [])
 
   const handleReaction = useCallback(

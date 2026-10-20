@@ -25,7 +25,7 @@ function makeBaseMessage(overrides: Record<string, unknown> = {}) {
     poll: null,
     _count: { threadMessages: 0 },
     threadMessages: [],
-    ...overrides,
+    ...overrides
   } as any
 }
 
@@ -43,7 +43,7 @@ describe('groupReactions', () => {
     const result = groupReactions([
       { emoji: '👍', userId: 'u1', isCustom: false },
       { emoji: '👍', userId: 'u2', isCustom: false },
-      { emoji: '👍', userId: 'u3', isCustom: false },
+      { emoji: '👍', userId: 'u3', isCustom: false }
     ])
     expect(result).toHaveLength(1)
     expect(result[0].count).toBe(3)
@@ -53,7 +53,7 @@ describe('groupReactions', () => {
   it('keeps different emojis separate', () => {
     const result = groupReactions([
       { emoji: '👍', userId: 'u1', isCustom: false },
-      { emoji: '❤️', userId: 'u2', isCustom: false },
+      { emoji: '❤️', userId: 'u2', isCustom: false }
     ])
     expect(result).toHaveLength(2)
     expect(result[0].emoji).toBe('👍')
@@ -63,7 +63,7 @@ describe('groupReactions', () => {
   it('handles custom emojis', () => {
     const result = groupReactions([
       { emoji: 'custom_pepe', userId: 'u1', isCustom: true },
-      { emoji: 'custom_pepe', userId: 'u2', isCustom: true },
+      { emoji: 'custom_pepe', userId: 'u2', isCustom: true }
     ])
     expect(result).toHaveLength(1)
     expect(result[0].isCustom).toBe(true)
@@ -93,27 +93,31 @@ describe('mapMessageToWire', () => {
   it('maps lastThreadReply from threadMessages', () => {
     const replyDate = new Date('2024-06-02')
     const msg = makeBaseMessage({
-      threadMessages: [{
-        content: 'reply text',
-        createdAt: replyDate,
-        author: { id: 'u2', username: 'bob', displayName: 'Bob', avatarUrl: null },
-      }],
+      threadMessages: [
+        {
+          content: 'reply text',
+          createdAt: replyDate,
+          author: { id: 'u2', username: 'bob', displayName: 'Bob', avatarUrl: null }
+        }
+      ]
     })
     const wire = mapMessageToWire(msg)
     expect(wire.lastThreadReply).toEqual({
       content: 'reply text',
       author: { id: 'u2', username: 'bob', displayName: 'Bob', avatarUrl: null },
-      createdAt: replyDate.toISOString(),
+      createdAt: replyDate.toISOString()
     })
   })
 
   it('handles lastThreadReply with string createdAt', () => {
     const msg = makeBaseMessage({
-      threadMessages: [{
-        content: 'reply',
-        createdAt: '2024-06-02T00:00:00.000Z',
-        author: null,
-      }],
+      threadMessages: [
+        {
+          content: 'reply',
+          createdAt: '2024-06-02T00:00:00.000Z',
+          author: null
+        }
+      ]
     })
     const wire = mapMessageToWire(msg)
     expect(wire.lastThreadReply!.createdAt).toBe('2024-06-02T00:00:00.000Z')
@@ -125,12 +129,12 @@ describe('mapMessageToWire', () => {
       webhookId: 'wh-1',
       webhookName: 'My Bot',
       webhookAvatarUrl: 'https://example.com/bot.png',
-      webhook: { name: 'Fallback', avatarUrl: null },
+      webhook: { name: 'Fallback', avatarUrl: null }
     })
     const wire = mapMessageToWire(msg)
     expect(wire.webhook).toEqual({
       name: 'My Bot',
-      avatarUrl: 'https://example.com/bot.png',
+      avatarUrl: 'https://example.com/bot.png'
     })
   })
 
@@ -139,12 +143,12 @@ describe('mapMessageToWire', () => {
       webhookId: 'wh-1',
       webhookName: null,
       webhookAvatarUrl: null,
-      webhook: { name: 'Relation Name', avatarUrl: 'https://rel.png' },
+      webhook: { name: 'Relation Name', avatarUrl: 'https://rel.png' }
     })
     const wire = mapMessageToWire(msg)
     expect(wire.webhook).toEqual({
       name: 'Relation Name',
-      avatarUrl: 'https://rel.png',
+      avatarUrl: 'https://rel.png'
     })
   })
 
@@ -153,7 +157,7 @@ describe('mapMessageToWire', () => {
       webhookId: 'wh-1',
       webhookName: null,
       webhookAvatarUrl: null,
-      webhook: { name: null, avatarUrl: null },
+      webhook: { name: null, avatarUrl: null }
     })
     const wire = mapMessageToWire(msg)
     expect(wire.webhook!.name).toBe('Webhook')
@@ -162,6 +166,27 @@ describe('mapMessageToWire', () => {
 
   it('returns null webhook when webhookId is null', () => {
     const msg = makeBaseMessage({ webhookId: null })
+    expect(mapMessageToWire(msg).webhook).toBeNull()
+  })
+
+  it('preserves the welcome sender snapshot without a webhook record', () => {
+    const msg = makeBaseMessage({
+      authorId: null,
+      author: null,
+      webhookId: null,
+      webhookName: 'Test Server',
+      webhookAvatarUrl: '/server-icon.png'
+    })
+    const wire = mapMessageToWire(msg)
+
+    expect(wire.author).toBeNull()
+    expect(wire.webhookId).toBeNull()
+    expect(wire.webhook).toEqual({ name: 'Test Server', avatarUrl: '/server-icon.png' })
+  })
+
+  it('does not treat a deleted user as an automated sender', () => {
+    const msg = makeBaseMessage({ authorId: null, author: null })
+
     expect(mapMessageToWire(msg).webhook).toBeNull()
   })
 
@@ -176,9 +201,9 @@ describe('mapMessageToWire', () => {
         createdAt: new Date('2024-06-01'),
         options: [
           { id: 'opt-1', label: 'Red', position: 0, votes: [{ userId: 'user-1' }] },
-          { id: 'opt-2', label: 'Blue', position: 1, votes: [{ userId: 'user-2' }] },
-        ],
-      },
+          { id: 'opt-2', label: 'Blue', position: 1, votes: [{ userId: 'user-2' }] }
+        ]
+      }
     })
 
     const wire = mapMessageToWire(msg, 'user-1')
@@ -197,10 +222,8 @@ describe('mapMessageToWire', () => {
         multiSelect: false,
         expiresAt: null,
         createdAt: new Date('2024-06-01'),
-        options: [
-          { id: 'opt-1', label: 'A', position: 0, votes: [{ userId: 'user-1' }] },
-        ],
-      },
+        options: [{ id: 'opt-1', label: 'A', position: 0, votes: [{ userId: 'user-1' }] }]
+      }
     })
 
     const wire = mapMessageToWire(msg)
@@ -214,7 +237,7 @@ describe('mapMessageToWire', () => {
 
   it('includes isBot flag in author', () => {
     const msg = makeBaseMessage({
-      author: { id: 'bot-1', username: 'freebot', displayName: 'FreeGameBot', avatarUrl: null, isBot: true },
+      author: { id: 'bot-1', username: 'freebot', displayName: 'FreeGameBot', avatarUrl: null, isBot: true }
     })
     const wire = mapMessageToWire(msg)
     expect(wire.author!.isBot).toBe(true)
@@ -224,8 +247,8 @@ describe('mapMessageToWire', () => {
     const msg = makeBaseMessage({
       reactions: [
         { emoji: '👍', userId: 'u1', isCustom: false },
-        { emoji: '👍', userId: 'u2', isCustom: false },
-      ],
+        { emoji: '👍', userId: 'u2', isCustom: false }
+      ]
     })
     const wire = mapMessageToWire(msg)
     expect(wire.reactions).toHaveLength(1)
@@ -254,10 +277,10 @@ describe('mapDmMessageToWire', () => {
       attachments: [],
       reactions: [
         { emoji: '❤️', userId: 'u2', isCustom: false },
-        { emoji: '❤️', userId: 'u3', isCustom: false },
+        { emoji: '❤️', userId: 'u3', isCustom: false }
       ],
       replyTo: null,
-      linkPreviews: [],
+      linkPreviews: []
     } as any
 
     const wire = mapDmMessageToWire(msg)
@@ -275,7 +298,7 @@ describe('mapDmMessageToWire', () => {
       author: { id: 'u1' },
       attachments: [],
       replyTo: null,
-      linkPreviews: [],
+      linkPreviews: []
     } as any
 
     const wire = mapDmMessageToWire(msg)

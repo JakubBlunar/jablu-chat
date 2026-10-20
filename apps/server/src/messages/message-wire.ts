@@ -119,7 +119,7 @@ function buildForwardedFrom(m: ForwardedFromFields): ForwardedFromWire {
   const createdAt =
     m.forwardedFromCreatedAt instanceof Date
       ? m.forwardedFromCreatedAt.toISOString()
-      : m.forwardedFromCreatedAt ?? null
+      : (m.forwardedFromCreatedAt ?? null)
   return {
     id: m.forwardedFromId ?? null,
     channelId: m.forwardedFromChannelId ?? null,
@@ -176,12 +176,13 @@ export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: str
         }
       : null,
     reactions: groupReactions(reactions),
-    webhook: m.webhookId
-      ? {
-          name: webhookName || m.webhook?.name || 'Webhook',
-          avatarUrl: webhookAvatarUrl || m.webhook?.avatarUrl || null
-        }
-      : null,
+    webhook:
+      m.webhookId || webhookName
+        ? {
+            name: webhookName || m.webhook?.name || 'Webhook',
+            avatarUrl: webhookAvatarUrl || m.webhook?.avatarUrl || null
+          }
+        : null,
     poll: poll
       ? {
           id: poll.id,

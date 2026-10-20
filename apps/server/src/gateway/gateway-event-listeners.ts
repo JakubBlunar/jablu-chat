@@ -2,6 +2,7 @@ import { Permission, hasPermission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
 import { deliverChannelMessage, deliverDmMessage } from './message-notifications'
 import { InAppNotificationKind } from '../prisma-client'
+import { mapMessageToWire, messageInclude } from '../messages/message-wire'
 
 export async function routeDmSlashCommand(
   gw: ChatGateway,
@@ -79,9 +80,11 @@ async function notifyModeration(
   const serverName = server?.name ?? 'a server'
 
   const body =
-    input.action === 'ban' ? `You were banned from ${serverName}`
-    : input.action === 'kick' ? `You were removed from ${serverName}`
-    : `You were timed out in ${serverName}`
+    input.action === 'ban'
+      ? `You were banned from ${serverName}`
+      : input.action === 'kick'
+        ? `You were removed from ${serverName}`
+        : `You were timed out in ${serverName}`
 
   await gw.notifications.dispatch({
     userIds: [input.userId],
@@ -103,7 +106,13 @@ async function notifyModeration(
   })
 }
 
-export async function routeRestSlashCommand(gw: ChatGateway, content: string, serverId: string, channelId: string, authorId?: string) {
+export async function routeRestSlashCommand(
+  gw: ChatGateway,
+  content: string,
+  serverId: string,
+  channelId: string,
+  authorId?: string
+) {
   try {
     const parts = content.slice(1).split(/\s+/)
     const commandName = parts[0]?.toLowerCase()
@@ -135,7 +144,9 @@ export async function routeRestSlashCommand(gw: ChatGateway, content: string, se
       try {
         const invokerPerms = await gw.roles.getChannelPermissions(serverId, channelId, authorId)
         if (!hasPermission(invokerPerms, permFlag)) return
-      } catch { return }
+      } catch {
+        return
+      }
     }
 
     const botParams = (command.parameters as any[]) ?? []
@@ -159,7 +170,10 @@ export async function routeRestSlashCommand(gw: ChatGateway, content: string, se
       const data = s.data as { user?: { id: string; isBot?: boolean } }
       if (data.user?.isBot) {
         if (!authorId) return
-        const author = await gw.prisma.user.findUnique({ where: { id: authorId }, select: { id: true, username: true, displayName: true } })
+        const author = await gw.prisma.user.findUnique({
+          where: { id: authorId },
+          select: { id: true, username: true, displayName: true }
+        })
         if (!author) return
         s.emit('bot:command', {
           serverId,
@@ -181,39 +195,36 @@ export async function routeRestSlashCommand(gw: ChatGateway, content: string, se
  * Called once from `ChatGateway.afterInit()`.
  */
 export function registerEventListeners(gw: ChatGateway) {
-  gw.events.on(
-    'user:status',
-    async (payload: { userId: string; status: string; manualUntil?: string | null }) => {
-      if (payload.manualUntil === undefined) {
-        gw.manualPresence.delete(payload.userId)
-      } else {
-        gw.manualPresence.set(payload.userId, {
-          status: payload.status,
-          expiresAt: payload.manualUntil === null ? null : new Date(payload.manualUntil)
-        })
-      }
-
-      const [memberships, friendIds] = await Promise.all([
-        gw.prisma.serverMember.findMany({
-          where: { userId: payload.userId },
-          select: { serverId: true }
-        }),
-        gw.getFriendUserIds(payload.userId)
-      ])
-      for (const m of memberships) {
-        gw.server.to(`server:${m.serverId}`).emit('user:status', {
-          userId: payload.userId,
-          status: payload.status
-        })
-      }
-      for (const fid of friendIds) {
-        gw.server.to(`user:${fid}`).emit('user:status', {
-          userId: payload.userId,
-          status: payload.status
-        })
-      }
+  gw.events.on('user:status', async (payload: { userId: string; status: string; manualUntil?: string | null }) => {
+    if (payload.manualUntil === undefined) {
+      gw.manualPresence.delete(payload.userId)
+    } else {
+      gw.manualPresence.set(payload.userId, {
+        status: payload.status,
+        expiresAt: payload.manualUntil === null ? null : new Date(payload.manualUntil)
+      })
     }
-  )
+
+    const [memberships, friendIds] = await Promise.all([
+      gw.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      }),
+      gw.getFriendUserIds(payload.userId)
+    ])
+    for (const m of memberships) {
+      gw.server.to(`server:${m.serverId}`).emit('user:status', {
+        userId: payload.userId,
+        status: payload.status
+      })
+    }
+    for (const fid of friendIds) {
+      gw.server.to(`user:${fid}`).emit('user:status', {
+        userId: payload.userId,
+        status: payload.status
+      })
+    }
+  })
 
   gw.events.on('user:custom-status', async (payload: { userId: string; customStatus: string | null }) => {
     const [memberships, friendIds] = await Promise.all([
@@ -237,10 +248,8 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   })
 
-  gw.events.on(
-    'activity:server-scope-changed',
-    (payload: { userId: string; serverId: string }) =>
-      gw.refreshActivityForServer(payload.userId, payload.serverId)
+  gw.events.on('activity:server-scope-changed', (payload: { userId: string; serverId: string }) =>
+    gw.refreshActivityForServer(payload.userId, payload.serverId)
   )
 
   gw.events.on(
@@ -267,15 +276,12 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   )
 
-  gw.events.on(
-    'webhook:link-previews',
-    (payload: { channelId: string; messageId: string; linkPreviews: unknown }) => {
-      gw.emitToChannel(payload.channelId, 'message:link-previews', {
-        messageId: payload.messageId,
-        linkPreviews: payload.linkPreviews
-      })
-    }
-  )
+  gw.events.on('webhook:link-previews', (payload: { channelId: string; messageId: string; linkPreviews: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'message:link-previews', {
+      messageId: payload.messageId,
+      linkPreviews: payload.linkPreviews
+    })
+  })
 
   gw.events.on('dm:read', (payload: { conversationId: string; userId: string; lastReadAt: string }) => {
     gw.emitToDm(payload.conversationId, 'dm:read', payload)
@@ -313,7 +319,7 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('channel:created', payload)
     const members = await gw.prisma.serverMember.findMany({
       where: { serverId: payload.serverId },
-      select: { userId: true },
+      select: { userId: true }
     })
     for (const m of members) {
       try {
@@ -322,7 +328,9 @@ export function registerEventListeners(gw: ChatGateway) {
           const sockets = await gw.server.in(`user:${m.userId}`).fetchSockets()
           for (const s of sockets) s.join(`channel:${payload.channel.id}`)
         }
-      } catch { /* member may have been removed */ }
+      } catch {
+        /* member may have been removed */
+      }
     }
   })
 
@@ -374,53 +382,61 @@ export function registerEventListeners(gw: ChatGateway) {
     try {
       const server = await gw.prisma.server.findUnique({
         where: { id: serverId },
-        select: { name: true, welcomeChannelId: true, welcomeMessage: true }
+        select: { name: true, iconUrl: true, welcomeChannelId: true, welcomeMessage: true }
       })
       if (server?.welcomeChannelId && server.welcomeMessage) {
         const username = member.user?.displayName ?? member.user?.username ?? 'a new member'
-        const content = server.welcomeMessage
-          .replace(/\{user\}/g, username)
-          .replace(/\{server\}/g, server.name)
+        const content = server.welcomeMessage.replace(/\{user\}/g, username).replace(/\{server\}/g, server.name)
 
         const welcomeMsg = await gw.prisma.message.create({
           data: {
             channelId: server.welcomeChannelId,
-            content
+            content,
+            webhookName: server.name,
+            webhookAvatarUrl: server.iconUrl
           },
-          include: {
-            author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
-            attachments: true,
-            reactions: true,
-            linkPreviews: true
-          }
+          include: messageInclude
         })
-        gw.emitToChannel(server.welcomeChannelId, 'message:new', welcomeMsg)
+        gw.emitToChannel(server.welcomeChannelId, 'message:new', mapMessageToWire(welcomeMsg))
       }
     } catch {
       // Don't break join flow for welcome message failures
     }
   })
 
-  gw.events.on('user:profile', async (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
-    const memberships = await gw.prisma.serverMember.findMany({
-      where: { userId: payload.userId },
-      select: { serverId: true }
-    })
-    for (const m of memberships) {
-      gw.server.to(`server:${m.serverId}`).emit('user:profile', payload)
+  gw.events.on(
+    'user:profile',
+    async (payload: { userId: string; displayName?: string; bio?: string; avatarUrl?: string | null }) => {
+      const memberships = await gw.prisma.serverMember.findMany({
+        where: { userId: payload.userId },
+        select: { serverId: true }
+      })
+      for (const m of memberships) {
+        gw.server.to(`server:${m.serverId}`).emit('user:profile', payload)
+      }
     }
-  })
+  )
 
   gw.events.on('server:updated', (payload: { serverId: string; [key: string]: unknown }) => {
     gw.server.to(`server:${payload.serverId}`).emit('server:updated', payload)
   })
 
-  gw.events.on('member:updated', async (payload: { serverId: string; userId: string; roleIds?: string[]; roles?: unknown[]; mutedUntil?: string | null; onboardingCompleted?: boolean }) => {
-    gw.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
-    if (payload.roleIds) {
-      await gw.reconcileChannelRooms(payload.serverId, payload.userId)
+  gw.events.on(
+    'member:updated',
+    async (payload: {
+      serverId: string
+      userId: string
+      roleIds?: string[]
+      roles?: unknown[]
+      mutedUntil?: string | null
+      onboardingCompleted?: boolean
+    }) => {
+      gw.server.to(`server:${payload.serverId}`).emit('member:updated', payload)
+      if (payload.roleIds) {
+        await gw.reconcileChannelRooms(payload.serverId, payload.userId)
+      }
     }
-  })
+  )
 
   // Bell only, no push: knowing you gained a role can wait until you next look.
   gw.events.on(
@@ -470,16 +486,19 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   )
 
-  gw.events.on('channel:permissions:updated', async (payload: { serverId: string; channelId: string; roleId: string }) => {
-    gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
-    const members = await gw.prisma.serverMember.findMany({
-      where: { serverId: payload.serverId },
-      select: { userId: true },
-    })
-    for (const m of members) {
-      await gw.reconcileChannelRooms(payload.serverId, m.userId)
+  gw.events.on(
+    'channel:permissions:updated',
+    async (payload: { serverId: string; channelId: string; roleId: string }) => {
+      gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
+      const members = await gw.prisma.serverMember.findMany({
+        where: { serverId: payload.serverId },
+        select: { userId: true }
+      })
+      for (const m of members) {
+        await gw.reconcileChannelRooms(payload.serverId, m.userId)
+      }
     }
-  })
+  )
 
   gw.events.on('role:created', (payload: { serverId: string; role: unknown }) => {
     gw.server.to(`server:${payload.serverId}`).emit('role:created', payload)
@@ -499,42 +518,37 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'member:removed',
-    async (payload: {
-      serverId: string
-      userId: string
-      moderation?: 'kick' | 'ban'
-      reason?: string
-    }) => {
-    gw.server.to(`server:${payload.serverId}`).emit('member:left', {
-      serverId: payload.serverId,
-      userId: payload.userId
-    })
-
-    if (payload.moderation) {
-      await notifyModeration(gw, {
+    async (payload: { serverId: string; userId: string; moderation?: 'kick' | 'ban'; reason?: string }) => {
+      gw.server.to(`server:${payload.serverId}`).emit('member:left', {
         serverId: payload.serverId,
-        userId: payload.userId,
-        action: payload.moderation,
-        reason: payload.reason
+        userId: payload.userId
       })
-    }
 
-    const channels = await gw.prisma.channel.findMany({
-      where: { serverId: payload.serverId },
-      select: { id: true }
-    })
-    const userSockets = await gw.server.in(`user:${payload.userId}`).fetchSockets()
-    for (const s of userSockets) {
-      s.leave(`server:${payload.serverId}`)
-      for (const ch of channels) {
-        s.leave(`channel:${ch.id}`)
+      if (payload.moderation) {
+        await notifyModeration(gw, {
+          serverId: payload.serverId,
+          userId: payload.userId,
+          action: payload.moderation,
+          reason: payload.reason
+        })
       }
-      const serverIds = (s.data as { serverIds?: string[] }).serverIds
-      if (serverIds) {
-        const idx = serverIds.indexOf(payload.serverId)
-        if (idx !== -1) serverIds.splice(idx, 1)
+
+      const channels = await gw.prisma.channel.findMany({
+        where: { serverId: payload.serverId },
+        select: { id: true }
+      })
+      const userSockets = await gw.server.in(`user:${payload.userId}`).fetchSockets()
+      for (const s of userSockets) {
+        s.leave(`server:${payload.serverId}`)
+        for (const ch of channels) {
+          s.leave(`channel:${ch.id}`)
+        }
+        const serverIds = (s.data as { serverIds?: string[] }).serverIds
+        if (serverIds) {
+          const idx = serverIds.indexOf(payload.serverId)
+          if (idx !== -1) serverIds.splice(idx, 1)
+        }
       }
-    }
     }
   )
 
@@ -625,82 +639,61 @@ export function registerEventListeners(gw: ChatGateway) {
 
   // `xp.service` has emitted this since levelling shipped, but nothing consumed
   // it, so levelling up was completely silent.
-  gw.events.on(
-    'xp:level-up',
-    async (payload: { serverId: string; userId: string; level: number; xp: number }) => {
-      gw.server.to(`user:${payload.userId}`).emit('xp:level-up', payload)
+  gw.events.on('xp:level-up', async (payload: { serverId: string; userId: string; level: number; xp: number }) => {
+    gw.server.to(`user:${payload.userId}`).emit('xp:level-up', payload)
 
-      const server = await gw.prisma.server
-        .findUnique({ where: { id: payload.serverId }, select: { name: true } })
-        .catch(() => null)
+    const server = await gw.prisma.server
+      .findUnique({ where: { id: payload.serverId }, select: { name: true } })
+      .catch(() => null)
 
-      // Bell only, no push: reaching a level is worth noticing later, not worth
-      // waking a phone for.
-      void gw.notifications.dispatch({
-        userIds: [payload.userId],
-        kind: InAppNotificationKind.level_up,
-        dedupeKey: `level:${payload.serverId}`,
-        payload: {
-          serverId: payload.serverId,
-          serverName: server?.name ?? 'a server',
-          level: payload.level,
-          xp: payload.xp
-        }
-      })
-    }
-  )
+    // Bell only, no push: reaching a level is worth noticing later, not worth
+    // waking a phone for.
+    void gw.notifications.dispatch({
+      userIds: [payload.userId],
+      kind: InAppNotificationKind.level_up,
+      dedupeKey: `level:${payload.serverId}`,
+      payload: {
+        serverId: payload.serverId,
+        serverName: server?.name ?? 'a server',
+        level: payload.level,
+        xp: payload.xp
+      }
+    })
+  })
 
-  gw.events.on(
-    'friend:declined',
-    (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
-      gw.server.to(`user:${payload.requesterId}`).emit('friend:declined', {
-        friendshipId: payload.friendshipId
-      })
-    }
-  )
+  gw.events.on('friend:declined', (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
+    gw.server.to(`user:${payload.requesterId}`).emit('friend:declined', {
+      friendshipId: payload.friendshipId
+    })
+  })
 
-  gw.events.on(
-    'friend:cancelled',
-    (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
-      gw.server.to(`user:${payload.addresseeId}`).emit('friend:cancelled', {
-        friendshipId: payload.friendshipId
-      })
-    }
-  )
+  gw.events.on('friend:cancelled', (payload: { friendshipId: string; requesterId: string; addresseeId: string }) => {
+    gw.server.to(`user:${payload.addresseeId}`).emit('friend:cancelled', {
+      friendshipId: payload.friendshipId
+    })
+  })
 
-  gw.events.on(
-    'friend:removed',
-    (payload: { friendshipId: string; userId: string; otherUserId: string }) => {
-      gw.invalidateFriendCache(payload.userId, payload.otherUserId)
-      gw.server.to(`user:${payload.otherUserId}`).emit('friend:removed', {
-        friendshipId: payload.friendshipId,
-        userId: payload.userId
-      })
-    }
-  )
+  gw.events.on('friend:removed', (payload: { friendshipId: string; userId: string; otherUserId: string }) => {
+    gw.invalidateFriendCache(payload.userId, payload.otherUserId)
+    gw.server.to(`user:${payload.otherUserId}`).emit('friend:removed', {
+      friendshipId: payload.friendshipId,
+      userId: payload.userId
+    })
+  })
 
   // ── Forum events ──
 
-  gw.events.on(
-    'forum:post:created',
-    (payload: { channelId: string; serverId: string; post: unknown }) => {
-      gw.emitToChannel(payload.channelId, 'forum:post:created', payload.post)
-    }
-  )
+  gw.events.on('forum:post:created', (payload: { channelId: string; serverId: string; post: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'forum:post:created', payload.post)
+  })
 
-  gw.events.on(
-    'forum:post:updated',
-    (payload: { channelId: string; serverId: string; post: unknown }) => {
-      gw.emitToChannel(payload.channelId, 'forum:post:updated', payload.post)
-    }
-  )
+  gw.events.on('forum:post:updated', (payload: { channelId: string; serverId: string; post: unknown }) => {
+    gw.emitToChannel(payload.channelId, 'forum:post:updated', payload.post)
+  })
 
-  gw.events.on(
-    'forum:post:deleted',
-    (payload: { channelId: string; serverId: string; postId: string }) => {
-      gw.emitToChannel(payload.channelId, 'forum:post:deleted', { postId: payload.postId })
-    }
-  )
+  gw.events.on('forum:post:deleted', (payload: { channelId: string; serverId: string; postId: string }) => {
+    gw.emitToChannel(payload.channelId, 'forum:post:deleted', { postId: payload.postId })
+  })
 
   // ── REST-originated events ──
   // These mirror the same Socket.IO broadcasts the gateway does for WS-originated actions,
@@ -708,7 +701,12 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'rest:message:created',
-    async (payload: { channelId: string; message: any; serverId?: string; threadUpdate?: { parentId: string; threadCount: number } }) => {
+    async (payload: {
+      channelId: string
+      message: any
+      serverId?: string
+      threadUpdate?: { parentId: string; threadCount: number }
+    }) => {
       // Goes through the same delivery path as a websocket send (which emits
       // `message:new` itself). Broadcasting directly here is what left bot, poll
       // and API messages with no mentions, no bell rows and no push.
@@ -767,11 +765,19 @@ export function registerEventListeners(gw: ChatGateway) {
         directConversationId: string | null
       }) => {
         const socketEvent = ev === 'rest:reaction:added' ? 'reaction:add' : 'reaction:remove'
-        const data = { messageId: payload.messageId, emoji: payload.emoji, userId: payload.userId, isCustom: payload.isCustom }
+        const data = {
+          messageId: payload.messageId,
+          emoji: payload.emoji,
+          userId: payload.userId,
+          isCustom: payload.isCustom
+        }
         if (payload.channelId) {
           gw.emitToChannel(payload.channelId, socketEvent, data)
         } else if (payload.directConversationId) {
-          gw.emitToDm(payload.directConversationId, socketEvent, { ...data, conversationId: payload.directConversationId })
+          gw.emitToDm(payload.directConversationId, socketEvent, {
+            ...data,
+            conversationId: payload.directConversationId
+          })
         }
       }
     )
@@ -785,45 +791,45 @@ export function registerEventListeners(gw: ChatGateway) {
     gw.server.to(`server:${payload.serverId}`).emit('bot:commands-updated', { serverId: payload.serverId })
   })
 
-  gw.events.on(
-    'rest:dm:created',
-    async (payload: { conversationId: string; message: any }) => {
-      const roomName = `dm:${payload.conversationId}`
-      const memberIds = await gw.prisma.directConversationMember.findMany({
-        where: { conversationId: payload.conversationId },
-        select: { userId: true }
-      })
-      for (const { userId } of memberIds) {
-        const sockets = await gw.server.in(`user:${userId}`).fetchSockets()
-        for (const s of sockets) s.join(roomName)
-      }
+  gw.events.on('rest:dm:created', async (payload: { conversationId: string; message: any }) => {
+    const roomName = `dm:${payload.conversationId}`
+    const memberIds = await gw.prisma.directConversationMember.findMany({
+      where: { conversationId: payload.conversationId },
+      select: { userId: true }
+    })
+    for (const { userId } of memberIds) {
+      const sockets = await gw.server.in(`user:${userId}`).fetchSockets()
+      for (const s of sockets) s.join(roomName)
+    }
 
-      // Same reasoning as `rest:message:created`: the delivery helper emits
-      // `dm:new` and additionally records the bell row and sends push.
-      await deliverDmMessage(gw.messageNotificationsContext(), {
-        conversationId: payload.conversationId,
-        message: payload.message,
-        senderId: payload.message?.author?.id ?? payload.message?.authorId ?? null
-      }).catch(() => {})
+    // Same reasoning as `rest:message:created`: the delivery helper emits
+    // `dm:new` and additionally records the bell row and sends push.
+    await deliverDmMessage(gw.messageNotificationsContext(), {
+      conversationId: payload.conversationId,
+      message: payload.message,
+      senderId: payload.message?.author?.id ?? payload.message?.authorId ?? null
+    }).catch(() => {})
 
-      const content = payload.message?.content
-      if (typeof content === 'string' && content.startsWith('/')) {
-        const members = memberIds.map((m) => m.userId)
-        const authorId = payload.message?.authorId
-        const otherMembers = members.filter((id) => id !== authorId)
-        const botMember = otherMembers.length > 0 ? await gw.prisma.user.findFirst({
-          where: { id: { in: otherMembers }, isBot: true },
-        }) : null
-        if (botMember && authorId) {
-          const invoker = await gw.prisma.user.findUnique({
-            where: { id: authorId },
-            select: { id: true, username: true, displayName: true }
-          })
-          if (invoker) {
-            void routeDmSlashCommand(gw, content, payload.conversationId, botMember.id, invoker)
-          }
+    const content = payload.message?.content
+    if (typeof content === 'string' && content.startsWith('/')) {
+      const members = memberIds.map((m) => m.userId)
+      const authorId = payload.message?.authorId
+      const otherMembers = members.filter((id) => id !== authorId)
+      const botMember =
+        otherMembers.length > 0
+          ? await gw.prisma.user.findFirst({
+              where: { id: { in: otherMembers }, isBot: true }
+            })
+          : null
+      if (botMember && authorId) {
+        const invoker = await gw.prisma.user.findUnique({
+          where: { id: authorId },
+          select: { id: true, username: true, displayName: true }
+        })
+        if (invoker) {
+          void routeDmSlashCommand(gw, content, payload.conversationId, botMember.id, invoker)
         }
       }
     }
-  )
+  })
 }

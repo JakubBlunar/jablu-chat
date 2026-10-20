@@ -71,3 +71,27 @@ it('does not submit while composing text with an IME', () => {
   fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
   expect(editMessage).not.toHaveBeenCalled()
 })
+
+it.each([null, 'webhook-1'])('renders the automated sender identity with webhookId %s', (webhookId) => {
+  const message = makeMessage({
+    authorId: null,
+    author: null,
+    webhookId,
+    webhook: { name: 'Test Server', avatarUrl: '/server-icon.png' }
+  })
+  render(<MessageRow message={message} mode="channel" contextId="channel" showHead onReply={jest.fn()} />)
+
+  expect(screen.getByText('Test Server')).toBeInTheDocument()
+  expect(screen.getByTitle('Test Server').querySelector('img')).toHaveAttribute('src', '/server-icon.png')
+  expect(screen.getByText('BOT')).toBeInTheDocument()
+  expect(screen.queryByText('deletedUser')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Test Server' })).not.toBeInTheDocument()
+})
+
+it('keeps the deleted-user label for messages without an automated sender identity', () => {
+  const message = makeMessage({ authorId: null, author: null, webhookId: null, webhook: null })
+  render(<MessageRow message={message} mode="channel" contextId="channel" showHead onReply={jest.fn()} />)
+
+  expect(screen.getByText('deletedUser')).toBeInTheDocument()
+  expect(screen.queryByText('BOT')).not.toBeInTheDocument()
+})
