@@ -1,4 +1,38 @@
 {
+  "microphoneStarting": "Starting microphone…",
+  "microphonePermissionError": "Microphone unavailable. Allow microphone access in your browser’s site settings, then retry.",
+  "microphoneDeviceError": "Microphone unavailable. Reconnect your microphone or choose another device, then retry.",
+  "retryMicrophone": "Retry microphone",
+  "audioSettings": "Audio settings",
+  "playbackBlocked": "Your browser paused call audio.",
+  "enableAudio": "Enable audio",
+  "audioOutputError": "Could not use the selected speakers. Check your output device in audio settings.",
+  "diagnostics": {
+    "title": "Call quality",
+    "quality": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "poor": "Poor",
+      "lost": "Connection lost",
+      "unknown": "Measuring…"
+    },
+    "latency": "Server round trip",
+    "jitter": "Receive jitter (max)",
+    "loss": "Receive packet loss",
+    "bitrate": "Received audio",
+    "transport": "Transport",
+    "hint": "Microphone audio only. Updates every 3 seconds while open. Loss and bitrate cover the last interval; — means unavailable."
+  },
+  "micTest": {
+    "title": "Microphone check",
+    "hint": "Record up to 5 seconds with your current noise and gain settings, then listen back. The recording stays on this device and is not sent to the call.",
+    "start": "Test microphone",
+    "stop": "Stop recording",
+    "recording": "Recording… Speak normally.",
+    "level": "Processed microphone level in dBFS",
+    "playback": "Microphone test recording",
+    "failed": "Could not record the microphone test. Check microphone permissions, device connections and browser recording support."
+  },
   "defaultChannelName": "Voice",
   "quickDevices": "Voice devices",
   "startCall": "Start voice call",

@@ -45,7 +45,7 @@ beforeEach(() => {
 
 it('rebuilds the microphone pipeline, restores VAD and persists the device', async () => {
   await changeVoiceDevice('audioinput', 'mic-2')
-  expect(restart).toHaveBeenCalledWith(state.room, 'mic-2', true)
+  expect(restart).toHaveBeenCalledWith(state.room, 'mic-2', true, expect.any(Function))
   expect(startMicMode).toHaveBeenCalledWith('activity')
   expect(useSettingsStore.getState().audioInputDeviceId).toBe('mic-2')
 })
@@ -53,14 +53,14 @@ it('rebuilds the microphone pipeline, restores VAD and persists the device', asy
 it.each(['isMuted', 'isDeafened'] as const)('does not enable capture when %s', async (key) => {
   state[key] = true
   await changeVoiceDevice('audioinput', 'mic-2')
-  expect(restart).toHaveBeenCalledWith(state.room, 'mic-2', false)
+  expect(restart).toHaveBeenCalledWith(state.room, 'mic-2', false, expect.any(Function))
   expect(startMicMode).not.toHaveBeenCalled()
 })
 
 it('restores the old microphone on failure without persisting the failed selection', async () => {
   restart.mockRejectedValueOnce(new Error('disconnected device'))
   await expect(changeVoiceDevice('audioinput', 'bad')).rejects.toThrow('disconnected device')
-  expect(restart).toHaveBeenLastCalledWith(state.room, 'old', true)
+  expect(restart).toHaveBeenLastCalledWith(state.room, 'old', true, expect.any(Function))
   expect(useSettingsStore.getState().audioInputDeviceId).toBe('old')
 })
 

@@ -52,9 +52,12 @@ apps/server/.deploy-test/
 
 # Test coverage
 coverage/
+test-results/
+playwright-report/
 
 # TLS certs
 docker/nginx/certs/
+docker/livekit/livekit.turn.yaml
 
 # Local scratch scripts at the repo root only
 /scripts/

@@ -4,8 +4,15 @@ import { PwaInstallBanner } from './PwaInstallBanner'
 
 let mockTarget = 'desktop'
 let mockShow = true
+let mockMobile = false
+let mockInCall = false
 const mockTrigger = jest.fn()
 jest.mock('@/lib/electron', () => ({ isElectron: false }))
+jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => mockMobile }))
+jest.mock('@/stores/voice-connection.store', () => ({
+  useVoiceConnectionStore: (selector: (state: { currentChannelId: string | null }) => unknown) =>
+    selector({ currentChannelId: mockInCall ? 'voice' : null })
+}))
 jest.mock('@/hooks/usePwaInstall', () => ({
   usePwaInstall: () => ({
     canPrompt: true,
@@ -21,7 +28,17 @@ beforeEach(() => {
   jest.useFakeTimers()
   mockTarget = 'desktop'
   mockShow = true
+  mockMobile = false
+  mockInCall = false
   mockTrigger.mockReset()
+})
+
+it.each(['mobile', 'call'])('hides Windows promotion during %s use', (reason) => {
+  mockMobile = reason === 'mobile'
+  mockInCall = reason === 'call'
+  render(<PwaInstallBanner />)
+  act(() => jest.advanceTimersByTime(5000))
+  expect(screen.queryByRole('button', { name: 'install.getWindowsApp' })).not.toBeInTheDocument()
 })
 afterEach(() => jest.useRealTimers())
 

@@ -1,4 +1,38 @@
 {
+  "microphoneStarting": "Spúšťanie mikrofónu…",
+  "microphonePermissionError": "Mikrofón nie je dostupný. Povoľte prístup k mikrofónu v nastaveniach stránky prehliadača a skúste to znova.",
+  "microphoneDeviceError": "Mikrofón nie je dostupný. Znova ho pripojte alebo vyberte iné zariadenie a skúste to znova.",
+  "retryMicrophone": "Skúsiť mikrofón znova",
+  "audioSettings": "Nastavenia zvuku",
+  "playbackBlocked": "Prehliadač pozastavil zvuk hovoru.",
+  "enableAudio": "Zapnúť zvuk",
+  "audioOutputError": "Vybrané reproduktory sa nepodarilo použiť. Skontrolujte výstupné zariadenie v nastaveniach zvuku.",
+  "diagnostics": {
+    "title": "Kvalita hovoru",
+    "quality": {
+      "excellent": "Výborná",
+      "good": "Dobrá",
+      "poor": "Slabá",
+      "lost": "Spojenie stratené",
+      "unknown": "Meranie…"
+    },
+    "latency": "Odozva servera",
+    "jitter": "Kolísanie príjmu (max)",
+    "loss": "Strata prijatých paketov",
+    "bitrate": "Prijatý zvuk",
+    "transport": "Prenos",
+    "hint": "Len zvuk mikrofónov. Pri otvorení sa obnovuje každé 3 sekundy. Strata a dátový tok platia pre posledný interval; — znamená nedostupné."
+  },
+  "micTest": {
+    "title": "Kontrola mikrofónu",
+    "hint": "Nahrajte najviac 5 sekúnd s aktuálnymi nastaveniami potlačenia šumu a zosilnenia a vypočujte si výsledok. Nahrávka zostáva v tomto zariadení a neodosiela sa do hovoru.",
+    "start": "Otestovať mikrofón",
+    "stop": "Zastaviť nahrávanie",
+    "recording": "Nahrávanie… Hovorte prirodzene.",
+    "level": "Úroveň spracovaného mikrofónu v dBFS",
+    "playback": "Testovacia nahrávka mikrofónu",
+    "failed": "Test mikrofónu sa nepodarilo nahrať. Skontrolujte povolenia, pripojenie zariadenia a podporu nahrávania v prehliadači."
+  },
   "quickDevices": "Hlasové zariadenia",
   "startCall": "Začať hlasový hovor",
   "checkingCall": "Overovanie, či hovor stále prebieha…",

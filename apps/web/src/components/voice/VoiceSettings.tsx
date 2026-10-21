@@ -28,12 +28,16 @@ import {
   setVadThreshold as saveVadThreshold,
   type VadMode,
   getVadMode,
+  startMicMode,
+  stopMicMode,
   setVadMode as saveVadMode
 } from '@/lib/micMode'
 import { Button } from '@/components/ui'
 import { Toggle } from '@/components/ui/Toggle'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { MicrophoneTest } from './MicrophoneTest'
+import { enqueueMicrophoneOperation } from '@/lib/voiceMicOperations'
 
 type DeviceInfo = {
   deviceId: string
@@ -205,10 +209,29 @@ export function VoiceSettings() {
   const [capEchoCancellation, setCapEchoCancellation] = useState(getCaptureEchoCancellation)
 
   const applyNoisePipeline = useCallback(async () => {
-    const { room, isMuted } = useVoiceConnectionStore.getState()
+    const { room } = useVoiceConnectionStore.getState()
     if (!room) return
-    const { audioInput } = await getValidatedDevices()
-    await restartMicrophonePipeline(room, audioInput || undefined, !isMuted)
+    try {
+      await enqueueMicrophoneOperation(room, async () => {
+        await stopMicMode(true)
+        const { audioInput } = await getValidatedDevices()
+        const state = useVoiceConnectionStore.getState()
+        if (state.room !== room) return
+        await restartMicrophonePipeline(room, audioInput || undefined, !state.isMuted && !state.isDeafened, () => {
+          const latest = useVoiceConnectionStore.getState()
+          return latest.room === room && !latest.isMuted && !latest.isDeafened
+        })
+        const current = useVoiceConnectionStore.getState()
+        if (current.room === room && !current.isMuted && !current.isDeafened && current.micMode !== 'always')
+          startMicMode(current.micMode)
+      })
+    } catch (error) {
+      reportVoiceDeviceError(error)
+      if (useVoiceConnectionStore.getState().room === room) {
+        await useVoiceConnectionStore.getState().requestMicrophone(false)
+        useVoiceConnectionStore.setState({ microphoneError: 'device' })
+      }
+    }
   }, [])
 
   const handleNoiseModeChange = useCallback(
@@ -318,6 +341,11 @@ export function VoiceSettings() {
 
   return (
     <div className="space-y-6">
+      <MicrophoneTest
+        key={`${noiseMode}-${capNoiseSuppression}-${capAutoGain}-${capEchoCancellation}`}
+        deviceId={selectedInput}
+        outputId={selectedOutput}
+      />
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{t('settings.whenJoining')}</h3>
         <div className="space-y-2 rounded-md bg-surface-darkest/80 p-3">

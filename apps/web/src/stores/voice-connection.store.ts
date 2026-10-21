@@ -6,6 +6,7 @@ import { getSocket } from '@/lib/socket'
 import { type MicMode, getMicMode, startMicMode, stopMicMode, setRoomGetter } from '@/lib/micMode'
 import { stopRnnoiseMicrophone } from '@/lib/rnnoiseMicrophone'
 import { setLocalMicTransmissionEnabled } from '@/lib/voiceLocalMic'
+import { enqueueMicrophoneOperation } from '@/lib/voiceMicOperations'
 import { type CameraQuality, CAMERA_PRESETS, getSavedCamera } from '@/lib/deviceSettings'
 import type { BlurHandle } from '@/lib/backgroundBlur'
 
@@ -48,9 +49,19 @@ export type VoiceConnectionState = {
   volumeOverrides: Record<string, number>
   audioOutputDeviceId: string
   voiceNetworkDropout: VoiceNetworkDropout | null
+  microphoneError: 'permission' | 'device' | null
+  isMicrophonePending: boolean
+  playbackBlocked: boolean
+  audioOutputError: boolean
 
   setConnecting: (serverId: string | null, channelId: string, channelName: string, dmCallId?: string) => void
-  setConnected: (room: Room, options?: { skipMicModeBootstrap?: boolean }) => void
+  setConnected: (
+    room: Room,
+    options?: { skipMicModeBootstrap?: boolean; joinMuted?: boolean; joinDeafened?: boolean }
+  ) => void
+  requestMicrophone: (enabled: boolean) => Promise<void>
+  setPlaybackBlocked: (blocked: boolean) => void
+  setAudioOutputError: (error: boolean) => void
   disconnect: () => Promise<void>
   disconnectAfterUnexpectedClose: (info: VoiceNetworkDropout) => Promise<void>
   clearVoiceNetworkDropout: () => void
@@ -134,6 +145,7 @@ let _saveTimer: number | undefined
 let _wasMutedBeforeDeafen = false
 let _micModePoll: ReturnType<typeof setInterval> | undefined
 let pendingDisconnect: Promise<void> | undefined
+let micRequest = 0
 
 function disconnectRoom(room: Room | null, micCleanup: void | Promise<void>): Promise<void> {
   const previous = pendingDisconnect
@@ -141,10 +153,13 @@ function disconnectRoom(room: Room | null, micCleanup: void | Promise<void>): Pr
     const errors: Error[] = []
     const results = await Promise.allSettled([
       micCleanup,
-      (async () => { if (room) await stopRnnoiseMicrophone(room) })()
+      (async () => {
+        if (room) await stopRnnoiseMicrophone(room)
+      })()
     ])
     for (const result of results) {
-      if (result.status === 'rejected') errors.push(new Error('Failed to stop microphone processing', { cause: result.reason }))
+      if (result.status === 'rejected')
+        errors.push(new Error('Failed to stop microphone processing', { cause: result.reason }))
     }
     if (room) {
       try {
@@ -166,7 +181,9 @@ function disconnectRoom(room: Room | null, micCleanup: void | Promise<void>): Pr
   // Existing UI/socket callers intentionally do not await disconnect. Handle
   // their rejection here without replacing the rejecting promise awaited by logout.
   void teardown.then(
-    () => { if (pendingDisconnect === teardown) pendingDisconnect = undefined },
+    () => {
+      if (pendingDisconnect === teardown) pendingDisconnect = undefined
+    },
     (error: unknown) => {
       if (pendingDisconnect === teardown) pendingDisconnect = undefined
       console.error('Failed to disconnect voice:', error)
@@ -196,6 +213,10 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   volumeOverrides: {},
   audioOutputDeviceId: '',
   voiceNetworkDropout: null,
+  microphoneError: null,
+  isMicrophonePending: false,
+  playbackBlocked: false,
+  audioOutputError: false,
 
   setConnecting: (serverId, channelId, channelName, dmCallId) =>
     set({
@@ -211,7 +232,21 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   setConnected: (room, options) => {
     clearInterval(_micModePoll)
     _micModePoll = undefined
-    set({ room, isConnecting: false, connectedAt: Date.now() })
+    const isDeafened = options?.joinDeafened ?? false
+    const isMuted = (options?.joinMuted ?? false) || isDeafened
+    _wasMutedBeforeDeafen = options?.joinMuted ?? false
+    set({
+      room,
+      isConnecting: false,
+      connectedAt: Date.now(),
+      isMuted,
+      isDeafened,
+      microphoneError: null,
+      isMicrophonePending: false,
+      playbackBlocked: false,
+      audioOutputError: false
+    })
+    emitVoiceState({ muted: isMuted, deafened: isDeafened })
     const mode = get().micMode
     if (mode !== 'always' && !options?.skipMicModeBootstrap) {
       let attempts = 0
@@ -227,7 +262,45 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     get().fetchVolumeOverrides()
   },
 
+  requestMicrophone: async (enabled) => {
+    const { room, isDeafened } = get()
+    if (!room || (enabled && isDeafened)) return
+    const request = ++micRequest
+    const isCurrent = () => get().room === room && request === micRequest
+    set({ isMuted: !enabled, isMicrophonePending: enabled, microphoneError: null })
+    if (!enabled) {
+      stopMicMode(true)
+      const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track
+      if (track) track.mediaStreamTrack.enabled = false
+      emitVoiceState({ muted: true })
+    }
+    await enqueueMicrophoneOperation(room, async () => {
+      if (!isCurrent()) return
+      try {
+        await setLocalMicTransmissionEnabled(room, enabled, () => isCurrent() && !get().isMuted && !get().isDeafened)
+        if (!isCurrent()) return
+        set({ isMicrophonePending: false })
+        emitVoiceState({ muted: !enabled })
+        if (enabled && get().micMode !== 'always') startMicMode(get().micMode)
+      } catch (error) {
+        if (!isCurrent()) return
+        console.error('Microphone unavailable:', error)
+        stopMicMode(true)
+        set({
+          isMuted: true,
+          isMicrophonePending: false,
+          microphoneError: error instanceof DOMException && error.name === 'NotAllowedError' ? 'permission' : 'device'
+        })
+        emitVoiceState({ muted: true })
+      }
+    })
+  },
+
+  setPlaybackBlocked: (playbackBlocked) => set({ playbackBlocked }),
+  setAudioOutputError: (audioOutputError) => set({ audioOutputError }),
+
   disconnect: () => {
+    micRequest++
     const { room, _blurHandle, _originalCameraTrack, currentDmCallId } = get()
     if (currentDmCallId) getSocket()?.emit('dm:call:leave', { callId: currentDmCallId })
     if (_saveTimer) clearTimeout(_saveTimer)
@@ -242,7 +315,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
         pub.track?.mediaStreamTrack?.stop()
       })
     }
-    const teardown = room || micCleanup ? disconnectRoom(room, micCleanup) : pendingDisconnect ?? Promise.resolve()
+    const teardown = room || micCleanup ? disconnectRoom(room, micCleanup) : (pendingDisconnect ?? Promise.resolve())
     set({
       currentServerId: null,
       currentDmCallId: null,
@@ -261,7 +334,11 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       _blurHandle: null,
       _originalCameraTrack: null,
       volumeOverrides: {},
-      voiceNetworkDropout: null
+      voiceNetworkDropout: null,
+      microphoneError: null,
+      isMicrophonePending: false,
+      playbackBlocked: false,
+      audioOutputError: false
     })
     return teardown
   },
@@ -280,66 +357,31 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   applyInitialVoiceState: ({ joinMuted, joinDeafened }) => {
     const { room } = get()
     if (!room || (!joinMuted && !joinDeafened)) return
-
-    if (joinMuted) {
-      stopMicMode(true)
-      void setLocalMicTransmissionEnabled(room, false)
-      set({ isMuted: true })
-      emitVoiceState({ muted: true })
-    }
-
+    _wasMutedBeforeDeafen = joinMuted
     if (joinDeafened) {
       set({ isDeafened: true })
       emitVoiceState({ deafened: true })
-      if (!joinMuted) {
-        _wasMutedBeforeDeafen = false
-        stopMicMode(true)
-        void setLocalMicTransmissionEnabled(room, false)
-        set({ isMuted: true })
-        emitVoiceState({ muted: true })
-      } else {
-        _wasMutedBeforeDeafen = true
-      }
     }
+    void get().requestMicrophone(false)
   },
 
   toggleMute: () => {
-    const { room, isMuted, micMode } = get()
-    const next = !isMuted
-    if (next) {
-      stopMicMode(true)
-    }
-    if (room) {
-      void setLocalMicTransmissionEnabled(room, !next)
-    }
-    if (!next && micMode !== 'always') {
-      setTimeout(() => startMicMode(micMode), 300)
-    }
-    set({ isMuted: next })
-    emitVoiceState({ muted: next })
+    void get().requestMicrophone(get().isMuted)
   },
 
   toggleDeafen: () => {
-    const { room, isDeafened, isMuted, micMode } = get()
+    const { room, isDeafened, isMuted } = get()
     const next = !isDeafened
     set({ isDeafened: next })
     emitVoiceState({ deafened: next })
     if (room) {
       if (next && !isMuted) {
         _wasMutedBeforeDeafen = false
-        stopMicMode(true)
-        void setLocalMicTransmissionEnabled(room, false)
-        set({ isMuted: true })
-        emitVoiceState({ muted: true })
+        void get().requestMicrophone(false)
       } else if (next && isMuted) {
         _wasMutedBeforeDeafen = true
       } else if (!next && isMuted && !_wasMutedBeforeDeafen) {
-        void setLocalMicTransmissionEnabled(room, true)
-        if (micMode !== 'always') {
-          setTimeout(() => startMicMode(micMode), 300)
-        }
-        set({ isMuted: false })
-        emitVoiceState({ muted: false })
+        void get().requestMicrophone(true)
       }
     }
   },
@@ -516,18 +558,16 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
   setViewingVoiceRoom: (v) => set({ viewingVoiceRoom: v }),
 
   setMicMode: (mode) => {
-    const { isMuted } = get()
+    const { room } = get()
     set({ micMode: mode })
-    stopMicMode()
-    if (!isMuted && mode !== 'always') {
-      // The previous mode's cleanup (e.g. PTT) unmutes the mic track via an
-      // un-awaited LiveKit `unmute()`, which can internally re-acquire the
-      // MediaStreamTrack (getUserMedia) asynchronously. Starting the new mode
-      // synchronously would let it clone/read a stale track mid-transition
-      // (VAD reading from a dead clone that never gets audio). Same delay
-      // already used for this exact race in toggleMute/toggleDeafen below.
-      setTimeout(() => startMicMode(mode), 300)
-    }
+    const stopped = stopMicMode(true)
+    void Promise.resolve(stopped)
+      .then(async () => {
+        const current = get()
+        if (room && current.room === room && !current.isMuted && !current.isDeafened)
+          await current.requestMicrophone(true)
+      })
+      .catch((error: unknown) => console.error('Failed to change microphone mode:', error))
   },
 
   fetchVolumeOverrides: () => {

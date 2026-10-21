@@ -9,6 +9,7 @@ import {
 import { startMicMode, stopMicMode } from '@/lib/micMode'
 import { restartMicrophonePipeline } from '@/lib/voiceMicPipelineRestart'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { enqueueMicrophoneOperation } from '@/lib/voiceMicOperations'
 
 export async function changeVoiceDevice(kind: MediaDeviceKind, deviceId: string): Promise<void> {
   const state = useVoiceConnectionStore.getState()
@@ -16,15 +17,24 @@ export async function changeVoiceDevice(kind: MediaDeviceKind, deviceId: string)
   if (kind === 'audioinput') {
     const previous = getSavedAudioInput()
     if (room) {
-      stopMicMode()
-      try {
-        await restartMicrophonePipeline(room, deviceId || 'default', !state.isMuted && !state.isDeafened)
-      } catch (error) {
-        await restartMicrophonePipeline(room, previous || 'default', !state.isMuted && !state.isDeafened)
-        throw error
-      } finally {
-        if (!state.isMuted && !state.isDeafened && state.micMode !== 'always') startMicMode(state.micMode)
-      }
+      await enqueueMicrophoneOperation(room, async () => {
+        const isCurrent = () => {
+          const current = useVoiceConnectionStore.getState()
+          return current.room === room && !current.isMuted && !current.isDeafened
+        }
+        if (useVoiceConnectionStore.getState().room !== room) return
+        await stopMicMode(true)
+        try {
+          await restartMicrophonePipeline(room, deviceId || 'default', isCurrent(), isCurrent)
+        } catch (error) {
+          if (useVoiceConnectionStore.getState().room === room)
+            await restartMicrophonePipeline(room, previous || 'default', isCurrent(), isCurrent)
+          throw error
+        } finally {
+          const current = useVoiceConnectionStore.getState()
+          if (isCurrent() && current.micMode !== 'always') startMicMode(current.micMode)
+        }
+      })
     }
     setSavedAudioInput(deviceId)
   } else if (kind === 'audiooutput') {

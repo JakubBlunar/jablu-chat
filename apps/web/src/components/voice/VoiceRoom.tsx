@@ -10,6 +10,8 @@ import { ParticipantTile } from './ParticipantTile'
 import { ScreenShareTile } from './ScreenShareTile'
 import { ScreenShareDialog } from './ScreenShareDialog'
 import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
+import { VoiceCallStatus } from './VoiceCallStatus'
+import { VoiceDiagnostics } from './VoiceDiagnostics'
 
 type TileEntry =
   | { kind: 'participant'; id: string; participant: Participant }
@@ -167,6 +169,10 @@ export function VoiceRoom() {
         channelName={channelName}
         participantCount={tiles.filter((t) => t.kind === 'participant').length}
       />
+      <VoiceCallStatus />
+      <div className="shrink-0 border-b border-white/5 px-3">
+        <VoiceDiagnostics />
+      </div>
 
       {isReconnecting && (
         <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 text-center text-[11px] text-amber-100">
@@ -536,7 +542,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
   return (
     <>
-      <div className="flex h-12 min-w-0 shrink-0 items-center border-b border-black/20 bg-surface px-2 shadow-sm md:px-4">
+      <div className="flex min-h-12 min-w-0 shrink-0 flex-wrap items-center border-b border-black/20 bg-surface px-2 md:flex-nowrap md:px-4">
         {compactNavigation && (
           <button
             type="button"
@@ -558,14 +564,15 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
         </span>
         <span className="ml-2 text-xs tabular-nums text-gray-500">{vc.timeStr}</span>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex w-full flex-wrap items-center justify-evenly gap-1 border-t border-white/5 py-1 md:ml-auto md:w-auto md:flex-nowrap md:justify-end md:border-0 md:py-0">
           <button
             type="button"
             title={vc.isMuted ? t('unmute') : t('mute')}
             aria-label={vc.isMuted ? t('unmute') : t('mute')}
             aria-pressed={vc.isMuted}
+            disabled={vc.isDeafened}
             onClick={vc.toggleMute}
-            className={`rounded-md p-1.5 transition ${
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition ${
               vc.isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -584,7 +591,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             aria-label={vc.isDeafened ? t('undeafen') : t('deafen')}
             aria-pressed={vc.isDeafened}
             onClick={vc.toggleDeafen}
-            className={`rounded-md p-1.5 transition ${
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition ${
               vc.isDeafened ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -599,7 +606,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             aria-label={vc.isCameraOn ? t('cameraOff') : t('cameraOn')}
             aria-pressed={vc.isCameraOn}
             onClick={vc.handleCameraClick}
-            className={`rounded-md p-1.5 transition ${
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition ${
               vc.isCameraOn ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
             }`}
           >
@@ -618,7 +625,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
               title={t('cameraSettings')}
               aria-label={t('cameraSettings')}
               onClick={() => vc.setCameraModalMode('edit')}
-              className="rounded-md p-1.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.61 3.61 0 0112 15.6z" />
@@ -633,7 +640,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
               aria-label={vc.isScreenSharing ? t('stopSharing') : t('shareScreen')}
               aria-pressed={vc.isScreenSharing}
               onClick={vc.handleScreenShare}
-              className={`rounded-md p-1.5 transition ${
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition ${
                 vc.isScreenSharing ? 'bg-primary/20 text-primary' : 'text-gray-400 hover:bg-white/10 hover:text-white'
               }`}
             >
@@ -645,10 +652,28 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
 
           <button
             type="button"
+            title={t('audioSettings')}
+            aria-label={t('audioSettings')}
+            onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'voice' }))}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-white/10 hover:text-white"
+          >
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path d="M4 7h16M4 17h16M8 4v6m8 4v6" />
+            </svg>
+          </button>
+          <button
+            type="button"
             title={t('disconnect')}
             aria-label={t('disconnectAria')}
             onClick={vc.handleDisconnect}
-            className="rounded-md p-1.5 text-red-400 transition hover:bg-red-500/20"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-red-400 transition hover:bg-red-500/20"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" />

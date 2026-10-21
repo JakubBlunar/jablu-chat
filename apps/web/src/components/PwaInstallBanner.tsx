@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react'
 import { isElectron } from '@/lib/electron'
 import { usePwaInstall, isDismissed, dismissBanner } from '@/hooks/usePwaInstall'
 import { useTranslation } from 'react-i18next'
+import { useIsMobile } from '@/hooks/useMobile'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 export function PwaInstallBanner() {
   const { t } = useTranslation('settings')
   const { canPrompt, showInstallUi, triggerInstall, installTarget } = usePwaInstall()
   const [visible, setVisible] = useState(false)
+  const mobile = useIsMobile()
+  const inCall = useVoiceConnectionStore((s) => !!s.currentChannelId)
 
   useEffect(() => {
     if (!showInstallUi || isDismissed()) return
@@ -14,7 +18,7 @@ export function PwaInstallBanner() {
     return () => clearTimeout(id)
   }, [showInstallUi])
 
-  if (isElectron || !showInstallUi || !visible) return null
+  if (isElectron || !showInstallUi || !visible || inCall || (mobile && installTarget === 'desktop')) return null
 
   const handleDismiss = () => {
     setVisible(false)

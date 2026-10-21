@@ -3,6 +3,7 @@ import { useVoiceConnectionStore } from './voice-connection.store'
 import { stopMicMode, startMicMode } from '@/lib/micMode'
 import { stopRnnoiseMicrophone } from '@/lib/rnnoiseMicrophone'
 import { getSocket } from '@/lib/socket'
+import { setLocalMicTransmissionEnabled } from '@/lib/voiceLocalMic'
 
 jest.mock('livekit-client', () => ({ Track: { Source: { Microphone: 'microphone', Camera: 'camera' } } }))
 jest.mock('@/lib/electron', () => ({ isElectron: false }))
@@ -38,12 +39,18 @@ function fakeRoom() {
       getTrackPublication: jest.fn()
     }
   }
-  return { room: room as unknown as Room, disconnect: room.disconnect, stopTrack, removeAllListeners: room.removeAllListeners }
+  return {
+    room: room as unknown as Room,
+    disconnect: room.disconnect,
+    stopTrack,
+    removeAllListeners: room.removeAllListeners
+  }
 }
 
 beforeEach(() => {
   jest.clearAllMocks()
   jest.mocked(stopRnnoiseMicrophone).mockResolvedValue(undefined)
+  jest.mocked(setLocalMicTransmissionEnabled).mockResolvedValue(undefined)
   useVoiceConnectionStore.setState({
     room: null,
     currentServerId: null,
@@ -58,12 +65,73 @@ beforeEach(() => {
     micMode: 'always',
     _blurHandle: null,
     _originalCameraTrack: null,
-    voiceNetworkDropout: null
+    voiceNetworkDropout: null,
+    microphoneError: null,
+    isMicrophonePending: false
   })
 })
 
 afterEach(() => {
   jest.restoreAllMocks()
+})
+
+it('establishes a receive-only muted/deafened join without opening a microphone', () => {
+  const { room } = fakeRoom()
+  useVoiceConnectionStore.getState().setConnected(room, { joinDeafened: true, skipMicModeBootstrap: true })
+  expect(useVoiceConnectionStore.getState()).toMatchObject({ isMuted: true, isDeafened: true })
+  expect(setLocalMicTransmissionEnabled).not.toHaveBeenCalled()
+})
+
+it('shows a persistent muted state after a denied microphone, and recovers on retry', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {})
+  const { room } = fakeRoom()
+  useVoiceConnectionStore.setState({ room })
+  jest.mocked(setLocalMicTransmissionEnabled).mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'))
+  await useVoiceConnectionStore.getState().requestMicrophone(true)
+  expect(useVoiceConnectionStore.getState()).toMatchObject({
+    isMuted: true,
+    microphoneError: 'permission',
+    isMicrophonePending: false
+  })
+  await useVoiceConnectionStore.getState().requestMicrophone(true)
+  expect(useVoiceConnectionStore.getState()).toMatchObject({
+    isMuted: false,
+    microphoneError: null,
+    isMicrophonePending: false
+  })
+})
+
+it('does not restart VAD or update a new call when an old microphone request completes', async () => {
+  const old = fakeRoom(),
+    current = fakeRoom(),
+    capture = deferred()
+  useVoiceConnectionStore.setState({ room: old.room, micMode: 'activity' })
+  jest.mocked(setLocalMicTransmissionEnabled).mockReturnValueOnce(capture.promise)
+  const starting = useVoiceConnectionStore.getState().requestMicrophone(true)
+  await Promise.resolve()
+  await Promise.resolve()
+  await useVoiceConnectionStore.getState().disconnect()
+  useVoiceConnectionStore.setState({ room: current.room, isMuted: true })
+  capture.resolve()
+  await starting
+  expect(startMicMode).not.toHaveBeenCalled()
+  expect(useVoiceConnectionStore.getState()).toMatchObject({ room: current.room, isMuted: true })
+})
+
+it('serializes mute behind a pending capture and invalidates the capture guard immediately', async () => {
+  const { room } = fakeRoom(),
+    capture = deferred()
+  useVoiceConnectionStore.setState({ room })
+  jest.mocked(setLocalMicTransmissionEnabled).mockReturnValueOnce(capture.promise)
+  const starting = useVoiceConnectionStore.getState().requestMicrophone(true)
+  await Promise.resolve()
+  await Promise.resolve()
+  const guard = jest.mocked(setLocalMicTransmissionEnabled).mock.calls[0][2]!
+  const muting = useVoiceConnectionStore.getState().requestMicrophone(false)
+  expect(guard()).toBe(false)
+  capture.resolve()
+  await Promise.all([starting, muting])
+  expect(useVoiceConnectionStore.getState()).toMatchObject({ isMuted: true, isMicrophonePending: false })
 })
 
 it('returns a real promise covering RNNoise and room teardown while stopping capture synchronously', async () => {
@@ -87,7 +155,9 @@ it('returns a real promise covering RNNoise and room teardown while stopping cap
     currentDmCallId: 'call',
     isCameraOn: true,
     isScreenSharing: true,
-    _blurHandle: { stop: stopBlur } as unknown as NonNullable<ReturnType<typeof useVoiceConnectionStore.getState>['_blurHandle']>,
+    _blurHandle: { stop: stopBlur } as unknown as NonNullable<
+      ReturnType<typeof useVoiceConnectionStore.getState>['_blurHandle']
+    >,
     _originalCameraTrack: { stop: stopOriginal } as unknown as MediaStreamTrack
   })
 
@@ -100,12 +170,18 @@ it('returns a real promise covering RNNoise and room teardown while stopping cap
   expect(removeAllListeners).toHaveBeenCalledTimes(1)
   expect(emit).toHaveBeenCalledWith('dm:call:leave', { callId: 'call' })
   expect(useVoiceConnectionStore.getState()).toMatchObject({
-    room: null, currentChannelId: null, currentDmCallId: null, isCameraOn: false, isScreenSharing: false
+    room: null,
+    currentChannelId: null,
+    currentDmCallId: null,
+    isCameraOn: false,
+    isScreenSharing: false
   })
   expect(disconnect).not.toHaveBeenCalled()
 
   let finished = false
-  void teardown.then(() => { finished = true })
+  void teardown.then(() => {
+    finished = true
+  })
   rnnoise.resolve()
   await disconnectStarted.promise
   expect(disconnect).toHaveBeenCalledTimes(1)
@@ -143,10 +219,7 @@ it('still awaits room disconnect when RNNoise rejects, and exposes both teardown
   useVoiceConnectionStore.setState({ room })
   const teardown = useVoiceConnectionStore.getState().disconnect()
   const assertion = expect(teardown).rejects.toMatchObject({
-    errors: [
-      expect.objectContaining({ cause: rnnoiseError }),
-      expect.objectContaining({ cause: roomError })
-    ]
+    errors: [expect.objectContaining({ cause: rnnoiseError }), expect.objectContaining({ cause: roomError })]
   })
   await disconnectStarted.promise
   expect(disconnect).toHaveBeenCalledTimes(1)
@@ -185,7 +258,9 @@ it('still closes the room and reports microphone-mode failure', async () => {
 
 it('handles failures from legacy callers that intentionally do not await disconnect', async () => {
   const reported = deferred()
-  const log = jest.spyOn(console, 'error').mockImplementation(() => { reported.resolve() })
+  const log = jest.spyOn(console, 'error').mockImplementation(() => {
+    reported.resolve()
+  })
   const { room, disconnect } = fakeRoom()
   disconnect.mockRejectedValueOnce(new Error('close failed'))
   useVoiceConnectionStore.setState({ room })

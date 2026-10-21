@@ -27,7 +27,8 @@ export function ParticipantTile({
   const currentChannelId = useVoiceConnectionStore((s) => s.currentChannelId)
   const serverId = useVoiceConnectionStore((s) => s.currentServerId)
   const fallbackName = participant.name || participant.identity
-  const displayName = useServerDisplayName({ id: participant.identity, username: fallbackName }, serverId) ?? fallbackName
+  const displayName =
+    useServerDisplayName({ id: participant.identity, username: fallbackName }, serverId) ?? fallbackName
   const remoteExplicitMuted = useVoiceStore((s) => {
     if (participant.isLocal || !currentChannelId) return false
     const list = s.participants[currentChannelId]
@@ -131,7 +132,6 @@ export function ParticipantTile({
     }
   }, [participant, updateVideoState])
 
-
   return (
     <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-surface-darkest">
       <div
@@ -157,7 +157,6 @@ export function ParticipantTile({
           >
             {displayName.charAt(0).toUpperCase()}
           </div>
-          {!compact && <span className="text-sm font-medium text-gray-300">{displayName}</span>}
         </div>
       )}
 

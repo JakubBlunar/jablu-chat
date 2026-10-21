@@ -22,15 +22,34 @@ let _audioCtx: AudioContext | null = null
 
 function getAudioCtx(): AudioContext {
   if (!_audioCtx || _audioCtx.state === 'closed') {
-    _audioCtx = new AudioContext()
+    _audioCtx = new AudioContext({ latencyHint: 'interactive' })
   }
   return _audioCtx
 }
 
 function ensureCtxRunning() {
   if (_audioCtx && _audioCtx.state === 'suspended') {
-    _audioCtx.resume().catch(() => {})
+    const owner = useVoiceConnectionStore.getState().room
+    // resume() may remain pending until a user gesture instead of rejecting.
+    // Keep the recovery button visible while the context is still suspended.
+    useVoiceConnectionStore.getState().setPlaybackBlocked(true)
+    void _audioCtx.resume().then(
+      () => {
+        if (useVoiceConnectionStore.getState().room === owner)
+          useVoiceConnectionStore.getState().setPlaybackBlocked(_audioCtx?.state === 'suspended')
+      },
+      () => {
+        if (useVoiceConnectionStore.getState().room === owner)
+          useVoiceConnectionStore.getState().setPlaybackBlocked(true)
+      }
+    )
   }
+}
+
+async function routeOutput(ctx: AudioContext, deviceId: string) {
+  const output = ctx as AudioContextWithSinkId
+  if (typeof output.setSinkId === 'function') await output.setSinkId(deviceId)
+  else if (deviceId) throw new Error('This browser cannot select a Web Audio output device')
 }
 
 /**
@@ -78,19 +97,31 @@ export function VoiceAudioManager() {
       const source = ctx.createMediaElementSource(audio)
       const gain = ctx.createGain()
       source.connect(gain)
-      gain.connect(ctx.destination)
 
       const state = useVoiceConnectionStore.getState()
       gain.gain.value = state.isDeafened ? 0 : (state.volumeOverrides[key] ?? 100) / 100
 
       const outputId = state.audioOutputDeviceId
       const media = audio as HTMLMediaElementWithSinkId
-      if (outputId && typeof media.setSinkId === 'function') {
-        void media.setSinkId(outputId).catch(() => {})
-      }
+      // Tracks can arrive long after the saved-device effect ran. Route the
+      // actual Web Audio destination before making this track audible.
+      void Promise.all([
+        routeOutput(ctx, outputId),
+        outputId && typeof media.setSinkId === 'function' ? media.setSinkId(outputId) : Promise.resolve()
+      ])
+        .catch(() => {
+          if (audio.srcObject && useVoiceConnectionStore.getState().room === state.room)
+            useVoiceConnectionStore.getState().setAudioOutputError(true)
+        })
+        .then(() => {
+          if (audio.srcObject) gain.connect(ctx.destination)
+        })
 
       document.body.appendChild(audio)
-      audio.play().catch(() => {})
+      audio.play().catch(() => {
+        if (audio.srcObject && useVoiceConnectionStore.getState().room === state.room)
+          useVoiceConnectionStore.getState().setPlaybackBlocked(true)
+      })
       ensureCtxRunning()
 
       nodesRef.current.set(key, { audio, gain, source, trackId: mst.id })
@@ -162,23 +193,29 @@ export function VoiceAudioManager() {
   useEffect(() => {
     if (!room) return
 
-    const heartbeat = setInterval(() => {
-      ensureCtxRunning()
-      for (const [, entry] of nodesRef.current) {
-        if (entry.audio.paused && entry.audio.srcObject) {
-          entry.audio.play().catch(() => {})
+    const recoverPlayback = async () => {
+      try {
+        if (_audioCtx?.state === 'suspended') useVoiceConnectionStore.getState().setPlaybackBlocked(true)
+        // Call resume synchronously in the user gesture, before any await.
+        const resuming = _audioCtx?.state === 'suspended' ? _audioCtx.resume() : Promise.resolve()
+        const playing = [...nodesRef.current.values()].map(({ audio }) => audio.play())
+        await Promise.all([resuming, ...playing])
+        if (useVoiceConnectionStore.getState().room === room) {
+          useVoiceConnectionStore.getState().setPlaybackBlocked(_audioCtx?.state === 'suspended')
         }
+      } catch {
+        if (useVoiceConnectionStore.getState().room === room)
+          useVoiceConnectionStore.getState().setPlaybackBlocked(true)
       }
+    }
+
+    const heartbeat = setInterval(() => {
+      void recoverPlayback()
     }, 4000)
 
     const onVisibility = () => {
       if (!document.hidden) {
-        ensureCtxRunning()
-        for (const [, entry] of nodesRef.current) {
-          if (entry.audio.paused && entry.audio.srcObject) {
-            entry.audio.play().catch(() => {})
-          }
-        }
+        void recoverPlayback()
 
         const vs = useVoiceConnectionStore.getState()
         if (vs.isCameraOn && vs.room) {
@@ -192,12 +229,15 @@ export function VoiceAudioManager() {
       }
     }
 
-    const onInteraction = () => ensureCtxRunning()
+    const onInteraction = () => {
+      void recoverPlayback()
+    }
 
     document.addEventListener('visibilitychange', onVisibility)
     document.addEventListener('click', onInteraction)
     document.addEventListener('touchstart', onInteraction)
     document.addEventListener('keydown', onInteraction)
+    window.addEventListener('voice:resume-audio', onInteraction)
 
     const ctx = _audioCtx
     const onStateChange = () => {
@@ -213,6 +253,7 @@ export function VoiceAudioManager() {
       document.removeEventListener('click', onInteraction)
       document.removeEventListener('touchstart', onInteraction)
       document.removeEventListener('keydown', onInteraction)
+      window.removeEventListener('voice:resume-audio', onInteraction)
       ctx?.removeEventListener('statechange', onStateChange)
     }
   }, [room])
@@ -229,17 +270,31 @@ export function VoiceAudioManager() {
   }, [isDeafened, volumeOverrides])
 
   useEffect(() => {
+    if (!room) return
+    let cancelled = false
+    const routing: Promise<void>[] = []
     for (const [, entry] of nodesRef.current) {
       const media = entry.audio as HTMLMediaElementWithSinkId
       if (typeof media.setSinkId === 'function') {
-        void media.setSinkId(audioOutputDeviceId || '').catch(() => {})
+        routing.push(media.setSinkId(audioOutputDeviceId || ''))
       }
     }
     const ctx = _audioCtx as AudioContextWithSinkId | null
-    if (ctx && ctx.state !== 'closed' && typeof ctx.setSinkId === 'function') {
-      void ctx.setSinkId(audioOutputDeviceId || '').catch(() => {})
+    if (ctx && ctx.state !== 'closed') routing.push(routeOutput(ctx, audioOutputDeviceId || ''))
+    if (routing.length) {
+      void Promise.all(routing).then(
+        () => {
+          if (!cancelled) useVoiceConnectionStore.getState().setAudioOutputError(false)
+        },
+        () => {
+          if (!cancelled) useVoiceConnectionStore.getState().setAudioOutputError(true)
+        }
+      )
     }
-  }, [audioOutputDeviceId])
+    return () => {
+      cancelled = true
+    }
+  }, [audioOutputDeviceId, room])
 
   useEffect(() => {
     if (!room || !navigator.mediaDevices?.addEventListener) return
@@ -252,7 +307,9 @@ export function VoiceAudioManager() {
           useVoiceConnectionStore.getState().setAudioOutputDeviceId('')
           room.switchActiveDevice('audiooutput', '').catch(() => {})
         }
-      } catch { /* ignored */ }
+      } catch {
+        /* ignored */
+      }
     }
     navigator.mediaDevices.addEventListener('devicechange', onChange)
     return () => navigator.mediaDevices.removeEventListener('devicechange', onChange)

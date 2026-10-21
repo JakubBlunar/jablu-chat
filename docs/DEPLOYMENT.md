@@ -6,12 +6,12 @@ Part of the [Jablu documentation](./README.md).
 
 Any VPS provider (Hetzner, Contabo, DigitalOcean, Linode, etc.) with these minimum specs will work:
 
-| Spec    | Minimum                |
-| ------- | ---------------------- |
-| vCPU    | 2+ cores               |
-| RAM     | 4+ GB                  |
-| Storage | 40+ GB SSD/NVMe        |
-| OS      | Ubuntu 22.04 or 24.04  |
+| Spec    | Minimum               |
+| ------- | --------------------- |
+| vCPU    | 2+ cores              |
+| RAM     | 4+ GB                 |
+| Storage | 40+ GB SSD/NVMe       |
+| OS      | Ubuntu 22.04 or 24.04 |
 
 For 20+ concurrent users with voice/video, 4 cores and 8 GB RAM is recommended.
 
@@ -23,7 +23,7 @@ For 20+ concurrent users with voice/video, 4 cores and 8 GB RAM is recommended.
 | Node.js API                 | 3001                            | Backend (NestJS + Socket.io)       |
 | PostgreSQL                  | 5432                            | Database                           |
 | Redis                       | 6379                            | Cache, presence                    |
-| LiveKit                     | 7880, 7882/udp, 50000-50100/udp | Voice/video/screen share (WebRTC)  |
+| LiveKit                     | 7880, 7881/tcp, 50000-50100/udp | Voice/video/screen share (WebRTC)  |
 | Mailpit (dev) / SMTP (prod) | 1025 / 587                      | Email for password resets          |
 | LibreTranslate              | internal only (5000 in network) | On-demand message translation      |
 
@@ -175,7 +175,7 @@ If you have a firewall (e.g. `ufw`), open the required ports:
 ufw allow 22/tcp       # SSH
 ufw allow 80/tcp       # HTTP
 ufw allow 443/tcp      # HTTPS (if using TLS)
-ufw allow 7882/udp     # LiveKit WebRTC
+ufw allow 7881/tcp     # LiveKit TCP fallback (direct to media server)
 ufw allow 50000:50100/udp  # LiveKit media ports
 ufw enable
 ```
@@ -484,10 +484,74 @@ LiveKit requires UDP ports to be open. Verify:
 
 ```bash
 ufw status
-# Ensure 7882/udp and 50000:50100/udp are ALLOW
+# Ensure 7881/tcp and 50000:50100/udp are ALLOW
 ```
 
 Also check that your provider's firewall/security group allows UDP inbound.
+
+### TURN for restrictive networks
+
+UDP remains the preferred media transport. The included configuration exposes
+`7881/tcp` for clients whose networks block UDP. Open it in both the host firewall
+and your VPS provider's firewall; it must go directly to LiveKit, outside the HTTP
+reverse proxy. The current configuration uses UDP ports `50000–50100`; the mapped
+`7882/udp` is unused unless you explicitly switch to `rtc.udp_port`.
+
+Networks that permit only HTTPS may also require TURN/TLS on public port 443.
+For an existing Traefik installation, an opt-in configuration is included:
+
+1. Create a DNS-only A record such as `turn.example.com` pointing to your VPS
+   (disable any HTTP CDN proxy for this record). Add these settings to `.env`:
+
+   ```ini
+   TURN_HOST=turn.example.com
+   TURN_ENABLED=true
+   LIVEKIT_CONFIG_FILE=./docker/livekit/livekit.turn.yaml
+   ```
+
+2. Copy `docker/livekit/livekit.turn.example.yaml` to
+   `docker/livekit/livekit.turn.yaml` and set `turn.domain` to the same hostname.
+3. Use the existing Traefik `web` Docker network, `websecure` entrypoint and
+   `letsencrypt` certificate resolver described below. The existing Traefik
+   override includes the TURN router; use the normal deployment command:
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.traefik.yml config --quiet
+   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+   ```
+
+Traefik routes the TURN hostname using TCP SNI, terminates TLS on public port 443,
+and forwards raw TURN to LiveKit's internal port 5349. Do not publish this plaintext
+5349 listener to the internet or route it through an HTTP router. LiveKit advertises
+TURN/TLS on port 443 when `external_tls` is enabled. The web hostname continues
+using the existing HTTP router. TURN routing is disabled by default and enabled
+by `TURN_ENABLED=true` in the existing Traefik override. `LIVEKIT_CONFIG_FILE`
+selects the matching LiveKit server configuration. `deploy.sh` uses this same
+two-file Compose command. The `docker/livekit/livekit.turn.yaml` file is
+deployment-specific and gitignored: create or copy it on the VPS as part of the
+initial TURN setup. To disable TURN, set `TURN_ENABLED=false` and remove
+`LIVEKIT_CONFIG_FILE` so LiveKit returns to its standard configuration.
+
+An A record points the TURN hostname to the VPS's public IPv4 address. Add an AAAA
+record only when that IPv6 address reaches the same Traefik instance on TCP 443;
+otherwise leave AAAA absent. Existing wildcard DNS records may resolve a new
+subdomain to a different hosting server, so verify the returned address against
+the VPS before relying on it. TURN does not require an HTTP website at this hostname.
+
+Without Traefik, use a separate TURN endpoint/public IP or an L4 TLS router. For
+direct TLS termination in LiveKit, set `external_tls: false`, use `tls_port: 443`,
+provide a trusted certificate and private key through read-only mounts, and ensure
+the listener does not conflict with your HTTPS server. Domain names, certificates,
+and firewall rules are deployment-specific; the optional TURN configuration is not
+enabled by default.
+
+After deploying, test calls from a network with UDP blocked, then from a network
+allowing only TCP 443. Expand **Call quality** in the call UI to inspect the selected
+transport. The LiveKit SDK's `force-tcp` and `force-tls` simulation scenarios can
+also validate the fallback paths in a controlled test. A localhost test cannot
+verify your VPS's public firewall, DNS, or certificates.
+
+Reference: [LiveKit deployment and TURN guidance](https://docs.livekit.io/transport/self-hosting/deployment/).
 
 ### Using LiveKit Cloud instead of self-hosted
 
@@ -723,7 +787,7 @@ docker compose logs -f
 ufw allow 22/tcp           # SSH
 ufw allow 80/tcp           # HTTP (Traefik redirects to HTTPS)
 ufw allow 443/tcp          # HTTPS (Traefik)
-ufw allow 7882/udp         # LiveKit WebRTC
+ufw allow 7881/tcp         # LiveKit TCP fallback
 ufw allow 50000:50100/udp  # LiveKit media ports
 ufw enable
 ```

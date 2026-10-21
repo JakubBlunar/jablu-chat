@@ -23,8 +23,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # ─── API Server ──────────────────────────────────────────────────────
   api:
@@ -86,8 +86,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # ─── Web App Build ──────────────────────────────────────────────────
   web:
@@ -128,8 +128,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # ─── Redis ──────────────────────────────────────────────────────────
   redis:
@@ -145,13 +145,14 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # ─── LiveKit ────────────────────────────────────────────────────────
   livekit:
     image: livekit/livekit-server:v1.10.0
     ports:
+      - '7881:7881/tcp'
       - '7882:7882/udp'
       - '50000-50100:50000-50100/udp'
     environment:
@@ -163,8 +164,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # ─── Log watcher (optional): poll `docker compose logs`, email on matches ─
   # Usage: docker compose --profile log-watcher up -d
@@ -207,11 +208,11 @@ services:
     profiles:
       - dev
 
-# ─── LibreTranslate (self-hosted MT for on-demand message translation) ─
-# Restricted to the configured languages (LT_LOAD_ONLY mirrors
-# TRANSLATE_LANGUAGES — language *codes*, not pairs). One worker: measured
-# ~235 MiB idle / ~0.9 GB under burst, plenty for occasional use; bump
-# LT_THREADS (and mem_limit) only if you see real queueing.
+  # ─── LibreTranslate (self-hosted MT for on-demand message translation) ─
+  # Restricted to the configured languages (LT_LOAD_ONLY mirrors
+  # TRANSLATE_LANGUAGES — language *codes*, not pairs). One worker: measured
+  # ~235 MiB idle / ~0.9 GB under burst, plenty for occasional use; bump
+  # LT_THREADS (and mem_limit) only if you see real queueing.
   libretranslate:
     image: libretranslate/libretranslate:v1.9.6
     environment:
@@ -227,7 +228,7 @@ services:
     mem_limit: 1.2g
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5000/\")'"]
+      test: ['CMD-SHELL', 'python -c ''import urllib.request; urllib.request.urlopen("http://localhost:5000/")''']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -235,8 +236,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
 volumes:
   pgdata:

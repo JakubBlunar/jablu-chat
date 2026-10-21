@@ -8,6 +8,9 @@ export default defineConfig({
   reporter: 'list',
   timeout: 60_000,
   use: {
+    launchOptions: {
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined
+    },
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure'

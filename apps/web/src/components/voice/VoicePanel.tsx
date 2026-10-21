@@ -6,6 +6,8 @@ import { CameraSettingsModal } from './CameraSettingsModal'
 import { ScreenShareDialog } from './ScreenShareDialog'
 import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
 import { QuickVoiceDevices } from './QuickVoiceDevices'
+import { VoiceCallStatus } from './VoiceCallStatus'
+import { VoiceDiagnostics } from './VoiceDiagnostics'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { useLayoutStore } from '@/stores/layout.store'
 function MicIcon({ muted }: { muted: boolean }) {
@@ -87,6 +89,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
   const isConnecting = useVoiceConnectionStore((s) => s.isConnecting)
   const isReconnecting = useVoiceConnectionStore((s) => s.isReconnecting)
   const micMode = useVoiceConnectionStore((s) => s.micMode)
+  const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
 
   const vc = useVoiceControls()
   const { goToDm } = useAppNavigate()
@@ -153,7 +156,10 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
 
   return (
     <div className="border-t border-black/20 bg-surface-overlay px-3 py-2">
-      {vc.errorMsg && <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>}
+      {!viewingVoiceRoom && <VoiceCallStatus />}
+      {vc.errorMsg && (
+        <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>
+      )}
       {isReconnecting && (
         <div className="mb-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200">
           {t('reconnectBanner')}
@@ -167,8 +173,12 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         aria-label={t('goToVoiceRoom')}
       >
         <div className="flex items-center gap-1.5">
-          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isConnecting || isReconnecting ? 'bg-amber-500' : 'bg-green-500'}`} />
-          <span className={`min-w-0 flex-1 truncate text-xs font-medium ${isConnecting || isReconnecting ? 'text-amber-400' : 'text-green-400'}`}>
+          <span
+            className={`inline-block h-2 w-2 shrink-0 rounded-full ${isConnecting || isReconnecting ? 'bg-amber-500' : 'bg-green-500'}`}
+          />
+          <span
+            className={`min-w-0 flex-1 truncate text-xs font-medium ${isConnecting || isReconnecting ? 'text-amber-400' : 'text-green-400'}`}
+          >
             {isConnecting ? t('connecting') : isReconnecting ? t('reconnecting') : t('connected')}
           </span>
         </div>
@@ -188,6 +198,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
           title={vc.isMuted ? t('unmute') : t('mute')}
           aria-label={vc.isMuted ? t('unmute') : t('mute')}
           aria-pressed={vc.isMuted}
+          disabled={vc.isDeafened}
           onClick={vc.toggleMute}
           className={`rounded-md p-2 transition ${
             vc.isMuted ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/10 hover:text-white'
@@ -269,6 +280,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         <GearIcon /> {t('quickDevices')}
       </button>
       {devicesOpen && <QuickVoiceDevices />}
+      {!viewingVoiceRoom && <VoiceDiagnostics />}
 
       {vc.cameraModalMode && (
         <CameraSettingsModal
