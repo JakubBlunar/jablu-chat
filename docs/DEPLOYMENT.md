@@ -511,6 +511,10 @@ For an existing Traefik installation, an opt-in configuration is included:
 
 2. Copy `docker/livekit/livekit.turn.example.yaml` to
    `docker/livekit/livekit.turn.yaml` and set `turn.domain` to the same hostname.
+   Keep `turn.relay_range_start: 50101` and `turn.relay_range_end: 50200` aligned
+   with the `50101-50200/udp` mapping in `docker-compose.traefik.yml`. Allow this
+   additional UDP range in the host/provider firewall. These are server-side
+   relay sockets: clients on restrictive networks still connect over TCP 443.
 3. Use the existing Traefik `web` Docker network, `websecure` entrypoint and
    `letsencrypt` certificate resolver described below. The existing Traefik
    override includes the TURN router; use the normal deployment command:
@@ -531,6 +535,15 @@ two-file Compose command. The `docker/livekit/livekit.turn.yaml` file is
 deployment-specific and gitignored: create or copy it on the VPS as part of the
 initial TURN setup. To disable TURN, set `TURN_ENABLED=false` and remove
 `LIVEKIT_CONFIG_FILE` so LiveKit returns to its standard configuration.
+
+TURN allocations use a separate UDP range from `rtc.port_range_start/end`. In
+Docker bridge mode, publishing only the SFU range is insufficient: return packets
+to a TURN allocation's advertised public address must also reach its container
+socket. The template uses `50101–50200/udp` for this purpose instead of LiveKit
+v1.10.0's default TURN relay range of `30000–40000`. If upgrading an existing
+deployment, update the gitignored `livekit.turn.yaml` on the VPS as well as the
+Compose override, then recreate LiveKit to apply the port mapping. A successful
+TLS handshake or unauthenticated TURN challenge does not verify this relay path.
 
 An A record points the TURN hostname to the VPS's public IPv4 address. Add an AAAA
 record only when that IPv6 address reaches the same Traefik instance on TCP 443;
