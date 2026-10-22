@@ -10,6 +10,8 @@ export function OverviewTab({ server }: { server: Server }) {
   const { t } = useTranslation('server-settings')
   const [name, setName] = useState(server.name)
   const [saving, setSaving] = useState(false)
+  const [iconBusy, setIconBusy] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
   const [iconPreview, setIconPreview] = useState<string | null>(resolveMediaUrl(server.iconUrl) ?? null)
   const fileRef = useRef<HTMLInputElement>(null)
   const updateServerInList = useServerStore((s) => s.updateServerInList)
@@ -24,9 +26,12 @@ export function OverviewTab({ server }: { server: Server }) {
     if (!name.trim() || name === server.name) return
     setSaving(true)
     setError(null)
+    setSaved(null)
     try {
       await api.updateServer(server.id, { name: name.trim() })
       updateServerInList(server.id, { name: name.trim() })
+      setName(name.trim())
+      setSaved(t('lists.saved'))
     } catch {
       setError(t('overview.nameFailed'))
     } finally {
@@ -38,6 +43,8 @@ export function OverviewTab({ server }: { server: Server }) {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       if (!file) return
+      setIconBusy(true)
+      setError(null)
       const preview = URL.createObjectURL(file)
       setIconPreview((prev) => {
         if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
@@ -50,26 +57,33 @@ export function OverviewTab({ server }: { server: Server }) {
         updateServerInList(server.id, { iconUrl: updated.iconUrl })
         setIconPreview((prev) => {
           if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
-          return updated.iconUrl
+          return resolveMediaUrl(updated.iconUrl) ?? null
         })
       } catch {
         setIconPreview((prev) => {
           if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
-          return server.iconUrl
+          return resolveMediaUrl(server.iconUrl) ?? null
         })
         setError(t('overview.uploadFailed'))
+      } finally {
+        setIconBusy(false)
+        e.target.value = ''
       }
     },
     [server, updateServerInList, t]
   )
 
   const removeIcon = useCallback(async () => {
+    setIconBusy(true)
+    setError(null)
     try {
       await api.deleteServerIcon(server.id)
       updateServerInList(server.id, { iconUrl: null })
       setIconPreview(null)
     } catch {
       setError(t('overview.removeFailed'))
+    } finally {
+      setIconBusy(false)
     }
   }, [server.id, updateServerInList, t])
 
@@ -77,21 +91,31 @@ export function OverviewTab({ server }: { server: Server }) {
     return () => {
       if (iconPreview && iconPreview.startsWith('blob:')) URL.revokeObjectURL(iconPreview)
     }
-  }, [])
+  }, [iconPreview])
 
   return (
     <div className="space-y-6">
       {error && <InlineAlert variant="error">{error}</InlineAlert>}
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
+      {saved && (
+        <p role="status" className="text-sm text-green-400">
+          {saved}
+        </p>
+      )}
+      <div className="flex flex-col items-center gap-4 rounded-lg border border-white/10 bg-white/[0.02] p-4 sm:flex-row sm:items-start sm:gap-6">
         <div className="flex flex-col items-center gap-2">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             aria-label={t('overview.changeIcon')}
+            disabled={iconBusy}
             className="group relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-primary text-3xl font-bold text-primary-text transition hover:opacity-80"
           >
             {iconPreview ? (
-              <img src={iconPreview} alt={t('overview.iconAlt', { serverName: server.name })} className="h-full w-full object-cover" />
+              <img
+                src={iconPreview}
+                alt={t('overview.iconAlt', { serverName: server.name })}
+                className="h-full w-full object-cover"
+              />
             ) : (
               server.name.charAt(0).toUpperCase()
             )}
@@ -99,12 +123,19 @@ export function OverviewTab({ server }: { server: Server }) {
               <CameraIcon />
             </div>
           </button>
-          <input ref={fileRef} type="file" accept="image/*" className="absolute opacity-0 w-px h-px pointer-events-none" onChange={handleIconChange} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="absolute opacity-0 w-px h-px pointer-events-none"
+            onChange={handleIconChange}
+          />
           {iconPreview && (
             <Button
               type="button"
               variant="ghost"
-              size="xs"
+              size="sm"
+              disabled={iconBusy}
               onClick={removeIcon}
               className="text-xs text-red-400 hover:underline"
             >
@@ -126,7 +157,7 @@ export function OverviewTab({ server }: { server: Server }) {
             </div>
             <Button
               type="button"
-              disabled={!name.trim() || name === server.name}
+              disabled={!name.trim() || name.trim() === server.name}
               loading={saving}
               onClick={saveName}
               className="w-full sm:w-auto"
@@ -137,30 +168,39 @@ export function OverviewTab({ server }: { server: Server }) {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">{t('overview.vanityUrl')}</label>
+      <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+        <label htmlFor="overview-vanity" className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+          {t('overview.vanityUrl')}
+        </label>
         <p className="text-xs text-gray-500">{t('overview.vanityDescription')}</p>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <div className="flex min-w-0 flex-1 items-center rounded-md border border-white/10 bg-surface-darkest text-sm">
-            <span className="min-w-0 truncate pl-3 text-gray-500">{window.location.origin}/invite/</span>
+          <div className="flex h-9 min-w-0 flex-1 items-center rounded-md bg-surface-darkest text-sm ring-1 ring-white/10 focus-within:ring-2 focus-within:ring-primary">
+            <span className="shrink-0 pl-3 text-gray-500">/invite/</span>
             <input
+              id="overview-vanity"
               value={vanityCode}
               onChange={(e) => setVanityCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
               maxLength={32}
               placeholder={t('overview.vanityPlaceholder')}
-              className="min-w-0 flex-1 bg-transparent px-1 py-2 text-white outline-none placeholder:text-gray-600"
+              className="h-9 min-w-0 flex-1 bg-transparent px-1 text-white outline-none placeholder:text-gray-600"
             />
           </div>
           <Button
             className="w-full sm:w-auto"
-            disabled={savingVanity || vanityCode === (server.vanityCode ?? '')}
+            disabled={
+              savingVanity ||
+              vanityCode === (server.vanityCode ?? '') ||
+              (vanityCode.length > 0 && (vanityCode.length < 3 || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(vanityCode)))
+            }
             loading={savingVanity}
             onClick={async () => {
               setSavingVanity(true)
               setVanityError(null)
+              setSaved(null)
               try {
                 await api.updateServer(server.id, { vanityCode: vanityCode || null })
                 updateServerInList(server.id, { vanityCode: vanityCode || null })
+                setSaved(t('lists.saved'))
               } catch (e) {
                 setVanityError(e instanceof Error ? e.message : t('overview.vanityUpdateFailed'))
               } finally {
@@ -171,7 +211,7 @@ export function OverviewTab({ server }: { server: Server }) {
             {savingVanity ? t('actions.saving') : t('actions.save')}
           </Button>
         </div>
-        {vanityError && <p className="text-xs text-red-400">{vanityError}</p>}
+        {vanityError && <InlineAlert variant="error">{vanityError}</InlineAlert>}
       </div>
     </div>
   )

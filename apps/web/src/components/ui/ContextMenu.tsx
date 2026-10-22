@@ -17,7 +17,7 @@ import { BottomSheet } from './BottomSheet'
 /** Actions are independent of their trigger and presentation. Submenus use the
  * same action model on desktop and touch, without requiring hover. */
 export type ContextMenuItem =
-  | { id: string; separator: true }
+  | { id: string; separator: true; label?: string }
   | {
       id: string
       label: string
@@ -340,9 +340,19 @@ function ActionMenu({
           {t('back')}
         </button>
       )}
-      {current.map((item) =>
+      {current.map((item, index) =>
         'separator' in item ? (
-          <div key={item.id} role="separator" className="my-1 border-t border-white/10" />
+          <div key={item.id} role="presentation">
+            {index > 0 && <div role="separator" className="my-1 border-t border-white/10" />}
+            {item.label && (
+              <div
+                role="presentation"
+                className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500"
+              >
+                {item.label}
+              </div>
+            )}
+          </div>
         ) : item.slider ? (
           <div key={item.id} role="none" className="px-3 py-2">
             <label className="flex flex-col gap-2 text-sm text-gray-200">

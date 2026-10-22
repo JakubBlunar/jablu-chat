@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ModalOverlay } from './ModalOverlay'
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
 
@@ -34,4 +36,42 @@ it('supports explicit names and descriptions for dialogs without headings', () =
     </ModalOverlay>
   )
   expect(screen.getByRole('dialog', { name: 'Delete message' })).toHaveAccessibleDescription('This cannot be undone.')
+})
+
+it('lets an owned popup receive focus and consume Escape before closing the dialog', async () => {
+  const close = jest.fn()
+  function Example() {
+    const [open, setOpen] = useState(false)
+    return (
+      <ModalOverlay onClose={close} aria-label="Members">
+        <button aria-expanded={open} aria-controls={open ? 'role-options' : undefined} onClick={() => setOpen(true)}>
+          Roles
+        </button>
+        {open &&
+          createPortal(
+            <div
+              id="role-options"
+              role="listbox"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setOpen(false)
+              }}
+            >
+              Reader
+            </div>,
+            document.body
+          )}
+      </ModalOverlay>
+    )
+  }
+  render(<Example />)
+  fireEvent.click(screen.getByRole('button', { name: 'Roles' }))
+  const popup = screen.getByRole('listbox')
+  popup.focus()
+  expect(popup).toHaveFocus()
+  fireEvent.keyDown(popup, { key: 'Escape' })
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  expect(close).not.toHaveBeenCalled()
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(close).toHaveBeenCalledTimes(1)
 })

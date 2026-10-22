@@ -869,11 +869,14 @@ export class ApiClient {
   getAuditLog(
     serverId: string,
     limit?: number,
-    cursor?: string
-  ): Promise<{ entries: AuditLogEntry[]; hasMore: boolean }> {
+    cursor?: string,
+    filters?: { search?: string; action?: string }
+  ): Promise<{ entries: AuditLogEntry[]; hasMore: boolean; nextCursor?: string | null }> {
     const params = new URLSearchParams()
     if (limit) params.set('limit', String(limit))
     if (cursor) params.set('cursor', cursor)
+    if (filters?.search) params.set('search', filters.search)
+    if (filters?.action) params.set('action', filters.action)
     const qs = params.toString()
     return this.get(`/api/servers/${serverId}/audit-log${qs ? `?${qs}` : ''}`)
   }

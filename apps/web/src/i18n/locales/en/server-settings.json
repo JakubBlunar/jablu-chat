@@ -139,7 +139,17 @@
     "untimeout": "Untimeout",
     "timeout": "Timeout",
     "kick": "Kick member",
-    "ban": "Ban member"
+    "ban": "Ban member",
+    "search": "Search members",
+    "roleFilter": "Filter by role",
+    "statusFilter": "Filter by status",
+    "allRoles": "All roles",
+    "allStatuses": "All statuses",
+    "online": "Online",
+    "offline": "Offline",
+    "manage": "Manage",
+    "loadFailed": "Failed to load members or roles.",
+    "saveRoles": "Save roles"
   },
   "bans": {
     "title": "Server Bans",
@@ -151,7 +161,8 @@
     "reason": "Reason: {{reason}}",
     "noReason": "No reason provided",
     "bannedBy": "Banned by {{name}}",
-    "unban": "Unban"
+    "unban": "Unban",
+    "search": "Search users, reasons or moderators"
   },
   "webhooks": {
     "createTitle": "Create Webhook",
@@ -203,7 +214,11 @@
     "save": "Save",
     "cancel": "Cancel",
     "rename": "Rename",
-    "delete": "Delete"
+    "delete": "Delete",
+    "search": "Search emojis",
+    "sort": "Sort emojis",
+    "sortName": "Name (A–Z)",
+    "sortUsage": "Most used"
   },
   "automod": {
     "description": "Configure automatic content filtering and spam prevention for this server.",
@@ -272,7 +287,11 @@
       "inviteDelete": "deleted an invite",
       "webhookCreate": "created a webhook",
       "webhookDelete": "deleted a webhook"
-    }
+    },
+    "search": "Search moderator, details or target ID",
+    "actionFilter": "Filter by action",
+    "allActions": "All actions",
+    "page": "Page {{page}}"
   },
   "insights": {
     "loadFailed": "Failed to load insights. You may not have permission.",
@@ -304,7 +323,8 @@
     "messageLength": "{{count}}/2000",
     "selectableRoles": "Selectable Roles",
     "emptyRoles": "No roles are marked as self-assignable. Go to the {{rolesTab}} tab and enable \"{{selfAssignable}}\" on the roles you want new members to choose from.",
-    "rolesDescription": "These roles are available for members to pick during onboarding and from their profile. Manage them in the Roles tab."
+    "rolesDescription": "These roles are available for members to pick during onboarding and from their profile. Manage them in the Roles tab.",
+    "searchRoles": "Search selectable roles"
   },
   "leveling": {
     "title": "Leveling & XP",
@@ -321,5 +341,17 @@
     "confirmLabel": "Type <strong>{{serverName}}</strong> to confirm",
     "delete": "Delete Server",
     "deleteFailed": "Failed to delete server"
+  },
+  "lists": {
+    "pagination": "List pagination",
+    "range": "{{start}}–{{end}} of {{total}}",
+    "pageSize": "Rows per page",
+    "perPage": "{{count}} / page",
+    "page": "{{page}} / {{pages}}",
+    "previous": "Previous page",
+    "next": "Next page",
+    "noResults": "No matching results. Try a different search or filter.",
+    "retry": "Retry",
+    "saved": "Changes saved."
   }
 }

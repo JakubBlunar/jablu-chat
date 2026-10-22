@@ -437,7 +437,7 @@ export function ChannelSidebar() {
                 const hasChannels =
                   group.textChannels.length > 0 || group.voiceChannels.length > 0 || group.forumChannels.length > 0
                 return (
-                  <div key={group.category.id} className="mt-1">
+                  <div key={group.category.id} className="mt-4 first:mt-1">
                     <div className="group/header flex items-center justify-between px-1 pt-1">
                       <CategoryContextMenu
                         category={group.category}
@@ -527,7 +527,7 @@ export function ChannelSidebar() {
               {uncategorizedVoice.length > 0 && (
                 <>
                   <ContextMenu label={t('sectionVoiceChannels')} items={serverMenuItems}>
-                    <button type="button" className="flex w-full px-2 pt-1 text-left">
+                    <button type="button" className="flex w-full px-2 pt-4 text-left">
                       <SectionHeading as="span">{t('sectionVoiceChannels').toUpperCase()}</SectionHeading>
                     </button>
                   </ContextMenu>
@@ -555,7 +555,7 @@ export function ChannelSidebar() {
               {uncategorizedForum.length > 0 && (
                 <>
                   <ContextMenu label={t('sectionForumChannels')} items={serverMenuItems}>
-                    <button type="button" className="flex w-full px-2 pt-1 text-left">
+                    <button type="button" className="flex w-full px-2 pt-4 text-left">
                       <SectionHeading as="span">{t('sectionForumChannels').toUpperCase()}</SectionHeading>
                     </button>
                   </ContextMenu>
@@ -580,7 +580,7 @@ export function ChannelSidebar() {
 
               {/* Archived channels */}
               {archivedChannels.length > 0 && (
-                <div className="mt-3">
+                <div className="mt-4">
                   <button
                     type="button"
                     onClick={() => setShowArchived((v) => !v)}

@@ -104,8 +104,9 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   return (
     <ModalOverlay
       onClose={onClose}
-      maxWidth="max-w-[720px]"
+      maxWidth="max-w-[960px]"
       noPadding
+      aria-label={tNav('serverSettings')}
       dialogBodyScroll={false}
       className="flex h-[80vh] min-h-0"
     >

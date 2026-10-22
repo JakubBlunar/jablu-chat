@@ -10,10 +10,7 @@ describe('AuditLogService', () => {
   beforeEach(async () => {
     prisma = createMockPrismaService()
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuditLogService,
-        { provide: PrismaService, useValue: prisma }
-      ]
+      providers: [AuditLogService, { provide: PrismaService, useValue: prisma }]
     }).compile()
     service = module.get(AuditLogService)
   })
@@ -66,7 +63,10 @@ describe('AuditLogService', () => {
     })
 
     it('returns hasMore=true when more entries exist', async () => {
-      const entries = Array.from({ length: 11 }, (_, i) => ({ id: `e${i}` }))
+      const entries = Array.from({ length: 11 }, (_, i) => ({
+        id: `e${i}`,
+        createdAt: new Date('2024-01-15T00:00:00Z')
+      }))
       prisma.auditLog.findMany.mockResolvedValue(entries)
 
       const result = await service.getLog('s1', 10)
@@ -101,7 +101,7 @@ describe('AuditLogService', () => {
       await service.getLog('s1', 50, '2024-01-15T00:00:00Z')
 
       const call = prisma.auditLog.findMany.mock.calls[0][0]
-      expect(call.where.createdAt).toEqual({ lt: new Date('2024-01-15T00:00:00Z') })
+      expect(call.where.AND).toContainEqual({ createdAt: { lt: new Date('2024-01-15T00:00:00Z') } })
     })
 
     it('does not apply cursor filter when not provided', async () => {
@@ -111,6 +111,35 @@ describe('AuditLogService', () => {
 
       const call = prisma.auditLog.findMany.mock.calls[0][0]
       expect(call.where.createdAt).toBeUndefined()
+    })
+
+    it('uses the ID to include remaining entries with the same timestamp', async () => {
+      prisma.auditLog.findMany.mockResolvedValue([])
+      const timestamp = '2024-01-15T00:00:00.000Z'
+      await service.getLog('s1', 10, `${timestamp}|e2`)
+      expect(prisma.auditLog.findMany.mock.calls[0][0].where.AND).toContainEqual({
+        OR: [{ createdAt: { lt: new Date(timestamp) } }, { createdAt: new Date(timestamp), id: { lt: 'e2' } }]
+      })
+    })
+
+    it('returns a stable next cursor for the last visible entry', async () => {
+      const createdAt = new Date('2024-01-15T00:00:00Z')
+      prisma.auditLog.findMany.mockResolvedValue([
+        { id: 'e2', createdAt },
+        { id: 'e1', createdAt }
+      ])
+      const result = await service.getLog('s1', 1)
+      expect(result.nextCursor).toBe('2024-01-15T00:00:00.000Z|e2')
+      expect(result.entries).toHaveLength(1)
+    })
+
+    it('searches across the full server history while preserving the action filter', async () => {
+      prisma.auditLog.findMany.mockResolvedValue([])
+      await service.getLog('s1', 25, undefined, { search: '  moderator  ', action: 'member.ban' })
+      const { where } = prisma.auditLog.findMany.mock.calls[0][0]
+      expect(where.serverId).toBe('s1')
+      expect(where.action).toBe('member.ban')
+      expect(where.AND[0].OR).toContainEqual({ actor: { username: { contains: 'moderator', mode: 'insensitive' } } })
     })
 
     it('includes actor in query', async () => {
@@ -128,7 +157,7 @@ describe('AuditLogService', () => {
       await service.getLog('s1')
 
       const call = prisma.auditLog.findMany.mock.calls[0][0]
-      expect(call.orderBy).toEqual({ createdAt: 'desc' })
+      expect(call.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
     })
   })
 })

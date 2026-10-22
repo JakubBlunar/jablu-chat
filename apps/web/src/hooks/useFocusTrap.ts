@@ -67,6 +67,13 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
     isolateBackground()
     const isTop = () => traps.at(-1) === container
     const focusables = () => focusableElements(container)
+    // Headless UI renders listboxes/menus in a portal. Treat an expanded popup
+    // owned by a control in this dialog as part of the dialog's focus boundary.
+    const ownedPopups = () =>
+      Array.from(container.querySelectorAll('[aria-expanded="true"][aria-controls]'))
+        .flatMap((trigger) => (trigger.getAttribute('aria-controls') ?? '').split(/\s+/))
+        .map((id) => document.getElementById(id))
+        .filter((popup): popup is HTMLElement => !!popup && !popup.hidden)
 
     const focusFirst = () => {
       if (!isTop()) return
@@ -79,6 +86,7 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isTop()) return
+      if (e.target instanceof Node && ownedPopups().some((popup) => popup.contains(e.target as Node))) return
       if (e.key === 'Escape' && escapeRef.current) {
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -116,7 +124,13 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
       }
     }
     const handleFocus = (event: FocusEvent) => {
-      if (isTop() && event.target instanceof Node && !container.contains(event.target)) focusFirst()
+      if (
+        isTop() &&
+        event.target instanceof Node &&
+        !container.contains(event.target) &&
+        !ownedPopups().some((popup) => popup.contains(event.target as Node))
+      )
+        focusFirst()
     }
 
     document.addEventListener('keydown', handleKeyDown, true)

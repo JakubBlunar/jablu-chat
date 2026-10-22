@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Query,
-  UseGuards
-} from '@nestjs/common'
+import { Controller, BadRequestException, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
@@ -25,10 +18,25 @@ export class AuditLogController {
     @Param('serverId', ParseUUIDPipe) serverId: string,
     @CurrentUser() user: { id: string },
     @Query('limit') limitStr?: string,
-    @Query('cursor') cursor?: string
+    @Query('cursor') cursor?: string,
+    @Query('search') search?: string,
+    @Query('action') action?: string
   ) {
     await this.roles.requirePermission(serverId, user.id, Permission.MANAGE_SERVER)
+    if (cursor) {
+      const [timestamp, id, extra] = cursor.split('|')
+      if (
+        !Number.isFinite(Date.parse(timestamp)) ||
+        extra !== undefined ||
+        (id !== undefined && !/^[0-9a-f-]{36}$/i.test(id))
+      ) {
+        throw new BadRequestException('Invalid audit log cursor')
+      }
+    }
     const limit = limitStr ? Math.min(parseInt(limitStr, 10) || 50, 100) : 50
-    return this.auditLog.getLog(serverId, limit, cursor)
+    return this.auditLog.getLog(serverId, limit, cursor, {
+      search: search?.slice(0, 200),
+      action: action?.slice(0, 100)
+    })
   }
 }

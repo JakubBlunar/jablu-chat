@@ -3,8 +3,8 @@ port: 7880
 enable_data_tracks: true
 rtc:
   tcp_port: 7881
-  port_range_start: 50000
-  port_range_end: 50100
+  # Single-port UDP mux avoids Windows/Hyper-V reserved ephemeral port ranges.
+  udp_port: 7882
   use_external_ip: false
   node_ip: 127.0.0.1
 logging:

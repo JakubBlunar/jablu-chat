@@ -139,7 +139,17 @@
     "untimeout": "Zrušit timeout",
     "timeout": "Timeout",
     "kick": "Vykopnout člena",
-    "ban": "Zakázat člena"
+    "ban": "Zakázat člena",
+    "search": "Hledat členy",
+    "roleFilter": "Filtrovat podle role",
+    "statusFilter": "Filtrovat podle stavu",
+    "allRoles": "Všechny role",
+    "allStatuses": "Všechny stavy",
+    "online": "Online",
+    "offline": "Offline",
+    "manage": "Spravovat",
+    "loadFailed": "Nepodařilo se načíst členy nebo role.",
+    "saveRoles": "Uložit role"
   },
   "bans": {
     "title": "Zákazy na serveru",
@@ -151,7 +161,8 @@
     "reason": "Důvod: {{reason}}",
     "noReason": "Důvod nebyl uveden",
     "bannedBy": "Zákaz udělil(a): {{name}}",
-    "unban": "Zrušit zákaz"
+    "unban": "Zrušit zákaz",
+    "search": "Hledat uživatele, důvody nebo moderátory"
   },
   "webhooks": {
     "createTitle": "Vytvořit webhook",
@@ -203,7 +214,11 @@
     "save": "Uložit",
     "cancel": "Zrušit",
     "rename": "Přejmenovat",
-    "delete": "Smazat"
+    "delete": "Smazat",
+    "search": "Hledat emoji",
+    "sort": "Řadit emoji",
+    "sortName": "Název (A–Z)",
+    "sortUsage": "Nejpoužívanější"
   },
   "automod": {
     "description": "Nastavte automatické filtrování obsahu a ochranu proti spamu na tomto serveru.",
@@ -272,7 +287,11 @@
       "inviteDelete": "smazal(a) pozvánku",
       "webhookCreate": "vytvořil(a) webhook",
       "webhookDelete": "smazal(a) webhook"
-    }
+    },
+    "search": "Hledat moderátora, podrobnosti nebo ID cíle",
+    "actionFilter": "Filtrovat podle akce",
+    "allActions": "Všechny akce",
+    "page": "Stránka {{page}}"
   },
   "insights": {
     "loadFailed": "Statistiky se nepodařilo načíst. Možná k nim nemáte oprávnění.",
@@ -304,7 +323,8 @@
     "messageLength": "{{count}}/2000",
     "selectableRoles": "Role k výběru",
     "emptyRoles": "Žádné role nejsou označené jako přiřaditelné členy. Přejděte na kartu {{rolesTab}} a u rolí, které si mají noví členové vybírat, zapněte možnost „{{selfAssignable}}“.",
-    "rolesDescription": "Tyto role si členové mohou vybrat při uvítání nebo ve svém profilu. Spravujte je na kartě Role."
+    "rolesDescription": "Tyto role si členové mohou vybrat při uvítání nebo ve svém profilu. Spravujte je na kartě Role.",
+    "searchRoles": "Hledat volitelné role"
   },
   "leveling": {
     "title": "Úrovně a XP",
@@ -321,5 +341,17 @@
     "confirmLabel": "Potvrďte zadáním názvu <strong>{{serverName}}</strong>",
     "delete": "Smazat server",
     "deleteFailed": "Server se nepodařilo smazat"
+  },
+  "lists": {
+    "pagination": "Stránkování seznamu",
+    "range": "{{start}}–{{end}} z {{total}}",
+    "pageSize": "Řádků na stránku",
+    "perPage": "{{count}} / stránka",
+    "page": "{{page}} / {{pages}}",
+    "previous": "Předchozí stránka",
+    "next": "Další stránka",
+    "noResults": "Žádné výsledky. Zkuste jiné hledání nebo filtr.",
+    "retry": "Zkusit znovu",
+    "saved": "Změny uloženy."
   }
 }
