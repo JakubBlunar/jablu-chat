@@ -88,6 +88,7 @@
     "empty": "No self-assignable roles are available on this server."
   },
   "notifications": {
+    "channelLoadFailed": "Could not load channel overrides. You can still change the server default.",
     "title": "Notification Settings",
     "serverDefault": "Server Default",
     "allMessages": "All Messages",

@@ -60,6 +60,7 @@ export type SettingsSlice = {
   collapsedCategoryIds: string[]
   audioInputDeviceId: string
   audioOutputDeviceId: string
+  voiceOutputVolume: number
   cameraDeviceId: string
   cameraQuality: CameraQuality
   backgroundBlurEnabled: boolean
@@ -94,6 +95,7 @@ type SettingsActions = {
   isCategoryCollapsed: (categoryId: string) => boolean
   setAudioInputDeviceId: (id: string) => void
   setAudioOutputDeviceId: (id: string) => void
+  setVoiceOutputVolume: (value: number) => void
   setCameraDeviceId: (id: string) => void
   setCameraQuality: (q: CameraQuality) => void
   setBackgroundBlurEnabled: (v: boolean) => void
@@ -129,6 +131,7 @@ const defaults: SettingsSlice = {
   collapsedCategoryIds: [],
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
+  voiceOutputVolume: 100,
   cameraDeviceId: '',
   cameraQuality: '720p',
   backgroundBlurEnabled: false,
@@ -177,6 +180,8 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
     out.collapsedCategoryIds = o.collapsedCategoryIds
   if (typeof o.audioInputDeviceId === 'string') out.audioInputDeviceId = o.audioInputDeviceId
   if (typeof o.audioOutputDeviceId === 'string') out.audioOutputDeviceId = o.audioOutputDeviceId
+  if (typeof o.voiceOutputVolume === 'number' && Number.isFinite(o.voiceOutputVolume))
+    out.voiceOutputVolume = Math.max(0, Math.min(200, o.voiceOutputVolume))
   if (typeof o.cameraDeviceId === 'string') out.cameraDeviceId = o.cameraDeviceId
   if (typeof o.cameraQuality === 'string' && VALID_QUALITIES.includes(o.cameraQuality as CameraQuality))
     out.cameraQuality = o.cameraQuality as CameraQuality
@@ -255,6 +260,9 @@ export const useSettingsStore = create<SettingsState>()(
 
       setAudioInputDeviceId: (id) => set({ audioInputDeviceId: id }),
       setAudioOutputDeviceId: (id) => set({ audioOutputDeviceId: id }),
+      setVoiceOutputVolume: (value) => {
+        if (Number.isFinite(value)) set({ voiceOutputVolume: Math.max(0, Math.min(200, value)) })
+      },
       setCameraDeviceId: (id) => set({ cameraDeviceId: id }),
       setCameraQuality: (q) => set({ cameraQuality: VALID_QUALITIES.includes(q) ? q : defaults.cameraQuality }),
       setBackgroundBlurEnabled: (v) => set({ backgroundBlurEnabled: v }),
@@ -310,6 +318,7 @@ export const useSettingsStore = create<SettingsState>()(
         collapsedCategoryIds: s.collapsedCategoryIds,
         audioInputDeviceId: s.audioInputDeviceId,
         audioOutputDeviceId: s.audioOutputDeviceId,
+        voiceOutputVolume: s.voiceOutputVolume,
         cameraDeviceId: s.cameraDeviceId,
         cameraQuality: s.cameraQuality,
         backgroundBlurEnabled: s.backgroundBlurEnabled,

@@ -90,6 +90,48 @@ describe('ChatGateway', () => {
     gateway = module.get(ChatGateway)
   })
 
+  describe('rich activity privacy', () => {
+    const report = { kind: 'game' as const, name: 'Skyrim', appId: '489830', executable: 'skyrimse.exe', sequence: 1 }
+    let client: any
+    let emit: jest.Mock
+    beforeEach(() => {
+      client = { id: 'desktop', connected: true, data: { user: { id: 'player' }, serverIds: [] } }
+      emit = jest.fn()
+      gateway.server = { to: jest.fn(() => ({ emit })) } as any
+      prisma.user.findUnique.mockResolvedValue({ activityShareEnabled: true, activityShareGames: true, activityShareMusic: true, activityDefaultSharing: 'friends_only' })
+      prisma.serverMember.findMany.mockResolvedValue([])
+      prisma.registeredGame.findMany.mockResolvedValue([])
+      prisma.friendship.findMany.mockResolvedValue([{ requesterId: 'player', addresseeId: 'friend' }])
+    })
+
+    it('enforces a hidden Steam identity and invisible presence on the gateway', async () => {
+      prisma.registeredGame.findMany.mockResolvedValue([{ name: 'Renamed Skyrim', steamAppId: '489830', executable: null }])
+      await gateway.onActivityUpdate(client, report)
+      expect(emit).not.toHaveBeenCalled()
+      prisma.registeredGame.findMany.mockResolvedValue([])
+      gateway.manualPresence.set('player', { status: 'offline', expiresAt: null })
+      await gateway.onActivityUpdate(client, { ...report, sequence: 2 })
+      expect(emit).not.toHaveBeenCalled()
+    })
+
+    it('revokes an active report after privacy changes on another device', async () => {
+      await gateway.onActivityUpdate(client, report)
+      expect(gateway['richActivity'].snapshot('friend').activities.player.name).toBe('Skyrim')
+      prisma.user.findUnique.mockResolvedValue({ activityShareEnabled: false })
+      await gateway.refreshActivity('player')
+      expect(gateway['richActivity'].snapshot('friend').activities).toEqual({})
+      expect(emit).toHaveBeenCalledWith('user:activity', expect.objectContaining({ userId: 'player', activity: null }))
+    })
+
+    it('cleans up an owner with no server memberships while web remains online', async () => {
+      await gateway.onActivityUpdate(client, report)
+      gateway['onlineUsers'].set('player', 2)
+      await gateway.handleDisconnect(client)
+      expect(gateway['richActivity'].snapshot('friend').activities).toEqual({})
+      expect(gateway['onlineUsers'].get('player')).toBe(1)
+    })
+  })
+
   it('acknowledges a duplicate DM without notifying recipients or running commands again', async () => {
     deps.dm.createMessage = jest.fn().mockResolvedValue({ id: 'message-id', content: '/test', replayed: true })
     const client = { data: { user: { id: 'user-id' } } }

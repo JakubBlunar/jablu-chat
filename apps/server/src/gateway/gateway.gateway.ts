@@ -10,7 +10,6 @@ import {
   WebSocketServer
 } from '@nestjs/websockets'
 import { Permission, hasPermission } from '@chat/shared'
-import type { UserActivity } from '@chat/shared'
 import { Server, Socket } from 'socket.io'
 import { AutoModService } from '../automod/automod.service'
 import { DmService } from '../dm/dm.service'
@@ -43,10 +42,12 @@ import {
   WsPresenceStateDto,
   WsReactionToggleDto,
   WsActivityUpdateDto,
+  WsActivityClearDto,
   WsSendMessageDto,
   WsVoiceStateDto
 } from './gateway.dto'
 import { PresenceRegistry } from './presence-registry'
+import { RichActivityTracker, type ActivityPolicy } from './rich-activity'
 import { NotificationsService } from '../notifications/notifications.service'
 import {
   describePushPreview as describePushPreviewText,
@@ -85,16 +86,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   /** userId -> last activity timestamp (ms) from any of their sockets */
   private readonly userLastActivity = new Map<string, number>()
 
-  /** userId -> current shared rich activity (game / music). Desktop-reported. */
-  private readonly userActivities = new Map<string, UserActivity>()
-
-  /**
-   * userId -> socket id that last reported a rich activity. Lets us clear the
-   * activity the moment the reporting desktop disconnects, even when the user
-   * stays "online" through another session (web/phone), so a stale game can't
-   * outlive the app that reported it.
-   */
-  private readonly activityOwnerSocket = new Map<string, string>()
+  private readonly richActivity = new RichActivityTracker(
+    (userId) => this.getActivityPolicy(userId),
+    (recipientId, payload) => this.server.to(`user:${recipientId}`).emit('user:activity', payload)
+  )
+  private activityExpiryInterval: ReturnType<typeof setInterval> | null = null
 
   /** channelId -> Set of participants in voice channel */
   private readonly voiceParticipants = new Map<string, Map<string, { userId: string; username: string }>>()
@@ -149,6 +145,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   onModuleDestroy() {
+    if (this.activityExpiryInterval) clearInterval(this.activityExpiryInterval)
     this.events.off(IN_APP_NOTIFICATION_USERS_EVENT, this.onInAppNotificationUsers)
     this.events.off(NOTIFICATION_CLEAR_EVENT, this.onNotificationClear)
     for (const { timer } of this.disconnectGrace.values()) {
@@ -287,6 +284,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     this.events.on(NOTIFICATION_CLEAR_EVENT, this.onNotificationClear)
     this.afkInterval = setInterval(() => void this.checkAfkParticipants(), 30_000)
     this.idleCheckInterval = setInterval(() => void this.runIdleAndManualExpiryChecks(), 60_000)
+    this.activityExpiryInterval = setInterval(() => {
+      void this.richActivity.expire().catch((err) => this.logger.warn('Activity expiry failed', err?.message))
+    }, 15_000)
   }
 
   private async runIdleAndManualExpiryChecks() {
@@ -311,6 +311,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   private async clearTimedManualPresenceForOnlineUser(userId: string) {
     this.manualPresence.delete(userId)
+    void this.refreshActivity(userId)
+    this.server.to(`user:${userId}`).emit('activity:preferences-changed')
 
     const lastActivity = this.userLastActivity.get(userId) ?? Date.now()
     const next: 'online' | 'idle' = Date.now() - lastActivity > ChatGateway.IDLE_THRESHOLD_MS ? 'idle' : 'online'
@@ -631,24 +633,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
     client.emit('friends:presence', { onlineFriendIds, friendStatuses })
 
-    // Snapshot of rich activities, scoped to each sharer's sharing rules so a
-    // hidden server never leaks activity on (re)connect. Include a user's
-    // activity only if this client would receive their live broadcast: they
-    // share an eligible (non-hidden) server we're both in, or we're a friend.
-    if (this.userActivities.size > 0) {
-      const myServerIds = new Set(serverIds)
-      const activities: Record<string, UserActivity> = {}
-      for (const [uid, act] of this.userActivities) {
-        const scope = await this.getActivityScope(uid)
-        if (!scope.shareEnabled) continue
-        const sharesServer = scope.serverIds.some((sid) => myServerIds.has(sid))
-        const isFriend = scope.friendIds.includes(user.id)
-        if (sharesServer || isFriend) activities[uid] = act
-      }
-      if (Object.keys(activities).length > 0) {
-        client.emit('activity:init', { activities })
-      }
-    }
+    // Complete, synchronous snapshot: empty state also repairs missed clears.
+    client.emit('activity:init', this.richActivity.snapshot(user.id))
 
     const dmConversations = await this.prisma.directConversationMember.findMany({
       where: { userId: user.id },
@@ -674,31 +660,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   async handleDisconnect(client: Socket) {
+    client.data.activityDisconnected = true
     const data = client.data as { user?: WsUser; serverIds?: string[] }
     const user = data.user
     const serverIds = data.serverIds
 
     this.presence.remove(client.id)
     this.removeVoiceParticipant(client.id, serverIds)
+    await this.richActivity.disconnect(client.id).catch((err) => this.logger.warn('Activity disconnect cleanup failed', err?.message))
 
-    if (!user || !serverIds?.length) {
+    if (!user) {
       return
-    }
-
-    // If the desktop that reported this user's activity is the one leaving,
-    // clear it immediately so a stale game can't linger while other sessions
-    // (web/phone) keep the user online.
-    if (this.activityOwnerSocket.get(user.id) === client.id) {
-      this.activityOwnerSocket.delete(user.id)
-      if (this.userActivities.delete(user.id)) {
-        await this.broadcastActivity(user.id, null).catch(() => {})
-      }
     }
 
     const isLastConnection = this.removeOnlineUser(user.id)
 
     if (isLastConnection) {
-      const capturedServerIds = [...serverIds]
+      const capturedServerIds = [...(serverIds ?? [])]
       const userId = user.id
 
       const markOffline = async () => {
@@ -707,10 +685,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         this.userLastActivity.delete(userId)
         this.manualPresence.delete(userId)
         this.lastBroadcastedStatus.delete(userId)
-        this.activityOwnerSocket.delete(userId)
-        if (this.userActivities.delete(userId)) {
-          await this.broadcastActivity(userId, null).catch(() => {})
-        }
         await this.prisma.user.update({
           where: { id: userId },
           data: { status: 'offline', lastSeenAt: new Date() }
@@ -1274,9 +1248,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     serverIds: string[]
     /** All servers the user is a member of, regardless of sharing scope. */
     memberServerIds: string[]
+    hiddenGames: ActivityPolicy['hiddenGames']
     friendIds: string[]
   }> {
-    const [user, memberships, friendIds] = await Promise.all([
+    const [user, memberships, friendIds, hiddenGames] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -1294,7 +1269,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
           server: { select: { _count: { select: { members: true } } } }
         }
       }),
-      this.getFriendUserIds(userId)
+      this.prisma.friendship.findMany({
+        where: { status: 'accepted', OR: [{ requesterId: userId }, { addresseeId: userId }] },
+        select: { requesterId: true, addresseeId: true }
+      }).then((rows) => rows.map((r) => r.requesterId === userId ? r.addresseeId : r.requesterId)),
+      this.prisma.registeredGame.findMany({ where: { userId, hidden: true }, select: { name: true, steamAppId: true, executable: true } })
     ])
 
     const def = user?.activityDefaultSharing ?? 'friends_all'
@@ -1310,82 +1289,53 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     }
 
     return {
-      shareEnabled: user?.activityShareEnabled ?? false,
+      shareEnabled: (user?.activityShareEnabled ?? false) && !this.isInvisible(userId),
       shareGames: user?.activityShareGames ?? true,
       shareMusic: user?.activityShareMusic ?? true,
       serverIds,
       memberServerIds: memberships.map((m) => m.serverId),
-      friendIds
+      friendIds,
+      hiddenGames
     }
   }
 
-  /**
-   * Re-emit a user's current activity to a single server room after their
-   * per-server sharing preference changed. Hiding emits `null` (clears the
-   * activity for that server's members); un-hiding re-emits the current one.
-   */
-  async refreshActivityForServer(userId: string, serverId: string) {
+  private async getActivityPolicy(userId: string): Promise<ActivityPolicy> {
     const scope = await this.getActivityScope(userId)
-    // Not a member -> nothing to emit. Uses the membership set getActivityScope
-    // already loaded, so no extra query. (serverIds alone only lists *shared*
-    // servers, which can't distinguish a hidden member-server from a non-member.)
-    if (!scope.memberServerIds.includes(serverId)) return
-
-    const included = scope.shareEnabled && scope.serverIds.includes(serverId)
-    const activity = included ? (this.userActivities.get(userId) ?? null) : null
-    this.server.to(`server:${serverId}`).emit('user:activity', { userId, activity })
+    const members = scope.serverIds.length ? await this.prisma.serverMember.findMany({
+      where: { serverId: { in: scope.serverIds } }, select: { userId: true }
+    }) : []
+    return { ...scope, recipientIds: new Set([userId, ...scope.friendIds, ...members.map((m) => m.userId)]) }
   }
 
-  /** Fan out a user's activity (or null to clear) to friends + eligible servers. */
-  private async broadcastActivity(userId: string, activity: UserActivity | null) {
-    const scope = await this.getActivityScope(userId)
-    const payload = { userId, activity }
-    for (const sid of scope.serverIds) {
-      this.server.to(`server:${sid}`).emit('user:activity', payload)
-    }
-    this.emitToFriends(scope.friendIds, 'user:activity', payload)
+  async refreshActivity(userId: string) {
+    await this.richActivity.refresh(userId).catch((err) => this.logger.warn('Activity privacy refresh failed', err?.message))
   }
 
-  @WsThrottle(4, 10)
+  async refreshActivityForServer(userId: string, _serverId: string) {
+    await this.refreshActivity(userId)
+  }
+
+  async refreshAllActivities() {
+    await Promise.all(this.richActivity.activeUserIds().map((uid) => this.refreshActivity(uid)))
+  }
+
+  @WsThrottle(12, 10)
   @SubscribeMessage('activity:update')
   async onActivityUpdate(@ConnectedSocket() client: Socket, @MessageBody() body: WsActivityUpdateDto) {
     const user = (client.data as { user: WsUser }).user
     if (user.isBot) return { ok: false }
-
-    const scope = await this.getActivityScope(user.id)
-    const allowed = scope.shareEnabled && (body.kind === 'game' ? scope.shareGames : scope.shareMusic)
-    if (!allowed) {
-      // Sharing disabled for this category; ensure any prior activity is cleared.
-      this.activityOwnerSocket.delete(user.id)
-      if (this.userActivities.delete(user.id)) {
-        await this.broadcastActivity(user.id, null)
-      }
-      return { ok: true }
-    }
-
-    const activity: UserActivity = {
-      kind: body.kind,
-      name: body.name,
-      details: body.details ?? null,
-      state: body.state ?? null,
-      iconUrl: body.iconUrl ?? null,
-      startedAt: body.startedAt ?? new Date().toISOString()
-    }
-    this.userActivities.set(user.id, activity)
-    this.activityOwnerSocket.set(user.id, client.id)
-    await this.broadcastActivity(user.id, activity)
+    await this.richActivity.update(user.id, client.id, {
+      ...body, startedAt: body.startedAt ?? new Date().toISOString()
+    }, () => client.connected && !client.data.activityDisconnected)
     return { ok: true }
   }
 
-  @WsThrottle(4, 10)
+  @WsThrottle(12, 10)
   @SubscribeMessage('activity:clear')
-  async onActivityClear(@ConnectedSocket() client: Socket) {
+  async onActivityClear(@ConnectedSocket() client: Socket, @MessageBody() body?: WsActivityClearDto) {
     const user = (client.data as { user: WsUser }).user
     if (user.isBot) return { ok: false }
-    this.activityOwnerSocket.delete(user.id)
-    if (this.userActivities.delete(user.id)) {
-      await this.broadcastActivity(user.id, null)
-    }
+    await this.richActivity.clear(user.id, client.id, body?.sequence)
     return { ok: true }
   }
 

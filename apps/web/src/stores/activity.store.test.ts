@@ -40,7 +40,7 @@ const activity = (over: Partial<UserActivity> = {}): UserActivity => ({
 })
 
 function reset() {
-  useActivityStore.setState({ activities: new Map(), settings: null, games: [] })
+  useActivityStore.getState().reset()
 }
 
 describe('activity.store', () => {
@@ -59,12 +59,35 @@ describe('activity.store', () => {
       expect(useActivityStore.getState().getActivity('u1')).toBeUndefined()
     })
 
-    it('merges an init snapshot', () => {
+    it('replaces an init snapshot to remove missed clears', () => {
       useActivityStore.getState().setUserActivity('u1', activity())
       useActivityStore.getState().initActivities({ u2: activity({ name: 'Doom' }) })
       const state = useActivityStore.getState()
-      expect(state.getActivity('u1')?.name).toBe('Halo')
+      expect(state.getActivity('u1')).toBeUndefined()
       expect(state.getActivity('u2')?.name).toBe('Doom')
+    })
+
+    it('preserves newer live transitions across an older snapshot', () => {
+      const store = useActivityStore.getState()
+      store.setUserActivity('u1', null, 12)
+      store.setUserActivity('u2', activity(), 13)
+      store.initActivities({ u1: activity() }, 10)
+      expect(store.getActivity('u1')).toBeUndefined()
+      expect(store.getActivity('u2')?.name).toBe('Halo')
+      store.setUserActivity('u1', activity(), 11)
+      expect(store.getActivity('u1')).toBeUndefined()
+      store.initActivities({}, 14)
+      expect(store.getActivity('u2')).toBeUndefined()
+    })
+
+    it('discards account-specific fetch completions after reset', async () => {
+      let finish!: (games: RegisteredGame[]) => void
+      mockApi.getRegisteredGames.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+      const pending = useActivityStore.getState().fetchGames()
+      useActivityStore.getState().reset()
+      finish([game()])
+      await pending
+      expect(useActivityStore.getState().games).toEqual([])
     })
   })
 

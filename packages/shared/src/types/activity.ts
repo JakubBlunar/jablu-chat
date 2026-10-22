@@ -31,12 +31,20 @@ export interface DetectedActivity {
   iconUrl?: string | null
   /** Epoch ms when the activity was first detected. */
   startedAt: number
+  sessionId?: string | null
 }
 
 /**
  * A user's shareable activity as broadcast to friends/servers and stored in
  * memory on the gateway. Icons are always URLs here (never inline bytes).
  */
+export interface ActivitySnapshot {
+  activities: DetectedActivity[]
+  /** Time of the successful process scan, never the time a cached value was read. */
+  observedAt: number
+  generation: number
+}
+
 export interface UserActivity {
   kind: ActivityKind
   name: string

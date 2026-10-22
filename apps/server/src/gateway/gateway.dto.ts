@@ -3,6 +3,10 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsInt,
+  IsISO8601,
+  Min,
+  Max,
   IsEnum,
   IsOptional,
   IsString,
@@ -155,7 +159,24 @@ export class WsConversationIdDto {
   conversationId!: string
 }
 
-export class WsActivityUpdateDto {
+export class WsActivityClearDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  sequence?: number
+}
+
+export class WsActivityUpdateDto extends WsActivityClearDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  appId?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  executable?: string | null
   @IsEnum(['game', 'music'])
   kind!: 'game' | 'music'
 
@@ -182,6 +203,7 @@ export class WsActivityUpdateDto {
   @IsOptional()
   @IsString()
   @MaxLength(40)
+  @IsISO8601()
   startedAt?: string
 }
 

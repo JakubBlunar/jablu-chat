@@ -201,6 +201,8 @@ export function registerEventListeners(gw: ChatGateway) {
         expiresAt: payload.manualUntil === null ? null : new Date(payload.manualUntil)
       })
     }
+    void gw.refreshActivity(payload.userId)
+    gw.server.to(`user:${payload.userId}`).emit('activity:preferences-changed')
 
     const [memberships, friendIds] = await Promise.all([
       gw.prisma.serverMember.findMany({
@@ -246,8 +248,18 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on('activity:server-scope-changed', (payload: { userId: string; serverId: string }) =>
-    gw.refreshActivityForServer(payload.userId, payload.serverId)
+    {
+      gw.server.to(`user:${payload.userId}`).emit('activity:preferences-changed')
+      return gw.refreshActivityForServer(payload.userId, payload.serverId)
+    }
   )
+
+  gw.events.on('activity:preferences-changed', ({ userId }: { userId: string }) => {
+    gw.server.to(`user:${userId}`).emit('activity:preferences-changed')
+    return gw.refreshActivity(userId)
+  })
+
+  gw.events.on('activity:membership-changed', () => gw.refreshAllActivities())
 
   gw.events.on(
     'webhook:message',
@@ -356,6 +368,7 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on('member:joined', async (payload: { serverId: string; member: unknown }) => {
+    await gw.refreshAllActivities()
     const { serverId, member } = payload as {
       serverId: string
       member: { userId: string; user?: { username?: string; displayName?: string } }
@@ -523,6 +536,7 @@ export function registerEventListeners(gw: ChatGateway) {
   gw.events.on(
     'member:removed',
     async (payload: { serverId: string; userId: string; moderation?: 'kick' | 'ban'; reason?: string }) => {
+      await gw.refreshAllActivities()
       gw.server.to(`server:${payload.serverId}`).emit('member:left', {
         serverId: payload.serverId,
         userId: payload.userId
@@ -614,6 +628,8 @@ export function registerEventListeners(gw: ChatGateway) {
       const requesterId = (requester as { id: string }).id
       const addresseeId = (addressee as { id: string }).id
       gw.invalidateFriendCache(requesterId, addresseeId)
+      void gw.refreshActivity(requesterId)
+      void gw.refreshActivity(addresseeId)
       gw.server.to(`user:${requesterId}`).emit('friend:accepted', {
         friendshipId,
         user: addressee
@@ -683,6 +699,8 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on('friend:removed', (payload: { friendshipId: string; userId: string; otherUserId: string }) => {
     gw.invalidateFriendCache(payload.userId, payload.otherUserId)
+    void gw.refreshActivity(payload.userId)
+    void gw.refreshActivity(payload.otherUserId)
     gw.server.to(`user:${payload.otherUserId}`).emit('friend:removed', {
       friendshipId: payload.friendshipId,
       userId: payload.userId

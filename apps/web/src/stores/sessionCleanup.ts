@@ -37,6 +37,11 @@ const sessionCleanupSteps: SessionCleanupStep[] = [
     ({ stopCachePersistence }) => stopCachePersistence()
   ),
   step(
+    'activity',
+    () => import('./activity.store'),
+    ({ useActivityStore }) => useActivityStore.getState().reset()
+  ),
+  step(
     'server organization',
     () => import('./serverLayout.store'),
     ({ useServerLayoutStore }) => useServerLayoutStore.getState().reset()

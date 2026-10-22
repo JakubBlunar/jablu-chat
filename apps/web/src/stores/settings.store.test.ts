@@ -10,6 +10,19 @@ it('keeps full previews as the default', () => {
   expect(useSettingsStore.getState().compactPreviews).toBe(false)
 })
 
+it('persists voice output volume and validates saved and live values', async () => {
+  useSettingsStore.getState().setVoiceOutputVolume(75)
+  expect(JSON.parse(localStorage.getItem('jablu-settings')!).state.voiceOutputVolume).toBe(75)
+  useSettingsStore.getState().setVoiceOutputVolume(NaN)
+  expect(useSettingsStore.getState().voiceOutputVolume).toBe(75)
+  useSettingsStore.getState().setVoiceOutputVolume(-1)
+  expect(useSettingsStore.getState().voiceOutputVolume).toBe(0)
+  localStorage.setItem('jablu-settings', JSON.stringify({ state: { voiceOutputVolume: 500 }, version: 1 }))
+  await useSettingsStore.persist.rehydrate()
+  expect(useSettingsStore.getState().voiceOutputVolume).toBe(200)
+  useSettingsStore.getState().setVoiceOutputVolume(100)
+})
+
 it('applies text scaling immediately and restores it from storage', async () => {
   useSettingsStore.getState().setFontScale(125)
   expect(document.documentElement.style.getPropertyValue('--app-text-scale')).toBe('1.25')

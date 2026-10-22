@@ -1,5 +1,6 @@
 import { RoomEvent, Track, type RemoteTrack } from 'livekit-client'
 import { useEffect, useRef, useCallback } from 'react'
+import { useSettingsStore } from '@/stores/settings.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { getSavedCameraQuality } from '@/lib/deviceSettings'
 
@@ -61,6 +62,7 @@ async function routeOutput(ctx: AudioContext, deviceId: string) {
  */
 export function VoiceAudioManager() {
   const room = useVoiceConnectionStore((s) => s.room)
+  const outputVolume = useSettingsStore((s) => s.voiceOutputVolume)
   const isDeafened = useVoiceConnectionStore((s) => s.isDeafened)
   const volumeOverrides = useVoiceConnectionStore((s) => s.volumeOverrides)
   const audioOutputDeviceId = useVoiceConnectionStore((s) => s.audioOutputDeviceId)
@@ -99,7 +101,9 @@ export function VoiceAudioManager() {
       source.connect(gain)
 
       const state = useVoiceConnectionStore.getState()
-      gain.gain.value = state.isDeafened ? 0 : (state.volumeOverrides[key] ?? 100) / 100
+      gain.gain.value = state.isDeafened
+        ? 0
+        : (((state.volumeOverrides[key] ?? 100) / 100) * useSettingsStore.getState().voiceOutputVolume) / 100
 
       const outputId = state.audioOutputDeviceId
       const media = audio as HTMLMediaElementWithSinkId
@@ -264,10 +268,10 @@ export function VoiceAudioManager() {
         entry.gain.gain.value = 0
       } else {
         const vol = volumeOverrides[key] ?? 100
-        entry.gain.gain.value = vol / 100
+        entry.gain.gain.value = ((vol / 100) * outputVolume) / 100
       }
     }
-  }, [isDeafened, volumeOverrides])
+  }, [isDeafened, volumeOverrides, outputVolume])
 
   useEffect(() => {
     if (!room) return

@@ -8,6 +8,7 @@ import { useActivityStore } from '@/stores/activity.store'
 import { type VoiceParticipant } from '@/stores/voice.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useMemberStore, type Member } from '@/stores/member.store'
+import { VoiceParticipantContextMenu } from '@/components/voice/VoiceParticipantContextMenu'
 import { memberDisplayName } from '@/lib/serverProfile'
 
 export function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
@@ -100,52 +101,60 @@ export function VoiceParticipantRow({
   participant,
   member,
   isSpeaking,
+  channelId,
   onClick
 }: {
   participant: VoiceParticipant
   member?: Member
   isSpeaking: boolean
-  onClick: (e: React.MouseEvent) => void
+  channelId: string
+  onClick?: (e: React.MouseEvent) => void
 }) {
   const activity = useActivityStore((s) => s.activities.get(participant.userId))
   const status = useMemberStore((s) => s.resolveStatus(participant.userId)) as UserStatus
 
   return (
-    <li
-      role="button"
-      tabIndex={0}
-      className="group/vp flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition hover:bg-white/[.07]"
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick(e as unknown as React.MouseEvent)
-        }
-      }}
+    <VoiceParticipantContextMenu
+      userId={participant.userId}
+      channelId={channelId}
+      name={member ? memberDisplayName(member) : participant.username}
+      openOnClick={!onClick}
     >
-      <div className="relative shrink-0">
-        <UserAvatar
-          username={participant.username}
-          avatarUrl={member?.user.avatarUrl}
-          size="sm"
-          showStatus
-          status={status}
-        />
-        {isSpeaking && (
-          <div className="absolute -inset-[3px] rounded-full ring-2 ring-emerald-500/80" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <span
-          className={`block truncate text-[13px] font-medium transition-colors ${
-            isSpeaking ? 'text-emerald-400' : 'text-gray-300 group-hover/vp:text-gray-100'
-          }`}
-        >
-          {member ? memberDisplayName(member) : participant.username}
-        </span>
-        {activity ? <ActivityLine activity={activity} /> : null}
-      </div>
-      <VoiceStatusIcons participant={participant} />
-    </li>
+      <li
+        role="button"
+        tabIndex={0}
+        className="group/vp flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition hover:bg-white/[.07]"
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            if (onClick) onClick(e as unknown as React.MouseEvent)
+            else e.currentTarget.click()
+          }
+        }}
+      >
+        <div className="relative shrink-0">
+          <UserAvatar
+            username={participant.username}
+            avatarUrl={member?.user.avatarUrl}
+            size="sm"
+            showStatus
+            status={status}
+          />
+          {isSpeaking && <div className="absolute -inset-[3px] rounded-full ring-2 ring-emerald-500/80" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span
+            className={`block truncate text-[13px] font-medium transition-colors ${
+              isSpeaking ? 'text-emerald-400' : 'text-gray-300 group-hover/vp:text-gray-100'
+            }`}
+          >
+            {member ? memberDisplayName(member) : participant.username}
+          </span>
+          {activity ? <ActivityLine activity={activity} /> : null}
+        </div>
+        <VoiceStatusIcons participant={participant} />
+      </li>
+    </VoiceParticipantContextMenu>
   )
 }

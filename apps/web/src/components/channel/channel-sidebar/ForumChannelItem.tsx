@@ -1,5 +1,6 @@
+import { ChannelContextMenu } from '../ChannelContextMenu'
 import type { Channel } from '@chat/shared'
-import React, { memo } from 'react'
+import { memo } from 'react'
 import { CountBadge } from '@/components/ui'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
@@ -12,13 +13,11 @@ export const ForumChannelItem = memo(function ForumChannelItem({
   active,
   readState,
   notifLevel,
-  longPressFired,
+  canManage = false,
+  onEditChannel,
+  onOpenPinned,
   currentServer,
   orchestratedGoToChannel,
-  handleChannelTouchStart,
-  handleChannelTouchEnd,
-  handleChannelTouchMove,
-  handleChannelContextMenu,
   compact = false,
   onSelect
 }: {
@@ -26,13 +25,11 @@ export const ForumChannelItem = memo(function ForumChannelItem({
   active: boolean
   readState: ChannelItemReadState | undefined
   notifLevel: NotifLevel
-  longPressFired: React.MutableRefObject<boolean>
+  canManage?: boolean
+  onEditChannel?: (ch: Channel) => void
+  onOpenPinned?: (ch: Channel) => void
   currentServer: { id: string } | null
   orchestratedGoToChannel: (serverId: string, channelId: string) => Promise<unknown>
-  handleChannelTouchStart: (ch: Channel) => void
-  handleChannelTouchEnd: () => void
-  handleChannelTouchMove: () => void
-  handleChannelContextMenu: (e: React.MouseEvent) => void
   compact?: boolean
   onSelect?: () => void
 }) {
@@ -41,41 +38,38 @@ export const ForumChannelItem = memo(function ForumChannelItem({
   const isArchived = !!ch.isArchived
   return (
     <li>
-      <button
-        type="button"
-        onClick={(e) => {
-          if (longPressFired.current) {
-            e.preventDefault()
-            e.stopPropagation()
-            longPressFired.current = false
-            return
-          }
-          if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
-          useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
-          onSelect?.()
-        }}
-        onTouchStart={() => handleChannelTouchStart(ch)}
-        onTouchEnd={handleChannelTouchEnd}
-        onTouchMove={handleChannelTouchMove}
-        onContextMenu={handleChannelContextMenu}
-        className={`flex w-full items-center gap-2 rounded-md px-2 ${compact ? 'py-2 text-sm' : 'py-1.5 text-[15px]'} text-left transition ${
-          isArchived
-            ? active
-              ? 'bg-surface-selected text-gray-400'
-              : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-400'
-            : active
-              ? 'bg-surface-selected text-white'
-              : hasIndicator
-                ? 'font-semibold text-white hover:bg-white/[0.06]'
-                : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
-        }`}
+      <ChannelContextMenu
+        channel={ch}
+        canManage={canManage}
+        onEdit={() => onEditChannel?.(ch)}
+        onOpenPinned={onOpenPinned ? () => onOpenPinned(ch) : undefined}
       >
-        {isArchived ? <ArchiveIcon /> : <ForumIcon />}
-        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-        <DraftBadge mode="channel" contextId={ch.id} />
-        {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
-        {showUnreadDot && mentionCount === 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-      </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
+            useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+            onSelect?.()
+          }}
+          className={`flex w-full items-center gap-2 rounded-md px-2 ${compact ? 'py-2 text-sm' : 'py-1.5 text-[15px]'} text-left transition ${
+            isArchived
+              ? active
+                ? 'bg-surface-selected text-gray-400'
+                : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-400'
+              : active
+                ? 'bg-surface-selected text-white'
+                : hasIndicator
+                  ? 'font-semibold text-white hover:bg-white/[0.06]'
+                  : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
+          }`}
+        >
+          {isArchived ? <ArchiveIcon /> : <ForumIcon />}
+          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+          <DraftBadge mode="channel" contextId={ch.id} />
+          {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
+          {showUnreadDot && mentionCount === 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+        </button>
+      </ChannelContextMenu>
     </li>
   )
 })

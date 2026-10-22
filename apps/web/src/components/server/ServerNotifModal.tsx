@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import type { Channel } from '@chat/shared'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { api } from '@/lib/api'
@@ -11,7 +12,15 @@ const LEVELS: { value: NotifLevel; labelKey: string; descriptionKey: string }[] 
   { value: 'none', labelKey: 'notifications.nothing', descriptionKey: 'notifications.nothingDescription' }
 ]
 
-export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: string; serverName: string; onClose: () => void }) {
+export function ServerNotifModal({
+  serverId,
+  serverName,
+  onClose
+}: {
+  serverId: string
+  serverName: string
+  onClose: () => void
+}) {
   const { t } = useTranslation('server')
   const getServerLevel = useNotifPrefStore((s) => s.getServerLevel)
   const setServerPref = useNotifPrefStore((s) => s.setServer)
@@ -20,19 +29,34 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
   const setChannelPref = useNotifPrefStore((s) => s.set)
   const removeChannelPref = useNotifPrefStore((s) => s.remove)
   const channels = useChannelStore((s) => s.channels)
-  const textChannels = channels.filter((c) => c.type === 'text')
+  const loadedServerId = useChannelStore((s) => s.loadedServerId)
+  const [loadedChannels, setLoadedChannels] = useState<{ serverId: string; channels: Channel[] } | null>(null)
+  const [loadError, setLoadError] = useState(false)
+  const textChannels = useMemo(() => {
+    const list =
+      loadedServerId === serverId ? channels : loadedChannels?.serverId === serverId ? loadedChannels.channels : []
+    return list.filter((channel) => channel.serverId === serverId && channel.type === 'text')
+  }, [channels, loadedChannels, loadedServerId, serverId])
+
+  useEffect(() => {
+    if (loadedServerId === serverId) return
+    let cancelled = false
+    setLoadError(false)
+    void api
+      .get<Channel[]>(`/api/servers/${serverId}/channels`)
+      .then((list) => {
+        if (!cancelled) setLoadedChannels({ serverId, channels: list })
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [serverId, loadedServerId])
 
   const [serverLevel, setServerLevel] = useState<NotifLevel>(getServerLevel(serverId))
   const [channelOverrides, setChannelOverrides] = useState<Record<string, NotifLevel | 'default'>>({})
-
-  useEffect(() => {
-    const overrides: Record<string, NotifLevel | 'default'> = {}
-    for (const ch of textChannels) {
-      overrides[ch.id] = channelPrefs[ch.id] ?? 'default'
-    }
-    setChannelOverrides(overrides)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId])
 
   const handleServerLevelChange = useCallback(
     async (level: NotifLevel) => {
@@ -55,7 +79,6 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
 
   const handleChannelOverride = useCallback(
     async (channelId: string, value: NotifLevel | 'default') => {
-      const prev = channelOverrides[channelId]
       setChannelOverrides((s) => ({ ...s, [channelId]: value }))
       try {
         if (value === 'default') {
@@ -66,19 +89,31 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
           setChannelPref(channelId, value)
         }
       } catch {
-        setChannelOverrides((s) => ({ ...s, [channelId]: prev }))
+        // The saved preference remains unchanged when the request fails.
+      } finally {
+        setChannelOverrides((state) => {
+          const next = { ...state }
+          delete next[channelId]
+          return next
+        })
       }
     },
-    [channelOverrides, setChannelPref, removeChannelPref]
+    [setChannelPref, removeChannelPref]
   )
 
   return (
-    <ModalOverlay onClose={onClose} maxWidth="max-w-md">
+    <ModalOverlay onClose={onClose} maxWidth="max-w-md" zIndex="z-[120]">
       <div className="space-y-5">
         <div>
           <h2 className="text-lg font-semibold text-white">{t('notifications.title')}</h2>
           <p className="mt-0.5 text-sm text-gray-400">{serverName}</p>
         </div>
+
+        {loadError && (
+          <p role="alert" className="text-sm text-red-400">
+            {t('notifications.channelLoadFailed')}
+          </p>
+        )}
 
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -91,15 +126,11 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
                 type="button"
                 onClick={() => void handleServerLevelChange(opt.value)}
                 className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition ${
-                  serverLevel === opt.value
-                    ? 'bg-primary/10 ring-1 ring-primary/40'
-                    : 'hover:bg-white/5'
+                  serverLevel === opt.value ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-white/5'
                 }`}
               >
                 <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-gray-500">
-                  {serverLevel === opt.value && (
-                    <div className="h-2 w-2 rounded-full bg-primary" />
-                  )}
+                  {serverLevel === opt.value && <div className="h-2 w-2 rounded-full bg-primary" />}
                 </div>
                 <div>
                   <span className={`text-sm font-medium ${serverLevel === opt.value ? 'text-white' : 'text-gray-300'}`}>
@@ -117,15 +148,18 @@ export function ServerNotifModal({ serverId, serverName, onClose }: { serverId: 
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               {t('notifications.channelOverrides')}
             </label>
-            <p className="text-[11px] text-gray-500">
-              {t('notifications.channelOverridesDescription')}
-            </p>
+            <p className="text-[11px] text-gray-500">{t('notifications.channelOverridesDescription')}</p>
             <div className="max-h-48 space-y-1 overflow-y-auto">
               {textChannels.map((ch) => (
-                <div key={ch.id} className="flex items-center justify-between rounded px-3 py-1.5 hover:bg-white/[0.04]">
+                <div
+                  key={ch.id}
+                  className="flex items-center justify-between rounded px-3 py-1.5 hover:bg-white/[0.04]"
+                >
                   <span className="text-sm text-gray-300"># {ch.name}</span>
                   <select
-                    value={channelOverrides[ch.id] ?? 'default'}
+                    aria-label={`# ${ch.name}`}
+                    value={channelOverrides[ch.id] ?? channelPrefs[ch.id] ?? 'default'}
+                    disabled={channelOverrides[ch.id] !== undefined}
                     onChange={(e) => void handleChannelOverride(ch.id, e.target.value as NotifLevel | 'default')}
                     className="rounded border border-white/10 bg-surface-darkest px-2 py-1 text-xs text-white outline-none"
                   >

@@ -576,6 +576,7 @@ export class ServersService {
     }
 
     await this.prisma.server.delete({ where: { id: serverId } })
+    this.events.emit('activity:membership-changed')
   }
 
   async joinServer(serverId: string, userId: string) {

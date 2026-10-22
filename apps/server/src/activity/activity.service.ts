@@ -61,6 +61,7 @@ export class ActivityService {
         ...(dto.shareMusic !== undefined ? { activityShareMusic: dto.shareMusic } : {})
       }
     })
+    this.events.emit('activity:preferences-changed', { userId })
     return this.getSettings(userId)
   }
 
@@ -145,6 +146,7 @@ export class ActivityService {
         ...(dto.iconUrl !== undefined ? { iconUrl: dto.iconUrl } : {})
       }
     })
+    this.events.emit('activity:preferences-changed', { userId })
     return this.toDto(row)
   }
 
@@ -152,6 +154,7 @@ export class ActivityService {
     const existing = await this.prisma.registeredGame.findFirst({ where: { id, userId } })
     if (!existing) throw new NotFoundException('Game not found')
     await this.prisma.registeredGame.delete({ where: { id } })
+    this.events.emit('activity:preferences-changed', { userId })
   }
 
   getDetectables(): GameDetectable[] {

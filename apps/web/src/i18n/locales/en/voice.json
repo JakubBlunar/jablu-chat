@@ -1,4 +1,6 @@
 {
+  "outputVolume": "Output volume",
+  "muteForMe": "Mute for me",
   "microphoneStarting": "Starting microphone…",
   "microphonePermissionError": "Microphone unavailable. Allow microphone access in your browser’s site settings, then retry.",
   "microphoneDeviceError": "Microphone unavailable. Reconnect your microphone or choose another device, then retry.",

@@ -14,6 +14,10 @@ work.
 | [Direct conversations](./CONVERSATIONS.md) | DM media, search, personal controls and group management |
 | [Backlog](./BACKLOG.md) | Prioritized scalability and reliability initiatives with acceptance criteria |
 
+The [activity tracking guide](./ACTIVITY_TRACKING.md) covers detection, recovery,
+privacy enforcement, and verification. The [original investigation](./ACTIVITY_TRACKING_REVIEW.md)
+records the stale game-status failures and their reproductions.
+
 Moving the guides does not change application, script, Compose or environment
 file locations. Follow each guide's working-directory notes when running
 commands.

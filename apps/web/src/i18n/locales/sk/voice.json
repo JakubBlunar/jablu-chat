@@ -1,4 +1,6 @@
 {
+  "outputVolume": "Hlasitosť výstupu",
+  "muteForMe": "Stlmiť pre mňa",
   "microphoneStarting": "Spúšťanie mikrofónu…",
   "microphonePermissionError": "Mikrofón nie je dostupný. Povoľte prístup k mikrofónu v nastaveniach stránky prehliadača a skúste to znova.",
   "microphoneDeviceError": "Mikrofón nie je dostupný. Znova ho pripojte alebo vyberte iné zariadenie a skúste to znova.",

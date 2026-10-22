@@ -45,6 +45,7 @@ webview2-com = "0.38"
 # Steam running-game detection via the registry, exe-icon extraction, and SMTC
 # (Spotify) now-playing all use the Windows APIs below.
 winreg = "0.52"
+windows-future = "0.2"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png"] }
 # `UI_Notifications` / `Data_Xml_Dom` drive the native toasts in notifications.rs.

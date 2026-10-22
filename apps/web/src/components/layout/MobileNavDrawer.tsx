@@ -1,19 +1,20 @@
-import type { Channel } from '@chat/shared'
-import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { useServerMenuItems } from '@/hooks/useServerMenuItems'
+import { ContextMenu } from '@/components/ui/ContextMenu'
+import { ChannelContextMenu, CategoryContextMenu } from '@/components/channel/ChannelContextMenu'
+import { VoiceParticipantRow } from '@/components/channel/channel-sidebar/VoiceComponents'
+import type { Channel, ChannelCategory } from '@chat/shared'
+import React, { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
-import { ChannelOptionsDrawer } from '@/components/channel/ChannelOptionsDrawer'
 import { GroupDmModal } from '@/components/dm/GroupDmModal'
 import { ConversationPreview } from '@/components/dm/ConversationPreview'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { showToast } from '@/stores/toast.store'
 import { MobileDrawer } from '@/components/layout/MobileDrawer'
 import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
-import { HashIcon, SpeakerIcon, VoiceStatusIcons, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
+import { HashIcon, SpeakerIcon, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
 import { UserFooter } from '@/components/layout/UserFooter'
-import { ServerMenuSheet } from './mobile-nav/ServerMenuSheet'
 import { ServerProfileModal } from '@/components/server/ServerProfileModal'
-import { memberDisplayName } from '@/lib/serverProfile'
 const CreateChannelModal = React.lazy(() =>
   import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
 )
@@ -66,6 +67,9 @@ const ServerNotifModal = React.lazy(() =>
 )
 const CreateCategoryModal = React.lazy(() =>
   import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
+)
+const EditCategoryModal = React.lazy(() =>
+  import('@/components/channel/EditCategoryModal').then((m) => ({ default: m.EditCategoryModal }))
 )
 const RolePickerModal = React.lazy(() =>
   import('@/components/server/RolePickerModal').then((m) => ({ default: m.RolePickerModal }))
@@ -164,14 +168,15 @@ export function MobileNavDrawer({
     }
   }, [voiceServerId, currentVoiceChannelId, orchestratedGoToChannel, close])
 
-  const [serverMenuOpen, setServerMenuOpen] = useState(false)
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [eventsOpen, setEventsOpen] = useState(false)
   const [reorderOpen, setReorderOpen] = useState(false)
+  const [createCategoryId, setCreateCategoryId] = useState<string | null>(null)
   const [channelModalOpen, setChannelModalOpen] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<ChannelCategory | null>(null)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [groupDmOpen, setGroupDmOpen] = useState(false)
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
@@ -181,56 +186,16 @@ export function MobileNavDrawer({
   const { has: hasPerm } = usePermissions(currentServerId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
 
-  const [drawerChannel, setDrawerChannel] = useState<Channel | null>(null)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const longPressFired = useRef(false)
-
-  const cancelLongPress = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
-
-  const handleChannelTouchStart = useCallback(
-    (ch: Channel) => {
-      const hasOptions = ch.type === 'text' || isAdminOrOwner
-      if (!hasOptions) return
-      longPressFired.current = false
-      longPressTimer.current = setTimeout(() => {
-        longPressFired.current = true
-        setDrawerChannel(ch)
-      }, 500)
+  const handleOpenPinned = useCallback(
+    (channel: Channel) => {
+      if (!currentServerId) return
+      void orchestratedGoToChannel(currentServerId, channel.id)
+      useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+      close()
+      setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
     },
-    [isAdminOrOwner]
+    [currentServerId, orchestratedGoToChannel, close]
   )
-
-  const handleChannelTouchEnd = useCallback(() => {
-    cancelLongPress()
-  }, [cancelLongPress])
-
-  const handleChannelTouchMove = useCallback(() => {
-    cancelLongPress()
-  }, [cancelLongPress])
-
-  const handleChannelContextMenu = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault()
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-    const block = (e: Event) => e.preventDefault()
-    document.addEventListener('contextmenu', block, { capture: true })
-    return () => document.removeEventListener('contextmenu', block, { capture: true })
-  }, [open])
-
-  const handleDrawerOpenPinned = useCallback(() => {
-    if (!drawerChannel || !currentServerId) return
-    void orchestratedGoToChannel(currentServerId, drawerChannel.id)
-    useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
-    close()
-    setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
-  }, [drawerChannel, currentServerId, orchestratedGoToChannel, close])
 
   const filteredConversations = useMemo(() => {
     if (!dmFilter.trim()) return conversations
@@ -247,7 +212,6 @@ export function MobileNavDrawer({
 
   const currentServer = useMemo(() => servers.find((s) => s.id === currentServerId) ?? null, [servers, currentServerId])
   const openLeaderboard = useCallback(() => {
-    setServerMenuOpen(false)
     close()
     setLeaderboardOpen(true)
   }, [close])
@@ -356,6 +320,67 @@ export function MobileNavDrawer({
     [user?.id, onlineIds]
   )
 
+  const serverMenuItems = useServerMenuItems(
+    {
+      settings:
+        hasPerm(Permission.MANAGE_SERVER) || isOwner
+          ? () => {
+              close()
+              setServerSettingsOpen(true)
+            }
+          : undefined,
+      createChannel: isAdminOrOwner
+        ? () => {
+            setCreateCategoryId(null)
+            close()
+            setChannelModalOpen(true)
+          }
+        : undefined,
+      createCategory: isAdminOrOwner
+        ? () => {
+            close()
+            setCreateCategoryOpen(true)
+          }
+        : undefined,
+      reorder: isAdminOrOwner
+        ? () => {
+            close()
+            setReorderOpen(true)
+          }
+        : undefined,
+      profile: () => {
+        close()
+        setProfileOpen(true)
+      },
+      read: () => {
+        if (currentServer) void useReadStateStore.getState().ackServer(currentServer.id)
+      },
+      notifications: () => {
+        close()
+        setServerNotifOpen(true)
+      },
+      invite: () => {
+        close()
+        setInviteOpen(true)
+      },
+      events: () => {
+        close()
+        setEventsOpen(true)
+      },
+      roles: () => {
+        close()
+        setRolePickerOpen(true)
+      },
+      leaderboard: currentServer?.xpEnabled ? openLeaderboard : undefined,
+      leave: !isOwner
+        ? () => {
+            void handleLeave()
+          }
+        : undefined
+    },
+    eventCount
+  )
+
   return (
     <>
       <MobileDrawer open={open} onClose={close} side="left" width="w-[min(100vw,28rem)]">
@@ -403,458 +428,507 @@ export function MobileNavDrawer({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-dark">
               {/* Server name + dropdown trigger */}
               {viewMode === 'server' && currentServer && (
-                <button
-                  type="button"
-                  onClick={() => setServerMenuOpen(true)}
-                  className="flex h-12 w-full shrink-0 items-center justify-between border-b border-black/20 px-3 transition active:bg-white/[0.06]"
-                >
-                  <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-white">
-                    {currentServer.name}
-                  </span>
-                  <svg
-                    className="h-4 w-4 shrink-0 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
+                <ContextMenu label={currentServer.name} items={serverMenuItems} openOnClick>
+                  <button
+                    type="button"
+                    className="flex h-12 w-full shrink-0 items-center justify-between border-b border-black/20 px-3 transition active:bg-white/[0.06]"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+                    <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-white">
+                      {currentServer.name}
+                    </span>
+                    <svg
+                      className="h-4 w-4 shrink-0 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </ContextMenu>
               )}
 
               {/* Channel / DM list */}
-              <SimpleBar className="min-h-0 flex-1 px-2 py-2">
-                {viewMode === 'server' ? (
-                  <>
-                    {/* Uncategorized text channels */}
-                    {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
+              <ContextMenu
+                label={currentServer?.name ?? t('channels')}
+                items={serverMenuItems}
+                disabled={viewMode !== 'server' || !currentServer}
+              >
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <SimpleBar className="min-h-0 flex-1 px-2 py-2">
+                    {viewMode === 'server' ? (
                       <>
-                        <div className="mb-1 flex items-center justify-between px-2">
-                          <SectionHeading as="span">{tChannels('sidebar.textChannels').toUpperCase()}</SectionHeading>
-                          {isAdminOrOwner && (
-                            <IconButton
-                              label={tChannels('sidebar.createChannel')}
-                              size="sm"
-                              onClick={() => {
-                                close()
-                                setChannelModalOpen(true)
-                              }}
-                              className="p-0.5"
-                            >
-                              <PlusSmallIcon />
-                            </IconButton>
-                          )}
-                        </div>
-                        <ul className="space-y-0.5">
-                          {uncategorizedText.map((ch) => {
-                            const active = ch.id === currentChannelId && !viewingVoiceRoom
-                            const {
-                              showUnread: showUnreadDot,
-                              mentionCount,
-                              hasIndicator
-                            } = computeChannelBadge(
-                              channelReadStates.get(ch.id),
-                              getEffective(ch.id, currentServer?.id) as NotifLevel
-                            )
-                            return (
-                              <li key={ch.id}>
+                        {/* Uncategorized text channels */}
+                        {(uncategorizedText.length > 0 || categoryGroups.length === 0) && (
+                          <>
+                            <div className="mb-1 flex items-center justify-between px-2">
+                              <SectionHeading as="span">
+                                {tChannels('sidebar.textChannels').toUpperCase()}
+                              </SectionHeading>
+                              {isAdminOrOwner && (
+                                <IconButton
+                                  label={tChannels('sidebar.createChannel')}
+                                  size="sm"
+                                  onClick={() => {
+                                    close()
+                                    setCreateCategoryId(null)
+                                    setChannelModalOpen(true)
+                                  }}
+                                  className="p-0.5"
+                                >
+                                  <PlusSmallIcon />
+                                </IconButton>
+                              )}
+                            </div>
+                            <ul className="space-y-0.5">
+                              {uncategorizedText.map((ch) => {
+                                const active = ch.id === currentChannelId && !viewingVoiceRoom
+                                const {
+                                  showUnread: showUnreadDot,
+                                  mentionCount,
+                                  hasIndicator
+                                } = computeChannelBadge(
+                                  channelReadStates.get(ch.id),
+                                  getEffective(ch.id, currentServer?.id) as NotifLevel
+                                )
+                                return (
+                                  <li key={ch.id}>
+                                    <ChannelContextMenu
+                                      channel={ch}
+                                      canManage={isAdminOrOwner}
+                                      onEdit={() => {
+                                        close()
+                                        setEditingChannel(ch)
+                                      }}
+                                      onOpenPinned={() => handleOpenPinned(ch)}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleChannelClick(ch)
+                                        }}
+                                        className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                                          active
+                                            ? 'bg-surface-selected text-white'
+                                            : hasIndicator
+                                              ? 'font-semibold text-white hover:bg-white/[0.06]'
+                                              : 'text-gray-300 hover:bg-white/[0.06]'
+                                        }`}
+                                      >
+                                        <HashIcon />
+                                        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                                        <DraftBadge mode="channel" contextId={ch.id} />
+                                        {mentionCount > 0 && (
+                                          <CountBadge count={mentionCount} variant="danger" max={10} />
+                                        )}
+                                        {showUnreadDot && mentionCount === 0 && (
+                                          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                                        )}
+                                      </button>
+                                    </ChannelContextMenu>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </>
+                        )}
+
+                        {/* Category groups */}
+                        {categoryGroups.map((group) => {
+                          const isCollapsed = collapsedCategoryIds.includes(group.category.id)
+                          return (
+                            <div key={group.category.id} className="mt-2">
+                              <CategoryContextMenu
+                                category={group.category}
+                                canManage={isAdminOrOwner}
+                                onCreate={() => {
+                                  setCreateCategoryId(group.category.id)
+                                  close()
+                                  setChannelModalOpen(true)
+                                }}
+                                onEdit={() => {
+                                  close()
+                                  setEditingCategory(group.category)
+                                }}
+                              >
                                 <button
                                   type="button"
-                                  onClick={(e) => {
-                                    if (longPressFired.current) {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      longPressFired.current = false
-                                      return
-                                    }
-                                    handleChannelClick(ch)
+                                  onClick={() => toggleCollapsedCategory(group.category.id)}
+                                  className="mb-1 flex w-full items-center gap-1 px-2 text-left"
+                                >
+                                  <svg
+                                    className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                  >
+                                    <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                                  </svg>
+                                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                    {group.category.name}
+                                  </span>
+                                </button>
+                              </CategoryContextMenu>
+                              {!isCollapsed && (
+                                <>
+                                  {group.textChannels.length > 0 && (
+                                    <ul className="space-y-0.5">
+                                      {group.textChannels.map((ch) => {
+                                        const active = ch.id === currentChannelId && !viewingVoiceRoom
+                                        const {
+                                          showUnread: showUnreadDot,
+                                          mentionCount,
+                                          hasIndicator
+                                        } = computeChannelBadge(
+                                          channelReadStates.get(ch.id),
+                                          getEffective(ch.id, currentServer?.id) as NotifLevel
+                                        )
+                                        return (
+                                          <li key={ch.id}>
+                                            <ChannelContextMenu
+                                              channel={ch}
+                                              canManage={isAdminOrOwner}
+                                              onEdit={() => {
+                                                close()
+                                                setEditingChannel(ch)
+                                              }}
+                                              onOpenPinned={() => handleOpenPinned(ch)}
+                                            >
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  handleChannelClick(ch)
+                                                }}
+                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                                                  active
+                                                    ? 'bg-surface-selected text-white'
+                                                    : hasIndicator
+                                                      ? 'font-semibold text-white hover:bg-white/[0.06]'
+                                                      : 'text-gray-300 hover:bg-white/[0.06]'
+                                                }`}
+                                              >
+                                                <HashIcon />
+                                                <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                                                <DraftBadge mode="channel" contextId={ch.id} />
+                                                {mentionCount > 0 && (
+                                                  <CountBadge count={mentionCount} variant="danger" max={10} />
+                                                )}
+                                                {showUnreadDot && mentionCount === 0 && (
+                                                  <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                                                )}
+                                              </button>
+                                            </ChannelContextMenu>
+                                          </li>
+                                        )
+                                      })}
+                                    </ul>
+                                  )}
+                                  {group.voiceChannels.length > 0 && (
+                                    <ul className="space-y-0.5">
+                                      {group.voiceChannels.map((ch) => {
+                                        const participants = voiceParticipants[ch.id] ?? []
+                                        const inThis = currentVoiceChannelId === ch.id
+                                        return (
+                                          <li key={ch.id}>
+                                            <ChannelContextMenu
+                                              channel={ch}
+                                              canManage={isAdminOrOwner}
+                                              onEdit={() => {
+                                                close()
+                                                setEditingChannel(ch)
+                                              }}
+                                              onOpenPinned={() => handleOpenPinned(ch)}
+                                            >
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  handleVoiceChannelClick(ch)
+                                                }}
+                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'}`}
+                                              >
+                                                <SpeakerIcon />
+                                                <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                                                {participants.length > 0 && (
+                                                  <span className="text-xs text-gray-400">{participants.length}</span>
+                                                )}
+                                              </button>
+                                            </ChannelContextMenu>
+                                            <ul className="ml-4 space-y-0.5">
+                                              {participants.map((p) => (
+                                                <VoiceParticipantRow
+                                                  key={p.userId}
+                                                  participant={p}
+                                                  channelId={ch.id}
+                                                  member={members.find((m) => m.userId === p.userId)}
+                                                  isSpeaking={false}
+                                                />
+                                              ))}
+                                            </ul>
+                                          </li>
+                                        )
+                                      })}
+                                    </ul>
+                                  )}
+                                  {group.forumChannels.length > 0 && (
+                                    <ul className="space-y-0.5">
+                                      {group.forumChannels.map((ch) => (
+                                        <ForumChannelItem
+                                          key={ch.id}
+                                          ch={ch}
+                                          compact
+                                          active={ch.id === currentChannelId && !viewingVoiceRoom}
+                                          readState={channelReadStates.get(ch.id)}
+                                          notifLevel={getNotifLevel(ch.id)}
+                                          canManage={isAdminOrOwner}
+                                          onEditChannel={(channel) => {
+                                            close()
+                                            setEditingChannel(channel)
+                                          }}
+                                          onOpenPinned={handleOpenPinned}
+                                          currentServer={currentServer}
+                                          orchestratedGoToChannel={orchestratedGoToChannel}
+                                          onSelect={close}
+                                        />
+                                      ))}
+                                    </ul>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {/* Uncategorized voice channels */}
+                        {uncategorizedVoice.length > 0 && (
+                          <>
+                            <div className="mb-1 mt-3 flex items-center justify-between px-2">
+                              <SectionHeading as="span">
+                                {tChannels('sidebar.voiceChannels').toUpperCase()}
+                              </SectionHeading>
+                              {isAdminOrOwner && (
+                                <IconButton
+                                  label={tChannels('sidebar.createChannel')}
+                                  size="sm"
+                                  onClick={() => {
+                                    close()
+                                    setCreateCategoryId(null)
+                                    setChannelModalOpen(true)
                                   }}
-                                  onTouchStart={() => handleChannelTouchStart(ch)}
-                                  onTouchEnd={handleChannelTouchEnd}
-                                  onTouchMove={handleChannelTouchMove}
-                                  onContextMenu={handleChannelContextMenu}
-                                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
+                                  className="p-0.5"
+                                >
+                                  <PlusSmallIcon />
+                                </IconButton>
+                              )}
+                            </div>
+                            <ul className="space-y-0.5">
+                              {uncategorizedVoice.map((ch) => {
+                                const participants = voiceParticipants[ch.id] ?? []
+                                const inThis = currentVoiceChannelId === ch.id
+                                return (
+                                  <li key={ch.id}>
+                                    <ChannelContextMenu
+                                      channel={ch}
+                                      canManage={isAdminOrOwner}
+                                      onEdit={() => {
+                                        close()
+                                        setEditingChannel(ch)
+                                      }}
+                                      onOpenPinned={() => handleOpenPinned(ch)}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleVoiceChannelClick(ch)
+                                        }}
+                                        className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'}`}
+                                      >
+                                        <SpeakerIcon />
+                                        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
+                                        {participants.length > 0 && (
+                                          <span className="text-xs text-gray-400">{participants.length}</span>
+                                        )}
+                                      </button>
+                                    </ChannelContextMenu>
+                                    {participants.length > 0 && (
+                                      <ul className="ml-4 space-y-0.5">
+                                        {participants.map((p) => {
+                                          const member = members.find((m) => m.userId === p.userId)
+                                          return (
+                                            <VoiceParticipantRow
+                                              key={p.userId}
+                                              participant={p}
+                                              channelId={ch.id}
+                                              member={member}
+                                              isSpeaking={false}
+                                            />
+                                          )
+                                        })}
+                                      </ul>
+                                    )}
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </>
+                        )}
+                        {uncategorizedForum.length > 0 && (
+                          <>
+                            <div className="mb-1 mt-3 flex items-center justify-between px-2">
+                              <SectionHeading as="span">
+                                {tChannels('sidebar.forumChannels').toUpperCase()}
+                              </SectionHeading>
+                              {isAdminOrOwner && (
+                                <IconButton
+                                  label={tChannels('sidebar.createChannel')}
+                                  size="sm"
+                                  onClick={() => {
+                                    close()
+                                    setCreateCategoryId(null)
+                                    setChannelModalOpen(true)
+                                  }}
+                                  className="p-0.5"
+                                >
+                                  <PlusSmallIcon />
+                                </IconButton>
+                              )}
+                            </div>
+                            <ul className="space-y-0.5">
+                              {uncategorizedForum.map((ch) => (
+                                <ForumChannelItem
+                                  key={ch.id}
+                                  ch={ch}
+                                  compact
+                                  active={ch.id === currentChannelId && !viewingVoiceRoom}
+                                  readState={channelReadStates.get(ch.id)}
+                                  notifLevel={getNotifLevel(ch.id)}
+                                  canManage={isAdminOrOwner}
+                                  onEditChannel={(channel) => {
+                                    close()
+                                    setEditingChannel(channel)
+                                  }}
+                                  onOpenPinned={handleOpenPinned}
+                                  currentServer={currentServer}
+                                  orchestratedGoToChannel={orchestratedGoToChannel}
+                                  onSelect={close}
+                                />
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            goToFriends()
+                            close()
+                          }}
+                          className="mb-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
+                        >
+                          <svg
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={1.5}
+                          >
+                            <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                          </svg>
+                          {t('friends')}
+                          <CountBadge count={pendingFriendCount} variant="danger" className="ml-auto" />
+                        </button>
+                        <div className="mb-1 flex items-center justify-between px-2">
+                          <SectionHeading>{t('directMessages').toUpperCase()}</SectionHeading>
+                          <IconButton
+                            label={t('newMessage')}
+                            onClick={() => {
+                              close()
+                              setGroupDmOpen(true)
+                            }}
+                          >
+                            <PlusSmallIcon />
+                          </IconButton>
+                        </div>
+                        <input
+                          value={dmFilter}
+                          onChange={(e) => setDmFilter(e.target.value)}
+                          placeholder={t('findConversation')}
+                          className="mb-1 min-h-11 w-full rounded-md bg-surface-darkest px-2.5 py-1.5 text-base text-gray-200 outline-none placeholder:text-gray-500"
+                        />
+                        <ul className="space-y-0.5">
+                          {filteredConversations.map((conv) => {
+                            const info = getConvDisplayInfo(conv)
+                            const active = conv.id === currentConvId
+                            const rs = dmReadStates.get(conv.id)
+                            const hasUnread = rs && rs.unreadCount > 0
+                            return (
+                              <li key={conv.id} className="group/dm relative">
+                                <button
+                                  type="button"
+                                  onClick={() => handleConvClick(conv.id)}
+                                  className={`flex w-full items-center gap-2 rounded-md px-2 pr-12 py-2 text-left text-sm transition ${
                                     active
                                       ? 'bg-surface-selected text-white'
-                                      : hasIndicator
+                                      : hasUnread
                                         ? 'font-semibold text-white hover:bg-white/[0.06]'
                                         : 'text-gray-300 hover:bg-white/[0.06]'
                                   }`}
                                 >
-                                  <HashIcon />
-                                  <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                  <DraftBadge mode="channel" contextId={ch.id} />
-                                  {mentionCount > 0 && <CountBadge count={mentionCount} variant="danger" max={10} />}
-                                  {showUnreadDot && mentionCount === 0 && (
+                                  <UserAvatar
+                                    username={info.name}
+                                    avatarUrl={info.avatarUrl}
+                                    size="sm"
+                                    showStatus
+                                    status={info.status}
+                                  />
+                                  <span className="min-w-0 flex-1 text-left">
+                                    <span className="flex items-center gap-2">
+                                      <span className="min-w-0 flex-1 truncate">
+                                        {conv.isFavorite ? '\u2605 ' : ''}
+                                        {info.name}
+                                      </span>
+                                      <DraftBadge mode="dm" contextId={conv.id} />
+                                    </span>
+                                    <ConversationPreview conversation={conv} currentUserId={user?.id} />
+                                    {conv.muted && (
+                                      <span className="text-[10px] text-gray-500">{tChat('conversationMuted')}</span>
+                                    )}
+                                  </span>
+                                  {hasUnread && !conv.muted && (
                                     <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
                                   )}
                                 </button>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </>
-                    )}
-
-                    {/* Category groups */}
-                    {categoryGroups.map((group) => {
-                      const isCollapsed = collapsedCategoryIds.includes(group.category.id)
-                      return (
-                        <div key={group.category.id} className="mt-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleCollapsedCategory(group.category.id)}
-                            className="mb-1 flex w-full items-center gap-1 px-2 text-left"
-                          >
-                            <svg
-                              className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                            >
-                              <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-                            </svg>
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                              {group.category.name}
-                            </span>
-                          </button>
-                          {!isCollapsed && (
-                            <>
-                              {group.textChannels.length > 0 && (
-                                <ul className="space-y-0.5">
-                                  {group.textChannels.map((ch) => {
-                                    const active = ch.id === currentChannelId && !viewingVoiceRoom
-                                    const {
-                                      showUnread: showUnreadDot,
-                                      mentionCount,
-                                      hasIndicator
-                                    } = computeChannelBadge(
-                                      channelReadStates.get(ch.id),
-                                      getEffective(ch.id, currentServer?.id) as NotifLevel
-                                    )
-                                    return (
-                                      <li key={ch.id}>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            if (longPressFired.current) {
-                                              e.preventDefault()
-                                              e.stopPropagation()
-                                              longPressFired.current = false
-                                              return
-                                            }
-                                            handleChannelClick(ch)
-                                          }}
-                                          onTouchStart={() => handleChannelTouchStart(ch)}
-                                          onTouchEnd={handleChannelTouchEnd}
-                                          onTouchMove={handleChannelTouchMove}
-                                          onContextMenu={handleChannelContextMenu}
-                                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                                            active
-                                              ? 'bg-surface-selected text-white'
-                                              : hasIndicator
-                                                ? 'font-semibold text-white hover:bg-white/[0.06]'
-                                                : 'text-gray-300 hover:bg-white/[0.06]'
-                                          }`}
-                                        >
-                                          <HashIcon />
-                                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                          <DraftBadge mode="channel" contextId={ch.id} />
-                                          {mentionCount > 0 && (
-                                            <CountBadge count={mentionCount} variant="danger" max={10} />
-                                          )}
-                                          {showUnreadDot && mentionCount === 0 && (
-                                            <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                                          )}
-                                        </button>
-                                      </li>
-                                    )
-                                  })}
-                                </ul>
-                              )}
-                              {group.voiceChannels.length > 0 && (
-                                <ul className="space-y-0.5">
-                                  {group.voiceChannels.map((ch) => {
-                                    const participants = voiceParticipants[ch.id] ?? []
-                                    const inThis = currentVoiceChannelId === ch.id
-                                    return (
-                                      <li key={ch.id}>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            if (longPressFired.current) {
-                                              e.preventDefault()
-                                              e.stopPropagation()
-                                              longPressFired.current = false
-                                              return
-                                            }
-                                            handleVoiceChannelClick(ch)
-                                          }}
-                                          onTouchStart={() => handleChannelTouchStart(ch)}
-                                          onTouchEnd={handleChannelTouchEnd}
-                                          onTouchMove={handleChannelTouchMove}
-                                          onContextMenu={handleChannelContextMenu}
-                                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'}`}
-                                        >
-                                          <SpeakerIcon />
-                                          <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                          {participants.length > 0 && (
-                                            <span className="text-xs text-gray-400">{participants.length}</span>
-                                          )}
-                                        </button>
-                                      </li>
-                                    )
-                                  })}
-                                </ul>
-                              )}
-                              {group.forumChannels.length > 0 && (
-                                <ul className="space-y-0.5">
-                                  {group.forumChannels.map((ch) => (
-                                    <ForumChannelItem
-                                      key={ch.id}
-                                      ch={ch}
-                                      compact
-                                      active={ch.id === currentChannelId && !viewingVoiceRoom}
-                                      readState={channelReadStates.get(ch.id)}
-                                      notifLevel={getNotifLevel(ch.id)}
-                                      longPressFired={longPressFired}
-                                      currentServer={currentServer}
-                                      orchestratedGoToChannel={orchestratedGoToChannel}
-                                      handleChannelTouchStart={handleChannelTouchStart}
-                                      handleChannelTouchEnd={handleChannelTouchEnd}
-                                      handleChannelTouchMove={handleChannelTouchMove}
-                                      handleChannelContextMenu={handleChannelContextMenu}
-                                      onSelect={close}
-                                    />
-                                  ))}
-                                </ul>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )
-                    })}
-
-                    {/* Uncategorized voice channels */}
-                    {uncategorizedVoice.length > 0 && (
-                      <>
-                        <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                          <SectionHeading as="span">{tChannels('sidebar.voiceChannels').toUpperCase()}</SectionHeading>
-                          {isAdminOrOwner && (
-                            <IconButton
-                              label={tChannels('sidebar.createChannel')}
-                              size="sm"
-                              onClick={() => {
-                                close()
-                                setChannelModalOpen(true)
-                              }}
-                              className="p-0.5"
-                            >
-                              <PlusSmallIcon />
-                            </IconButton>
-                          )}
-                        </div>
-                        <ul className="space-y-0.5">
-                          {uncategorizedVoice.map((ch) => {
-                            const participants = voiceParticipants[ch.id] ?? []
-                            const inThis = currentVoiceChannelId === ch.id
-                            return (
-                              <li key={ch.id}>
-                                <button
-                                  type="button"
+                                <IconButton
+                                  label={t('closeConversation')}
+                                  size="sm"
                                   onClick={(e) => {
-                                    if (longPressFired.current) {
-                                      e.preventDefault()
-                                      e.stopPropagation()
-                                      longPressFired.current = false
-                                      return
-                                    }
-                                    handleVoiceChannelClick(ch)
+                                    e.stopPropagation()
+                                    void closeConv(conv.id).catch(() =>
+                                      showToast(tChat('conversationActionFailed'), tChat('conversationRetry'))
+                                    )
                                   }}
-                                  onTouchStart={() => handleChannelTouchStart(ch)}
-                                  onTouchEnd={handleChannelTouchEnd}
-                                  onTouchMove={handleChannelTouchMove}
-                                  onContextMenu={handleChannelContextMenu}
-                                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${inThis ? 'text-white' : 'text-gray-300 hover:bg-white/[0.06]'}`}
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 opacity-60 hover:text-white"
                                 >
-                                  <SpeakerIcon />
-                                  <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                  {participants.length > 0 && (
-                                    <span className="text-xs text-gray-400">{participants.length}</span>
-                                  )}
-                                </button>
-                                {participants.length > 0 && (
-                                  <ul className="ml-4 space-y-0.5">
-                                    {participants.map((p) => {
-                                      const member = members.find((m) => m.userId === p.userId)
-                                      return (
-                                        <li key={p.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
-                                          <UserAvatar
-                                            username={p.username}
-                                            avatarUrl={member?.user.avatarUrl}
-                                            size="sm"
-                                          />
-                                          <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-300">
-                                            {member ? memberDisplayName(member) : p.username}
-                                          </span>
-                                          <VoiceStatusIcons participant={p} />
-                                        </li>
-                                      )
-                                    })}
-                                  </ul>
-                                )}
+                                  <svg
+                                    className="h-3.5 w-3.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path d="M6 18 18 6M6 6l12 12" />
+                                  </svg>
+                                </IconButton>
                               </li>
                             )
                           })}
                         </ul>
                       </>
                     )}
-                    {uncategorizedForum.length > 0 && (
-                      <>
-                        <div className="mb-1 mt-3 flex items-center justify-between px-2">
-                          <SectionHeading as="span">{tChannels('sidebar.forumChannels').toUpperCase()}</SectionHeading>
-                          {isAdminOrOwner && (
-                            <IconButton
-                              label={tChannels('sidebar.createChannel')}
-                              size="sm"
-                              onClick={() => {
-                                close()
-                                setChannelModalOpen(true)
-                              }}
-                              className="p-0.5"
-                            >
-                              <PlusSmallIcon />
-                            </IconButton>
-                          )}
-                        </div>
-                        <ul className="space-y-0.5">
-                          {uncategorizedForum.map((ch) => (
-                            <ForumChannelItem
-                              key={ch.id}
-                              ch={ch}
-                              compact
-                              active={ch.id === currentChannelId && !viewingVoiceRoom}
-                              readState={channelReadStates.get(ch.id)}
-                              notifLevel={getNotifLevel(ch.id)}
-                              longPressFired={longPressFired}
-                              currentServer={currentServer}
-                              orchestratedGoToChannel={orchestratedGoToChannel}
-                              handleChannelTouchStart={handleChannelTouchStart}
-                              handleChannelTouchEnd={handleChannelTouchEnd}
-                              handleChannelTouchMove={handleChannelTouchMove}
-                              handleChannelContextMenu={handleChannelContextMenu}
-                              onSelect={close}
-                            />
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        goToFriends()
-                        close()
-                      }}
-                      className="mb-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/5 hover:text-white"
-                    >
-                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-                      </svg>
-                      {t('friends')}
-                      <CountBadge count={pendingFriendCount} variant="danger" className="ml-auto" />
-                    </button>
-                    <div className="mb-1 flex items-center justify-between px-2">
-                      <SectionHeading>{t('directMessages').toUpperCase()}</SectionHeading>
-                      <IconButton
-                        label={t('newMessage')}
-                        onClick={() => {
-                          close()
-                          setGroupDmOpen(true)
-                        }}
-                      >
-                        <PlusSmallIcon />
-                      </IconButton>
-                    </div>
-                    <input
-                      value={dmFilter}
-                      onChange={(e) => setDmFilter(e.target.value)}
-                      placeholder={t('findConversation')}
-                      className="mb-1 min-h-11 w-full rounded-md bg-surface-darkest px-2.5 py-1.5 text-base text-gray-200 outline-none placeholder:text-gray-500"
-                    />
-                    <ul className="space-y-0.5">
-                      {filteredConversations.map((conv) => {
-                        const info = getConvDisplayInfo(conv)
-                        const active = conv.id === currentConvId
-                        const rs = dmReadStates.get(conv.id)
-                        const hasUnread = rs && rs.unreadCount > 0
-                        return (
-                          <li key={conv.id} className="group/dm relative">
-                            <button
-                              type="button"
-                              onClick={() => handleConvClick(conv.id)}
-                              className={`flex w-full items-center gap-2 rounded-md px-2 pr-12 py-2 text-left text-sm transition ${
-                                active
-                                  ? 'bg-surface-selected text-white'
-                                  : hasUnread
-                                    ? 'font-semibold text-white hover:bg-white/[0.06]'
-                                    : 'text-gray-300 hover:bg-white/[0.06]'
-                              }`}
-                            >
-                              <UserAvatar
-                                username={info.name}
-                                avatarUrl={info.avatarUrl}
-                                size="sm"
-                                showStatus
-                                status={info.status}
-                              />
-                              <span className="min-w-0 flex-1 text-left">
-                                <span className="flex items-center gap-2">
-                                  <span className="min-w-0 flex-1 truncate">
-                                    {conv.isFavorite ? '\u2605 ' : ''}
-                                    {info.name}
-                                  </span>
-                                  <DraftBadge mode="dm" contextId={conv.id} />
-                                </span>
-                                <ConversationPreview conversation={conv} currentUserId={user?.id} />
-                                {conv.muted && (
-                                  <span className="text-[10px] text-gray-500">{tChat('conversationMuted')}</span>
-                                )}
-                              </span>
-                              {hasUnread && !conv.muted && (
-                                <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                              )}
-                            </button>
-                            <IconButton
-                              label={t('closeConversation')}
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void closeConv(conv.id).catch(() =>
-                                  showToast(tChat('conversationActionFailed'), tChat('conversationRetry'))
-                                )
-                              }}
-                              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 opacity-60 hover:text-white"
-                            >
-                              <svg
-                                className="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                              >
-                                <path d="M6 18 18 6M6 6l12 12" />
-                              </svg>
-                            </IconButton>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </>
-                )}
-              </SimpleBar>
+                  </SimpleBar>
+                </div>
+              </ContextMenu>
 
               {/* Voice panel */}
               <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />
@@ -871,66 +945,6 @@ export function MobileNavDrawer({
           />
         </div>
       </MobileDrawer>
-
-      {serverMenuOpen && currentServer && (
-        <ServerMenuSheet
-          server={currentServer}
-          isAdminOrOwner={isAdminOrOwner}
-          canManageServer={hasPerm(Permission.MANAGE_SERVER)}
-          isOwner={isOwner}
-          eventCount={eventCount}
-          onClose={() => setServerMenuOpen(false)}
-          onServerSettings={() => {
-            setServerMenuOpen(false)
-            close()
-            setServerSettingsOpen(true)
-          }}
-          onEditProfile={() => {
-            setServerMenuOpen(false)
-            close()
-            setProfileOpen(true)
-          }}
-          onLeaderboard={openLeaderboard}
-          onReorder={() => {
-            setServerMenuOpen(false)
-            close()
-            setReorderOpen(true)
-          }}
-          onCreateCategory={() => {
-            setServerMenuOpen(false)
-            close()
-            setCreateCategoryOpen(true)
-          }}
-          onMarkAllRead={() => {
-            setServerMenuOpen(false)
-            if (currentServer) useReadStateStore.getState().ackServer(currentServer.id)
-          }}
-          onNotifSettings={() => {
-            setServerMenuOpen(false)
-            close()
-            setServerNotifOpen(true)
-          }}
-          onInvite={() => {
-            setServerMenuOpen(false)
-            close()
-            setInviteOpen(true)
-          }}
-          onEvents={() => {
-            setServerMenuOpen(false)
-            close()
-            setEventsOpen(true)
-          }}
-          onChangeRoles={() => {
-            setServerMenuOpen(false)
-            close()
-            setRolePickerOpen(true)
-          }}
-          onLeave={() => {
-            setServerMenuOpen(false)
-            void handleLeave()
-          }}
-        />
-      )}
 
       {inviteOpen && currentServer && (
         <Suspense fallback={null}>
@@ -984,25 +998,26 @@ export function MobileNavDrawer({
         </Suspense>
       )}
       <Suspense fallback={null}>
-        <CreateChannelModal open={channelModalOpen} onClose={() => setChannelModalOpen(false)} />
+        <CreateChannelModal
+          open={channelModalOpen}
+          defaultCategoryId={createCategoryId}
+          onClose={() => {
+            setChannelModalOpen(false)
+            setCreateCategoryId(null)
+          }}
+        />
       </Suspense>
+      {editingCategory && (
+        <Suspense fallback={null}>
+          <EditCategoryModal category={editingCategory} onClose={() => setEditingCategory(null)} />
+        </Suspense>
+      )}
       {editingChannel && (
         <Suspense fallback={null}>
           <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />
         </Suspense>
       )}
-      {drawerChannel && (
-        <ChannelOptionsDrawer
-          channel={drawerChannel}
-          isAdminOrOwner={isAdminOrOwner}
-          onClose={() => setDrawerChannel(null)}
-          onEditChannel={() => {
-            close()
-            setEditingChannel(drawerChannel)
-          }}
-          onOpenPinned={handleDrawerOpenPinned}
-        />
-      )}
+
       {groupDmOpen && (
         <GroupDmModal
           conversations={conversations}

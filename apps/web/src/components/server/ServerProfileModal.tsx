@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { Textarea } from '@/components/ui/Textarea'
 import { useMemberStore, type Member } from '@/stores/member.store'
+import { api } from '@/lib/api'
 
 export function ServerProfileModal({
   serverId,
@@ -17,20 +18,25 @@ export function ServerProfileModal({
   onClose: () => void
 }) {
   const { t } = useTranslation('nav')
-  const member = useMemberStore((s) => s.members.find((m) => m.serverId === serverId && m.userId === userId))
+  const cachedMember = useMemberStore((s) => s.members.find((m) => m.serverId === serverId && m.userId === userId))
+  const [loadedMember, setLoadedMember] = useState<Member | null>(null)
+  const member =
+    cachedMember ?? (loadedMember?.serverId === serverId && loadedMember.userId === userId ? loadedMember : null)
   const [error, setError] = useState(false)
-  const fetchMembers = useMemberStore((s) => s.fetchMembers)
 
   useEffect(() => {
     if (member) return
     let cancelled = false
-    void fetchMembers(serverId)
-      .then(() => {
-        if (
-          !cancelled &&
-          !useMemberStore.getState().members.some((m) => m.serverId === serverId && m.userId === userId)
-        ) {
-          setError(true)
+    setError(false)
+    // Rail menus can target an inactive server. Keep its data local to this
+    // dialog rather than replacing the selected server's member store.
+    void api
+      .get<Member[]>(`/api/servers/${serverId}/members`)
+      .then((members) => {
+        if (!cancelled) {
+          const found = members.find((entry) => entry.serverId === serverId && entry.userId === userId)
+          setLoadedMember(found ?? null)
+          setError(!found)
         }
       })
       .catch((error: unknown) => {
@@ -40,7 +46,7 @@ export function ServerProfileModal({
     return () => {
       cancelled = true
     }
-  }, [serverId, userId, member, fetchMembers])
+  }, [serverId, userId, member])
 
   return (
     <ModalOverlay onClose={onClose} zIndex="z-[120]" aria-label={t('profileEdit')}>

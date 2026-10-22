@@ -8,7 +8,6 @@ import {
   DragOverlay,
   KeyboardSensor,
   MouseSensor,
-  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -16,13 +15,15 @@ import {
   type DragEndEvent
 } from '@dnd-kit/core'
 import { resolveMediaUrl } from '@/lib/api'
-import { applyLayoutDrop } from '@/lib/serverLayout'
+import { applyLayoutDrop, moveServer } from '@/lib/serverLayout'
+import type { ContextMenuItem } from '@/components/ui/ContextMenu'
 import type { ServerBadge } from '@/lib/unread'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Server } from '@/stores/server.store'
 import { serverLayoutOwner, useServerLayoutStore } from '@/stores/serverLayout.store'
 import { showToast } from '@/stores/toast.store'
 import { OrganizeServersModal } from './OrganizeServersModal'
+import { ServerContextMenu } from './ServerContextMenu'
 
 function RailItem({
   id,
@@ -32,7 +33,9 @@ function RailItem({
   badge,
   children,
   onClick,
-  expanded
+  expanded,
+  server,
+  menuItems
 }: {
   id: string
   disabled: boolean
@@ -42,9 +45,28 @@ function RailItem({
   children: ReactNode
   onClick: () => void
   expanded?: boolean
+  server?: Server
+  menuItems?: ContextMenuItem[]
 }) {
   const drag = useDraggable({ id, disabled })
   const drop = useDroppable({ id, disabled })
+  const button = (
+    <button
+      type="button"
+      ref={drag.setActivatorNodeRef}
+      {...drag.attributes}
+      {...drag.listeners}
+      aria-label={title}
+      aria-expanded={expanded}
+      title={title}
+      onClick={onClick}
+      className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-colors ${
+        active ? 'rounded-2xl bg-primary' : 'rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary'
+      } ${drop.isOver ? 'ring-2 ring-primary' : ''}`}
+    >
+      {children}
+    </button>
+  )
   return (
     <div
       ref={(node) => {
@@ -60,21 +82,13 @@ function RailItem({
         }`}
       />
       <div className="relative">
-        <button
-          type="button"
-          ref={drag.setActivatorNodeRef}
-          {...drag.attributes}
-          {...drag.listeners}
-          aria-label={title}
-          aria-expanded={expanded}
-          title={title}
-          onClick={onClick}
-          className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-colors ${
-            active ? 'rounded-2xl bg-primary' : 'rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary'
-          } ${drop.isOver ? 'ring-2 ring-primary' : ''}`}
-        >
-          {children}
-        </button>
+        {server ? (
+          <ServerContextMenu server={server} extraItems={menuItems}>
+            {button}
+          </ServerContextMenu>
+        ) : (
+          button
+        )}
         {badge && badge.mentions > 0 ? (
           <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-0.5 text-[10px] font-bold text-white">
             {badge.mentions > 10 ? '10+' : badge.mentions}
@@ -148,7 +162,6 @@ export function ServerRailList({
   const editable = owned && status === 'ready' && !saving && !isLoading
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor)
   )
   useEffect(() => {
@@ -182,6 +195,37 @@ export function ServerRailList({
         id={`server:${serverId}`}
         disabled={!editable}
         title={server.name}
+        server={server}
+        menuItems={[
+          {
+            id: 'move',
+            label: t('contextMoveToFolder'),
+            disabled: !editable,
+            children: [
+              {
+                id: 'root',
+                label: t('layoutUngrouped'),
+                disabled: !editable || entries.some((entry) => entry.type === 'server' && entry.serverId === serverId),
+                checked: entries.some((entry) => entry.type === 'server' && entry.serverId === serverId),
+                onSelect: () => {
+                  void save(moveServer(entries, serverId, null))
+                }
+              },
+              ...entries
+                .filter((entry) => entry.type === 'folder')
+                .map((folder) => ({
+                  id: folder.id,
+                  label: folder.name,
+                  disabled: !editable || folder.serverIds.includes(serverId),
+                  checked: folder.serverIds.includes(serverId),
+                  onSelect: () => {
+                    void save(moveServer(entries, serverId, folder.id))
+                  }
+                }))
+            ]
+          },
+          { id: 'organize', label: t('organizeServers'), disabled: !editable, onSelect: () => setOrganizeOpen(true) }
+        ]}
         active={activeServerId === serverId}
         badge={activeServerId === serverId ? undefined : serverBadges.get(serverId)}
         onClick={() => onServerClick(server)}

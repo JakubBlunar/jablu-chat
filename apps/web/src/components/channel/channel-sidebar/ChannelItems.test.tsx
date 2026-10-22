@@ -5,6 +5,8 @@ import { TextChannelItem } from './TextChannelItem'
 import { ForumChannelItem } from './ForumChannelItem'
 import { computeChannelBadge } from '@/lib/unread'
 
+jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
+
 jest.mock('@/lib/unread', () => {
   const actual = jest.requireActual<typeof import('@/lib/unread')>('@/lib/unread')
   return { ...actual, computeChannelBadge: jest.fn(actual.computeChannelBadge) }
@@ -26,13 +28,8 @@ describe.each([
       active: false,
       readState: { unreadCount: 2, mentionCount: 1 },
       notifLevel: 'all' as const,
-      longPressFired: { current: false },
       currentServer: { id: 's1' },
-      orchestratedGoToChannel: jest.fn().mockResolvedValue(undefined),
-      handleChannelTouchStart: jest.fn(),
-      handleChannelTouchEnd: jest.fn(),
-      handleChannelTouchMove: jest.fn(),
-      handleChannelContextMenu: jest.fn()
+      orchestratedGoToChannel: jest.fn().mockResolvedValue(undefined)
     }
   }
 
@@ -56,25 +53,17 @@ describe.each([
     expect(computeChannelBadge).toHaveBeenCalledTimes(3)
   })
 
-  it('preserves navigation, long press suppression, and touch handlers', () => {
+  it('opens options without navigating and preserves normal click navigation', () => {
     const initial = props()
     render(<ChannelItem {...initial} />)
     const button = screen.getByRole('button')
+    fireEvent.contextMenu(button)
+    expect(screen.getByRole('menu', { name: 'general' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'markAsRead' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'voice.editChannel' })).not.toBeInTheDocument()
+    expect(initial.orchestratedGoToChannel).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     fireEvent.click(button)
     expect(initial.orchestratedGoToChannel).toHaveBeenCalledWith('s1', 'c1')
-
-    initial.longPressFired.current = true
-    fireEvent.click(button)
-    expect(initial.orchestratedGoToChannel).toHaveBeenCalledTimes(1)
-    expect(initial.longPressFired.current).toBe(false)
-
-    fireEvent.touchStart(button)
-    fireEvent.touchEnd(button)
-    fireEvent.touchMove(button)
-    fireEvent.contextMenu(button)
-    expect(initial.handleChannelTouchStart).toHaveBeenCalledWith(initial.ch)
-    expect(initial.handleChannelTouchEnd).toHaveBeenCalledTimes(1)
-    expect(initial.handleChannelTouchMove).toHaveBeenCalledTimes(1)
-    expect(initial.handleChannelContextMenu).toHaveBeenCalledTimes(1)
   })
 })

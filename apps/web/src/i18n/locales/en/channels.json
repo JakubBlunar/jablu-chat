@@ -107,6 +107,8 @@
     "current": "Current"
   },
   "errors": {
+    "notificationSaveFailed": "Could not save notification settings. Please try again.",
+
     "categoryNameRequired": "Name is required.",
     "createCategoryFailed": "Could not create category.",
     "updateCategoryFailed": "Could not update category.",

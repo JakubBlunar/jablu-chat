@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { DetectedActivity } from '@chat/shared'
+import type { ActivitySnapshot, DetectedActivity } from '@chat/shared'
 import type { PttBinding } from '@/lib/micMode'
 
 /** True when running inside the Tauri desktop shell. */
@@ -74,10 +74,12 @@ export type DesktopAPI = {
   setActivityDetectionEnabled: (enabled: boolean) => Promise<void>
   /** Push the user's registered executables so custom apps become detectable. */
   setCustomDetectables: (
-    detectables: { name: string; executables: string[] }[]
+    detectables: { name: string; executables: string[]; appId?: string | null }[]
   ) => Promise<void>
   /** Read the currently detected activities on demand. */
   getDetectedActivities: () => Promise<DetectedActivity[]>
+  getActivitySnapshot: () => Promise<ActivitySnapshot>
+  onActivitySnapshot: (cb: (snapshot: ActivitySnapshot) => void) => () => void
   /** Subscribe to detected-activity updates emitted by the native poll loop. */
   onActivityDetected: (cb: (activities: DetectedActivity[]) => void) => () => void
 }
@@ -166,6 +168,8 @@ function buildDesktopAPI(): DesktopAPI {
       invoke('set_custom_detectables', { detectables }),
     getDetectedActivities: () =>
       invoke<DetectedActivity[]>('get_detected_activities').catch(() => []),
+    getActivitySnapshot: () => invoke<ActivitySnapshot>('get_activity_snapshot'),
+    onActivitySnapshot: (cb) => on<ActivitySnapshot>('activity:snapshot', cb),
     onActivityDetected: (cb) => on<DetectedActivity[]>('activity:detected', cb)
   }
 }

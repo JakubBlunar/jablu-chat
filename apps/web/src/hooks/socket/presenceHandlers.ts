@@ -35,11 +35,13 @@ export function createPresenceHandlers() {
         pendingOffline.delete(payload.userId)
         useMemberStore.getState().setUserOffline(payload.userId)
         useFriendStore.getState().updateFriendStatus(payload.userId, 'offline')
+        useActivityStore.getState().setUserActivity(payload.userId, null)
       }, 5000)
     )
   }
 
   const onUserStatus = (payload: StatusPayload) => {
+    if (payload.status === 'offline') useActivityStore.getState().setUserActivity(payload.userId, null)
     useMemberStore.getState().setUserStatus(payload.userId, payload.status)
     useFriendStore.getState().updateFriendStatus(payload.userId, payload.status as 'online' | 'idle' | 'dnd' | 'offline')
     const currentUser = useAuthStore.getState().user
@@ -58,13 +60,22 @@ export function createPresenceHandlers() {
     }
   }
 
-  const onUserActivity = (payload: { userId: string; activity: UserActivity | null }) => {
-    useActivityStore.getState().setUserActivity(payload.userId, payload.activity)
+  const onUserActivity = (payload: { userId: string; activity: UserActivity | null; revision?: number }) => {
+    useActivityStore.getState().setUserActivity(payload.userId, payload.activity, payload.revision)
   }
 
-  const onActivityInit = (payload: { activities: Record<string, UserActivity> }) => {
-    useActivityStore.getState().initActivities(payload.activities)
+  const onActivityInit = (payload: { activities: Record<string, UserActivity>; revision?: number }) => {
+    useActivityStore.getState().initActivities(payload.activities, payload.revision)
   }
+
+  const onActivityPreferencesChanged = () => {
+    const store = useActivityStore.getState()
+    void store.fetchSettings().catch(() => {})
+    void store.fetchGames().catch(() => {})
+    void store.fetchServerPrefs().catch(() => {})
+  }
+
+  const onActivityDisconnect = () => useActivityStore.getState().resetDisplay()
 
   const onPresenceInit = (payload: { onlineUserIds: string[] }) => {
     useMemberStore.getState().initOnlineUsers(payload.onlineUserIds)
@@ -110,6 +121,8 @@ export function createPresenceHandlers() {
     onUserCustomStatus,
     onUserActivity,
     onActivityInit,
+    onActivityPreferencesChanged,
+    onActivityDisconnect,
     onPresenceInit,
     onFriendsPresence,
     onMemberJoined,

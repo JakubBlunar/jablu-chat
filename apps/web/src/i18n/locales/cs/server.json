@@ -88,6 +88,7 @@
     "empty": "Na tomto serveru nejsou dostupné žádné role, které si můžete přiřadit."
   },
   "notifications": {
+    "channelLoadFailed": "Přepsání oznámení kanálů se nepodařilo načíst. Výchozí nastavení serveru můžete stále změnit.",
     "title": "Nastavení oznámení",
     "serverDefault": "Výchozí nastavení serveru",
     "allMessages": "Všechny zprávy",

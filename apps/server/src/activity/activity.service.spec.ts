@@ -68,6 +68,7 @@ describe('ActivityService', () => {
         activityShareMusic: true
       })
       await service.updateSettings(userId, { shareEnabled: true })
+      expect(events.emit).toHaveBeenCalledWith('activity:preferences-changed', { userId })
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: userId },
         data: { activityShareEnabled: true }

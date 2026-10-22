@@ -88,6 +88,7 @@
     "empty": "Na tomto serveri nie sú dostupné žiadne roly, ktoré si môžete priradiť."
   },
   "notifications": {
+    "channelLoadFailed": "Prepísania oznámení kanálov sa nepodarilo načítať. Predvolené nastavenie servera môžete stále zmeniť.",
     "title": "Nastavenia upozornení",
     "serverDefault": "Predvolené nastavenie servera",
     "allMessages": "Všetky správy",

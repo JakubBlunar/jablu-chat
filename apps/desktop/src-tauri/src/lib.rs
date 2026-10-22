@@ -366,6 +366,7 @@ pub fn run() {
             ptt::clear_ptt,
             activity::set_activity_detection_enabled,
             activity::get_detected_activities,
+            activity::get_activity_snapshot,
             activity::set_custom_detectables
         ])
         .run(tauri::generate_context!());

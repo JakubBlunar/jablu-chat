@@ -1,13 +1,12 @@
 //! Native activity detection: running Steam games, curated non-Steam games, and
 //! the current Spotify track (via the Windows System Media Transport Controls).
 //!
-//! A single background poll thread is spawned lazily on first enable and stays
-//! alive for the process lifetime; the master toggle just flips an atomic. When
-//! the detected set changes it emits `activity:detected` with the full list; the
-//! renderer applies the user's privacy filters before sharing anything.
+//! Successful process scans publish freshness even when the game is unchanged.
+//! Media and artwork run independently so they cannot hold up game-exit reports.
+//! The renderer and gateway both enforce sharing preferences.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::AppState;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(12);
+const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 /// A user-registered app/game matched by executable name(s). Pushed from the
 /// renderer so entries added under "Registered Games" become detectable.
@@ -24,6 +23,8 @@ pub struct CustomDetectable {
     pub name: String,
     /// Lowercased executable file names that identify this app.
     pub executables: Vec<String>,
+    #[serde(default, rename = "appId")]
+    pub app_id: Option<String>,
 }
 
 /// A raw activity detected natively, mirrored to the shared `DetectedActivity`
@@ -47,21 +48,33 @@ pub struct DetectedActivity {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
     pub started_at: u64,
+    pub session_id: Option<String>,
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivitySnapshot {
+    activities: Vec<DetectedActivity>,
+    observed_at: u64,
+    generation: u64,
 }
 
 pub struct ActivityState {
     started: bool,
     enabled: Arc<AtomicBool>,
-    current: Arc<Mutex<Vec<DetectedActivity>>>,
+    epoch: Arc<AtomicU64>,
+    wake: Arc<(Mutex<()>, Condvar)>,
+    current: Arc<Mutex<ActivitySnapshot>>,
     custom: Arc<Mutex<Vec<CustomDetectable>>>,
 }
-
 impl Default for ActivityState {
     fn default() -> Self {
         Self {
             started: false,
             enabled: Arc::new(AtomicBool::new(false)),
-            current: Arc::new(Mutex::new(Vec::new())),
+            epoch: Arc::new(AtomicU64::new(0)),
+            wake: Arc::new((Mutex::new(()), Condvar::new())),
+            current: Arc::new(Mutex::new(ActivitySnapshot::default())),
             custom: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -69,47 +82,104 @@ impl Default for ActivityState {
 
 #[tauri::command]
 pub fn set_activity_detection_enabled(app: AppHandle, state: State<AppState>, enabled: bool) {
-    let mut activity = state.activity.lock().unwrap();
-    activity.enabled.store(enabled, Ordering::SeqCst);
-
+    let Ok(mut activity) = state.activity.lock() else {
+        return;
+    };
+    let changed = activity.enabled.swap(enabled, Ordering::SeqCst) != enabled;
+    if changed {
+        activity.epoch.fetch_add(1, Ordering::SeqCst);
+    }
     if !enabled {
-        // Publish an empty set immediately so the renderer clears its shared state.
         if let Ok(mut cur) = activity.current.lock() {
-            if !cur.is_empty() {
-                cur.clear();
-                let _ = app.emit("activity:detected", Vec::<DetectedActivity>::new());
-            }
+            cur.activities.clear();
+            cur.observed_at = now_ms();
+            cur.generation += 1;
+            let _ = app.emit("activity:snapshot", cur.clone());
+            let _ = app.emit("activity:detected", Vec::<DetectedActivity>::new());
         }
     }
-
-    if activity.started {
+    if changed {
+        activity.wake.1.notify_one();
+    }
+    if activity.started || !enabled {
         return;
     }
     activity.started = true;
-
     let enabled_flag = activity.enabled.clone();
+    let epoch = activity.epoch.clone();
     let current = activity.current.clone();
     let custom = activity.custom.clone();
+    let wake = activity.wake.clone();
     let handle = app.clone();
-
+    let music = Arc::new(Mutex::new((None::<DetectedActivity>, 0_u64, 0_u64)));
+    let media = music.clone();
+    let media_enabled = enabled_flag.clone();
+    let media_epoch = epoch.clone();
     std::thread::spawn(move || {
         init_thread();
-        let mut last_emitted: Vec<DetectedActivity> = Vec::new();
         loop {
-            if enabled_flag.load(Ordering::SeqCst) {
-                let custom_snapshot = custom.lock().map(|c| c.clone()).unwrap_or_default();
-                let mut detected = detect_all(&custom_snapshot);
-                carry_over_started_at(&mut detected, &last_emitted);
-
-                if let Ok(mut cur) = current.lock() {
-                    *cur = detected.clone();
-                }
-                if detected != last_emitted {
-                    let _ = handle.emit("activity:detected", &detected);
-                    last_emitted = detected;
+            let generation = media_epoch.load(Ordering::SeqCst);
+            let result = if media_enabled.load(Ordering::SeqCst) {
+                std::panic::catch_unwind(detect_music).ok().flatten()
+            } else {
+                None
+            };
+            if generation == media_epoch.load(Ordering::SeqCst) {
+                if let Ok(mut cached) = media.lock() {
+                    *cached = (result, now_ms(), generation);
                 }
             }
             std::thread::sleep(POLL_INTERVAL);
+        }
+    });
+    std::thread::spawn(move || {
+        let mut previous = Vec::new();
+        let mut previous_epoch = u64::MAX;
+        loop {
+            let generation = epoch.load(Ordering::SeqCst);
+            if enabled_flag.load(Ordering::SeqCst) {
+                if generation != previous_epoch {
+                    previous.clear();
+                    previous_epoch = generation;
+                }
+                let custom_snapshot = custom.lock().map(|c| c.clone()).unwrap_or_default();
+                match std::panic::catch_unwind(|| detect_all(&custom_snapshot)) {
+                    Ok(mut detected) => {
+                        if let Ok(cached) = music.lock() {
+                            if cached.2 == generation && now_ms().saturating_sub(cached.1) < 15_000
+                            {
+                                if let Some(track) = &cached.0 {
+                                    detected.push(track.clone());
+                                }
+                            }
+                        }
+                        carry_over_started_at(&mut detected, &previous);
+                        detected.sort_by(|a, b| {
+                            (a.kind, &a.app_id, &a.name).cmp(&(b.kind, &b.app_id, &b.name))
+                        });
+                        if let Ok(mut cur) = current.lock() {
+                            if enabled_flag.load(Ordering::SeqCst)
+                                && epoch.load(Ordering::SeqCst) == generation
+                            {
+                                cur.activities = detected.clone();
+                                cur.observed_at = now_ms();
+                                cur.generation += 1;
+                                let _ = handle.emit("activity:snapshot", cur.clone());
+                                if detected != previous {
+                                    let _ = handle.emit("activity:detected", &detected);
+                                }
+                                previous = detected;
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        crate::logging::log("activity: process scan panicked; retrying next cycle")
+                    }
+                }
+            }
+            if let Ok(guard) = wake.0.lock() {
+                let _ = wake.1.wait_timeout(guard, POLL_INTERVAL);
+            }
         }
     });
 }
@@ -122,30 +192,42 @@ pub fn set_custom_detectables(state: State<AppState>, detectables: Vec<CustomDet
                 .into_iter()
                 .map(|d| CustomDetectable {
                     name: d.name,
+                    app_id: d.app_id,
                     executables: d.executables.iter().map(|e| e.to_lowercase()).collect(),
                 })
                 .collect();
         }
+        activity.wake.1.notify_one();
     }
 }
-
 #[tauri::command]
-pub fn get_detected_activities(state: State<AppState>) -> Vec<DetectedActivity> {
+pub fn get_activity_snapshot(state: State<AppState>) -> ActivitySnapshot {
     state
         .activity
         .lock()
-        .map(|a| a.current.lock().map(|c| c.clone()).unwrap_or_default())
+        .map(|a| {
+            a.wake.1.notify_one();
+            a.current.lock().map(|c| c.clone()).unwrap_or_default()
+        })
         .unwrap_or_default()
+}
+#[tauri::command]
+pub fn get_detected_activities(state: State<AppState>) -> Vec<DetectedActivity> {
+    get_activity_snapshot(state).activities
 }
 
 /// Keeps a stable `started_at` for an activity that was already present last tick
 /// so elapsed-time display doesn't reset every poll.
 fn carry_over_started_at(next: &mut [DetectedActivity], prev: &[DetectedActivity]) {
     for item in next.iter_mut() {
-        if let Some(old) = prev
-            .iter()
-            .find(|p| p.source == item.source && p.name == item.name)
-        {
+        if let Some(old) = prev.iter().find(|p| {
+            p.source == item.source
+                && p.app_id == item.app_id
+                && p.name == item.name
+                && p.session_id == item.session_id
+                && p.details == item.details
+                && p.state == item.state
+        }) {
             item.started_at = old.started_at;
         }
     }
@@ -156,6 +238,216 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+// Known game binaries also cover mod managers launching outside Steam libraries.
+fn steam_executable(app_id: &str, executable: &str) -> bool {
+    matches!(
+        (app_id, executable),
+        ("489830", "skyrimse.exe") | ("72850", "tesv.exe") | ("611670", "skyrimvr.exe")
+    )
+}
+
+fn is_helper(executable: &str) -> bool {
+    let executable = executable.to_lowercase();
+    if ["steam.exe", "steamservice.exe", "steamwebhelper.exe"].contains(&executable.as_str()) {
+        return true;
+    }
+    [
+        "launcher",
+        "crash",
+        "unins",
+        "setup",
+        "redist",
+        "modorganizer",
+        "_loader",
+        "usvfs",
+        "helper",
+        "updater",
+    ]
+    .iter()
+    .any(|part| executable.contains(part))
+}
+
+fn steam_process_matches(
+    app_id: &str,
+    executable: &str,
+    path: Option<&std::path::Path>,
+    install: Option<&std::path::Path>,
+    inherited_app_id: bool,
+    registered: bool,
+) -> bool {
+    if is_helper(executable) {
+        return false;
+    }
+    // Known titles require the game binary even when another process inherits
+    // SteamAppId or lives beside the game. Mod tools must not prolong Skyrim.
+    if ["489830", "72850", "611670"].contains(&app_id) {
+        return steam_executable(app_id, executable);
+    }
+    registered
+        || inherited_app_id
+        || path
+            .zip(install)
+            .is_some_and(|(exe, root)| path_is_inside(exe, root))
+}
+
+fn path_is_inside(executable: &std::path::Path, directory: &std::path::Path) -> bool {
+    let exe = executable
+        .to_string_lossy()
+        .replace('/', "\\")
+        .to_lowercase();
+    let dir = directory
+        .to_string_lossy()
+        .replace('/', "\\")
+        .to_lowercase();
+    exe.starts_with(&format!("{}\\", dir.trim_end_matches('\\')))
+}
+
+fn vdf_tokens(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        if c != '"' {
+            continue;
+        }
+        let mut token = String::new();
+        while let Some(c) = chars.next() {
+            if c == '"' {
+                break;
+            }
+            if c == '\\' {
+                if let Some(escaped) = chars.next() {
+                    token.push(escaped);
+                }
+            } else {
+                token.push(c);
+            }
+        }
+        out.push(token);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn modded_skyrim_matches_its_real_binary() {
+        assert!(steam_executable("489830", "skyrimse.exe"));
+        assert!(!steam_executable("489830", "steam.exe"));
+        assert!(!steam_executable("489830", "modorganizer.exe"));
+        assert!(!steam_executable("489830", "skse64_loader.exe"));
+        assert!(!steam_executable("72850", "skyrimse.exe"));
+    }
+
+    #[test]
+    fn helpers_cannot_keep_a_steam_game_alive() {
+        for name in [
+            "steam.exe",
+            "ModOrganizer.exe",
+            "GameLauncher.exe",
+            "skse64_loader.exe",
+            "CrashReporter.exe",
+        ] {
+            assert!(is_helper(name));
+        }
+        assert!(!is_helper("skyrimse.exe"));
+        assert!(!steam_process_matches(
+            "489830",
+            "python.exe",
+            None,
+            None,
+            true,
+            false
+        ));
+        assert!(!steam_process_matches(
+            "489830",
+            "usvfs_proxy_x64.exe",
+            None,
+            None,
+            true,
+            false
+        ));
+    }
+
+    #[test]
+    fn installation_matching_requires_a_directory_boundary() {
+        assert!(path_is_inside(
+            std::path::Path::new("I:/Steam/Game/bin/play.exe"),
+            std::path::Path::new("i:/steam/game")
+        ));
+        assert!(!path_is_inside(
+            std::path::Path::new("I:/Steam/Game Launcher/play.exe"),
+            std::path::Path::new("I:/Steam/Game")
+        ));
+    }
+
+    #[test]
+    fn reads_escaped_steam_library_paths() {
+        assert_eq!(
+            vdf_tokens(r#""path" "I:\\SteamLibrary" "installdir" "Skyrim Special Edition""#),
+            vec![
+                "path",
+                "I:\\SteamLibrary",
+                "installdir",
+                "Skyrim Special Edition"
+            ]
+        );
+    }
+
+    #[test]
+    fn new_tracks_and_process_sessions_have_distinct_start_times() {
+        let old = DetectedActivity {
+            source: "smtc",
+            kind: "music",
+            name: "Spotify".into(),
+            app_id: None,
+            executable: None,
+            details: Some("Old song".into()),
+            state: None,
+            icon_data_url: None,
+            icon_url: None,
+            started_at: 100,
+            session_id: None,
+        };
+        let mut new = old.clone();
+        new.details = Some("New song".into());
+        new.started_at = 200;
+        carry_over_started_at(std::slice::from_mut(&mut new), std::slice::from_ref(&old));
+        assert_eq!(new.started_at, 200);
+        let mut next = old.clone();
+        next.started_at = 300;
+        carry_over_started_at(std::slice::from_mut(&mut next), std::slice::from_ref(&old));
+        assert_eq!(next.started_at, 100);
+        next.session_id = Some("new-process".into());
+        next.started_at = 400;
+        carry_over_started_at(std::slice::from_mut(&mut next), &[old]);
+        assert_eq!(next.started_at, 400);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires Skyrim to be running on the host"]
+    fn detects_live_modded_skyrim() {
+        let detected = detect_all(&[]);
+        let game = detected
+            .iter()
+            .find(|a| a.source == "steam" && a.app_id.as_deref() == Some("489830"))
+            .expect("running Skyrim should be corroborated with its actual process");
+        assert_eq!(game.executable.as_deref(), Some("skyrimse.exe"));
+        assert!(game.session_id.is_some());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "Requires Skyrim closed while Steam remains open"]
+    fn closed_skyrim_is_not_detected() {
+        assert!(!detect_all(&[])
+            .iter()
+            .any(|a| a.app_id.as_deref() == Some("489830")));
+    }
 }
 
 // ── Platform dispatch ──────────────────────────────────────────────────────
@@ -174,15 +466,18 @@ fn init_thread() {}
 
 #[cfg(windows)]
 fn detect_all(custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
-    use sysinfo::System;
+    use sysinfo::{ProcessRefreshKind, System, UpdateKind};
 
     let mut sys = System::new();
-    sys.refresh_processes();
+    sys.refresh_processes_specifics(
+        ProcessRefreshKind::new()
+            .with_exe(UpdateKind::OnlyIfNotSet)
+            .with_environ(UpdateKind::OnlyIfNotSet)
+            .with_cmd(UpdateKind::OnlyIfNotSet),
+    );
 
-    // Steam leaves the per-app `Running` registry flag set to the last game even
-    // after it exits, so it's only trustworthy while Steam itself is running.
-    // Otherwise we'd report a stale "playing" long after the game (and Steam)
-    // closed.
+    // Steam supplies app identities. A live game process is required separately;
+    // the client and registry flag never prove that a game is running.
     let steam_running = sys
         .processes()
         .values()
@@ -192,7 +487,7 @@ fn detect_all(custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
     let mut seen_names: Vec<String> = Vec::new();
 
     if steam_running {
-        for game in win::detect_steam() {
+        for game in win::detect_steam(&sys, custom) {
             seen_names.push(game.name.to_lowercase());
             out.push(game);
         }
@@ -203,9 +498,6 @@ fn detect_all(custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
         }
         seen_names.push(game.name.to_lowercase());
         out.push(game);
-    }
-    if let Some(music) = win::detect_music() {
-        out.push(music);
     }
     out
 }
@@ -218,13 +510,125 @@ fn detect_all(_custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
 // ── Windows detection ──────────────────────────────────────────────────────
 
 #[cfg(windows)]
+fn detect_music() -> Option<DetectedActivity> {
+    win::detect_music()
+}
+#[cfg(not(windows))]
+fn detect_music() -> Option<DetectedActivity> {
+    None
+}
+
+#[cfg(windows)]
 mod win {
     use super::{now_ms, DetectedActivity};
     use base64::Engine;
 
+    fn media_result<T: windows::core::RuntimeType>(
+        operation: windows::core::Result<windows_future::IAsyncOperation<T>>,
+    ) -> Option<T> {
+        let operation = operation.ok()?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while operation.Status().ok()? == windows_future::AsyncStatus::Started {
+            if std::time::Instant::now() >= deadline {
+                let _ = operation.Cancel();
+                return None;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        operation.GetResults().ok()
+    }
+
+    enum IconTask {
+        Steam(String, String),
+        Executable(std::path::PathBuf),
+    }
+    type IconMap =
+        std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Option<String>>>>;
+    struct Icons {
+        values: IconMap,
+        sender: std::sync::mpsc::SyncSender<(String, IconTask)>,
+    }
+    fn cached_icon(key: String, task: IconTask) -> Option<String> {
+        static CACHE: std::sync::OnceLock<Icons> = std::sync::OnceLock::new();
+        let cache = CACHE.get_or_init(|| {
+            let values: IconMap = Default::default();
+            let worker = values.clone();
+            let (sender, receiver) = std::sync::mpsc::sync_channel::<(String, IconTask)>(8);
+            std::thread::spawn(move || {
+                for (key, task) in receiver {
+                    let result = std::panic::catch_unwind(|| match task {
+                        IconTask::Steam(path, id) => steam_icon_data_url(&path, &id),
+                        IconTask::Executable(path) => exe_icon_data_url(&path),
+                    })
+                    .ok()
+                    .flatten();
+                    if let Ok(mut values) = worker.lock() {
+                        values.insert(key, result);
+                    }
+                }
+            });
+            Icons { values, sender }
+        });
+        let Ok(mut values) = cache.values.lock() else {
+            return None;
+        };
+        if let Some(value) = values.get(&key) {
+            return value.clone();
+        }
+        if values.len() > 128 {
+            values.clear();
+        }
+        if cache.sender.try_send((key.clone(), task)).is_ok() {
+            values.insert(key, None);
+        }
+        None
+    }
+
+    fn steam_install_dir(steam_path: &str, app_id: &str) -> Option<std::path::PathBuf> {
+        use std::path::PathBuf;
+        let mut libraries = vec![PathBuf::from(steam_path)];
+        if let Ok(text) =
+            std::fs::read_to_string(PathBuf::from(steam_path).join("steamapps/libraryfolders.vdf"))
+        {
+            for pair in super::vdf_tokens(&text).windows(2) {
+                if pair[0] == "path" {
+                    libraries.push(PathBuf::from(&pair[1]));
+                }
+            }
+        }
+        for library in libraries {
+            let apps = library.join("steamapps");
+            let Ok(manifest) =
+                std::fs::read_to_string(apps.join(format!("appmanifest_{app_id}.acf")))
+            else {
+                continue;
+            };
+            if let Some(pair) = super::vdf_tokens(&manifest)
+                .windows(2)
+                .find(|p| p[0] == "installdir")
+            {
+                let directory = PathBuf::from(&pair[1]);
+                if directory
+                    .components()
+                    .any(|c| !matches!(c, std::path::Component::Normal(_)))
+                {
+                    continue;
+                }
+                return Some(apps.join("common").join(directory));
+            }
+        }
+        None
+    }
+
     /// Small curated non-Steam detectables. Kept in sync with the server list.
     const DETECTABLES: &[(&str, &[&str])] = &[
         ("Minecraft", &["minecraft.exe", "javaw.exe"]),
+        (
+            "The Elder Scrolls V: Skyrim Special Edition",
+            &["skyrimse.exe"],
+        ),
+        ("The Elder Scrolls V: Skyrim", &["tesv.exe"]),
+        ("The Elder Scrolls V: Skyrim VR", &["skyrimvr.exe"]),
         ("League of Legends", &["league of legends.exe"]),
         ("VALORANT", &["valorant.exe", "valorant-win64-shipping.exe"]),
         ("Fortnite", &["fortniteclient-win64-shipping.exe"]),
@@ -238,7 +642,10 @@ mod win {
         ("osu!", &["osu!.exe"]),
     ];
 
-    pub fn detect_steam() -> Vec<DetectedActivity> {
+    pub fn detect_steam(
+        sys: &sysinfo::System,
+        custom: &[super::CustomDetectable],
+    ) -> Vec<DetectedActivity> {
         use winreg::enums::HKEY_CURRENT_USER;
         use winreg::RegKey;
 
@@ -256,15 +663,46 @@ mod win {
                 continue;
             };
             let running: u32 = sub.get_value("Running").unwrap_or(0);
-            if running != 1 {
+            let known_running = sys
+                .processes()
+                .values()
+                .any(|p| super::steam_executable(&app_id, &p.name().to_lowercase()));
+            if running != 1 && !known_running {
                 continue;
             }
+            let install = steam_install_dir(&steam_path, &app_id);
+            let process = sys
+                .processes()
+                .iter()
+                .filter(|(_, p)| {
+                    let name = p.name().to_lowercase();
+                    super::steam_process_matches(
+                        &app_id,
+                        &name,
+                        p.exe(),
+                        install.as_deref(),
+                        p.environ()
+                            .iter()
+                            .any(|v| v.strip_prefix("SteamAppId=") == Some(app_id.as_str())),
+                        custom.iter().any(|c| {
+                            c.app_id.as_deref() == Some(app_id.as_str())
+                                && c.executables.contains(&name)
+                        }),
+                    )
+                })
+                .min_by_key(|(pid, _)| **pid);
+            let Some((pid, process)) = process else {
+                continue;
+            };
             let name: String = sub.get_value("Name").unwrap_or_default();
             if name.is_empty() {
                 continue;
             }
             // Prefer Steam's local square icon; fall back to the (rectangular) CDN capsule.
-            let icon_data_url = steam_icon_data_url(&steam_path, &app_id);
+            let icon_data_url = cached_icon(
+                format!("steam:{app_id}"),
+                IconTask::Steam(steam_path.clone(), app_id.clone()),
+            );
             let icon_url = if icon_data_url.is_some() {
                 None
             } else {
@@ -277,12 +715,13 @@ mod win {
                 kind: "game",
                 name,
                 app_id: Some(app_id.clone()),
-                executable: None,
+                executable: Some(process.name().to_lowercase()),
                 details: None,
                 state: None,
                 icon_data_url,
                 icon_url,
-                started_at: now_ms(),
+                started_at: process.start_time().saturating_mul(1000),
+                session_id: Some(format!("{pid}:{}", process.start_time())),
             });
         }
         out
@@ -298,7 +737,9 @@ mod win {
         if steam_path.is_empty() {
             return None;
         }
-        let cache = PathBuf::from(steam_path).join("appcache").join("librarycache");
+        let cache = PathBuf::from(steam_path)
+            .join("appcache")
+            .join("librarycache");
 
         let mut candidates: Vec<PathBuf> = vec![
             cache.join(format!("{app_id}_icon.jpg")),
@@ -338,8 +779,20 @@ mod win {
         custom: &[super::CustomDetectable],
     ) -> Vec<DetectedActivity> {
         let mut out: Vec<DetectedActivity> = Vec::new();
-        for (_pid, proc_) in sys.processes() {
+        let mut processes: Vec<_> = sys.processes().iter().collect();
+        processes.sort_by_key(|(pid, proc_)| (proc_.start_time(), **pid));
+        for (pid, proc_) in processes {
             let exe_name = proc_.name().to_lowercase();
+            if exe_name == "javaw.exe"
+                && !proc_.cmd().iter().any(|arg| {
+                    let arg = arg.to_lowercase();
+                    ["minecraft", "fabricmc", "forge", "quiltmc"]
+                        .iter()
+                        .any(|tag| arg.contains(tag))
+                })
+            {
+                continue;
+            }
 
             // Curated list first, then the user's registered executables.
             let title: Option<String> = DETECTABLES
@@ -358,18 +811,33 @@ mod win {
             if out.iter().any(|a| a.name == title) {
                 continue;
             }
-            let icon_data_url = proc_.exe().and_then(exe_icon_data_url);
+            let icon_data_url = proc_.exe().and_then(|path| {
+                cached_icon(
+                    format!("exe:{}", path.display()),
+                    IconTask::Executable(path.to_path_buf()),
+                )
+            });
             out.push(DetectedActivity {
                 source: "process",
                 kind: "game",
                 name: title,
-                app_id: None,
+                app_id: ["489830", "72850", "611670"]
+                    .iter()
+                    .find(|id| super::steam_executable(id, &exe_name))
+                    .map(|id| (*id).to_string())
+                    .or_else(|| {
+                        custom
+                            .iter()
+                            .find(|c| c.executables.contains(&exe_name))
+                            .and_then(|c| c.app_id.clone())
+                    }),
                 executable: Some(exe_name),
                 details: None,
                 state: None,
                 icon_data_url,
                 icon_url: None,
-                started_at: now_ms(),
+                started_at: proc_.start_time().saturating_mul(1000),
+                session_id: Some(format!("{pid}:{}", proc_.start_time())),
             });
         }
         out
@@ -381,8 +849,19 @@ mod win {
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
         };
 
-        let manager = SmtcManager::RequestAsync().ok()?.get().ok()?;
-        let session = manager.GetCurrentSession().ok()?;
+        let manager = media_result(SmtcManager::RequestAsync())?;
+        let sessions = manager.GetSessions().ok()?;
+        let session = (0..sessions.Size().ok()?)
+            .filter_map(|i| sessions.GetAt(i).ok())
+            .find(|s| {
+                s.SourceAppUserModelId()
+                    .ok()
+                    .is_some_and(|id| id.to_string().to_lowercase().contains("spotify"))
+                    && s.GetPlaybackInfo()
+                        .ok()
+                        .and_then(|p| p.PlaybackStatus().ok())
+                        == Some(PlaybackStatus::Playing)
+            })?;
 
         let source = session.SourceAppUserModelId().ok()?.to_string();
         if !source.to_lowercase().contains("spotify") {
@@ -394,12 +873,16 @@ mod win {
             return None;
         }
 
-        let props = session.TryGetMediaPropertiesAsync().ok()?.get().ok()?;
+        let props = media_result(session.TryGetMediaPropertiesAsync())?;
         let title = props.Title().ok()?.to_string();
         if title.is_empty() {
             return None;
         }
-        let artist = props.Artist().ok().map(|s| s.to_string()).unwrap_or_default();
+        let artist = props
+            .Artist()
+            .ok()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
 
         let icon_data_url = read_thumbnail(&props);
 
@@ -410,10 +893,15 @@ mod win {
             app_id: None,
             executable: None,
             details: Some(title),
-            state: if artist.is_empty() { None } else { Some(artist) },
+            state: if artist.is_empty() {
+                None
+            } else {
+                Some(artist)
+            },
             icon_data_url,
             icon_url: None,
             started_at: now_ms(),
+            session_id: None,
         })
     }
 
@@ -423,9 +911,9 @@ mod win {
         use windows::Storage::Streams::DataReader;
 
         let thumb_ref = props.Thumbnail().ok()?;
-        let stream = thumb_ref.OpenReadAsync().ok()?.get().ok()?;
+        let stream = media_result(thumb_ref.OpenReadAsync())?;
         let size = stream.Size().ok()?;
-        if size == 0 || size > 4_000_000 {
+        if size == 0 || size > 1_000_000 {
             return None;
         }
         let content_type = stream
@@ -435,7 +923,7 @@ mod win {
 
         let input = stream.GetInputStreamAt(0).ok()?;
         let reader = DataReader::CreateDataReader(&input).ok()?;
-        reader.LoadAsync(size as u32).ok()?.get().ok()?;
+        media_result(reader.LoadAsync(size as u32))?;
         let mut buf = vec![0u8; size as usize];
         reader.ReadBytes(&mut buf).ok()?;
 

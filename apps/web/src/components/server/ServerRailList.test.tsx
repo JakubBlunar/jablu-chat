@@ -4,6 +4,7 @@ import { ServerRailList } from './ServerRailList'
 import { useServerLayoutStore } from '@/stores/serverLayout.store'
 import { api } from '@/lib/api'
 import { makeServer } from '@/test/factories'
+import { useReadStateStore } from '@/stores/readState.store'
 
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
 jest.mock('@/lib/api', () => ({
@@ -80,6 +81,28 @@ it('shows only a subtle separator instead of the drop target when idle', () => {
   expect(separator).toHaveClass('h-0.5', 'w-8', 'bg-white/15')
   expect(separator).not.toHaveClass('border', 'border-dashed')
   expect(separator).toBeEmptyDOMElement()
+})
+
+it('opens actions for an inactive server without navigating and marks that server as read', () => {
+  const ack = jest.spyOn(useReadStateStore.getState(), 'ackServer').mockResolvedValue(true)
+  render(<ServerRailList {...props} currentServerId={b} />)
+  fireEvent.contextMenu(screen.getByRole('button', { name: 'Alpha' }))
+  expect(screen.getByRole('menu', { name: 'Alpha' })).toBeInTheDocument()
+  expect(props.onServerClick).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('menuitem', { name: 'sidebar.markAllAsRead' }))
+  expect(ack).toHaveBeenCalledWith(a)
+})
+
+it('moves an inactive server directly into an existing folder', async () => {
+  render(<ServerRailList {...props} currentServerId={b} />)
+  fireEvent.contextMenu(screen.getByRole('button', { name: 'Alpha' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'contextMoveToFolder' }))
+  fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Games' }))
+  await waitFor(() => expect(useServerLayoutStore.getState().isSaving).toBe(false))
+  expect(useServerLayoutStore.getState().entries).toEqual([
+    { type: 'folder', id: folderId, name: 'Games', collapsed: true, serverIds: [b, a] }
+  ])
+  expect(props.onServerClick).not.toHaveBeenCalled()
 })
 
 it('shows collapsed folder unread badges, expands it and navigates normally', async () => {

@@ -66,3 +66,23 @@ it('keeps entered data and shows failures without closing', async () => {
   expect(screen.getByLabelText('profileName')).toHaveValue('Local Alice')
   expect(onClose).not.toHaveBeenCalled()
 })
+
+it('loads and edits an inactive server without replacing the selected server members', async () => {
+  const otherMember = { ...member, serverId: 'two', displayName: 'Other name' }
+  jest.mocked(api.get).mockResolvedValue([otherMember])
+  jest.mocked(api.patch).mockResolvedValue({ displayName: 'Updated other', bio: otherMember.bio })
+  render(<ServerProfileModal serverId="two" userId="me" onClose={jest.fn()} />)
+  expect(await screen.findByLabelText('profileName')).toHaveValue('Other name')
+  expect(api.get).toHaveBeenCalledWith('/api/servers/two/members')
+  expect(useMemberStore.getState().loadedServerId).toBe('one')
+  expect(useMemberStore.getState().members).toEqual([member])
+  fireEvent.change(screen.getByLabelText('profileName'), { target: { value: 'Updated other' } })
+  fireEvent.click(screen.getByRole('button', { name: 'profileSave' }))
+  await waitFor(() =>
+    expect(api.patch).toHaveBeenCalledWith('/api/servers/two/members/me/profile', {
+      displayName: 'Updated other',
+      bio: otherMember.bio
+    })
+  )
+  expect(useMemberStore.getState().members).toEqual([member])
+})

@@ -35,6 +35,7 @@ export function BottomSheet({
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
+  const backdropTouchStarted = useRef(false)
   const name = useDialogName(sheetRef, open, children, label)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -76,13 +77,21 @@ export function BottomSheet({
       aria-modal="true"
       {...name}
       onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onTouchStart={(e) => {
+        e.stopPropagation()
+        backdropTouchStarted.current = ready && e.target === e.currentTarget
+      }}
       onTouchEnd={(e) => {
         e.stopPropagation()
-        if (ready && e.target === e.currentTarget) {
+        if (e.target === e.currentTarget) {
+          // A sheet opened by a hold can receive the end of a gesture that
+          // began behind it. Ignore that release and its compatibility click.
           e.preventDefault()
-          close()
+          if (backdropTouchStarted.current) close()
         }
+        backdropTouchStarted.current = false
       }}
       onClick={(e) => {
         e.stopPropagation()

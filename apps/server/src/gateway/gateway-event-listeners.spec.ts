@@ -17,6 +17,9 @@ describe('welcome messages', () => {
       reactions: []
     }
     const gateway = {
+      refreshAllActivities: jest.fn().mockResolvedValue(undefined),
+      refreshActivity: jest.fn().mockResolvedValue(undefined),
+      refreshActivityForServer: jest.fn().mockResolvedValue(undefined),
       events: {
         on: jest.fn((event: string, handler: (payload: unknown) => Promise<void>) => {
           handlers.set(event, handler)
@@ -41,8 +44,17 @@ describe('welcome messages', () => {
       emitToChannel: jest.fn()
     }
     registerEventListeners(gateway as unknown as ChatGateway)
-    return { gateway, message, onJoin: handlers.get('member:joined')! }
+    return { gateway, message, handlers, onJoin: handlers.get('member:joined')! }
   }
+
+  it('reconciles privacy changes and notifies all of the sharing user\'s devices', async () => {
+    const { gateway, handlers } = setup()
+    await handlers.get('activity:preferences-changed')!({ userId: 'player' })
+    expect(gateway.refreshActivity).toHaveBeenCalledWith('player')
+    expect(gateway.server.to).toHaveBeenCalledWith('user:player')
+    await handlers.get('activity:server-scope-changed')!({ userId: 'player', serverId: 'hidden-server' })
+    expect(gateway.refreshActivityForServer).toHaveBeenCalledWith('player', 'hidden-server')
+  })
 
   it('persists a server sender identity for live delivery and message history', async () => {
     const { gateway, message, onJoin } = setup()

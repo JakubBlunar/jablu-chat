@@ -107,6 +107,8 @@
     "current": "Aktuální"
   },
   "errors": {
+    "notificationSaveFailed": "Nastavení oznámení se nepodařilo uložit. Zkuste to znovu.",
+
     "categoryNameRequired": "Název je povinný.",
     "createCategoryFailed": "Kategorii se nepodařilo vytvořit.",
     "updateCategoryFailed": "Kategorii se nepodařilo upravit.",

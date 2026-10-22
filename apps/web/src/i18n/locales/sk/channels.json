@@ -107,6 +107,8 @@
     "current": "Aktuálne"
   },
   "errors": {
+    "notificationSaveFailed": "Nastavenia oznámení sa nepodarilo uložiť. Skúste to znova.",
+
     "categoryNameRequired": "Názov je povinný.",
     "createCategoryFailed": "Kategóriu sa nepodarilo vytvoriť.",
     "updateCategoryFailed": "Kategóriu sa nepodarilo upraviť.",
