@@ -1,4 +1,6 @@
 port: 7880
+# The JS SDK opens the optional _data_track channel during voice joins.
+enable_data_tracks: true
 rtc:
   tcp_port: 7881
   port_range_start: 50000

@@ -123,6 +123,59 @@ async function disconnect(page: Page) {
   })
 }
 
+test('data-track channel stays open on fresh-page joins and subsequent rejoins', async ({ context, page }) => {
+  await instrument(context)
+  await context.addInitScript(() => {
+    const scope = window as typeof window & { auditDataChannels: RTCDataChannel[] }
+    scope.auditDataChannels = []
+    const createDataChannel = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (label: string, options?: RTCDataChannelInit) {
+      const channel = createDataChannel.call(this, label, options)
+      scope.auditDataChannels.push(channel)
+      return channel
+    }
+  })
+  const unexpectedCloses: string[] = []
+  page.on('console', (message) => {
+    if (message.text().includes("publisher data channel 'DATA_TRACK_LOSSY' closed unexpectedly")) {
+      unexpectedCloses.push(message.text())
+    }
+  })
+  let voice = await prepare(page, 'admin')
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt === 2) {
+        await page.reload()
+        voice = await prepare(page, 'admin')
+      }
+      await join(page, voice.name)
+      await expect.poll(async () => (await voiceState(page)).microphones).toBe(1)
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const scope = window as typeof window & { auditDataChannels: RTCDataChannel[] }
+            return scope.auditDataChannels.filter((channel) => channel.label === '_data_track').at(-1)?.readyState
+          })
+        )
+        .toBe('open')
+      // Stay connected long enough to catch a server-side rejection after SCTP opens.
+      await expect
+        .poll(() =>
+          page.evaluate(async () => {
+            const scope = window as typeof window & { auditDataChannels: RTCDataChannel[] }
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            return scope.auditDataChannels.filter((channel) => channel.label === '_data_track').at(-1)?.readyState
+          })
+        )
+        .toBe('open')
+      expect(unexpectedCloses).toEqual([])
+      await disconnect(page)
+    }
+  } finally {
+    await disconnect(page)
+  }
+})
+
 test('two callers: speaker routing, controls, metrics, reconnect, TCP and mobile layout', async ({
   browser,
   context,

@@ -491,6 +491,14 @@ Also check that your provider's firewall/security group allows UDP inbound.
 
 ### TURN for restrictive networks
 
+The LiveKit configurations set top-level `enable_data_tracks: true` to accept the
+optional `_data_track` channel opened by the JavaScript SDK during voice joins.
+Without it, LiveKit v1.10.0 closes that channel and the SDK may log
+`DATA_TRACK_LOSSY closed unexpectedly` even while microphone audio remains
+connected. This setting is separate from TURN and applies to direct calls too.
+When upgrading an existing deployment, add it to the actual LiveKit config
+(including the gitignored `livekit.turn.yaml` if selected) and restart LiveKit.
+
 UDP remains the preferred media transport. The included configuration exposes
 `7881/tcp` for clients whose networks block UDP. Open it in both the host firewall
 and your VPS provider's firewall; it must go directly to LiveKit, outside the HTTP
