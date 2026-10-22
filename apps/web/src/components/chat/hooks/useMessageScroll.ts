@@ -417,6 +417,12 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   useLayoutEffect(() => {
     const prev = prevIdRef.current
 
+    // Settling belongs to this context's load. An unread load in the previous
+    // context may still be pending, and its completion is ignored after we
+    // leave. Reveal cached/prefetched destinations (and null contexts) now;
+    // the fetch branches below hide them again only when positioning is needed.
+    setSettling(false)
+
     if (prev && prev !== contextId) {
       storeRef.current.onContextLeave?.(prev)
     }

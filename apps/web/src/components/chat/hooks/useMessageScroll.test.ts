@@ -280,6 +280,38 @@ describe('useMessageScroll', () => {
       expect(adapter.clearMessages).not.toHaveBeenCalled()
       expect(adapter.fetchMessages).not.toHaveBeenCalled()
     })
+
+    it.each(['ch-2', null])('reveals the next context (%s) after leaving a pending unread load', async (nextId) => {
+      let loadedId: string | null = null
+      let finishUnreadLoad!: () => void
+      const adapter = makeAdapter({
+        initialAnchorMessageId: 'first-unread',
+        getLoadedForId: () => loadedId,
+        fetchMessagesAround: jest.fn(
+          () => new Promise<void>((resolve) => {
+            finishUnreadLoad = resolve
+          })
+        )
+      })
+      const { result, rerender } = renderHook(({ id }) => useMessageScroll(id, adapter), {
+        initialProps: { id: 'ch-1' as string | null }
+      })
+      expect(result.current.settling).toBe(true)
+      expect(adapter.fetchMessagesAround).toHaveBeenCalledWith('ch-1', 'first-unread')
+
+      // Navigation has already hydrated or fetched the destination's history.
+      loadedId = nextId
+      adapter.initialAnchorMessageId = null
+      adapter.messages = nextId ? [makeMessage({ channelId: nextId })] : []
+      rerender({ id: nextId })
+
+      expect(result.current.settling).toBe(false)
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+
+      await act(async () => finishUnreadLoad())
+      expect(result.current.settling).toBe(false)
+      expect(adapter.setScrollToMessageId).not.toHaveBeenCalled()
+    })
   })
 
   describe('initial mount with pre-loaded data', () => {
