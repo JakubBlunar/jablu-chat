@@ -1,4 +1,14 @@
-import { Suspense, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import {
+  Suspense,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Dispatch,
+  type Ref,
+  type RefObject,
+  type SetStateAction
+} from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { lazyWithRetry } from '@/lib/lazyWithRetry'
@@ -36,16 +46,39 @@ import { showToast } from '@/stores/toast.store'
 
 const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 type ActionView = 'menu' | 'emoji' | 'delete' | 'forward' | 'translate' | null
+export type MessageContextMenuPosition = { x: number; y: number }
+export type MessageActionsHandle = {
+  openContextMenu: (position: MessageContextMenuPosition, trigger: HTMLElement) => void
+}
 
-export function MessageActions(props: MessageActionOptions) {
+export function MessageActions({ ref, ...props }: MessageActionOptions & { ref?: Ref<MessageActionsHandle> }) {
   const { t } = useTranslation('chat')
   const recent = useRecentReactions()
   const [view, setView] = useState<ActionView>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLButtonElement>(null)
+  const contextTriggerRef = useRef<HTMLElement | null>(null)
+  const [contextPosition, setContextPosition] = useState<MessageContextMenuPosition | null>(null)
+  useImperativeHandle(
+    ref,
+    () => ({
+      openContextMenu(position, trigger) {
+        contextTriggerRef.current = trigger
+        trigger.focus({ preventScroll: true })
+        setContextPosition(position)
+        setView('menu')
+      }
+    }),
+    []
+  )
   return (
-    <div ref={toolbarRef} className="absolute right-2 top-0 z-10 flex items-start">
-      <div className="flex items-center gap-0.5 rounded bg-surface-dark p-0.5 shadow-lg ring-1 ring-white/10 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+    <div
+      ref={toolbarRef}
+      className="pointer-events-none absolute right-2 top-0 z-10 flex translate-y-[calc(-100%+6px)] items-start"
+    >
+      <div
+        className={`flex items-center gap-0.5 rounded bg-surface-dark p-0.5 shadow-lg ring-1 ring-white/10 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-visible:pointer-events-auto group-focus-visible:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 ${view ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+      >
         {recent.map((emoji) => (
           <button
             key={emoji}
@@ -62,7 +95,10 @@ export function MessageActions(props: MessageActionOptions) {
         ))}
         <IconButton
           label={t('actionAddReaction')}
-          onClick={() => setView((current) => (current === 'emoji' ? null : 'emoji'))}
+          onClick={() => {
+            setContextPosition(null)
+            setView((current) => (current === 'emoji' ? null : 'emoji'))
+          }}
         >
           <SmileIcon />
         </IconButton>
@@ -75,13 +111,24 @@ export function MessageActions(props: MessageActionOptions) {
           aria-haspopup="menu"
           aria-expanded={view === 'menu'}
           active={view === 'menu'}
-          onClick={() => setView((current) => (current === 'menu' ? null : 'menu'))}
+          onClick={() => {
+            setContextPosition(null)
+            setView((current) => (current === 'menu' ? null : 'menu'))
+          }}
         >
           <MoreIcon />
         </IconButton>
       </div>
       {view && (
-        <MessageActionSurface {...props} view={view} setView={setView} toolbarRef={toolbarRef} moreRef={moreRef} />
+        <MessageActionSurface
+          {...props}
+          view={view}
+          setView={setView}
+          toolbarRef={toolbarRef}
+          moreRef={moreRef}
+          contextPosition={contextPosition}
+          contextTriggerRef={contextTriggerRef}
+        />
       )}
     </div>
   )
@@ -92,12 +139,16 @@ function MessageActionSurface({
   setView,
   toolbarRef,
   moreRef,
+  contextPosition,
+  contextTriggerRef,
   ...props
 }: MessageActionOptions & {
   view: Exclude<ActionView, null>
   setView: Dispatch<SetStateAction<ActionView>>
   toolbarRef: RefObject<HTMLDivElement | null>
   moreRef: RefObject<HTMLButtonElement | null>
+  contextPosition: MessageContextMenuPosition | null
+  contextTriggerRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useTranslation('chat')
   const { message, contextId } = props
@@ -112,7 +163,9 @@ function MessageActionSurface({
 
   useEffect(() => {
     if (view !== 'emoji') return
-    const rect = toolbarRef.current?.getBoundingClientRect()
+    const rect = contextPosition
+      ? { top: contextPosition.y, bottom: contextPosition.y, right: contextPosition.x }
+      : toolbarRef.current?.getBoundingClientRect()
     if (rect)
       setPickerPos({
         above: rect.top > 460,
@@ -124,7 +177,7 @@ function MessageActionSurface({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [view, toolbarRef, setView])
+  }, [view, toolbarRef, setView, contextPosition])
 
   useEffect(() => {
     if (view !== 'emoji' || !pickerPos || !pickerRef.current) return
@@ -214,7 +267,8 @@ function MessageActionSurface({
     <>
       {view === 'menu' && (
         <MessageActionsMenu
-          anchorRef={moreRef}
+          anchorRef={contextPosition ? contextTriggerRef : moreRef}
+          position={contextPosition ?? undefined}
           items={items}
           onClose={() => setView((current) => (current === 'menu' ? null : current))}
         />

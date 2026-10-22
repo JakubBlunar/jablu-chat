@@ -22,6 +22,7 @@ export interface MessageActionOptions {
   contextId: string
   onEdit?: () => void
   onReply?: () => void
+  hideThreadAction?: boolean
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
 }
@@ -32,6 +33,7 @@ export function useMessageActionController({
   contextId,
   onEdit,
   onReply,
+  hideThreadAction,
   hidePinAction,
   hideBookmarkAction,
   onComplete
@@ -155,7 +157,7 @@ export function useMessageActionController({
     canPin: !hidePinAction && (isDm || canManage),
     canBookmark: !hideBookmarkAction,
     canForward: !isDm && !!serverId,
-    canThread: !isDm && !message.threadParentId,
+    canThread: !hideThreadAction && !isDm && !message.threadParentId,
     canTranslate: !!message.content && translation.enabled,
     translationSetupError: translation.setupError,
     retryTranslation: () => {

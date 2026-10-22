@@ -10,7 +10,7 @@ import { MessageMediaProvider } from '@/components/media/MessageMediaGallery'
 import { MarkdownContent, type ChannelRef } from '@/components/MarkdownContent'
 import type { MemberMentionRef, RoleMentionRef } from '@/lib/markdownMentions'
 import { ForwardedCard } from '@/components/chat/ForwardedCard'
-import { MessageActions } from '@/components/chat/MessageActions'
+import { MessageActions, type MessageActionsHandle } from '@/components/chat/MessageActions'
 import { MessageTranslationBlock } from '@/components/chat/MessageTranslationBlock'
 import { MobileMessageDrawer } from '@/components/chat/MobileMessageDrawer'
 import { MessageEmbedCard } from '@/components/chat/MessageEmbed'
@@ -88,9 +88,7 @@ export const MessageRow = memo(function MessageRow({
   const threadDraft = useHasDraft(mode, contextId, message.id)
   const isWebhook = !isDm && !!message.webhook
   const isAuthor = message.authorId === userId
-  const name = isWebhook
-    ? message.webhook!.name
-    : (authorName ?? t('deletedUser'))
+  const name = isWebhook ? message.webhook!.name : (authorName ?? t('deletedUser'))
   const avatarUrl = isWebhook ? message.webhook!.avatarUrl : (message.author?.avatarUrl ?? null)
   const attachments = message.attachments ?? []
   const reactions = message.reactions ?? []
@@ -118,6 +116,7 @@ export const MessageRow = memo(function MessageRow({
   const editPending = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
+  const actionsRef = useRef<MessageActionsHandle>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -195,9 +194,28 @@ export const MessageRow = memo(function MessageRow({
     cancelLongPress()
   }, [cancelLongPress])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (longPressTimer.current || longPressFired.current) e.preventDefault()
-  }, [])
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (longPressTimer.current || longPressFired.current) e.preventDefault()
+      if (isMobile || editing || e.defaultPrevented) return
+      e.preventDefault()
+      e.stopPropagation()
+      actionsRef.current?.openContextMenu({ x: e.clientX, y: e.clientY }, e.currentTarget as HTMLElement)
+    },
+    [isMobile, editing]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (isMobile || editing || e.defaultPrevented) return
+      if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = e.currentTarget.getBoundingClientRect()
+      actionsRef.current?.openContextMenu({ x: rect.left, y: rect.bottom }, e.currentTarget)
+    },
+    [isMobile, editing]
+  )
 
   const handleRowClick = useCallback((e: React.MouseEvent) => {
     if (longPressFired.current) {
@@ -225,6 +243,8 @@ export const MessageRow = memo(function MessageRow({
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
       className={`group relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 rounded-md px-2 py-0.5 transition ${
         editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
       } ${showHead ? 'mt-4' : ''}`}
@@ -234,6 +254,7 @@ export const MessageRow = memo(function MessageRow({
           message={message}
           contextId={contextId}
           mode={mode}
+          hideThreadAction={hideThreadAction}
           hidePinAction={hidePinAction}
           hideBookmarkAction={hideBookmarkAction}
           onClose={() => setDrawerOpen(false)}
@@ -247,11 +268,13 @@ export const MessageRow = memo(function MessageRow({
       )}
       {!editing && !isMobile && (
         <MessageActions
+          ref={actionsRef}
           message={message}
           mode={mode}
           contextId={contextId}
           onEdit={isAuthor ? handleStartEdit : undefined}
           onReply={() => onReply(message)}
+          hideThreadAction={hideThreadAction}
           hidePinAction={hidePinAction}
           hideBookmarkAction={hideBookmarkAction}
         />

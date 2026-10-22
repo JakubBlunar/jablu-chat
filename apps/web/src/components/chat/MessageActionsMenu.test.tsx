@@ -3,8 +3,6 @@ import { createRef } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MessageActionsMenu } from './MessageActionsMenu'
 
-jest.mock('@/hooks/useFocusTrap', () => ({ useFocusTrap: jest.fn() }))
-
 function setup() {
   const anchorRef = createRef<HTMLButtonElement>()
   const onClose = jest.fn()
@@ -67,4 +65,28 @@ it('runs only the selected action and closes', () => {
   fireEvent.click(screen.getByRole('menuitem', { name: 'Reply' }))
   expect(items[0].onClick).toHaveBeenCalledTimes(1)
   expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('keeps a popup inside its owning dialog and makes it interactive', () => {
+  const anchorRef = createRef<HTMLButtonElement>()
+  render(
+    <div role="dialog" style={{ pointerEvents: 'none' }}>
+      <button ref={anchorRef}>More</button>
+      <MessageActionsMenu
+        anchorRef={anchorRef}
+        onClose={jest.fn()}
+        items={[{ id: 'reply', label: 'Reply', icon: null, onClick: jest.fn() }]}
+      />
+    </div>
+  )
+  expect(screen.getByRole('dialog')).toContainElement(screen.getByRole('menu'))
+  expect(screen.getByRole('menu')).toHaveClass('pointer-events-auto')
+  expect(screen.getByRole('menuitem')).toHaveFocus()
+})
+
+it('dismisses on Tab without trapping keyboard navigation', () => {
+  const { anchor, onClose } = setup()
+  fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Tab' })
+  expect(onClose).toHaveBeenCalled()
+  expect(anchor).toHaveFocus()
 })

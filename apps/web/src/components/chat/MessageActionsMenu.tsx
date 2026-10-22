@@ -1,6 +1,5 @@
-import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export type MessageMenuItem = {
   id: string
@@ -14,16 +13,18 @@ const MENU_WIDTH = 208
 const GAP = 6
 
 /**
- * Labeled dropdown for message "more actions", anchored to a trigger button.
+ * Shared dropdown for message "more actions" and pointer context menus.
  * Portals to the document body, flips above/below based on available space, and
  * closes on outside pointerdown, Escape, or item selection.
  */
 export function MessageActionsMenu({
   anchorRef,
+  position,
   items,
   onClose
 }: {
   anchorRef: RefObject<HTMLElement | null>
+  position?: { x: number; y: number }
   items: MessageMenuItem[]
   onClose: () => void
 }) {
@@ -31,11 +32,40 @@ export function MessageActionsMenu({
   const searchRef = useRef({ text: '', at: 0 })
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
   const positioned = pos !== null
-  useFocusTrap(menuRef, pos !== null, onClose)
+
+  useEffect(() => {
+    if (!positioned) return
+    const trigger = anchorRef.current
+    const menu = menuRef.current
+    menu?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus({ preventScroll: true })
+    return () => {
+      if (menu?.contains(document.activeElement) || document.activeElement === document.body)
+        trigger?.focus({ preventScroll: true })
+    }
+  }, [positioned, anchorRef])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    window.addEventListener('blur', onClose)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('blur', onClose)
+    }
+  }, [onClose])
 
   useLayoutEffect(() => {
     const updatePosition = (event?: Event) => {
       if (event?.target instanceof Node && menuRef.current?.contains(event.target)) return
+      if (position && event?.type === 'scroll') {
+        onClose()
+        return
+      }
       const anchor = anchorRef.current
       if (!anchor?.isConnected) {
         onClose()
@@ -46,10 +76,13 @@ export function MessageActionsMenu({
         onClose()
         return
       }
-      const left = Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8))
+      const width = Math.min(MENU_WIDTH, window.innerWidth - 16)
+      const left = Math.max(8, Math.min(position?.x ?? rect.right - width, window.innerWidth - width - 8))
       const height = Math.min(menuRef.current?.offsetHeight || items.length * 36 + 8, window.innerHeight * 0.7)
       const spaceBelow = window.innerHeight - rect.bottom
-      const top = spaceBelow >= height + GAP || spaceBelow >= rect.top ? rect.bottom + GAP : rect.top - height - GAP
+      const top =
+        position?.y ??
+        (spaceBelow >= height + GAP || spaceBelow >= rect.top ? rect.bottom + GAP : rect.top - height - GAP)
       setPos({ left, top: Math.max(8, Math.min(top, window.innerHeight - height - 8)) })
     }
     updatePosition()
@@ -62,24 +95,28 @@ export function MessageActionsMenu({
       window.removeEventListener('scroll', updatePosition, true)
       observer?.disconnect()
     }
-  }, [anchorRef, items.length, onClose, positioned])
+  }, [anchorRef, items.length, onClose, positioned, position])
 
   useLayoutEffect(() => {
     const onPointer = (e: PointerEvent) => {
       if (
         menuRef.current &&
         !menuRef.current.contains(e.target as Node) &&
-        anchorRef.current &&
-        !anchorRef.current.contains(e.target as Node)
+        (position || !anchorRef.current?.contains(e.target as Node))
       ) {
         onClose()
       }
     }
     document.addEventListener('pointerdown', onPointer)
+    const onFocus = (event: FocusEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) onClose()
+    }
+    document.addEventListener('focusin', onFocus)
     return () => {
       document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('focusin', onFocus)
     }
-  }, [anchorRef, onClose])
+  }, [anchorRef, onClose, position])
 
   if (!pos) return null
 
@@ -87,7 +124,17 @@ export function MessageActionsMenu({
     <div
       ref={menuRef}
       role="menu"
+      onContextMenu={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
       onKeyDown={(event) => {
+        event.stopPropagation()
+        if (event.key === 'Tab') {
+          anchorRef.current?.focus({ preventScroll: true })
+          onClose()
+          return
+        }
         const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
         if (!buttons.length) return
         const current = buttons.findIndex((button) => button === document.activeElement)
@@ -116,8 +163,8 @@ export function MessageActionsMenu({
           buttons[next].focus()
         }
       }}
-      style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_WIDTH }}
-      className="fixed z-[300] max-h-[70vh] overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
+      style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_WIDTH, maxWidth: 'calc(100vw - 16px)' }}
+      className="pointer-events-auto fixed z-[300] max-h-[70vh] overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
       {items.map((item) => (
         <button
@@ -137,6 +184,6 @@ export function MessageActionsMenu({
         </button>
       ))}
     </div>,
-    document.body
+    anchorRef.current?.closest('[role="dialog"]') ?? document.body
   )
 }

@@ -50,6 +50,7 @@ export function MobileMessageDrawer({
   message,
   contextId,
   mode,
+  hideThreadAction,
   hidePinAction,
   hideBookmarkAction,
   onClose,
@@ -65,6 +66,7 @@ export function MobileMessageDrawer({
     contextId,
     onEdit,
     onReply,
+    hideThreadAction,
     hidePinAction,
     hideBookmarkAction,
     onComplete: onClose
