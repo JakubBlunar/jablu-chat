@@ -1,13 +1,13 @@
 import i18n from 'i18next'
 import { showToast } from '@/stores/toast.store'
 
-export async function copyMessageContent(text: string, link = false): Promise<boolean> {
+export async function copyMessageContent(text: string, link: boolean | 'link' = false): Promise<boolean> {
   try {
     if (typeof navigator.clipboard?.writeText !== 'function') throw new Error('Clipboard API unavailable')
     await navigator.clipboard.writeText(text)
     showToast(
       i18n.t(link ? 'chat:messageLinkCopied' : 'chat:messageCopied'),
-      i18n.t(link ? 'chat:messageLinkCopiedHint' : 'chat:messageCopiedHint')
+      i18n.t(link === 'link' ? 'chat:linkCopiedHint' : link ? 'chat:messageLinkCopiedHint' : 'chat:messageCopiedHint')
     )
     return true
   } catch (error) {

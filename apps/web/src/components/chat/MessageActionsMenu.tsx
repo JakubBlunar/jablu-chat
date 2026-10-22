@@ -1,11 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 export type MessageMenuItem = {
   id: string
   label: string
   icon: ReactNode
-  onClick: () => void
+  onClick?: () => void
+  href?: string
+  separatorBefore?: boolean
   danger?: boolean
 }
 
@@ -37,7 +39,7 @@ export function MessageActionsMenu({
     if (!positioned) return
     const trigger = anchorRef.current
     const menu = menuRef.current
-    menu?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus({ preventScroll: true })
+    menu?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true })
     return () => {
       if (menu?.contains(document.activeElement) || document.activeElement === document.body)
         trigger?.focus({ preventScroll: true })
@@ -135,7 +137,12 @@ export function MessageActionsMenu({
           onClose()
           return
         }
-        const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+        if (event.key === ' ' && event.target instanceof HTMLAnchorElement) {
+          event.preventDefault()
+          event.target.click()
+          return
+        }
+        const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
         if (!buttons.length) return
         const current = buttons.findIndex((button) => button === document.activeElement)
         let next: number | undefined
@@ -166,23 +173,32 @@ export function MessageActionsMenu({
       style={{ left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_WIDTH, maxWidth: 'calc(100vw - 16px)' }}
       className="pointer-events-auto fixed z-[300] max-h-[70vh] overflow-y-auto rounded-lg bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10"
     >
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            item.onClick()
-            onClose()
-          }}
-          className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition hover:bg-white/5 max-lg:min-h-11 ${
-            item.danger ? 'text-red-400 hover:bg-red-500/10' : 'text-gray-200'
-          }`}
-        >
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{item.icon}</span>
-          <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        </button>
-      ))}
+      {items.map((item) => {
+        const Tag = item.href ? 'a' : 'button'
+        return (
+          <Fragment key={item.id}>
+            {item.separatorBefore && <div role="separator" className="my-1 border-t border-white/10" />}
+            <Tag
+              type={item.href ? undefined : 'button'}
+              href={item.href}
+              target={item.href ? '_blank' : undefined}
+              rel={item.href ? 'noopener noreferrer' : undefined}
+              referrerPolicy={item.href ? 'no-referrer' : undefined}
+              role="menuitem"
+              onClick={() => {
+                item.onClick?.()
+                onClose()
+              }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition hover:bg-white/5 max-lg:min-h-11 ${
+                item.danger ? 'text-red-400 hover:bg-red-500/10' : 'text-gray-200'
+              }`}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center">{item.icon}</span>
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            </Tag>
+          </Fragment>
+        )
+      })}
     </div>,
     anchorRef.current?.closest('[role="dialog"]') ?? document.body
   )

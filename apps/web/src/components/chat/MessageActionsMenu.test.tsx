@@ -67,6 +67,32 @@ it('runs only the selected action and closes', () => {
   expect(onClose).toHaveBeenCalledTimes(1)
 })
 
+it('includes links in keyboard navigation and supports Space activation', () => {
+  const anchorRef = createRef<HTMLButtonElement>()
+  const onClose = jest.fn()
+  render(
+    <>
+      <button ref={anchorRef}>More</button>
+      <MessageActionsMenu
+        anchorRef={anchorRef}
+        onClose={onClose}
+        items={[
+          { id: 'reply', label: 'Reply', icon: null, onClick: jest.fn() },
+          { id: 'open', label: 'Open Link', icon: null, href: 'https://example.com', separatorBefore: true }
+        ]}
+      />
+    </>
+  )
+  const open = screen.getByRole('menuitem', { name: 'Open Link' })
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Reply' }), { key: 'End' })
+  expect(open).toHaveFocus()
+  const clicked = jest.fn((event: Event) => event.preventDefault())
+  open.addEventListener('click', clicked)
+  fireEvent.keyDown(open, { key: ' ' })
+  expect(clicked).toHaveBeenCalledTimes(1)
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+
 it('keeps a popup inside its owning dialog and makes it interactive', () => {
   const anchorRef = createRef<HTMLButtonElement>()
   render(

@@ -10,7 +10,21 @@ import { makeMessage } from '@/test/factories'
 
 jest.mock('@/components/chat/MessageTranslationBlock', () => ({ MessageTranslationBlock: () => null }))
 jest.mock('@/components/MarkdownContent', () => ({
-  MarkdownContent: ({ content }: { content: string }) => <p>{content}</p>
+  MarkdownContent: ({ content }: { content: string }) => (
+    <p>
+      {content}
+      <a href="https://example.com/first?key=value#section">
+        <strong>First link</strong>
+      </a>
+      <a href="https://example.com/second">Second link</a>
+      <a href="javascript:alert(1)">Unsafe link</a>
+      <a>Missing destination</a>
+      <a href="">Empty destination</a>
+      <span role="button" tabIndex={0}>
+        @mention
+      </span>
+    </p>
+  )
 }))
 jest.mock('@/components/AttachmentPreview', () => ({ AttachmentPreview: () => null }))
 jest.mock('@/components/LinkPreviewCard', () => ({ LinkPreviewCard: () => null }))
@@ -150,5 +164,76 @@ it('closes on outside interaction and when scrolling the message list', () => {
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   fireEvent.contextMenu(row)
   fireEvent.scroll(window)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
+it.each(['channel', 'dm'] as const)('adds link actions only for the clicked link in a %s', async (mode) => {
+  const { row } = setup({ mode })
+  fireEvent.contextMenu(screen.getByText('First link'))
+  expect(screen.getByRole('menuitem', { name: 'actionReply' })).toBeInTheDocument()
+  expect(screen.getByRole('separator')).toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: 'actionOpenLink' })).toHaveAttribute(
+    'href',
+    'https://example.com/first?key=value#section'
+  )
+  fireEvent.click(screen.getByRole('menuitem', { name: 'actionCopyLink' }))
+  expect(copyMessageContent).toHaveBeenCalledWith('https://example.com/first?key=value#section', 'link')
+  await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+
+  fireEvent.contextMenu(screen.getByText('Second link'))
+  const open = screen.getByRole('menuitem', { name: 'actionOpenLink' })
+  expect(open).toHaveAttribute('href', 'https://example.com/second')
+  expect(open).toHaveAttribute('target', '_blank')
+  expect(open).toHaveAttribute('rel', 'noopener noreferrer')
+  open.addEventListener('click', (event) => event.preventDefault(), { once: true })
+  fireEvent.click(open)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+  fireEvent.contextMenu(row)
+  expect(screen.queryByRole('menuitem', { name: 'actionCopyLink' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: 'actionOpenLink' })).not.toBeInTheDocument()
+})
+
+it('does not carry link actions over to the More menu', () => {
+  setup()
+  fireEvent.contextMenu(screen.getByText('First link'))
+  fireEvent.keyDown(window, { key: 'Escape' })
+  fireEvent.click(screen.getByRole('button', { name: 'actionMore' }))
+  expect(screen.queryByRole('menuitem', { name: 'actionCopyLink' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: 'actionOpenLink' })).not.toBeInTheDocument()
+})
+
+it.each(['Unsafe link', 'Missing destination', 'Empty destination', '@mention'])(
+  'keeps ordinary message actions for %s',
+  (text) => {
+    setup()
+    fireEvent.contextMenu(screen.getByText(text))
+    expect(screen.getByRole('menuitem', { name: 'actionReply' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'actionCopyLink' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'actionOpenLink' })).not.toBeInTheDocument()
+  }
+)
+
+it('supports the keyboard context menu on a focused link and restores its focus', () => {
+  setup()
+  const link = screen.getByRole('link', { name: 'First link' })
+  link.focus()
+  fireEvent.keyDown(link, { key: 'F10', shiftKey: true })
+  expect(screen.getByRole('menuitem', { name: 'actionOpenLink' })).toHaveAttribute('href', link.getAttribute('href'))
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(link).toHaveFocus()
+})
+
+it('preserves normal left-click behavior on message links', () => {
+  setup()
+  const link = screen.getByRole('link', { name: 'First link' })
+  const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+  // Stop the test browser from navigating after checking the app's handlers.
+  const preventNavigation = (event: Event) => {
+    expect(event.defaultPrevented).toBe(false)
+    event.preventDefault()
+  }
+  document.addEventListener('click', preventNavigation, { once: true })
+  fireEvent(link, click)
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })

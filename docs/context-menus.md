@@ -11,4 +11,6 @@
 
 Mobile server reordering uses **Organize servers**. The rail retains mouse and keyboard dragging; touch holding is reserved for menus.
 
+Message right-click menus include **Copy Link** and **Open Link** below a separator when the target is a link (including children inside a link preview). They use the clicked anchor's destination, while **Copy Message Link** still links to the message. A focused link also exposes these actions through the context-menu key or Shift+F10. Ordinary message targets and the **More** button show only message actions; normal link clicks keep their existing behavior.
+
 Voice participant volume changes use the existing saved per-user overrides and affect only the listener. A user's own row exposes mute, deafen and a persisted output-volume multiplier. Both new tracks and existing tracks use that multiplier; deafening always silences playback. Controls for another voice channel are disabled.

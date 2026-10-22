@@ -42,6 +42,18 @@ function ReactionPickerLoading() {
   )
 }
 
+function getContextLink(target: EventTarget, row: HTMLElement): HTMLAnchorElement | null {
+  const anchor = target instanceof Element ? target.closest<HTMLAnchorElement>('a[href]') : null
+  if (
+    !anchor ||
+    !anchor.getAttribute('href')?.trim() ||
+    !row.contains(anchor) ||
+    !/^(https?:|mailto:|tel:|ftp:|irc:|ircs:|xmpp:)$/.test(anchor.protocol)
+  )
+    return null
+  return anchor
+}
+
 export const MessageRow = memo(function MessageRow({
   mode,
   message,
@@ -200,7 +212,12 @@ export const MessageRow = memo(function MessageRow({
       if (isMobile || editing || e.defaultPrevented) return
       e.preventDefault()
       e.stopPropagation()
-      actionsRef.current?.openContextMenu({ x: e.clientX, y: e.clientY }, e.currentTarget as HTMLElement)
+      const link = getContextLink(e.target, e.currentTarget as HTMLElement)
+      actionsRef.current?.openContextMenu(
+        { x: e.clientX, y: e.clientY },
+        link ?? (e.currentTarget as HTMLElement),
+        link?.href
+      )
     },
     [isMobile, editing]
   )
@@ -211,8 +228,10 @@ export const MessageRow = memo(function MessageRow({
       if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return
       e.preventDefault()
       e.stopPropagation()
-      const rect = e.currentTarget.getBoundingClientRect()
-      actionsRef.current?.openContextMenu({ x: rect.left, y: rect.bottom }, e.currentTarget)
+      const link = getContextLink(e.target, e.currentTarget)
+      const trigger = link ?? e.currentTarget
+      const rect = trigger.getBoundingClientRect()
+      actionsRef.current?.openContextMenu({ x: rect.left, y: rect.bottom }, trigger, link?.href)
     },
     [isMobile, editing]
   )

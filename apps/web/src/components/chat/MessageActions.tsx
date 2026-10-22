@@ -39,6 +39,7 @@ import {
 } from '@/components/chat/hooks/useMessageActionController'
 import { useMessageDeletion } from '@/components/chat/hooks/useMessageDeletion'
 import { messageTranslationVersion } from '@/lib/messageTranslationVersion'
+import { copyMessageContent } from '@/lib/messageClipboard'
 import { toggleMessageReactionAndRemember } from '@/lib/reactions'
 import { useEmojiStore, EMPTY_EMOJIS } from '@/stores/emoji.store'
 import { useRecentReactions } from '@/stores/reactions.store'
@@ -48,7 +49,7 @@ const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then(
 type ActionView = 'menu' | 'emoji' | 'delete' | 'forward' | 'translate' | null
 export type MessageContextMenuPosition = { x: number; y: number }
 export type MessageActionsHandle = {
-  openContextMenu: (position: MessageContextMenuPosition, trigger: HTMLElement) => void
+  openContextMenu: (position: MessageContextMenuPosition, trigger: HTMLElement, linkUrl?: string) => void
 }
 
 export function MessageActions({ ref, ...props }: MessageActionOptions & { ref?: Ref<MessageActionsHandle> }) {
@@ -59,13 +60,15 @@ export function MessageActions({ ref, ...props }: MessageActionOptions & { ref?:
   const moreRef = useRef<HTMLButtonElement>(null)
   const contextTriggerRef = useRef<HTMLElement | null>(null)
   const [contextPosition, setContextPosition] = useState<MessageContextMenuPosition | null>(null)
+  const [contextLinkUrl, setContextLinkUrl] = useState<string | null>(null)
   useImperativeHandle(
     ref,
     () => ({
-      openContextMenu(position, trigger) {
+      openContextMenu(position, trigger, linkUrl) {
         contextTriggerRef.current = trigger
         trigger.focus({ preventScroll: true })
         setContextPosition(position)
+        setContextLinkUrl(linkUrl ?? null)
         setView('menu')
       }
     }),
@@ -127,6 +130,7 @@ export function MessageActions({ ref, ...props }: MessageActionOptions & { ref?:
           toolbarRef={toolbarRef}
           moreRef={moreRef}
           contextPosition={contextPosition}
+          contextLinkUrl={contextPosition ? contextLinkUrl : null}
           contextTriggerRef={contextTriggerRef}
         />
       )}
@@ -140,6 +144,7 @@ function MessageActionSurface({
   toolbarRef,
   moreRef,
   contextPosition,
+  contextLinkUrl,
   contextTriggerRef,
   ...props
 }: MessageActionOptions & {
@@ -148,6 +153,7 @@ function MessageActionSurface({
   toolbarRef: RefObject<HTMLDivElement | null>
   moreRef: RefObject<HTMLButtonElement | null>
   contextPosition: MessageContextMenuPosition | null
+  contextLinkUrl: string | null
   contextTriggerRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useTranslation('chat')
@@ -259,6 +265,21 @@ function MessageActionSurface({
       danger: true,
       onClick: () => setView('delete')
     })
+  if (contextLinkUrl) {
+    items.push({
+      id: 'copy-target-link',
+      label: t('actionCopyLink'),
+      icon: <LinkIcon />,
+      separatorBefore: true,
+      onClick: () => void copyMessageContent(contextLinkUrl, 'link')
+    })
+    items.push({
+      id: 'open-link',
+      label: t('actionOpenLink'),
+      icon: <GlobeIcon />,
+      href: contextLinkUrl
+    })
+  }
 
   const react = (emoji: string, isCustom = false) => {
     void actions.react(emoji, isCustom)
