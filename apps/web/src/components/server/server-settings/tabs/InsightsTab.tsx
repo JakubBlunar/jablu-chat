@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui'
-import { api, type ServerInsights } from '@/lib/api'
+import { api, resolveMediaUrl, type ServerInsights } from '@/lib/api'
 import type { Server } from '@/stores/server.store'
 import { getAppIntlLocale } from '@/lib/format-time'
 
@@ -116,7 +116,7 @@ function ContributorRow({ user, count, rank }: {
     <div className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-white/5">
       <span className="w-5 shrink-0 text-center text-xs font-semibold text-gray-500">#{rank}</span>
       {user.avatarUrl ? (
-        <img src={user.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+        <img src={resolveMediaUrl(user.avatarUrl)} alt="" className="h-6 w-6 rounded-full object-cover" />
       ) : (
         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/30 text-[10px] font-bold text-white">
           {(user.displayName ?? user.username)[0]?.toUpperCase()}

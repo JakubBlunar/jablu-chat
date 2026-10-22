@@ -70,6 +70,8 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
           username={user?.displayName ?? user?.username ?? ''}
           avatarUrl={user?.avatarUrl ?? null}
           size="sm"
+          showStatus
+          status={user?.status}
         />
         {t('mobileYou')}
       </button>
