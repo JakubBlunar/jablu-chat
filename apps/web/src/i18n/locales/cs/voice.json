@@ -1,4 +1,7 @@
 {
+  "showCallChat": "Zobrazit chat",
+  "hideCallChat": "Skrýt chat",
+  "resizeCallChat": "Změnit velikost hovoru a chatu",
   "outputVolume": "Hlasitost výstupu",
   "muteForMe": "Ztlumit pro mě",
   "microphoneStarting": "Spouštění mikrofonu…",

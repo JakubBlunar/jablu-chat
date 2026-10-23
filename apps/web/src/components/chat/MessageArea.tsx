@@ -1,5 +1,5 @@
 import type { Message } from '@chat/shared'
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { DelayedRender } from '@/components/DelayedRender'
@@ -46,7 +46,6 @@ import { useDmContext, dmMentionChannels } from '@/components/dm/hooks/useDmCont
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { SearchBar } from '@/components/SearchBar'
 const SearchDrawer = lazy(() => import('@/components/search/SearchDrawer').then((m) => ({ default: m.SearchDrawer })))
-const DmVoiceRoom = lazy(() => import('@/components/voice/VoiceRoom').then((m) => ({ default: m.VoiceRoom })))
 const EditChannelModal = lazy(() =>
   import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
 )
@@ -55,6 +54,7 @@ import { ChannelInfoDrawer } from '@/components/chat/ChannelInfoDrawer'
 import { TimeoutBanner } from '@/components/chat/TimeoutBanner'
 import { DmCallButton } from '@/components/dm/DmCallButton'
 import { DmCallInvitation } from '@/components/dm/DmCallInvitation'
+import { DmCallLayout } from '@/components/dm/DmCallLayout'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CountBadge, IconButton, Spinner } from '@/components/ui'
 import {
@@ -80,6 +80,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const { t: tA11y } = useTranslation('a11y')
   const { t: tChat } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
+  const { t: tVoice } = useTranslation('voice')
   const isMobile = useIsMobile()
   const panels = useChatPanelLayout()
   const memberWidth = useSettingsStore((s) => s.panelWidths.members)
@@ -90,6 +91,9 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const viewingDmVoice = useVoiceConnectionStore(
     (s) => isDm && !!s.currentDmCallId && s.currentChannelId === contextId && s.viewingVoiceRoom
   )
+  const [callChatOpen, setCallChatOpen] = useState(true)
+  const callChatId = useId()
+  const callChatVisible = viewingDmVoice && callChatOpen
   const store = useMessageStoreAdapter(mode, contextId)
   const { messages, isLoading, hasMore, hasNewer } = store
   const dmMessagesError = useDmStore((s) => (isDm ? s.messagesError : null))
@@ -115,10 +119,11 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       !scroll.settling &&
       !store.scrollToMessageId &&
       !messagesError &&
-      !viewingVoiceRoom &&
+      (!viewingVoiceRoom || callChatVisible) &&
       store.getLoadedForId() === contextId,
     atBottom: scroll.atBottom,
-    scrollParentRef: scroll.scrollParentRef
+    scrollParentRef: scroll.scrollParentRef,
+    callChatVisible
   })
   const unreadSnapshot = useReadStateStore((s) => {
     if (!contextId) return null
@@ -646,6 +651,30 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
               <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{dm.otherName}</h2>
             )}
             {contextId && <DmCallButton conversationId={contextId} />}
+            {viewingDmVoice && (
+              <button
+                type="button"
+                title={tVoice(callChatOpen ? 'hideCallChat' : 'showCallChat')}
+                aria-label={tVoice(callChatOpen ? 'hideCallChat' : 'showCallChat')}
+                aria-expanded={callChatOpen}
+                aria-controls={callChatId}
+                onClick={() => setCallChatOpen((open) => !open)}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition ${
+                  callChatOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" />
+                </svg>
+              </button>
+            )}
             {isMobile && (
               <button
                 type="button"
@@ -704,15 +733,9 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             )}
           </header>
           {contextId && <DmCallInvitation conversationId={contextId} />}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {viewingDmVoice ? (
-              <Suspense fallback={<Spinner size="lg" />}>
-                <DmVoiceRoom />
-              </Suspense>
-            ) : (
-              messageList
-            )}
-          </div>
+          <DmCallLayout active={viewingDmVoice} chatOpen={callChatOpen} chatId={callChatId}>
+            {messageList}
+          </DmCallLayout>
         </div>
         {searchOpen ? (
           <ResponsivePanel

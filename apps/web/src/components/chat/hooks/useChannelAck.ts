@@ -10,11 +10,13 @@ export function useChannelAck(
   {
     ready,
     atBottom,
-    scrollParentRef
+    scrollParentRef,
+    callChatVisible = false
   }: {
     ready: boolean
     atBottom: boolean
     scrollParentRef: RefObject<HTMLDivElement | null>
+    callChatVisible?: boolean
   }
 ): void {
   const readState = useReadStateStore((s) =>
@@ -49,10 +51,13 @@ export function useChannelAck(
     let timer: ReturnType<typeof setTimeout> | undefined
     const canRead = () => {
       const el = scrollParentRef.current
+      const voice = useVoiceConnectionStore.getState()
+      const visibleInCall =
+        callChatVisible && mode === 'dm' && !!voice.currentDmCallId && voice.currentChannelId === contextId
       return (
         isAppFocused() &&
         !inboxPausesRead(mode, contextId) &&
-        !useVoiceConnectionStore.getState().viewingVoiceRoom &&
+        (!voice.viewingVoiceRoom || visibleInCall) &&
         !(mode === 'dm' && useReadStateStore.getState().pausedDmAcks.has(contextId)) &&
         !!el &&
         el.scrollHeight - el.scrollTop - el.clientHeight < 30
@@ -73,5 +78,5 @@ export function useChannelAck(
       clearTimeout(timer)
       unsubscribe()
     }
-  }, [mode, contextId, readState, ready, atBottom, scrollParentRef, inboxPaused])
+  }, [mode, contextId, readState, ready, atBottom, scrollParentRef, inboxPaused, callChatVisible])
 }

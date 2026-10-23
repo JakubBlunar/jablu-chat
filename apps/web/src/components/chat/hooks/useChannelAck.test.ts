@@ -124,6 +124,32 @@ it('does not read a conversation covered by a voice room', async () => {
   expect(ackDm).not.toHaveBeenCalled()
 })
 
+it('reads visible call chat and cancels pending reads when chat is hidden', async () => {
+  jest.mocked(useVoiceConnectionStore.getState).mockReturnValue({
+    viewingVoiceRoom: true, currentDmCallId: 'call1', currentChannelId: 'dm1'
+  } as ReturnType<typeof useVoiceConnectionStore.getState>)
+  const opts = options()
+  const { rerender } = renderHook(
+    ({ visible }) => useChannelAck('dm', 'dm1', { ...opts, ready: visible, callChatVisible: visible }),
+    { initialProps: { visible: true } }
+  )
+  rerender({ visible: false })
+  await flushAck()
+  expect(ackDm).not.toHaveBeenCalled()
+  rerender({ visible: true })
+  await flushAck()
+  expect(ackDm).toHaveBeenCalledWith('dm1')
+})
+
+it('does not read a different conversation through the call-chat exception', async () => {
+  jest.mocked(useVoiceConnectionStore.getState).mockReturnValue({
+    viewingVoiceRoom: true, currentDmCallId: 'call1', currentChannelId: 'other-dm'
+  } as ReturnType<typeof useVoiceConnectionStore.getState>)
+  renderHook(() => useChannelAck('dm', 'dm1', options({ callChatVisible: true })))
+  await flushAck()
+  expect(ackDm).not.toHaveBeenCalled()
+})
+
 it('does not mark unseen messages read when leaving', async () => {
   const { unmount } = renderHook(() => useChannelAck('channel', 'ch1', options()))
   unmount()

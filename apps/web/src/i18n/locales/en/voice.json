@@ -1,4 +1,7 @@
 {
+  "showCallChat": "Show chat",
+  "hideCallChat": "Hide chat",
+  "resizeCallChat": "Resize call and chat",
   "outputVolume": "Output volume",
   "muteForMe": "Mute for me",
   "microphoneStarting": "Starting microphone…",

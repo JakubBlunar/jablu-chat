@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { MessageArea } from './MessageArea'
 import { useDmStore } from '@/stores/dm.store'
@@ -10,10 +10,14 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
 import { ThreadPanel } from './ThreadPanel'
 import { api } from '@/lib/api'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useChannelAck } from './hooks/useChannelAck'
+import { MessageSurface } from './MessageSurface'
+import { UnifiedInput } from './UnifiedInput'
 
 // ── heavy sub-components ──────────────────────────────────────────────────────
-jest.mock('@/components/chat/MessageSurface', () => ({ MessageSurface: () => null }))
-jest.mock('@/components/chat/UnifiedInput', () => ({ UnifiedInput: () => null }))
+jest.mock('@/components/chat/MessageSurface', () => ({ MessageSurface: jest.fn(() => <div data-testid="messages" />) }))
+jest.mock('@/components/chat/UnifiedInput', () => ({ UnifiedInput: jest.fn(() => <textarea aria-label="Message" />) }))
 jest.mock('@/components/chat/PinnedPanel', () => ({ PinnedPanel: () => null }))
 jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: jest.fn(() => null) }))
 jest.mock('@/components/chat/PollCreator', () => ({ PollCreator: () => null }))
@@ -27,8 +31,9 @@ jest.mock('@/components/dm/FriendsPage', () => ({ FriendsPage: () => <div data-t
 jest.mock('@/components/dm/ConversationInfoPanel', () => ({ ConversationInfoPanel: () => null }))
 jest.mock('@/components/dm/DmCallButton', () => ({ DmCallButton: () => null }))
 jest.mock('@/components/dm/DmCallInvitation', () => ({ DmCallInvitation: () => null }))
+jest.mock('@/components/voice/VoiceRoom', () => ({ VoiceRoom: () => <div>Active call</div> }))
 jest.mock('@/stores/voice-connection.store', () => ({
-  useVoiceConnectionStore: (selector: (state: object) => unknown) => selector({ currentDmCallId: null, currentChannelId: null, viewingVoiceRoom: false })
+  useVoiceConnectionStore: jest.fn()
 }))
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }))
 jest.mock('@/components/channel/NotifBellMenu', () => ({ NotifBellMenu: () => null }))
@@ -55,7 +60,7 @@ jest.mock('@/hooks/useMessageStoreAdapter', () => ({
     fetchMessages: jest.fn(),
     fetchNewer: jest.fn(),
     reset: jest.fn(),
-    getLoadedForId: () => null,
+    getLoadedForId: () => 'conv-1',
   }),
 }))
 
@@ -175,12 +180,46 @@ function resetStores() {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  jest.mocked(useVoiceConnectionStore).mockImplementation((selector: any) => selector({
+    currentDmCallId: null, currentChannelId: null, viewingVoiceRoom: false
+  }))
   resetStores()
 })
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MessageArea', () => {
+  it('shows the matching DM conversation below a call and toggles chat without losing its draft', async () => {
+    jest.mocked(useVoiceConnectionStore).mockImplementation((selector: any) => selector({
+      currentDmCallId: 'call', currentChannelId: 'conv-1', viewingVoiceRoom: true
+    }))
+    render(<MessageArea mode="dm" contextId="conv-1" />)
+    await screen.findByText('Active call')
+    const composer = screen.getByRole('textbox', { name: 'Message' })
+    fireEvent.change(composer, { target: { value: 'Message during a call' } })
+    expect(jest.mocked(MessageSurface).mock.calls.at(-1)?.[0]).toMatchObject({ mode: 'dm', contextId: 'conv-1' })
+    expect(jest.mocked(UnifiedInput).mock.calls.at(-1)?.[0]).toMatchObject({ mode: 'dm', contextId: 'conv-1' })
+    expect(jest.mocked(useChannelAck).mock.calls.at(-1)?.[2]).toMatchObject({ ready: true, callChatVisible: true })
+    fireEvent.click(screen.getByRole('button', { name: 'hideCallChat' }))
+    expect(composer).not.toBeVisible()
+    expect(screen.getByText('Active call')).toBeVisible()
+    expect(jest.mocked(useChannelAck).mock.calls.at(-1)?.[2]).toMatchObject({ ready: false, callChatVisible: false })
+    fireEvent.click(screen.getByRole('button', { name: 'showCallChat' }))
+    expect(screen.getByRole('textbox')).toBe(composer)
+    expect(composer).toHaveValue('Message during a call')
+    expect(composer).toBeVisible()
+  })
+
+  it('does not put the active call above another DM conversation', () => {
+    jest.mocked(useVoiceConnectionStore).mockImplementation((selector: any) => selector({
+      currentDmCallId: 'call', currentChannelId: 'other-dm', viewingVoiceRoom: true
+    }))
+    render(<MessageArea mode="dm" contextId="conv-1" />)
+    expect(screen.queryByText('Active call')).not.toBeInTheDocument()
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toBeVisible()
+  })
+
   it('uses /nick to update the server profile rather than the global profile', async () => {
     jest.mocked(api.patch).mockResolvedValue({ displayName: 'Server name', bio: null })
     render(<MessageArea mode="channel" contextId="ch-1" />)
