@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { channelKey, clearCache, peekContext } from '@/lib/cache/messageCache'
+import { channelKey, clearCache, markAllStale, peekContext } from '@/lib/cache/messageCache'
 import { clearStructureCache } from '@/lib/cache/structureCache'
 import { FakeApi, seedMessages } from '@/test/fakeApi'
 import { makeMessage, resetMsgSeq } from '@/test/factories'
@@ -35,7 +35,7 @@ import { useServerStore } from './server.store'
 const handlers = createChannelHandlers()
 
 function seed() {
-  return new FakeApi({
+  return {
     servers: [
       {
         id: 'srv-a',
@@ -45,7 +45,7 @@ function seed() {
         ]
       }
     ]
-  })
+  }
 }
 
 function resetAll() {
@@ -84,12 +84,14 @@ function resetAll() {
 }
 
 let api: FakeApi
+let fixture: ReturnType<typeof seed>
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory()
   resetDbForTests()
   resetAll()
-  api = seed()
+  fixture = seed()
+  api = new FakeApi(fixture)
   mockApiHolder.current = api
 })
 
@@ -105,6 +107,31 @@ async function cacheGeneralThenLeave() {
 }
 
 describe('socket events reach a cached channel the user is not looking at', () => {
+  it('repairs a missed message after reconnect even when newer socket events arrived', async () => {
+    await cacheGeneralThenLeave()
+    markAllStale()
+
+    const missed = makeMessage({ id: 'missed-offline', channelId: 'a-general', authorId: 'someone-else' })
+    const received = makeMessage({ id: 'received-online', channelId: 'a-general', authorId: 'someone-else' })
+    fixture.servers[0].channels[0].messages.push(missed, received)
+    handlers.onMessageNew(received)
+    expect(peekContext(channelKey('a-general'))?.stale).toBe(true)
+
+    api.defer('a-general/messages')
+    await goToChannel('srv-a', 'a-general')
+    expect(visibleIds()).not.toContain(missed.id)
+    expect(visibleIds()).toContain(received.id)
+
+    api.release('a-general/messages')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(visibleIds()).toEqual([
+      'a-general-m1', 'a-general-m2', 'a-general-m3', missed.id, received.id
+    ])
+    expect(api.countFor('/api/channels/a-general/messages')).toBe(2)
+    expect(peekContext(channelKey('a-general'))?.stale).toBe(false)
+  })
+
   it('shows a message that arrived while away', async () => {
     await cacheGeneralThenLeave()
 

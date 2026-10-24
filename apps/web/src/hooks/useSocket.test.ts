@@ -1,15 +1,29 @@
 import { act, renderHook } from '@testing-library/react'
 import { useSocket } from './useSocket'
+import { channelKey, clearCache, dmKey, peekContext, putContext } from '@/lib/cache/messageCache'
+import type { AppVisibilityState } from '@/lib/appVisibility'
+
+let mockVisibility: AppVisibilityState = { visibility: 'visible', focused: true }
+let mockVisibilityListener: ((state: AppVisibilityState) => void) | undefined
+const mockUnsubscribeVisibility = jest.fn()
+jest.mock('@/lib/appVisibility', () => ({
+  getAppVisibilityState: () => mockVisibility,
+  subscribeAppVisibility: (listener: typeof mockVisibilityListener) => {
+    mockVisibilityListener = listener
+    return mockUnsubscribeVisibility
+  }
+}))
 
 const mockListeners = new Map<string, () => void>()
 const mockSocket = {
   connected: false,
   emit: jest.fn(),
   on: jest.fn((event: string, handler: () => void) => {
-    mockListeners.set(event, handler)
+    if (typeof handler === 'function') mockListeners.set(event, handler)
   }),
   off: jest.fn(),
-  disconnect: jest.fn()
+  disconnect: jest.fn(),
+  connect: jest.fn()
 }
 const mockAuth = { accessToken: 'token', user: { id: 'user' } }
 const mockMessages = {
@@ -50,7 +64,9 @@ jest.mock('@/stores/dm.store', () => ({ useDmStore: { getState: () => mockDm } }
 jest.mock('@/stores/toast.store', () => ({ showToast: jest.fn() }))
 jest.mock('@/stores/channel-permissions.store', () => ({ useChannelPermissionsStore: {} }))
 jest.mock('@/stores/member.store', () => ({ useMemberStore: {} }))
-jest.mock('@/stores/server.store', () => ({ useServerStore: {} }))
+jest.mock('@/stores/server.store', () => ({
+  useServerStore: { getState: () => ({ fetchServers: jest.fn(async () => {}) }) }
+}))
 jest.mock('@/stores/readState.store', () => ({
   useReadStateStore: { getState: () => ({ fetchAll: jest.fn() }) }
 }))
@@ -73,8 +89,58 @@ describe('useSocket message recovery', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockListeners.clear()
+    clearCache(false)
+    mockVisibility = { visibility: 'visible', focused: true }
+    mockVisibilityListener = undefined
+    mockSocket.connected = false
     Object.assign(mockMessages, { loadedForChannelId: null, messages: [], isLoading: false, hasNewer: false })
     Object.assign(mockDm, { loadedForConvId: null, messages: [], isLoading: false, hasNewer: false })
+  })
+
+  it.each(['disconnect', 'connect'])('marks background channel and DM caches stale on %s', (event) => {
+    putContext(channelKey('background'), { messages: [], hasMore: false, hasNewer: false })
+    putContext(dmKey('background'), { messages: [], hasMore: false, hasNewer: false })
+    renderHook(() => useSocket())
+    act(() => mockListeners.get(event)!())
+    expect(peekContext(channelKey('background'))?.stale).toBe(true)
+    expect(peekContext(dmKey('background'))?.stale).toBe(true)
+  })
+
+  it('catches up on native tray restore even when the document stays visible', () => {
+    mockVisibility = { visibility: 'hidden', focused: false }
+    mockSocket.connected = true
+    Object.assign(mockMessages, { loadedForChannelId: 'channel', messages: [{ id: 'existing' }] })
+    Object.assign(mockDm, { loadedForConvId: 'dm', messages: [{ id: 'existing' }] })
+    putContext(channelKey('background'), { messages: [], hasMore: false, hasNewer: false })
+    const { unmount } = renderHook(() => useSocket())
+    act(() => mockVisibilityListener!({ visibility: 'visible', focused: false }))
+    act(() => mockVisibilityListener!({ visibility: 'visible', focused: true }))
+    expect(mockMessages.fetchNewerMessages).toHaveBeenCalledTimes(1)
+    expect(mockDm.fetchNewerMessages).toHaveBeenCalledTimes(1)
+    expect(peekContext(channelKey('background'))?.stale).toBe(true)
+    unmount()
+    expect(mockUnsubscribeVisibility).toHaveBeenCalledTimes(1)
+  })
+
+  it('reconnects on native tray restore when the socket is disconnected', () => {
+    mockVisibility = { visibility: 'hidden', focused: false }
+    renderHook(() => useSocket())
+    act(() => mockVisibilityListener!({ visibility: 'visible', focused: true }))
+    expect(mockSocket.connect).toHaveBeenCalledTimes(1)
+    expect(mockMessages.fetchMessages).not.toHaveBeenCalled()
+  })
+
+  it.each(['isLoading', 'hasNewer'] as const)('preserves %s on tray restore', (flag) => {
+    mockVisibility = { visibility: 'hidden', focused: false }
+    mockSocket.connected = true
+    mockMessages[flag] = true
+    mockDm[flag] = true
+    renderHook(() => useSocket())
+    act(() => mockVisibilityListener!({ visibility: 'visible', focused: true }))
+    expect(mockMessages.fetchMessages).not.toHaveBeenCalled()
+    expect(mockMessages.fetchNewerMessages).not.toHaveBeenCalled()
+    expect(mockDm.fetchMessages).not.toHaveBeenCalled()
+    expect(mockDm.fetchNewerMessages).not.toHaveBeenCalled()
   })
 
   it('retries histories that failed to load when the socket connects', () => {

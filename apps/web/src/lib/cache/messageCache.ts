@@ -18,8 +18,8 @@ export type CachedContext = {
   hasNewer: boolean
   updatedAt: number
   /**
-   * True when the entry came off disk and has not been checked against the
-   * server yet. Entries kept live by socket events are not stale.
+   * True when the entry came off disk or may have missed socket events during
+   * a disconnect or time in the background. Navigation revalidates it.
    */
   stale: boolean
 }
@@ -147,6 +147,11 @@ export function markStale(key: CacheKey): void {
   const entry = cache.get(key)
   if (!entry || entry.stale) return
   cache.set(key, { ...entry, stale: true })
+}
+
+/** Socket events cannot repair gaps left while this client was offline. */
+export function markAllStale(): void {
+  for (const key of cache.keys()) markStale(key)
 }
 
 export function evictContext(key: CacheKey): void {

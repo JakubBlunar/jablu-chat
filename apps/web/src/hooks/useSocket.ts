@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import i18n from 'i18next'
 import { api } from '@/lib/api'
+import { getAppVisibilityState, subscribeAppVisibility } from '@/lib/appVisibility'
+import { markAllStale } from '@/lib/cache/messageCache'
 import { clearNotifications } from '@/lib/notifications'
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
@@ -62,10 +64,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       }
     }
 
-    const onConnect = () => {
-      setIsConnected(true)
-      void useDmStore.getState().fetchConversations()
-      void useDmCallStore.getState().sync()
+    const syncMessages = () => {
       const channelId = useChannelStore.getState().currentChannelId
       if (channelId) {
         socket.emit('channel:join', { channelId })
@@ -90,6 +89,16 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
           }
         }
       }
+    }
+
+    const onConnect = () => {
+      setIsConnected(true)
+      // Only the selected histories are caught up now. Other cached channels
+      // and DMs must be checked when opened, including after token refresh.
+      markAllStale()
+      void useDmStore.getState().fetchConversations()
+      void useDmCallStore.getState().sync()
+      syncMessages()
 
       if (hasConnectedBefore) {
         useServerStore
@@ -126,6 +135,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
     const onDisconnect = () => {
       setIsConnected(false)
+      markAllStale()
       const wasInCall = !!useVoiceConnectionStore.getState().currentDmCallId
       if (wasInCall) useVoiceConnectionStore.getState().disconnect()
       useDmCallStore.getState().reset()
@@ -274,10 +284,26 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     }
     socket.on('notification:clear', onNotificationClear)
 
-    const onVisibilityChange = () => {
-      if (!document.hidden && socket.connected) void useDmCallStore.getState().sync()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
+    // A tray-hidden WebView can keep document.visibilityState === 'visible'.
+    // Use the shared native-aware state, and recover even if Socket.IO has not
+    // noticed a stale connection yet. Focus changes alone do not resync.
+    let previousVisibility = getAppVisibilityState().visibility
+    const unsubscribeVisibility = subscribeAppVisibility(({ visibility }) => {
+      const resumed = previousVisibility === 'hidden' && visibility === 'visible'
+      previousVisibility = visibility
+      if (!resumed) return
+      markAllStale()
+      if (!socket.connected) {
+        socket.connect()
+        return
+      }
+      syncMessages()
+      void useDmStore.getState().fetchConversations()
+      void useDmCallStore.getState().sync()
+      void useNotificationCenterStore.getState().fetchUnread()
+      throttledReadStateSync()
+      useInboxStore.getState().bump()
+    })
 
     setIsConnected(socket.connected)
     const stopOutbox = userId ? startMessageOutbox(socket, userId) : undefined
@@ -362,7 +388,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('message:new', onInboxActivity)
       socket.off('dm:new', onInboxActivity)
       socket.off('notification:clear', onNotificationClear)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
+      unsubscribeVisibility()
       if (readSyncTimer) {
         clearTimeout(readSyncTimer)
         readSyncTimer = null
