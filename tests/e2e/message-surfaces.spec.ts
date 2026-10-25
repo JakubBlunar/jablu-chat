@@ -30,7 +30,7 @@ test.describe('Unified Message Surfaces', () => {
       const uniqueText = `e2e-test-${Date.now()}`
       await sendMessage(page, uniqueText)
 
-      const sentMsg = page.locator(`text=${uniqueText}`)
+      const sentMsg = page.getByRole('log').getByText(uniqueText, { exact: true })
       await expect(sentMsg).toBeVisible({ timeout: 5_000 })
     })
 

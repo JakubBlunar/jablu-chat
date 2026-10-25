@@ -491,6 +491,12 @@ Also check that your provider's firewall/security group allows UDP inbound.
 
 ### TURN for restrictive networks
 
+The Compose files pin LiveKit server `v1.13.10`, locally verified with `livekit-client`
+`2.23.0` and `livekit-server-sdk` `2.19.2`. Upgrade the server image along with the
+SDKs: `docker compose pull livekit && docker compose up -d livekit`. With the
+Traefik deployment, include `-f docker-compose.yml -f docker-compose.traefik.yml`
+in both commands so the selected TURN configuration and port mappings are used.
+
 The LiveKit configurations set top-level `enable_data_tracks: true` to accept the
 optional `_data_track` channel opened by the JavaScript SDK during voice joins.
 Without it, LiveKit v1.10.0 closes that channel and the SDK may log

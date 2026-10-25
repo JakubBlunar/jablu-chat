@@ -8,6 +8,10 @@ import { useServerStore } from '@/stores/server.store'
 import { makeServer } from '@/test/factories'
 import { useMemberStore, type Member } from '@/stores/member.store'
 
+jest.mock('react-i18next', () => ({
+  useTranslation: (namespace: string) => ({ t: jest.requireActual('i18next').getFixedT('en', namespace) })
+}))
+
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: jest.fn(() => false) }))
 jest.mock('@/hooks/useAppNavigate', () => ({
   useAppNavigate: () => ({ goToDm: jest.fn(), orchestratedGoToChannel: jest.fn() })
@@ -359,7 +363,7 @@ it.each(['permissions', 'details', 'xp'] as const)(
     if (source === 'xp') jest.mocked(api.getMemberXpProgress).mockRejectedValue(error)
     render(<ProfileCard user={otherUser} onClose={jest.fn()} anchorRect={new DOMRect(100, 500, 40, 20)} />)
     expect(await screen.findByRole('dialog', { name: 'Bob' })).toBeVisible()
-    expect(screen.getByRole('alert')).toHaveTextContent('profileLoadFailed')
+    expect(screen.getByRole('alert')).toHaveTextContent('Some profile details could not be loaded.')
     expect(log).toHaveBeenCalledWith('Could not load profile content', error)
     if (source === 'permissions') expect(screen.getByRole('button', { name: 'Message' })).toBeDisabled()
   }

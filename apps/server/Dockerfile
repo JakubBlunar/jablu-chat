@@ -71,7 +71,7 @@ RUN pnpm --filter @chat/server deploy --prod /prod && \
 # Local `prisma` is required so `prisma.config.ts` can resolve `prisma/config` (global CLI alone does not).
 FROM node:24.14.1-alpine AS migrate
 WORKDIR /app
-RUN printf '%s\n' '{"name":"jablu-migrate","private":true,"dependencies":{"prisma":"7.10.0"}}' > package.json \
+RUN printf '%s\n' '{"name":"jablu-migrate","private":true,"dependencies":{"prisma":"7.10.1","dotenv":"18.0.9"}}' > package.json \
   && npm install --omit=dev \
   && npm cache clean --force
 COPY --from=prisma-generate /app/apps/server/prisma ./prisma

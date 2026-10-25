@@ -181,6 +181,32 @@ test('two callers: speaker routing, controls, metrics, reconnect, TCP and mobile
   context,
   page
 }, info) => {
+  // Exercise actual TCP media rather than relying on the force-tcp simulator.
+  // Filter both directions: a full-ICE server can discover UDP peer-reflexively
+  // if the browser advertises local UDP candidates.
+  await context.addInitScript(() => {
+    const PeerConnection = window.RTCPeerConnection
+    window.RTCPeerConnection = class extends PeerConnection {
+      constructor(configuration?: RTCConfiguration) {
+        super(configuration)
+        this.addEventListener('icecandidate', (event) => {
+          if (event.candidate?.protocol === 'udp') event.stopImmediatePropagation()
+        }, true)
+      }
+    }
+    const addCandidate = RTCPeerConnection.prototype.addIceCandidate
+    RTCPeerConnection.prototype.addIceCandidate = function (candidate) {
+      if (candidate?.candidate && / udp /i.test(candidate.candidate)) return Promise.resolve()
+      return addCandidate.call(this, candidate)
+    }
+    const setDescription = RTCPeerConnection.prototype.setRemoteDescription
+    RTCPeerConnection.prototype.setRemoteDescription = function (description) {
+      return setDescription.call(this, {
+        type: description.type,
+        sdp: description.sdp?.replace(/^a=candidate:.* udp .*\r?\n/gim, '')
+      })
+    }
+  })
   await instrument(context)
   const voice = await prepare(page, 'admin')
   const selected = await page.evaluate(async () => {
@@ -242,20 +268,13 @@ test('two callers: speaker routing, controls, metrics, reconnect, TCP and mobile
       await useVoiceConnectionStore.getState().room.simulateScenario('signal-reconnect')
     })
     await expect.poll(async () => (await voiceState(page)).reconnecting, { timeout: 15000 }).toBe(false)
-    await page.evaluate(async () => {
-      const { useVoiceConnectionStore } = await import(
-        performance
-          .getEntriesByType('resource')
-          .find((entry) => new URL(entry.name).pathname === '/src/stores/voice-connection.store.ts')!.name
-      )
-      await useVoiceConnectionStore.getState().room.simulateScenario('force-tcp')
-    })
     await expect(page.getByRole('definition').filter({ hasText: 'TCP' })).toBeVisible({ timeout: 20000 })
     await page.screenshot({ path: info.outputPath('voice-desktop.png') })
     await page.setViewportSize({ width: 390, height: 844 })
     await expect(page.getByRole('button', { name: 'Windows app', exact: true })).toHaveCount(0)
     for (const name of ['Mute', 'Deafen', 'Turn on camera', 'Disconnect from voice']) {
-      const button = page.getByRole('button', { name, exact: true }).first()
+      const button = page.getByRole('button', { name, exact: true }).filter({ visible: true }).first()
+      await expect(button).toBeVisible()
       const box = await button.boundingBox()
       expect(box, name).toBeTruthy()
       expect(box!.width).toBeGreaterThanOrEqual(44)

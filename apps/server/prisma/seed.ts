@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import { config as loadEnv } from 'dotenv'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 import { PrismaClient, ChannelType, AttachmentType } from '../src/generated/prisma/client'
@@ -17,6 +17,7 @@ import { randomUUID, randomFillSync } from 'crypto'
 import { mkdirSync, existsSync, statSync } from 'fs'
 import { join, resolve } from 'path'
 
+loadEnv()
 const { prisma, pool: seedPgPool } = createPrisma()
 
 const SEED_SERVER_NAME = '[Seed] Test Server'

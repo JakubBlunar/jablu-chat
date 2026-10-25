@@ -43,7 +43,7 @@ export async function navigateToFirstTextChannel(page: Page) {
 }
 
 export async function sendMessage(page: Page, content: string) {
-  const input = page.locator('[data-testid="message-input"], textarea[placeholder*="message"], div[contenteditable="true"]').first()
+  const input = page.locator('[data-testid="message-input"], textarea[placeholder*="message" i], div[contenteditable="true"]').first()
   await input.click()
   await input.fill(content)
   await page.keyboard.press('Enter')

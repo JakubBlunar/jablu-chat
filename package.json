@@ -24,12 +24,15 @@
     "local:sync-env": "node scripts/sync-env-development.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
-    "prettier": "^3.9.6",
-    "turbo": "^2.10.12",
-    "typescript": "~5.9.3"
+    "@playwright/test": "^1.64.1",
+    "prettier": "^3.9.10",
+    "turbo": "^2.11.10",
+    "typescript": "~6.0.3"
   },
   "pnpm": {
+    "overrides": {
+      "@nestjs/platform-express>multer": "^2.5.0"
+    },
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "@prisma/client",

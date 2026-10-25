@@ -40,7 +40,7 @@ services:
       - '8025:8025'
 
   livekit:
-    image: livekit/livekit-server:v1.10.0
+    image: livekit/livekit-server:v1.13.10
     ports:
       - '7880:7880'
       - '7881:7881/tcp'

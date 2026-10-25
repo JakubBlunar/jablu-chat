@@ -54,6 +54,7 @@ apps/server/.deploy-test/
 coverage/
 test-results/
 playwright-report/
+.tmp-tests/
 
 # TLS certs
 docker/nginx/certs/

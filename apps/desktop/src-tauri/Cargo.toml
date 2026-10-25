@@ -1,6 +1,6 @@
 [package]
 name = "jablu-desktop"
-version = "1.0.26"
+version = "1.0.27"
 description = "Jablu Desktop"
 authors = ["Jablu"]
 edition = "2021"
@@ -41,24 +41,25 @@ sysinfo = "0.30"
 [target.'cfg(windows)'.dependencies]
 # Auto-approve WebView2 microphone/camera permission prompts. Pinned to the same
 # versions Tauri/wry already resolve so the ICoreWebView2 COM types line up.
-webview2-com = "0.38"
+webview2-com = "0.39"
 # Steam running-game detection via the registry, exe-icon extraction, and SMTC
 # (Spotify) now-playing all use the Windows APIs below.
 winreg = "0.52"
-windows-future = "0.2"
+windows-future = "0.3"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png"] }
 # `UI_Notifications` / `Data_Xml_Dom` drive the native toasts in notifications.rs.
 # We build the ToastNotification ourselves rather than using a wrapper crate
 # because Windows delivers click activation to the notification object, which
 # means we have to own its lifetime.
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Media_Control",
     "Foundation",
     "Storage_Streams",
     "Data_Xml_Dom",
     "UI_Notifications",
     "Win32_Foundation",
+    "Win32_Storage_FileSystem",
     "Win32_System_Com",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

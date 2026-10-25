@@ -150,7 +150,7 @@ services:
 
   # ─── LiveKit ────────────────────────────────────────────────────────
   livekit:
-    image: livekit/livekit-server:v1.10.0
+    image: livekit/livekit-server:v1.13.10
     ports:
       - '7881:7881/tcp'
       - '7882:7882/udp'

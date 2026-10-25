@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import nodemailer from 'nodemailer'
+import nodemailer, { type Transporter } from 'nodemailer'
 
 const execFileAsync = promisify(execFile)
 
@@ -113,7 +113,7 @@ function createMailer() {
 }
 
 async function sendAlert(
-  transporter: nodemailer.Transporter,
+  transporter: Transporter,
   params: { to: string; from: string; project: string; lines: string[] }
 ): Promise<void> {
   const body = params.lines.join('\n').slice(0, MAX_BODY_CHARS)

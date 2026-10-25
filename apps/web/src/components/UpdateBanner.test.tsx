@@ -3,6 +3,10 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { UpdateBanner } from './UpdateBanner'
 import { useDesktopUpdateStore } from '@/stores/desktopUpdate.store'
 
+jest.mock('react-i18next', () => ({
+  useTranslation: (namespace: string) => ({ t: jest.requireActual('i18next').getFixedT('en', namespace) })
+}))
+
 const check = jest.fn()
 
 jest.mock('@/lib/electron', () => ({

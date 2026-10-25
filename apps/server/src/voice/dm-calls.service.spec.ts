@@ -82,6 +82,11 @@ describe('DmCallsService', () => {
       payload: { conversationId: 'group', callId: call.id, authorName: 'Alice' },
       title: 'Incoming voice call',
       body: 'Alice is calling. Open Jablu to join.',
+      localized: {
+        en: { title: 'Incoming voice call', body: 'Alice is calling. Open Jablu to join.' },
+        cs: { title: 'Příchozí hlasový hovor', body: 'Alice vám volá. Otevřete Jablu a připojte se.' },
+        sk: { title: 'Prichádzajúci hlasový hovor', body: 'Alice vám volá. Otvorte Jablu a pripojte sa.' }
+      },
       url: `/channels/@me/group?call=${call.id}`,
       push: true,
       expiresAt: Date.now() + 30_000
