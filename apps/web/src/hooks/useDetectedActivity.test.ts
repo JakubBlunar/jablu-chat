@@ -94,6 +94,26 @@ beforeEach(() => {
 })
 afterEach(() => jest.useRealTimers())
 
+it('only sends explicitly registered apps back as executable detection rules', async () => {
+  jest.mocked(api.getRegisteredGames).mockResolvedValue([
+    { ...registeredGame, name: 'Path of Exile', executable: 'conhost.exe', steamAppId: '238960' },
+    { ...registeredGame, id: 'old-process', source: 'process', executable: 'python.exe', steamAppId: null },
+    {
+      ...registeredGame,
+      id: 'custom',
+      source: 'manual',
+      name: 'My Game',
+      executable: ' game.exe, other.exe ',
+      steamAppId: null
+    }
+  ])
+  renderHook(() => useDetectedActivity(socket))
+  await settle()
+  expect(native.setCustomDetectables).toHaveBeenLastCalledWith([
+    { name: 'My Game', appId: null, executables: ['game.exe', 'other.exe'] }
+  ])
+})
+
 it('publishes immediately and cannot restore an ended game when artwork finishes', async () => {
   let finish!: (value: { url: string }) => void
   jest.mocked(api.uploadActivityIcon).mockReturnValueOnce(
@@ -114,6 +134,50 @@ it('publishes immediately and cannot restore an ended game when artwork finishes
     finish({ url: '/art/skyrim.png' })
   })
   expect(socket.emit).toHaveBeenLastCalledWith('activity:clear', expect.any(Object), expect.any(Function))
+})
+
+it('repairs saved executable and artwork metadata without waiting for another game session', async () => {
+  const incorrectGame = { ...registeredGame, executable: 'conhost.exe', iconUrl: '/terminal.png' }
+  jest.mocked(api.getRegisteredGames).mockResolvedValueOnce([incorrectGame])
+  let finishIcon!: (value: { url: string }) => void
+  let finishInitial!: (value: RegisteredGame) => void
+  jest.mocked(api.uploadActivityIcon).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishIcon = resolve
+    })
+  )
+  jest
+    .mocked(api.upsertRegisteredGame)
+    .mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishInitial = resolve
+      })
+    )
+    .mockResolvedValueOnce({ ...registeredGame, iconUrl: '/art/game.png' })
+  renderHook(() => useDetectedActivity(socket))
+  await settle()
+  detect([{ ...game, iconDataUrl: 'data:image/png;base64,AA==' }])
+  expect(api.upsertRegisteredGame).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      executable: 'skyrimse.exe',
+      iconUrl: null
+    })
+  )
+  await act(async () => {
+    finishIcon({ url: '/art/game.png' })
+  })
+  expect(api.upsertRegisteredGame).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      executable: 'skyrimse.exe',
+      iconUrl: '/art/game.png'
+    })
+  )
+  expect(useActivityStore.getState().games[0].iconUrl).toBe('/art/game.png')
+  expect(useActivityStore.getState().games[0].executable).toBe('skyrimse.exe')
+  await act(async () => {
+    finishInitial(incorrectGame)
+  })
+  expect(useActivityStore.getState().games[0].iconUrl).toBe('/art/game.png')
 })
 
 it('resynchronizes an empty native observation on the same socket after reconnect', async () => {

@@ -105,7 +105,7 @@ export function ServerSidebar() {
 
         <div className="my-1 h-0.5 w-8 rounded-full bg-white/15" aria-hidden />
 
-        <SimpleBar className="min-h-0 w-full flex-1" style={{ overflowX: 'hidden' }}>
+        <SimpleBar className="min-h-0 w-full flex-1">
           <div className="flex flex-col items-center gap-2 py-0.5">
             <UnreadDmShortcuts />
             {isLoading && servers.length === 0 ? (

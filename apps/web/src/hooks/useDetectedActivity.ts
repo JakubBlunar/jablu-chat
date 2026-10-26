@@ -36,7 +36,7 @@ export function useDetectedActivity(socket: Socket | null) {
     let pollRequest = 0
     const icons = new Map<string, string>()
     const uploading = new Set<string>()
-    const registered = new Set<string>()
+    const registered = new Map<string, string>()
     const current = () => !cancelled && useAuthStore.getState().user?.id === userId
     const fresh = () =>
       latest !== null && Date.now() - latest.observedAt <= FRESH_MS && latest.observedAt <= Date.now() + 5000
@@ -109,8 +109,9 @@ export function useDetectedActivity(socket: Socket | null) {
       }
       if (!primary) return
       const sessionKey = identity(primary)
-      if (primary.kind === 'game' && !registered.has(sessionKey)) {
-        registered.add(sessionKey)
+      const registration = JSON.stringify([primary.name, primary.executable, iconUrl])
+      if (primary.kind === 'game' && registered.get(sessionKey) !== registration) {
+        registered.set(sessionKey, registration)
         void api
           .upsertRegisteredGame({
             name: primary.name,
@@ -120,14 +121,16 @@ export function useDetectedActivity(socket: Socket | null) {
             iconUrl
           })
           .then((game) => {
-            if (current()) {
+            if (current() && registered.get(sessionKey) === registration) {
               const existing = useActivityStore.getState().games.find((g) => g.id === game.id)
               useActivityStore
                 .getState()
                 .upsertGameLocal(existing ? { ...game, name: existing.name, hidden: existing.hidden } : game)
             }
           })
-          .catch(() => registered.delete(sessionKey))
+          .catch(() => {
+            if (registered.get(sessionKey) === registration) registered.delete(sessionKey)
+          })
       }
       if (primary.iconDataUrl && !icons.has(artKey) && !uploading.has(artKey)) {
         uploading.add(artKey)
@@ -184,7 +187,9 @@ export function useDetectedActivity(socket: Socket | null) {
         )
         .catch(() => {})
       const detectables = store.games
-        .filter((g) => g.executable?.trim())
+        // Automatic observations are history, not trusted detection rules.
+        // Feeding them back can perpetuate an old mistaken helper-process match.
+        .filter((g) => g.source === 'manual' && g.executable?.trim())
         .map((g) => ({
           name: g.name,
           appId: g.steamAppId,

@@ -1,133 +1,104 @@
 export type NotifSoundKind = 'message' | 'mention' | 'friend'
 
-let ctx: AudioContext | null = null
+type SoundKind = NotifSoundKind | 'join' | 'leave'
+type Note = { frequency: number; offset: number; duration: number; volume: number }
 
-function getCtx(): AudioContext | null {
-  if (!ctx) {
-    try {
-      ctx = new AudioContext()
-    } catch {
-      return null
-    }
-  }
-  if (ctx.state === 'suspended') {
-    ctx.resume().catch(() => {})
+// Related, soft chimes: rising for arrival, falling for departure, and a
+// quieter single note for messages. Durations include the full release tail.
+const scores: Record<SoundKind, readonly Note[]> = {
+  join: [
+    { frequency: 440, offset: 0, duration: 0.28, volume: 0.18 },
+    { frequency: 587.33, offset: 0.12, duration: 0.32, volume: 0.16 }
+  ],
+  leave: [
+    { frequency: 587.33, offset: 0, duration: 0.28, volume: 0.16 },
+    { frequency: 440, offset: 0.12, duration: 0.32, volume: 0.14 }
+  ],
+  message: [{ frequency: 659.25, offset: 0, duration: 0.3, volume: 0.16 }],
+  mention: [
+    { frequency: 587.33, offset: 0, duration: 0.3, volume: 0.18 },
+    { frequency: 783.99, offset: 0.14, duration: 0.34, volume: 0.16 }
+  ],
+  friend: [
+    { frequency: 523.25, offset: 0, duration: 0.3, volume: 0.17 },
+    { frequency: 659.25, offset: 0.13, duration: 0.3, volume: 0.15 },
+    { frequency: 783.99, offset: 0.26, duration: 0.36, volume: 0.14 }
+  ]
+}
+
+let ctx: AudioContext | null = null
+let output: DynamicsCompressorNode | null = null
+
+function getCtx(): AudioContext {
+  if (!ctx || ctx.state === 'closed') {
+    const ac = new AudioContext({ latencyHint: 'interactive' })
+    // Leave headroom when several notifications or participant events coincide.
+    const compressor = ac.createDynamicsCompressor()
+    compressor.threshold.value = -6
+    compressor.knee.value = 6
+    compressor.ratio.value = 12
+    compressor.attack.value = 0.003
+    compressor.release.value = 0.15
+    compressor.connect(ac.destination)
+    ctx = ac
+    output = compressor
   }
   return ctx
 }
 
-function playTone(freq1: number, freq2: number, volume = 0.25) {
-  const ac = getCtx()
-  if (!ac) return
+function scheduleNote(ac: AudioContext, destination: AudioNode, note: Note, start: number) {
+  const end = start + note.duration
+  // A dominant fundamental with quiet overtones gives a warm, rounded timbre.
+  const partials = [1, 0.12, 0.025]
+  for (const [index, strength] of partials.entries()) {
+    const oscillator = ac.createOscillator()
+    const envelope = ac.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.value = note.frequency * (index + 1)
 
-  const now = ac.currentTime
-  const gain = ac.createGain()
-  gain.connect(ac.destination)
-  gain.gain.setValueAtTime(volume, now)
-  gain.gain.linearRampToValueAtTime(0, now + 0.15)
+    // Each partial starts AND finishes at zero. In particular, starting a later
+    // note must never reuse an envelope that is already partway through decay.
+    const peak = note.volume * strength
+    envelope.gain.setValueAtTime(0, start)
+    envelope.gain.linearRampToValueAtTime(peak, start + 0.012)
+    envelope.gain.exponentialRampToValueAtTime(peak * 0.001, end - 0.02)
+    envelope.gain.linearRampToValueAtTime(0, end)
+    oscillator.connect(envelope)
+    envelope.connect(destination)
+    oscillator.onended = () => {
+      oscillator.disconnect()
+      envelope.disconnect()
+    }
+    oscillator.start(start)
+    oscillator.stop(end + 0.005)
+  }
+}
 
-  const osc1 = ac.createOscillator()
-  osc1.type = 'sine'
-  osc1.frequency.value = freq1
-  osc1.connect(gain)
-  osc1.start(now)
-  osc1.stop(now + 0.08)
-
-  const osc2 = ac.createOscillator()
-  osc2.type = 'sine'
-  osc2.frequency.value = freq2
-  osc2.connect(gain)
-  osc2.start(now + 0.07)
-  osc2.stop(now + 0.15)
+async function play(kind: SoundKind): Promise<void> {
+  try {
+    const ac = getCtx()
+    // Schedule only after resume completes so a suspended context cannot eat
+    // the beginning of the cue. Autoplay rejection should stay non-fatal.
+    if (ac.state !== 'running') await ac.resume()
+    if (ac.state !== 'running' || !output) return
+    const start = ac.currentTime + 0.015
+    for (const note of scores[kind]) {
+      scheduleNote(ac, output, note, start + note.offset)
+    }
+  } catch {
+    // Sound is optional; unsupported audio or autoplay restrictions must not
+    // interrupt notifications or joining/leaving voice.
+  }
 }
 
 export function playJoinSound() {
-  playTone(440, 580)
+  void play('join')
 }
 
 export function playLeaveSound() {
-  playTone(580, 440)
-}
-
-function playMessageSound() {
-  const ac = getCtx()
-  if (!ac) return
-  const now = ac.currentTime
-  const gain = ac.createGain()
-  gain.connect(ac.destination)
-  gain.gain.setValueAtTime(0.2, now)
-  gain.gain.linearRampToValueAtTime(0, now + 0.12)
-
-  const osc = ac.createOscillator()
-  osc.type = 'sine'
-  osc.frequency.value = 660
-  osc.connect(gain)
-  osc.start(now)
-  osc.stop(now + 0.12)
-}
-
-function playMentionSound() {
-  const ac = getCtx()
-  if (!ac) return
-  const now = ac.currentTime
-  const gain = ac.createGain()
-  gain.connect(ac.destination)
-  gain.gain.setValueAtTime(0.3, now)
-  gain.gain.linearRampToValueAtTime(0, now + 0.25)
-
-  const o1 = ac.createOscillator()
-  o1.type = 'sine'
-  o1.frequency.value = 587
-  o1.connect(gain)
-  o1.start(now)
-  o1.stop(now + 0.1)
-
-  const o2 = ac.createOscillator()
-  o2.type = 'sine'
-  o2.frequency.value = 784
-  o2.connect(gain)
-  o2.start(now + 0.1)
-  o2.stop(now + 0.25)
-}
-
-function playFriendSound() {
-  const ac = getCtx()
-  if (!ac) return
-  const now = ac.currentTime
-  const gain = ac.createGain()
-  gain.connect(ac.destination)
-  gain.gain.setValueAtTime(0.25, now)
-  gain.gain.linearRampToValueAtTime(0, now + 0.35)
-
-  const o1 = ac.createOscillator()
-  o1.type = 'sine'
-  o1.frequency.value = 523
-  o1.connect(gain)
-  o1.start(now)
-  o1.stop(now + 0.1)
-
-  const o2 = ac.createOscillator()
-  o2.type = 'sine'
-  o2.frequency.value = 659
-  o2.connect(gain)
-  o2.start(now + 0.1)
-  o2.stop(now + 0.2)
-
-  const o3 = ac.createOscillator()
-  o3.type = 'sine'
-  o3.frequency.value = 784
-  o3.connect(gain)
-  o3.start(now + 0.2)
-  o3.stop(now + 0.35)
+  void play('leave')
 }
 
 export function playNotifSound(kind: NotifSoundKind = 'message') {
-  switch (kind) {
-    case 'mention':
-      return playMentionSound()
-    case 'friend':
-      return playFriendSound()
-    default:
-      return playMessageSound()
-  }
+  void play(kind)
 }

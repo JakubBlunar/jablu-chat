@@ -240,17 +240,42 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-// Known game binaries also cover mod managers launching outside Steam libraries.
+// Skyrim binaries also cover mod managers launching outside Steam libraries.
+// PoE 1 and 2 share binary names, so their installation paths disambiguate them.
 fn steam_executable(app_id: &str, executable: &str) -> bool {
     matches!(
         (app_id, executable),
-        ("489830", "skyrimse.exe") | ("72850", "tesv.exe") | ("611670", "skyrimvr.exe")
+        ("489830", "skyrimse.exe")
+            | ("72850", "tesv.exe")
+            | ("611670", "skyrimvr.exe")
+            | (
+                "238960" | "2694490",
+                "pathofexilesteam.exe" | "pathofexile_x64steam.exe"
+            )
+    )
+}
+
+fn is_system_host(executable: &str) -> bool {
+    matches!(
+        executable.to_lowercase().as_str(),
+        "conhost.exe"
+            | "openconsole.exe"
+            | "cmd.exe"
+            | "powershell.exe"
+            | "pwsh.exe"
+            | "wscript.exe"
+            | "cscript.exe"
+            | "rundll32.exe"
+            | "dllhost.exe"
+            | "svchost.exe"
     )
 }
 
 fn is_helper(executable: &str) -> bool {
     let executable = executable.to_lowercase();
-    if ["steam.exe", "steamservice.exe", "steamwebhelper.exe"].contains(&executable.as_str()) {
+    if is_system_host(&executable)
+        || ["steam.exe", "steamservice.exe", "steamwebhelper.exe"].contains(&executable.as_str())
+    {
         return true;
     }
     [
@@ -274,8 +299,6 @@ fn steam_process_matches(
     executable: &str,
     path: Option<&std::path::Path>,
     install: Option<&std::path::Path>,
-    inherited_app_id: bool,
-    registered: bool,
 ) -> bool {
     if is_helper(executable) {
         return false;
@@ -285,11 +308,15 @@ fn steam_process_matches(
     if ["489830", "72850", "611670"].contains(&app_id) {
         return steam_executable(app_id, executable);
     }
-    registered
-        || inherited_app_id
-        || path
-            .zip(install)
-            .is_some_and(|(exe, root)| path_is_inside(exe, root))
+    // Environment variables and previously saved executable names are not
+    // evidence: launchers pass SteamAppId to unrelated, long-lived children.
+    let in_install = path
+        .zip(install)
+        .is_some_and(|(exe, root)| path_is_inside(exe, root));
+    if ["238960", "2694490"].contains(&app_id) {
+        return in_install && steam_executable(app_id, executable);
+    }
+    in_install
 }
 
 fn path_is_inside(executable: &std::path::Path, directory: &std::path::Path) -> bool {
@@ -350,25 +377,97 @@ mod tests {
             "GameLauncher.exe",
             "skse64_loader.exe",
             "CrashReporter.exe",
+            "conhost.exe",
+            "OpenConsole.exe",
+            "cmd.exe",
+            "powershell.exe",
         ] {
             assert!(is_helper(name));
         }
         assert!(!is_helper("skyrimse.exe"));
-        assert!(!steam_process_matches(
-            "489830",
-            "python.exe",
-            None,
-            None,
-            true,
-            false
-        ));
+        assert!(!steam_process_matches("489830", "python.exe", None, None));
         assert!(!steam_process_matches(
             "489830",
             "usvfs_proxy_x64.exe",
             None,
-            None,
-            true,
-            false
+            None
+        ));
+    }
+
+    #[test]
+    fn steam_requires_a_live_process_in_its_installation() {
+        use std::path::Path;
+        let install = Some(Path::new("H:/SteamLibrary/steamapps/common/Example"));
+        assert!(steam_process_matches(
+            "123",
+            "game.exe",
+            Some(Path::new(
+                "H:/SteamLibrary/steamapps/common/Example/bin/game.exe"
+            )),
+            install
+        ));
+        for executable in ["conhost.exe", "cmd.exe", "GameLauncher.exe", "game.exe"] {
+            assert!(!steam_process_matches(
+                "123",
+                executable,
+                Some(Path::new("C:/Windows/System32/conhost.exe")),
+                install
+            ));
+            assert!(!steam_process_matches("123", executable, None, None));
+        }
+        assert!(!steam_process_matches(
+            "123",
+            "conhost.exe",
+            Some(Path::new(
+                "H:/SteamLibrary/steamapps/common/Example/conhost.exe"
+            )),
+            install
+        ));
+    }
+
+    #[test]
+    fn poe_uses_real_binaries_and_distinguishes_installations() {
+        use std::path::Path;
+        let install = Some(Path::new("H:/SteamLibrary/steamapps/common/Path of Exile"));
+        for executable in ["pathofexilesteam.exe", "pathofexile_x64steam.exe"] {
+            let path = Path::new("H:/SteamLibrary/steamapps/common/Path of Exile").join(executable);
+            assert!(steam_process_matches(
+                "238960",
+                executable,
+                Some(&path),
+                install
+            ));
+            assert!(!steam_process_matches(
+                "238960",
+                executable,
+                Some(&path),
+                None
+            ));
+            assert!(!steam_process_matches(
+                "2694490",
+                executable,
+                Some(&path),
+                Some(Path::new(
+                    "H:/SteamLibrary/steamapps/common/Path of Exile 2"
+                ))
+            ));
+        }
+        // A helper can outlive the game even inside its installation directory.
+        assert!(!steam_process_matches(
+            "238960",
+            "conhost.exe",
+            Some(Path::new(
+                "H:/SteamLibrary/steamapps/common/Path of Exile/conhost.exe"
+            )),
+            install
+        ));
+        assert!(!steam_process_matches(
+            "238960",
+            "overlay.exe",
+            Some(Path::new(
+                "H:/SteamLibrary/steamapps/common/Path of Exile/overlay.exe"
+            )),
+            install
         ));
     }
 
@@ -472,7 +571,6 @@ fn detect_all(custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
     sys.refresh_processes_specifics(
         ProcessRefreshKind::new()
             .with_exe(UpdateKind::OnlyIfNotSet)
-            .with_environ(UpdateKind::OnlyIfNotSet)
             .with_cmd(UpdateKind::OnlyIfNotSet),
     );
 
@@ -487,7 +585,7 @@ fn detect_all(custom: &[CustomDetectable]) -> Vec<DetectedActivity> {
     let mut seen_names: Vec<String> = Vec::new();
 
     if steam_running {
-        for game in win::detect_steam(&sys, custom) {
+        for game in win::detect_steam(&sys) {
             seen_names.push(game.name.to_lowercase());
             out.push(game);
         }
@@ -642,10 +740,7 @@ mod win {
         ("osu!", &["osu!.exe"]),
     ];
 
-    pub fn detect_steam(
-        sys: &sysinfo::System,
-        custom: &[super::CustomDetectable],
-    ) -> Vec<DetectedActivity> {
+    pub fn detect_steam(sys: &sysinfo::System) -> Vec<DetectedActivity> {
         use winreg::enums::HKEY_CURRENT_USER;
         use winreg::RegKey;
 
@@ -676,19 +771,7 @@ mod win {
                 .iter()
                 .filter(|(_, p)| {
                     let name = p.name().to_lowercase();
-                    super::steam_process_matches(
-                        &app_id,
-                        &name,
-                        p.exe(),
-                        install.as_deref(),
-                        p.environ()
-                            .iter()
-                            .any(|v| v.strip_prefix("SteamAppId=") == Some(app_id.as_str())),
-                        custom.iter().any(|c| {
-                            c.app_id.as_deref() == Some(app_id.as_str())
-                                && c.executables.contains(&name)
-                        }),
-                    )
+                    super::steam_process_matches(&app_id, &name, p.exe(), install.as_deref())
                 })
                 .min_by_key(|(pid, _)| **pid);
             let Some((pid, process)) = process else {
@@ -783,6 +866,9 @@ mod win {
         processes.sort_by_key(|(pid, proc_)| (proc_.start_time(), **pid));
         for (pid, proc_) in processes {
             let exe_name = proc_.name().to_lowercase();
+            if super::is_system_host(&exe_name) {
+                continue;
+            }
             if exe_name == "javaw.exe"
                 && !proc_.cmd().iter().any(|arg| {
                     let arg = arg.to_lowercase();
@@ -802,7 +888,9 @@ mod win {
                 .or_else(|| {
                     custom
                         .iter()
-                        .find(|d| d.executables.iter().any(|e| *e == exe_name))
+                        .find(|d| {
+                            d.app_id.is_none() && d.executables.iter().any(|e| *e == exe_name)
+                        })
                         .map(|d| d.name.clone())
                 });
             let Some(title) = title else {
@@ -824,13 +912,7 @@ mod win {
                 app_id: ["489830", "72850", "611670"]
                     .iter()
                     .find(|id| super::steam_executable(id, &exe_name))
-                    .map(|id| (*id).to_string())
-                    .or_else(|| {
-                        custom
-                            .iter()
-                            .find(|c| c.executables.contains(&exe_name))
-                            .and_then(|c| c.app_id.clone())
-                    }),
+                    .map(|id| (*id).to_string()),
                 executable: Some(exe_name),
                 details: None,
                 state: None,
