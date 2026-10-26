@@ -502,6 +502,8 @@ model Attachment {
   width     Int?
   height    Int?
   thumbnailUrl String?     @map("thumbnail_url")
+  thumbnailWidth Int?     @map("thumbnail_width")
+  thumbnailHeight Int?    @map("thumbnail_height")
   createdAt DateTime       @default(now()) @map("created_at")
 
   message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)

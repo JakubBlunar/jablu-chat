@@ -130,6 +130,8 @@ export class UploadsController {
         width: saved.width,
         height: saved.height,
         thumbnailUrl: saved.thumbnailUrl,
+        thumbnailWidth: saved.thumbnailWidth,
+        thumbnailHeight: saved.thumbnailHeight,
         uploaderId: user.id,
       },
     });
@@ -192,6 +194,8 @@ export class UploadsController {
     // helmet's default `same-origin` policy would block them. Relax it to
     // `cross-origin` for public media only; the JSON API keeps the stricter policy.
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    // Generated UUID filenames are replaced, never overwritten.
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
 
     return res.sendFile(fullPath);
   }

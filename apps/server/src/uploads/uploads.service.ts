@@ -40,7 +40,8 @@ const ALLOWED_MIMES = new Set([
   'application/json',
 ]);
 
-const THUMB_SIZE = 400;
+// A 448px chat preview stays sharp at 2x density without decoding the original.
+const THUMB_SIZE = 896;
 
 @Injectable()
 export class UploadsService {
@@ -85,6 +86,8 @@ export class UploadsService {
   async saveAttachment(file: Express.Multer.File): Promise<{
     url: string;
     thumbnailUrl: string | null;
+    thumbnailWidth: number | null;
+    thumbnailHeight: number | null;
     type: AttachmentType;
     mimeType: string;
     sizeBytes: number;
@@ -109,7 +112,7 @@ export class UploadsService {
       }
     }
 
-    const attachType = this.classifyMime(mime);
+    let attachType = this.classifyMime(mime);
     let savedExt = extname(file.originalname).toLowerCase() || this.mimeToExt(mime);
     let savedMime = mime;
     const id = randomUUID();
@@ -117,6 +120,8 @@ export class UploadsService {
     let width: number | null = null;
     let height: number | null = null;
     let thumbnailUrl: string | null = null;
+    let thumbnailWidth: number | null = null;
+    let thumbnailHeight: number | null = null;
 
     if (attachType === AttachmentType.image) {
       const isHeic = mime === 'image/heic' || mime === 'image/heif';
@@ -129,20 +134,29 @@ export class UploadsService {
       }
 
       const meta = await sharp(imageBuffer).metadata();
-      width = meta.width ?? null;
-      height = meta.height ?? null;
+      const rotated = meta.orientation != null && meta.orientation >= 5 && meta.orientation <= 8;
+      width = (rotated ? meta.height : meta.width) ?? null;
+      height = (rotated ? meta.width : meta.height) ?? null;
 
       const savedName = `${id}${savedExt}`;
       const dest = join(this.uploadDir, 'attachments', savedName);
       writeFileSync(dest, imageBuffer);
 
-      const thumbName = `${id}_thumb.webp`;
-      const thumbDest = join(this.uploadDir, 'thumbnails', thumbName);
-      await sharp(imageBuffer)
-        .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toFile(thumbDest);
-      thumbnailUrl = `/api/uploads/thumbnails/${thumbName}`;
+      if ((meta.pages ?? 1) > 1) {
+        // Animated WebP/AVIF must keep animating just like GIF attachments.
+        attachType = AttachmentType.gif;
+      } else {
+        const thumbName = `${id}_thumb.webp`;
+        const thumbDest = join(this.uploadDir, 'thumbnails', thumbName);
+        const preview = await sharp(imageBuffer)
+          .rotate()
+          .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 80 })
+          .toFile(thumbDest);
+        thumbnailUrl = `/api/uploads/thumbnails/${thumbName}`;
+        thumbnailWidth = preview.width;
+        thumbnailHeight = preview.height;
+      }
     } else {
       const savedName = `${id}${savedExt}`;
       const dest = join(this.uploadDir, 'attachments', savedName);
@@ -173,6 +187,8 @@ export class UploadsService {
     return {
       url: `/api/uploads/attachments/${id}${savedExt}`,
       thumbnailUrl,
+      thumbnailWidth,
+      thumbnailHeight,
       type: attachType,
       mimeType: savedMime,
       sizeBytes: file.size,

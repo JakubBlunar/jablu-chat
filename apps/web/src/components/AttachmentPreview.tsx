@@ -32,9 +32,20 @@ function AttachmentContents({ attachment }: AttachmentPreviewProps) {
 
   if (attachment.type === 'image' || attachment.type === 'gif') {
     const dims = constrainedDims(aw, ah)
+    const original = resolveMediaUrl(attachment.url) ?? attachment.url
+    const legacyMayAnimate = attachment.thumbnailWidth == null && ['image/webp', 'image/avif'].includes(attachment.mimeType)
+    const preview = attachment.type === 'image' && !legacyMayAnimate && attachment.thumbnailUrl ? resolveMediaUrl(attachment.thumbnailUrl) : undefined
+    // Old uploads have 400px thumbnails; newer uploads carry their actual preview dimensions.
+    const legacyDims = aw && ah ? constrainedDims(aw, ah, 400, 400) : null
+    const previewWidth = attachment.thumbnailWidth ?? legacyDims?.width
+    const srcSet = preview && aw && previewWidth && previewWidth < aw
+      ? `${preview} ${previewWidth}w, ${original} ${aw}w` : undefined
     return (
       <MediaPreview
-        src={resolveMediaUrl(attachment.url) ?? attachment.url}
+        src={preview ?? original}
+        srcSet={srcSet}
+        sizes={srcSet ? `(max-width: 480px) calc(100vw - 72px), ${dims?.width ?? 448}px` : undefined}
+        originalSrc={original}
         alt={attachment.filename}
         className="mt-1"
         style={{

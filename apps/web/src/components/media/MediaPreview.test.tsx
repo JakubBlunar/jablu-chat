@@ -34,6 +34,17 @@ it('resets the preview when the resource changes', () => {
   expect(container.querySelector('[aria-busy]')).toHaveAttribute('aria-busy', 'true')
 })
 
+it('uses responsive previews, falls back to the original once, and keeps original downloads intact', () => {
+  render(<MediaPreview src="/thumb.webp" originalSrc="/full.jpg" srcSet="/thumb.webp 896w, /full.jpg 3600w" sizes="448px" alt="Photo" onOpen={jest.fn()} />)
+  expect(screen.getByAltText('Photo')).toHaveAttribute('srcset', '/thumb.webp 896w, /full.jpg 3600w')
+  fireEvent.error(screen.getByAltText('Photo'))
+  expect(screen.getByAltText('Photo')).toHaveAttribute('src', '/full.jpg')
+  expect(screen.getByAltText('Photo')).not.toHaveAttribute('srcset')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  fireEvent.error(screen.getByAltText('Photo'))
+  expect(screen.getByRole('link', { name: 'openOriginal' })).toHaveAttribute('href', '/full.jpg')
+})
+
 it('retains native video controls and exposes a touch-sized expand action and retry', () => {
   const { container } = render(<MediaPreview src="/clip.mp4" alt="Clip" video controls onOpen={jest.fn()} />)
   expect(container.querySelector('video')).toHaveAttribute('controls')

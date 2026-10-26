@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next'
 
 export function MediaPreview({
   src,
+  srcSet,
+  sizes,
+  originalSrc,
   alt,
   onOpen,
   video = false,
@@ -12,6 +15,9 @@ export function MediaPreview({
   style
 }: {
   src: string
+  srcSet?: string
+  sizes?: string
+  originalSrc?: string
   alt: string
   onOpen: () => void
   video?: boolean
@@ -22,10 +28,16 @@ export function MediaPreview({
 }) {
   const { t } = useTranslation('common')
   const [attempt, setAttempt] = useState(0)
+  const [fallbackFor, setFallbackFor] = useState<string | null>(null)
+  const usingOriginal = fallbackFor === src && !!originalSrc
+  const displayedSrc = usingOriginal ? originalSrc! : src
   const [loaded, setLoaded] = useState<{ src: string; attempt: number; error: boolean } | null>(null)
-  const current = loaded?.src === src && loaded.attempt === attempt ? loaded : null
-  const ready = () => setLoaded({ src, attempt, error: false })
-  const failed = () => setLoaded({ src, attempt, error: true })
+  const current = loaded?.src === displayedSrc && loaded.attempt === attempt ? loaded : null
+  const ready = () => setLoaded({ src: displayedSrc, attempt, error: false })
+  const failed = () => {
+    if (originalSrc && originalSrc !== displayedSrc) setFallbackFor(src)
+    else setLoaded({ src: displayedSrc, attempt, error: true })
+  }
   const media = video ? (
     <video
       key={`${src}-${attempt}`}
@@ -43,8 +55,10 @@ export function MediaPreview({
     </video>
   ) : (
     <img
-      key={`${src}-${attempt}`}
-      src={src}
+      key={`${displayedSrc}-${attempt}`}
+      src={displayedSrc}
+      srcSet={usingOriginal ? undefined : srcSet}
+      sizes={usingOriginal ? undefined : sizes}
       alt={alt}
       loading="lazy"
       onLoad={ready}
@@ -106,7 +120,7 @@ export function MediaPreview({
             </button>
             {!compact && (
               <a
-                href={src}
+                href={originalSrc ?? src}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex min-h-11 items-center px-2 text-primary underline"

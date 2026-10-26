@@ -27,12 +27,17 @@ registerRoute(
   })
 )
 
-// Uploaded files: cache first (content-addressed)
+// Public UUID media has immutable URLs. Range responses stay on the HTTP path:
+// caching a partial video response as if it were the whole file breaks playback.
 registerRoute(
-  ({ url }) => url.pathname.startsWith('/uploads/'),
+  ({ url, request }) => url.origin === self.location.origin && !request.headers.has('range') &&
+    /^\/(?:api\/)?uploads\/(?:avatars|attachments|thumbnails|emoji|activity-icons)\/[^/]+$/.test(url.pathname),
   new CacheFirst({
     cacheName: 'uploads-cache',
-    plugins: [new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 })]
+    plugins: [
+      { cacheWillUpdate: async ({ response }) => response.status === 200 ? response : null },
+      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 })
+    ]
   })
 )
 

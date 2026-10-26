@@ -14,9 +14,10 @@ jest.mock('fs', () => ({
 jest.mock('sharp', () => {
   const instance = {
     resize: jest.fn().mockReturnThis(),
+    rotate: jest.fn().mockReturnThis(),
     webp: jest.fn().mockReturnThis(),
     jpeg: jest.fn().mockReturnThis(),
-    toFile: jest.fn().mockResolvedValue(undefined),
+    toFile: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
     toBuffer: jest.fn().mockResolvedValue(Buffer.from('converted')),
     metadata: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
   }
@@ -106,7 +107,20 @@ describe('UploadsService', () => {
       expect(result.width).toBe(800)
       expect(result.height).toBe(600)
       expect(result.thumbnailUrl).toContain('_thumb.webp')
+      expect(result.thumbnailWidth).toBe(800)
+      expect(result.thumbnailHeight).toBe(600)
       expect(result.url).toContain('test-uuid')
+    })
+
+    it('preserves animation for animated WebP and reserves oriented image dimensions', async () => {
+      const mocked = jest.requireMock('sharp')._instance as { metadata: jest.Mock }
+      mocked.metadata.mockResolvedValueOnce({ width: 800, height: 600, pages: 3 })
+      const animated = await service.saveAttachment(makeFile({ mimetype: 'image/webp', originalname: 'moving.webp' }))
+      expect(animated.type).toBe(AttachmentType.gif)
+      expect(animated.thumbnailUrl).toBeNull()
+      mocked.metadata.mockResolvedValueOnce({ width: 800, height: 600, orientation: 6 })
+      const rotated = await service.saveAttachment(makeFile())
+      expect([rotated.width, rotated.height]).toEqual([600, 800])
     })
 
     it('converts HEIC to JPEG', async () => {

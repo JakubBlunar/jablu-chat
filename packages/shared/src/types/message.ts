@@ -74,6 +74,8 @@ export interface Attachment {
   width: number | null
   height: number | null
   thumbnailUrl?: string | null
+  thumbnailWidth?: number | null
+  thumbnailHeight?: number | null
 }
 
 export type AttachmentType = 'image' | 'video' | 'gif' | 'file'

@@ -66,6 +66,7 @@ describe('UploadsController (file serving)', () => {
     controller.serveAttachment('photo.jpg', res)
 
     expect(res.setHeader).toHaveBeenCalledWith('Cross-Origin-Resource-Policy', 'cross-origin')
+    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=2592000, immutable')
     expect(res.sendFile).toHaveBeenCalledWith(resolve(UPLOAD_DIR, 'attachments', 'photo.jpg'))
   })
 
