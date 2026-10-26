@@ -9,6 +9,7 @@ import { RolesService } from '../roles/roles.service'
 import { EventBusService } from '../events/event-bus.service'
 import { IN_APP_NOTIFICATION_USERS_EVENT } from '../in-app-notifications/in-app-notifications.service'
 import { groupKey, integer, isoDate, object, storedSession, target, uuid, view } from './inbox.validation'
+import { indexInboxPage } from './inbox-page-index'
 
 type Context = {
   mode: 'channel' | 'dm'
@@ -390,18 +391,32 @@ export class InboxService {
         throw new BadRequestException('Invalid inbox cursor')
       }
     }
-    const result = await this.collect(userId, at)
-    const remaining = result[selected].filter((g) => !after ||
-      g.latestAt < after.latestAt || (g.latestAt === after.latestAt && g.key > after.key))
-    const groups = remaining.slice(0, limit)
-    const last = groups[groups.length - 1]
+    const contexts = await this.contexts(userId)
+    const unread = await this.unread(userId, contexts, at)
+    const result = await indexInboxPage(this.prisma, userId, at, [...contexts.values()], unread, selected, limit, after)
+    const page = result.groups.slice(0, limit)
+    const messages = await this.messages(page.flatMap(g => [g.messageId, g.threadParentId, ...g.highlights.map(h => h.messageId)]
+      .filter((id): id is string => !!id)))
+    const groups = page.flatMap((g): InboxGroup[] => {
+      const t: InboxTarget = { mode: g.mode, contextId: g.contextId, serverId: g.serverId, threadParentId: g.threadParentId, messageId: g.messageId }
+      if (!this.available(t, contexts, messages)) return []
+      const ctx = contexts.get(`${t.mode}:${t.contextId}`)!
+      const parent = t.threadParentId ? messages.get(t.threadParentId) : null
+      return [{ key: g.key, target: t, name: parent?.title ? `${ctx.name} · ${parent.title}` : ctx.name,
+        serverName: ctx.serverName, unreadCount: g.unreadCount, mentionCount: g.mentionCount, replyCount: g.replyCount,
+        latestAt: new Date(g.latestAt).toISOString(), savedAt: g.savedAt ? new Date(g.savedAt).toISOString() : null,
+        highlights: g.highlights.flatMap(h => {
+          const message = messages.get(h.messageId)
+          return message && !message.deleted ? [this.highlight(message, h.kind)] : []
+        }) }]
+    })
+    const last = page[page.length - 1]
     return {
       groups,
-      counts: { unread: result.unread.length, mentions: result.mentions.length,
-        replies: result.replies.length, later: result.later.length },
+      counts: result.counts,
       snapshotAt: at.toISOString(),
-      ...(remaining.length > limit && last ? { nextCursor: Buffer.from(JSON.stringify({
-        view: selected, snapshotAt: at.toISOString(), key: last.key, latestAt: last.latestAt
+      ...(result.groups.length > limit && last ? { nextCursor: Buffer.from(JSON.stringify({
+        view: selected, snapshotAt: at.toISOString(), key: last.key, latestAt: new Date(last.latestAt).toISOString()
       })).toString('base64url') } : {})
     }
   }

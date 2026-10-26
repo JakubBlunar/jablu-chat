@@ -162,6 +162,52 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
     expect(next.snapshotAt).toBe(page.snapshotAt)
   })
 
+  it('hydrates only the selected page across 100 contexts, 1000 saves and 600 directed rows, matching session collection', async () => {
+    const channels = Array.from({ length: 100 }, () => randomUUID())
+    await prisma.channel.createMany({ data: channels.map(id => ({ id, serverId, name: `scale-${id}` })) })
+    try {
+      await prisma.message.createMany({ data: channels.map(channelId => ({ channelId, authorId: other, content: 'Context activity', createdAt: oldAt })) })
+      const saves = await seedLater()
+      await prisma.inAppNotification.createMany({ data: saves.slice(0, 600).map(t => ({
+        userId, kind: 'mention' as const, payload: { messageId: t.messageId }, createdAt: oldAt, updatedAt: oldAt
+      })) })
+      const collect = (inbox as unknown as { collect: (id: string, at: Date) => Promise<Record<string, unknown[]>> }).collect.bind(inbox)
+      for (const view of ['unread', 'mentions', 'replies', 'later'] as const) {
+        const hydration = jest.spyOn(prisma.message, 'findMany')
+        const page = await inbox.page(userId, { view, limit: '5' })
+        const requested = hydration.mock.calls.flatMap(([args]) => {
+          const ids = args?.where?.id
+          return ids && typeof ids === 'object' && 'in' in ids && Array.isArray(ids.in) ? ids.in : []
+        })
+        expect(requested.length).toBeLessThanOrEqual(25)
+        hydration.mockRestore()
+        const reference = await collect(userId, new Date(page.snapshotAt))
+        expect(page.groups).toEqual(reference[view].slice(0, 5))
+        expect(page.counts).toEqual(Object.fromEntries(Object.entries(reference).map(([key, groups]) => [key, groups.length])))
+        if (view === 'later') {
+          expect(page.counts.later).toBe(1000)
+          const next = await inbox.page(userId, { view, limit: '5', cursor: page.nextCursor })
+          expect(next.groups).toEqual(reference[view].slice(5, 10))
+        }
+      }
+    } finally { await prisma.channel.deleteMany({ where: { id: { in: channels } } }) }
+  })
+
+  it('rechecks cross-device reads and permission changes when continuing an existing cursor', async () => {
+    await message()
+    await message({ channelId: secondChannel })
+    const first = await inbox.page(userId, { limit: '1' })
+    const pending = first.groups[0].target.contextId === channelId ? secondChannel : channelId
+    await readState.ackChannel(userId, pending)
+    expect((await inbox.page(userId, { limit: '1', cursor: first.nextCursor })).groups).toEqual([])
+    await prisma.channelReadState.deleteMany({ where: { userId, channelId: pending } })
+    const role = await prisma.role.findFirstOrThrow({ where: { serverId: pending === channelId ? serverId : secondServer, isDefault: true } })
+    await prisma.channelPermissionOverride.create({ data: { channelId: pending, roleId: role.id, deny: Permission.VIEW_CHANNEL } })
+    const continued = await inbox.page(userId, { limit: '1', cursor: first.nextCursor })
+    expect(continued.groups).toEqual([])
+    expect(continued.counts.unread).toBe(1)
+  })
+
   it('deduplicates mention+direct reply and navigates to mention rather than unrelated first unread', async () => {
     const root = await message({ authorId: userId })
     await message({ createdAt: joined, content: 'An unrelated unread' })
