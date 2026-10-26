@@ -28,6 +28,9 @@ type State = {
 
 let epoch = 0
 let unreadRequest = 0
+let unreadInFlight: Promise<void> | null = null
+let unreadDirty = false
+let listDirty = false
 
 export const useNotificationCenterStore = create<State>((set, get) => ({
   unreadCount: 0,
@@ -47,24 +50,41 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
   pendingIds: [],
   markAllPending: false,
 
-  fetchUnread: async () => {
-    const generation = epoch
-    const request = ++unreadRequest
-    set({ loading: true })
-    try {
-      const { count } = await api.getInAppNotificationUnreadCount()
-      if (generation !== epoch || request !== unreadRequest) return
-      set({ unreadCount: count, unreadError: false })
-    } catch (error) {
-      console.error('Failed to refresh notification count', error)
-      if (generation === epoch && request === unreadRequest) set({ unreadError: true })
-    } finally {
-      if (generation === epoch && request === unreadRequest) set({ loading: false })
+  fetchUnread: () => {
+    if (unreadInFlight) {
+      unreadDirty = true
+      return unreadInFlight
     }
+    const generation = epoch
+    const task = (async () => {
+      do {
+        unreadDirty = false
+        const request = ++unreadRequest
+        set({ loading: true })
+        try {
+          const { count } = await api.getInAppNotificationUnreadCount()
+          if (generation !== epoch || request !== unreadRequest) return
+          set({ unreadCount: count, unreadError: false })
+        } catch (error) {
+          console.error('Failed to refresh notification count', error)
+          if (generation === epoch && request === unreadRequest) set({ unreadError: true })
+        }
+      } while (generation === epoch && unreadDirty)
+    })().finally(() => {
+      if (unreadInFlight === task) {
+        unreadInFlight = null
+        set({ loading: false })
+      }
+    })
+    unreadInFlight = task
+    return task
   },
 
   fetchList: async (opts) => {
-    if (get().listLoading) return
+    if (get().listLoading) {
+      if (!opts?.append) listDirty = true
+      return
+    }
     const append = opts?.append ?? false
     const generation = epoch
     set({ listLoading: true, listError: null })
@@ -86,7 +106,13 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
       console.error('Failed to load notifications', error)
       if (generation === epoch) set({ listError: append ? 'append' : 'initial' })
     } finally {
-      if (generation === epoch) set({ listLoading: false })
+      if (generation === epoch) {
+        set({ listLoading: false })
+        if (listDirty) {
+          listDirty = false
+          await get().fetchList()
+        }
+      }
     }
   },
 
@@ -148,6 +174,9 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
   reset: () => {
     epoch++
     unreadRequest++
+    unreadInFlight = null
+    unreadDirty = false
+    listDirty = false
     set(useNotificationCenterStore.getInitialState())
   }
 }))

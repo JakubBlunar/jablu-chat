@@ -2,6 +2,7 @@ import type { InboxGroup, InboxPage, InboxSession, InboxSessionResult } from '@c
 import { api } from '@/lib/api'
 import { inboxPausesRead, useInboxStore } from './inbox.store'
 import { useNotificationCenterStore } from './notificationCenter.store'
+import { waitFor } from '@testing-library/react'
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -110,9 +111,7 @@ it('reveals new notifications discovered by the opening refresh', async () => {
   jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 3 })
   useInboxStore.getState().show({ preferNotifications: true })
   expect(useInboxStore.getState().tab).toBe('unread')
-  await Promise.resolve()
-  await Promise.resolve()
-  expect(useInboxStore.getState().tab).toBe('activity')
+  await waitFor(() => expect(useInboxStore.getState().tab).toBe('activity'))
 })
 
 it.each(['tab', 'same-tab', 'interaction', 'close', 'account', 'catch-up'] as const)(
@@ -145,8 +144,7 @@ it.each(['tab', 'same-tab', 'interaction', 'close', 'account', 'catch-up'] as co
 it('updates the count without changing tabs for notifications arriving after opening', async () => {
   useInboxStore.getState().selectTab('replies')
   useInboxStore.getState().show({ preferNotifications: true })
-  await Promise.resolve()
-  await Promise.resolve()
+  await waitFor(() => expect(useNotificationCenterStore.getState().loading).toBe(false))
   jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 5 })
   await useNotificationCenterStore.getState().fetchUnread()
   expect(useInboxStore.getState().tab).toBe('replies')

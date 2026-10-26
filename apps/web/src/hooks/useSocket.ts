@@ -13,7 +13,6 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
-import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useInboxStore } from '@/stores/inbox.store'
@@ -25,6 +24,7 @@ import { createPresenceHandlers } from './socket/presenceHandlers'
 import { createServerHandlers } from './socket/serverHandlers'
 import { createVoiceHandlers } from './socket/voiceHandlers'
 import { startMessageOutbox } from '@/lib/messageOutbox'
+import { requestReadStateRefresh, cancelReadStateRefresh } from '@/lib/readStateRefresh'
 
 export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected: boolean } {
   const accessToken = useAuthStore((s) => s.accessToken)
@@ -43,26 +43,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     let handlingAuthError = false
     let hasConnectedBefore = false
     // Also resync from the user room for cross-device reads and missed messages.
-    let lastReadSyncTs = 0
-    let readSyncTimer: ReturnType<typeof setTimeout> | null = null
-    const throttledReadStateSync = () => {
-      const now = Date.now()
-      if (now - lastReadSyncTs > 1500) {
-        lastReadSyncTs = now
-        if (readSyncTimer) {
-          clearTimeout(readSyncTimer)
-          readSyncTimer = null
-        }
-        void useReadStateStore.getState().fetchAll()
-      } else if (!readSyncTimer) {
-        const remaining = 1500 - (now - lastReadSyncTs)
-        readSyncTimer = setTimeout(() => {
-          readSyncTimer = null
-          lastReadSyncTs = Date.now()
-          void useReadStateStore.getState().fetchAll()
-        }, remaining)
-      }
-    }
+    const throttledReadStateSync = requestReadStateRefresh
 
     const syncMessages = () => {
       const channelId = useChannelStore.getState().currentChannelId
@@ -389,10 +370,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('dm:new', onInboxActivity)
       socket.off('notification:clear', onNotificationClear)
       unsubscribeVisibility()
-      if (readSyncTimer) {
-        clearTimeout(readSyncTimer)
-        readSyncTimer = null
-      }
+      cancelReadStateRefresh()
       presence.cleanup()
       if (useVoiceConnectionStore.getState().currentDmCallId) useVoiceConnectionStore.getState().disconnect()
       useDmCallStore.getState().reset()

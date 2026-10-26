@@ -26,6 +26,7 @@ type ReadStateState = {
   channelViewSnapshots: Map<string, ChannelViewSnapshot>
   dmViewSnapshots: Map<string, ChannelViewSnapshot>
   fetchAll: () => Promise<void>
+  reset: () => void
   ackServer: (serverId: string) => Promise<boolean>
   ackChannel: (channelId: string) => Promise<boolean>
   ackDm: (conversationId: string) => Promise<boolean>
@@ -45,6 +46,7 @@ type ReadStateState = {
 }
 
 const pendingDmAcks = new Map<string, Promise<boolean>>()
+let readRequest = 0
 
 export const useReadStateStore = create<ReadStateState>()((set, get) => ({
   channels: new Map(),
@@ -60,8 +62,10 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
   },
 
   fetchAll: async () => {
+    const request = ++readRequest
     try {
       const data = await api.getReadStates()
+      if (request !== readRequest) return
       const channels = new Map<string, ChannelUnread>()
       const dms = new Map<string, ChannelUnread>()
       const channelToServer = new Map<string, string>()
@@ -96,6 +100,12 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     } catch (error) {
       console.error('Failed to refresh unread state', error)
     }
+  },
+
+  reset: () => {
+    readRequest++
+    set({ channels: new Map(), dms: new Map(), channelToServer: new Map(),
+      channelViewSnapshots: new Map(), dmViewSnapshots: new Map(), pausedDmAcks: new Set() })
   },
 
   ackServer: async (serverId) => {

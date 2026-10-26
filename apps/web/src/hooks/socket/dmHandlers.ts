@@ -17,6 +17,7 @@ import { useServerStore } from '@/stores/server.store'
 import { showToast } from '@/stores/toast.store'
 import { notifBody } from './helpers'
 import type { DmDeletePayload, DmLinkPreviewPayload, DmMessagePayload, DmTypingPayload } from './types'
+import { requestReadStateRefresh } from '@/lib/readStateRefresh'
 
 export function createDmHandlers() {
   const refreshRequests = new Map<string, object>()
@@ -38,9 +39,9 @@ export function createDmHandlers() {
   const onDmConversationRemoved = ({ conversationId }: { conversationId: string }) => {
     refreshRequests.delete(conversationId)
     useDmStore.getState().removeConversation(conversationId)
-    void useReadStateStore.getState().fetchAll()
+    requestReadStateRefresh()
   }
-  const onDmReadStateRefresh = () => { void useReadStateStore.getState().fetchAll() }
+  const onDmReadStateRefresh = requestReadStateRefresh
 
   const onDmNew = (payload: DmMessagePayload) => {
     const dmState = useDmStore.getState()

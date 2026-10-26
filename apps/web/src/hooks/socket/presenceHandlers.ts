@@ -4,9 +4,9 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useFriendStore } from '@/stores/friend.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
-import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import type { OnlinePayload, StatusPayload } from './types'
+import { requestReadStateRefresh } from '@/lib/readStateRefresh'
 
 export function createPresenceHandlers() {
   const pendingOffline = new Map<string, ReturnType<typeof setTimeout>>()
@@ -79,7 +79,7 @@ export function createPresenceHandlers() {
 
   const onPresenceInit = (payload: { onlineUserIds: string[] }) => {
     useMemberStore.getState().initOnlineUsers(payload.onlineUserIds)
-    useReadStateStore.getState().fetchAll()
+    requestReadStateRefresh()
     useNotifPrefStore.getState().fetchAll()
   }
 

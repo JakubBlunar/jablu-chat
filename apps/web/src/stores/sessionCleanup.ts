@@ -136,7 +136,7 @@ const sessionCleanupSteps: SessionCleanupStep[] = [
     'read state',
     () => import('./readState.store'),
     ({ useReadStateStore }) =>
-      useReadStateStore.setState({ channels: new Map(), dms: new Map(), channelToServer: new Map() })
+      useReadStateStore.getState().reset()
   ),
   step(
     'notification preferences',

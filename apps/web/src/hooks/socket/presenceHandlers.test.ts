@@ -133,8 +133,9 @@ describe('onUserCustomStatus', () => {
 })
 
 describe('onPresenceInit', () => {
-  it('initializes online users and fetches read states and prefs', () => {
+  it('initializes online users and fetches read states and prefs', async () => {
     handlers.onPresenceInit({ onlineUserIds: ['u1', 'u2'] })
+    await Promise.resolve()
 
     expect(useMemberStore.getState().initOnlineUsers).toHaveBeenCalledWith(['u1', 'u2'])
     expect(useReadStateStore.getState().fetchAll).toHaveBeenCalled()
