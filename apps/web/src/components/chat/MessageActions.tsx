@@ -77,6 +77,7 @@ export function MessageActions({ ref, ...props }: MessageActionOptions & { ref?:
   return (
     <div
       ref={toolbarRef}
+      data-message-interactive={view ? 'true' : undefined}
       className="pointer-events-none absolute right-2 top-0 z-10 flex translate-y-[calc(-100%+6px)] items-start"
     >
       <div

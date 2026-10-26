@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { historyErrorKey, requireMessageTarget, type HistoryErrorKey } from '@/lib/messageHistory'
+import { revealMessageElement } from '@/components/chat/WindowedMessage'
 
 export interface ScrollStoreAdapter {
   messages: Message[]
@@ -598,7 +599,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
           () => {
             if (!anchorId) return
             requestAnimationFrame(() => {
-              document.getElementById(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
+              revealMessageElement(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
             })
           }
         ).finally(() => {
@@ -676,7 +677,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
       if (!id) return
       cancelAnimationFrame(rafId)
       rafId = requestAnimationFrame(() => {
-        document.getElementById(id)?.scrollIntoView({ block: 'center', behavior: 'auto' })
+        revealMessageElement(id)?.scrollIntoView({ block: 'center', behavior: 'auto' })
       })
     })
 
@@ -728,9 +729,12 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         }
         if (cancelled) return
         requireMessageTarget(storeRef.current.getSnapshot().messages, targetId)
+        if (document.getElementById(`msg-${targetId}`)?.dataset.messageMounted === 'false') {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        }
         let el: HTMLElement | null = null
         for (let attempt = 0; attempt < 50 && !cancelled; attempt++) {
-          el = document.getElementById(`msg-${targetId}`)
+          el = revealMessageElement(`msg-${targetId}`)
           if (el) break
           await new Promise<void>((resolve) => setTimeout(resolve, 50))
         }

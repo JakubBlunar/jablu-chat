@@ -70,6 +70,7 @@ export const MessageRow = memo(function MessageRow({
   authorRoleColor,
   replyAuthorRoleColor,
   hideThreadAction,
+  omitDomId = false,
   hidePinAction,
   hideBookmarkAction
 }: {
@@ -88,6 +89,7 @@ export const MessageRow = memo(function MessageRow({
   authorRoleColor?: string | null
   replyAuthorRoleColor?: string | null
   hideThreadAction?: boolean
+  omitDomId?: boolean
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
 }) {
@@ -256,7 +258,8 @@ export const MessageRow = memo(function MessageRow({
   return (
     <div
       ref={rowRef}
-      id={`msg-${message.id}`}
+      id={omitDomId ? undefined : `msg-${message.id}`}
+      data-message-interactive={editing || drawerOpen || mobileEmojiPicker || reactorsEmoji != null ? 'true' : undefined}
       onClick={handleRowClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}

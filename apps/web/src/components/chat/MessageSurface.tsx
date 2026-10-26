@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { MessageRow } from '@/components/chat/MessageRow'
+import { WindowedMessage } from '@/components/chat/WindowedMessage'
 import { type ChannelRef } from '@/components/MarkdownContent'
 import { formatDateSeparator, formatTimeOnly, isDifferentDay } from '@/lib/format-time'
 import { Spinner } from '@/components/ui'
@@ -151,6 +152,7 @@ export const MessageSurface = memo(function MessageSurface({
   }, [dividerInList, scroll.scrollParentRef])
 
   const pillTimeLabel = unreadSince ? formatTimeOnly(unreadSince) : ''
+  const initialAnchor = firstUnreadId ? messages.findIndex((m) => m.id === firstUnreadId) : -1
 
   const scrollChildren = (
     <>
@@ -163,13 +165,17 @@ export const MessageSurface = memo(function MessageSurface({
               <Spinner size="md" />
             </div>
           )}
-          {renderedItems.map(({ msg, showHead, newDay, isLastOwn }) => (
-            <div key={msg.id}>
-              {newDay && <DateSeparator date={msg.createdAt} />}
-              {firstUnreadId === msg.id && (
-                <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />
-              )}
+          {renderedItems.map(({ msg, showHead, newDay, isLastOwn }, index) => (
+            <WindowedMessage key={`${contextId}:${msg.id}`} id={`msg-${msg.id}`} root={scroll.scrollParentRef}
+              initialMounted={messages.length <= 50 || (initialAnchor >= 0 ? Math.abs(index - initialAnchor) < 20 : index >= messages.length - 24)}
+              estimate={(showHead ? 64 : 30) + Math.min(400, Math.floor((msg.content?.length ?? 0) / 70) * 22) + (msg.attachments?.length ? 240 : 0)}
+              label={`${tChat('messageListLabel')}: ${msg.content ?? ''}`}
+              decoration={<>
+                {newDay && <DateSeparator date={msg.createdAt} />}
+                {firstUnreadId === msg.id && <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />}
+              </>}>
               <MessageRow
+                omitDomId
                 mode={mode}
                 message={msg}
                 showHead={showHead}
@@ -191,7 +197,7 @@ export const MessageSurface = memo(function MessageSurface({
               {isLastOwn && seenByLabel && (
                 <div className="mr-4 mt-0.5 text-right text-[11px] text-gray-500">{seenByLabel}</div>
               )}
-            </div>
+            </WindowedMessage>
           ))}
           <div className="h-6 shrink-0" />
           {hasNewer && <div ref={scroll.newerSentinelRef} className="h-1 shrink-0" />}
