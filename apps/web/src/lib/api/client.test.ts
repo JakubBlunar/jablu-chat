@@ -111,6 +111,16 @@ describe('ApiClient', () => {
   })
 
   describe('error handling', () => {
+    it('forwards caller cancellation to the read transport', async () => {
+      const controller = new AbortController()
+      mockFetch.mockImplementationOnce((_url: string, { signal }: RequestInit) => new Promise((_resolve, reject) => {
+        signal!.addEventListener('abort', () => reject(signal!.reason), { once: true })
+      }))
+      const result = expect(client.get('/api/read', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+      controller.abort()
+      await result
+      expect(mockFetch.mock.calls[0][1].signal.aborted).toBe(true)
+    })
     it('aborts a stalled request and clears its deadline', async () => {
       jest.useFakeTimers()
       try {
@@ -184,6 +194,24 @@ describe('ApiClient', () => {
   })
 
   describe('401 retry with token refresh', () => {
+    it('preserves caller cancellation through retry without cancelling a shared refresh', async () => {
+      let finish!: (value: ReturnType<typeof jsonResponse>) => void
+      mockFetch.mockImplementation((url: string) => url === '/api/auth/refresh'
+        ? new Promise(resolve => { finish = resolve })
+        : Promise.resolve(jsonResponse({ message: 'expired' }, 401)))
+      const refresh = client.refreshToken('ref456')
+      const controller = new AbortController()
+      const read = expect(client.get('/api/protected', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+      await Promise.resolve()
+      controller.abort()
+      finish(jsonResponse({ accessToken: 'new', refreshToken: 'new-refresh' }))
+      await refresh
+      await read
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(1)
+      expect(mockFetch.mock.calls[0][1].signal.aborted).toBe(false)
+      expect(mockFetch.mock.calls.filter(([url]) => url === '/api/protected')).toHaveLength(1)
+    })
+
     it('preserves the session on a temporary refresh failure and can recover later', async () => {
       client.onAuthFailure = jest.fn()
       mockFetch

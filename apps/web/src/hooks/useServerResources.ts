@@ -5,6 +5,7 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 
 /**
  * Loads the data a server view needs once the current server is known.
@@ -18,6 +19,7 @@ export function useServerResources() {
   const navigate = useNavigate()
   const viewMode = useServerStore((s) => s.viewMode)
   const currentServerId = useServerStore((s) => s.currentServerId)
+  const navigatingToServerId = useNavigationStore((s) => s.navigatingToServerId)
   const fetchChannels = useChannelStore((s) => s.fetchChannels)
   const channelLoadedServerId = useChannelStore((s) => s.loadedServerId)
   const fetchMembers = useMemberStore((s) => s.fetchMembers)
@@ -27,6 +29,9 @@ export function useServerResources() {
 
   useEffect(() => {
     if (viewMode !== 'server') return
+    // Navigation preloads the next server before changing the visible route.
+    // An old view must not restart its reads and cancel that preload.
+    if (navigatingToServerId && navigatingToServerId !== currentServerId) return
     if (!currentServerId) {
       prevServerRef.current = null
       clearMessages()
@@ -34,19 +39,28 @@ export function useServerResources() {
     }
 
     if (memberLoadedServerId !== currentServerId) {
-      void fetchMembers(currentServerId)
+      void fetchMembers(currentServerId).catch(() => {})
     }
 
-    if (prevServerRef.current !== currentServerId) {
+    if (prevServerRef.current !== currentServerId ||
+      useChannelStore.getState().requestedServerId !== currentServerId ||
+      useChannelPermissionsStore.getState().requestedServerId !== currentServerId) {
       prevServerRef.current = currentServerId
-      fetchChannels(currentServerId).catch(() => {
-        navigate('/channels/@me', { replace: true })
-      })
-      void useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId)
+      // Cache hydration does not set requestedServerId; a completed navigation
+      // refresh does. This also avoids a second request after the first settles.
+      if (useChannelStore.getState().requestedServerId !== currentServerId) {
+        fetchChannels(currentServerId).catch(() => {
+          if (useServerStore.getState().currentServerId === currentServerId) navigate('/channels/@me', { replace: true })
+        })
+      }
+      if (useChannelPermissionsStore.getState().requestedServerId !== currentServerId) {
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(currentServerId)
+      }
     }
   }, [
     viewMode,
     currentServerId,
+    navigatingToServerId,
     memberLoadedServerId,
     channelLoadedServerId,
     fetchChannels,

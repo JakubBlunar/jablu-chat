@@ -110,8 +110,8 @@ describe('onMemberUpdated', () => {
     })
 
     expect(useMemberStore.getState().updateMemberRoles).toHaveBeenCalledWith('s1', 'me', ['r1', 'r2'], [{ id: 'r1' }, { id: 'r2' }])
-    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1')
-    expect(useChannelPermissionsStore.getState().fetchChannelPermissions).toHaveBeenCalledWith('s1')
+    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1', true)
+    expect(useChannelPermissionsStore.getState().fetchChannelPermissions).toHaveBeenCalledWith('s1', true)
   })
 
   it('does not refetch channels for other users role changes', () => {
@@ -162,15 +162,15 @@ describe('onRoleUpdated', () => {
     const role = { id: 'r1', isDefault: false } as any
     handlers.onRoleUpdated({ serverId: 's1', role })
 
-    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1')
-    expect(useChannelPermissionsStore.getState().fetchChannelPermissions).toHaveBeenCalledWith('s1')
+    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1', true)
+    expect(useChannelPermissionsStore.getState().fetchChannelPermissions).toHaveBeenCalledWith('s1', true)
   })
 
   it('refetches when @everyone role is updated', () => {
     const role = { id: 'everyone', isDefault: true } as any
     handlers.onRoleUpdated({ serverId: 's1', role })
 
-    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1')
+    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1', true)
   })
 
   it('does not refetch when role does not affect current user', () => {
@@ -191,8 +191,8 @@ describe('onRoleDeleted', () => {
   it('refetches channels/perms when deleted role belongs to current user', () => {
     handlers.onRoleDeleted({ serverId: 's1', roleId: 'r1' })
 
-    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1')
-    expect(useChannelPermissionsStore.getState().fetchChannelPermissions).toHaveBeenCalledWith('s1')
+    expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1', true)
+    expect(useChannelPermissionsStore.getState().fetchChannelPermissions).toHaveBeenCalledWith('s1', true)
   })
 
   it('does not refetch when deleted role is not user role', () => {

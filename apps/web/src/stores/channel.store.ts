@@ -1,7 +1,10 @@
 import type { Channel, ChannelCategory } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
-import { getChannels, putChannels } from '@/lib/cache/structureCache'
+import { evictServer, getChannels, putChannels } from '@/lib/cache/structureCache'
+import { createActiveResourceRequest } from '@/lib/activeResourceRequest'
+
+const channelRequests = createActiveResourceRequest<{ channels: Channel[]; categories: ChannelCategory[] }>()
 
 type ChannelState = {
   channels: Channel[]
@@ -9,7 +12,9 @@ type ChannelState = {
   currentChannelId: string | null
   isLoading: boolean
   loadedServerId: string | null
-  fetchChannels: (serverId: string) => Promise<void>
+  requestedServerId: string | null
+  clear: () => void
+  fetchChannels: (serverId: string, fresh?: boolean) => Promise<void>
   hydrateFromCache: (serverId: string) => boolean
   setCurrentChannel: (id: string | null) => void
   getCurrentChannel: () => Channel | null
@@ -37,6 +42,11 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   currentChannelId: null,
   isLoading: false,
   loadedServerId: null,
+  requestedServerId: null,
+  clear: () => {
+    channelRequests.cancel()
+    set({ channels: [], categories: [], currentChannelId: null, isLoading: false, loadedServerId: null, requestedServerId: null })
+  },
 
   /**
    * Show a previously loaded server's sidebar immediately. Callers are
@@ -54,35 +64,32 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     return true
   },
 
-  fetchChannels: async (serverId) => {
-    const prev = get().loadedServerId
-    if (prev !== serverId) {
-      // Blanking the list is only right when there is nothing to show; a
-      // cache hit has already put this server's channels on screen.
-      const cached = getChannels(serverId)
-      set({
-        channels: cached?.channels ?? [],
-        categories: cached?.categories ?? [],
-        isLoading: true,
-        loadedServerId: serverId
-      })
-    } else {
-      set({ isLoading: true })
-    }
-    try {
+  fetchChannels: (serverId, fresh = false) => {
+    if (fresh) evictServer(serverId)
+    return channelRequests.run(serverId, async (signal) => {
       const [channels, categories] = await Promise.all([
-        api.get<Channel[]>(`/api/servers/${serverId}/channels`),
-        api.get<ChannelCategory[]>(`/api/servers/${serverId}/categories`)
+        api.get<Channel[]>(`/api/servers/${serverId}/channels`, { signal }),
+        api.get<ChannelCategory[]>(`/api/servers/${serverId}/categories`, { signal })
       ])
+      return { channels, categories }
+  }, {
+    start: () => {
+      const cached = getChannels(serverId)
+      set({ ...(get().loadedServerId !== serverId || fresh ? { channels: cached?.channels ?? [], categories: cached?.categories ?? [] } : {}),
+        isLoading: true, loadedServerId: serverId, requestedServerId: serverId })
+    },
+    commit: ({ channels, categories }) => {
       putChannels(serverId, channels, categories)
-      // A slower response for a server the user already navigated away from
-      // must not overwrite what is on screen; it is still worth caching.
-      if (get().loadedServerId !== serverId) return
       set({ channels, categories, isLoading: false, loadedServerId: serverId })
-    } catch (e) {
+    },
+    fail: (error) => {
+      if ([401, 403, 404].includes((error as { status?: number })?.status ?? 0)) {
+        evictServer(serverId)
+        set({ channels: [], categories: [] })
+      }
       set({ isLoading: false })
-      throw e
     }
+    }, fresh)
   },
 
   setCurrentChannel: (id) => set({ currentChannelId: id }),

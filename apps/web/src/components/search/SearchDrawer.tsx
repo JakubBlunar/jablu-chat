@@ -76,6 +76,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
   const requestId = useRef(0)
+  const searchController = useRef<AbortController | null>(null)
   const isMobile = useIsMobile()
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtersId = useId()
@@ -105,6 +106,9 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const doSearch = useCallback(
     async (q: string, s: Scope, off: number) => {
       const request = ++requestId.current
+      searchController.current?.abort()
+      const controller = new AbortController()
+      searchController.current = controller
       setError(null)
       if (!q.trim()) {
         setResults([])
@@ -119,7 +123,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
         else if (s === 'channel' && currentChannelId) opts.channelId = currentChannelId
         else if (s === 'conversation' && conversationId) opts.conversationId = conversationId
         else if (s === 'dm') opts.dmOnly = true
-        const data = await api.searchMessages(q, opts)
+        const data = await api.searchMessages(q, opts, { signal: controller.signal })
         if (request !== requestId.current) return
         setResults(data.results)
         setTotal(data.total)
@@ -140,6 +144,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     void doSearch(query, scope, offset)
     return () => {
       requests.current++
+      searchController.current?.abort()
     }
   }, [query, scope, offset, doSearch])
 
@@ -160,6 +165,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
 
   function handleLocalChange(value: string) {
     requestId.current++
+    searchController.current?.abort()
     setLoading(false)
     setLocalQuery(value)
     setError(null)

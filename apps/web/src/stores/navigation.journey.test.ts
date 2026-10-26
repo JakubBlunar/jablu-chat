@@ -2,6 +2,7 @@ import { clearCache } from '@/lib/cache/messageCache'
 import { clearStructureCache } from '@/lib/cache/structureCache'
 import { FakeApi, seedMessages } from '@/test/fakeApi'
 import { resetMsgSeq } from '@/test/factories'
+import { waitFor } from '@testing-library/react'
 
 const mockApiHolder: { current: FakeApi | null } = { current: null }
 
@@ -68,14 +69,8 @@ function resetAll() {
 
   useNavigationStore.setState({ isNavigating: false, navigatingToServerId: null, activeNavId: 0 })
   useServerStore.setState({ servers: [], currentServerId: null, viewMode: 'server', isLoading: false })
-  useChannelStore.setState({
-    channels: [],
-    categories: [],
-    currentChannelId: null,
-    isLoading: false,
-    loadedServerId: null
-  })
-  useChannelPermissionsStore.setState({ permissionsMap: {}, loadedServerId: null })
+  useChannelStore.getState().clear()
+  useChannelPermissionsStore.getState().clear()
   useMessageStore.setState({
     messages: [],
     isLoading: false,
@@ -164,7 +159,7 @@ describe('across servers', () => {
     expect(visibleIds()).toEqual(['a-random-m1', 'a-random-m2', 'a-random-m3'])
   })
 
-  it('renders the sidebar on return without refetching channels or permissions', async () => {
+  it('renders the cached sidebar on return while revalidating it exactly once', async () => {
     await goToChannel('srv-a', 'a-general')
     await goToChannel('srv-b')
     api.reset()
@@ -172,11 +167,11 @@ describe('across servers', () => {
     await goToChannel('srv-a')
 
     expect(useChannelStore.getState().channels.map((c) => c.id)).toEqual(['a-general', 'a-random', 'a-voice'])
-    expect(useChannelStore.getState().isLoading).toBe(false)
     // The refresh is fired but not awaited, so the route resolved before it.
     expect(api.callsFor(CHANNELS_A)).toHaveLength(1)
     expect(api.callsFor(PERMISSIONS_A)).toHaveLength(1)
     expect(api.countFor(MESSAGES_A_GENERAL)).toBe(0)
+    await waitFor(() => expect(useChannelStore.getState().isLoading).toBe(false))
   })
 
   it('falls back to the first text channel when nothing is remembered', async () => {

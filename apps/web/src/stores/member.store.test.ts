@@ -279,7 +279,7 @@ describe('useMemberStore', () => {
       mockGet.mockResolvedValueOnce({ members: [makeMember({ roleIds: ['r1'] })], roles: [role], nextCursor: 'u1' })
         .mockResolvedValueOnce({ members: [makeMember({ userId: 'u2', roleIds: ['r1'] })], roles: [role], nextCursor: null })
       await useMemberStore.getState().fetchMembers('s1')
-      expect(mockGet).toHaveBeenLastCalledWith('/api/servers/s1/roster?after=u1')
+      expect(mockGet).toHaveBeenLastCalledWith('/api/servers/s1/roster?after=u1', { signal: expect.any(AbortSignal) })
       expect(useMemberStore.getState().members).toHaveLength(2)
       expect(useMemberStore.getState().members[1].roles).toEqual([role])
     })

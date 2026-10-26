@@ -78,8 +78,11 @@ export class ApiClient {
     }
   }
 
-  protected async request<T>(method: string, path: string, body?: unknown, skipRefresh = false): Promise<T> {
+  protected async request<T>(method: string, path: string, body?: unknown, skipRefresh = false, externalSignal?: AbortSignal): Promise<T> {
     const controller = new AbortController()
+    const cancel = () => controller.abort(externalSignal?.reason)
+    if (externalSignal?.aborted) cancel()
+    else externalSignal?.addEventListener('abort', cancel, { once: true })
     const timeout = setTimeout(() => {
       controller.abort(new DOMException('Request timed out', 'TimeoutError'))
     }, 30_000)
@@ -87,6 +90,7 @@ export class ApiClient {
       return await this.requestWithSignal<T>(method, path, body, skipRefresh, controller.signal)
     } finally {
       clearTimeout(timeout)
+      externalSignal?.removeEventListener('abort', cancel)
     }
   }
 
@@ -97,6 +101,7 @@ export class ApiClient {
     skipRefresh: boolean,
     signal: AbortSignal
   ): Promise<T> {
+    signal.throwIfAborted()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     }
@@ -122,11 +127,11 @@ export class ApiClient {
     ) {
       const currentToken = readPersistedAuth().accessToken
       if (currentToken && currentToken !== accessToken) {
-        return this.request<T>(method, path, body, true)
+        return this.requestWithSignal<T>(method, path, body, true, signal)
       }
       const refreshed = await this.tryRefreshToken()
       if (refreshed) {
-        return this.request<T>(method, path, body, true)
+        return this.requestWithSignal<T>(method, path, body, true, signal)
       }
       if (!refreshed) {
         this.onAuthFailure?.()
@@ -178,8 +183,8 @@ export class ApiClient {
     return this.request<T>('POST', path, body)
   }
 
-  get<T>(path: string): Promise<T> {
-    return this.request<T>('GET', path)
+  get<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
+    return this.request<T>('GET', path, undefined, false, options?.signal)
   }
 
   patch<T>(path: string, body?: unknown): Promise<T> {
@@ -766,8 +771,8 @@ export class ApiClient {
     return this.get(`/api/servers/${serverId}/channels/${channelId}/permissions/me`)
   }
 
-  getAllChannelPermissions(serverId: string): Promise<Record<string, string>> {
-    return this.get(`/api/servers/${serverId}/channels/permissions/me`)
+  getAllChannelPermissions(serverId: string, options?: { signal?: AbortSignal }): Promise<Record<string, string>> {
+    return this.get(`/api/servers/${serverId}/channels/permissions/me`, options)
   }
 
   assignRoles(serverId: string, userId: string, roleIds: string[]): Promise<unknown> {
@@ -824,7 +829,8 @@ export class ApiClient {
       dmOnly?: boolean
       limit?: number
       offset?: number
-    }
+    },
+    options?: { signal?: AbortSignal }
   ): Promise<{ results: SearchResult[]; total: number }> {
     const params = new URLSearchParams({ q: query })
     if (opts?.serverId) params.set('serverId', opts.serverId)
@@ -833,7 +839,7 @@ export class ApiClient {
     if (opts?.dmOnly) params.set('dmOnly', 'true')
     if (opts?.limit) params.set('limit', String(opts.limit))
     if (opts?.offset != null) params.set('offset', String(opts.offset))
-    return this.get(`/api/search/messages?${params}`)
+    return this.get(`/api/search/messages?${params}`, options)
   }
 
   getAllNotifPrefs(): Promise<{ prefs: Record<string, string>; serverPrefs: Record<string, string> }> {

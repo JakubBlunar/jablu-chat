@@ -5,6 +5,9 @@ import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
+import { useNavigationStore } from '@/stores/navigation.store'
+
+jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 
 const mockNavigate = jest.fn()
 jest.mock('react-router-dom', () => ({
@@ -24,13 +27,16 @@ function mockFetchers() {
 }
 
 beforeEach(() => {
+  useNavigationStore.setState({ navigatingToServerId: null })
+  useChannelPermissionsStore.setState({ requestedServerId: null, loadedServerId: null })
   useServerStore.setState({ viewMode: 'server', currentServerId: null, servers: [], isLoading: false })
   useChannelStore.setState({
     channels: [],
     categories: [],
     currentChannelId: null,
     isLoading: false,
-    loadedServerId: null
+    loadedServerId: null,
+    requestedServerId: null
   })
   useMemberStore.setState({
     members: [],
@@ -42,6 +48,28 @@ beforeEach(() => {
 })
 
 describe('useServerResources', () => {
+  it('does not repeat a navigation refresh that completed before the route mounted', () => {
+    const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
+    useMemberStore.setState({ loadedServerId: 's1' })
+    useChannelStore.setState({ loadedServerId: 's1', requestedServerId: 's1' })
+    useChannelPermissionsStore.setState({ loadedServerId: 's1', requestedServerId: 's1' })
+    useServerStore.setState({ currentServerId: 's1' })
+    renderHook(() => useServerResources())
+    expect(fetchChannels).not.toHaveBeenCalled()
+    expect(fetchChannelPermissions).not.toHaveBeenCalled()
+    expect(fetchMembers).not.toHaveBeenCalled()
+  })
+
+  it('does not restart old-view resources while navigation preloads another server', () => {
+    const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
+    useServerStore.setState({ currentServerId: 'old' })
+    useNavigationStore.setState({ navigatingToServerId: 'new' })
+    renderHook(() => useServerResources())
+    expect(fetchChannels).not.toHaveBeenCalled()
+    expect(fetchChannelPermissions).not.toHaveBeenCalled()
+    expect(fetchMembers).not.toHaveBeenCalled()
+  })
+
   it('revalidates cached channels and fetches missing members', () => {
     const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
     useChannelStore.setState({ loadedServerId: 's1' } as never)

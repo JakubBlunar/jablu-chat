@@ -91,7 +91,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
         if (currentServerId) {
           useChannelStore
             .getState()
-            .fetchChannels(currentServerId)
+            .fetchChannels(currentServerId, true)
             .catch(() => {})
           useMemberStore
             .getState()
@@ -99,7 +99,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
             .catch(() => {})
           useChannelPermissionsStore
             .getState()
-            .fetchChannelPermissions(currentServerId)
+            .fetchChannelPermissions(currentServerId, true)
             .catch(() => {})
         }
       }

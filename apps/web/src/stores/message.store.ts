@@ -270,8 +270,8 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const { loadedServerId, fetchChannels } = useChannelStore.getState()
       if (loadedServerId) {
         evictServerStructure(loadedServerId)
-        void fetchChannels(loadedServerId).catch(() => {})
-        void useChannelPermissionsStore.getState().fetchChannelPermissions(loadedServerId)
+        void fetchChannels(loadedServerId, true).catch(() => {})
+        void useChannelPermissionsStore.getState().fetchChannelPermissions(loadedServerId, true)
       }
     }
   },

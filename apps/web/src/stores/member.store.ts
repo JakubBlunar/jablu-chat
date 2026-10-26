@@ -1,6 +1,7 @@
 import type { Role, ServerProfile } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
+import { createActiveResourceRequest } from '@/lib/activeResourceRequest'
 
 export type Member = {
   userId: string
@@ -47,6 +48,7 @@ type MemberState = {
   realtimeStatuses: Map<string, string>
   isLoading: boolean
   loadedServerId: string | null
+  clear: () => void
   fetchMembers: (serverId: string) => Promise<void>
   addMember: (member: Member) => void
   removeMember: (serverId: string, userId: string) => void
@@ -97,28 +99,35 @@ function normalizeMember(raw: unknown): Member {
   } as Member
 }
 
+const memberRequests = createActiveResourceRequest<Member[]>()
+
 export const useMemberStore = create<MemberState>((set, get) => ({
   members: [],
   onlineUserIds: new Set(),
   realtimeStatuses: new Map(),
   isLoading: false,
   loadedServerId: null,
+  clear: () => {
+    memberRequests.cancel()
+    set({ members: [], onlineUserIds: new Set(), realtimeStatuses: new Map(), isLoading: false, loadedServerId: null })
+  },
 
-  fetchMembers: async (serverId) => {
-    set({ isLoading: true, loadedServerId: serverId })
-    try {
+  fetchMembers: (serverId) => memberRequests.run(serverId, async (signal) => {
       const list: unknown[] = []
       let after: string | null = null
       do {
         const page: { members: Member[]; roles: Role[]; nextCursor: string | null } = await api.get(
-          `/api/servers/${serverId}/roster${after ? `?after=${encodeURIComponent(after)}` : ''}`
+          `/api/servers/${serverId}/roster${after ? `?after=${encodeURIComponent(after)}` : ''}`, { signal }
         )
-        if (get().loadedServerId !== serverId) return
+        signal.throwIfAborted()
         const roles = new Map(page.roles.map((role) => [role.id, role]))
         for (const m of page.members) list.push({ ...m, roles: m.roleIds.map((id) => roles.get(id)).filter(Boolean) })
         after = page.nextCursor
       } while (after)
-      const normalized = list.map(normalizeMember)
+      return list.map(normalizeMember)
+  }, {
+    start: () => set({ isLoading: true, loadedServerId: serverId }),
+    commit: (normalized) => {
       const rt = get().realtimeStatuses
       const patched = rt.size > 0
         ? normalized.map((m) => {
@@ -128,13 +137,12 @@ export const useMemberStore = create<MemberState>((set, get) => ({
         : normalized
       // A slower response for a server the user already left must not replace
       // the list now on screen.
-      if (get().loadedServerId !== serverId) return
       set({ members: patched, isLoading: false })
-    } catch (e) {
-      if (get().loadedServerId === serverId) set({ isLoading: false })
-      throw e
+    },
+    fail: () => {
+      set({ isLoading: false })
     }
-  },
+  }),
 
   addMember: (member) =>
     set((s) => {

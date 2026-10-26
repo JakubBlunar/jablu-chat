@@ -55,26 +55,12 @@ const sessionCleanupSteps: SessionCleanupStep[] = [
   step(
     'channels',
     () => import('./channel.store'),
-    ({ useChannelStore }) =>
-      useChannelStore.setState({
-        channels: [],
-        categories: [],
-        currentChannelId: null,
-        isLoading: false,
-        loadedServerId: null
-      })
+    ({ useChannelStore }) => useChannelStore.getState().clear()
   ),
   step(
     'members',
     () => import('./member.store'),
-    ({ useMemberStore }) =>
-      useMemberStore.setState({
-        members: [],
-        onlineUserIds: new Set(),
-        realtimeStatuses: new Map(),
-        isLoading: false,
-        loadedServerId: null
-      })
+    ({ useMemberStore }) => useMemberStore.getState().clear()
   ),
   step(
     'messages',

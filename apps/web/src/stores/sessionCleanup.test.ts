@@ -131,13 +131,7 @@ it('clears transient account data, not durable drafts or the outbox', async () =
   localStorage.setItem('account-outbox', '{"alice":"queued"}')
   await cleanupSession(() => true)
 
-  expect(useMemberStore.setState).toHaveBeenCalledWith(
-    expect.objectContaining({
-      members: [],
-      onlineUserIds: new Set(),
-      realtimeStatuses: new Map()
-    })
-  )
+  expect(useMemberStore.getState().clear).toHaveBeenCalledTimes(1)
   expect(useDmStore.getState().clearMessages).toHaveBeenCalledTimes(1)
   expect(useDmStore.setState).toHaveBeenCalledWith(
     expect.objectContaining({

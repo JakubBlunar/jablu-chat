@@ -76,7 +76,7 @@ afterEach(() => {
 it('applies and toggles a filter immediately with the current conversation scope', async () => {
   render(<Harness />)
   fireEvent.click(screen.getByRole('button', { name: 'filterVideo' }))
-  await waitFor(() => expect(search).toHaveBeenCalledWith('has:video', { offset: 0, conversationId: 'conv' }))
+  await waitFor(() => expect(search).toHaveBeenCalledWith('has:video', { offset: 0, conversationId: 'conv' }, { signal: expect.any(AbortSignal) }))
   fireEvent.click(screen.getByRole('button', { name: 'filterVideo' }))
   expect(screen.getByRole('textbox')).toHaveValue('')
   expect(screen.queryByRole('button', { name: 'filterTag' })).not.toBeInTheDocument()
@@ -86,7 +86,7 @@ it('supports date inputs without entering raw filter syntax', async () => {
   render(<Harness />)
   fireEvent.change(screen.getByLabelText('afterDate'), { target: { value: '2026-10-01' } })
   await waitFor(() =>
-    expect(search).toHaveBeenCalledWith('after:2026-10-01', expect.objectContaining({ conversationId: 'conv' }))
+    expect(search).toHaveBeenCalledWith('after:2026-10-01', expect.objectContaining({ conversationId: 'conv' }), { signal: expect.any(AbortSignal) })
   )
 })
 
@@ -102,7 +102,7 @@ it('collapses mobile filters while keeping active filters removable', async () =
   await waitFor(() =>
     expect(search).toHaveBeenLastCalledWith(
       'hello  from:"Jane has:image"',
-      expect.objectContaining({ conversationId: 'conv' })
+      expect.objectContaining({ conversationId: 'conv' }), { signal: expect.any(AbortSignal) }
     )
   )
   fireEvent.click(screen.getByRole('button', { name: /showFilters/ }))
@@ -110,7 +110,7 @@ it('collapses mobile filters while keeping active filters removable', async () =
   fireEvent.click(screen.getByRole('button', { name: 'clearFilters' }))
   expect(screen.getByRole('textbox')).toHaveValue('hello')
   await waitFor(() =>
-    expect(search).toHaveBeenLastCalledWith('hello', expect.objectContaining({ conversationId: 'conv' }))
+    expect(search).toHaveBeenLastCalledWith('hello', expect.objectContaining({ conversationId: 'conv' }), { signal: expect.any(AbortSignal) })
   )
 })
 
@@ -162,7 +162,7 @@ it('preserves quoted sender values when toggling filters and editing dates', asy
   await waitFor(() =>
     expect(search).toHaveBeenLastCalledWith(
       'from:"Jane has:video before:2026-10-01" has:video before:2026-11-01',
-      expect.objectContaining({ conversationId: 'conv' })
+      expect.objectContaining({ conversationId: 'conv' }), { signal: expect.any(AbortSignal) }
     )
   )
 })
@@ -201,7 +201,7 @@ it('ignores a failed old-scope request after switching to everywhere', async () 
   )
   render(<Harness initial="hello" />)
   fireEvent.click(screen.getByRole('button', { name: 'scopeEverywhere' }))
-  await waitFor(() => expect(search).toHaveBeenLastCalledWith('hello', { offset: 0 }))
+  await waitFor(() => expect(search).toHaveBeenLastCalledWith('hello', { offset: 0 }, { signal: expect.any(AbortSignal) }))
   await act(async () => {
     fail(new ApiError('Old failure', 400, {}))
   })
@@ -214,7 +214,22 @@ it('retries a failed request with the same conversation scope', async () => {
   await screen.findByRole('alert')
   fireEvent.click(screen.getByRole('button', { name: 'retry' }))
   await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
-  expect(search).toHaveBeenLastCalledWith('hello', { offset: 0, conversationId: 'conv' })
+  expect(search).toHaveBeenLastCalledWith('hello', { offset: 0, conversationId: 'conv' }, { signal: expect.any(AbortSignal) })
+})
+
+it('aborts superseded transport while typing, changing scope and closing the drawer', async () => {
+  search.mockImplementation(() => new Promise(() => {}))
+  const { unmount } = render(<Harness initial="hello" />)
+  const first = search.mock.calls[0][2]!.signal!
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'new query' } })
+  expect(first.aborted).toBe(true)
+  fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+  const second = search.mock.calls.at(-1)![2]!.signal!
+  fireEvent.click(screen.getByRole('button', { name: 'scopeEverywhere' }))
+  expect(second.aborted).toBe(true)
+  const third = search.mock.calls.at(-1)![2]!.signal!
+  unmount()
+  expect(third.aborted).toBe(true)
 })
 
 it.each(['text', 'forum'] as const)(
