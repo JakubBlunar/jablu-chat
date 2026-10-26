@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors
@@ -114,6 +115,15 @@ export class ServersController {
     @CurrentUser() user: { id: string; username: string; email: string }
   ) {
     return this.servers.getMembers(id, user.id)
+  }
+
+  @Get(':id/roster')
+  roster(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+    @Query('after') after?: string
+  ) {
+    return this.servers.getRosterPage(id, user.id, after)
   }
 
   @Patch(':id/members/:userId/roles')

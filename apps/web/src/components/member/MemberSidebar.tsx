@@ -1,6 +1,5 @@
 import type { UserStatus } from '@chat/shared'
 import { useCallback, useMemo, useState } from 'react'
-import SimpleBar from 'simplebar-react'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import type { Member } from '@/stores/member.store'
@@ -61,7 +60,7 @@ export function MemberSidebar({ onClose }: { onClose?: () => void } = {}) {
         )}
       </div>
 
-      <SimpleBar className="min-h-0 flex-1 px-2 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
         <MemberListPanel
           members={listMembers}
           onlineIds={onlineIds}
@@ -69,7 +68,7 @@ export function MemberSidebar({ onClose }: { onClose?: () => void } = {}) {
           ownerId={server?.ownerId}
           onMemberClick={handleMemberClick}
         />
-      </SimpleBar>
+      </div>
 
       {cardUser && <ProfileCard user={cardUser} onClose={closeCard} anchorRect={cardRect} />}
     </aside>

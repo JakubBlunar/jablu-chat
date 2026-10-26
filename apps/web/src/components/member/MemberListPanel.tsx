@@ -1,6 +1,7 @@
 import type { UserStatus } from '@chat/shared'
 import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { GroupedVirtuoso } from 'react-virtuoso'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
@@ -46,6 +47,33 @@ export const MemberListPanel = memo(function MemberListPanel({
     return { online: on, offline: off }
   }, [members, onlineIds])
 
+  if (members.length > 100) {
+    const ordered = [...online, ...offline]
+    return (
+      <GroupedVirtuoso
+        className={className}
+        style={{ height: '100%' }}
+        groupCounts={[online.length, offline.length]}
+        defaultItemHeight={48}
+        overscan={200}
+        computeItemKey={(index) => {
+          // Virtuoso's key index includes group headers; itemContent's does not.
+          if (index === 0 || index === online.length + 1) return `group-${index}`
+          return ordered[index - (index > online.length ? 2 : 1)].userId
+        }}
+        groupContent={(index) => (
+          <SectionHeading as="h3" className="bg-surface-dark px-2 py-2">
+            {t(index === 0 ? 'members.online' : 'members.offline', { count: index === 0 ? online.length : offline.length })}
+          </SectionHeading>
+        )}
+        itemContent={(index) => {
+          const m = ordered[index]
+          return <MemberRow member={m} presence={resolveMemberPresence(m, onlineIds)} dimmed={!onlineIds.has(m.userId)} onClick={onMemberClick} isOwner={ownerId === m.userId} />
+        }}
+      />
+    )
+  }
+
   return (
     <div className={className}>
       {isLoading && members.length === 0 ? (
@@ -64,7 +92,7 @@ export const MemberListPanel = memo(function MemberListPanel({
         <SectionHeading as="h3" className="mb-2 px-2">
           {t('members.online', { count: online.length })}
         </SectionHeading>
-        <ul className="space-y-0.5">
+        <div role="list" className="space-y-0.5">
           {online.map((m) => (
             <MemberRow
               key={m.userId}
@@ -75,14 +103,14 @@ export const MemberListPanel = memo(function MemberListPanel({
               isOwner={ownerId === m.userId}
             />
           ))}
-        </ul>
+        </div>
       </section>
 
       <section>
         <SectionHeading as="h3" className="mb-2 px-2">
           {t('members.offline', { count: offline.length })}
         </SectionHeading>
-        <ul className="space-y-0.5">
+        <div role="list" className="space-y-0.5">
           {offline.map((m) => (
             <MemberRow
               key={m.userId}
@@ -93,7 +121,7 @@ export const MemberListPanel = memo(function MemberListPanel({
               isOwner={ownerId === m.userId}
             />
           ))}
-        </ul>
+        </div>
       </section>
     </div>
   )
@@ -135,7 +163,7 @@ const MemberRow = memo(function MemberRow({
   }
 
   return (
-    <li>
+    <div role="listitem">
       <button
         type="button"
         onClick={handleClick}
@@ -176,6 +204,6 @@ const MemberRow = memo(function MemberRow({
           ) : null}
         </div>
       </button>
-    </li>
+    </div>
   )
 })

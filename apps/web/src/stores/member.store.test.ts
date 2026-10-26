@@ -214,11 +214,11 @@ describe('useMemberStore', () => {
       useMemberStore.setState({
         realtimeStatuses: new Map([['u1', 'dnd']])
       })
-      mockGet.mockResolvedValue([{
+      mockGet.mockResolvedValue({ members: [{
         userId: 'u1', serverId: 's1', joinedAt: '2024-01-01',
         roleIds: [],
         user: { id: 'u1', username: 'alice', displayName: null, avatarUrl: null, bio: null }
-      }])
+      }], roles: [], nextCursor: null })
 
       await useMemberStore.getState().fetchMembers('s1')
 
@@ -236,7 +236,7 @@ describe('useMemberStore', () => {
             resolveFirst = resolve
           })
         }
-        return Promise.resolve([
+        return Promise.resolve({ members: [
           {
             userId: 'u2',
             serverId: 's2',
@@ -244,7 +244,7 @@ describe('useMemberStore', () => {
             roleIds: [],
             user: { id: 'u2', username: 'bob', displayName: null, avatarUrl: null, bio: null }
           }
-        ])
+        ], roles: [], nextCursor: null })
       })
 
       const first = useMemberStore.getState().fetchMembers('s1')
@@ -272,6 +272,16 @@ describe('useMemberStore', () => {
 
       await expect(useMemberStore.getState().fetchMembers('s1')).rejects.toThrow()
       expect(useMemberStore.getState().isLoading).toBe(false)
+    })
+
+    it('follows compact roster pages and shares role references for names, mentions and permissions', async () => {
+      const role = makeRole()
+      mockGet.mockResolvedValueOnce({ members: [makeMember({ roleIds: ['r1'] })], roles: [role], nextCursor: 'u1' })
+        .mockResolvedValueOnce({ members: [makeMember({ userId: 'u2', roleIds: ['r1'] })], roles: [role], nextCursor: null })
+      await useMemberStore.getState().fetchMembers('s1')
+      expect(mockGet).toHaveBeenLastCalledWith('/api/servers/s1/roster?after=u1')
+      expect(useMemberStore.getState().members).toHaveLength(2)
+      expect(useMemberStore.getState().members[1].roles).toEqual([role])
     })
   })
 

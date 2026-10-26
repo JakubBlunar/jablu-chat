@@ -107,7 +107,17 @@ export const useMemberStore = create<MemberState>((set, get) => ({
   fetchMembers: async (serverId) => {
     set({ isLoading: true, loadedServerId: serverId })
     try {
-      const list = await api.get<unknown[]>(`/api/servers/${serverId}/members`)
+      const list: unknown[] = []
+      let after: string | null = null
+      do {
+        const page: { members: Member[]; roles: Role[]; nextCursor: string | null } = await api.get(
+          `/api/servers/${serverId}/roster${after ? `?after=${encodeURIComponent(after)}` : ''}`
+        )
+        if (get().loadedServerId !== serverId) return
+        const roles = new Map(page.roles.map((role) => [role.id, role]))
+        for (const m of page.members) list.push({ ...m, roles: m.roleIds.map((id) => roles.get(id)).filter(Boolean) })
+        after = page.nextCursor
+      } while (after)
       const normalized = list.map(normalizeMember)
       const rt = get().realtimeStatuses
       const patched = rt.size > 0

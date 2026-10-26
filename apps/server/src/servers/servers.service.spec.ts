@@ -57,6 +57,31 @@ describe('ServersService', () => {
     service = module.get(ServersService)
   })
 
+  describe('getRosterPage', () => {
+    it('bounds membership hydration and sends each role once with a stable continuation', async () => {
+      prisma.server.findUnique.mockResolvedValue(server)
+      prisma.serverMember.findUnique.mockResolvedValue({ userId, serverId })
+      const rows = Array.from({ length: 501 }, (_, i) => ({ userId: `u${i}`, serverId, roles: [{ roleId: 'everyone' }], user: { username: `name${i}` } }))
+      prisma.serverMember.findMany.mockResolvedValue(rows)
+      prisma.role.findMany.mockResolvedValue([{ id: 'everyone', isDefault: true }, { id: 'mod', isDefault: false }])
+      const page = await service.getRosterPage(serverId, userId)
+      expect(page.members).toHaveLength(500)
+      expect(page.nextCursor).toBe('u499')
+      expect(page.roles).toHaveLength(2)
+      expect(page.members[0].roleIds).toEqual(['everyone'])
+      expect(page.members[0]).not.toHaveProperty('roles')
+      expect(prisma.serverMember.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 501, orderBy: { userId: 'asc' } }))
+    })
+
+    it('checks membership on every page and rejects malformed cursors', async () => {
+      prisma.server.findUnique.mockResolvedValue(server)
+      prisma.serverMember.findUnique.mockResolvedValue(null)
+      await expect(service.getRosterPage(serverId, userId)).rejects.toThrow(ForbiddenException)
+      prisma.serverMember.findUnique.mockResolvedValue({ userId, serverId })
+      await expect(service.getRosterPage(serverId, userId, 'bad')).rejects.toThrow(BadRequestException)
+    })
+  })
+
   describe('createServer', () => {
     it('creates a server with default channels and owner role', async () => {
       prisma.server.create.mockResolvedValue({ id: 'srv-new' })

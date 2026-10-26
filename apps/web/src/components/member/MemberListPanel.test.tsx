@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { VirtuosoMockContext } from 'react-virtuoso'
 import type { UserActivity } from '@chat/shared'
 import { MemberListPanel } from './MemberListPanel'
 import { getRoleColor, type Member } from '@/stores/member.store'
@@ -39,27 +40,28 @@ beforeEach(() => {
   jest.clearAllMocks()
 })
 
-it('renders only the changed row for a status update in a 250-member list', () => {
-  const members = Array.from({ length: 250 }, (_, i) => member(`u${i}`))
+it('bounds mounted rows for 5000 members and updates only a visible changed row', () => {
+  const members = Array.from({ length: 5000 }, (_, i) => member(`u${i}`))
   const onlineIds = new Set(members.map((m) => m.userId))
   const onMemberClick = jest.fn()
   const { rerender } = render(
-    <MemberListPanel members={members} onlineIds={onlineIds} isLoading={false} ownerId="u0" onMemberClick={onMemberClick} />
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 600, itemHeight: 48 }}><MemberListPanel members={members} onlineIds={onlineIds} isLoading={false} ownerId="u0" onMemberClick={onMemberClick} /></VirtuosoMockContext.Provider>
   )
-  expect(getRoleColor).toHaveBeenCalledTimes(250)
+  expect(screen.getAllByRole('button').length).toBeLessThan(40)
+  expect(screen.getAllByRole('button').length).toBeGreaterThan(1)
   jest.mocked(getRoleColor).mockClear()
 
   const changed = { ...members[10], user: { ...members[10].user, status: 'dnd' } }
   const updated = members.map((m, i) => i === 10 ? changed : m)
   rerender(
-    <MemberListPanel members={updated} onlineIds={onlineIds} isLoading={false} ownerId="u0" onMemberClick={onMemberClick} />
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 600, itemHeight: 48 }}><MemberListPanel members={updated} onlineIds={onlineIds} isLoading={false} ownerId="u0" onMemberClick={onMemberClick} /></VirtuosoMockContext.Provider>
   )
   expect(getRoleColor).toHaveBeenCalledTimes(1)
   expect(getRoleColor).toHaveBeenCalledWith(changed)
 
   jest.mocked(getRoleColor).mockClear()
   rerender(
-    <MemberListPanel members={updated} onlineIds={new Set([...onlineIds, 'another-server-user'])} isLoading={false} ownerId="u0" onMemberClick={onMemberClick} />
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 600, itemHeight: 48 }}><MemberListPanel members={updated} onlineIds={new Set([...onlineIds, 'another-server-user'])} isLoading={false} ownerId="u0" onMemberClick={onMemberClick} /></VirtuosoMockContext.Provider>
   )
   expect(getRoleColor).not.toHaveBeenCalled()
 })

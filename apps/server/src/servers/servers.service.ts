@@ -657,6 +657,28 @@ export class ServersService {
     })
   }
 
+  async getRosterPage(serverId: string, userId: string, after?: string) {
+    await this.requireMembership(serverId, userId)
+    if (after && !/^[0-9a-f-]{36}$/i.test(after)) throw new BadRequestException('Invalid roster cursor')
+    const [rows, roles] = await Promise.all([
+      this.prisma.serverMember.findMany({
+        where: { serverId, ...(after ? { userId: { gt: after } } : {}) },
+        include: { user: { select: memberUserSelect }, roles: { select: { roleId: true } } },
+        orderBy: { userId: 'asc' }, take: 501
+      }),
+      this.prisma.role.findMany({ where: { serverId } })
+    ])
+    const page = rows.slice(0, 500)
+    const everyone = roles.find((r) => r.isDefault)
+    return {
+      members: page.map(({ roles: assigned, ...member }) => ({
+        ...member, roleIds: [...new Set([...assigned.map((r) => r.roleId), ...(everyone ? [everyone.id] : [])])]
+      })),
+      roles,
+      nextCursor: rows.length > 500 ? page[page.length - 1].userId : null
+    }
+  }
+
   async getEmojiStats(serverId: string, userId: string) {
     await this.requireMembership(serverId, userId)
 
