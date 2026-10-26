@@ -1,5 +1,6 @@
 import type { Room } from 'livekit-client'
-import { Track, createLocalAudioTrack } from 'livekit-client'
+import type { createLocalAudioTrack } from 'livekit-client'
+import { voiceTrackSources } from './voiceTrackSources'
 import { getValidatedDevices } from '@/lib/deviceSettings'
 import { canUseRnnoise } from '@/lib/noiseReductionCapabilities'
 import { startRnnoiseMicrophone } from '@/lib/rnnoiseMicrophone'
@@ -15,7 +16,7 @@ export async function setLocalMicTransmissionEnabled(
   enabled: boolean,
   isCurrent: () => boolean = () => true
 ): Promise<void> {
-  const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+  const pub = room.localParticipant.getTrackPublication(voiceTrackSources.Microphone)
   const t = pub?.track
   if (t) {
     if (enabled && isCurrent()) {
@@ -56,13 +57,14 @@ async function publishMicrophone(
   options: Parameters<typeof createLocalAudioTrack>[0],
   isCurrent: () => boolean
 ) {
+  const { createLocalAudioTrack } = await import('livekit-client')
   const track = await createLocalAudioTrack(options)
   try {
     if (!isCurrent()) {
       track.stop()
       return
     }
-    await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone })
+    await room.localParticipant.publishTrack(track, { source: voiceTrackSources.Microphone })
     if (!isCurrent()) {
       await room.localParticipant.unpublishTrack(track)
       track.stop()

@@ -20,10 +20,7 @@ export async function initI18n(): Promise<void> {
     react: { useSuspense: false }
   })
 
-  await ensureLocaleLoaded('en')
-  if (initial !== 'en') {
-    await ensureLocaleLoaded(initial)
-  }
+  await Promise.all([...new Set(['en', initial])].map(ensureLocaleLoaded))
   await i18n.changeLanguage(initial)
 }
 

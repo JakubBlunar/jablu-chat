@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { isDesktop } from '@/lib/desktop'
 import { useDesktopUpdateSync } from '@/hooks/useDesktopUpdateSync'
-import { DesktopTitleBar } from './DesktopTitleBar'
+const DesktopTitleBar = lazy(() => import('./DesktopTitleBar').then(m => ({ default: m.DesktopTitleBar })))
 
 /**
  * On the desktop app, wraps the whole app in a column layout with the custom
@@ -16,7 +16,7 @@ export function DesktopChrome({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-surface">
-      <DesktopTitleBar />
+      <Suspense fallback={<div className="h-9 shrink-0" />}><DesktopTitleBar /></Suspense>
       <div className="min-h-0 flex-1">{children}</div>
     </div>
   )

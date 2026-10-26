@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { Track, type Room } from 'livekit-client'
+import type { Room } from 'livekit-client'
+import { voiceTrackSources } from '@/lib/voiceTrackSources'
 import { isElectron } from '@/lib/electron'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
@@ -109,7 +110,7 @@ async function applyBlur(get: StoreGet, set: StoreSet) {
   const { room } = get()
   if (!room) return
 
-  const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+  const camPub = room.localParticipant.getTrackPublication(voiceTrackSources.Camera)
   const mediaTrack = camPub?.track?.mediaStreamTrack
   if (!mediaTrack) return
 
@@ -251,7 +252,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     if (mode !== 'always' && !options?.skipMicModeBootstrap) {
       let attempts = 0
       _micModePoll = setInterval(() => {
-        const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+        const pub = room.localParticipant.getTrackPublication(voiceTrackSources.Microphone)
         if (pub?.track || ++attempts > 20) {
           clearInterval(_micModePoll)
           _micModePoll = undefined
@@ -270,7 +271,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     set({ isMuted: !enabled, isMicrophonePending: enabled, microphoneError: null })
     if (!enabled) {
       stopMicMode(true)
-      const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track
+      const track = room.localParticipant.getTrackPublication(voiceTrackSources.Microphone)?.track
       if (track) track.mediaStreamTrack.enabled = false
       emitVoiceState({ muted: true })
     }
@@ -415,7 +416,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
           return
         }
         await room.localParticipant.publishTrack(blurredTrack, {
-          source: Track.Source.Camera,
+          source: voiceTrackSources.Camera,
           name: 'camera'
         })
         set({
@@ -445,7 +446,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
     _blurHandle?.stop()
     _originalCameraTrack?.stop()
     if (room) {
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+      const camPub = room.localParticipant.getTrackPublication(voiceTrackSources.Camera)
       if (camPub?.track) {
         camPub.track.mediaStreamTrack?.stop()
         await room.localParticipant.unpublishTrack(camPub.track).catch(() => {})
@@ -476,7 +477,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
       oldRaw?.stop()
       set({ _blurHandle: null, _originalCameraTrack: null })
 
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+      const camPub = room.localParticipant.getTrackPublication(voiceTrackSources.Camera)
       if (camPub?.track) {
         camPub.track.mediaStreamTrack?.stop()
         await room.localParticipant.unpublishTrack(camPub.track).catch(() => {})
@@ -508,7 +509,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
             return
           }
           await room.localParticipant.publishTrack(blurredTrack, {
-            source: Track.Source.Camera,
+            source: voiceTrackSources.Camera,
             name: 'camera'
           })
           set({
@@ -534,7 +535,7 @@ export const useVoiceConnectionStore = create<VoiceConnectionState>((set, get) =
         _blurHandle?.stop()
         const { _originalCameraTrack } = get()
         if (_originalCameraTrack) {
-          const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera)
+          const camPub = room.localParticipant.getTrackPublication(voiceTrackSources.Camera)
           if (camPub?.track) {
             await camPub.track.replaceTrack(_originalCameraTrack)
           }

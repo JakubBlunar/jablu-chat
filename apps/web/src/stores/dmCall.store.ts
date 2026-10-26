@@ -3,11 +3,15 @@ import type { DmCall, DmCallEndReason, DmCallReply } from '@chat/shared'
 import { api } from '@/lib/api'
 import { getDmDisplayInfo } from '@/lib/dmDisplay'
 import { getSocket } from '@/lib/socket'
-import { joinDmCall } from '@/lib/voiceConnect'
 import { useAuthStore } from './auth.store'
 import { useDmStore } from './dm.store'
 import { useVoiceConnectionStore } from './voice-connection.store'
 import { useVoiceStore } from './voice.store'
+
+async function joinDmCall(...args: Parameters<typeof import('@/lib/voiceConnect').joinDmCall>) {
+  const voice = await import('@/lib/voiceConnect')
+  return voice.joinDmCall(...args)
+}
 
 export async function requestDmCall<T>(event: string, payload: object = {}): Promise<T> {
   const socket = getSocket()

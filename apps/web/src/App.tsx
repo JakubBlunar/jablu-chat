@@ -3,7 +3,6 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes, useNavigate } from 
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DesktopChrome } from './components/desktop/DesktopChrome'
-import { MainLayout } from './components/layout/MainLayout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { RestoreLastLocation } from './components/layout/RestoreLastLocation'
 import { isElectron } from './lib/electron'
@@ -17,11 +16,30 @@ import { Spinner } from '@/components/ui'
 import { LocaleSync } from '@/i18n/LocaleSync'
 import { LoginPage } from './pages/LoginPage'
 import { useAuthStore } from './stores/auth.store'
-import { InboxWorkspace } from '@/components/notifications/InboxWorkspace'
+import { ensureNamespacesLoaded, I18N_NAMESPACES } from '@/i18n/loadBundles'
 
 const Router = isElectron ? HashRouter : BrowserRouter
+const MainLayout = lazy(async () => {
+  const [module] = await Promise.all([
+    import('./components/layout/MainLayout'), ensureNamespacesLoaded(I18N_NAMESPACES)
+  ])
+  return { default: module.MainLayout }
+})
+const InboxWorkspace = lazy(async () => {
+  await ensureNamespacesLoaded(I18N_NAMESPACES)
+  const module = await import('@/components/notifications/InboxWorkspace')
+  return { default: module.InboxWorkspace }
+})
 
-const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })))
+function AuthenticatedInbox() {
+  const authenticated = useAuthStore((s) => s.isAuthenticated)
+  return authenticated ? <Suspense fallback={null}><InboxWorkspace /></Suspense> : null
+}
+
+const AdminPage = lazy(async () => {
+  await ensureNamespacesLoaded(I18N_NAMESPACES)
+  return import('./pages/AdminPage').then((m) => ({ default: m.AdminPage }))
+})
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then((m) => ({ default: m.RegisterPage })))
 const ForgotPasswordPage = lazy(() =>
   import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage }))
@@ -131,7 +149,7 @@ export default function App() {
           <LocaleSync>
             <AuthBootstrap />
             <NotificationRouterBridge />
-            <InboxWorkspace />
+            <AuthenticatedInbox />
             <Suspense fallback={<LazyFallback />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />

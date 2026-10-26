@@ -1,5 +1,6 @@
 import type { Room } from 'livekit-client'
-import { Track, createLocalAudioTrack } from 'livekit-client'
+import type { createLocalAudioTrack } from 'livekit-client'
+import { voiceTrackSources } from './voiceTrackSources'
 import { canUseRnnoise } from '@/lib/noiseReductionCapabilities'
 import { buildAudioCaptureOptions, buildAudioCaptureOptionsForMode } from '@/lib/voiceAudioCaptureOptions'
 import { getNoiseReductionMode } from '@/lib/voiceProcessingSettings'
@@ -21,7 +22,7 @@ export async function restartMicrophonePipeline(
 ): Promise<void> {
   await stopRnnoiseMicrophone(room)
 
-  const existing = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+  const existing = room.localParticipant.getTrackPublication(voiceTrackSources.Microphone)
   if (existing?.track) {
     try {
       await room.localParticipant.unpublishTrack(existing.track)
@@ -58,13 +59,14 @@ export async function restartMicrophonePipeline(
   }
 
   async function publish(options: Parameters<typeof createLocalAudioTrack>[0]) {
+    const { createLocalAudioTrack } = await import('livekit-client')
     const track = await createLocalAudioTrack(options)
     try {
       if (!isCurrent()) {
         track.stop()
         return
       }
-      await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone })
+      await room.localParticipant.publishTrack(track, { source: voiceTrackSources.Microphone })
       if (!isCurrent()) {
         await room.localParticipant.unpublishTrack(track)
         track.stop()

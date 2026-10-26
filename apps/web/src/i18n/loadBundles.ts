@@ -21,29 +21,41 @@ export const I18N_NAMESPACES = [
 ] as const
 
 export type I18nNamespace = (typeof I18N_NAMESPACES)[number]
+export const BOOT_NAMESPACES: readonly I18nNamespace[] = ['common', 'a11y', 'auth', 'nav', 'settings']
+const activeNamespaces = new Set<I18nNamespace>(BOOT_NAMESPACES)
+const requests = new Map<string, Promise<void>>()
 
 const loaders = import.meta.glob<{ default: Record<string, unknown> }>('./locales/*/*.json')
 
-export async function loadLanguageBundles(lng: string): Promise<void> {
+export async function loadLanguageBundles(lng: string, namespaces: readonly I18nNamespace[] = I18N_NAMESPACES): Promise<void> {
   await Promise.all(
-    I18N_NAMESPACES.map(async (ns) => {
+    namespaces.map(async (ns) => {
+      if (i18n.hasResourceBundle(lng, ns)) return
       const path = `./locales/${lng}/${ns}.json`
       const loader = loaders[path]
       if (!loader) {
         throw new Error(`Missing locale bundle: ${path}`)
       }
-      const mod = await loader()
-      i18n.addResourceBundle(lng, ns, mod.default, true, true)
+      let request = requests.get(path)
+      if (!request) {
+        request = loader().then((mod) => {
+          i18n.addResourceBundle(lng, ns, mod.default, true, true)
+        }).finally(() => requests.delete(path))
+        requests.set(path, request)
+      }
+      await request
     })
   )
 }
 
-const loadedLocales = new Set<string>()
-
 export async function ensureLocaleLoaded(lng: string): Promise<void> {
-  if (loadedLocales.has(lng)) return
-  await loadLanguageBundles(lng)
-  loadedLocales.add(lng)
+  await loadLanguageBundles(lng, [...activeNamespaces])
+}
+
+export async function ensureNamespacesLoaded(namespaces: readonly I18nNamespace[]): Promise<void> {
+  for (const ns of namespaces) activeNamespaces.add(ns)
+  const language = i18n.resolvedLanguage ?? i18n.language ?? readPersistedLocale()
+  await Promise.all([...new Set(['en', language])].map(lng => loadLanguageBundles(lng, namespaces)))
 }
 
 const STORAGE_KEY = 'jablu-settings'

@@ -84,21 +84,9 @@ export default defineConfig(({ command }) => ({
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return undefined
           if (id.includes('react-syntax-highlighter')) return 'syntax-highlighter'
-          if (
-            id.includes('react-markdown') ||
-            id.includes('rehype-') ||
-            id.includes('remark-') ||
-            id.includes('micromark') ||
-            id.includes('mdast') ||
-            id.includes('unist') ||
-            id.includes('/hast') ||
-            id.includes('property-information') ||
-            id.includes('space-separated-tokens') ||
-            id.includes('comma-separated-tokens') ||
-            id.includes('decode-named-character-reference')
-          ) {
-            return 'markdown'
-          }
+          // Let the bundler place markdown behind the authenticated layout.
+          // A forced shared markdown chunk pulled its common dependencies into
+          // login's graph even when no markdown component was rendered.
           if (id.includes('livekit-client')) return 'livekit'
           if (id.includes('socket.io-client')) return 'socket-io'
           if (id.includes('@emoji-mart')) return 'emoji-mart'

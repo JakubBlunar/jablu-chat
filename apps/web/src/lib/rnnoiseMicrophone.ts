@@ -1,4 +1,5 @@
-import { Track, type Room, type AudioCaptureOptions } from 'livekit-client'
+import type { Room, AudioCaptureOptions } from 'livekit-client'
+import { voiceTrackSources } from './voiceTrackSources'
 import { createMicrophoneCapture, type MicrophoneCapture } from './microphoneCapture'
 
 type ActiveRnnoise = MicrophoneCapture & { room: Room }
@@ -28,7 +29,7 @@ export async function startRnnoiseMicrophone(
     }
     await room.localParticipant.publishTrack(capture.track, {
       name: 'microphone',
-      source: Track.Source.Microphone,
+      source: voiceTrackSources.Microphone,
       audioPreset: { maxBitrate: 128_000 },
       dtx: true,
       red: true

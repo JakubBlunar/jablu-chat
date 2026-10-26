@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { RoomEvent, type Participant } from 'livekit-client'
+import type { RoomEvent, Participant } from 'livekit-client'
 import { useTranslation } from 'react-i18next'
 import type { UserStatus } from '@chat/shared'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -88,9 +88,10 @@ export function useSpeakingUsers() {
     const onSpeakers = (speakers: Participant[]) => {
       setSpeaking(new Set(speakers.map((s) => s.identity)))
     }
-    room.on(RoomEvent.ActiveSpeakersChanged, onSpeakers)
+    const event = 'activeSpeakersChanged' as RoomEvent.ActiveSpeakersChanged
+    room.on(event, onSpeakers)
     return () => {
-      room.off(RoomEvent.ActiveSpeakersChanged, onSpeakers)
+      room.off(event, onSpeakers)
     }
   }, [room])
 

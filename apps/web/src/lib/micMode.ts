@@ -1,6 +1,6 @@
 export type MicMode = 'always' | 'activity' | 'push-to-talk'
 
-import { Track } from 'livekit-client'
+import { voiceTrackSources } from './voiceTrackSources'
 import i18n from 'i18next'
 import { useSettingsStore } from '@/stores/settings.store'
 import { desktopAPI, isDesktop } from '@/lib/desktop'
@@ -114,7 +114,7 @@ function startVAD(): MicCleanup {
   const room = _getRoom()
   if (!room) return () => {}
 
-  const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+  const micPub = room.localParticipant.getTrackPublication(voiceTrackSources.Microphone)
   const mediaTrack = micPub?.track?.mediaStreamTrack
   if (!mediaTrack) return () => {}
 
@@ -304,7 +304,7 @@ function setTrackMuted(muted: boolean) {
   const room = _getRoom()
   if (!room) return
 
-  const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone)
+  const micPub = room.localParticipant.getTrackPublication(voiceTrackSources.Microphone)
   if (micPub?.track) {
     if (muted) {
       micPub.track.mute()

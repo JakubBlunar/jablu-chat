@@ -1,4 +1,4 @@
-import { createLocalAudioTrack, LocalAudioTrack, type AudioCaptureOptions } from 'livekit-client'
+import type { LocalAudioTrack, AudioCaptureOptions } from 'livekit-client'
 import type { NoiseReductionMode } from './voiceProcessingSettings'
 
 export type MicrophoneCapture = {
@@ -11,6 +11,7 @@ export async function createMicrophoneCapture(
   mode: NoiseReductionMode,
   options: AudioCaptureOptions
 ): Promise<MicrophoneCapture> {
+  const { createLocalAudioTrack, LocalAudioTrack } = await import('livekit-client')
   if (mode !== 'rnnoise') {
     const track = await createLocalAudioTrack(options)
     return {

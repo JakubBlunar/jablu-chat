@@ -16,7 +16,7 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ToastContainer } from '@/components/ToastContainer'
-import { VoiceAudioManager } from '@/components/voice/VoiceAudioManager'
+const VoiceAudioManager = lazy(() => import('@/components/voice/VoiceAudioManager').then(m => ({ default: m.VoiceAudioManager })))
 import { useAppBadge } from '@/hooks/useAppBadge'
 import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { usePresenceReporter } from '@/hooks/usePresenceReporter'
@@ -56,6 +56,11 @@ const VoiceRoom = lazy(() => import('@/components/voice/VoiceRoom').then((m) => 
 const ScreenSharePicker = lazy(() =>
   import('@/components/voice/ScreenSharePicker').then((m) => ({ default: m.ScreenSharePicker }))
 )
+
+function VoicePlayback() {
+  const connected = useVoiceConnectionStore(s => s.room !== null)
+  return connected ? <Suspense fallback={null}><VoiceAudioManager /></Suspense> : null
+}
 
 function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
   const { t } = useTranslation('a11y')
@@ -281,7 +286,7 @@ export function MainLayout() {
     return (
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
-        <VoiceAudioManager />
+        <VoicePlayback />
         <DmCallNotifications />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
@@ -364,7 +369,7 @@ export function MainLayout() {
     return (
       <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
-        <VoiceAudioManager />
+        <VoicePlayback />
         <DmCallNotifications />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
@@ -415,7 +420,7 @@ export function MainLayout() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <SkipToMainLink />
-      <VoiceAudioManager />
+      <VoicePlayback />
       <DmCallNotifications />
       <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
