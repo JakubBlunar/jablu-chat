@@ -579,6 +579,7 @@ export const MessageRow = memo(function MessageRow({
         )}
         {reactorsEmoji && (
           <ReactionDetailsModal
+            messageId={message.id}
             reactions={reactions}
             initialEmoji={reactorsEmoji}
             mode={mode}

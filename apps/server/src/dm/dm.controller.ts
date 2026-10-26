@@ -21,6 +21,17 @@ export class DmController {
     return this.dm.getConversations(user.id)
   }
 
+  @Get(':id/messages/:messageId/reactions')
+  reactors(
+    @Param('id', ParseUUIDPipe) conversationId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @CurrentUser() user: { id: string },
+    @Query('emoji') emoji: string,
+    @Query('after') after?: string
+  ) {
+    return this.dm.getReactors(conversationId, messageId, user.id, emoji, after)
+  }
+
   @Post()
   createDm(@CurrentUser() user: { id: string }, @Body() dto: CreateDmDto) {
     return this.dm.findOrCreateDm(user.id, dto.recipientId)

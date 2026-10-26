@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { api } from '@/lib/api'
 import { ReactionDetailsModal } from './ReactionDetailsModal'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMemberStore } from '@/stores/member.store'
@@ -40,6 +41,18 @@ const baseReactions: ReactionGroup[] = [
 ]
 
 describe('ReactionDetailsModal', () => {
+  it('loads complete reactor details on demand and follows the bounded continuation', async () => {
+    const get = jest.spyOn(api, 'get').mockResolvedValueOnce({ userIds: ['first'], nextCursor: 'first' })
+      .mockResolvedValueOnce({ userIds: ['second'], nextCursor: null })
+    useMemberStore.setState({ members: ['first', 'second'].map(id => ({ userId: id, user: { id, username: id, displayName: id } })) } as never)
+    render(<ReactionDetailsModal reactions={[{ ...baseReactions[0], usersComplete: false }]} messageId="m1" initialEmoji="👍" mode="channel" contextId="ch-1" onClose={jest.fn()} />)
+    expect(await screen.findByText('first')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('list.loadMore'))
+    expect(await screen.findByText('second')).toBeInTheDocument()
+    expect(get).toHaveBeenLastCalledWith('/api/channels/ch-1/messages/m1/reactions?emoji=%F0%9F%91%8D&after=first')
+    get.mockRestore()
+  })
+
   it('renders a rail entry for each reaction with its count', () => {
     useMemberStore.setState({
       members: [

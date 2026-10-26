@@ -82,6 +82,8 @@ export interface ReactionGroup {
   emoji: string
   count: number
   userIds: string[]
+  /** False when userIds is a bounded preview plus the requesting user. */
+  usersComplete?: boolean
   isCustom: boolean
 }
 

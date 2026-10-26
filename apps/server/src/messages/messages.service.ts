@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 import { XpService } from '../xp/xp.service'
 import { messageInclude, mapMessageToWire, type MessageWithRelations } from './message-wire'
+import { historyInclude, mapHistory } from './history-wire'
 import { EmbedDto } from './dto/embed.dto'
 import { findMessageReplay } from './message-replay'
 
@@ -150,13 +151,13 @@ export class MessagesService {
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
-      include: messageInclude
+      include: historyInclude(userId)
     })
 
     const hasMore = rows.length > take
     const page = hasMore ? rows.slice(0, take) : rows
     return {
-      messages: page.map((m) => this.mapToWire(m, userId)),
+      messages: await mapHistory(this.prisma, page, userId),
       hasMore
     }
   }
@@ -185,7 +186,7 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: half,
-        include: messageInclude
+        include: historyInclude(userId)
       }),
       this.prisma.message.findMany({
         where: {
@@ -199,19 +200,19 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: half,
-        include: messageInclude
+        include: historyInclude(userId)
       })
     ])
 
     const anchorRow = await this.prisma.message.findUnique({
       where: { id: messageId },
-      include: messageInclude
+      include: historyInclude(userId)
     })
 
     const allDesc = [...after.reverse(), ...(anchorRow ? [anchorRow] : []), ...before]
 
     return {
-      messages: allDesc.map((m) => this.mapToWire(m, userId)),
+      messages: await mapHistory(this.prisma, allDesc, userId),
       hasMore: before.length >= half,
       hasNewer: after.length >= half
     }
@@ -242,14 +243,14 @@ export class MessagesService {
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: take + 1,
-      include: messageInclude
+      include: historyInclude(userId)
     })
 
     const hasNewer = rows.length > take
     const page = hasNewer ? rows.slice(0, take) : rows
     // Return in desc order for consistency with other endpoints
     return {
-      messages: page.reverse().map((m) => this.mapToWire(m, userId)),
+      messages: await mapHistory(this.prisma, page.reverse(), userId),
       hasMore: false,
       hasNewer
     }
@@ -409,7 +410,7 @@ export class MessagesService {
     if (opts?.around) {
       const anchor = await this.prisma.message.findFirst({
         where: { id: opts.around, threadParentId: parentId, deleted: false },
-        include: messageInclude
+        include: historyInclude(userId)
       })
       if (!anchor) {
         return this.getThreadMessages(parentId, userId, { limit: take })
@@ -433,7 +434,7 @@ export class MessagesService {
           },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: beforeTake + 1,
-          include: messageInclude
+          include: historyInclude(userId)
         }),
         this.prisma.message.findMany({
           where: {
@@ -449,7 +450,7 @@ export class MessagesService {
           },
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take: afterTake + 1,
-          include: messageInclude
+          include: historyInclude(userId)
         })
       ])
 
@@ -460,7 +461,7 @@ export class MessagesService {
       const page = [...before, anchor, ...after]
 
       return {
-        messages: page.map((m) => this.mapToWire(m, userId)),
+        messages: await mapHistory(this.prisma, page, userId),
         hasMore,
         hasNewer
       }
@@ -486,13 +487,13 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: take + 1,
-        include: messageInclude
+        include: historyInclude(userId)
       })
 
       const hasNewer = rows.length > take
       const page = hasNewer ? rows.slice(0, take) : rows
       return {
-        messages: page.map((m) => this.mapToWire(m, userId)),
+        messages: await mapHistory(this.prisma, page, userId),
         hasMore: false,
         hasNewer
       }
@@ -518,13 +519,13 @@ export class MessagesService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: take + 1,
-        include: messageInclude
+        include: historyInclude(userId)
       })
 
       const hasMore = rows.length > take
       const page = (hasMore ? rows.slice(0, take) : rows).reverse()
       return {
-        messages: page.map((m) => this.mapToWire(m, userId)),
+        messages: await mapHistory(this.prisma, page, userId),
         hasMore,
         hasNewer: false
       }
@@ -534,13 +535,13 @@ export class MessagesService {
       where: baseWhere,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
-      include: messageInclude
+      include: historyInclude(userId)
     })
 
     const hasMore = rows.length > take
     const page = (hasMore ? rows.slice(0, take) : rows).reverse()
     return {
-      messages: page.map((m) => this.mapToWire(m, userId)),
+      messages: await mapHistory(this.prisma, page, userId),
       hasMore,
       hasNewer: false
     }
@@ -734,6 +735,25 @@ export class MessagesService {
       channelId: message.channelId,
       directConversationId: message.directConversationId
     }
+  }
+
+  async getReactors(contextId: string, messageId: string, userId: string, emoji: string, after?: string, mode: 'channel' | 'dm' = 'channel') {
+    if (mode === 'channel') await this.requireMessageChannelMember(contextId, userId)
+    else {
+      const member = await this.prisma.directConversationMember.findUnique({ where: { conversationId_userId: { conversationId: contextId, userId } } })
+      if (!member) throw new ForbiddenException('Not a member of this conversation')
+    }
+    const message = await this.prisma.message.findFirst({ where: { id: messageId,
+      ...(mode === 'channel' ? { channelId: contextId } : { directConversationId: contextId }), deleted: false }, select: { id: true } })
+    if (!message) throw new NotFoundException('Message not found')
+    if (typeof emoji !== 'string' || !emoji || emoji.length > 200 || (after && !/^[0-9a-f-]{36}$/i.test(after))) {
+      throw new BadRequestException('Invalid reaction query')
+    }
+    const rows = await this.prisma.reaction.findMany({
+      where: { messageId, emoji, ...(after ? { userId: { gt: after } } : {}) },
+      orderBy: { userId: 'asc' }, take: 101, select: { userId: true }
+    })
+    return { userIds: rows.slice(0, 100).map((r) => r.userId), nextCursor: rows.length > 100 ? rows[99].userId : null }
   }
 
   async getPinnedMessages(channelId: string, userId: string) {

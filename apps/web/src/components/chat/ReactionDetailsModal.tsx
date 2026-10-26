@@ -1,5 +1,5 @@
 import type { ReactionGroup } from '@chat/shared'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
@@ -11,8 +11,10 @@ import { useMemberStore } from '@/stores/member.store'
 import { useIsMobile } from '@/hooks/useMobile'
 import type { CustomEmoji } from '@/lib/api/types'
 import { memberDisplayName } from '@/lib/serverProfile'
+import { api } from '@/lib/api'
 
 type Props = {
+  messageId?: string
   reactions: ReactionGroup[]
   initialEmoji: string
   mode: 'channel' | 'dm'
@@ -29,7 +31,7 @@ type ResolvedUser = {
   isUnknown: boolean
 }
 
-export function ReactionDetailsModal({ reactions, initialEmoji, mode, contextId, customEmojiMap, onClose }: Props) {
+export function ReactionDetailsModal({ messageId, reactions, initialEmoji, mode, contextId, customEmojiMap, onClose }: Props) {
   const { t } = useTranslation('chat')
   const isMobile = useIsMobile()
 
@@ -85,7 +87,9 @@ export function ReactionDetailsModal({ reactions, initialEmoji, mode, contextId,
           })}
         </nav>
         <ul className="min-h-0 flex-1 overflow-y-auto p-2">
-          {reactorRows.map((u) => (
+          {selectedReaction?.usersComplete === false && messageId ? (
+            <PagedReactors key={`${messageId}:${selectedReaction.emoji}`} url={`${mode === 'channel' ? '/api/channels' : '/api/dm'}/${contextId}/messages/${messageId}/reactions?emoji=${encodeURIComponent(selectedReaction.emoji)}`} resolveUser={resolveUser} />
+          ) : reactorRows.map((u) => (
             <li key={u.userId} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-white/5">
               <UserAvatar username={u.username} avatarUrl={u.avatarUrl} size="md" />
               <div className="min-w-0 flex-1">
@@ -116,6 +120,36 @@ export function ReactionDetailsModal({ reactions, initialEmoji, mode, contextId,
       <div className="flex h-[min(70vh,32rem)] flex-col">{body}</div>
     </ModalOverlay>
   )
+}
+
+function PagedReactors({ url, resolveUser }: { url: string; resolveUser: (id: string) => ResolvedUser }) {
+  const { t } = useTranslation('common')
+  const [page, setPage] = useState<{ userIds: string[]; nextCursor: string | null }>({ userIds: [], nextCursor: null })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    void api.get<typeof page>(url).then((result) => { if (!cancelled) setPage(result) })
+      .catch(() => { if (!cancelled) setError(true) }).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [url])
+  const more = async () => {
+    setLoading(true)
+    setError(false)
+    try {
+      const result = await api.get<typeof page>(`${url}${page.nextCursor ? `&after=${encodeURIComponent(page.nextCursor)}` : ''}`)
+      setPage((old) => ({ userIds: [...new Set([...old.userIds, ...result.userIds])], nextCursor: result.nextCursor }))
+    } catch { setError(true) } finally { setLoading(false) }
+  }
+  return <>
+    {page.userIds.map((id) => {
+      const user = resolveUser(id)
+      return <li key={id} className="flex items-center gap-3 px-2 py-2"><UserAvatar username={user.username} avatarUrl={user.avatarUrl} size="md" /><span>{user.displayName}</span></li>
+    })}
+    {loading && <li role="status">{t('loading')}</li>}
+    {error && <li role="alert"><button type="button" onClick={() => void more()}>{t('retry')}</button></li>}
+    {!loading && !error && page.nextCursor && <li><button type="button" onClick={() => void more()}>{t('list.loadMore', { ns: 'forum' })}</button></li>}
+  </>
 }
 
 function CloseIcon({ className }: { className?: string }) {

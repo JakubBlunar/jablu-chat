@@ -47,7 +47,7 @@ export function ReactionPill({
 
   const reactors = reaction.userIds
   const visible = reactors.slice(0, TOOLTIP_NAME_LIMIT)
-  const remaining = Math.max(reactors.length - visible.length, 0)
+  const remaining = Math.max(reaction.count - visible.length, 0)
 
   const cancelOpen = useCallback(() => {
     if (openTimer.current) {

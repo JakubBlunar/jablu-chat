@@ -153,6 +153,17 @@ export class MessagesController {
     return result
   }
 
+  @Get(':id/reactions')
+  reactors(
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
+    @CurrentUser() user: { id: string },
+    @Query('emoji') emoji: string,
+    @Query('after') after?: string
+  ) {
+    return this.messages.getReactors(channelId, messageId, user.id, emoji, after)
+  }
+
   private async requireChannel(channelId: string) {
     const ch = await this.prisma.channel.findUnique({
       where: { id: channelId },

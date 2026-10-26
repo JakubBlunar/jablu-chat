@@ -56,13 +56,14 @@ export function removeMessageReaction(
   return updateMessageInList(messages, messageId, (message) => {
     const reactions = message.reactions ?? []
     const existing = reactions.find((reaction) => reaction.emoji === emoji)
-    if (!existing?.userIds.includes(userId)) return message
+    if (!existing || (existing.usersComplete !== false && !existing.userIds.includes(userId))) return message
     const userIds = existing.userIds.filter((id) => id !== userId)
+    const count = Math.max(0, existing.count - 1)
     return {
       ...message,
-      reactions: userIds.length
+      reactions: count
         ? reactions.map((reaction) =>
-            reaction === existing ? { ...reaction, userIds, count: userIds.length } : reaction
+            reaction === existing ? { ...reaction, userIds, count } : reaction
           )
         : reactions.filter((reaction) => reaction !== existing)
     }

@@ -74,7 +74,8 @@ export function cacheRemoveReaction(messageId: string, emoji: string, userId: st
       .map((r) => {
         if (r.emoji !== emoji) return r
         const userIds = r.userIds.filter((id) => id !== userId)
-        return { ...r, count: userIds.length, userIds }
+        const count = r.usersComplete === false ? Math.max(0, r.count - 1) : userIds.length
+        return { ...r, count, userIds }
       })
       .filter((r) => r.count > 0)
   }))

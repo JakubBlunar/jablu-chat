@@ -38,10 +38,10 @@ export const messageInclude = {
       }
     }
   },
-  _count: { select: { threadMessages: true } },
+  _count: { select: { threadMessages: { where: { deleted: false } } } },
   threadMessages: {
     where: { deleted: false },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: 1,
     select: {
       content: true,
@@ -195,7 +195,7 @@ export function mapMessageToWire(m: MessageWithRelations, requestingUserId?: str
             id: o.id,
             label: o.label,
             position: o.position,
-            voteCount: o.votes.length,
+            voteCount: (o as typeof o & { _count?: { votes: number } })._count?.votes ?? o.votes.length,
             voted: requestingUserId ? o.votes.some((v) => v.userId === requestingUserId) : false
           }))
         }

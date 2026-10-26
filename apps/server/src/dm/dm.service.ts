@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { EventBusService } from '../events/event-bus.service'
 import { findMessageReplay } from '../messages/message-replay'
 import { extractUrls } from '../messages/link-preview-parse'
+import { historyDmInclude, mapDmHistory } from '../messages/history-wire'
 import {
   dmMessageInclude as messageInclude,
   mapDmMessageToWire,
@@ -363,15 +364,19 @@ export class DmService {
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
-      include: messageInclude
+      include: historyDmInclude
     })
 
     const hasMore = rows.length > take
     const page = hasMore ? rows.slice(0, take) : rows
     return {
-      messages: page.map((m) => this.mapToWire(m)),
+      messages: await mapDmHistory(this.prisma, page, userId),
       hasMore
     }
+  }
+
+  getReactors(conversationId: string, messageId: string, userId: string, emoji: string, after?: string) {
+    return this.messages.getReactors(conversationId, messageId, userId, emoji, after, 'dm')
   }
 
   async getMessagesAround(conversationId: string, userId: string, messageId: string, limit = 50) {
@@ -397,7 +402,7 @@ export class DmService {
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: half,
-        include: messageInclude
+        include: historyDmInclude
       }),
       this.prisma.message.findMany({
         where: {
@@ -410,19 +415,19 @@ export class DmService {
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: half,
-        include: messageInclude
+        include: historyDmInclude
       })
     ])
 
     const anchorRow = await this.prisma.message.findUnique({
       where: { id: messageId },
-      include: messageInclude
+      include: historyDmInclude
     })
 
     const allDesc = [...after.reverse(), ...(anchorRow ? [anchorRow] : []), ...before]
 
     return {
-      messages: allDesc.map((m) => this.mapToWire(m)),
+      messages: await mapDmHistory(this.prisma, allDesc, userId),
       hasMore: before.length >= half,
       hasNewer: after.length >= half
     }
@@ -450,13 +455,13 @@ export class DmService {
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: take + 1,
-      include: messageInclude
+      include: historyDmInclude
     })
 
     const hasNewer = rows.length > take
     const page = hasNewer ? rows.slice(0, take) : rows
     return {
-      messages: page.reverse().map((m) => this.mapToWire(m)),
+      messages: await mapDmHistory(this.prisma, page.reverse(), userId),
       hasMore: false,
       hasNewer
     }
