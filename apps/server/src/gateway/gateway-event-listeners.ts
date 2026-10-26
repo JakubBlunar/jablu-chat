@@ -325,20 +325,36 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on('channel:created', async (payload: { serverId: string; channel: { id: string } }) => {
-    gw.server.to(`server:${payload.serverId}`).emit('channel:created', payload)
-    const members = await gw.prisma.serverMember.findMany({
-      where: { serverId: payload.serverId },
-      select: { userId: true }
-    })
-    for (const m of members) {
+    const room = `server:${payload.serverId}`
+    const sockets = await gw.server.in(room).fetchSockets()
+    const byUser = new Map<string, typeof sockets>()
+    for (const socket of sockets) {
+      const userId = (socket.data as { user?: { id?: string } }).user?.id
+      if (!userId) continue
+      const devices = byUser.get(userId) ?? []
+      devices.push(socket)
+      byUser.set(userId, devices)
+    }
+    const userIds = [...byUser.keys()]
+    // Offline members need no socket work. Bound DB parameters and adapter joins;
+    // the batch helper rechecks membership and channel overrides for each batch.
+    for (let i = 0; i < userIds.length; i += 500) {
+      const batch = userIds.slice(i, i + 500)
+      let permissions: Map<string, bigint>
       try {
-        const perms = await gw.roles.getChannelPermissions(payload.serverId, payload.channel.id, m.userId)
-        if (perms & Permission.VIEW_CHANNEL || perms & Permission.ADMINISTRATOR) {
-          const sockets = await gw.server.in(`user:${m.userId}`).fetchSockets()
-          for (const s of sockets) s.join(`channel:${payload.channel.id}`)
-        }
+        permissions = await gw.roles.getChannelPermissionsForUsers(payload.serverId, payload.channel.id, batch)
       } catch {
-        /* member may have been removed */
+        continue // The channel/server can be removed while the event is queued.
+      }
+      const eligible = batch.flatMap(id => hasPermission(permissions.get(id) ?? 0n, Permission.VIEW_CHANNEL) ? byUser.get(id)! : [])
+      for (let j = 0; j < eligible.length; j += 50) {
+        await Promise.all(eligible.slice(j, j + 50).map(async socket => {
+          if (!socket.rooms.has(room)) return
+          try {
+            await socket.join(`channel:${payload.channel.id}`)
+            socket.emit('channel:created', payload)
+          } catch { /* a device disconnected or left during processing */ }
+        }))
       }
     }
   })
