@@ -49,3 +49,19 @@ it('keeps interactive editors and menus mounted offscreen', () => {
   visibility(false)
   expect(screen.getByText('Edit target')).toBeTruthy()
 })
+
+it('keeps every row intersected by a multi-message text selection mounted', () => {
+  mount(true)
+  const before = document.createElement('p')
+  before.textContent = 'Selection starts in an earlier message'
+  document.body.prepend(before)
+  const range = document.createRange()
+  range.setStart(before.firstChild!, 0)
+  range.setEnd(screen.getByText('Edit target').firstChild!, 4)
+  window.getSelection()!.removeAllRanges()
+  window.getSelection()!.addRange(range)
+  visibility(false)
+  expect(screen.getByText('Edit target')).toBeTruthy()
+  window.getSelection()!.removeAllRanges()
+  before.remove()
+})

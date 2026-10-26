@@ -58,7 +58,7 @@ export function WindowedMessage({ id, root, initialMounted, estimate, label, dec
         // Editors, menus, playback and keyboard focus keep their component state.
         const selection = window.getSelection()
         const busy = element.contains(document.activeElement) ||
-          (selection && !selection.isCollapsed && element.contains(selection.anchorNode)) ||
+          (selection && !selection.isCollapsed && selection.rangeCount > 0 && selection.getRangeAt(0).intersectsNode(element)) ||
           element.querySelector('[data-message-interactive="true"]') ||
           [...element.querySelectorAll<HTMLMediaElement>('audio, video')].some((media) => !media.paused)
         if (!busy) setMounted(false)
