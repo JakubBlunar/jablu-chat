@@ -1,12 +1,13 @@
 import { useMemberStore } from '@/stores/member.store'
 import type { Member } from '@/stores/member.store'
+import { findMember } from './memberIndex'
 
 export function serverDisplayName(
   user: { id: string; displayName?: string | null; username: string } | null | undefined,
   serverId: string | null | undefined,
   members: Member[]
 ): string | undefined {
-  const member = serverId ? members.find((m) => m.serverId === serverId && m.userId === user?.id) : undefined
+  const member = findMember(members, serverId, user?.id)
   return member?.displayName ?? user?.displayName ?? user?.username
 }
 
@@ -22,7 +23,7 @@ export function useServerDisplayName(
   serverId: string | null | undefined
 ): string | undefined {
   const name = useMemberStore((s) =>
-    serverId ? s.members.find((m) => m.serverId === serverId && m.userId === user?.id)?.displayName : undefined
+    findMember(s.members, serverId, user?.id)?.displayName
   )
   return name ?? user?.displayName ?? user?.username
 }

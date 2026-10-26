@@ -4,6 +4,7 @@ import { Permission, hasPermission, permsToBigInt, ALL_PERMISSIONS, type Role } 
 import { useMemberStore, getTopRole } from '@/stores/member.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
+import { findMember } from '@/lib/memberIndex'
 
 const EMPTY_ROLES: Role[] = []
 
@@ -11,7 +12,7 @@ export function usePermissions(serverId?: string | null) {
   const userId = useAuthStore((s) => s.user?.id)
   const ownerId = useServerStore((s) => s.servers.find((sv) => sv.id === serverId)?.ownerId)
   const { memberExists, roles } = useMemberStore(useShallow((s) => {
-    const member = s.members.find((m) => m.userId === userId && m.serverId === serverId)
+    const member = findMember(s.members, serverId, userId)
     return { memberExists: !!member, roles: member?.roles ?? EMPTY_ROLES }
   }))
 
