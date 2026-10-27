@@ -139,7 +139,7 @@ export function AdminDashboard() {
               {tab === 'webhooks' && <WebhooksTab />}
               {tab === 'storage' && <StorageTab />}
               {tab === 'push' && <PushTab users={users} />}
-              {tab === 'deleted' && <DeletedMessagesTab />}
+              {tab === 'deleted' && <DeletedMessagesTab onReview={() => setTab('storage')} />}
             </div>
           )}
         </main>

@@ -262,7 +262,7 @@ export class ForumPostsService {
 
     await this.prisma.message.update({
       where: { id: postId },
-      data: { deleted: true, content: null, title: null }
+      data: { deleted: true, deletedAt: new Date(), content: null, title: null }
     })
 
     this.events.emit('forum:post:deleted', { channelId, serverId: channel.serverId, postId })

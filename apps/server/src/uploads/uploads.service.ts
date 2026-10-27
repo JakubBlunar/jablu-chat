@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AttachmentType } from '../prisma-client'
 import { existsSync, mkdirSync } from 'fs';
-import { unlink, writeFile } from 'node:fs/promises'
+import { unlink, writeFile, utimes } from 'node:fs/promises'
 import { extname, join, resolve, sep } from 'path';
 import sharp from 'sharp';
 import { randomUUID } from 'node:crypto'
@@ -270,7 +270,11 @@ export class UploadsService {
     const filename = `${safeKey}.webp`;
     const dest = join(this.uploadDir, 'activity-icons', filename);
     const url = `/api/uploads/activity-icons/${filename}`;
-    if (existsSync(dest)) return url;
+    if (existsSync(dest)) {
+      const now = new Date();
+      await utimes(dest, now, now);
+      return url;
+    }
 
     await this.processImage(dest, () => sharp(buffer)
       .resize(64, 64, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })

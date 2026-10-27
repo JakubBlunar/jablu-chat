@@ -585,7 +585,7 @@ export class DmService {
 
     await this.prisma.message.update({
       where: { id: messageId },
-      data: { deleted: true, content: null }
+      data: { deleted: true, deletedAt: new Date(), content: null }
     })
 
     return { id: messageId, deleted: true }

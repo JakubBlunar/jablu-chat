@@ -225,17 +225,17 @@ All configuration is done through a single `.env` file. Run `./setup.sh` to gene
 
 Key variables:
 
-| Variable            | Description                             |
-| ------------------- | --------------------------------------- |
-| `SERVER_HOST`       | Public IP or domain                     |
-| `TLS_MODE`          | `off`, `self-signed`, or `letsencrypt`  |
-| `REGISTRATION_MODE` | `open` or `invite`                      |
-| `LIVEKIT_URL`       | WebSocket URL for voice/video           |
-| `SMTP_*`            | Email settings for password resets      |
-| `VAPID_*`           | Web Push notification keys              |
-| `GIPHY_API_KEY`     | Optional — enables GIF picker           |
-| `STORAGE_LIMIT_GB`  | Disk usage warning threshold            |
-| `CLEANUP_ENABLED`   | Enable automatic old attachment cleanup |
+| Variable            | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| `SERVER_HOST`       | Public IP or domain                                     |
+| `TLS_MODE`          | `off`, `self-signed`, or `letsencrypt`                  |
+| `REGISTRATION_MODE` | `open` or `invite`                                      |
+| `LIVEKIT_URL`       | WebSocket URL for voice/video                           |
+| `SMTP_*`            | Email settings for password resets                      |
+| `VAPID_*`           | Web Push notification keys                              |
+| `GIPHY_API_KEY`     | Optional — enables GIF picker                           |
+| `STORAGE_LIMIT_GB`  | Disk usage warning threshold                            |
+| `CLEANUP_ENABLED`   | Enable periodic reports; deletion is manually confirmed |
 
 ---
 

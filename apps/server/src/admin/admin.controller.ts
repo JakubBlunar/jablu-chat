@@ -6,6 +6,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpException,
   HttpStatus,
   NotFoundException,
   Param,
@@ -588,18 +589,26 @@ export class AdminController {
 
   @Post('storage/audit')
   @UseGuards(AdminAuthGuard)
-  async runAudit() {
-    const audit = await this.cleanup.runAudit()
+  async runAudit(@Query('mode') mode: 'pressure' | 'deleted' | 'logs' = 'pressure') {
+    const audit = await this.cleanup.runAudit(mode)
     return serializeAudit(audit as unknown as Record<string, unknown>)
   }
 
+  @Get('storage/audits/:id/items')
+  @UseGuards(AdminAuthGuard)
+  async getAuditItems(@Param('id', ParseUUIDPipe) id: string, @Query('after') after?: string) {
+    return this.cleanup.getAuditItems(id, after === undefined ? -1 : Number(after))
+  }
+
   @Post('storage/cleanup/:id')
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseGuards(AdminAuthGuard)
   async executeCleanup(@Param('id', ParseUUIDPipe) id: string) {
     try {
-      const audit = await this.cleanup.executeCleanup(id)
+      const audit = await this.cleanup.startCleanup(id)
       return serializeAudit(audit as unknown as Record<string, unknown>)
     } catch (err) {
+      if (err instanceof HttpException) throw err
       throw new BadRequestException(err instanceof Error ? err.message : 'Cleanup failed')
     }
   }
@@ -608,11 +617,7 @@ export class AdminController {
   @UseGuards(AdminAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteAudit(@Param('id', ParseUUIDPipe) id: string) {
-    try {
-      await this.cleanup.deleteAudit(id)
-    } catch {
-      throw new NotFoundException('Audit not found')
-    }
+    await this.cleanup.deleteAudit(id)
   }
 
   // ─── Stats ──────────────────────────────────────────────
@@ -811,7 +816,7 @@ export class AdminController {
     if (!msg) throw new NotFoundException('Message not found')
     await this.prisma.message.update({
       where: { id },
-      data: { deleted: true, content: null }
+      data: { deleted: true, deletedAt: new Date(), content: null }
     })
     if (msg.channelId) {
       this.events.emit('admin:message:delete', { messageId: id, channelId: msg.channelId })
@@ -843,42 +848,7 @@ export class AdminController {
   @Post('messages/purge-deleted')
   @UseGuards(AdminAuthGuard)
   async purgeDeletedMessages() {
-    let purgedMessages = 0
-    let purgedAttachments = 0
-    let freedBytes = 0
-    const batchSize = 100
-
-    while (true) {
-      const batch = await this.prisma.message.findMany({
-        where: { deleted: true },
-        take: batchSize,
-        select: {
-          id: true,
-          attachments: {
-            select: { url: true, thumbnailUrl: true, sizeBytes: true }
-          }
-        }
-      })
-
-      if (batch.length === 0) break
-
-      for (const msg of batch) {
-        for (const att of msg.attachments) {
-          this.uploads.deleteFile(att.url)
-          if (att.thumbnailUrl) this.uploads.deleteFile(att.thumbnailUrl)
-          freedBytes += att.sizeBytes
-          purgedAttachments++
-        }
-      }
-
-      await this.prisma.message.deleteMany({
-        where: { id: { in: batch.map((m) => m.id) } }
-      })
-
-      purgedMessages += batch.length
-    }
-
-    return { purgedMessages, purgedAttachments, freedBytes }
+    throw new BadRequestException('Prepare a deleted-message audit in Storage and execute that reviewed plan')
   }
 
   // ─── Webhooks Management ─────────────────────────────────

@@ -1,111 +1,86 @@
+import { Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { SchedulerRegistry } from '@nestjs/schedule'
 import { CleanupService } from './cleanup.service'
-import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 
-describe('CleanupService', () => {
-  let service: CleanupService
-  let prisma: MockPrismaService
-  let uploads: { getUploadDir: jest.Mock; deleteFile: jest.Mock }
-  let config: { get: jest.Mock }
-  let scheduler: { addCronJob: jest.Mock }
-
-  beforeEach(() => {
-    prisma = createMockPrismaService()
-    uploads = {
-      getUploadDir: jest.fn().mockReturnValue('/tmp/uploads'),
-      deleteFile: jest.fn()
-    }
-    config = {
-      get: jest.fn((key: string, defaultValue: unknown) => {
-        const values: Record<string, unknown> = {
-          STORAGE_LIMIT_GB: 100,
-          CLEANUP_MIN_AGE_DAYS: 30,
-          CLEANUP_ORPHAN_HOURS: 24,
-          CLEANUP_DELETE_MESSAGES: 'true',
-          CLEANUP_SKIP_ARCHIVED: 'true',
-          CLEANUP_ENABLED: 'false'
-        }
-        return values[key] ?? defaultValue
-      })
-    }
-    scheduler = { addCronJob: jest.fn() }
-
-    service = new CleanupService(
-      prisma as any,
-      uploads as any,
-      config as unknown as ConfigService,
+describe('Cleanup configuration and scheduling contracts', () => {
+  const scheduler = { addCronJob: jest.fn() }
+  const build = (values: Record<string, unknown> = {}) =>
+    new CleanupService(
+      {} as never,
+      { getUploadDir: () => '/cleanup-fixture/uploads' } as never,
+      new ConfigService(values),
       scheduler as unknown as SchedulerRegistry
     )
+  afterEach(() => {
+    jest.restoreAllMocks()
+    scheduler.addCronJob.mockClear()
   })
 
-  it('classifies old forum posts separately in audit totals', async () => {
-    jest.spyOn(service, 'calculateDirSize').mockResolvedValue(1024)
-    jest.spyOn(service as any, 'scanDiskOrphans').mockResolvedValue({ count: 1, bytes: 10 })
+  it.each([
+    ['STORAGE_LIMIT_GB', 0],
+    ['STORAGE_LIMIT_GB', -1],
+    ['STORAGE_LIMIT_GB', ''],
+    ['STORAGE_LIMIT_GB', 'invalid'],
+    ['STORAGE_LIMIT_GB', Infinity],
+    ['STORAGE_LIMIT_GB', Number.MAX_VALUE],
+    ['CLEANUP_MIN_AGE_DAYS', -1],
+    ['CLEANUP_MIN_AGE_DAYS', 0],
+    ['CLEANUP_ORPHAN_HOURS', -1],
+    ['CLEANUP_TARGET_PERCENT', 0],
+    ['CLEANUP_TARGET_PERCENT', 101],
+    ['CLEANUP_MAX_ITEMS', 0],
+    ['CLEANUP_MAX_ITEMS', 1.5],
+    ['CLEANUP_DELETE_MESSAGES', 'yes'],
+    ['CLEANUP_SKIP_ARCHIVED', 'no'],
+    ['CLEANUP_PROTECT_PINNED', ''],
+    ['CLEANUP_ENABLED', 'TRUE']
+  ])('rejects unsafe configuration %s=%s', (key, value) => expect(() => build({ [key]: value })).toThrow())
 
-    prisma.attachment.findMany
-      .mockResolvedValueOnce([{ sizeBytes: 5 }])
-      .mockResolvedValueOnce([{ sizeBytes: 7 }])
-
-    prisma.message.findMany
-      .mockResolvedValueOnce([
-        {
-          id: 'forum-post-1',
-          attachments: [{ sizeBytes: 11 }],
-          threadMessages: [{ attachments: [{ sizeBytes: 13 }] }]
-        }
-      ])
-      .mockResolvedValueOnce([{ id: 'msg-1', attachments: [{ sizeBytes: 17 }] }])
-
-    prisma.storageAudit.create.mockResolvedValue({ id: 'audit-1' })
-
-    await service.runAudit()
-
-    expect(prisma.storageAudit.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        forumPostCount: 1,
-        forumPostBytes: BigInt(24),
-        messageCount: 1,
-        messageBytes: BigInt(17),
-        totalFreeable: BigInt(63)
-      })
-    })
-
-    const [, oldMessagesCall] = prisma.message.findMany.mock.calls
-    expect(oldMessagesCall[0].where.OR).toEqual([{ channelId: null }, { channel: { type: { not: 'forum' } } }])
+  it('accepts numeric environment strings and safe defaults', () => {
+    expect(() => build({ STORAGE_LIMIT_GB: '100', CLEANUP_MIN_AGE_DAYS: '90' })).not.toThrow()
   })
-
-  it('runs cleanup phases in order including forum phase', async () => {
-    prisma.storageAudit.findUnique.mockResolvedValue({ id: 'audit-1', status: 'completed' })
-    prisma.storageAudit.update.mockResolvedValue({ id: 'audit-1', status: 'executed' })
-    jest.spyOn(service as any, 'currentSize').mockResolvedValue(1_000_000_000_000)
-
-    const order: string[] = []
-    jest.spyOn(service as any, 'cleanOrphanedAttachments').mockImplementation(async () => {
-      order.push('orphans')
-      return 1
-    })
-    jest.spyOn(service as any, 'cleanDiskOrphans').mockImplementation(async () => {
-      order.push('disk')
-      return 2
-    })
-    jest.spyOn(service as any, 'cleanOldAttachments').mockImplementation(async () => {
-      order.push('attachments')
-      return 3
-    })
-    jest.spyOn(service as any, 'cleanOldForumPosts').mockImplementation(async () => {
-      order.push('forum')
-      return 4
-    })
-    jest.spyOn(service as any, 'cleanOldMessages').mockImplementation(async () => {
-      order.push('messages')
-      return 5
-    })
-    const finalizeSpy = jest.spyOn(service as any, 'finalizeAudit').mockResolvedValue({ id: 'audit-1' })
-
-    await service.executeCleanup('audit-1')
-
-    expect(order).toEqual(['orphans', 'disk', 'attachments', 'forum', 'messages'])
-    expect(finalizeSpy).toHaveBeenCalledWith('audit-1', 15)
+  it('rejects overlapping accounting roots', () => {
+    expect(() => build({ STORAGE_EXTRA_DIRS: '/cleanup-fixture/uploads/nested' })).toThrow('overlap')
+    expect(() => build({ CLEANUP_LOG_ARCHIVE_DIR: '/cleanup-fixture' })).toThrow('overlap')
+  })
+  it('does not schedule audits by default', () => {
+    build().onModuleInit()
+    expect(scheduler.addCronJob).not.toHaveBeenCalled()
+  })
+  it('registers only the report job when explicitly enabled', async () => {
+    const service = build({ CLEANUP_ENABLED: 'true' })
+    service.onModuleInit()
+    const [name, job] = scheduler.addCronJob.mock.calls[0]
+    expect(name).toBe('storage-audit')
+    await job.stop()
+  })
+  it('scheduled work only audits, including error handling', async () => {
+    const service = build(),
+      audit = jest.spyOn(service, 'runAudit').mockResolvedValue({} as never)
+    const execute = jest.spyOn(service, 'executeCleanup')
+    await (service as any).runScheduledAudit()
+    expect(audit).toHaveBeenCalledTimes(1)
+    expect(execute).not.toHaveBeenCalled()
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {})
+    audit.mockRejectedValue(new Error('DB failure'))
+    await expect((service as any).runScheduledAudit()).resolves.toBeUndefined()
+    expect(log).toHaveBeenCalled()
+  })
+  it('guards the storage and deleted-message endpoints', async () => {
+    const { AdminController } = await import('../admin/admin.controller')
+    const { AdminAuthGuard } = await import('../admin/admin-auth.guard')
+    for (const method of [
+      'getStorageStats',
+      'listAudits',
+      'runAudit',
+      'getAuditItems',
+      'executeCleanup',
+      'deleteAudit',
+      'purgeDeletedMessages'
+    ]) {
+      expect(Reflect.getMetadata('__guards__', (AdminController.prototype as any)[method])).toContain(AdminAuthGuard)
+    }
+    await expect(Object.create(AdminController.prototype).purgeDeletedMessages()).rejects.toThrow('reviewed plan')
   })
 })

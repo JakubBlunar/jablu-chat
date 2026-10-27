@@ -51,6 +51,28 @@ export type StorageAudit = {
   executedAt: string | null
   freedBytes: string | null
   createdAt: string
+  planVersion?: number
+  mode?: 'pressure' | 'deleted' | 'logs'
+  expiresAt?: string | null
+  afterSizeBytes?: string | null
+  targetBytes?: string | null
+  stopReason?: string | null
+  error?: string | null
+  planLimited?: boolean
+  processedItems?: number
+  canDismiss?: boolean
+  canResume?: boolean
+  affectedMessages?: number
+  affectedAttachments?: number
+  policy?: {
+    deleteMessages: boolean
+    skipArchived: boolean
+    protectPinned: boolean
+    age: string
+    orphan: string
+    deleted: string
+    logs: string
+  }
 }
 
 export type StorageStats = {
@@ -65,9 +87,16 @@ export type StorageStats = {
   attachmentCount: number
   messageCount: number
   orphanedAttachments: number
+  databaseBytes: number
+  extraBytes: number
+  logBytes: number
+  totalBytes: number
+  targetBytes: number
+  scope: string
 }
 
-export type Tab = 'servers' | 'users' | 'invites' | 'audit' | 'stats' | 'moderation' | 'webhooks' | 'storage' | 'push' | 'deleted'
+export type Tab =
+  'servers' | 'users' | 'invites' | 'audit' | 'stats' | 'moderation' | 'webhooks' | 'storage' | 'push' | 'deleted'
 
 export type AdminMessage = {
   id: string

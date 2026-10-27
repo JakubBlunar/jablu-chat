@@ -39,8 +39,12 @@ For 20+ concurrent users with voice/video, 4 cores and 8 GB RAM is recommended.
 ## Disk Management
 
 The built-in Storage Audit & Cleanup system (Admin Panel > Storage tab) lets you monitor
-disk usage and selectively delete old attachments. Configure the storage limit via
-`STORAGE_LIMIT_GB` in `.env`. Enable automatic periodic audits with `CLEANUP_ENABLED=true`.
+Jablu's own storage budget and review cleanup before deleting old data. Configure
+the soft budget via `STORAGE_LIMIT_GB` in `.env`. Uploads continue above this budget;
+cleanup starts only after you review and confirm an audit. `CLEANUP_ENABLED=true`
+enables periodic reports, never automatic deletion. See
+[storage cleanup operations](STORAGE_CLEANUP.md) for accounting, protection rules,
+retention scopes, migration and recovery.
 
 Without cleanup, media uploads can consume ~6-24 GB/year for images and ~12-60 GB/year
 for videos, depending on usage. The 200 GB NVMe on the VPS S plan provides plenty of
@@ -626,37 +630,37 @@ du -sh /var/lib/docker/volumes/*
 
 ## Environment Variables Reference
 
-| Variable                  | Default                  | Description                            |
-| ------------------------- | ------------------------ | -------------------------------------- |
-| `SERVER_HOST`             | `192.168.1.100`          | Public IP or domain                    |
-| `TLS_MODE`                | `off`                    | `off`, `self-signed`, or `letsencrypt` |
-| `PORT`                    | `3001`                   | Internal API port                      |
-| `POSTGRES_USER`           | `chat`                   | Database user                          |
-| `POSTGRES_PASSWORD`       | (generated)              | Database password                      |
-| `DATABASE_URL`            | (generated)              | Full PostgreSQL connection string      |
-| `REDIS_URL`               | `redis://redis:6379`     | Redis connection                       |
-| `JWT_SECRET`              | (generated)              | Access token signing key               |
-| `JWT_REFRESH_SECRET`      | (generated)              | Refresh token signing key              |
-| `LIVEKIT_API_KEY`         | (generated)              | LiveKit auth key                       |
-| `LIVEKIT_API_SECRET`      | (generated)              | LiveKit auth secret                    |
-| `LIVEKIT_URL`             | `ws://localhost/livekit` | LiveKit WebSocket URL                  |
-| `REGISTRATION_MODE`       | `open`                   | `open` or `invite`                     |
-| `SUPERADMIN_USERNAME`     | (set manually)           | Admin panel username                   |
-| `SUPERADMIN_PASSWORD`     | (set manually)           | Admin panel password                   |
-| `UPLOAD_DIR`              | `/data/uploads`          | File storage path                      |
-| `MAX_UPLOAD_SIZE_MB`      | `50`                     | Max file upload size                   |
-| `UPDATES_DIR`             | `/data/updates`          | Desktop app update artifacts           |
-| `STORAGE_LIMIT_GB`        | `100`                    | Storage warning threshold              |
-| `CLEANUP_ENABLED`         | `false`                  | Enable periodic storage audits         |
-| `CLEANUP_CRON`            | `0 3 * * *`              | Audit schedule (cron syntax)           |
-| `CLEANUP_MIN_AGE_DAYS`    | `30`                     | Minimum age for cleanup eligibility    |
-| `CLEANUP_DELETE_MESSAGES` | `false`                  | Allow deleting entire messages         |
-| `CLEANUP_ORPHAN_HOURS`    | `24`                     | Age threshold for orphaned uploads     |
-| `SMTP_HOST`               | `mailpit`                | SMTP server                            |
-| `SMTP_PORT`               | `1025`                   | SMTP port                              |
-| `SMTP_USER`               | (empty)                  | SMTP username                          |
-| `SMTP_PASS`               | (empty)                  | SMTP password                          |
-| `SMTP_FROM`               | `noreply@chat.local`     | From address for emails                |
+| Variable                  | Default                  | Description                                  |
+| ------------------------- | ------------------------ | -------------------------------------------- |
+| `SERVER_HOST`             | `192.168.1.100`          | Public IP or domain                          |
+| `TLS_MODE`                | `off`                    | `off`, `self-signed`, or `letsencrypt`       |
+| `PORT`                    | `3001`                   | Internal API port                            |
+| `POSTGRES_USER`           | `chat`                   | Database user                                |
+| `POSTGRES_PASSWORD`       | (generated)              | Database password                            |
+| `DATABASE_URL`            | (generated)              | Full PostgreSQL connection string            |
+| `REDIS_URL`               | `redis://redis:6379`     | Redis connection                             |
+| `JWT_SECRET`              | (generated)              | Access token signing key                     |
+| `JWT_REFRESH_SECRET`      | (generated)              | Refresh token signing key                    |
+| `LIVEKIT_API_KEY`         | (generated)              | LiveKit auth key                             |
+| `LIVEKIT_API_SECRET`      | (generated)              | LiveKit auth secret                          |
+| `LIVEKIT_URL`             | `ws://localhost/livekit` | LiveKit WebSocket URL                        |
+| `REGISTRATION_MODE`       | `open`                   | `open` or `invite`                           |
+| `SUPERADMIN_USERNAME`     | (set manually)           | Admin panel username                         |
+| `SUPERADMIN_PASSWORD`     | (set manually)           | Admin panel password                         |
+| `UPLOAD_DIR`              | `/data/uploads`          | File storage path                            |
+| `MAX_UPLOAD_SIZE_MB`      | `50`                     | Max file upload size                         |
+| `UPDATES_DIR`             | `/data/updates`          | Desktop app update artifacts                 |
+| `STORAGE_LIMIT_GB`        | `100`                    | Storage warning threshold                    |
+| `CLEANUP_ENABLED`         | `false`                  | Enable periodic storage audits               |
+| `CLEANUP_CRON`            | `0 3 * * *`              | Audit schedule (cron syntax)                 |
+| `CLEANUP_MIN_AGE_DAYS`    | `90`                     | Minimum inactive age for cleanup eligibility |
+| `CLEANUP_DELETE_MESSAGES` | `false`                  | Allow deleting entire messages               |
+| `CLEANUP_ORPHAN_HOURS`    | `24`                     | Age threshold for orphaned uploads           |
+| `SMTP_HOST`               | `mailpit`                | SMTP server                                  |
+| `SMTP_PORT`               | `1025`                   | SMTP port                                    |
+| `SMTP_USER`               | (empty)                  | SMTP username                                |
+| `SMTP_PASS`               | (empty)                  | SMTP password                                |
+| `SMTP_FROM`               | `noreply@chat.local`     | From address for emails                      |
 
 ---
 

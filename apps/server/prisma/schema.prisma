@@ -410,6 +410,7 @@ model Message {
   content                String?
   pinned                 Boolean  @default(false)
   deleted                Boolean  @default(false)
+  deletedAt              DateTime? @map("deleted_at")
   isLocked               Boolean  @default(false) @map("is_locked")
   webhookId              String?  @map("webhook_id")
   webhookName            String?  @map("webhook_name")
@@ -453,6 +454,8 @@ model Message {
   @@index([threadParentId])
   @@index([authorId])
   @@index([forwardedFromId])
+  @@index([createdAt, id])
+  @@index([deleted, deletedAt, id])
   @@map("messages")
 }
 
@@ -510,6 +513,7 @@ model Attachment {
 
   @@index([messageId])
   @@index([uploaderId])
+  @@index([createdAt, id])
   @@map("attachments")
 }
 
@@ -756,8 +760,41 @@ model StorageAudit {
   executedAt      DateTime? @map("executed_at")
   freedBytes      BigInt?   @map("freed_bytes")
   createdAt       DateTime  @default(now()) @map("created_at")
+  planVersion     Int       @default(0) @map("plan_version")
+  mode            String    @default("pressure")
+  policy          Json      @default("{}")
+  expiresAt       DateTime? @map("expires_at")
+  afterSizeBytes  BigInt?   @map("after_size_bytes")
+  targetBytes     BigInt?   @map("target_bytes")
+  stopReason      String?   @map("stop_reason")
+  error           String?
+  planLimited     Boolean   @default(false) @map("plan_limited")
+  processedItems  Int       @default(0) @map("processed_items")
+  affectedMessages Int      @default(0) @map("affected_messages")
+  affectedAttachments Int   @default(0) @map("affected_attachments")
+  items           StorageCleanupItem[]
+
+  @@index([createdAt])
 
   @@map("storage_audits")
+}
+
+model StorageCleanupItem {
+  id         String   @id @default(uuid())
+  auditId    String   @map("audit_id")
+  sequence   Int
+  kind       String
+  sourceId   String?  @map("source_id")
+  snapshot   Json
+  files      Json
+  status     String   @default("pending")
+  freedBytes BigInt   @default(0) @map("freed_bytes")
+  error      String?
+  audit      StorageAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, sequence])
+  @@index([status])
+  @@map("storage_cleanup_items")
 }
 
 model UserVolumeSetting {
