@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common'
-import * as fs from 'fs'
-import ffprobe from 'ffprobe'
+import * as fs from 'node:fs/promises'
+import { probeVideo } from './video-metadata'
 import { AttachmentType } from '../prisma-client'
 import { UploadsService } from './uploads.service'
 
@@ -10,6 +10,7 @@ jest.mock('fs', () => ({
   writeFileSync: jest.fn(),
   unlinkSync: jest.fn(),
 }))
+jest.mock('node:fs/promises', () => ({ writeFile: jest.fn().mockResolvedValue(undefined), unlink: jest.fn().mockResolvedValue(undefined) }))
 
 jest.mock('sharp', () => {
   const instance = {
@@ -25,7 +26,7 @@ jest.mock('sharp', () => {
   return { __esModule: true, default: sharpFn, _instance: instance }
 })
 
-jest.mock('ffprobe', () => jest.fn())
+jest.mock('./video-metadata', () => ({ probeVideo: jest.fn() }))
 jest.mock('ffprobe-static', () => ({ path: '/mock/ffprobe' }))
 
 jest.mock('node:crypto', () => ({
@@ -77,6 +78,27 @@ describe('UploadsService', () => {
   })
 
   describe('saveAttachment', () => {
+    it('removes originals and partial previews after a processing failure', async () => {
+      const sharp = jest.requireMock('sharp')._instance
+      sharp.toFile.mockRejectedValueOnce(Error('thumbnail failed'))
+      await expect(service.saveAttachment(makeFile())).rejects.toThrow('thumbnail failed')
+      expect(fs.unlink).toHaveBeenCalledTimes(2)
+      expect(service.getWorkState().processing).toEqual({ active: 0, queued: 0 })
+    })
+
+    it('cleans up a completed preview if the upload was cancelled during processing', async () => {
+      const abort = new AbortController()
+      const sharp = jest.requireMock('sharp')._instance
+      sharp.toFile.mockImplementationOnce(async () => { abort.abort(); return { width: 800, height: 600 } })
+      await expect(service.saveAttachment(makeFile(), abort.signal)).rejects.toThrow()
+      expect(fs.unlink).toHaveBeenCalledTimes(2)
+    })
+
+    it('removes a partially written original when asynchronous writing fails', async () => {
+      ;(fs.writeFile as jest.Mock).mockRejectedValueOnce(Error('disk full'))
+      await expect(service.saveAttachment(makeFile({ mimetype: 'application/pdf', originalname: 'a.pdf' }))).rejects.toThrow('disk full')
+      expect(fs.unlink).toHaveBeenCalledTimes(1)
+    })
     it('rejects files exceeding size limit', async () => {
       const file = makeFile({ size: 11 * 1024 * 1024 })
 
@@ -139,7 +161,7 @@ describe('UploadsService', () => {
     })
 
     it('classifies video correctly', async () => {
-      const ffMock = ffprobe as unknown as jest.Mock
+      const ffMock = probeVideo as jest.Mock
       ffMock.mockResolvedValue({ streams: [{ codec_type: 'video', width: 1920, height: 1080 }] })
 
       const file = makeFile({ mimetype: 'video/mp4', originalname: 'clip.mp4' })
@@ -151,7 +173,7 @@ describe('UploadsService', () => {
     })
 
     it('returns null dimensions when ffprobe fails for video', async () => {
-      const ffMock = ffprobe as unknown as jest.Mock
+      const ffMock = probeVideo as jest.Mock
       ffMock.mockRejectedValue(new Error('ffprobe missing'))
 
       const file = makeFile({ mimetype: 'video/mp4', originalname: 'clip.mp4' })
@@ -179,21 +201,21 @@ describe('UploadsService', () => {
   })
 
   describe('deleteFile', () => {
-    const unlinkSync = fs.unlinkSync as unknown as jest.Mock
+    const unlinkFile = fs.unlink as unknown as jest.Mock
 
-    it('deletes a file within the upload directory', () => {
-      service.deleteFile('/api/uploads/attachments/test.png')
-      expect(unlinkSync).toHaveBeenCalled()
+    it('deletes a file within the upload directory', async () => {
+      await service.deleteFile('/api/uploads/attachments/test.png')
+      expect(unlinkFile).toHaveBeenCalled()
     })
 
-    it('does NOT delete when path escapes upload directory', () => {
-      service.deleteFile('/api/uploads/../../etc/passwd')
-      expect(unlinkSync).not.toHaveBeenCalled()
+    it('does NOT delete when path escapes upload directory', async () => {
+      await service.deleteFile('/api/uploads/../../etc/passwd')
+      expect(unlinkFile).not.toHaveBeenCalled()
     })
 
-    it('does not throw when file does not exist', () => {
-      unlinkSync.mockImplementationOnce(() => { throw new Error('ENOENT') })
-      expect(() => service.deleteFile('/api/uploads/attachments/missing.png')).not.toThrow()
+    it('does not throw when file does not exist', async () => {
+      unlinkFile.mockRejectedValueOnce(new Error('ENOENT'))
+      await expect(service.deleteFile('/api/uploads/attachments/missing.png')).resolves.toBeUndefined()
     })
   })
 })

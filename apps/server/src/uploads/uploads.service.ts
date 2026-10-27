@@ -1,18 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AttachmentType } from '../prisma-client'
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
-import { extname, join, resolve } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { unlink, writeFile } from 'node:fs/promises'
+import { extname, join, resolve, sep } from 'path';
 import sharp from 'sharp';
 import { randomUUID } from 'node:crypto'
+import { UploadWorkLimiter } from './upload-work-limiter'
+import { probeVideo } from './video-metadata'
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ffprobe = require('ffprobe') as (
-  filePath: string,
-  opts: { path: string },
-) => Promise<{ streams?: { codec_type?: string; width?: number; height?: number }[] }>;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ffprobePath: string = require('ffprobe-static').path;
 
 const IMAGE_MIMES = new Set([
   'image/jpeg',
@@ -47,6 +43,17 @@ const THUMB_SIZE = 896;
 export class UploadsService {
   private readonly uploadDir: string;
   private readonly maxSizeMb: number;
+  private readonly uploads = new UploadWorkLimiter(4, 8)
+  private readonly processing = new UploadWorkLimiter(2, 8)
+
+  acquireUpload(signal?: AbortSignal) { return this.uploads.acquire(signal) }
+  getWorkState() { return { uploads: this.uploads.state, processing: this.processing.state } }
+
+  private processImage(dest: string, work: () => Promise<unknown>) {
+    return this.processing.run(async () => {
+      try { await work() } catch (error) { await unlink(dest).catch(() => {}); throw error }
+    })
+  }
 
   constructor(private readonly config: ConfigService) {
     this.uploadDir = resolve(config.get<string>('UPLOAD_DIR', './uploads'));
@@ -75,15 +82,19 @@ export class UploadsService {
     const filename = `${randomUUID()}.${ext}`;
     const dest = join(this.uploadDir, 'avatars', filename);
 
-    await sharp(file.buffer)
+    await this.processImage(dest, () => sharp(file.buffer)
       .resize(256, 256, { fit: 'cover' })
       .webp({ quality: 85 })
-      .toFile(dest);
+      .toFile(dest));
 
     return `/api/uploads/avatars/${filename}`;
   }
 
-  async saveAttachment(file: Express.Multer.File): Promise<{
+  saveAttachment(file: Express.Multer.File, signal?: AbortSignal) {
+    return this.processing.run(() => this.processAttachment(file, signal), signal)
+  }
+
+  private async processAttachment(file: Express.Multer.File, signal?: AbortSignal): Promise<{
     url: string;
     thumbnailUrl: string | null;
     thumbnailWidth: number | null;
@@ -123,79 +134,89 @@ export class UploadsService {
     let thumbnailWidth: number | null = null;
     let thumbnailHeight: number | null = null;
 
-    if (attachType === AttachmentType.image) {
-      const isHeic = mime === 'image/heic' || mime === 'image/heif';
-      let imageBuffer = file.buffer;
+    const paths: string[] = []
+    try {
+      if (attachType === AttachmentType.image) {
+        const isHeic = mime === 'image/heic' || mime === 'image/heif';
+        let imageBuffer = file.buffer;
 
-      if (isHeic) {
-        imageBuffer = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer();
-        savedExt = '.jpg';
-        savedMime = 'image/jpeg';
-      }
+        if (isHeic) {
+          imageBuffer = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer();
+          savedExt = '.jpg';
+          savedMime = 'image/jpeg';
+        }
 
-      const meta = await sharp(imageBuffer).metadata();
-      const rotated = meta.orientation != null && meta.orientation >= 5 && meta.orientation <= 8;
-      width = (rotated ? meta.height : meta.width) ?? null;
-      height = (rotated ? meta.width : meta.height) ?? null;
+        const meta = await sharp(imageBuffer).metadata();
+        const rotated = meta.orientation != null && meta.orientation >= 5 && meta.orientation <= 8;
+        width = (rotated ? meta.height : meta.width) ?? null;
+        height = (rotated ? meta.width : meta.height) ?? null;
 
-      const savedName = `${id}${savedExt}`;
-      const dest = join(this.uploadDir, 'attachments', savedName);
-      writeFileSync(dest, imageBuffer);
+        const savedName = `${id}${savedExt}`;
+        const dest = join(this.uploadDir, 'attachments', savedName);
+        paths.push(dest)
+        await writeFile(dest, imageBuffer, { signal });
 
-      if ((meta.pages ?? 1) > 1) {
-        // Animated WebP/AVIF must keep animating just like GIF attachments.
-        attachType = AttachmentType.gif;
+        if ((meta.pages ?? 1) > 1) {
+          // Animated WebP/AVIF must keep animating just like GIF attachments.
+          attachType = AttachmentType.gif;
+        } else {
+          const thumbName = `${id}_thumb.webp`;
+          const thumbDest = join(this.uploadDir, 'thumbnails', thumbName);
+          paths.push(thumbDest)
+          const preview = await sharp(imageBuffer)
+            .rotate()
+            .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 80 })
+            .toFile(thumbDest);
+          thumbnailUrl = `/api/uploads/thumbnails/${thumbName}`;
+          thumbnailWidth = preview.width;
+          thumbnailHeight = preview.height;
+        }
       } else {
-        const thumbName = `${id}_thumb.webp`;
-        const thumbDest = join(this.uploadDir, 'thumbnails', thumbName);
-        const preview = await sharp(imageBuffer)
-          .rotate()
-          .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 80 })
-          .toFile(thumbDest);
-        thumbnailUrl = `/api/uploads/thumbnails/${thumbName}`;
-        thumbnailWidth = preview.width;
-        thumbnailHeight = preview.height;
-      }
-    } else {
-      const savedName = `${id}${savedExt}`;
-      const dest = join(this.uploadDir, 'attachments', savedName);
-      writeFileSync(dest, file.buffer);
+        const savedName = `${id}${savedExt}`;
+        const dest = join(this.uploadDir, 'attachments', savedName);
+        paths.push(dest)
+        await writeFile(dest, file.buffer, { signal });
 
-      if (attachType === AttachmentType.gif) {
-        try {
-          const meta = await sharp(file.buffer, { animated: false }).metadata();
-          width = meta.width ?? null;
-          height = meta.height ?? null;
-        } catch {
-          /* can't read gif metadata */
-        }
-      } else if (attachType === AttachmentType.video) {
-        try {
-          const info = await ffprobe(dest, { path: ffprobePath });
-          const videoStream = info.streams?.find((s) => s.codec_type === 'video');
-          if (videoStream) {
-            width = videoStream.width ?? null;
-            height = videoStream.height ?? null;
+        if (attachType === AttachmentType.gif) {
+          try {
+            const meta = await sharp(file.buffer, { animated: false }).metadata();
+            width = meta.width ?? null;
+            height = meta.height ?? null;
+          } catch {
+            /* can't read gif metadata */
           }
-        } catch {
-          /* ffprobe unavailable or failed – leave dimensions null */
+        } else if (attachType === AttachmentType.video) {
+          try {
+            const info = await probeVideo(dest, signal);
+            const videoStream = info.streams?.find((s) => s.codec_type === 'video');
+            if (videoStream) {
+              width = videoStream.width ?? null;
+              height = videoStream.height ?? null;
+            }
+          } catch {
+            /* ffprobe unavailable or failed – leave dimensions null */
+          }
         }
       }
-    }
 
-    return {
-      url: `/api/uploads/attachments/${id}${savedExt}`,
-      thumbnailUrl,
-      thumbnailWidth,
-      thumbnailHeight,
-      type: attachType,
-      mimeType: savedMime,
-      sizeBytes: file.size,
-      width,
-      height,
-      filename: file.originalname,
-    };
+      signal?.throwIfAborted()
+      return {
+        url: `/api/uploads/attachments/${id}${savedExt}`,
+        thumbnailUrl,
+        thumbnailWidth,
+        thumbnailHeight,
+        type: attachType,
+        mimeType: savedMime,
+        sizeBytes: file.size,
+        width,
+        height,
+        filename: file.originalname,
+      };
+    } catch (error) {
+      await Promise.all(paths.map(path => unlink(path).catch(() => {})))
+      throw error
+    }
   }
 
   private classifyMime(mime: string): AttachmentType {
@@ -231,10 +252,10 @@ export class UploadsService {
     const filename = `${randomUUID()}.${ext}`;
     const dest = join(this.uploadDir, 'emoji', filename);
 
-    await sharp(file.buffer)
+    await this.processImage(dest, () => sharp(file.buffer)
       .resize(128, 128, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .webp({ quality: 90 })
-      .toFile(dest);
+      .toFile(dest));
 
     return `/api/uploads/emoji/${filename}`;
   }
@@ -251,20 +272,20 @@ export class UploadsService {
     const url = `/api/uploads/activity-icons/${filename}`;
     if (existsSync(dest)) return url;
 
-    await sharp(buffer)
+    await this.processImage(dest, () => sharp(buffer)
       .resize(64, 64, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .webp({ quality: 85 })
-      .toFile(dest);
+      .toFile(dest));
 
     return url;
   }
 
-  deleteFile(urlPath: string) {
+  async deleteFile(urlPath: string) {
     const relativePath = urlPath.replace(/^\/api\/uploads\//, '');
     const fullPath = resolve(this.uploadDir, relativePath);
-    if (!fullPath.startsWith(this.uploadDir)) return;
+    if (!fullPath.startsWith(this.uploadDir + sep)) return;
     try {
-      unlinkSync(fullPath);
+      await unlink(fullPath);
     } catch {
       // file may not exist
     }

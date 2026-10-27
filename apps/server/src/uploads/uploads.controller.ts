@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Res,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -18,6 +19,7 @@ import { extname, resolve } from 'path';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadsService } from './uploads.service';
+import { UploadAdmissionInterceptor, type UploadRequest } from './upload-admission.interceptor'
 
 const ALLOWED_MIMETYPES = new Set([
   'image/jpeg',
@@ -94,6 +96,7 @@ export class UploadsController {
   @Post('attachments')
   @UseGuards(UnifiedAuthGuard)
   @UseInterceptors(
+    UploadAdmissionInterceptor,
     FileInterceptor('file', {
       limits: { fileSize: (parseInt(process.env.MAX_UPLOAD_SIZE_MB ?? '50', 10) || 50) * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
@@ -110,6 +113,7 @@ export class UploadsController {
   async uploadAttachment(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: { id: string },
+    @Req() request?: UploadRequest,
   ) {
     if (!file) throw new BadRequestException('No file provided');
     if (file.size > this.maxSizeBytes) {
@@ -118,25 +122,31 @@ export class UploadsController {
       );
     }
 
-    const saved = await this.uploads.saveAttachment(file);
+    const saved = await this.uploads.saveAttachment(file, request?.uploadSignal);
 
-    const attachment = await this.prisma.attachment.create({
-      data: {
-        filename: saved.filename,
-        url: saved.url,
-        type: saved.type,
-        mimeType: saved.mimeType,
-        sizeBytes: saved.sizeBytes,
-        width: saved.width,
-        height: saved.height,
-        thumbnailUrl: saved.thumbnailUrl,
-        thumbnailWidth: saved.thumbnailWidth,
-        thumbnailHeight: saved.thumbnailHeight,
-        uploaderId: user.id,
-      },
-    });
+    try {
+      const attachment = await this.prisma.attachment.create({
+        data: {
+          filename: saved.filename,
+          url: saved.url,
+          type: saved.type,
+          mimeType: saved.mimeType,
+          sizeBytes: saved.sizeBytes,
+          width: saved.width,
+          height: saved.height,
+          thumbnailUrl: saved.thumbnailUrl,
+          thumbnailWidth: saved.thumbnailWidth,
+          thumbnailHeight: saved.thumbnailHeight,
+          uploaderId: user.id,
+        },
+      });
 
-    return attachment;
+      return attachment;
+    } catch (error) {
+      await this.uploads.deleteFile(saved.url)
+      if (saved.thumbnailUrl) await this.uploads.deleteFile(saved.thumbnailUrl)
+      throw error
+    }
   }
 
   @Get('avatars/:filename')
