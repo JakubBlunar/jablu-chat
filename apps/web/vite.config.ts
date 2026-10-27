@@ -5,7 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
 import path from 'path'
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command }) => {
+  const coreScripts = new Set<string>()
+  return ({
   // The Tauri desktop shell serves the standard web build from tauri.localhost,
   // so a single base ("/") works for both web and desktop.
   base: '/',
@@ -18,6 +20,26 @@ export default defineConfig(({ command }) => ({
     __JABLU_DEV__: JSON.stringify(command === 'serve')
   },
   plugins: [
+    {
+      name: 'core-offline-shell',
+      generateBundle(_options, bundle) {
+        coreScripts.clear()
+        const visit = (name: string) => {
+          if (coreScripts.has(name)) return
+          const chunk = bundle[name]
+          if (!chunk || chunk.type !== 'chunk') return
+          coreScripts.add(name)
+          for (const dependency of chunk.imports) visit(dependency)
+        }
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk') continue
+          // Login, chat, and locale resources work offline from installation.
+          // Follow static imports only; optional features cache on first use.
+          if (chunk.isEntry || chunk.moduleIds.some(id =>
+            /\/components\/layout\/MainLayout\.tsx$/.test(id) || id.includes('/i18n/locales/'))) visit(chunk.fileName)
+        }
+      }
+    },
     react(),
     tailwindcss(),
     checker({ typescript: { tsconfigPath: './tsconfig.app.json' } }),
@@ -59,7 +81,11 @@ export default defineConfig(({ command }) => ({
         ]
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        manifestTransforms: [async entries => {
+          if (!coreScripts.size) throw new Error('Missing core offline shell graph')
+          return { manifest: entries.filter(entry => !entry.url.endsWith('.js') || coreScripts.has(entry.url)), warnings: [] }
+        }]
       },
       devOptions: {
         enabled: true,
@@ -83,7 +109,6 @@ export default defineConfig(({ command }) => ({
           : {}),
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return undefined
-          if (id.includes('react-syntax-highlighter')) return 'syntax-highlighter'
           // Let the bundler place markdown behind the authenticated layout.
           // A forced shared markdown chunk pulled its common dependencies into
           // login's graph even when no markdown component was rendered.
@@ -119,4 +144,5 @@ export default defineConfig(({ command }) => ({
       }
     }
   }
-}))
+  })
+})

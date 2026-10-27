@@ -31,7 +31,7 @@ const LeaderboardModal = React.lazy(() =>
   import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
 )
 import { UserAvatar } from '@/components/UserAvatar'
-import { VoicePanel } from '@/components/voice/VoicePanel'
+import { VoicePanel } from '@/components/voice/LazyVoicePanel'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { api } from '@/lib/api'
 import { useAppNavigate } from '@/hooks/useAppNavigate'

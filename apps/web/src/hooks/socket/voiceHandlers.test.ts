@@ -1,3 +1,5 @@
+import { waitFor } from '@testing-library/react'
+
 jest.mock('@/lib/sounds', () => ({
   playJoinSound: jest.fn(),
   playLeaveSound: jest.fn(),
@@ -128,10 +130,10 @@ describe('onVoiceParticipantState', () => {
 })
 
 describe('onVoiceMoved', () => {
-  it('joins the new voice channel for self', () => {
+  it('joins the new voice channel for self', async () => {
     handlers.onVoiceMoved({ userId: 'me', fromChannelId: 'vc1', toChannelId: 'vc2' })
 
-    expect(joinVoiceChannel).toHaveBeenCalledWith('s1', 'vc2', 'AFK Room')
+    await waitFor(() => expect(joinVoiceChannel).toHaveBeenCalledWith('s1', 'vc2', 'AFK Room'))
   })
 
   it('ignores events for other users', () => {
@@ -140,9 +142,9 @@ describe('onVoiceMoved', () => {
     expect(joinVoiceChannel).not.toHaveBeenCalled()
   })
 
-  it('falls back to "AFK" when channel not found', () => {
+  it('falls back to "AFK" when channel not found', async () => {
     handlers.onVoiceMoved({ userId: 'me', fromChannelId: 'vc1', toChannelId: 'unknown' })
 
-    expect(joinVoiceChannel).toHaveBeenCalledWith('s1', 'unknown', 'AFK')
+    await waitFor(() => expect(joinVoiceChannel).toHaveBeenCalledWith('s1', 'unknown', 'AFK'))
   })
 })

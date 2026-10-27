@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
-import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
-import { registerRoute } from 'workbox-routing'
+import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
+import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { notificationTag } from '@chat/shared'
@@ -17,6 +17,24 @@ self.addEventListener('activate', (event) => {
 
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
+
+registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html'), {
+  denylist: [/^\/api\//, /^\/socket\.io\//]
+}))
+
+// Hashed optional chunks remain available offline after their first use. Keep
+// this cache across worker updates so an existing tab can finish using its build.
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && /^\/assets\/.*\.(?:js|css)$/.test(url.pathname),
+  new CacheFirst({
+    cacheName: 'optional-feature-assets',
+    plugins: [
+      { cacheWillUpdate: async ({ response }) => response.status === 200 &&
+        /(?:javascript|text\/css)/i.test(response.headers.get('content-type') ?? '') ? response : null },
+      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 90 })
+    ]
+  })
+)
 
 // Cache MediaPipe WASM, models, and JS on first use (CacheFirst — they're versioned by path)
 registerRoute(

@@ -1,5 +1,5 @@
-jest.mock('workbox-precaching', () => ({ precacheAndRoute: jest.fn(), cleanupOutdatedCaches: jest.fn() }))
-jest.mock('workbox-routing', () => ({ registerRoute: jest.fn() }))
+jest.mock('workbox-precaching', () => ({ precacheAndRoute: jest.fn(), cleanupOutdatedCaches: jest.fn(), createHandlerBoundToURL: jest.fn() }))
+jest.mock('workbox-routing', () => ({ registerRoute: jest.fn(), NavigationRoute: jest.fn() }))
 jest.mock('workbox-strategies', () => ({ CacheFirst: jest.fn() }))
 jest.mock('workbox-expiration', () => ({ ExpirationPlugin: jest.fn() }))
 

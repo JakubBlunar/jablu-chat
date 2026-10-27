@@ -1,9 +1,13 @@
 import { playJoinSound, playLeaveSound } from '@/lib/sounds'
-import { joinVoiceChannel } from '@/lib/voiceConnect'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store'
+
+async function joinVoiceChannel(...args: Parameters<typeof import('@/lib/voiceConnect').joinVoiceChannel>) {
+  const voice = await import('@/lib/voiceConnect')
+  return voice.joinVoiceChannel(...args)
+}
 
 export function createVoiceHandlers() {
   const onVoiceParticipants = (state: Record<string, VoiceParticipant[]>) => {

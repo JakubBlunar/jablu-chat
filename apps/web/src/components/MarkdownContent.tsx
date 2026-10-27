@@ -53,13 +53,15 @@ function loadHighlighter(): Promise<void> {
   if (cachedHighlighter) return Promise.resolve()
   if (loadPromise) return loadPromise
   loadPromise = Promise.all([
-    import('react-syntax-highlighter').then((m) => {
-      cachedHighlighter = m.Prism
-    }),
-    import('react-syntax-highlighter/dist/esm/styles/prism').then((m) => {
-      cachedStyle = m.oneDark as HighlighterStyle
-    })
-  ]).then(() => {})
+    import('react-syntax-highlighter/dist/esm/prism'),
+    import('react-syntax-highlighter/dist/esm/styles/prism/one-dark')
+  ]).then(([highlighter, style]) => {
+    cachedHighlighter = highlighter.default
+    cachedStyle = style.default as HighlighterStyle
+  }).catch(error => {
+    loadPromise = null
+    throw error
+  })
   return loadPromise
 }
 
@@ -154,7 +156,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 
   useEffect(() => {
     if (cachedHighlighter) return
-    void loadHighlighter().then(() => setReady(true))
+    void loadHighlighter().then(() => setReady(true)).catch(() => {})
   }, [])
 
   const handleCopy = useCallback(() => {
