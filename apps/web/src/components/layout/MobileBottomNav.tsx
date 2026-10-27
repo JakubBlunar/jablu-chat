@@ -20,14 +20,18 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
       const element = document.activeElement
       const bounds = getVisualViewportBounds()
       const keyboardOpen = bounds?.keyboardOpen ?? false
-      if (event?.type === 'focusin') {
+      const tappedComposer =
+        event?.type === 'click' &&
+        event.target instanceof HTMLTextAreaElement &&
+        !!event.target.closest('[data-message-composer]')
+      if (event?.type === 'focusin' || tappedComposer) {
         dismissedKeyboard = false
         sawKeyboard = false
       }
       if (keyboardOpen) {
         dismissedKeyboard = false
         sawKeyboard = true
-      } else if (sawKeyboard && bounds && bounds.height >= window.innerHeight - 1) {
+      } else if (sawKeyboard && bounds && bounds.height >= bounds.layoutHeight - 1) {
         // iOS can dismiss its keyboard while keeping the textarea focused.
         sawKeyboard = false
         dismissedKeyboard = true
@@ -42,8 +46,12 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
     const onBlur = () => {
       blurTimer = setTimeout(update, 0)
     }
+    const onComposerClick = (event: MouseEvent) => {
+      if (event.target instanceof HTMLTextAreaElement && event.target.closest('[data-message-composer]')) update(event)
+    }
     document.addEventListener('focusin', update)
     document.addEventListener('focusout', onBlur)
+    document.addEventListener('click', onComposerClick)
     window.visualViewport?.addEventListener('resize', update)
     window.visualViewport?.addEventListener('scroll', update)
     window.addEventListener('resize', update)
@@ -53,6 +61,7 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
       clearTimeout(blurTimer)
       document.removeEventListener('focusin', update)
       document.removeEventListener('focusout', onBlur)
+      document.removeEventListener('click', onComposerClick)
       window.visualViewport?.removeEventListener('resize', update)
       window.visualViewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)

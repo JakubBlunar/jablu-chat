@@ -89,6 +89,35 @@ it('does not interpret pinch zoom as a keyboard or resize the shell around the z
   expect(shell).toHaveStyle({ height: '844px', top: '0px' })
 })
 
+it('hides navigation when a retained-focus composer is tapped again after keyboard dismissal', () => {
+  const { nav } = setup()
+  const input = screen.getByRole('textbox')
+  act(() => input.focus())
+  resize(500)
+  resize(844)
+  expect(input).toHaveFocus()
+  expect(nav).toBeVisible()
+  // A tap on this already-focused textarea does not dispatch another focusin.
+  fireEvent.click(input)
+  expect(nav).not.toBeVisible()
+  resize(844, 0, 'scroll')
+  expect(nav).not.toBeVisible()
+  resize(500)
+  expect(nav).not.toBeVisible()
+})
+
+it('keeps keyboard geometry when iOS reports the visual height as innerHeight while scrolling', () => {
+  jest.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(844)
+  const { shell, nav } = setup()
+  act(() => screen.getByRole('textbox').focus())
+  resize(500, 80)
+  jest.replaceProperty(window, 'innerHeight', 500)
+  resize(500, 80, 'scroll')
+  expect(nav).not.toBeVisible()
+  expect(shell).toHaveStyle({ height: '500px', top: '80px' })
+  expect(shell.style.getPropertyValue('--keyboard-safe-area-bottom')).toBe('0px')
+})
+
 it('hides navigation for a new reply even when the previous keyboard dismissal arrives at focus time', () => {
   const { nav } = setup()
   const input = screen.getByRole('textbox')

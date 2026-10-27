@@ -262,6 +262,13 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           aria-label={t('messageComposer')}
           enterKeyHint={isMobile ? 'send' : undefined}
           className="max-h-[240px] min-h-[44px] min-w-0 flex-1 resize-none bg-transparent py-3 text-base md:text-[15px] leading-snug text-gray-100 outline-none placeholder:text-gray-500 disabled:opacity-50"
+          onMouseDown={(event) => {
+            // Match reply focus: let our viewport shell move above the keyboard
+            // instead of iOS scrolling the chat's ancestors to reach the field.
+            // Run after the compatibility mouse target is chosen: doing this on
+            // touch-down moves the field before iOS's synthetic mouse-down.
+            event.currentTarget.focus({ preventScroll: true })
+          }}
           onFocus={() => setShowToolbar(true)}
           onBlur={() => setShowToolbar(false)}
           onChange={(e) => {

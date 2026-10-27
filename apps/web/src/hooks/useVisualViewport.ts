@@ -5,9 +5,13 @@ export function getVisualViewportBounds() {
   // Reflowing to a pinch-zoomed viewport would fight the user's zoom/pan.
   if (!viewport || Math.abs(viewport.scale - 1) > 0.01 || viewport.height <= 0) return null
   const height = viewport.height
-  const inset = Math.max(0, window.innerHeight - height)
+  // iOS can temporarily make innerHeight equal the visual viewport during
+  // scrolling, even with the keyboard open. The document keeps layout height.
+  const layoutHeight = document.documentElement.clientHeight || window.innerHeight
+  const inset = Math.max(0, layoutHeight - height)
   return {
     height,
+    layoutHeight,
     // Safari can retain offsetTop after dismissal. Once the viewport is full
     // height again there is no remaining space in which to offset the shell.
     top: Math.max(0, Math.min(viewport.offsetTop, inset)),
