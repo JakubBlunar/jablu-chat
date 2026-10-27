@@ -16,6 +16,7 @@ function step<T>(name: string, load: () => Promise<T>, reset: (module: T) => voi
 }
 
 const sessionCleanupSteps: SessionCleanupStep[] = [
+  step('composer draft persistence', () => import('./draft.store'), ({ flushDraftPersistence }) => { flushDraftPersistence() }),
   step(
     'voice connection',
     () => import('./voice-connection.store'),

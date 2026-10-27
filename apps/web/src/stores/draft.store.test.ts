@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto'
 import { act, renderHook } from '@testing-library/react'
-import { composerKey, useDraftStore, useHasDraft } from './draft.store'
+import { composerKey, flushDraftPersistence, useDraftStore, useHasDraft } from './draft.store'
 
 jest.mock('@/stores/auth.store', () => ({ useAuthStore: () => 'alice' }))
 jest.mock('@/stores/toast.store', () => ({ showToast: jest.fn() }))
 
 beforeEach(() => {
+  flushDraftPersistence()
   localStorage.clear()
   useDraftStore.setState({ drafts: {}, files: {}, error: false })
 })
@@ -31,12 +32,33 @@ it('restores text and reply context after a store restart', async () => {
   useDraftStore
     .getState()
     .update(key, { text: 'unsent', reply: { id: 'parent', content: 'question', authorName: 'Bob' } })
+  flushDraftPersistence()
   const saved = localStorage.getItem('jablu-drafts')!
   useDraftStore.setState({ drafts: {} })
+  flushDraftPersistence()
   localStorage.setItem('jablu-drafts', saved)
   await useDraftStore.persist.rehydrate()
   expect(useDraftStore.getState().drafts[key].text).toBe('unsent')
   expect(useDraftStore.getState().drafts[key].reply?.id).toBe('parent')
+})
+
+it('coalesces serialization and writes within 250ms, and flushes the latest text on close', () => {
+  flushDraftPersistence()
+  jest.useFakeTimers()
+  const key = composerKey('alice', 'channel', 'general')
+  const write = jest.spyOn(Storage.prototype, 'setItem')
+  const serialize = jest.spyOn(JSON, 'stringify')
+  try {
+    for (let i = 0; i < 100; i++) useDraftStore.getState().update(key, { text: `draft ${i}` })
+    expect(useDraftStore.getState().drafts[key].text).toBe('draft 99')
+    expect(write).not.toHaveBeenCalled()
+    expect(serialize).not.toHaveBeenCalled()
+    jest.advanceTimersByTime(250)
+    expect(write).toHaveBeenCalledTimes(1)
+    useDraftStore.getState().update(key, { text: 'last keystroke' })
+    window.dispatchEvent(new Event('pagehide'))
+    expect(JSON.parse(localStorage.getItem('jablu-drafts')!).state.drafts[key].text).toBe('last keystroke')
+  } finally { flushDraftPersistence(); write.mockRestore(); serialize.mockRestore(); jest.useRealTimers() }
 })
 
 it('removes the badge state only after text, reply and files are cleared', () => {

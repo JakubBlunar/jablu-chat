@@ -20,7 +20,7 @@ import { useThreadStore } from '@/stores/thread.store'
 import { usePermissions } from '@/hooks/usePermissions'
 import { XSmallIcon } from '@/components/chat/chatIcons'
 import { useComposerPrefillStore } from '@/stores/composer-prefill.store'
-import { composerKey, EMPTY_DRAFT_FILES, useDraftStore } from '@/stores/draft.store'
+import { composerKey, EMPTY_DRAFT_FILES, flushDraftPersistence, useDraftStore } from '@/stores/draft.store'
 import { OutboxActionError, useOutboxStore } from '@/stores/outbox.store'
 import { OutboxMessages } from './OutboxMessages'
 import { api } from '@/lib/api'
@@ -128,6 +128,7 @@ export function UnifiedInput({
   )
   useEffect(() => {
     void useDraftStore.getState().loadFiles(draftKey)
+    return () => { flushDraftPersistence() }
   }, [draftKey])
 
   const serverId = useChannelStore((s) =>
@@ -376,6 +377,7 @@ export function UnifiedInput({
         targetBotAppId: sendTargetBotAppId
       })
       useDraftStore.getState().update(draftKey, { text: '', reply: null, bot: null, fileCount: 0 })
+      flushDraftPersistence()
       try {
         await useDraftStore.getState().setFiles(draftKey, [])
       } catch (error) {

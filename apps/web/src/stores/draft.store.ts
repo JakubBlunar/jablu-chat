@@ -1,6 +1,8 @@
 import { useCallback } from 'react'
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
+import { coalescedJsonStorage } from '@/lib/coalescedJsonStorage'
+import { desktopAPI } from '@/lib/desktop'
 import { composerTransaction } from '@/lib/composerDb'
 import { useAuthStore } from './auth.store'
 import { showToast } from './toast.store'
@@ -29,6 +31,24 @@ type DraftState = {
   update: (key: string, patch: Partial<Draft>) => void
   setFiles: (key: string, files: File[]) => Promise<void>
   loadFiles: (key: string) => Promise<void>
+}
+
+const storage = coalescedJsonStorage<Pick<DraftState, 'drafts'>>((error) => {
+  console.error('Failed to persist composer draft', error)
+  showToast(i18next.t('chat:draft'), i18next.t('chat:draftSaveFailed'))
+}, (a, b) => a.state.drafts === b.state.drafts)
+
+export const flushDraftPersistence = () => storage.flush()
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushDraftPersistence)
+  window.addEventListener('beforeunload', flushDraftPersistence)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushDraftPersistence()
+  })
+  desktopAPI?.onWindowState(state => {
+    if (!state.visible || state.minimized) flushDraftPersistence()
+  })
 }
 
 export const useDraftStore = create<DraftState>()(
@@ -77,18 +97,7 @@ export const useDraftStore = create<DraftState>()(
     }),
     {
       name: 'jablu-drafts',
-      storage: createJSONStorage(() => ({
-        getItem: (name) => localStorage.getItem(name),
-        setItem: (name, value) => {
-          try {
-            localStorage.setItem(name, value)
-          } catch (error) {
-            console.error('Failed to persist composer draft', error)
-            showToast(i18next.t('chat:draft'), i18next.t('chat:draftSaveFailed'))
-          }
-        },
-        removeItem: (name) => localStorage.removeItem(name)
-      })),
+      storage,
       partialize: (state) => ({ drafts: state.drafts }),
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
