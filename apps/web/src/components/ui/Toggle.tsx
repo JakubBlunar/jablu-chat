@@ -2,11 +2,13 @@ export function Toggle({
   checked,
   onChange,
   disabled,
+  'aria-label': ariaLabel,
   className = ''
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   disabled?: boolean
+  'aria-label'?: string
   className?: string
 }) {
   return (
@@ -14,6 +16,7 @@ export function Toggle({
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation()

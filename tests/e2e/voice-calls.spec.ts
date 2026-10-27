@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test'
-import { loginAs } from './helpers'
+import { apiCall, createTestServer, loginAs } from './helpers'
 
 // Uses the existing local test accounts. Run against the Vite dev server,
 // API and LiveKit from docker-compose.dev.yml (no production credentials).
@@ -41,9 +41,21 @@ async function instrument(context: BrowserContext) {
   })
 }
 
-async function prepare(page: Page, role: 'admin' | 'user') {
-  await loginAs(page, role)
+async function prepare(page: Page, role: 'admin' | 'user', localServer?: { id: string; channels: { id: string }[] }) {
+  if (localServer) await page.goto(`/channels/${localServer.id}/${localServer.channels[0].id}`)
+  else await loginAs(page, role)
+  if (localServer) {
+    await expect
+      .poll(() =>
+        page.evaluate(async (serverId) => {
+          const { useMemberStore } = await import('/src/stores/member.store.ts')
+          return useMemberStore.getState().members.some((member: { serverId: string }) => member.serverId === serverId)
+        }, localServer.id)
+      )
+      .toBe(true)
+  }
   await page.evaluate(async () => {
+    const { i18n } = await import('/src/i18n/config.ts')
     const { useSettingsStore } = await import('/src/stores/' + 'settings.store.ts')
     useSettingsStore.setState({
       locale: 'en',
@@ -52,14 +64,17 @@ async function prepare(page: Page, role: 'admin' | 'user') {
       noiseReductionMode: 'standard',
       micMode: 'always'
     })
+    await i18n.changeLanguage('en')
   })
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  const server = await page.evaluate(async () => {
-    const { useServerStore } = await import('/src/stores/' + 'server.store.ts')
-    return useServerStore.getState().servers[0]
-  })
-  expect(server, 'Test account must belong to a server').toBeTruthy()
-  await page.getByRole('button', { name: server.name, exact: true }).first().click()
+  if (!localServer) {
+    const server = await page.evaluate(async () => {
+      const { useServerStore } = await import('/src/stores/' + 'server.store.ts')
+      return useServerStore.getState().servers[0]
+    })
+    expect(server, 'Test account must belong to a server').toBeTruthy()
+    await page.getByRole('button', { name: server.name, exact: true }).first().click()
+  }
   await expect
     .poll(() =>
       page.evaluate(async () => {
@@ -189,9 +204,13 @@ test('two callers: speaker routing, controls, metrics, reconnect, TCP and mobile
     window.RTCPeerConnection = class extends PeerConnection {
       constructor(configuration?: RTCConfiguration) {
         super(configuration)
-        this.addEventListener('icecandidate', (event) => {
-          if (event.candidate?.protocol === 'udp') event.stopImmediatePropagation()
-        }, true)
+        this.addEventListener(
+          'icecandidate',
+          (event) => {
+            if (event.candidate?.protocol === 'udp') event.stopImmediatePropagation()
+          },
+          true
+        )
       }
     }
     const addCandidate = RTCPeerConnection.prototype.addIceCandidate
@@ -335,26 +354,38 @@ test('microphone permission failure remains muted and recovers through Retry mic
   await disconnect(page)
 })
 
-test('local microphone check records standard and RNNoise audio and releases capture', async ({ context, page }) => {
+test('local microphone check records standard and RNNoise audio and releases capture', async ({
+  context,
+  page,
+  request
+}) => {
   await instrument(context)
-  await prepare(page, 'admin')
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'voice' })))
-  const dialog = page.getByRole('dialog')
-  for (const rnnoise of [false, true]) {
-    if (rnnoise) await dialog.getByRole('button', { name: 'RNNoise', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Test microphone', exact: true }).click()
-    await expect(dialog.getByRole('button', { name: 'Stop recording', exact: true })).toBeVisible()
-    await expect(dialog.getByRole('meter')).toBeVisible()
-    await expect(dialog.getByLabel('Microphone test recording')).toBeVisible({ timeout: 10000 })
-    await expect.poll(async () => (await voiceState(page)).liveCapture).toBe(0)
-    expect((await voiceState(page)).connected).toBe(false)
+  await loginAs(page, 'admin')
+  const server = await createTestServer(page, request)
+  try {
+    await prepare(page, 'admin', server)
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'voice' })))
+    const dialog = page.getByRole('dialog')
+    for (const rnnoise of [false, true]) {
+      if (rnnoise) await dialog.getByRole('button', { name: 'RNNoise', exact: true }).click()
+      await dialog.getByRole('button', { name: 'Test microphone', exact: true }).click()
+      await expect(dialog.getByRole('button', { name: 'Stop recording', exact: true })).toBeVisible()
+      await expect(dialog.getByRole('meter')).toBeVisible()
+      await expect(dialog.getByLabel('Microphone test recording')).toBeVisible({ timeout: 10000 })
+      await expect.poll(async () => (await voiceState(page)).liveCapture).toBe(0)
+      expect((await voiceState(page)).connected).toBe(false)
+    }
+  } finally {
+    await apiCall(page, 'deleteServer', server.id)
   }
 })
 
-test('live processing changes restore voice activity and preserve mute', async ({ context, page }) => {
+test('live processing changes restore voice activity and preserve mute', async ({ context, page, request }) => {
   await instrument(context)
-  const voice = await prepare(page, 'admin')
+  await loginAs(page, 'admin')
+  const server = await createTestServer(page, request)
   try {
+    const voice = await prepare(page, 'admin', server)
     await join(page, voice.name)
     await expect.poll(async () => (await voiceState(page)).microphones).toBe(1)
     await page.getByRole('button', { name: 'Audio settings', exact: true }).click()
@@ -389,7 +420,11 @@ test('live processing changes restore voice activity and preserve mute', async (
     await expect.poll(async () => (await voiceState(page)).microphones).toBe(1)
     expect((await voiceState(page)).microphoneError).toBeNull()
   } finally {
-    await disconnect(page)
-    await expect.poll(async () => (await voiceState(page)).liveCapture).toBe(0)
+    try {
+      await disconnect(page)
+      await expect.poll(async () => (await voiceState(page)).liveCapture).toBe(0)
+    } finally {
+      await apiCall(page, 'deleteServer', server.id)
+    }
   }
 })

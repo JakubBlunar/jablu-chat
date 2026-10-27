@@ -17,7 +17,29 @@ Reviewed 27 October 2026. The initial analysis is followed by the implementation
 - Phase 5 validation: TypeScript, focused lint, 24 pagination/search/media tests, and the large-list desktop/mobile browser journey passed. Updated the existing browser fixture for the current roster API and for settings dialogs that now survive responsive changes.
 - Phase 6: reaction details/tooltips share a pure identity resolver and store-binding hook. Speaker subscriptions and time-zone/time conversion helpers are outside UI modules. useMessageComposer now owns UnifiedInput's existing draft, typing, attachment, command, and submission workflow; draft/outbox stores retain persistence and delivery ownership.
 - Phase 6 validation: TypeScript, focused lint, 55 affected tests, and both local UI browser journeys passed. New tests cover independent drafts across composer identities, speaker listener cleanup, nickname/DM/unknown identity rules, command expansion, and quiet-hour conversions.
-- Phase 7: pending.
+- Phase 7: voice settings reuse ToggleRow for join and capture-processing controls. useMediaDeviceSettings, usePushToTalkCapture, useVoiceSettings, useMicrophoneLevel, and useMicrophoneTest separate permissions, device changes, binding capture, processing, and recording from rendering. Microphone operations continue through the existing serialized helpers; views receive actions rather than recorder resources.
+- Phase 7 validation: device tests cover denied/missing APIs, disappearing devices, late capture disposal, listener cleanup, and successful selection. Browser checks use synthetic media with local LiveKit for Standard/RNNoise recording, device changes, mute preservation, and capture cleanup. Physical microphone/speaker hardware is outside this validation.
+
+## Implementation results
+
+The seven batches above implement the plan below. The original source inventory, line references, and build baseline are retained as the pre-implementation audit.
+
+- Exact repeated literal className groups fell from 77 to 70. Repeated UTF-8 source bytes fell from 10,498 to 8,274, a 21.2% reduction using the same narrow AST scan on the original and final source. This counts repeated class lists of at least 60 characters, not total duplicated JSX or bundle savings.
+- ChatInputBar shrank from 960 to 379 lines; UnifiedInput from 578 to 180; create/edit channel views from 325/732 to 136/342; VoiceSettings from 718 to 348. These view sizes reflect both shared presentation and movement of behavior into separate modules; they are not net code deletion totals.
+- Shared owners now include ChannelDetailsFields, ForumSettingsFields, SuggestionList, ServerDialogs, PaginationControls, and ToggleRow. Desktop/mobile navigation share text-channel row presentation and visible-channel grouping.
+- Drafts, outbox delivery, and persisted settings remain in their existing stores. The extracted hooks coordinate feature behavior and expose state/actions; pure helpers handle completion, identity, command, and time calculations.
+
+Final verification on local development services backed by Docker:
+
+- Production build and TypeScript: passed, including the service worker build.
+- Web tests: 189 suites and 1,540 tests passed.
+- Browser journeys: eight passed without retries across composer keyboard/pointer/IME behavior, channel create/edit, responsive draft preservation, mobile navigation, desktop/touch context menus, real server settings, paginated lists, and the two voice checks above.
+- Web lint: zero errors; four warnings remain in unchanged useReadReceipts, RolePickerModal, ParticipantTile, and ScreenShareTile files. Focused lint for this phase is clean.
+- Formatting and diff whitespace checks: passed for the final phase.
+
+Final Vite asset sizes are 102.63 kB raw / 17.00 kB gzip for main CSS and 499.84 kB raw / 135.35 kB gzip for the MainLayout chunk. The original values were 102.15 / 16.93 kB and 504.07 / 135.49 kB respectively. The secondary CSS remains 9.98 / 2.09 kB. The emitted entry static JavaScript graph changed from 646,323 to 647,056 raw bytes; the authenticated MainLayout graph changed from 1,748,613 to 1,745,216 raw bytes. Graphs overlap and exclude dynamic imports, CSS, and runtime requests. This work primarily reduces source duplication and clarifies ownership; it does not produce a substantial loading-size reduction.
+
+Existing build notices remain for optional chunks over 500 kB, navHistory's mixed static/dynamic import, and the service-worker bundler option deprecation. No dependency or chunking-policy changes were needed.
 
 ## Recommendation
 
