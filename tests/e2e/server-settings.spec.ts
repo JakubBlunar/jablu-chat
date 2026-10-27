@@ -1,52 +1,8 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { existsSync, readFileSync } from 'node:fs'
-import { loginAs } from './helpers'
-
-async function createTestServer(page: Page, request: APIRequestContext) {
-  const env = Object.fromEntries(
-    ['.env', '.env.development', '.env.local'].filter(existsSync).flatMap((file) =>
-      readFileSync(file, 'utf8')
-        .split(/\r?\n/)
-        .flatMap((line) => {
-          const match = /^(SUPERADMIN_\w+)=(.*)$/.exec(line)
-          return match ? [[match[1], match[2].replace(/^["']|["']$/g, '')]] : []
-        })
-    )
-  )
-  const response = await request.post('http://localhost:3001/api/admin/login', {
-    data: {
-      username: process.env.SUPERADMIN_USERNAME ?? env.SUPERADMIN_USERNAME,
-      password: process.env.SUPERADMIN_PASSWORD ?? env.SUPERADMIN_PASSWORD
-    }
-  })
-  const auth = await response.json()
-  expect(auth.ok).toBe(true)
-  const ownerUserId = await page.evaluate(async () => {
-    const path = '/src/stores/auth.store.ts'
-    const { useAuthStore } = await import(/* @vite-ignore */ path)
-    return useAuthStore.getState().user.id
-  })
-  const created = await request.post('http://localhost:3001/api/admin/servers', {
-    headers: { 'x-admin-token': auth.token },
-    data: { name: `Settings QA ${Date.now()}`, ownerUserId }
-  })
-  expect(created.ok()).toBe(true)
-  const server = await created.json()
-  await request.post('http://localhost:3001/api/admin/logout', { headers: { 'x-admin-token': auth.token } })
-  return apiCall(page, 'get', `/api/servers/${server.id}`)
-}
+import { readFileSync } from 'node:fs'
+import { loginAs, createTestServer, apiCall } from './helpers'
 
 // The mutation test creates its own server; large lists use browser response fixtures.
-async function apiCall(page: Page, method: string, ...args: unknown[]) {
-  return page.evaluate(
-    async ({ method, args }) => {
-      const path = '/src/lib/api'
-      const { api } = await import(/* @vite-ignore */ path)
-      return api[method](...args)
-    },
-    { method, args }
-  )
-}
 
 async function english(page: Page) {
   await page.evaluate(async () => {

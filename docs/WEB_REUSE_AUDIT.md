@@ -7,7 +7,9 @@ Reviewed 27 October 2026. The initial analysis is followed by the implementation
 - Phase 1: shared controls adopted in auth alerts, channel/forum textareas, category selection, and repeated header icon actions. Added a header size to IconButton and a prominent appearance to InlineAlert.
 - Phase 1 validation: production build, focused lint, 28 auth/control tests, and the local server-settings browser journey passed. The first browser attempt had a transient fetch failure; a clean run without retries passed.
 - Test environment: SWC tests require access to the user's native cache outside the sandbox. Tests run successfully with that access; no dependency change was needed.
-- Phases 2–7: pending.
+- Phase 2: shared ChannelDetailsFields and ForumSettingsFields now render create/edit forms. useChannelDraft, useCreateChannel, and useEditChannel separate draft state and request lifecycles from the views. Cancel/reset behavior is owned by the create hook.
+- Phase 2 validation: TypeScript, focused lint, six new hook tests, and a real local browser journey passed. The journey creates/edits a forum, verifies persisted values, and checks an unobstructed mobile modal after the drawer closes; its screenshot was visually reviewed.
+- Phases 3–7: pending.
 
 ## Recommendation
 

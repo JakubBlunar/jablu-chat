@@ -1,4 +1,4 @@
-import { type Page, expect } from '@playwright/test'
+import { type Page, type APIRequestContext, expect } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -43,7 +43,9 @@ export async function navigateToFirstTextChannel(page: Page) {
 }
 
 export async function sendMessage(page: Page, content: string) {
-  const input = page.locator('[data-testid="message-input"], textarea[placeholder*="message" i], div[contenteditable="true"]').first()
+  const input = page
+    .locator('[data-testid="message-input"], textarea[placeholder*="message" i], div[contenteditable="true"]')
+    .first()
   await input.click()
   await input.fill(content)
   await page.keyboard.press('Enter')
@@ -54,4 +56,50 @@ export async function waitForMessages(page: Page, minCount = 1) {
   await expect(page.locator('[id^="msg-"]').first()).toBeVisible({ timeout: 10_000 })
   const count = await page.locator('[id^="msg-"]').count()
   expect(count).toBeGreaterThanOrEqual(minCount)
+}
+
+export async function createTestServer(page: Page, request: APIRequestContext) {
+  const env = Object.fromEntries(
+    ['.env', '.env.development', '.env.local'].filter(fs.existsSync).flatMap((file) =>
+      fs
+        .readFileSync(file, 'utf8')
+        .split(/\r?\n/)
+        .flatMap((line) => {
+          const match = /^(SUPERADMIN_\w+)=(.*)$/.exec(line)
+          return match ? [[match[1], match[2].replace(/^["']|["']$/g, '')]] : []
+        })
+    )
+  )
+  const response = await request.post('http://localhost:3001/api/admin/login', {
+    data: {
+      username: process.env.SUPERADMIN_USERNAME ?? env.SUPERADMIN_USERNAME,
+      password: process.env.SUPERADMIN_PASSWORD ?? env.SUPERADMIN_PASSWORD
+    }
+  })
+  const auth = await response.json()
+  expect(auth.ok).toBe(true)
+  const ownerUserId = await page.evaluate(async () => {
+    const path = '/src/stores/auth.store.ts'
+    const { useAuthStore } = await import(/* @vite-ignore */ path)
+    return useAuthStore.getState().user.id
+  })
+  const created = await request.post('http://localhost:3001/api/admin/servers', {
+    headers: { 'x-admin-token': auth.token },
+    data: { name: `Settings QA ${Date.now()}`, ownerUserId }
+  })
+  expect(created.ok()).toBe(true)
+  const server = await created.json()
+  await request.post('http://localhost:3001/api/admin/logout', { headers: { 'x-admin-token': auth.token } })
+  return apiCall(page, 'get', `/api/servers/${server.id}`)
+}
+
+export async function apiCall(page: Page, method: string, ...args: unknown[]) {
+  return page.evaluate(
+    async ({ method, args }) => {
+      const path = '/src/lib/api'
+      const { api } = await import(/* @vite-ignore */ path)
+      return api[method](...args)
+    },
+    { method, args }
+  )
 }
