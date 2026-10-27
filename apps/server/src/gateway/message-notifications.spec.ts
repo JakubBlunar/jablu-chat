@@ -170,6 +170,25 @@ describe('deliverChannelMessage', () => {
   })
 
   describe('replies', () => {
+    it('shares root delivery reads while preserving distinct in-app and push eligibility', async () => {
+      const { ctx, inApp, push, roles, isUserActivelyEngaged } = makeCtx(prisma, redis)
+      prisma.serverMember.findMany.mockResolvedValue([
+        { userId: 'engaged', notifLevel: 'all', user: { isBot: false } },
+        { userId: 'away', notifLevel: 'all', user: { isBot: false } },
+        { userId: 'muted', notifLevel: 'none', user: { isBot: false } },
+        { userId: 'mentions', notifLevel: 'mentions', user: { isBot: false } },
+        { userId: 'bot', notifLevel: 'all', user: { isBot: true } }
+      ])
+      isUserActivelyEngaged.mockImplementation((id: string) => id === 'engaged')
+      await deliverChannelMessage(ctx, { serverId: 'srv-1', channelId: 'ch-1', channelName: 'general', message: { id: 'root', content: 'plain' }, senderId: 'sender' })
+      await flush()
+      expect(prisma.serverMember.findMany).toHaveBeenCalledTimes(1)
+      expect(roles.getChannelPermissionsForUsers).toHaveBeenCalledTimes(1)
+      // The durable facade continues to apply its own preference policy.
+      expect(inApp.recordChannelMessage).toHaveBeenCalledWith(['engaged', 'away', 'muted', 'mentions'], expect.anything())
+      expect(push.sendToUsers).toHaveBeenCalledWith(['away', 'bot'], expect.anything())
+    })
+
     const replyMessage = {
       id: 'm-2',
       content: 'sure thing',
@@ -257,6 +276,8 @@ describe('deliverChannelMessage', () => {
       roles.getChannelPermissions.mockImplementation(async (_s: string, _c: string, uid: string) =>
         uid === 'r1' ? 0n : VIEW_AND_SEND
       )
+      roles.getChannelPermissionsForUsers.mockImplementation(async (_s: string, _c: string, ids: string[]) =>
+        new Map(ids.map(id => [id, id === 'r1' ? 0n : VIEW_AND_SEND])))
 
       await deliverChannelMessage(ctx, {
         serverId: 'srv-1',

@@ -747,6 +747,8 @@ export function registerEventListeners(gw: ChatGateway) {
       channelId: string
       message: any
       serverId?: string
+      channelName?: string
+      senderMentionPermissions?: bigint
       threadUpdate?: { parentId: string; threadCount: number }
     }) => {
       // Goes through the same delivery path as a websocket send (which emits
@@ -764,6 +766,8 @@ export function registerEventListeners(gw: ChatGateway) {
         await deliverChannelMessage(gw.messageNotificationsContext(), {
           serverId,
           channelId: payload.channelId,
+          channelName: payload.channelName,
+          senderMentionPermissions: payload.senderMentionPermissions,
           message: payload.message,
           senderId: payload.message?.author?.id ?? payload.message?.authorId ?? null,
           threadUpdate: payload.threadUpdate

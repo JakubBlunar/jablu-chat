@@ -242,6 +242,41 @@ describe('MessagesService', () => {
     })
   })
 
+  describe('operation-scoped send authorization', () => {
+    beforeEach(() => {
+      mockChannelAndMembership()
+      prisma.serverMember.findUnique.mockResolvedValue({ ...membership, mutedUntil: null, roles: [] })
+      prisma.message.findUnique.mockResolvedValue(makeMessage({ id: 'client-id' }))
+    })
+
+    it('reuses a verified context once and binds it to its channel and actor', async () => {
+      await service.withSendAuthorization(channelId, userId, async operation => {
+        await expect(service.createMessage('other-channel', userId, 'text', undefined, undefined, undefined, undefined, undefined, 'client-id', operation)).rejects.toThrow(ForbiddenException)
+        await expect(service.createMessage(channelId, 'other-user', 'text', undefined, undefined, undefined, undefined, undefined, 'client-id', operation)).rejects.toThrow(ForbiddenException)
+        expect((await service.createMessage(channelId, userId, 'text', undefined, undefined, undefined, undefined, undefined, 'client-id', operation)).replayed).toBe(true)
+        await expect(service.createMessage(channelId, userId, 'text', undefined, undefined, undefined, undefined, undefined, 'client-id', operation)).rejects.toThrow(ForbiddenException)
+      })
+      expect(prisma.channel.findUnique).toHaveBeenCalledTimes(1)
+      expect(roles.requireChannelPermission).toHaveBeenCalledTimes(1)
+      expect(roles.requireChannelPermission).toHaveBeenCalledWith(serverId, channelId, userId, expect.any(BigInt))
+    })
+
+    it('rejects forged or expired contexts without bypassing service authorization', async () => {
+      let captured!: Parameters<typeof service.createMessage>[9]
+      await service.withSendAuthorization(channelId, userId, async operation => { captured = operation })
+      await expect(service.createMessage(channelId, userId, 'text', undefined, undefined, undefined, undefined, undefined, 'client-id', captured)).rejects.toThrow(ForbiddenException)
+      const forged = { ...captured! }
+      await expect(service.createMessage(channelId, userId, 'text', undefined, undefined, undefined, undefined, undefined, 'client-id', forged)).rejects.toThrow(ForbiddenException)
+    })
+
+    it('rejects a timeout before moderation or persistence', async () => {
+      prisma.serverMember.findUnique.mockResolvedValue({ ...membership, mutedUntil: new Date(Date.now() + 60000), roles: [] })
+      const callback = jest.fn()
+      await expect(service.withSendAuthorization(channelId, userId, callback)).rejects.toThrow('timed out')
+      expect(callback).not.toHaveBeenCalled()
+    })
+  })
+
   describe('editMessage', () => {
     beforeEach(() => mockChannelAndMembership())
 

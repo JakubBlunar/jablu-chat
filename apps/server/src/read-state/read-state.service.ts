@@ -217,7 +217,8 @@ export class ReadStateService {
     content: string,
     serverId: string,
     excludeUserId: string,
-    onlineUserIds?: string[]
+    onlineUserIds?: string[],
+    senderMentionPermissions?: bigint
   ): Promise<{ userIds: string[]; everyone: boolean; here: boolean }> {
     const mentions = new Set<string>()
 
@@ -241,20 +242,11 @@ export class ReadStateService {
       return { userIds: [], everyone: false, here: false }
     }
 
-    const members = await this.prisma.serverMember.findMany({
-      where: { serverId },
-      include: {
-        user: { select: { id: true, username: true, displayName: true } },
-        roles: {
-          include: {
-            role: { select: { id: true, name: true, permissions: true, isDefault: true } }
-          }
-        }
-      }
-    })
-
-    const sender = members.find((m) => m.userId === excludeUserId)
-    const senderPerms = sender?.roles?.reduce((acc, mr) => acc | mr.role.permissions, 0n) ?? 0n
+    const sender = senderMentionPermissions === undefined ? await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId: excludeUserId, serverId } },
+      select: { roles: { select: { role: { select: { permissions: true } } } } }
+    }) : null
+    const senderPerms = senderMentionPermissions ?? sender?.roles.reduce((acc, mr) => acc | mr.role.permissions, 0n) ?? 0n
     const MENTION_EVERYONE_FLAG = 1n << 7n
     const ADMINISTRATOR_FLAG = 1n << 11n
     const senderIsPrivileged = (senderPerms & ADMINISTRATOR_FLAG) !== 0n || (senderPerms & MENTION_EVERYONE_FLAG) !== 0n
@@ -265,22 +257,28 @@ export class ReadStateService {
     const onlineSet = onlineUserIds ? new Set(onlineUserIds) : null
     const userIdSet = new Set<string>()
     const consumedTokens = new Set<string>()
-
+    if (resolvedEveryone || (resolvedHere && onlineUserIds?.length)) {
+      const expanded = await this.prisma.serverMember.findMany({
+        where: { serverId, NOT: { userId: excludeUserId }, ...(!resolvedEveryone ? { userId: { in: onlineUserIds } } : {}) },
+        select: { userId: true }
+      })
+      for (const m of expanded) if (m.userId !== excludeUserId && (resolvedEveryone || onlineSet?.has(m.userId))) userIdSet.add(m.userId)
+      if (resolvedEveryone) return { userIds: [...userIdSet], everyone: true, here: resolvedHere }
+    }
+    const tokens = [...mentions]
+    const members = tokens.length ? await this.prisma.$queryRaw<{
+      userId: string; username: string; displayName: string | null; serverName: string | null
+    }[]>`
+      SELECT sm.user_id AS "userId", u.username, u.display_name AS "displayName", sm.display_name AS "serverName"
+      FROM server_members sm JOIN users u ON u.id = sm.user_id
+      WHERE sm.server_id = ${serverId} AND sm.user_id <> ${excludeUserId}
+        AND (lower(u.username) = ANY(${tokens}::text[]) OR lower(btrim(u.display_name)) = ANY(${tokens}::text[])
+          OR lower(btrim(sm.display_name)) = ANY(${tokens}::text[]))
+    ` : []
     for (const m of members) {
       if (m.userId === excludeUserId) continue
-
-      if (resolvedEveryone) {
-        userIdSet.add(m.userId)
-        continue
-      }
-
-      if (resolvedHere && onlineSet?.has(m.userId)) {
-        userIdSet.add(m.userId)
-        continue
-      }
-
-      const un = m.user.username.toLowerCase()
-      const dn = m.user.displayName?.trim().toLowerCase()
+      const un = m.username.toLowerCase()
+      const dn = m.displayName?.trim().toLowerCase()
       if (mentions.has(un)) {
         userIdSet.add(m.userId)
         consumedTokens.add(un)
@@ -289,7 +287,7 @@ export class ReadStateService {
         userIdSet.add(m.userId)
         consumedTokens.add(dn)
       }
-      const serverName = m.displayName?.trim().toLowerCase()
+      const serverName = m.serverName?.trim().toLowerCase()
       if (serverName && mentions.has(serverName)) {
         userIdSet.add(m.userId)
         consumedTokens.add(serverName)
@@ -297,16 +295,18 @@ export class ReadStateService {
     }
 
     if (senderIsPrivileged && !resolvedEveryone && !resolvedHere) {
-      for (const token of mentions) {
-        if (consumedTokens.has(token)) continue
-        for (const m of members) {
-          if (m.userId === excludeUserId) continue
-          const inRole = m.roles.some(
-            (mr) => !mr.role.isDefault && mr.role.name.toLowerCase() === token
-          )
-          if (inRole) {
-            userIdSet.add(m.userId)
-          }
+      const roleTokens = tokens.filter(token => !consumedTokens.has(token))
+      if (roleTokens.length) {
+        const roles = await this.prisma.role.findMany({
+          where: { serverId, isDefault: false, OR: roleTokens.map(name => ({ name: { equals: name, mode: 'insensitive' } })) },
+          select: { id: true }
+        })
+        if (roles.length) {
+          const expanded = await this.prisma.serverMember.findMany({
+            where: { serverId, NOT: { userId: excludeUserId }, roles: { some: { roleId: { in: roles.map(role => role.id) } } } },
+            select: { userId: true }
+          })
+          for (const member of expanded) if (member.userId !== excludeUserId) userIdSet.add(member.userId)
         }
       }
     }

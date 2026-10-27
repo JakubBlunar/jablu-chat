@@ -15,6 +15,7 @@ import {
   sendPushToThreadParticipants
 } from './gateway-push-helpers'
 import { messagePushCopy } from '../push/push-copy'
+import { createChannelRecipientPlan, type ChannelRecipientPlan } from './channel-recipient-plan'
 
 export type MessageAuthor = {
   id?: string | null
@@ -66,6 +67,8 @@ export type DeliverChannelMessageParams = {
   serverId: string
   channelId: string
   channelName?: string
+  /** Assigned-role mention permissions captured by the authorized send attempt. */
+  senderMentionPermissions?: bigint
   message: ChannelMessageLike
   /** Author user id, or null for webhook/welcome (synthetic sender). */
   senderId: string | null
@@ -113,6 +116,8 @@ export async function deliverChannelMessage(
   } = params
 
   const isThreadReply = !!message.threadParentId
+  const recipientPlan = !isThreadReply && (!skipInApp || !skipPush)
+    ? createChannelRecipientPlan(ctx.prisma, ctx.roles, serverId, channelId, senderId) : undefined
 
   let mentionedUserIds: string[] = []
   let mentionEveryone = false
@@ -124,14 +129,14 @@ export async function deliverChannelMessage(
         message.content,
         serverId,
         senderId,
-        ctx.getOnlineUserIds()
+        ctx.getOnlineUserIds(),
+        params.senderMentionPermissions
       )
       mentionEveryone = result.everyone
       mentionHere = result.here
 
-      const permissions = await ctx.roles.getChannelPermissionsForUsers(
-        serverId, channelId, result.userIds
-      )
+      const permissions = recipientPlan ? await recipientPlan.permissionsFor(result.userIds) :
+        await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, result.userIds)
       mentionedUserIds = result.userIds.filter((uid) =>
         hasPermission(permissions.get(uid) ?? 0n, Permission.VIEW_CHANNEL)
       )
@@ -154,7 +159,7 @@ export async function deliverChannelMessage(
     replyToId: message.replyToId,
     isThreadReply,
     mentionedUserIds
-  })
+  }, recipientPlan)
 
   ctx.emitToChannel(channelId, 'message:new', {
     ...message,
@@ -258,7 +263,8 @@ export async function deliverChannelMessage(
             serverId,
             channelId,
             senderId,
-            replyTargetId ? [...mentionedUserIds, replyTargetId] : mentionedUserIds
+            replyTargetId ? [...mentionedUserIds, replyTargetId] : mentionedUserIds,
+            recipientPlan
           )
           if (recipients.length === 0) return
           await ctx.inApp.recordChannelMessage(recipients, {
@@ -296,6 +302,7 @@ export async function deliverChannelMessage(
       push: ctx.push,
       redis: ctx.redis,
       roles: ctx.roles,
+      channelRecipients: recipientPlan,
       isUserActivelyEngaged: ctx.isUserActivelyEngaged
     }
     const senderForPush = senderId ?? ''
@@ -350,7 +357,8 @@ async function resolveReplyTarget(
     replyToId?: string | null
     isThreadReply: boolean
     mentionedUserIds: string[]
-  }
+  },
+  recipients?: ChannelRecipientPlan
 ): Promise<string | null> {
   const { serverId, channelId, senderId, replyToId, isThreadReply, mentionedUserIds } = input
   if (!replyToId || !senderId || isThreadReply) return null
@@ -364,7 +372,8 @@ async function resolveReplyTarget(
     if (!authorId || authorId === senderId) return null
     if (mentionedUserIds.includes(authorId)) return null
 
-    const perms = await ctx.roles.getChannelPermissions(serverId, channelId, authorId)
+    const perms = recipients ? (await recipients.permissionsFor([authorId])).get(authorId) ?? 0n :
+      await ctx.roles.getChannelPermissions(serverId, channelId, authorId)
     return hasPermission(perms, Permission.VIEW_CHANNEL) ? authorId : null
   } catch {
     return null
@@ -382,9 +391,10 @@ async function resolveChannelRecipients(
   serverId: string,
   channelId: string,
   senderId: string | null,
-  mentionedUserIds: string[]
+  mentionedUserIds: string[],
+  plan?: ChannelRecipientPlan
 ): Promise<string[]> {
-  const members = await ctx.prisma.serverMember.findMany({
+  const members = plan ? await plan.members() : await ctx.prisma.serverMember.findMany({
     where: {
       serverId,
       ...(senderId ? { NOT: { userId: senderId } } : {}),
@@ -395,8 +405,8 @@ async function resolveChannelRecipients(
     select: { userId: true }
   })
   const mentionSet = new Set(mentionedUserIds)
-  const candidateIds = members.map((m) => m.userId).filter((uid) => !mentionSet.has(uid))
-  const permissions = await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, candidateIds)
+  const candidateIds = members.filter(m => !('isBot' in m) || !m.isBot).map((m) => m.userId).filter((uid) => !mentionSet.has(uid))
+  const permissions = plan ? await plan.permissionsFor(candidateIds) : await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, candidateIds)
   return candidateIds.filter((uid) =>
     hasPermission(permissions.get(uid) ?? 0n, Permission.VIEW_CHANNEL)
   )

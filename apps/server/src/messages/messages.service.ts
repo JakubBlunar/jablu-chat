@@ -9,9 +9,16 @@ import { historyInclude, mapHistory } from './history-wire'
 import { EmbedDto } from './dto/embed.dto'
 import { findMessageReplay } from './message-replay'
 
+export type MessageSendOperation = Readonly<{
+  userId: string
+  channel: Readonly<{ id: string; serverId: string; name: string; type: string; isArchived: boolean }>
+  senderMentionPermissions: bigint
+}>
+
 @Injectable()
 export class MessagesService {
   private readonly logger = new Logger(MessagesService.name)
+  private readonly sendOperations = new WeakSet<MessageSendOperation>()
 
   constructor(
     private readonly prisma: PrismaService,
@@ -21,6 +28,31 @@ export class MessagesService {
 
   mapToWire(m: MessageWithRelations, requestingUserId?: string) {
     return mapMessageToWire(m, requestingUserId)
+  }
+
+  /** Existing REST/WS send checks, loaded once for a single send callback. */
+  async withSendAuthorization<T>(channelId: string, userId: string, run: (operation: MessageSendOperation) => Promise<T>): Promise<T> {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId }, select: { id: true, serverId: true, name: true, type: true, isArchived: true }
+    })
+    if (!channel) throw new NotFoundException('Channel not found')
+    if (channel.type !== ChannelType.text && channel.type !== ChannelType.forum) {
+      throw new ForbiddenException('Messages are only available in text or forum channels')
+    }
+    if (channel.isArchived) throw new ForbiddenException('This channel is archived')
+    const member = await this.prisma.serverMember.findUnique({
+      where: { userId_serverId: { userId, serverId: channel.serverId } },
+      select: { mutedUntil: true, roles: { select: { role: { select: { permissions: true } } } } }
+    })
+    if (!member) throw new ForbiddenException('You are not a member of this server')
+    await this.roles.requireChannelPermission(channel.serverId, channelId, userId, Permission.VIEW_CHANNEL | Permission.SEND_MESSAGES)
+    if (member.mutedUntil && member.mutedUntil > new Date()) throw new ForbiddenException('You are timed out in this server')
+    // Preserve the existing mention policy: assigned role permissions, including
+    // an explicitly assigned default role, without granting new mass mentions.
+    const senderMentionPermissions = member.roles.reduce((bits, r) => bits | r.role.permissions, 0n)
+    const operation = Object.freeze({ userId, channel: Object.freeze(channel), senderMentionPermissions })
+    this.sendOperations.add(operation)
+    try { return await run(operation) } finally { this.sendOperations.delete(operation) }
   }
 
   /**
@@ -265,9 +297,20 @@ export class MessagesService {
     threadParentId?: string,
     embeds?: EmbedDto[],
     forwardFromMessageId?: string,
-    clientMessageId?: string
+    clientMessageId?: string,
+    operation?: MessageSendOperation
   ) {
-    const destination = await this.requireMessageChannelMember(channelId, userId)
+    let destination: { serverId: string }
+    if (operation) {
+      if (!this.sendOperations.has(operation) || operation.channel.id !== channelId || operation.userId !== userId) {
+        throw new ForbiddenException('Invalid message operation')
+      }
+      this.sendOperations.delete(operation)
+      destination = operation.channel
+    } else {
+      // Direct callers retain the existing service-level authorization path.
+      destination = await this.requireMessageChannelMember(channelId, userId)
+    }
     const replay = await findMessageReplay(this.prisma, clientMessageId, userId, { channelId, threadParentId })
     if (replay) {
       return {

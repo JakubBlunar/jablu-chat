@@ -1,10 +1,7 @@
-import { Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
-import { Permission } from '@chat/shared'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { EventBusService } from '../events/event-bus.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RolesService } from '../roles/roles.service'
 import { EditMessageDto, MessageQueryDto, SendMessageDto, ToggleReactionDto } from './dto'
 import { MessagesService } from './messages.service'
 
@@ -13,9 +10,7 @@ import { MessagesService } from './messages.service'
 export class MessagesController {
   constructor(
     private readonly messages: MessagesService,
-    private readonly roles: RolesService,
-    private readonly events: EventBusService,
-    private readonly prisma: PrismaService
+    private readonly events: EventBusService
   ) {}
 
   @Get()
@@ -63,30 +58,24 @@ export class MessagesController {
     @CurrentUser() user: { id: string; username: string; email: string },
     @Body() dto: SendMessageDto
   ) {
-    const ch = await this.requireChannel(channelId)
-    await this.roles.requireChannelPermission(ch.serverId, channelId, user.id, Permission.SEND_MESSAGES)
-
-    const membership = await this.prisma.serverMember.findUnique({
-      where: { userId_serverId: { userId: user.id, serverId: ch.serverId } },
-      select: { mutedUntil: true }
+    return this.messages.withSendAuthorization(channelId, user.id, async operation => {
+      const msg = await this.messages.createMessage(
+        channelId,
+        user.id,
+        dto.content,
+        dto.replyToId,
+        dto.attachmentIds,
+        undefined,
+        dto.embeds,
+        dto.forwardFromMessageId,
+        undefined,
+        operation
+      )
+      const { serverId, threadUpdate, ...wire } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
+      this.events.emit('rest:message:created', { channelId, message: wire, serverId, threadUpdate,
+        channelName: operation.channel.name, senderMentionPermissions: operation.senderMentionPermissions })
+      return wire
     })
-    if (membership?.mutedUntil && membership.mutedUntil > new Date()) {
-      throw new ForbiddenException('You are timed out in this server')
-    }
-
-    const msg = await this.messages.createMessage(
-      channelId,
-      user.id,
-      dto.content,
-      dto.replyToId,
-      dto.attachmentIds,
-      undefined,
-      dto.embeds,
-      dto.forwardFromMessageId
-    )
-    const { serverId, threadUpdate, ...wire } = msg as typeof msg & { threadUpdate?: { parentId: string; threadCount: number } }
-    this.events.emit('rest:message:created', { channelId, message: wire, serverId, threadUpdate })
-    return wire
   }
 
   @Patch(':id')
@@ -164,13 +153,4 @@ export class MessagesController {
     return this.messages.getReactors(channelId, messageId, user.id, emoji, after)
   }
 
-  private async requireChannel(channelId: string) {
-    const ch = await this.prisma.channel.findUnique({
-      where: { id: channelId },
-      select: { serverId: true, isArchived: true }
-    })
-    if (!ch) throw new NotFoundException('Channel not found')
-    if (ch.isArchived) throw new ForbiddenException('This channel is archived')
-    return ch
-  }
 }

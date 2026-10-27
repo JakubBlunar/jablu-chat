@@ -1,4 +1,4 @@
-import { Logger, OnModuleDestroy, UseFilters, UseGuards } from '@nestjs/common'
+import { HttpException, Logger, OnModuleDestroy, UseFilters, UseGuards } from '@nestjs/common'
 import {
   ConnectedSocket,
   MessageBody,
@@ -770,70 +770,67 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     if (this.socketVoiceChannel.has(client.id)) this.voiceActivity.set(client.id, Date.now())
 
-    const archiveCheck = await this.assertNotArchived(body.channelId)
-    if (archiveCheck.archived) {
-      return { ok: false, error: 'This channel is archived' }
-    }
+    try {
+      return await this.messages.withSendAuthorization(body.channelId, user.id, async operation => {
+        if (body.content) {
+          const check = await this.automod.checkMessage(operation.channel.serverId, user.id, body.content, {
+            channelId: body.channelId
+          })
+          if (!check.allowed) {
+            return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
+          }
+        }
 
-    const sendCheck = await this.assertCanSendInChannel(body.channelId, user.id)
-    if (sendCheck.denied) {
-      return {
-        ok: false,
-        error: sendCheck.muted
-          ? 'You are timed out in this server'
-          : 'You do not have permission to send messages in this channel'
+        const msg = await this.messages.createMessage(
+          body.channelId,
+          user.id,
+          body.content,
+          body.replyToId,
+          body.attachmentIds,
+          body.threadParentId,
+          undefined,
+          body.forwardFromMessageId,
+          body.clientMessageId,
+          operation
+        )
+
+        const { serverId, threadUpdate, replayed, ...msgRest } = msg
+        if (replayed) return { ok: true, message: msgRest }
+
+        if (serverId) {
+          await deliverChannelMessage(this.messageNotificationsContext(), {
+            serverId,
+            channelId: body.channelId,
+            channelName: operation.channel.name,
+            senderMentionPermissions: operation.senderMentionPermissions,
+            message: {
+              ...msgRest,
+              threadParentId: body.threadParentId ?? null
+            },
+            senderId: user.id,
+            threadUpdate
+          })
+        } else {
+          this.emitToChannel(body.channelId, 'message:new', {
+            ...msgRest,
+            mentionedUserIds: [],
+            mentionEveryone: false,
+            mentionHere: false
+          })
+        }
+
+        if (body.content?.startsWith('/') && serverId) {
+          void this.routeSlashCommand(body.content, serverId, body.channelId, user, client, body.targetBotAppId)
+        }
+
+        return { ok: true, message: msgRest }
+      })
+    } catch (error) {
+      if (error instanceof HttpException && [403, 404].includes(error.getStatus())) {
+        return { ok: false, error: error.message }
       }
+      throw error
     }
-
-    if (body.content && sendCheck.serverId) {
-      const check = await this.automod.checkMessage(sendCheck.serverId, user.id, body.content, {
-        channelId: body.channelId
-      })
-      if (!check.allowed) {
-        return { ok: false, error: check.reason ?? 'Message blocked by auto-moderation' }
-      }
-    }
-
-    const msg = await this.messages.createMessage(
-      body.channelId,
-      user.id,
-      body.content,
-      body.replyToId,
-      body.attachmentIds,
-      body.threadParentId,
-      undefined,
-      body.forwardFromMessageId,
-      body.clientMessageId
-    )
-
-    const { serverId, threadUpdate, replayed, ...msgRest } = msg
-    if (replayed) return { ok: true, message: msgRest }
-
-    if (serverId) {
-      await deliverChannelMessage(this.messageNotificationsContext(), {
-        serverId,
-        channelId: body.channelId,
-        message: {
-          ...msgRest,
-          threadParentId: body.threadParentId ?? null
-        },
-        senderId: user.id,
-        threadUpdate
-      })
-    } else {
-      this.emitToChannel(body.channelId, 'message:new', {
-        ...msgRest,
-        mentionedUserIds: [],
-        mentionEveryone: false,
-        mentionHere: false
-      })
-    }
-
-    if (body.content?.startsWith('/') && serverId) {
-      void this.routeSlashCommand(body.content, serverId, body.channelId, user, client, body.targetBotAppId)
-    }
-
-    return { ok: true, message: msgRest }
   }
 
   private async routeSlashCommand(

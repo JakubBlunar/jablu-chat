@@ -4,12 +4,14 @@ import { messagePushCopy } from '../push/push-copy'
 import { PushService } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
 import type { RolesService } from '../roles/roles.service'
+import type { ChannelRecipientPlan } from './channel-recipient-plan'
 
 export type PushContext = {
   prisma: PrismaService
   push: PushService
   redis: RedisService
   roles: RolesService
+  channelRecipients?: ChannelRecipientPlan
   /**
    * True when the user is already looking at the app on some device, in which
    * case push is redundant. Never "has a socket" — see `ChatGateway.isUserActivelyEngaged`.
@@ -111,7 +113,7 @@ export async function sendPushToOfflineMembers(
   mentionedUserIds: string[],
   attachments?: { type: string }[]
 ) {
-  const members = await ctx.prisma.serverMember.findMany({
+  const members = ctx.channelRecipients ? await ctx.channelRecipients.members() : await ctx.prisma.serverMember.findMany({
     where: { serverId, NOT: { userId: senderId } },
     select: { userId: true, notifLevel: true }
   })
@@ -140,7 +142,8 @@ export async function sendPushToOfflineMembers(
 
   if (prefFilteredIds.length === 0) return
 
-  const permissions = await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, prefFilteredIds)
+  const permissions = ctx.channelRecipients ? await ctx.channelRecipients.permissionsFor(prefFilteredIds) :
+    await ctx.roles.getChannelPermissionsForUsers(serverId, channelId, prefFilteredIds)
   const eligibleIds = prefFilteredIds.filter((id) =>
     hasPermission(permissions.get(id) ?? 0n, Permission.VIEW_CHANNEL)
   )

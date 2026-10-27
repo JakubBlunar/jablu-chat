@@ -268,7 +268,14 @@ describe('ReadStateService', () => {
     ]
 
     beforeEach(() => {
-      prisma.serverMember.findMany.mockResolvedValue(members)
+      prisma.serverMember.findUnique.mockImplementation(async args => members.find(m => m.userId === args.where.userId_serverId.userId) ?? null)
+      prisma.$queryRaw.mockResolvedValue(members.map(m => ({ userId: m.userId, username: m.user.username, displayName: m.user.displayName, serverName: null })))
+      prisma.role.findMany.mockImplementation(async args => members.flatMap(m => m.roles.map(r => r.role))
+        .filter(r => !r.isDefault && args.where.OR.some((condition: { name: { equals: string } }) => condition.name.equals === r.name.toLowerCase())))
+      prisma.serverMember.findMany.mockImplementation(async args => {
+        const roleIds = args.where.roles?.some.roleId.in as string[] | undefined
+        return roleIds ? members.filter(m => m.roles.some(r => roleIds.includes(r.role.id))) : members
+      })
     })
 
     it('resolves @username mentions', async () => {
@@ -276,11 +283,20 @@ describe('ReadStateService', () => {
       expect(result.userIds).toEqual(['u-alice'])
       expect(result.everyone).toBe(false)
       expect(result.here).toBe(false)
+      expect(prisma.serverMember.findMany).not.toHaveBeenCalled()
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1)
+    })
+
+    it('reuses assigned-role mention permissions from an authorized send attempt', async () => {
+      const result = await service.resolveMentions('hey @alice', serverId, 'u-bob', [], 0n)
+      expect(result.userIds).toEqual(['u-alice'])
+      expect(prisma.serverMember.findUnique).not.toHaveBeenCalled()
+      expect(prisma.serverMember.findMany).not.toHaveBeenCalled()
     })
 
     it('resolves server names and still accepts global names and usernames', async () => {
-      prisma.serverMember.findMany.mockResolvedValue(members.map((m) =>
-        m.userId === 'u-alice' ? { ...m, displayName: 'Server Alice' } : m))
+      prisma.$queryRaw.mockResolvedValue(members.map(m => ({ userId: m.userId, username: m.user.username,
+        displayName: m.user.displayName, serverName: m.userId === 'u-alice' ? 'Server Alice' : null })))
       for (const content of ['@"Server Alice"', '@"Alice Smith"', '@alice']) {
         expect((await service.resolveMentions(content, serverId, 'u-bob')).userIds).toEqual(['u-alice'])
       }
