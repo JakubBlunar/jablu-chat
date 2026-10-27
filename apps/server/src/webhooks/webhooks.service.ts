@@ -133,7 +133,7 @@ export class WebhooksService {
     if (!trimmed) return wireWithWebhook
 
     void this.linkPreviews
-      .generatePreviews(created.id, trimmed)
+      .generatePreviews(created.id, trimmed, webhook.createdById ?? undefined)
       .then((previews) => {
         if (previews.length > 0) {
           this.events.emit('webhook:link-previews', {

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
+import { PreviewAdmissionError, previewWorkQueue } from './preview-work-queue'
 import { lookup } from 'dns/promises'
 import { PrismaService } from '../prisma/prisma.service'
 import { detectCharset, extractUrls, extractYouTubeId, OgMeta, parseOEmbed, parseOgTags } from './link-preview-parse'
@@ -95,7 +96,7 @@ async function readHead(res: Response, limit: number): Promise<Buffer> {
     for (;;) {
       const { done, value } = await reader.read()
       if (done || !value) break
-      const chunk = Buffer.from(value)
+      const chunk = Buffer.from(value.subarray(0, limit - total))
       chunks.push(chunk)
       total += chunk.length
       // Scanning the new bytes with a small overlap avoids re-reading
@@ -123,36 +124,67 @@ function decodeHtml(bytes: Buffer, contentType: string): string {
 }
 
 @Injectable()
-export class LinkPreviewService {
+export class LinkPreviewService implements OnModuleDestroy {
   private readonly logger = new Logger(LinkPreviewService.name)
   private readonly metaCache = new Map<string, CacheEntry>()
-  private readonly inFlight = new Map<string, Promise<OgMeta | null>>()
+  private readonly inFlight = new Map<
+    string,
+    { promise: Promise<OgMeta | null>; controller: AbortController; consumers: Set<object> }
+  >()
+  private readonly messageOperations = new Map<string, Set<AbortController>>()
 
   constructor(private readonly prisma: PrismaService) {}
+
+  getWorkState() {
+    return previewWorkQueue.state
+  }
+
+  cancelMessage(messageId: string) {
+    for (const controller of this.messageOperations.get(messageId) ?? []) controller.abort()
+  }
+
+  onModuleDestroy() {
+    for (const controllers of this.messageOperations.values()) for (const controller of controllers) controller.abort()
+  }
 
   extractUrls(content: string | null): string[] {
     return extractUrls(content)
   }
 
-  async generatePreviews(messageId: string, content: string | null): Promise<GeneratedPreview[]> {
+  async generatePreviews(messageId: string, content: string | null, ownerId = messageId): Promise<GeneratedPreview[]> {
     const urls = this.extractUrls(content)
     if (urls.length === 0) return []
 
-    // Fetched together: one slow or unreachable site no longer delays, or eats
-    // the budget of, the links after it.
-    const resolved = await Promise.all(urls.map((url) => this.describeUrl(messageId, url)))
-    const data = resolved.filter((preview): preview is PreviewInput => preview !== null)
-    if (data.length === 0) return []
-
+    const controller = new AbortController()
+    const operations = this.messageOperations.get(messageId) ?? new Set<AbortController>()
+    operations.add(controller)
+    this.messageOperations.set(messageId, operations)
     try {
-      return await this.prisma.linkPreview.createManyAndReturn({ data, select: previewSelect })
-    } catch (e) {
-      this.logger.warn(`Failed to persist previews for message ${messageId}: ${e}`)
-      return []
+      const resolved = await Promise.all(
+        urls.map((url) => this.describeUrl(messageId, url, ownerId, controller.signal))
+      )
+      const data = resolved.filter((preview): preview is PreviewInput => preview !== null)
+      if (controller.signal.aborted || data.length === 0) return []
+
+      try {
+        const rows = await this.prisma.linkPreview.createManyAndReturn({ data, select: previewSelect })
+        return controller.signal.aborted ? [] : rows
+      } catch (e) {
+        this.logger.warn(`Failed to persist previews for message ${messageId}: ${e}`)
+        return []
+      }
+    } finally {
+      operations.delete(controller)
+      if (!operations.size) this.messageOperations.delete(messageId)
     }
   }
 
-  private async describeUrl(messageId: string, url: string): Promise<PreviewInput | null> {
+  private async describeUrl(
+    messageId: string,
+    url: string,
+    ownerId: string,
+    signal: AbortSignal
+  ): Promise<PreviewInput | null> {
     if (this.isGifUrl(url)) {
       return { messageId, url, title: 'GIF', description: null, imageUrl: url, siteName: 'GIF' }
     }
@@ -160,7 +192,7 @@ export class LinkPreviewService {
       return { messageId, url, title: 'Image', description: null, imageUrl: url, siteName: 'Image' }
     }
 
-    const meta = await this.resolveMeta(url)
+    const meta = await this.resolveMeta(url, ownerId, signal)
     if (!meta || (!meta.title && !meta.description)) return null
     return { messageId, url, ...meta }
   }
@@ -169,26 +201,57 @@ export class LinkPreviewService {
    * Caches per URL and shares in-flight requests, so the same link pasted
    * repeatedly (or to several channels at once) is fetched once.
    */
-  private async resolveMeta(url: string): Promise<OgMeta | null> {
+  private async resolveMeta(url: string, ownerId: string, signal: AbortSignal): Promise<OgMeta | null> {
     const cached = this.metaCache.get(url)
     if (cached && cached.expiresAt > Date.now()) return cached.meta
 
-    const existing = this.inFlight.get(url)
-    if (existing) return existing
-
-    const pending = this.fetchOgMeta(url)
-      .catch((e) => {
-        this.logger.warn(`Failed to fetch OG for ${url}: ${e}`)
-        return null
+    let entry = this.inFlight.get(url)
+    if (!entry) {
+      const controller = new AbortController()
+      const deadline = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
+      const created = { controller, consumers: new Set<object>(), promise: Promise.resolve<OgMeta | null>(null) }
+      let cacheable = true
+      created.promise = previewWorkQueue
+        .run(ownerId, () => this.fetchOgMeta(url, deadline), deadline)
+        .catch((error) => {
+          cacheable = !(error instanceof PreviewAdmissionError) && !deadline.aborted
+          if (cacheable) this.logger.warn(`Failed to fetch OG for ${url}: ${error}`)
+          return null
+        })
+        .then((meta) => {
+          if (cacheable && !deadline.aborted) this.rememberMeta(url, meta)
+          if (this.inFlight.get(url) === created) this.inFlight.delete(url)
+          return meta
+        })
+      entry = created
+      this.inFlight.set(url, entry)
+    }
+    const shared = entry
+    const consumer = {}
+    shared.consumers.add(consumer)
+    return new Promise((resolve) => {
+      const detach = () => {
+        shared.consumers.delete(consumer)
+        signal.removeEventListener('abort', cancel)
+      }
+      const cancel = () => {
+        detach()
+        if (!shared.consumers.size) {
+          shared.controller.abort()
+          if (this.inFlight.get(url) === shared) this.inFlight.delete(url)
+        }
+        resolve(null)
+      }
+      signal.addEventListener('abort', cancel, { once: true })
+      if (signal.aborted) {
+        cancel()
+        return
+      }
+      shared.promise.then((meta) => {
+        detach()
+        resolve(signal.aborted ? null : meta)
       })
-      .then((meta) => {
-        this.rememberMeta(url, meta)
-        this.inFlight.delete(url)
-        return meta
-      })
-
-    this.inFlight.set(url, pending)
-    return pending
+    })
   }
 
   private rememberMeta(url: string, meta: OgMeta | null): void {
@@ -225,10 +288,17 @@ export class LinkPreviewService {
     }
   }
 
-  private async isSafeUrl(url: string): Promise<boolean> {
+  private async isSafeUrl(url: string, signal: AbortSignal): Promise<boolean> {
     try {
+      signal.throwIfAborted()
       const { hostname } = new URL(url)
-      const addresses = await lookup(hostname, { all: true })
+      const addresses = await new Promise<{ address: string; family: number }[]>((resolve, reject) => {
+        const cancel = () => reject(signal.reason)
+        signal.addEventListener('abort', cancel, { once: true })
+        lookup(hostname, { all: true })
+          .then(resolve, reject)
+          .finally(() => signal.removeEventListener('abort', cancel))
+      })
       return addresses.length > 0 && addresses.every(({ address }) => !isPrivateIp(address))
     } catch {
       return false
@@ -241,7 +311,8 @@ export class LinkPreviewService {
   ): Promise<{ response: Response; finalUrl: string } | null> {
     let current = url
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      if (!(await this.isSafeUrl(current))) return null
+      if (!(await this.isSafeUrl(current, signal))) return null
+      signal.throwIfAborted()
 
       const response = await fetch(current, {
         signal,
@@ -266,13 +337,13 @@ export class LinkPreviewService {
     return null
   }
 
-  private async fetchOgMeta(url: string): Promise<OgMeta | null> {
+  private async fetchOgMeta(url: string, signal: AbortSignal): Promise<OgMeta | null> {
     // YouTube serves a consent/landing shell (no og: tags) to most datacenter
     // IPs, which yields a "- YouTube" title. The oEmbed endpoint is exempt,
     // so try it first; HTML scraping stays as the fallback.
     const videoId = extractYouTubeId(url)
     if (videoId) {
-      const meta = await this.fetchYouTubeOEmbed(videoId)
+      const meta = await this.fetchYouTubeOEmbed(videoId, signal)
       if (meta) return meta
     }
 
@@ -280,7 +351,7 @@ export class LinkPreviewService {
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
     try {
-      const hop = await this.fetchWithSafeRedirects(url, controller.signal)
+      const hop = await this.fetchWithSafeRedirects(url, AbortSignal.any([controller.signal, signal]))
       if (!hop) return null
 
       const { response, finalUrl } = hop
@@ -307,7 +378,7 @@ export class LinkPreviewService {
    * response, needs no HTML parsing, and is not subject to the consent/landing
    * page that YouTube serves datacenter IPs for regular watch pages.
    */
-  private async fetchYouTubeOEmbed(videoId: string): Promise<OgMeta | null> {
+  private async fetchYouTubeOEmbed(videoId: string, signal: AbortSignal): Promise<OgMeta | null> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), OEMBED_TIMEOUT)
     const endpoint = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(
@@ -316,7 +387,7 @@ export class LinkPreviewService {
 
     try {
       const response = await fetch(endpoint, {
-        signal: controller.signal,
+        signal: AbortSignal.any([controller.signal, signal]),
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }
       })
       if (!response.ok) {

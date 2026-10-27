@@ -410,10 +410,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
+    if (event === 'message:delete') this.linkPreviews.cancelMessage((data as { messageId: string }).messageId)
     emitMessageEvent(this.server, 'channel', channelId, event, data, this.compactMessagesEnabled)
   }
 
   emitToDm(conversationId: string, event: string, data: unknown) {
+    if (event === 'dm:delete') this.linkPreviews.cancelMessage((data as { messageId: string }).messageId)
     emitMessageEvent(this.server, 'dm', conversationId, event, data, this.compactMessagesEnabled)
   }
 

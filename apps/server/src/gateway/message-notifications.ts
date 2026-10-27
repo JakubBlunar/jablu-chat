@@ -284,7 +284,7 @@ export async function deliverChannelMessage(
 
   if (!skipLinkPreviews && message.content) {
     ctx.linkPreviews
-      .generatePreviews(message.id, message.content)
+      .generatePreviews(message.id, message.content, senderId ?? undefined)
       .then((previews) => {
         if (previews.length > 0) {
           ctx.emitToChannel(channelId, 'message:link-previews', {
@@ -475,7 +475,7 @@ export async function deliverDmMessage(
 
   if (!skipLinkPreviews && message.content) {
     ctx.linkPreviews
-      .generatePreviews(message.id, message.content)
+      .generatePreviews(message.id, message.content, senderId ?? undefined)
       .then((previews) => {
         if (previews.length > 0) {
           ctx.emitToDm(conversationId, 'dm:link-previews', {

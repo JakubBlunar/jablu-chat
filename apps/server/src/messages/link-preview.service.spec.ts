@@ -62,6 +62,36 @@ describe('LinkPreviewService', () => {
     })
   })
 
+  it('cancels one consumer without cancelling another message using the same URL', async () => {
+    let finish!: (response: Response) => void
+    let aborted = false
+    fetchMock.mockImplementation((_url: string, options: RequestInit) => new Promise<Response>((resolve, reject) => {
+      finish = resolve
+      options.signal!.addEventListener('abort', () => { aborted = true; reject(options.signal!.reason) })
+    }))
+    const first = service.generatePreviews('first', 'https://example.com/shared', 'alice')
+    const second = service.generatePreviews('second', 'https://example.com/shared', 'bob')
+    await new Promise(resolve => setImmediate(resolve))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    service.cancelMessage('first')
+    expect(aborted).toBe(false)
+    finish(htmlResponse(page('<meta property="og:title" content="Shared">')))
+    expect(await first).toEqual([])
+    expect(await second).toHaveLength(1)
+    expect(prisma.linkPreview.createManyAndReturn).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels unshared work without poisoning the failure cache, including DNS waits', async () => {
+    mockLookup.mockImplementationOnce(() => new Promise(() => {}))
+    const pending = service.generatePreviews('deleted', 'https://example.com/cancel')
+    await new Promise(resolve => setImmediate(resolve))
+    service.cancelMessage('deleted')
+    expect(await pending).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+    fetchMock.mockResolvedValue(htmlResponse(page('<meta property="og:title" content="Retry">')))
+    expect(await service.generatePreviews('retry', 'https://example.com/cancel')).toHaveLength(1)
+  })
+
   describe('generatePreviews', () => {
     it('returns empty for content with no URLs', async () => {
       const result = await service.generatePreviews('msg-1', 'no links here')
