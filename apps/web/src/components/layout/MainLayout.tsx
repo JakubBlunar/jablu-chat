@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { SkipToMainLink } from '@/components/a11y/SkipToMainLink'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
+import { ServerDialogsProvider } from '@/components/server/ServerDialogsProvider'
 import { Spinner } from '@/components/ui'
 import { DmSidebar } from '@/components/dm/DmSidebar'
 import { DmCallNotifications } from '@/components/dm/DmCallNotifications'
@@ -16,7 +17,9 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ToastContainer } from '@/components/ToastContainer'
-const VoiceAudioManager = lazy(() => import('@/components/voice/VoiceAudioManager').then(m => ({ default: m.VoiceAudioManager })))
+const VoiceAudioManager = lazy(() =>
+  import('@/components/voice/VoiceAudioManager').then((m) => ({ default: m.VoiceAudioManager }))
+)
 import { useAppBadge } from '@/hooks/useAppBadge'
 import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { usePresenceReporter } from '@/hooks/usePresenceReporter'
@@ -58,8 +61,12 @@ const ScreenSharePicker = lazy(() =>
 )
 
 function VoicePlayback() {
-  const connected = useVoiceConnectionStore(s => s.room !== null)
-  return connected ? <Suspense fallback={null}><VoiceAudioManager /></Suspense> : null
+  const connected = useVoiceConnectionStore((s) => s.room !== null)
+  return connected ? (
+    <Suspense fallback={null}>
+      <VoiceAudioManager />
+    </Suspense>
+  ) : null
 }
 
 function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
@@ -121,6 +128,14 @@ function HamburgerIcon() {
 }
 
 export function MainLayout() {
+  return (
+    <ServerDialogsProvider>
+      <MainLayoutContent />
+    </ServerDialogsProvider>
+  )
+}
+
+function MainLayoutContent() {
   const { t } = useTranslation('a11y')
   const { t: tCommon } = useTranslation('common')
   useRouteSync()

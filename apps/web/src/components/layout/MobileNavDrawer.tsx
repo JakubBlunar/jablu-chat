@@ -1,79 +1,47 @@
-import { useServerMenuItems } from '@/hooks/useServerMenuItems'
-import { ContextMenu } from '@/components/ui/ContextMenu'
-import { ChannelContextMenu, CategoryContextMenu } from '@/components/channel/ChannelContextMenu'
+import { CategoryContextMenu, ChannelContextMenu } from '@/components/channel/ChannelContextMenu'
+import { TextChannelItem } from '@/components/channel/channel-sidebar/TextChannelItem'
 import { VoiceParticipantRow } from '@/components/channel/channel-sidebar/VoiceComponents'
-import type { Channel, ChannelCategory } from '@chat/shared'
-import React, { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
+import { DraftBadge } from '@/components/chat/DraftBadge'
+import { ConversationPreview } from '@/components/dm/ConversationPreview'
+import { GroupDmModal } from '@/components/dm/GroupDmModal'
+import { MobileDrawer } from '@/components/layout/MobileDrawer'
+import { UserFooter } from '@/components/layout/UserFooter'
+import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
+import { useServerDialogs } from '@/components/server/hooks/useServerDialogs'
+import { ContextMenu } from '@/components/ui/ContextMenu'
+import { useServerMenuItems } from '@/hooks/useServerMenuItems'
+import { useVisibleChannelGroups } from '@/hooks/useVisibleChannelGroups'
+import { showToast } from '@/stores/toast.store'
+import type { Channel } from '@chat/shared'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
-import { GroupDmModal } from '@/components/dm/GroupDmModal'
-import { ConversationPreview } from '@/components/dm/ConversationPreview'
-import { DraftBadge } from '@/components/chat/DraftBadge'
-import { showToast } from '@/stores/toast.store'
-import { MobileDrawer } from '@/components/layout/MobileDrawer'
-import { MobileNavServerRail } from '@/components/layout/mobile-nav/MobileNavServerRail'
-import { HashIcon, SpeakerIcon, PlusSmallIcon } from './mobile-nav/mobileNavIcons'
-import { UserFooter } from '@/components/layout/UserFooter'
-import { ServerProfileModal } from '@/components/server/ServerProfileModal'
-const CreateChannelModal = React.lazy(() =>
-  import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
-)
-const EditChannelModal = React.lazy(() =>
-  import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
-)
-const InviteModal = React.lazy(() =>
-  import('@/components/server/InviteModal').then((m) => ({ default: m.InviteModal }))
-)
-const ServerSettingsModal = React.lazy(() =>
-  import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
-)
-const LeaderboardModal = React.lazy(() =>
-  import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
-)
+import { PlusSmallIcon, SpeakerIcon } from './mobile-nav/mobileNavIcons'
+
 import { UserAvatar } from '@/components/UserAvatar'
-import { VoicePanel } from '@/components/voice/LazyVoicePanel'
+import { ForumChannelItem } from '@/components/channel/channel-sidebar/ForumChannelItem'
+import { CountBadge, IconButton } from '@/components/ui'
 import { SectionHeading } from '@/components/ui/SectionHeading'
-import { api } from '@/lib/api'
+import { VoicePanel } from '@/components/voice/LazyVoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
-import { useSortedChannels } from '@/hooks/useSortedChannels'
+import { Permission, usePermissions } from '@/hooks/usePermissions'
+import { api } from '@/lib/api'
+import { computeServerBadges } from '@/lib/unread'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
-import { useLayoutStore } from '@/stores/layout.store'
-import { useSettingsStore } from '@/stores/settings.store'
-import { useMemberStore } from '@/stores/member.store'
-import { usePermissions, Permission } from '@/hooks/usePermissions'
-import { useReadStateStore } from '@/stores/readState.store'
-import { useNotifPrefStore } from '@/stores/notifPref.store'
-import { useNavigationStore } from '@/stores/navigation.store'
-import { type Server, useServerStore } from '@/stores/server.store'
-import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
-import { useVoiceStore } from '@/stores/voice.store'
 import { useEventStore } from '@/stores/event.store'
 import { useFriendStore } from '@/stores/friend.store'
+import { useLayoutStore } from '@/stores/layout.store'
+import { useMemberStore } from '@/stores/member.store'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { useNotifPrefStore } from '@/stores/notifPref.store'
+import { useReadStateStore } from '@/stores/readState.store'
+import { type Server, useServerStore } from '@/stores/server.store'
+import { useSettingsStore } from '@/stores/settings.store'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useVoiceStore } from '@/stores/voice.store'
 import { useShallow } from 'zustand/react/shallow'
-import { CountBadge, IconButton } from '@/components/ui'
-import { ForumChannelItem } from '@/components/channel/channel-sidebar/ForumChannelItem'
-import { computeChannelBadge, computeServerBadges, type NotifLevel } from '@/lib/unread'
-
-const EventsPanel = React.lazy(() =>
-  import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
-)
-const ReorderChannelsModal = React.lazy(() =>
-  import('@/components/server/ReorderChannelsModal').then((m) => ({ default: m.ReorderChannelsModal }))
-)
-const ServerNotifModal = React.lazy(() =>
-  import('@/components/server/ServerNotifModal').then((m) => ({ default: m.ServerNotifModal }))
-)
-const CreateCategoryModal = React.lazy(() =>
-  import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
-)
-const EditCategoryModal = React.lazy(() =>
-  import('@/components/channel/EditCategoryModal').then((m) => ({ default: m.EditCategoryModal }))
-)
-const RolePickerModal = React.lazy(() =>
-  import('@/components/server/RolePickerModal').then((m) => ({ default: m.RolePickerModal }))
-)
 
 export function MobileNavDrawer({
   onOpenSettings,
@@ -82,6 +50,22 @@ export function MobileNavDrawer({
   onOpenSettings: (tab?: string) => void
   onOpenQuickSwitcher: () => void
 }) {
+  const {
+    setChannelModalOpen,
+    setEditingChannel,
+    setInviteOpen,
+    setServerSettingsOpen,
+    setProfileOpen,
+    setLeaderboardOpen,
+    setReorderOpen,
+    setEventsOpen,
+    setServerNotifOpen,
+    setCreateCategoryId,
+    setCreateCategoryOpen,
+    setEditingCategory,
+    setRolePickerOpen
+  } = useServerDialogs()
+
   const { t: tChannels } = useTranslation('channels')
   const { t } = useTranslation('nav')
   const { t: tChat } = useTranslation('chat')
@@ -168,20 +152,8 @@ export function MobileNavDrawer({
     }
   }, [voiceServerId, currentVoiceChannelId, orchestratedGoToChannel, close])
 
-  const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false)
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [eventsOpen, setEventsOpen] = useState(false)
-  const [reorderOpen, setReorderOpen] = useState(false)
-  const [createCategoryId, setCreateCategoryId] = useState<string | null>(null)
-  const [channelModalOpen, setChannelModalOpen] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<ChannelCategory | null>(null)
-  const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [groupDmOpen, setGroupDmOpen] = useState(false)
-  const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
-  const [serverNotifOpen, setServerNotifOpen] = useState(false)
-  const [rolePickerOpen, setRolePickerOpen] = useState(false)
+
   const [dmFilter, setDmFilter] = useState('')
   const { has: hasPerm } = usePermissions(currentServerId)
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
@@ -214,7 +186,7 @@ export function MobileNavDrawer({
   const openLeaderboard = useCallback(() => {
     close()
     setLeaderboardOpen(true)
-  }, [close])
+  }, [close, setLeaderboardOpen])
 
   useEffect(() => {
     if (viewMode !== 'server' || !currentServer?.xpEnabled) return
@@ -253,7 +225,7 @@ export function MobileNavDrawer({
     [notifPrefs, serverPrefs, currentServer?.id, getEffective]
   )
 
-  const { uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups } = useSortedChannels(
+  const { uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups } = useVisibleChannelGroups(
     channels,
     storeCategories
   )
@@ -270,8 +242,8 @@ export function MobileNavDrawer({
   }, [goToDms])
 
   const handleChannelClick = useCallback(
-    (ch: Channel) => {
-      if (currentServerId) void orchestratedGoToChannel(currentServerId, ch.id)
+    async (ch: Channel) => {
+      if (currentServerId) await orchestratedGoToChannel(currentServerId, ch.id)
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
       close()
     },
@@ -482,54 +454,25 @@ export function MobileNavDrawer({
                               )}
                             </div>
                             <ul className="space-y-0.5">
-                              {uncategorizedText.map((ch) => {
-                                const active = ch.id === currentChannelId && !viewingVoiceRoom
-                                const {
-                                  showUnread: showUnreadDot,
-                                  mentionCount,
-                                  hasIndicator
-                                } = computeChannelBadge(
-                                  channelReadStates.get(ch.id),
-                                  getEffective(ch.id, currentServer?.id) as NotifLevel
-                                )
-                                return (
-                                  <li key={ch.id}>
-                                    <ChannelContextMenu
-                                      channel={ch}
-                                      canManage={isAdminOrOwner}
-                                      onEdit={() => {
-                                        close()
-                                        setEditingChannel(ch)
-                                      }}
-                                      onOpenPinned={() => handleOpenPinned(ch)}
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          handleChannelClick(ch)
-                                        }}
-                                        className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                                          active
-                                            ? 'bg-surface-selected text-white'
-                                            : hasIndicator
-                                              ? 'font-semibold text-white hover:bg-white/[0.06]'
-                                              : 'text-gray-300 hover:bg-white/[0.06]'
-                                        }`}
-                                      >
-                                        <HashIcon />
-                                        <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                        <DraftBadge mode="channel" contextId={ch.id} />
-                                        {mentionCount > 0 && (
-                                          <CountBadge count={mentionCount} variant="danger" max={10} />
-                                        )}
-                                        {showUnreadDot && mentionCount === 0 && (
-                                          <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                                        )}
-                                      </button>
-                                    </ChannelContextMenu>
-                                  </li>
-                                )
-                              })}
+                              {uncategorizedText.map((ch) => (
+                                <TextChannelItem
+                                  key={ch.id}
+                                  ch={ch}
+                                  active={ch.id === currentChannelId && !viewingVoiceRoom}
+                                  readState={channelReadStates.get(ch.id)}
+                                  notifLevel={getNotifLevel(ch.id)}
+                                  canManage={isAdminOrOwner}
+                                  onEditChannel={(channel) => {
+                                    close()
+                                    setEditingChannel(channel)
+                                  }}
+                                  onOpenPinned={handleOpenPinned}
+                                  currentServer={currentServer}
+                                  orchestratedGoToChannel={async () => {
+                                    await handleChannelClick(ch)
+                                  }}
+                                />
+                              ))}
                             </ul>
                           </>
                         )}
@@ -573,54 +516,25 @@ export function MobileNavDrawer({
                                 <>
                                   {group.textChannels.length > 0 && (
                                     <ul className="space-y-0.5">
-                                      {group.textChannels.map((ch) => {
-                                        const active = ch.id === currentChannelId && !viewingVoiceRoom
-                                        const {
-                                          showUnread: showUnreadDot,
-                                          mentionCount,
-                                          hasIndicator
-                                        } = computeChannelBadge(
-                                          channelReadStates.get(ch.id),
-                                          getEffective(ch.id, currentServer?.id) as NotifLevel
-                                        )
-                                        return (
-                                          <li key={ch.id}>
-                                            <ChannelContextMenu
-                                              channel={ch}
-                                              canManage={isAdminOrOwner}
-                                              onEdit={() => {
-                                                close()
-                                                setEditingChannel(ch)
-                                              }}
-                                              onOpenPinned={() => handleOpenPinned(ch)}
-                                            >
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  handleChannelClick(ch)
-                                                }}
-                                                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition ${
-                                                  active
-                                                    ? 'bg-surface-selected text-white'
-                                                    : hasIndicator
-                                                      ? 'font-semibold text-white hover:bg-white/[0.06]'
-                                                      : 'text-gray-300 hover:bg-white/[0.06]'
-                                                }`}
-                                              >
-                                                <HashIcon />
-                                                <span className="min-w-0 flex-1 truncate">{ch.name}</span>
-                                                <DraftBadge mode="channel" contextId={ch.id} />
-                                                {mentionCount > 0 && (
-                                                  <CountBadge count={mentionCount} variant="danger" max={10} />
-                                                )}
-                                                {showUnreadDot && mentionCount === 0 && (
-                                                  <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                                                )}
-                                              </button>
-                                            </ChannelContextMenu>
-                                          </li>
-                                        )
-                                      })}
+                                      {group.textChannels.map((ch) => (
+                                        <TextChannelItem
+                                          key={ch.id}
+                                          ch={ch}
+                                          active={ch.id === currentChannelId && !viewingVoiceRoom}
+                                          readState={channelReadStates.get(ch.id)}
+                                          notifLevel={getNotifLevel(ch.id)}
+                                          canManage={isAdminOrOwner}
+                                          onEditChannel={(channel) => {
+                                            close()
+                                            setEditingChannel(channel)
+                                          }}
+                                          onOpenPinned={handleOpenPinned}
+                                          currentServer={currentServer}
+                                          orchestratedGoToChannel={async () => {
+                                            await handleChannelClick(ch)
+                                          }}
+                                        />
+                                      ))}
                                     </ul>
                                   )}
                                   {group.voiceChannels.length > 0 && (
@@ -945,78 +859,6 @@ export function MobileNavDrawer({
           />
         </div>
       </MobileDrawer>
-
-      {inviteOpen && currentServer && (
-        <Suspense fallback={null}>
-          <InviteModal
-            serverId={currentServer.id}
-            serverName={currentServer.name}
-            onClose={() => setInviteOpen(false)}
-          />
-        </Suspense>
-      )}
-      {serverSettingsOpen && currentServer && (
-        <Suspense fallback={null}>
-          <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
-        </Suspense>
-      )}
-      {profileOpen && currentServer && user && (
-        <ServerProfileModal serverId={currentServer.id} userId={user.id} onClose={() => setProfileOpen(false)} />
-      )}
-      {leaderboardOpen && currentServer?.xpEnabled && (
-        <Suspense fallback={null}>
-          <LeaderboardModal serverId={currentServer.id} onClose={() => setLeaderboardOpen(false)} />
-        </Suspense>
-      )}
-      {eventsOpen && currentServer && (
-        <Suspense fallback={null}>
-          <EventsPanel serverId={currentServer.id} onClose={() => setEventsOpen(false)} />
-        </Suspense>
-      )}
-      {reorderOpen && (
-        <Suspense fallback={null}>
-          <ReorderChannelsModal onClose={() => setReorderOpen(false)} />
-        </Suspense>
-      )}
-      {createCategoryOpen && (
-        <Suspense fallback={null}>
-          <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />
-        </Suspense>
-      )}
-      {serverNotifOpen && currentServer && (
-        <Suspense fallback={null}>
-          <ServerNotifModal
-            serverId={currentServer.id}
-            serverName={currentServer.name}
-            onClose={() => setServerNotifOpen(false)}
-          />
-        </Suspense>
-      )}
-      {rolePickerOpen && currentServer && (
-        <Suspense fallback={null}>
-          <RolePickerModal onClose={() => setRolePickerOpen(false)} />
-        </Suspense>
-      )}
-      <Suspense fallback={null}>
-        <CreateChannelModal
-          open={channelModalOpen}
-          defaultCategoryId={createCategoryId}
-          onClose={() => {
-            setChannelModalOpen(false)
-            setCreateCategoryId(null)
-          }}
-        />
-      </Suspense>
-      {editingCategory && (
-        <Suspense fallback={null}>
-          <EditCategoryModal category={editingCategory} onClose={() => setEditingCategory(null)} />
-        </Suspense>
-      )}
-      {editingChannel && (
-        <Suspense fallback={null}>
-          <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />
-        </Suspense>
-      )}
 
       {groupDmOpen && (
         <GroupDmModal

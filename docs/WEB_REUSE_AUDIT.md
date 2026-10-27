@@ -11,7 +11,9 @@ Reviewed 27 October 2026. The initial analysis is followed by the implementation
 - Phase 2 validation: TypeScript, focused lint, six new hook tests, and a real local browser journey passed. The journey creates/edits a forum, verifies persisted values, and checks an unobstructed mobile modal after the drawer closes; its screenshot was visually reviewed.
 - Phase 3: one SuggestionList renders mention/channel/command/emoji suggestions. useComposerSuggestions and useAutosizeTextarea separate behavior from ChatInputBar; composerCompletion contains pure parsing/replacement functions and composerTypes holds neutral types. Escape dismissal survives queued detection, and IME Enter does not submit.
 - Phase 3 validation: production build and final TypeScript check passed, as did six focused composer tests, lint, and both local desktop/mobile browser journeys.
-- Phases 4–7: pending.
+- Phase 4: desktop/mobile navigation now use one layout-owned ServerDialogs host and testable dialog state hook. Mobile text-channel groups reuse TextChannelItem; useVisibleChannelGroups shares permission filtering and grouping. Mobile channel clicks await navigation before closing the drawer to prevent synthetic-history cleanup restoring the previous URL.
+- Phase 4 validation: TypeScript, focused lint, 36 affected unit tests, and four local browser journeys passed. Checks cover touch context menus, preserved unsaved dialog drafts across responsive changes, and mobile channel URL navigation.
+- Phases 5–7: pending.
 
 ## Recommendation
 

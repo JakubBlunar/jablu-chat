@@ -1,78 +1,59 @@
-import { useServerMenuItems } from '@/hooks/useServerMenuItems'
-import { ContextMenu } from '@/components/ui/ContextMenu'
 import { CategoryContextMenu } from '@/components/channel/ChannelContextMenu'
-import type { Channel, ChannelCategory, UserStatus } from '@chat/shared'
-import { hasPermission as hasPermFlag, Permission as SharedPermission } from '@chat/shared'
-import React, { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useShallow } from 'zustand/react/shallow'
-import SimpleBar from 'simplebar-react'
-import { useIsTablet } from '@/hooks/useMobile'
+import { useServerDialogs } from '@/components/server/hooks/useServerDialogs'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { ContextMenu } from '@/components/ui/ContextMenu'
 import { SectionHeading } from '@/components/ui/SectionHeading'
-import { ServerProfileModal } from '@/components/server/ServerProfileModal'
-const CreateChannelModal = React.lazy(() =>
-  import('@/components/channel/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal }))
-)
-const EditChannelModal = React.lazy(() =>
-  import('@/components/channel/EditChannelModal').then((m) => ({ default: m.EditChannelModal }))
-)
-const InviteModal = React.lazy(() =>
-  import('@/components/server/InviteModal').then((m) => ({ default: m.InviteModal }))
-)
-const ServerSettingsModal = React.lazy(() =>
-  import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
-)
-const LeaderboardModal = React.lazy(() =>
-  import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))
-)
-import { api } from '@/lib/api'
+import { useIsTablet } from '@/hooks/useMobile'
+import { useServerMenuItems } from '@/hooks/useServerMenuItems'
+import { useVisibleChannelGroups } from '@/hooks/useVisibleChannelGroups'
+import type { Channel, UserStatus } from '@chat/shared'
+import React, { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import SimpleBar from 'simplebar-react'
+import { useShallow } from 'zustand/react/shallow'
+
 import { useAppNavigate } from '@/hooks/useAppNavigate'
-import { useSortedChannels } from '@/hooks/useSortedChannels'
+import { api } from '@/lib/api'
 
-const ReorderChannelsModal = React.lazy(() =>
-  import('@/components/server/ReorderChannelsModal').then((m) => ({ default: m.ReorderChannelsModal }))
-)
-const ServerNotifModal = React.lazy(() =>
-  import('@/components/server/ServerNotifModal').then((m) => ({ default: m.ServerNotifModal }))
-)
-const CreateCategoryModal = React.lazy(() =>
-  import('@/components/channel/CreateCategoryModal').then((m) => ({ default: m.CreateCategoryModal }))
-)
-const EditCategoryModal = React.lazy(() =>
-  import('@/components/channel/EditCategoryModal').then((m) => ({ default: m.EditCategoryModal }))
-)
-const RolePickerModal = React.lazy(() =>
-  import('@/components/server/RolePickerModal').then((m) => ({ default: m.RolePickerModal }))
-)
-
+import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
+import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
+import { VoicePanel } from '@/components/voice/LazyVoicePanel'
+import { Permission, usePermissions } from '@/hooks/usePermissions'
+import { formatEventSchedule } from '@/lib/eventTime'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
-import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
-import { useSettingsStore } from '@/stores/settings.store'
-import { getRoleColor, useMemberStore } from '@/stores/member.store'
-import { usePermissions, Permission } from '@/hooks/usePermissions'
-import { useServerStore } from '@/stores/server.store'
-import { type VoiceParticipant, useVoiceStore } from '@/stores/voice.store'
-import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
-import { useReadStateStore } from '@/stores/readState.store'
-import { useNotifPrefStore } from '@/stores/notifPref.store'
-import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
-import { VoicePanel } from '@/components/voice/LazyVoicePanel'
-import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
 import { useEventStore } from '@/stores/event.store'
-import { formatEventSchedule } from '@/lib/eventTime'
-import { ChevronDownIcon } from './channel-sidebar/sidebarIcons'
-import { useSpeakingUsers } from './channel-sidebar/VoiceComponents'
+import { getRoleColor, useMemberStore } from '@/stores/member.store'
+import { useNotifPrefStore } from '@/stores/notifPref.store'
+import { useReadStateStore } from '@/stores/readState.store'
+import { useServerStore } from '@/stores/server.store'
+import { useSettingsStore } from '@/stores/settings.store'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
+import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store'
 import { ForumChannelItem } from './channel-sidebar/ForumChannelItem'
+import { ChevronDownIcon } from './channel-sidebar/sidebarIcons'
 import { TextChannelItem } from './channel-sidebar/TextChannelItem'
 import { VoiceChannelItem } from './channel-sidebar/VoiceChannelItem'
-
-const EventsPanel = React.lazy(() =>
-  import('@/components/events/EventsPanel').then((m) => ({ default: m.EventsPanel }))
-)
+import { useSpeakingUsers } from './channel-sidebar/VoiceComponents'
 
 export function ChannelSidebar() {
+  const {
+    setChannelModalOpen,
+    setEditingChannel,
+    setInviteOpen,
+    setServerSettingsOpen,
+    setProfileOpen,
+    setLeaderboardOpen,
+    setReorderOpen,
+    setEventsOpen,
+    setEventsInitialId,
+    setServerNotifOpen,
+    setCreateCategoryId,
+    setCreateCategoryOpen,
+    setEditingCategory,
+    setRolePickerOpen
+  } = useServerDialogs()
+
   const { t } = useTranslation('nav')
   const { t: tEvents } = useTranslation('events')
   const user = useAuthStore((s) => s.user)
@@ -101,19 +82,8 @@ export function ChannelSidebar() {
     }))
   )
 
-  const permissionsMap = useChannelPermissionsStore((s) => s.permissionsMap)
-  const visibleChannels = useMemo(
-    () =>
-      channels.filter((ch) => {
-        const perms = permissionsMap[ch.id]
-        if (perms === undefined) return true
-        return hasPermFlag(perms, SharedPermission.VIEW_CHANNEL)
-      }),
-    [channels, permissionsMap]
-  )
-
   const { textChannels, uncategorizedText, uncategorizedVoice, uncategorizedForum, categoryGroups, archivedChannels } =
-    useSortedChannels(visibleChannels, categories)
+    useVisibleChannelGroups(channels, categories)
   const [showArchived, setShowArchived] = useState(false)
 
   const { has: hasPerm } = usePermissions(currentServer?.id)
@@ -149,23 +119,9 @@ export function ChannelSidebar() {
   )
 
   const isTablet = useIsTablet()
-  const [channelModalOpen, setChannelModalOpen] = useState(false)
-  const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [serverSettingsOpen, setServerSettingsOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false)
-  const [reorderOpen, setReorderOpen] = useState(false)
+
   const [voiceCardUser, setVoiceCardUser] = useState<ProfileCardUser | null>(null)
   const [voiceCardRect, setVoiceCardRect] = useState<DOMRect | null>(null)
-  const [eventsOpen, setEventsOpen] = useState(false)
-  const [eventsInitialId, setEventsInitialId] = useState<string | null>(null)
-  const [serverNotifOpen, setServerNotifOpen] = useState(false)
-  const [createCategoryId, setCreateCategoryId] = useState<string | null>(null)
-  const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<ChannelCategory | null>(null)
-
-  const [rolePickerOpen, setRolePickerOpen] = useState(false)
 
   // Command palette hooks: allow global commands to open the sidebar's modals
   // without duplicating the modal ownership elsewhere.
@@ -191,7 +147,16 @@ export function ChannelSidebar() {
       window.removeEventListener('open-server-settings', openServerSettings)
       window.removeEventListener('open-leaderboard', openLeaderboard)
     }
-  }, [currentServer, isAdminOrOwner, canManageServer, isTablet])
+  }, [
+    currentServer,
+    isAdminOrOwner,
+    canManageServer,
+    isTablet,
+    setCreateCategoryId,
+    setChannelModalOpen,
+    setServerSettingsOpen,
+    setLeaderboardOpen
+  ])
 
   const handleOpenPinned = useCallback(
     (channel: Channel) => {
@@ -214,9 +179,10 @@ export function ChannelSidebar() {
   })
   const fetchEvents = useEventStore((s) => s.fetchEvents)
 
+  const eventServerId = currentServer?.id
   useEffect(() => {
-    if (currentServer) fetchEvents(currentServer.id)
-  }, [currentServer?.id, fetchEvents])
+    if (eventServerId) void fetchEvents(eventServerId)
+  }, [eventServerId, fetchEvents])
 
   const { members, onlineUserIds } = useMemberStore(
     useShallow((s) => ({ members: s.members, onlineUserIds: s.onlineUserIds }))
@@ -618,91 +584,10 @@ export function ChannelSidebar() {
         <VoicePanel />
       </aside>
 
-      {channelModalOpen && (
-        <Suspense fallback={null}>
-          <CreateChannelModal
-            open
-            onClose={() => {
-              setChannelModalOpen(false)
-              setCreateCategoryId(null)
-            }}
-            defaultCategoryId={createCategoryId}
-          />
-        </Suspense>
-      )}
-      {inviteOpen && currentServer && (
-        <Suspense fallback={null}>
-          <InviteModal
-            serverId={currentServer.id}
-            serverName={currentServer.name}
-            vanityCode={currentServer.vanityCode}
-            onClose={() => setInviteOpen(false)}
-          />
-        </Suspense>
-      )}
-      {serverSettingsOpen && currentServer && (
-        <Suspense fallback={null}>
-          <ServerSettingsModal server={currentServer} onClose={() => setServerSettingsOpen(false)} />
-        </Suspense>
-      )}
-      {profileOpen && currentServer && user && (
-        <ServerProfileModal serverId={currentServer.id} userId={user.id} onClose={() => setProfileOpen(false)} />
-      )}
-      {leaderboardOpen && currentServer && !isTablet && currentServer.xpEnabled && (
-        <Suspense fallback={null}>
-          <LeaderboardModal serverId={currentServer.id} onClose={() => setLeaderboardOpen(false)} />
-        </Suspense>
-      )}
-      {editingChannel && (
-        <Suspense fallback={null}>
-          <EditChannelModal channel={editingChannel} onClose={() => setEditingChannel(null)} />
-        </Suspense>
-      )}
-      {reorderOpen && (
-        <Suspense fallback={null}>
-          <ReorderChannelsModal onClose={() => setReorderOpen(false)} />
-        </Suspense>
-      )}
       {voiceCardUser && (
         <ProfileCard user={voiceCardUser} onClose={() => setVoiceCardUser(null)} anchorRect={voiceCardRect} />
       )}
-      {eventsOpen && currentServer && (
-        <Suspense fallback={null}>
-          <EventsPanel
-            serverId={currentServer.id}
-            initialEventId={eventsInitialId ?? undefined}
-            onClose={() => {
-              setEventsOpen(false)
-              setEventsInitialId(null)
-            }}
-          />
-        </Suspense>
-      )}
-      {serverNotifOpen && currentServer && (
-        <Suspense fallback={null}>
-          <ServerNotifModal
-            serverId={currentServer.id}
-            serverName={currentServer.name}
-            onClose={() => setServerNotifOpen(false)}
-          />
-        </Suspense>
-      )}
-      {createCategoryOpen && (
-        <Suspense fallback={null}>
-          <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />
-        </Suspense>
-      )}
-      {editingCategory && (
-        <Suspense fallback={null}>
-          <EditCategoryModal category={editingCategory} onClose={() => setEditingCategory(null)} />
-        </Suspense>
-      )}
 
-      {rolePickerOpen && currentServer && (
-        <Suspense fallback={null}>
-          <RolePickerModal onClose={() => setRolePickerOpen(false)} />
-        </Suspense>
-      )}
       {showLeaveConfirm && currentServer && (
         <ConfirmDialog
           title={t('leaveServerTitle')}

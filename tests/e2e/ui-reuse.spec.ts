@@ -91,7 +91,12 @@ test('shared channel fields create and edit a real forum on desktop and fit on m
     expect(updated.find((channel: { id: string }) => channel.id === forum.id).postGuidelines).toBe(
       'Updated shared guidelines'
     )
+    await channel.click({ button: 'right' })
+    await page.getByRole('menu').locator('[data-menu-control="edit"]').click()
+    await page.locator('#edit-forum-guidelines').fill('Unsaved responsive draft')
     await page.setViewportSize({ width: 390, height: 844 })
+    await expect(page.locator('#edit-forum-guidelines')).toHaveValue('Unsaved responsive draft')
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
     await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click()
     await page.getByRole('button', { name: server.name, exact: true }).last().click()
     await page.getByRole('menu').locator('[data-menu-control="createChannel"]').click()
@@ -108,6 +113,11 @@ test('shared channel fields create and edit a real forum on desktop and fit on m
     ).toBe(true)
     await page.screenshot({ path: 'test-results/shared-channel-fields-mobile.png' })
     await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click()
+    await page.getByRole('button', { name: 'general', exact: true }).last().click()
+    const general = channels.find((channel: { name: string; type: string }) => channel.name === 'general' && channel.type === 'text')
+    await expect(page).toHaveURL(new RegExp('/channels/' + server.id + '/' + general.id))
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   } finally {
     await apiCall(page, 'deleteServer', server.id)
   }
