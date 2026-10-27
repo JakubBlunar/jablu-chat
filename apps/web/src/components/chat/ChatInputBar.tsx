@@ -110,7 +110,7 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
     wrapperRef
   })
   useImperativeHandle(ref, () => ({
-    focus: () => taRef.current?.focus(),
+    focus: () => taRef.current?.focus({ preventScroll: true }),
     dismissPopup: dismissSuggestions
   }))
   useAutosizeTextarea(taRef, value)

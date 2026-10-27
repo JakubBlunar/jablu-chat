@@ -4,6 +4,7 @@ import { InAppNotificationBell } from '@/components/notifications/InAppNotificat
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAuthStore } from '@/stores/auth.store'
 import { useLayoutStore } from '@/stores/layout.store'
+import { getVisualViewportBounds } from '@/hooks/useVisualViewport'
 
 export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { t } = useTranslation('nav')
@@ -12,13 +13,30 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
   const [composing, setComposing] = useState(false)
   useEffect(() => {
     let blurTimer: ReturnType<typeof setTimeout> | undefined
-    const update = () => {
+    let sawKeyboard = false
+    let dismissedKeyboard = false
+    const update = (event?: Event) => {
       clearTimeout(blurTimer)
       const element = document.activeElement
-      const keyboardOpen = window.visualViewport ? window.innerHeight - window.visualViewport.height > 150 : false
+      const bounds = getVisualViewportBounds()
+      const keyboardOpen = bounds?.keyboardOpen ?? false
+      if (event?.type === 'focusin') {
+        dismissedKeyboard = false
+        sawKeyboard = false
+      }
+      if (keyboardOpen) {
+        dismissedKeyboard = false
+        sawKeyboard = true
+      } else if (sawKeyboard && bounds && bounds.height >= window.innerHeight - 1) {
+        // iOS can dismiss its keyboard while keeping the textarea focused.
+        sawKeyboard = false
+        dismissedKeyboard = true
+      }
       const insideComposer = element instanceof HTMLElement && !!element.closest('[data-message-composer]')
       setComposing(
-        (previous) => keyboardOpen || (insideComposer && (element instanceof HTMLTextAreaElement || previous))
+        (previous) =>
+          keyboardOpen ||
+          (!dismissedKeyboard && insideComposer && (element instanceof HTMLTextAreaElement || previous))
       )
     }
     const onBlur = () => {
@@ -27,12 +45,18 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
     document.addEventListener('focusin', update)
     document.addEventListener('focusout', onBlur)
     window.visualViewport?.addEventListener('resize', update)
+    window.visualViewport?.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    window.addEventListener('pageshow', update)
     update()
     return () => {
       clearTimeout(blurTimer)
       document.removeEventListener('focusin', update)
       document.removeEventListener('focusout', onBlur)
       window.visualViewport?.removeEventListener('resize', update)
+      window.visualViewport?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('pageshow', update)
     }
   }, [])
   return (

@@ -14,6 +14,7 @@ import { MessageArea } from '@/components/chat/MessageArea'
 import { ForumView } from '@/components/forum/ForumView'
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer'
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav'
+import { MobileViewport } from '@/components/layout/MobileViewport'
 import { ServerSidebar } from '@/components/server/ServerSidebar'
 import { UserFooter } from '@/components/layout/UserFooter'
 import { ToastContainer } from '@/components/ToastContainer'
@@ -299,7 +300,7 @@ function MainLayoutContent() {
   // ─── Mobile layout ───
   if (isMobile) {
     return (
-      <div className="flex h-[100dvh] flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+      <MobileViewport>
         <SkipToMainLink />
         <VoicePlayback />
         <DmCallNotifications />
@@ -375,7 +376,7 @@ function MainLayoutContent() {
             />
           </Suspense>
         )}
-      </div>
+      </MobileViewport>
     )
   }
 

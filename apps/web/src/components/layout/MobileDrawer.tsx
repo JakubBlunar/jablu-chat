@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { useDialogName } from '@/hooks/useDialogName'
+import { useVisualViewport } from '@/hooks/useVisualViewport'
 
 type Props = {
   open: boolean
@@ -20,6 +21,7 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'a
   const touchDeltaRef = useRef(0)
   const drawerRef = useRef<HTMLDivElement>(null)
   const name = useDialogName(drawerRef, visible, children, label)
+  useVisualViewport(drawerRef, visible)
   useFocusTrap(drawerRef, open && visible, onClose)
   useBackGestureClose(open, onClose)
 
@@ -70,7 +72,7 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'a
     // can be throttled, leaving an invisible full-screen layer that blocks all input.
     <div
       ref={drawerRef}
-      className="pointer-events-none fixed inset-0 z-[80]"
+      className="pointer-events-none fixed inset-x-0 top-0 h-[100dvh] z-[80]"
       role="dialog"
       aria-modal="true"
       {...name}
@@ -86,7 +88,10 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'a
       <div
         inert={!open}
         className={`${open ? 'pointer-events-auto' : 'pointer-events-none'} absolute top-0 ${side === 'left' ? 'left-0' : 'right-0'} h-full ${width} transform transition-transform duration-200 ease-out ${translate}`}
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'var(--keyboard-safe-area-bottom, env(safe-area-inset-bottom, 0px))'
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
