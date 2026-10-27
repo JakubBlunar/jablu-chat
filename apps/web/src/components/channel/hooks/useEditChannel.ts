@@ -3,43 +3,13 @@ import { api } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useForumStore } from '@/stores/forum.store'
 import { useServerStore } from '@/stores/server.store'
-import type { Channel, ForumLayout, ForumSortOrder, ForumTag, Role } from '@chat/shared'
-import { hasPermission, Permission, permsToBigInt } from '@chat/shared'
+import type { Channel, ForumLayout, ForumSortOrder, ForumTag } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChannelDraft } from './useChannelDraft'
-type PermOverride = {
-  view: boolean
-  send: boolean
-}
-type RoleOverride = {
-  roleId: string
-  roleName: string
-  perms: PermOverride
-  original: PermOverride | null
-}
 type EditableForumTag = ForumTag & {
   saving?: boolean
   deleting?: boolean
-}
-const VIEW_CHANNEL = Permission.VIEW_CHANNEL
-const SEND_MESSAGES = Permission.SEND_MESSAGES
-function parseOverridePerms(allow: string, deny: string): PermOverride {
-  const a = permsToBigInt(allow)
-  const d = permsToBigInt(deny)
-  return {
-    view: !hasPermission(d, VIEW_CHANNEL) && hasPermission(a, VIEW_CHANNEL),
-    send: !hasPermission(d, SEND_MESSAGES) && hasPermission(a, SEND_MESSAGES)
-  }
-}
-function buildOverrideBits(perms: PermOverride): { allow: bigint; deny: bigint } {
-  let allow = 0n
-  let deny = 0n
-  if (perms.view) allow |= VIEW_CHANNEL
-  else deny |= VIEW_CHANNEL
-  if (perms.send) allow |= SEND_MESSAGES
-  else deny |= SEND_MESSAGES
-  return { allow, deny }
 }
 export function useEditChannel({ channel, onClose }: { channel: Channel; onClose: () => void }) {
   const form = useChannelDraft(channel)
@@ -74,12 +44,6 @@ export function useEditChannel({ channel, onClose }: { channel: Channel; onClose
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const [roleOverrides, setRoleOverrides] = useState<RoleOverride[]>([])
-  const [allRoles, setAllRoles] = useState<Role[]>([])
-  const [permissionsLoading, setPermissionsLoading] = useState(false)
-  const [permissionsSaving, setPermissionsSaving] = useState(false)
-  const [showPermissions, setShowPermissions] = useState(false)
-
   const nameChanged = name !== channel.name
   const descriptionChanged = description.trim() !== (channel.description ?? '')
   const categoryChanged = categoryId !== (channel.categoryId ?? null)
@@ -99,37 +63,6 @@ export function useEditChannel({ channel, onClose }: { channel: Channel; onClose
     requireTagsChanged
 
   useEffect(() => {
-    if (!showPermissions || !currentServerId) return
-    let cancelled = false
-    setPermissionsLoading(true)
-
-    Promise.all([api.getRoles(currentServerId), api.getChannelOverrides(channel.id)])
-      .then(([roles, overrides]) => {
-        if (cancelled) return
-        setAllRoles(roles)
-        const overrideMap = new Map(
-          (overrides as Array<{ roleId: string; allow: string; deny: string }>).map((o) => [o.roleId, o] as const)
-        )
-        const items: RoleOverride[] = []
-        for (const [roleId, o] of overrideMap) {
-          const role = roles.find((r: Role) => r.id === roleId)
-          if (!role) continue
-          const perms = parseOverridePerms(o.allow, o.deny)
-          items.push({ roleId, roleName: role.name, perms, original: { ...perms } })
-        }
-        setRoleOverrides(items)
-        setPermissionsLoading(false)
-      })
-      .catch(() => {
-        if (!cancelled) setPermissionsLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [showPermissions, currentServerId, channel.id])
-
-  useEffect(() => {
     if (channel.type !== 'forum') return
     let cancelled = false
     setTagsLoading(true)
@@ -147,29 +80,6 @@ export function useEditChannel({ channel, onClose }: { channel: Channel; onClose
       cancelled = true
     }
   }, [channel.id, channel.type])
-
-  const permissionsChanged = roleOverrides.some(
-    (r) => r.original === null || r.perms.view !== r.original.view || r.perms.send !== r.original.send
-  )
-
-  const addRoleOverride = (roleId: string) => {
-    const role = allRoles.find((r) => r.id === roleId)
-    if (!role || roleOverrides.some((r) => r.roleId === roleId)) return
-    setRoleOverrides((prev) => [
-      ...prev,
-      { roleId, roleName: role.name, perms: { view: true, send: true }, original: null }
-    ])
-  }
-
-  const removeRoleOverride = async (roleId: string) => {
-    if (!currentServerId) return
-    try {
-      await api.deleteChannelOverride(currentServerId, channel.id, roleId)
-      setRoleOverrides((prev) => prev.filter((r) => r.roleId !== roleId))
-    } catch {
-      setError(tChannels('errors.removeOverrideFailed'))
-    }
-  }
 
   const handleCreateTag = useCallback(async () => {
     const name = newTagName.trim()
@@ -219,31 +129,6 @@ export function useEditChannel({ channel, onClose }: { channel: Channel; onClose
     },
     [channel.id, tChannels]
   )
-
-  const handleSavePermissions = useCallback(async () => {
-    if (!currentServerId || !permissionsChanged) return
-    setPermissionsSaving(true)
-    setError(null)
-    try {
-      for (const r of roleOverrides) {
-        if (r.original === null || r.perms.view !== r.original.view || r.perms.send !== r.original.send) {
-          const bits = buildOverrideBits(r.perms)
-          await api.upsertChannelOverride(
-            currentServerId,
-            channel.id,
-            r.roleId,
-            bits.allow.toString(),
-            bits.deny.toString()
-          )
-        }
-      }
-      setRoleOverrides((prev) => prev.map((r) => ({ ...r, original: { ...r.perms } })))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : tChannels('errors.updatePermissionsFailed'))
-    } finally {
-      setPermissionsSaving(false)
-    }
-  }, [currentServerId, channel.id, roleOverrides, permissionsChanged, tChannels])
 
   const handleSave = useCallback(async () => {
     if (!currentServerId || !name) return
@@ -322,14 +207,6 @@ export function useEditChannel({ channel, onClose }: { channel: Channel; onClose
     }
   }, [currentServerId, channel.id, currentChannelId, goToServer, fetchChannels, onClose, tChannels])
 
-  const togglePerm = (roleId: string, perm: keyof PermOverride) => {
-    setRoleOverrides((prev) =>
-      prev.map((r) => (r.roleId === roleId ? { ...r, perms: { ...r.perms, [perm]: !r.perms[perm] } } : r))
-    )
-  }
-
-  const availableRolesToAdd = allRoles.filter((r) => !roleOverrides.some((o) => o.roleId === r.id))
-
   return {
     form,
     isArchived,
@@ -351,22 +228,11 @@ export function useEditChannel({ channel, onClose }: { channel: Channel; onClose
     confirmDelete,
     setConfirmDelete,
     deleting,
-    roleOverrides,
-    permissionsLoading,
-    permissionsSaving,
-    showPermissions,
-    setShowPermissions,
     hasChanges,
-    permissionsChanged,
-    addRoleOverride,
-    removeRoleOverride,
     handleCreateTag,
     handleUpdateTag,
     handleDeleteTag,
-    handleSavePermissions,
     handleSave,
-    handleDelete,
-    togglePerm,
-    availableRolesToAdd
+    handleDelete
   }
 }

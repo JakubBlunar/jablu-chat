@@ -522,7 +522,7 @@ export function registerEventListeners(gw: ChatGateway) {
 
   gw.events.on(
     'channel:permissions:updated',
-    async (payload: { serverId: string; channelId: string; roleId: string }) => {
+    async (payload: { serverId: string; channelId: string; roleId?: string }) => {
       gw.server.to(`server:${payload.serverId}`).emit('channel:permissions:updated', payload)
       const members = await gw.prisma.serverMember.findMany({
         where: { serverId: payload.serverId },

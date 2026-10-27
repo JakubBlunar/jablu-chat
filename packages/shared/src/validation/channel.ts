@@ -21,3 +21,17 @@ export const updateChannelSchema = z.object({
 
 export type CreateChannelInput = z.infer<typeof createChannelSchema>
 export type UpdateChannelInput = z.infer<typeof updateChannelSchema>
+
+const permissionBits = z
+  .string()
+  .regex(/^(0|[1-9][0-9]{0,18})$/)
+  .pipe(z.string().refine((value) => BigInt(value) <= (1n << 63n) - 1n, 'Permission bits out of range'))
+const accessRuleSchema = z.object({ roleId: z.uuid(), allow: permissionBits, deny: permissionBits })
+const accessRulesSchema = z
+  .array(accessRuleSchema)
+  .max(1000)
+  .refine((rules) => new Set(rules.map((rule) => rule.roleId)).size === rules.length, 'Duplicate role')
+export const saveChannelAccessSchema = z.object({
+  overrides: accessRulesSchema,
+  expectedOverrides: accessRulesSchema
+})

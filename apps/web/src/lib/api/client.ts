@@ -78,7 +78,13 @@ export class ApiClient {
     }
   }
 
-  protected async request<T>(method: string, path: string, body?: unknown, skipRefresh = false, externalSignal?: AbortSignal): Promise<T> {
+  protected async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    skipRefresh = false,
+    externalSignal?: AbortSignal
+  ): Promise<T> {
     const controller = new AbortController()
     const cancel = () => controller.abort(externalSignal?.reason)
     if (externalSignal?.aborted) cancel()
@@ -751,6 +757,22 @@ export class ApiClient {
     channelId: string
   ): Promise<(import('@chat/shared').ChannelPermissionOverride & { roleName: string })[]> {
     return this.get(`/api/channels/${channelId}/overrides`)
+  }
+
+  getChannelAccess(
+    serverId: string,
+    channelId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<import('@chat/shared').ChannelAccessContext> {
+    return this.get(`/api/servers/${serverId}/channels/${channelId}/access`, options)
+  }
+
+  saveChannelAccess(
+    serverId: string,
+    channelId: string,
+    data: import('@chat/shared').ChannelAccessSave
+  ): Promise<{ overrides: import('@chat/shared').ChannelAccessRule[] }> {
+    return this.put(`/api/servers/${serverId}/channels/${channelId}/access`, data)
   }
 
   upsertChannelOverride(
