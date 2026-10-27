@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import type { Attachment } from '@chat/shared'
-import SimpleBar from 'simplebar-react'
-import { UserAvatar } from '@/components/UserAvatar'
-import { api, ApiError, resolveMediaUrl, type SearchResult } from '@/lib/api'
-import { MessageMediaProvider, useMessageMedia } from '@/components/media/MessageMediaGallery'
-import { formatSmartTimestamp } from '@/lib/format-time'
-import { useAppNavigate } from '@/hooks/useAppNavigate'
-import { useChannelStore } from '@/stores/channel.store'
-import { useServerStore } from '@/stores/server.store'
-import { IconButton, Spinner } from '@/components/ui'
-import { useIsMobile } from '@/hooks/useMobile'
-import { useNavigationStore } from '@/stores/navigation.store'
-import { historyErrorKey, type HistoryErrorKey } from '@/lib/messageHistory'
 import { MediaPreview } from '@/components/media/MediaPreview'
+import { MessageMediaProvider, useMessageMedia } from '@/components/media/MessageMediaGallery'
+import { IconButton, Spinner } from '@/components/ui'
+import { PaginationControls } from '@/components/ui/PaginationControls'
+import { UserAvatar } from '@/components/UserAvatar'
+import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { useIsMobile } from '@/hooks/useMobile'
+import { resolveMediaUrl, type SearchResult } from '@/lib/api'
+import { formatSmartTimestamp } from '@/lib/format-time'
+import { historyErrorKey, type HistoryErrorKey } from '@/lib/messageHistory'
 import { serverDisplayName } from '@/lib/serverProfile'
+import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { useServerStore } from '@/stores/server.store'
+import type { Attachment } from '@chat/shared'
+import { useEffect, useId, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import SimpleBar from 'simplebar-react'
+import { useMessageSearch, type Scope } from './useMessageSearch'
 
-type Scope = 'server' | 'channel' | 'conversation' | 'dm' | 'all'
 const PAGE_SIZE = 25
 const FILTER_TOKEN = /(?<!\S)(has|from|in|tag|after|before):(?:"([^"]*)"|(\S*))/gi
 
@@ -54,6 +55,21 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const members = useMemberStore((s) => s.members)
   const currentChannelId = useChannelStore((s) => s.currentChannelId)
   const channels = useChannelStore((s) => s.channels)
+  const {
+    scope,
+    results,
+    total,
+    offset,
+    setOffset,
+    loading,
+    error,
+    localQuery,
+    doSearch,
+    submit,
+    handleLocalChange,
+    handleScopeChange,
+    cancelDebounce
+  } = useMessageSearch({ query, onQueryChange, defaultScope, currentServerId, currentChannelId, conversationId })
   const currentChannel = channels.find((c) => c.id === currentChannelId)
   const { navigate, orchestratedGoToChannel, orchestratedGoToDm } = useAppNavigate()
   const [resultFailure, setResultFailure] = useState<{ result: SearchResult; key: HistoryErrorKey } | null>(null)
@@ -65,18 +81,10 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     []
   )
 
-  const [scope, setScope] = useState<Scope>(defaultScope)
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<{ message?: string } | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [localQuery, setLocalQuery] = useState(query)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
   const inputRef = useRef<HTMLInputElement>(null)
-  const requestId = useRef(0)
-  const searchController = useRef<AbortController | null>(null)
+
   const isMobile = useIsMobile()
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtersId = useId()
@@ -98,99 +106,9 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       ? t(filterLabels[token.toLowerCase()])
       : `${t(({ from: 'filterSender', tag: 'filterTag', after: 'filterAfter', before: 'filterBefore' } as Record<string, string>)[key.toLowerCase()] ?? 'searchFilters')}: ${value}`
 
-  useEffect(() => {
-    setLocalQuery(query)
-    if (timerRef.current) clearTimeout(timerRef.current)
-  }, [query])
-
-  const doSearch = useCallback(
-    async (q: string, s: Scope, off: number) => {
-      const request = ++requestId.current
-      searchController.current?.abort()
-      const controller = new AbortController()
-      searchController.current = controller
-      setError(null)
-      if (!q.trim()) {
-        setResults([])
-        setTotal(0)
-        setLoading(false)
-        return
-      }
-      setLoading(true)
-      try {
-        const opts: Parameters<typeof api.searchMessages>[1] = { offset: off }
-        if (s === 'server' && currentServerId) opts.serverId = currentServerId
-        else if (s === 'channel' && currentChannelId) opts.channelId = currentChannelId
-        else if (s === 'conversation' && conversationId) opts.conversationId = conversationId
-        else if (s === 'dm') opts.dmOnly = true
-        const data = await api.searchMessages(q, opts, { signal: controller.signal })
-        if (request !== requestId.current) return
-        setResults(data.results)
-        setTotal(data.total)
-      } catch (error) {
-        if (request !== requestId.current) return
-        setResults([])
-        setTotal(0)
-        setError({ message: error instanceof ApiError ? error.message : undefined })
-      } finally {
-        if (request === requestId.current) setLoading(false)
-      }
-    },
-    [currentServerId, currentChannelId, conversationId]
-  )
-
-  useEffect(() => {
-    const requests = requestId
-    void doSearch(query, scope, offset)
-    return () => {
-      requests.current++
-      searchController.current?.abort()
-    }
-  }, [query, scope, offset, doSearch])
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    },
-    []
-  )
-
-  function submit(value: string) {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setLocalQuery(value)
-    setOffset(0)
-    if (value === query && offset === 0) void doSearch(value, scope, 0)
-    else onQueryChange(value)
-  }
-
-  function handleLocalChange(value: string) {
-    requestId.current++
-    searchController.current?.abort()
-    setLoading(false)
-    setLocalQuery(value)
-    setError(null)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    if (value.trim()) {
-      timerRef.current = setTimeout(() => {
-        submit(value)
-      }, 400)
-    } else {
-      setOffset(0)
-      onQueryChange('')
-      setResults([])
-      setTotal(0)
-      setLoading(false)
-    }
-  }
-
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') submit(localQuery)
     if (e.key === 'Escape') onClose()
-  }
-
-  function handleScopeChange(s: Scope) {
-    setScope(s)
-    setOffset(0)
   }
 
   async function handleResultClick(result: SearchResult) {
@@ -395,7 +313,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                       submit(replaceFilter(localQuery, token, findFilter(localQuery, token) ? '' : token))
                     } else {
                       handleLocalChange(replaceFilter(localQuery, f.insert, f.insert))
-                      if (timerRef.current) clearTimeout(timerRef.current)
+                      cancelDebounce()
                     }
                     inputRef.current?.focus()
                   }}
@@ -530,25 +448,15 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       {/* Pagination */}
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between border-t border-white/10 px-3 py-2">
-          <button
-            type="button"
-            disabled={loading || currentPage <= 1}
-            onClick={() => setOffset(offset - PAGE_SIZE)}
-            className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            {t('previous')}
-          </button>
-          <span className="text-xs text-gray-500">
-            {currentPage} / {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={loading || currentPage >= totalPages}
-            onClick={() => setOffset(offset + PAGE_SIZE)}
-            className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            {t('next')}
-          </button>
+          <PaginationControls
+            page={currentPage}
+            pages={totalPages}
+            disabled={loading}
+            onPrevious={() => setOffset(offset - PAGE_SIZE)}
+            onNext={() => setOffset(offset + PAGE_SIZE)}
+            previousLabel={t('previous')}
+            nextLabel={t('next')}
+          />
         </div>
       )}
     </aside>

@@ -19,7 +19,8 @@ async function mobileSettings(page: Page) {
     useToastStore.setState({ toasts: [] })
   })
   await page.setViewportSize({ width: 390, height: 844 })
-  // At this breakpoint the desktop sidebar is replaced by the navigation drawer.
+  // The shared dialog host preserves an already-open settings modal on resize.
+  if (await page.getByRole('dialog', { name: 'Server Settings', exact: true }).isVisible()) return
   await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click()
   await page.locator('button[aria-haspopup="menu"]:not([title])').first().click()
   await page.getByRole('menu').locator('[data-menu-control="settings"]').click()
@@ -207,7 +208,19 @@ test('large lists paginate, reset filters, and recover from a failed audit reque
         }
       }))
     ]
-    await page.route(`**/api/servers/${server.id}/members`, (route) => route.fulfill({ json: members }))
+    const roles = await apiCall(page, 'getRoles', server.id)
+    await page.route('**/api/servers/' + server.id + '/roster*', (route) =>
+      route.fulfill({
+        json: {
+          members: members.map((member) => ({
+            ...member,
+            roleIds: member.roleIds ?? member.roles.map((role: { id: string }) => role.id)
+          })),
+          roles,
+          nextCursor: null
+        }
+      })
+    )
     await openSettings(page, server.id, server.channels[0].id)
     const dialog = page.getByRole('dialog', { name: 'Server Settings', exact: true })
     await dialog.getByRole('button', { name: 'Members', exact: true }).click()

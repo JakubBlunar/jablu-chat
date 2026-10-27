@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { useListPage } from './ListControls'
+import { useListPage } from '@/hooks/useListPage'
 
 describe('settings list navigation', () => {
   const items = Array.from({ length: 23 }, (_, i) => i)

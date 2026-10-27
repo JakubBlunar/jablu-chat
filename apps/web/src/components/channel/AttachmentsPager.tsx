@@ -1,3 +1,4 @@
+import { PaginationControls } from '@/components/ui/PaginationControls'
 import { useTranslation } from 'react-i18next'
 
 interface AttachmentsPagerProps {
@@ -16,25 +17,14 @@ export function AttachmentsPager({ page, pageSize, total, onPrev, onNext }: Atta
 
   return (
     <div className="flex shrink-0 items-center justify-between border-t border-white/10 bg-surface-dark px-3 py-2">
-      <button
-        type="button"
-        disabled={currentPage <= 1}
-        onClick={onPrev}
-        className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        {t('previous')}
-      </button>
-      <span className="text-xs text-gray-500">
-        {currentPage} / {totalPages}
-      </span>
-      <button
-        type="button"
-        disabled={currentPage >= totalPages}
-        onClick={onNext}
-        className="rounded px-2 py-1 text-xs font-medium text-gray-300 transition hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
-      >
-        {t('next')}
-      </button>
+      <PaginationControls
+        page={currentPage}
+        pages={totalPages}
+        onPrevious={onPrev}
+        onNext={onNext}
+        previousLabel={t('previous')}
+        nextLabel={t('next')}
+      />
     </div>
   )
 }

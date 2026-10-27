@@ -13,7 +13,9 @@ Reviewed 27 October 2026. The initial analysis is followed by the implementation
 - Phase 3 validation: production build and final TypeScript check passed, as did six focused composer tests, lint, and both local desktop/mobile browser journeys.
 - Phase 4: desktop/mobile navigation now use one layout-owned ServerDialogs host and testable dialog state hook. Mobile text-channel groups reuse TextChannelItem; useVisibleChannelGroups shares permission filtering and grouping. Mobile channel clicks await navigation before closing the drawer to prevent synthetic-history cleanup restoring the previous URL.
 - Phase 4 validation: TypeScript, focused lint, 36 affected unit tests, and four local browser journeys passed. Checks cover touch context menus, preserved unsaved dialog drafts across responsive changes, and mobile channel URL navigation.
-- Phases 5–7: pending.
+- Phase 5: PaginationControls now owns shared previous/page/next rendering in attachments, search, and settings lists. useListPage, usePagedContent, and useMessageSearch separate client paging, server paging, and debounced search from presentation.
+- Phase 5 validation: TypeScript, focused lint, 24 pagination/search/media tests, and the large-list desktop/mobile browser journey passed. Updated the existing browser fixture for the current roster API and for settings dialogs that now survive responsive changes.
+- Phases 6–7: pending.
 
 ## Recommendation
 

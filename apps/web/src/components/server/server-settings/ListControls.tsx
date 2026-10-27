@@ -1,26 +1,9 @@
-import { useState } from 'react'
+import { Select } from '@/components/ui'
+import { PaginationControls } from '@/components/ui/PaginationControls'
 import { useTranslation } from 'react-i18next'
-import { Button, Select } from '@/components/ui'
 
 // Clamp after deletions; a changed search/filter starts at the first page.
-export function useListPage<T>(items: T[], filterKey: string) {
-  const [pageSize, setPageSize] = useState(10)
-  const [position, setPosition] = useState({ key: filterKey, page: 1 })
-  const pages = Math.max(1, Math.ceil(items.length / pageSize))
-  const page = position.key === filterKey ? Math.min(position.page, pages) : 1
-  return {
-    items: items.slice((page - 1) * pageSize, page * pageSize),
-    page,
-    pages,
-    pageSize,
-    total: items.length,
-    onPageChange: (next: number) => setPosition({ key: filterKey, page: next }),
-    onPageSizeChange: (size: number) => {
-      setPageSize(size)
-      setPosition({ key: filterKey, page: 1 })
-    }
-  }
-}
+export { useListPage } from '@/hooks/useListPage'
 
 export function ListPagination({
   page,
@@ -63,25 +46,18 @@ export function ListPagination({
             </option>
           ))}
         </Select>
-        <Button
+        <PaginationControls
+          page={page}
+          pages={pages}
+          onPrevious={() => onPageChange(page - 1)}
+          onNext={() => onPageChange(page + 1)}
+          previousLabel={t('lists.previous')}
+          nextLabel={t('lists.next')}
+          previousContent="‹"
+          nextContent="›"
+          pageLabel={t('lists.page', { page, pages })}
           size="sm"
-          variant="secondary"
-          aria-label={t('lists.previous')}
-          disabled={page <= 1}
-          onClick={() => onPageChange(page - 1)}
-        >
-          ‹
-        </Button>
-        <span className="whitespace-nowrap text-xs text-gray-400">{t('lists.page', { page, pages })}</span>
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-label={t('lists.next')}
-          disabled={page >= pages}
-          onClick={() => onPageChange(page + 1)}
-        >
-          ›
-        </Button>
+        />
       </div>
     </nav>
   )
