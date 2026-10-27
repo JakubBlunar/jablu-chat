@@ -3,6 +3,7 @@
 
 :root {
   --app-text-scale: 1;
+  color-scheme: dark;
 }
 
 @utility text-* {
@@ -95,6 +96,8 @@ html,
 body,
 #root {
   height: 100%;
+  /* The mobile chat shell shrinks before the keyboard animation finishes. */
+  background-color: var(--color-surface, #1a1c28);
   overflow: hidden;
   overscroll-behavior: none;
 }
