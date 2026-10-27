@@ -1,5 +1,6 @@
 import type { Attachment } from '@chat/shared'
 import { useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useMediaDownload } from '@/hooks/useMediaDownload'
 import { ForwardMessageModal } from '@/components/chat/ForwardMessageModal'
@@ -153,7 +154,16 @@ export function MobileMessageDrawer({
       <div className="border-t border-white/5" />
 
       <div className="flex flex-col gap-1.5 px-3 pt-3">
-        <SheetBtn icon={<ReplyIcon className="h-5 w-5" />} label={t('actionReply')} onClick={actions.reply} />
+        <SheetBtn
+          icon={<ReplyIcon className="h-5 w-5" />}
+          label={t('actionReply')}
+          onClick={() => {
+            // Release the sheet's focus trap and inert background before focusing
+            // the composer, and keep both commits inside iOS's tap gesture.
+            flushSync(onClose)
+            flushSync(onReply)
+          }}
+        />
         {actions.canThread && (
           <SheetBtn
             icon={<ThreadIcon className="h-5 w-5" />}

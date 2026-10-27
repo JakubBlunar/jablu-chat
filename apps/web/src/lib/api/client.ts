@@ -510,7 +510,11 @@ export class ApiClient {
     signal?: AbortSignal
   ): Promise<T> {
     const formData = new FormData()
-    formData.append(fieldName, file)
+    // Safari can send an empty multipart body for Files restored from IndexedDB
+    // (our outbox) or supplied by a picker in a PWA. A plain Blob avoids its
+    // disk-backed File serialization path without copying the file into memory.
+    // https://bugs.webkit.org/show_bug.cgi?id=319985
+    formData.append(fieldName, file.slice(0, file.size, file.type), file.name)
 
     const headers: Record<string, string> = {}
     const { accessToken } = readPersistedAuth()
@@ -650,7 +654,7 @@ export class ApiClient {
   async uploadEmoji(serverId: string, name: string, file: File): Promise<CustomEmoji> {
     const form = new FormData()
     form.append('name', name)
-    form.append('image', file)
+    form.append('image', file.slice(0, file.size, file.type), file.name)
     const headers: Record<string, string> = {}
     const { accessToken } = readPersistedAuth()
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`

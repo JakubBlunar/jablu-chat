@@ -394,6 +394,46 @@ describe('ApiClient', () => {
 
   describe('upload progress', () => {
     afterEach(() => jest.restoreAllMocks())
+    it.each([false, true])('uploads a plain Blob with the original filename and bytes (progress: %s)', async (withProgress) => {
+      const file = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'screenshot.png', {
+        type: 'image/png'
+      })
+      // Observe the argument before FormData wraps the Blob in its own File.
+      const append = jest.spyOn(FormData.prototype, 'append')
+      const xhr = new XMLHttpRequest()
+      const send = jest.spyOn(xhr, 'send').mockImplementation(() => {})
+      jest.spyOn(xhr, 'open').mockImplementation(() => {})
+      jest.spyOn(xhr, 'setRequestHeader').mockImplementation(() => {})
+      jest.spyOn(globalThis, 'XMLHttpRequest').mockImplementation(() => xhr)
+      mockFetch.mockResolvedValue(jsonResponse({ id: 'image' }))
+
+      const result = client.uploadAttachment(file, withProgress ? jest.fn() : undefined)
+      const [field, blob, filename] = append.mock.calls[0]
+      expect(field).toBe('file')
+      expect(blob).toBeInstanceOf(Blob)
+      expect(blob).not.toBeInstanceOf(File)
+      expect(filename).toBe('screenshot.png')
+      const body = (withProgress ? send.mock.calls[0][0] : mockFetch.mock.calls[0][1].body) as FormData
+      const part = body.get('file') as File
+      expect(part.name).toBe(file.name)
+      expect(part.type).toBe(file.type)
+      expect(part.size).toBe(file.size)
+      const bytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as ArrayBuffer)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsArrayBuffer(part)
+      })
+      expect(Array.from(new Uint8Array(bytes))).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+      if (withProgress) {
+        Object.defineProperties(xhr, { status: { value: 201 }, response: { value: { id: 'image' } } })
+        xhr.dispatchEvent(new Event('load'))
+      } else {
+        expect(mockFetch.mock.calls[0][1].headers).not.toHaveProperty('Content-Type')
+      }
+      expect(await result).toEqual({ id: 'image' })
+    })
+
     it('reports actual file-byte progress and returns the server attachment', async () => {
       const xhr = new XMLHttpRequest()
       jest.spyOn(globalThis, 'XMLHttpRequest').mockImplementation(() => xhr)

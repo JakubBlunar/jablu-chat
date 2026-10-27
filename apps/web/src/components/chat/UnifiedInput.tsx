@@ -89,6 +89,9 @@ export function UnifiedInput({
           <span className="flex-1 truncate text-gray-400">{replyTarget.content || t('conversationAttachment')}</span>
           <button
             type="button"
+            // Keep the formatting toolbar from collapsing and moving this
+            // button between mouse-down and the click that cancels the reply.
+            onMouseDown={(event) => event.preventDefault()}
             onClick={onCancelReply}
             aria-label={t('cancelReply')}
             className="flex h-11 w-11 shrink-0 items-center justify-center text-gray-500 transition hover:text-white"
