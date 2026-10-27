@@ -10,6 +10,7 @@ declare module '@mediapipe/tasks-vision' {
   }
 
   export interface ImageSegmenterOptions {
+    canvas?: HTMLCanvasElement | OffscreenCanvas
     baseOptions: { modelAssetPath: string }
     outputCategoryMask?: boolean
     outputConfidenceMasks?: boolean
@@ -17,6 +18,8 @@ declare module '@mediapipe/tasks-vision' {
   }
 
   export interface MPMask {
+    readonly width: number
+    readonly height: number
     getAsFloat32Array(): Float32Array
     close(): void
   }
@@ -27,7 +30,10 @@ declare module '@mediapipe/tasks-vision' {
   }
 
   export interface ImageSegmenter {
-    segmentForVideo(video: HTMLVideoElement, timestampMs: number): ImageSegmenterResult
+    segmentForVideo(
+      video: HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas | ImageBitmap,
+      timestampMs: number
+    ): ImageSegmenterResult
     segment(image: HTMLImageElement | HTMLVideoElement): ImageSegmenterResult
     close(): void
   }
