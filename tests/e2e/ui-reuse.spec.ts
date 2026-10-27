@@ -1,5 +1,64 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { apiCall, createTestServer, loginAs } from './helpers'
+
+async function openServer(page: Page, server: { id: string; channels: { id: string }[] }) {
+  await page.goto('/channels/' + server.id + '/' + server.channels[0].id)
+  await expect
+    .poll(() =>
+      page.evaluate(async (serverId) => {
+        const { useMemberStore } = await import('/src/stores/member.store.ts')
+        return useMemberStore.getState().members.some((member: { serverId: string }) => member.serverId === serverId)
+      }, server.id)
+    )
+    .toBe(true)
+  await page.evaluate(async () => {
+    const { i18n } = await import('/src/i18n/config.ts')
+    const { useSettingsStore } = await import('/src/stores/settings.store.ts')
+    useSettingsStore.setState({ locale: 'en' })
+    await i18n.changeLanguage('en')
+  })
+}
+
+test('shared composer suggestions support keyboard, pointer and mobile selection without sending early', async ({
+  page,
+  request
+}) => {
+  page.setDefaultTimeout(10_000)
+  await loginAs(page, 'admin')
+  const server = await createTestServer(page, request)
+  try {
+    await openServer(page, server)
+    const input = page.locator('.chat-composer textarea')
+    await input.fill('@eve')
+    await expect(page.getByRole('option')).toHaveCount(1)
+    await input.press('Enter')
+    await expect(input).toHaveValue('@everyone ')
+    await input.fill('#gen')
+    await expect(page.getByRole('option', { name: 'general', exact: true })).toBeVisible()
+    await input.press('Tab')
+    await expect(input).toHaveValue('#general ')
+    await input.fill('/shr')
+    await expect(page.getByRole('option').filter({ hasText: '/shrug' })).toBeVisible()
+    await input.press('Enter')
+    await expect(input).toHaveValue('/shrug ')
+    await input.fill('@eve')
+    await expect(page.getByRole('option').filter({ hasText: '@everyone' })).toBeVisible()
+    await input.press('Escape')
+    await expect(page.getByRole('listbox')).toHaveCount(0)
+    await expect(input).toHaveValue('@eve')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await input.fill('@ever')
+    await page.getByRole('option').click()
+    await expect(input).toHaveValue('@everyone ')
+    await input.fill('Shared composer QA')
+    await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true })
+    await expect(input).toHaveValue('Shared composer QA')
+    await input.press('Enter')
+    await expect(page.locator('[id^="msg-"]').filter({ hasText: 'Shared composer QA' })).toBeVisible()
+  } finally {
+    await apiCall(page, 'deleteServer', server.id)
+  }
+})
 
 test('shared channel fields create and edit a real forum on desktop and fit on mobile', async ({ page, request }) => {
   test.setTimeout(90_000)
@@ -7,21 +66,7 @@ test('shared channel fields create and edit a real forum on desktop and fit on m
   await loginAs(page, 'admin')
   const server = await createTestServer(page, request)
   try {
-    await page.goto('/channels/' + server.id + '/' + server.channels[0].id)
-    await expect
-      .poll(() =>
-        page.evaluate(async (serverId) => {
-          const { useMemberStore } = await import('/src/stores/member.store.ts')
-          return useMemberStore.getState().members.some((member: { serverId: string }) => member.serverId === serverId)
-        }, server.id)
-      )
-      .toBe(true)
-    await page.evaluate(async () => {
-      const { i18n } = await import('/src/i18n/config.ts')
-      const { useSettingsStore } = await import('/src/stores/settings.store.ts')
-      useSettingsStore.setState({ locale: 'en' })
-      await i18n.changeLanguage('en')
-    })
+    await openServer(page, server)
     await page.getByRole('button', { name: server.name, exact: true }).last().click()
     await page.getByRole('menu').locator('[data-menu-control="createChannel"]').click()
     await page.locator('#create-channel-name').fill('Reuse Forum')

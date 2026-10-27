@@ -9,7 +9,9 @@ Reviewed 27 October 2026. The initial analysis is followed by the implementation
 - Test environment: SWC tests require access to the user's native cache outside the sandbox. Tests run successfully with that access; no dependency change was needed.
 - Phase 2: shared ChannelDetailsFields and ForumSettingsFields now render create/edit forms. useChannelDraft, useCreateChannel, and useEditChannel separate draft state and request lifecycles from the views. Cancel/reset behavior is owned by the create hook.
 - Phase 2 validation: TypeScript, focused lint, six new hook tests, and a real local browser journey passed. The journey creates/edits a forum, verifies persisted values, and checks an unobstructed mobile modal after the drawer closes; its screenshot was visually reviewed.
-- Phases 3–7: pending.
+- Phase 3: one SuggestionList renders mention/channel/command/emoji suggestions. useComposerSuggestions and useAutosizeTextarea separate behavior from ChatInputBar; composerCompletion contains pure parsing/replacement functions and composerTypes holds neutral types. Escape dismissal survives queued detection, and IME Enter does not submit.
+- Phase 3 validation: production build and final TypeScript check passed, as did six focused composer tests, lint, and both local desktop/mobile browser journeys.
+- Phases 4–7: pending.
 
 ## Recommendation
 
