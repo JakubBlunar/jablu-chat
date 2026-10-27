@@ -1,3 +1,4 @@
+import { IconButton } from '@/components/ui/IconButton'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChannelDescriptionBlock } from '@/components/channel/ChannelDescriptionBlock'
@@ -37,16 +38,11 @@ export function ChannelInfoDrawer({
             <span className="text-gray-400"># </span>
             {channelName}
           </h2>
-          <button
-            type="button"
-            aria-label={t('close', { defaultValue: 'Close' })}
-            onClick={onClose}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
-          >
+          <IconButton type="button" label={t('close', { defaultValue: 'Close' })} onClick={onClose} size="header">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </button>
+          </IconButton>
         </div>
 
         <ChannelDescriptionBlock

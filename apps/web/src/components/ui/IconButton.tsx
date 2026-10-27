@@ -12,7 +12,8 @@ const variants = {
 const sizes = {
   sm: 'rounded p-1',
   md: 'rounded p-1.5',
-  lg: 'rounded-md p-2'
+  lg: 'rounded-md p-2',
+  header: 'h-11 w-11 rounded-md'
 } as const
 
 export type IconButtonProps = {

@@ -1,3 +1,4 @@
+import { InlineAlert } from '@/components/ui/InlineAlert'
 import { forgotPasswordSchema } from '@chat/shared'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,27 +39,19 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout>
       <h2 className="mb-2 text-xl font-semibold text-white">{t('resetPasswordTitle')}</h2>
-      <p className="mb-6 text-sm text-gray-400">
-        {t('resetPasswordDescription')}
-      </p>
+      <p className="mb-6 text-sm text-gray-400">{t('resetPasswordDescription')}</p>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {error ? (
-          <div
-            className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
-            role="alert"
-          >
+          <InlineAlert variant="error" prominent role="alert">
             {error}
-          </div>
+          </InlineAlert>
         ) : null}
 
         {success ? (
-          <div
-            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100"
-            role="status"
-          >
+          <InlineAlert variant="success" prominent role="status">
             {success}
-          </div>
+          </InlineAlert>
         ) : null}
 
         <Input

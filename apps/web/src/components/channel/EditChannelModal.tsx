@@ -1,3 +1,4 @@
+import { Textarea } from '@/components/ui/Textarea'
 import type { Channel, ForumLayout, ForumSortOrder, ForumTag, Role } from '@chat/shared'
 import { Permission, permsToBigInt, hasPermission } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
@@ -354,14 +355,14 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
             <label htmlFor="edit-channel-description" className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               {tChannels('channelForm.descriptionOptional')}
             </label>
-            <textarea
+            <Textarea
               id="edit-channel-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={tChannels('channelForm.descriptionPlaceholder')}
               maxLength={500}
               rows={2}
-              className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
+              className="mt-1.5"
             />
           </div>
         )}

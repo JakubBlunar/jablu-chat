@@ -1,3 +1,4 @@
+import { Textarea } from '@/components/ui/Textarea'
 import type { ForumTag } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -165,14 +166,14 @@ export function CreatePostModal({
       </div>
       <div className="mt-4">
         <Label htmlFor="post-content">{t('create.contentLabel')}</Label>
-        <textarea
+        <Textarea
           id="post-content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={t('create.contentPlaceholder')}
           maxLength={4000}
           rows={5}
-          className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
+          className="mt-1.5"
         />
       </div>
       <div className="mt-4">
@@ -234,7 +235,9 @@ export function CreatePostModal({
       </div>
       {tags.length > 0 && (
         <div className="mt-4">
-          <Label>{t('create.tagsLabel')} {requireTags && <span className="text-red-400">*</span>}</Label>
+          <Label>
+            {t('create.tagsLabel')} {requireTags && <span className="text-red-400">*</span>}
+          </Label>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {tags.map((tag) => (
               <TagChip

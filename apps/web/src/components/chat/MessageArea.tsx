@@ -226,12 +226,17 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const handleReply = useCallback(
     (msg: Message) => {
-      const member = isDm ? undefined : useMemberStore.getState().members.find((m) =>
-        m.userId === msg.authorId && m.serverId === useServerStore.getState().currentServerId)
+      const member = isDm
+        ? undefined
+        : useMemberStore
+            .getState()
+            .members.find((m) => m.userId === msg.authorId && m.serverId === useServerStore.getState().currentServerId)
       setReplyTarget({
         id: msg.id,
         content: msg.content,
-        authorName: member ? memberDisplayName(member) : msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser')
+        authorName: member
+          ? memberDisplayName(member)
+          : (msg.author?.displayName ?? msg.author?.username ?? tChat('deletedUser'))
       })
     },
     [tChat, setReplyTarget, isDm]
@@ -293,14 +298,14 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
         <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
           {showNavButton && (
-            <button
+            <IconButton
               type="button"
-              aria-label={tA11y('openNavigationMenu')}
+              label={tA11y('openNavigationMenu')}
               onClick={useLayoutStore.getState().openNavDrawer}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+              size="header"
             >
               <HamburgerIcon />
-            </button>
+            </IconButton>
           )}
           <h1 className="text-base font-semibold text-gray-400">{tChat('selectChannel')}</h1>
         </header>
@@ -489,14 +494,14 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       {activeChannel ? (
         <>
           {showNavButton ? (
-            <button
+            <IconButton
               type="button"
-              aria-label={tA11y('openNavigationMenu')}
+              label={tA11y('openNavigationMenu')}
               onClick={useLayoutStore.getState().openNavDrawer}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+              size="header"
             >
               <HamburgerIcon />
-            </button>
+            </IconButton>
           ) : (
             <HashChannelIcon />
           )}
@@ -614,14 +619,14 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
             {showNavButton ? (
-              <button
+              <IconButton
                 type="button"
-                aria-label={tA11y('openNavigationMenu')}
+                label={tA11y('openNavigationMenu')}
                 onClick={useLayoutStore.getState().openNavDrawer}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+                size="header"
               >
                 <HamburgerIcon />
-              </button>
+              </IconButton>
             ) : (
               <AtIcon />
             )}

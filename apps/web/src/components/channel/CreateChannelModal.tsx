@@ -1,3 +1,5 @@
+import { Select } from '@/components/ui/Select'
+import { Textarea } from '@/components/ui/Textarea'
 import type { ChannelType, ForumLayout } from '@chat/shared'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -133,14 +135,14 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
         {type === 'text' && (
           <div className="mt-5">
             <Label htmlFor="create-channel-description">{tChannels('channelForm.descriptionOptional')}</Label>
-            <textarea
+            <Textarea
               id="create-channel-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={tChannels('channelForm.descriptionPlaceholder')}
               maxLength={500}
               rows={2}
-              className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
+              className="mt-1.5"
             />
           </div>
         )}
@@ -183,17 +185,17 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
         {categories.length > 0 && (
           <div className="mt-5">
             <Label htmlFor="create-channel-category">{tChannels('channelForm.categoryLabel')}</Label>
-            <select
+            <Select
               id="create-channel-category"
               value={categoryId ?? ''}
               onChange={(e) => setCategoryId(e.target.value || null)}
-              className="mt-1.5 w-full rounded-md border-0 bg-surface-darkest px-3 py-2.5 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
+              className="mt-1.5"
             >
               <option value="">{tChannels('channelForm.noCategory')}</option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 
@@ -223,14 +225,14 @@ export function CreateChannelModal({ open, onClose, defaultCategoryId }: CreateC
             </div>
             <div>
               <Label htmlFor="post-guidelines">{tChannels('forum.postGuidelines')}</Label>
-              <textarea
+              <Textarea
                 id="post-guidelines"
                 value={postGuidelines}
                 onChange={(e) => setPostGuidelines(e.target.value)}
                 placeholder={tChannels('forum.createGuidelinesPlaceholder')}
                 maxLength={2000}
                 rows={2}
-                className="mt-1.5 w-full resize-none rounded-md border-0 bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
+                className="mt-1.5"
               />
             </div>
             <label className="flex items-center gap-2 text-sm text-gray-300">

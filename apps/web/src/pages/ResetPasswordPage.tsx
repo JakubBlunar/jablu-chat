@@ -1,3 +1,4 @@
+import { InlineAlert } from '@/components/ui/InlineAlert'
 import { resetPasswordSchema } from '@chat/shared'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,22 +59,16 @@ export function ResetPasswordPage() {
       <p className="mb-6 text-sm text-gray-400">{t('newPasswordDescription')}</p>
 
       {tokenInvalid ? (
-        <div
-          className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
-          role="alert"
-        >
+        <InlineAlert variant="error" prominent className="mb-4" role="alert">
           {t('invalidResetLink')}
-        </div>
+        </InlineAlert>
       ) : null}
 
       {success ? (
         <div className="space-y-4">
-          <div
-            className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100"
-            role="status"
-          >
+          <InlineAlert variant="success" prominent role="status">
             {success}
-          </div>
+          </InlineAlert>
           <Link
             to="/login"
             className="block w-full rounded-md bg-primary py-2.5 text-center text-sm font-semibold text-primary-text transition hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark"
@@ -84,12 +79,9 @@ export function ResetPasswordPage() {
       ) : (
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           {error ? (
-            <div
-              className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
-              role="alert"
-            >
+            <InlineAlert variant="error" prominent role="alert">
               {error}
-            </div>
+            </InlineAlert>
           ) : null}
 
           <Input

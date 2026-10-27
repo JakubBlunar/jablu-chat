@@ -1,3 +1,4 @@
+import { InlineAlert } from '@/components/ui/InlineAlert'
 import { loginSchema } from '@chat/shared'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,12 +72,9 @@ export function LoginPage() {
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         {error ? (
-          <div
-            className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200"
-            role="alert"
-          >
+          <InlineAlert variant="error" prominent role="alert">
             {error}
-          </div>
+          </InlineAlert>
         ) : null}
 
         <Input
