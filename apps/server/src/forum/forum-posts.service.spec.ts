@@ -85,6 +85,16 @@ describe('ForumPostsService', () => {
     it('returns posts sorted by newest', async () => {
       const posts = [makePost({ id: 'p1' }), makePost({ id: 'p2' })]
       prisma.message.findMany.mockResolvedValue(posts)
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          page: [
+            { id: 'p1', at: Date.now() },
+            { id: 'p2', at: Date.now() }
+          ],
+          fingerprint: '0',
+          anchorExists: true
+        }
+      ])
 
       const result = await service.listPosts(channelId, userId, 'newest' as any)
       expect(result.posts).toHaveLength(2)
@@ -99,6 +109,16 @@ describe('ForumPostsService', () => {
         threadMessages: [{ createdAt: new Date('2024-06-01') }]
       })
       prisma.message.findMany.mockResolvedValue([p1, p2])
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          page: [
+            { id: 'p2', at: Date.now() },
+            { id: 'p1', at: Date.now() }
+          ],
+          fingerprint: '0',
+          anchorExists: true
+        }
+      ])
 
       const result = await service.listPosts(channelId, userId)
       expect(result.posts[0].id).toBe('p2')
@@ -162,16 +182,14 @@ describe('ForumPostsService', () => {
 
     it('throws if tags are required but not provided', async () => {
       mockForumChannel(forumChannelRequireTags)
-      await expect(service.createPost(channelId, userId, 'Title', 'content', [])).rejects.toThrow(
-        BadRequestException
-      )
+      await expect(service.createPost(channelId, userId, 'Title', 'content', [])).rejects.toThrow(BadRequestException)
     })
 
     it('throws if provided tags are invalid', async () => {
       prisma.forumTag.count.mockResolvedValue(0)
-      await expect(
-        service.createPost(channelId, userId, 'Title', 'content', ['invalid-tag'])
-      ).rejects.toThrow(BadRequestException)
+      await expect(service.createPost(channelId, userId, 'Title', 'content', ['invalid-tag'])).rejects.toThrow(
+        BadRequestException
+      )
     })
 
     it('creates with valid tags', async () => {

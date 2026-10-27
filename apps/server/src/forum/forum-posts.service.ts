@@ -1,15 +1,11 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException
-} from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { ChannelType, ForumSortOrder, Prisma } from '../prisma-client'
 import { Permission, hasPermission } from '@chat/shared'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 import { authorSelect } from '../messages/message-wire'
+import { forumPage } from './forum-page'
 
 const postInclude = {
   author: { select: authorSelect },
@@ -76,7 +72,7 @@ export class ForumPostsService {
     cursor?: string,
     limit = 25
   ) {
-    const channel = await this.requireForumChannel(channelId, userId)
+    await this.requireForumChannel(channelId, userId)
     const take = Math.min(Math.max(1, limit), 50)
 
     const where: Prisma.MessageWhereInput = {
@@ -87,72 +83,43 @@ export class ForumPostsService {
       ...(tagId ? { forumPostTags: { some: { tagId } } } : {})
     }
 
-    if (cursor) {
-      const cursorPost = await this.prisma.message.findFirst({
-        where: { id: cursor, channelId, deleted: false }
-      })
-      if (!cursorPost) throw new BadRequestException('Invalid cursor')
-    }
-
-    let posts: PostWithRelations[]
-
-    if (sort === ForumSortOrder.newest) {
-      posts = await this.prisma.message.findMany({
-        where: cursor
-          ? {
-              ...where,
-              createdAt: {
-                lt: (await this.prisma.message.findUniqueOrThrow({ where: { id: cursor } })).createdAt
-              }
-            }
-          : where,
-        orderBy: { createdAt: 'desc' },
-        take,
-        include: postInclude
-      })
-    } else {
-      // latest_activity: sort by most recent thread reply (or post creation if no replies)
-      // We use a raw approach: fetch posts then sort by computed lastActivity
-      const allPosts = await this.prisma.message.findMany({
-        where,
-        include: postInclude,
-        take: take * 3, // fetch more to account for sorting differences
-        orderBy: { createdAt: 'desc' }
-      })
-
-      allPosts.sort((a, b) => {
-        const aTime = a.threadMessages?.[0]?.createdAt ?? a.createdAt
-        const bTime = b.threadMessages?.[0]?.createdAt ?? b.createdAt
-        return bTime.getTime() - aTime.getTime()
-      })
-
-      if (cursor) {
-        const idx = allPosts.findIndex((p) => p.id === cursor)
-        posts = allPosts.slice(idx + 1, idx + 1 + take)
-      } else {
-        posts = allPosts.slice(0, take)
-      }
-    }
+    const selection = await forumPage(this.prisma, channelId, sort, tagId, cursor, take)
+    const rows = selection.page.length
+      ? await this.prisma.message.findMany({
+          where: { ...where, id: { in: selection.page.map((row) => row.id) } },
+          include: postInclude
+        })
+      : []
+    const byId = new Map(rows.map((post) => [post.id, post]))
+    const posts = selection.page.flatMap((row) => {
+      const post = byId.get(row.id)
+      return post ? [post] : []
+    })
 
     const postIds = posts.map((p) => p.id)
-    const counts = postIds.length > 0
-      ? await this.prisma.message.groupBy({
-          by: ['threadParentId'],
-          where: {
-            threadParentId: { in: postIds },
-            deleted: false
-          },
-          _count: { _all: true }
-        }) ?? []
-      : []
+    const counts =
+      postIds.length > 0
+        ? ((await this.prisma.message.groupBy({
+            by: ['threadParentId'],
+            where: {
+              threadParentId: { in: postIds },
+              deleted: false
+            },
+            _count: { _all: true }
+          })) ?? [])
+        : []
     const countMap = new Map<string, number>()
     for (const row of counts) {
       if (row.threadParentId) countMap.set(row.threadParentId, row._count._all)
     }
 
     return {
-      posts: posts.map((p) => this.mapPostToWire(p, countMap.get(p.id) ?? 0)),
-      hasMore: posts.length === take
+      posts: posts.map((p) => ({
+        ...this.mapPostToWire(p, countMap.get(p.id) ?? 0),
+        lastActivityAt: new Date(selection.page.find((row) => row.id === p.id)!.at).toISOString()
+      })),
+      hasMore: selection.hasMore,
+      nextCursor: selection.nextCursor
     }
   }
 
@@ -206,12 +173,8 @@ export class ForumPostsService {
         authorId: userId,
         title: trimmedTitle,
         content: trimmedContent || null,
-        ...(attachmentIds?.length
-          ? { attachments: { connect: attachmentIds.map((id) => ({ id })) } }
-          : {}),
-        ...(tagIds?.length
-          ? { forumPostTags: { create: tagIds.map((tagId) => ({ tagId })) } }
-          : {})
+        ...(attachmentIds?.length ? { attachments: { connect: attachmentIds.map((id) => ({ id })) } } : {}),
+        ...(tagIds?.length ? { forumPostTags: { create: tagIds.map((tagId) => ({ tagId })) } } : {})
       },
       include: postInclude
     })
@@ -221,7 +184,14 @@ export class ForumPostsService {
     return wire
   }
 
-  async updatePost(channelId: string, postId: string, userId: string, title?: string, content?: string, tagIds?: string[]) {
+  async updatePost(
+    channelId: string,
+    postId: string,
+    userId: string,
+    title?: string,
+    content?: string,
+    tagIds?: string[]
+  ) {
     const channel = await this.requireForumChannel(channelId, userId)
     const post = await this.prisma.message.findFirst({
       where: { id: postId, channelId, deleted: false, threadParentId: null }

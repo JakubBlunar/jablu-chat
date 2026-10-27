@@ -69,6 +69,7 @@ export class ListForumPostsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   cursor?: string
 
   @IsOptional()

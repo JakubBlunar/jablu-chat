@@ -30,6 +30,7 @@ function resetStore() {
     currentPostId: null,
     isLoading: false,
     hasMore: false,
+    nextCursor: null,
     channelId: null
   })
 }
@@ -110,6 +111,16 @@ describe('forum.store', () => {
   })
 
   describe('fetchMore', () => {
+    it('uses the stable server cursor and replaces the list when a snapshot is invalidated', async () => {
+      useForumStore.setState({ channelId: 'ch1', posts: [{ id: 'old' }] as any, nextCursor: 'opaque-snapshot' })
+      mockGet
+        .mockRejectedValueOnce({ status: 409 })
+        .mockResolvedValueOnce({ posts: [{ id: 'fresh' }], hasMore: true, nextCursor: 'new-snapshot' })
+      await useForumStore.getState().fetchMore()
+      expect(mockGet).toHaveBeenNthCalledWith(1, expect.stringContaining('cursor=opaque-snapshot'))
+      expect(useForumStore.getState().posts.map((p) => p.id)).toEqual(['fresh'])
+      expect(useForumStore.getState().nextCursor).toBe('new-snapshot')
+    })
     it('uses last post id as cursor', async () => {
       useForumStore.setState({
         channelId: 'ch1',

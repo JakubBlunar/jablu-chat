@@ -13,13 +13,20 @@ interface ForumState {
   currentPostId: string | null
   isLoading: boolean
   hasMore: boolean
+  nextCursor: string | null
   channelId: string | null
 
   init: (channelId: string, defaultLayout?: ForumLayout, defaultSortOrder?: ForumSortOrder) => void
   fetchPosts: () => Promise<void>
   fetchMore: () => Promise<void>
   fetchTags: (channelId: string) => Promise<void>
-  createPost: (channelId: string, title: string, content?: string, tagIds?: string[], attachmentIds?: string[]) => Promise<ForumPost>
+  createPost: (
+    channelId: string,
+    title: string,
+    content?: string,
+    tagIds?: string[],
+    attachmentIds?: string[]
+  ) => Promise<ForumPost>
   setSortOrder: (sort: ForumSortOrder) => void
   setLayout: (layout: ForumLayout) => void
   toggleTag: (tagId: string) => void
@@ -35,6 +42,8 @@ interface ForumState {
   reset: () => void
 }
 
+let pageRequest = 0
+
 export const useForumStore = create<ForumState>((set, get) => ({
   posts: [],
   tags: [],
@@ -45,6 +54,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   currentPostId: null,
   isLoading: false,
   hasMore: false,
+  nextCursor: null,
   channelId: null,
 
   init: (channelId, defaultLayout, defaultSortOrder) => {
@@ -60,7 +70,8 @@ export const useForumStore = create<ForumState>((set, get) => ({
       layout: defaultLayout ?? 'list',
       currentPostId: null,
       isLoading: true,
-      hasMore: false
+      hasMore: false,
+      nextCursor: null
     })
     get().fetchTags(channelId)
     get().fetchPosts()
@@ -69,6 +80,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   fetchPosts: async () => {
     const { channelId, sortOrder, activeTagIds } = get()
     if (!channelId) return
+    const request = ++pageRequest
     set({ isLoading: true })
     try {
       const tagId = activeTagIds.length === 1 ? activeTagIds[0] : undefined
@@ -76,11 +88,19 @@ export const useForumStore = create<ForumState>((set, get) => ({
       params.set('sort', sortOrder)
       if (tagId) params.set('tagId', tagId)
       params.set('limit', '25')
-      const result = await api.get<{ posts: ForumPost[]; hasMore: boolean }>(
+      const result = await api.get<{ posts: ForumPost[]; hasMore: boolean; nextCursor?: string | null }>(
         `/api/channels/${channelId}/posts?${params}`
       )
-      set({ posts: result.posts, hasMore: result.hasMore, isLoading: false })
+      if (
+        request !== pageRequest ||
+        get().channelId !== channelId ||
+        get().sortOrder !== sortOrder ||
+        get().activeTagIds !== activeTagIds
+      )
+        return
+      set({ posts: result.posts, hasMore: result.hasMore, nextCursor: result.nextCursor ?? null, isLoading: false })
     } catch {
+      if (request !== pageRequest) return
       set({ isLoading: false })
     }
   },
@@ -88,8 +108,9 @@ export const useForumStore = create<ForumState>((set, get) => ({
   fetchMore: async () => {
     const { channelId, posts, isLoading, sortOrder, activeTagIds } = get()
     if (!channelId || isLoading || posts.length === 0) return
+    const request = ++pageRequest
     set({ isLoading: true })
-    const cursor = posts[posts.length - 1].id
+    const cursor = get().nextCursor ?? posts[posts.length - 1].id
     try {
       const tagId = activeTagIds.length === 1 ? activeTagIds[0] : undefined
       const params = new URLSearchParams()
@@ -97,16 +118,32 @@ export const useForumStore = create<ForumState>((set, get) => ({
       if (tagId) params.set('tagId', tagId)
       params.set('cursor', cursor)
       params.set('limit', '25')
-      const result = await api.get<{ posts: ForumPost[]; hasMore: boolean }>(
+      const result = await api.get<{ posts: ForumPost[]; hasMore: boolean; nextCursor?: string | null }>(
         `/api/channels/${channelId}/posts?${params}`
       )
+      if (
+        request !== pageRequest ||
+        get().channelId !== channelId ||
+        get().sortOrder !== sortOrder ||
+        get().activeTagIds !== activeTagIds
+      )
+        return
       set((s) => ({
-        posts: [...s.posts, ...result.posts],
+        posts: [...s.posts, ...result.posts.filter((post) => !s.posts.some((existing) => existing.id === post.id))],
         hasMore: result.hasMore,
+        nextCursor: result.nextCursor ?? null,
         isLoading: false
       }))
-    } catch {
+    } catch (error) {
+      if (
+        request !== pageRequest ||
+        get().channelId !== channelId ||
+        get().sortOrder !== sortOrder ||
+        get().activeTagIds !== activeTagIds
+      )
+        return
       set({ isLoading: false })
+      if ((error as { status?: number }).status === 409) await get().fetchPosts()
     }
   },
 
@@ -114,7 +151,9 @@ export const useForumStore = create<ForumState>((set, get) => ({
     try {
       const tags = await api.get<ForumTag[]>(`/api/channels/${channelId}/tags`)
       set({ tags })
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   },
 
   createPost: async (channelId, title, content, tagIds, attachmentIds) => {
@@ -184,9 +223,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   updateReplyCount: (postId, replyCount, lastActivityAt) => {
     set((s) => ({
       posts: s.posts.map((p) =>
-        p.id === postId
-          ? { ...p, replyCount, ...(lastActivityAt !== undefined ? { lastActivityAt } : {}) }
-          : p
+        p.id === postId ? { ...p, replyCount, ...(lastActivityAt !== undefined ? { lastActivityAt } : {}) } : p
       )
     }))
   },
@@ -199,6 +236,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   },
 
   reset: () => {
+    pageRequest++
     set({
       posts: [],
       tags: [],
@@ -209,6 +247,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
       currentPostId: null,
       isLoading: false,
       hasMore: false,
+      nextCursor: null,
       channelId: null
     })
   }
