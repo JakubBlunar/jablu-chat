@@ -2,6 +2,13 @@ import { Reflector } from '@nestjs/core'
 import { WsException } from '@nestjs/websockets'
 import { createMockRedisService, MockRedisService } from '../__mocks__/redis.mock'
 import { WS_THROTTLE_KEY, WsThrottleGuard } from './ws-throttle.guard'
+import { ChatGateway } from './gateway.gateway'
+
+it('gives context watches a bounded navigation tier shared across devices', () => {
+  for (const handler of [ChatGateway.prototype.onChannelWatch, ChatGateway.prototype.onDmWatch]) {
+    expect(Reflect.getMetadata(WS_THROTTLE_KEY, handler)).toEqual({ limit: 40, windowSeconds: 10 })
+  }
+})
 
 describe('WsThrottleGuard', () => {
   let guard: WsThrottleGuard

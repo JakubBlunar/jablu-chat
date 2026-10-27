@@ -7,7 +7,9 @@ import {
   cacheSetLinkPreviews,
   cacheUpdateMessage
 } from '@/lib/cache/contextMutations'
-import { dmKey } from '@/lib/cache/messageCache'
+import { dmKey, markStale } from '@/lib/cache/messageCache'
+import type { MessageActivity } from '@chat/shared'
+import { useInboxStore } from '@/stores/inbox.store'
 import { showNotification } from '@/lib/notifications'
 import { isAppFocused } from '@/lib/appVisibility'
 import { useAuthStore } from '@/stores/auth.store'
@@ -43,15 +45,15 @@ export function createDmHandlers() {
   }
   const onDmReadStateRefresh = requestReadStateRefresh
 
-  const onDmNew = (payload: DmMessagePayload) => {
+  const onDmNew = (payload: DmMessagePayload & { background?: boolean }) => {
     const dmState = useDmStore.getState()
     const currentConvId = dmState.currentConversationId
     const viewMode = useServerStore.getState().viewMode
     const myId = useAuthStore.getState().user?.id
     const isViewingConversation = viewMode === 'dm' && payload.conversationId === currentConvId
-    if (isViewingConversation) {
+    if (isViewingConversation && !payload.background) {
       dmState.addMessage(payload)
-    } else {
+    } else if (!payload.background) {
       cacheAddMessage(dmKey(payload.conversationId), payload)
     }
     const notify = (conversation: Pick<DmConversation, 'muted'>) => {
@@ -60,7 +62,7 @@ export function createDmHandlers() {
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
         showNotification(
           i18n.t('chat:notification.dmTitle', { name: author }),
-          notifBody(payload),
+          payload.background && payload.content ? payload.content : notifBody(payload),
           messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id),
           undefined,
           'mention'
@@ -94,6 +96,15 @@ export function createDmHandlers() {
       attachment: payload.attachments?.[0] ? { type: payload.attachments[0].type, filename: payload.attachments[0].filename } : null
     }
     dmState.updateConversationLastMessage(payload.conversationId, lastMessage)
+  }
+
+  const onMessageActivity = (activity: MessageActivity) => {
+    if (activity.mode !== 'dm') return
+    markStale(dmKey(activity.contextId))
+    useInboxStore.getState().bump()
+    if (activity.message && activity.event === 'dm:new') {
+      onDmNew({ ...activity.message, conversationId: activity.contextId, background: true } as unknown as Parameters<typeof onDmNew>[0])
+    }
   }
 
   const onDmEdit = (payload: DmMessagePayload) => {
@@ -142,5 +153,5 @@ export function createDmHandlers() {
     }
   }
 
-  return { onDmNew, onDmEdit, onDmDelete, onDmTyping, onDmPin, onDmUnpin, onDmLinkPreviews, onDmConversationRefresh, onDmConversationRemoved, onDmReadStateRefresh }
+  return { onMessageActivity, onDmNew, onDmEdit, onDmDelete, onDmTyping, onDmPin, onDmUnpin, onDmLinkPreviews, onDmConversationRefresh, onDmConversationRemoved, onDmReadStateRefresh }
 }

@@ -4,6 +4,7 @@ import { deliverChannelMessage, deliverDmMessage } from './message-notifications
 import { InAppNotificationKind } from '../prisma-client'
 import { mapMessageToWire, messageInclude } from '../messages/message-wire'
 import { friendAcceptedPushCopy, friendRequestPushCopy, moderationPushCopy } from '../push/push-copy'
+import { joinMessageContext, leaveMessageContext, messageContextRooms } from './message-subscriptions'
 
 export async function routeDmSlashCommand(
   gw: ChatGateway,
@@ -304,7 +305,7 @@ export function registerEventListeners(gw: ChatGateway) {
   })
 
   gw.events.on('dm:member-left', (payload: { conversationId: string; userId: string }) => {
-    gw.server.in(`user:${payload.userId}`).socketsLeave(`dm:${payload.conversationId}`)
+    gw.server.in(`user:${payload.userId}`).socketsLeave(messageContextRooms('dm', payload.conversationId))
     gw.server.to(`user:${payload.userId}`).emit('dm:conversation-removed', { conversationId: payload.conversationId })
   })
 
@@ -351,7 +352,7 @@ export function registerEventListeners(gw: ChatGateway) {
         await Promise.all(eligible.slice(j, j + 50).map(async socket => {
           if (!socket.rooms.has(room)) return
           try {
-            await socket.join(`channel:${payload.channel.id}`)
+            await joinMessageContext(socket, 'channel', payload.channel.id)
             socket.emit('channel:created', payload)
           } catch { /* a device disconnected or left during processing */ }
         }))
@@ -396,7 +397,7 @@ export function registerEventListeners(gw: ChatGateway) {
     for (const s of userSockets) {
       s.join(`server:${serverId}`)
       for (const chId of visibleChannelIds) {
-        s.join(`channel:${chId}`)
+        await joinMessageContext(s, 'channel', chId)
       }
       const sids = (s.data as { serverIds?: string[] }).serverIds
       if (sids && !sids.includes(serverId)) {
@@ -575,7 +576,7 @@ export function registerEventListeners(gw: ChatGateway) {
       for (const s of userSockets) {
         s.leave(`server:${payload.serverId}`)
         for (const ch of channels) {
-          s.leave(`channel:${ch.id}`)
+          await leaveMessageContext(s, 'channel', ch.id)
         }
         const serverIds = (s.data as { serverIds?: string[] }).serverIds
         if (serverIds) {

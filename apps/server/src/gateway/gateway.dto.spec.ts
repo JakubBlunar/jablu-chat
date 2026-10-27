@@ -2,6 +2,8 @@ import { validate } from 'class-validator'
 import { plainToInstance } from 'class-transformer'
 import {
   WsChannelIdDto,
+  WsWatchChannelDto,
+  WsWatchDmDto,
   WsConversationIdDto,
   WsDmEditDto,
   WsDmMessageDto,
@@ -18,6 +20,17 @@ import {
 
 const UUID = '550e8400-e29b-41d4-a716-446655440000'
 const UUID2 = '660e8400-e29b-41d4-a716-446655440000'
+
+describe('message subscriptions', () => {
+  it('accepts a context or an explicit stop and rejects invalid identifiers', async () => {
+    await expectValid(WsWatchChannelDto, { channelId: UUID })
+    await expectValid(WsWatchChannelDto, {})
+    await expectValid(WsWatchDmDto, { conversationId: UUID })
+    await expectValid(WsWatchDmDto, {})
+    expect(await validate(toDto(WsWatchChannelDto, { channelId: 123 }))).not.toHaveLength(0)
+    expect(await validate(toDto(WsWatchDmDto, { conversationId: 'invalid' }))).not.toHaveLength(0)
+  })
+})
 
 function toDto<T>(cls: new () => T, plain: Record<string, unknown>): T {
   return plainToInstance(cls, plain)

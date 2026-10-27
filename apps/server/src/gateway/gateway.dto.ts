@@ -15,6 +15,18 @@ import {
   MinLength
 } from 'class-validator'
 
+export class WsWatchChannelDto {
+  @IsOptional()
+  @IsUUID()
+  channelId?: string
+}
+
+export class WsWatchDmDto {
+  @IsOptional()
+  @IsUUID()
+  conversationId?: string
+}
+
 export class WsSendMessageDto {
   @IsOptional()
   @IsUUID('4')

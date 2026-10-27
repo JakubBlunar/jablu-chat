@@ -31,7 +31,8 @@ export function connectSocket(token: string): Socket {
       deviceId: getDeviceId(),
       platform: getDevicePlatform(),
       visibility: initial.visibility,
-      focused: initial.focused
+      focused: initial.focused,
+      messageActivityVersion: 1
     },
     transports: ['websocket'],
     forceNew: true,

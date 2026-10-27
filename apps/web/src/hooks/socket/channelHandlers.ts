@@ -10,7 +10,9 @@ import {
   cacheUpdatePoll,
   cacheUpdateThreadCount
 } from '@/lib/cache/contextMutations'
-import { channelKey } from '@/lib/cache/messageCache'
+import { channelKey, markStale } from '@/lib/cache/messageCache'
+import type { MessageActivity } from '@chat/shared'
+import { useInboxStore } from '@/stores/inbox.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useForumStore } from '@/stores/forum.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -35,7 +37,7 @@ import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewP
  * bell row remain the authoritative delivery for everyone else.
  */
 function notifyThreadReply(
-  msg: Message & { mentionedUserIds?: string[]; serverId?: string }
+  msg: Message & { background?: boolean; mentionedUserIds?: string[]; serverId?: string }
 ) {
   const myId = useAuthStore.getState().user?.id
   if (!myId || msg.authorId === myId) return
@@ -63,7 +65,7 @@ function notifyThreadReply(
       : undefined
   showNotification(
     i18n.t('chat:notification.threadReplyTitle'),
-    i18n.t('chat:notification.message', { author, preview: notifBody(msg) }),
+    i18n.t('chat:notification.message', { author, preview: msg.background && msg.content ? msg.content : notifBody(msg) }),
     url,
     undefined,
     isMentioned ? 'mention' : 'message'
@@ -71,10 +73,10 @@ function notifyThreadReply(
 }
 
 export function createChannelHandlers() {
-  const onMessageNew = (msg: Message & { mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
+  const onMessageNew = (msg: Message & { background?: boolean; mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
     if (msg.threadParentId) {
-      useThreadStore.getState().addMessage(msg)
-      if (useForumStore.getState().currentPostId === msg.threadParentId) {
+      if (!msg.background) useThreadStore.getState().addMessage(msg)
+      if (!msg.background && useForumStore.getState().currentPostId === msg.threadParentId) {
         window.dispatchEvent(new CustomEvent('forum-reply', { detail: msg }))
       }
       notifyThreadReply(msg)
@@ -84,11 +86,11 @@ export function createChannelHandlers() {
     const viewMode = useServerStore.getState().viewMode
     const myId = useAuthStore.getState().user?.id
     const isViewingChannel = viewMode === 'server' && msg.channelId != null && msg.channelId === channelId
-    if (isViewingChannel) {
+    if (isViewingChannel && !msg.background) {
       useMessageStore.getState().addMessage(msg)
     }
 
-    if (msg.channelId && !isViewingChannel) {
+    if (msg.channelId && !isViewingChannel && !msg.background) {
       // Keep the cached copy current even for the user's own messages sent
       // from another device, which the unread path below deliberately skips.
       cacheAddMessage(channelKey(msg.channelId), msg)
@@ -103,7 +105,7 @@ export function createChannelHandlers() {
       const level = useNotifPrefStore.getState().getEffective(msg.channelId, msg.serverId)
       if ((!isViewingChannel || !isAppFocused()) && level !== 'none' && (level !== 'mentions' || isMentioned)) {
         const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
-        const preview = notifBody(msg)
+        const preview = msg.background && msg.content ? msg.content : notifBody(msg)
         const url = msg.serverId
           ? messageNotificationUrl(`/channels/${msg.serverId}/${msg.channelId}`, msg.id)
           : undefined
@@ -119,6 +121,17 @@ export function createChannelHandlers() {
           isMentioned ? 'mention' : 'message'
         )
       }
+    }
+  }
+
+  const onMessageActivity = (activity: MessageActivity) => {
+    if (activity.mode !== 'channel') return
+    markStale(channelKey(activity.contextId))
+    useInboxStore.getState().bump()
+    if (activity.message && activity.event === 'message:new') {
+      const myId = useAuthStore.getState().user?.id
+      onMessageNew({ ...activity.message, channelId: activity.contextId, background: true,
+        mentionedUserIds: activity.isMention && myId ? [myId] : [] } as unknown as Parameters<typeof onMessageNew>[0])
     }
   }
 
@@ -283,6 +296,7 @@ export function createChannelHandlers() {
   }
 
   return {
+    onMessageActivity,
     onMessageNew, onMessageEdit, onMessageDelete, onUserTyping, onUserTypingStop,
     onReactionAdd, onReactionRemove, onMessagePin, onMessageUnpin,
     onPollVote, onThreadUpdate, onNewMessageForThread, onLinkPreviews,

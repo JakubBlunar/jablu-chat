@@ -29,8 +29,11 @@ import { ReadStateService } from '../read-state/read-state.service'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
 import { registerEventListeners } from './gateway-event-listeners'
+import { COMPACT_MESSAGES_ROOM, emitMessageEvent, fullMessageRoom, joinMessageContext, leaveMessageContext } from './message-subscriptions'
 import {
   WsChannelIdDto,
+  WsWatchChannelDto,
+  WsWatchDmDto,
   WsConversationIdDto,
   WsDmEditDto,
   WsDmMessageDto,
@@ -407,12 +410,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   emitToChannel(channelId: string, event: string, data: unknown) {
-    this.server.to(`channel:${channelId}`).emit(event, data)
+    emitMessageEvent(this.server, 'channel', channelId, event, data, this.compactMessagesEnabled)
   }
 
   emitToDm(conversationId: string, event: string, data: unknown) {
-    this.server.to(`dm:${conversationId}`).emit(event, data)
+    emitMessageEvent(this.server, 'dm', conversationId, event, data, this.compactMessagesEnabled)
   }
+
+  private compactMessagesEnabled = false
+  private readonly messageWatchQueues = new WeakMap<Socket, Promise<unknown>>()
 
   async getVisibleChannelIds(serverId: string, userId: string): Promise<string[]> {
     const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
@@ -456,13 +462,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const userSockets = await this.server.in(`user:${userId}`).fetchSockets()
     for (const s of userSockets) {
       for (const ch of allChannels) {
-        const room = `channel:${ch.id}`
         if (visibleIds.has(ch.id)) {
-          s.join(room)
+          await joinMessageContext(s, 'channel', ch.id)
         } else {
-          s.leave(room)
+          await leaveMessageContext(s, 'channel', ch.id)
         }
       }
+      if (s.data.compactMessages) s.emit('message:subscriptions-reset', {})
     }
   }
 
@@ -473,6 +479,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     } catch {
       client.disconnect(true)
       return
+    }
+
+    client.data.compactMessages = !user.isBot && client.handshake?.auth?.messageActivityVersion === 1
+    if (client.data.compactMessages) {
+      this.compactMessagesEnabled = true
+      await client.join(COMPACT_MESSAGES_ROOM)
     }
 
     const memberships = await this.prisma.serverMember.findMany({
@@ -488,11 +500,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     const serverIds = memberships.map((m) => m.serverId)
 
-    const allMemberUserIds = new Set<string>()
-    if (serverIds.length > 0) {
+    const allMemberUserIds = new Set<string>(serverIds.length ? [user.id] : [])
+    const onlineCandidates = this.getOnlineUserIds()
+    for (let offset = 0; serverIds.length && offset < onlineCandidates.length; offset += 500) {
       const memberRows = await this.prisma.serverMember.findMany({
-        where: { serverId: { in: serverIds } },
-        select: { userId: true }
+        where: { serverId: { in: serverIds }, userId: { in: onlineCandidates.slice(offset, offset + 500) } },
+        select: { userId: true }, distinct: ['userId']
       })
       for (const r of memberRows) {
         allMemberUserIds.add(r.userId)
@@ -509,7 +522,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       const visibleSet = new Set(visibleByServer.get(m.serverId) ?? [])
       for (const ch of m.server.channels) {
         if (visibleSet.has(ch.id)) {
-          client.join(`channel:${ch.id}`)
+          await joinMessageContext(client, 'channel', ch.id)
         }
       }
     }
@@ -536,7 +549,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         select: { conversationId: true }
       })
       for (const dc of dmConversations) {
-        client.join(`dm:${dc.conversationId}`)
+        await joinMessageContext(client, 'dm', dc.conversationId)
       }
 
       const servers = memberships.map((m) => ({
@@ -641,7 +654,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       select: { conversationId: true }
     })
     for (const dc of dmConversations) {
-      client.join(`dm:${dc.conversationId}`)
+      await joinMessageContext(client, 'dm', dc.conversationId)
     }
 
     const userChannelIds = new Set<string>()
@@ -657,6 +670,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
     }
     client.emit('voice:participants', voiceState)
+    client.data.realtimeReady = true
   }
 
   async handleDisconnect(client: Socket) {
@@ -1518,7 +1532,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async onDmJoin(@ConnectedSocket() client: Socket, @MessageBody() body: WsConversationIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.dm.requireMembership(body.conversationId, user.id)
-    client.join(`dm:${body.conversationId}`)
+    await joinMessageContext(client, 'dm', body.conversationId)
     return { ok: true }
   }
 
@@ -1527,7 +1541,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async onChannelJoin(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
-    client.join(`channel:${body.channelId}`)
+    await joinMessageContext(client, 'channel', body.channelId)
     return { ok: true }
   }
 
@@ -1536,8 +1550,56 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async onChannelLeave(@ConnectedSocket() client: Socket, @MessageBody() body: WsChannelIdDto) {
     const user = (client.data as { user: WsUser }).user
     await this.messages.assertUserCanAccessChannel(body.channelId, user.id)
-    client.leave(`channel:${body.channelId}`)
+    await leaveMessageContext(client, 'channel', body.channelId)
     return { ok: true }
+  }
+
+  @WsThrottle(40, 10)
+  @SubscribeMessage('channel:watch')
+  async onChannelWatch(@ConnectedSocket() client: Socket, @MessageBody() body: WsWatchChannelDto) {
+    return this.watchMessages(client, 'channel', body.channelId)
+  }
+
+  @WsThrottle(40, 10)
+  @SubscribeMessage('dm:watch')
+  async onDmWatch(@ConnectedSocket() client: Socket, @MessageBody() body: WsWatchDmDto) {
+    return this.watchMessages(client, 'dm', body.conversationId)
+  }
+
+  private async watchMessages(client: Socket, mode: 'channel' | 'dm', id?: string) {
+    if (!client.data.compactMessages) return { ok: true }
+    const sequenceKey = `${mode}WatchSequence`
+    const watchKey = `${mode}Watch`
+    const sequence = (client.data[sequenceKey] ?? 0) + 1
+    client.data[sequenceKey] = sequence
+    client.data[`${mode}PendingWatch`] = id
+    try {
+      if (id) {
+        const userId = client.data.user.id
+        if (mode === 'channel') await this.messages.assertUserCanAccessChannel(id, userId)
+        else await this.dm.requireMembership(id, userId)
+      }
+      const prior = this.messageWatchQueues.get(client) ?? Promise.resolve()
+      const update = prior.catch(() => {}).then(async () => {
+        if (client.data[sequenceKey] !== sequence) return false
+        if (id && client.data.realtimeReady && !client.rooms.has(`${mode}:${id}`)) return false
+        const previous = client.data[watchKey]
+        if (previous) await client.leave(fullMessageRoom(mode, previous))
+        if (client.data[sequenceKey] !== sequence) return false
+        if (id) await client.join(fullMessageRoom(mode, id))
+        if (client.data[sequenceKey] !== sequence) {
+          if (id) await client.leave(fullMessageRoom(mode, id))
+          return false
+        }
+        client.data[watchKey] = id
+        return true
+      })
+      this.messageWatchQueues.set(client, update)
+      return { ok: await update }
+    } catch (error) {
+      if (error instanceof HttpException && [403, 404].includes(error.getStatus())) return { ok: false, error: error.message }
+      throw error
+    }
   }
 
   @WsThrottle(10, 10)
