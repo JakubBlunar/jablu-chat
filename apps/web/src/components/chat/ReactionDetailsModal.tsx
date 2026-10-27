@@ -1,17 +1,15 @@
-import type { ReactionGroup } from '@chat/shared'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { ReactionEmoji } from '@/components/chat/ReactionPill'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { UserAvatar } from '@/components/UserAvatar'
-import { ReactionEmoji } from '@/components/chat/ReactionPill'
-import { useAuthStore } from '@/stores/auth.store'
-import { useDmStore } from '@/stores/dm.store'
-import { useMemberStore } from '@/stores/member.store'
 import { useIsMobile } from '@/hooks/useMobile'
-import type { CustomEmoji } from '@/lib/api/types'
-import { memberDisplayName } from '@/lib/serverProfile'
 import { api } from '@/lib/api'
+import type { CustomEmoji } from '@/lib/api/types'
+import type { ResolvedReactor as ResolvedUser } from '@/lib/reactorIdentity'
+import type { ReactionGroup } from '@chat/shared'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useReactorIdentityResolver } from './hooks/useReactorIdentityResolver'
 
 type Props = {
   messageId?: string
@@ -23,15 +21,15 @@ type Props = {
   onClose: () => void
 }
 
-type ResolvedUser = {
-  userId: string
-  displayName: string
-  username: string
-  avatarUrl: string | null
-  isUnknown: boolean
-}
-
-export function ReactionDetailsModal({ messageId, reactions, initialEmoji, mode, contextId, customEmojiMap, onClose }: Props) {
+export function ReactionDetailsModal({
+  messageId,
+  reactions,
+  initialEmoji,
+  mode,
+  contextId,
+  customEmojiMap,
+  onClose
+}: Props) {
   const { t } = useTranslation('chat')
   const isMobile = useIsMobile()
 
@@ -43,7 +41,7 @@ export function ReactionDetailsModal({ messageId, reactions, initialEmoji, mode,
     [reactions, selected]
   )
 
-  const resolveUser = useResolveReactors(mode, contextId)
+  const resolveUser = useReactorIdentityResolver(mode, contextId)
 
   const reactorRows: ResolvedUser[] = useMemo(() => {
     if (!selectedReaction) return []
@@ -88,20 +86,26 @@ export function ReactionDetailsModal({ messageId, reactions, initialEmoji, mode,
         </nav>
         <ul className="min-h-0 flex-1 overflow-y-auto p-2">
           {selectedReaction?.usersComplete === false && messageId ? (
-            <PagedReactors key={`${messageId}:${selectedReaction.emoji}`} url={`${mode === 'channel' ? '/api/channels' : '/api/dm'}/${contextId}/messages/${messageId}/reactions?emoji=${encodeURIComponent(selectedReaction.emoji)}`} resolveUser={resolveUser} />
-          ) : reactorRows.map((u) => (
-            <li key={u.userId} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-white/5">
-              <UserAvatar username={u.username} avatarUrl={u.avatarUrl} size="md" />
-              <div className="min-w-0 flex-1">
-                <div
-                  className={`truncate text-sm font-semibold ${u.isUnknown ? 'text-gray-400 italic' : 'text-gray-100'}`}
-                >
-                  {u.displayName}
+            <PagedReactors
+              key={`${messageId}:${selectedReaction.emoji}`}
+              url={`${mode === 'channel' ? '/api/channels' : '/api/dm'}/${contextId}/messages/${messageId}/reactions?emoji=${encodeURIComponent(selectedReaction.emoji)}`}
+              resolveUser={resolveUser}
+            />
+          ) : (
+            reactorRows.map((u) => (
+              <li key={u.userId} className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-white/5">
+                <UserAvatar username={u.username} avatarUrl={u.avatarUrl} size="md" />
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`truncate text-sm font-semibold ${u.isUnknown ? 'text-gray-400 italic' : 'text-gray-100'}`}
+                  >
+                    {u.displayName}
+                  </div>
+                  {!u.isUnknown && <div className="truncate text-xs text-gray-400">{u.username}</div>}
                 </div>
-                {!u.isUnknown && <div className="truncate text-xs text-gray-400">{u.username}</div>}
-              </div>
-            </li>
-          ))}
+              </li>
+            ))
+          )}
         </ul>
       </div>
     </div>
@@ -129,27 +133,63 @@ function PagedReactors({ url, resolveUser }: { url: string; resolveUser: (id: st
   const [error, setError] = useState(false)
   useEffect(() => {
     let cancelled = false
-    void api.get<typeof page>(url).then((result) => { if (!cancelled) setPage(result) })
-      .catch(() => { if (!cancelled) setError(true) }).finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+    void api
+      .get<typeof page>(url)
+      .then((result) => {
+        if (!cancelled) setPage(result)
+      })
+      .catch(() => {
+        if (!cancelled) setError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [url])
   const more = async () => {
     setLoading(true)
     setError(false)
     try {
-      const result = await api.get<typeof page>(`${url}${page.nextCursor ? `&after=${encodeURIComponent(page.nextCursor)}` : ''}`)
+      const result = await api.get<typeof page>(
+        `${url}${page.nextCursor ? `&after=${encodeURIComponent(page.nextCursor)}` : ''}`
+      )
       setPage((old) => ({ userIds: [...new Set([...old.userIds, ...result.userIds])], nextCursor: result.nextCursor }))
-    } catch { setError(true) } finally { setLoading(false) }
+    } catch {
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
   }
-  return <>
-    {page.userIds.map((id) => {
-      const user = resolveUser(id)
-      return <li key={id} className="flex items-center gap-3 px-2 py-2"><UserAvatar username={user.username} avatarUrl={user.avatarUrl} size="md" /><span>{user.displayName}</span></li>
-    })}
-    {loading && <li role="status">{t('loading')}</li>}
-    {error && <li role="alert"><button type="button" onClick={() => void more()}>{t('retry')}</button></li>}
-    {!loading && !error && page.nextCursor && <li><button type="button" onClick={() => void more()}>{t('list.loadMore', { ns: 'forum' })}</button></li>}
-  </>
+  return (
+    <>
+      {page.userIds.map((id) => {
+        const user = resolveUser(id)
+        return (
+          <li key={id} className="flex items-center gap-3 px-2 py-2">
+            <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size="md" />
+            <span>{user.displayName}</span>
+          </li>
+        )
+      })}
+      {loading && <li role="status">{t('loading')}</li>}
+      {error && (
+        <li role="alert">
+          <button type="button" onClick={() => void more()}>
+            {t('retry')}
+          </button>
+        </li>
+      )}
+      {!loading && !error && page.nextCursor && (
+        <li>
+          <button type="button" onClick={() => void more()}>
+            {t('list.loadMore', { ns: 'forum' })}
+          </button>
+        </li>
+      )}
+    </>
+  )
 }
 
 function CloseIcon({ className }: { className?: string }) {
@@ -157,60 +197,5 @@ function CloseIcon({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
     </svg>
-  )
-}
-
-function useResolveReactors(mode: 'channel' | 'dm', contextId: string): (userId: string) => ResolvedUser {
-  const { t } = useTranslation('chat')
-  const self = useAuthStore((s) => s.user)
-  const members = useMemberStore((s) => s.members)
-  const dmConversation = useDmStore((s) =>
-    mode === 'dm' ? s.conversations.find((c) => c.id === contextId) : undefined
-  )
-
-  return useCallback(
-    (userId: string): ResolvedUser => {
-      if (self && userId === self.id) {
-        const member = mode === 'channel' ? members.find((m) => m.userId === userId) : undefined
-        return {
-          userId,
-          displayName: member ? memberDisplayName(member) : self.displayName ?? self.username,
-          username: self.username,
-          avatarUrl: self.avatarUrl ?? null,
-          isUnknown: false
-        }
-      }
-      if (mode === 'channel') {
-        const m = members.find((mem) => mem.userId === userId)
-        if (m) {
-          return {
-            userId,
-            displayName: memberDisplayName(m),
-            username: m.user.username,
-            avatarUrl: m.user.avatarUrl ?? null,
-            isUnknown: false
-          }
-        }
-      } else {
-        const dmMember = dmConversation?.members.find((mem) => mem.userId === userId)
-        if (dmMember) {
-          return {
-            userId,
-            displayName: dmMember.displayName ?? dmMember.username,
-            username: dmMember.username,
-            avatarUrl: dmMember.avatarUrl ?? null,
-            isUnknown: false
-          }
-        }
-      }
-      return {
-        userId,
-        displayName: t('unknownUser'),
-        username: userId.slice(0, 8),
-        avatarUrl: null,
-        isUnknown: true
-      }
-    },
-    [self, mode, members, dmConversation, t]
   )
 }

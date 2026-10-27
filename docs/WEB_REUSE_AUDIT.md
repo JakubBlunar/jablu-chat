@@ -15,7 +15,9 @@ Reviewed 27 October 2026. The initial analysis is followed by the implementation
 - Phase 4 validation: TypeScript, focused lint, 36 affected unit tests, and four local browser journeys passed. Checks cover touch context menus, preserved unsaved dialog drafts across responsive changes, and mobile channel URL navigation.
 - Phase 5: PaginationControls now owns shared previous/page/next rendering in attachments, search, and settings lists. useListPage, usePagedContent, and useMessageSearch separate client paging, server paging, and debounced search from presentation.
 - Phase 5 validation: TypeScript, focused lint, 24 pagination/search/media tests, and the large-list desktop/mobile browser journey passed. Updated the existing browser fixture for the current roster API and for settings dialogs that now survive responsive changes.
-- Phases 6–7: pending.
+- Phase 6: reaction details/tooltips share a pure identity resolver and store-binding hook. Speaker subscriptions and time-zone/time conversion helpers are outside UI modules. useMessageComposer now owns UnifiedInput's existing draft, typing, attachment, command, and submission workflow; draft/outbox stores retain persistence and delivery ownership.
+- Phase 6 validation: TypeScript, focused lint, 55 affected tests, and both local UI browser journeys passed. New tests cover independent drafts across composer identities, speaker listener cleanup, nickname/DM/unknown identity rules, command expansion, and quiet-hour conversions.
+- Phase 7: pending.
 
 ## Recommendation
 

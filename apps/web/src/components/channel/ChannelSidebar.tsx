@@ -34,7 +34,7 @@ import { ForumChannelItem } from './channel-sidebar/ForumChannelItem'
 import { ChevronDownIcon } from './channel-sidebar/sidebarIcons'
 import { TextChannelItem } from './channel-sidebar/TextChannelItem'
 import { VoiceChannelItem } from './channel-sidebar/VoiceChannelItem'
-import { useSpeakingUsers } from './channel-sidebar/VoiceComponents'
+import {useSpeakingUsers} from '@/components/voice/hooks/useSpeakingUsers'
 
 export function ChannelSidebar() {
   const {

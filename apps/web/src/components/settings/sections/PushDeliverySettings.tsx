@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { inputFieldClassNames } from '@/components/ui/Input'
+import { useTimeZoneOptions } from '@/hooks/useTimeZoneOptions'
 import { cn } from '@/lib/cn'
+import { minutesToTimeValue, timeValueToMinutes } from '@/lib/pushDeliveryTime'
 import { useAuthStore } from '@/stores/auth.store'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /** Native time controls: dark scheme + visible clock icon on dark backgrounds (esp. WebKit). */
 const timeFieldClass = cn(
@@ -15,31 +17,6 @@ const timeFieldClass = cn(
 
 const DEFAULT_START = 22 * 60
 const DEFAULT_END = 8 * 60
-
-function minutesToTimeValue(m: number): string {
-  const h = Math.min(23, Math.max(0, Math.floor(m / 60)))
-  const min = Math.min(59, Math.max(0, m % 60))
-  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
-}
-
-function timeValueToMinutes(s: string): number {
-  const [a, b] = s.split(':')
-  const h = parseInt(a ?? '0', 10)
-  const min = parseInt(b ?? '0', 10)
-  if (!Number.isFinite(h) || !Number.isFinite(min)) return 0
-  return Math.min(1439, Math.max(0, h * 60 + min))
-}
-
-function useTimeZoneOptions(): string[] {
-  return useMemo(() => {
-    try {
-      const fn = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf
-      return fn ? fn.call(Intl, 'timeZone') : ['UTC']
-    } catch {
-      return ['UTC']
-    }
-  }, [])
-}
 
 /**
  * Server-side push delivery rules (silence all, quiet hours). Same UI for mobile and desktop — only the settings shell differs.
@@ -60,22 +37,23 @@ export function PushDeliverySettings() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const {
+    id: userId,
+    pushSuppressAll,
+    pushQuietHoursEnabled,
+    pushQuietHoursTz,
+    pushQuietHoursStartMin,
+    pushQuietHoursEndMin
+  } = user ?? {}
 
   useEffect(() => {
-    if (!user) return
-    setSuppressAll(user.pushSuppressAll ?? false)
-    setQuietEnabled(user.pushQuietHoursEnabled ?? false)
-    setTz(user.pushQuietHoursTz?.trim() || 'UTC')
-    setStartTime(minutesToTimeValue(user.pushQuietHoursStartMin ?? DEFAULT_START))
-    setEndTime(minutesToTimeValue(user.pushQuietHoursEndMin ?? DEFAULT_END))
-  }, [
-    user?.id,
-    user?.pushSuppressAll,
-    user?.pushQuietHoursEnabled,
-    user?.pushQuietHoursTz,
-    user?.pushQuietHoursStartMin,
-    user?.pushQuietHoursEndMin
-  ])
+    if (!userId) return
+    setSuppressAll(pushSuppressAll ?? false)
+    setQuietEnabled(pushQuietHoursEnabled ?? false)
+    setTz(pushQuietHoursTz?.trim() || 'UTC')
+    setStartTime(minutesToTimeValue(pushQuietHoursStartMin ?? DEFAULT_START))
+    setEndTime(minutesToTimeValue(pushQuietHoursEndMin ?? DEFAULT_END))
+  }, [userId, pushSuppressAll, pushQuietHoursEnabled, pushQuietHoursTz, pushQuietHoursStartMin, pushQuietHoursEndMin])
 
   const save = useCallback(async () => {
     if (!user) return

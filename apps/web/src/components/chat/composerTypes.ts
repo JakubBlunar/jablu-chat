@@ -57,3 +57,16 @@ export type BuiltinCommandItem = {
   descriptionKey: 'poll' | 'shrug' | 'tableflip' | 'unflip' | 'lenny' | 'spoiler' | 'me' | 'nick'
   tagKey: 'tools' | 'fun' | 'formatting' | 'settings'
 }
+
+export type MessageComposerProps = {
+  mode: 'channel' | 'dm'
+  contextId: string
+  replyTarget: { id: string; content: string | null; authorName: string } | null
+  onCancelReply: () => void
+  onSent?: () => void
+  channels?: MentionChannel[]
+  gifEnabled?: boolean
+  placeholder: string
+  onCommand?: (command: string, args?: string) => boolean | void
+  threadParentId?: string
+}

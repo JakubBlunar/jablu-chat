@@ -1,15 +1,13 @@
-import React, { useEffect, useState } from 'react'
-import type { RoomEvent, Participant } from 'livekit-client'
-import { useTranslation } from 'react-i18next'
-import type { UserStatus } from '@chat/shared'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ActivityLine } from '@/components/user/ActivityLine'
-import { useActivityStore } from '@/stores/activity.store'
-import { type VoiceParticipant } from '@/stores/voice.store'
-import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
-import { useMemberStore, type Member } from '@/stores/member.store'
 import { VoiceParticipantContextMenu } from '@/components/voice/VoiceParticipantContextMenu'
 import { memberDisplayName } from '@/lib/serverProfile'
+import { useActivityStore } from '@/stores/activity.store'
+import { useMemberStore, type Member } from '@/stores/member.store'
+import { type VoiceParticipant } from '@/stores/voice.store'
+import type { UserStatus } from '@chat/shared'
+import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 export function VoiceStatusIcons({ participant }: { participant: VoiceParticipant }) {
   const { t } = useTranslation('channels')
@@ -74,28 +72,6 @@ export function VoiceStatusIcons({ participant }: { participant: VoiceParticipan
   if (icons.length === 0) return null
 
   return <span className="flex shrink-0 items-center gap-0.5">{icons}</span>
-}
-
-export function useSpeakingUsers() {
-  const room = useVoiceConnectionStore((s) => s.room)
-  const [speaking, setSpeaking] = useState<Set<string>>(new Set())
-
-  useEffect(() => {
-    if (!room) {
-      setSpeaking(new Set())
-      return
-    }
-    const onSpeakers = (speakers: Participant[]) => {
-      setSpeaking(new Set(speakers.map((s) => s.identity)))
-    }
-    const event = 'activeSpeakersChanged' as RoomEvent.ActiveSpeakersChanged
-    room.on(event, onSpeakers)
-    return () => {
-      room.off(event, onSpeakers)
-    }
-  }, [room])
-
-  return speaking
 }
 
 export function VoiceParticipantRow({

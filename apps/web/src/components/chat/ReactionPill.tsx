@@ -1,14 +1,12 @@
-import type { ReactionGroup } from '@chat/shared'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useIsMobile } from '@/hooks/useMobile'
 import { resolveMediaUrl } from '@/lib/api'
 import type { CustomEmoji } from '@/lib/api/types'
 import { toggleMessageReaction } from '@/lib/reactions'
 import { useAuthStore } from '@/stores/auth.store'
-import { useDmStore } from '@/stores/dm.store'
-import { useMemberStore } from '@/stores/member.store'
-import { useIsMobile } from '@/hooks/useMobile'
-import { memberDisplayName } from '@/lib/serverProfile'
+import type { ReactionGroup } from '@chat/shared'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useReactorIdentityResolver } from './hooks/useReactorIdentityResolver'
 
 const HOVER_DELAY_MS = 250
 const HOVER_CLOSE_DELAY_MS = 120
@@ -24,14 +22,7 @@ type Props = {
   onShowReactors: (initialEmoji: string) => void
 }
 
-export function ReactionPill({
-  reaction,
-  messageId,
-  mode,
-  contextId,
-  customEmojiMap,
-  onShowReactors
-}: Props) {
+export function ReactionPill({ reaction, messageId, mode, contextId, customEmojiMap, onShowReactors }: Props) {
   const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
   const isMobile = useIsMobile()
@@ -43,7 +34,8 @@ export function ReactionPill({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressFired = useRef(false)
 
-  const resolveName = useReactorNameResolver(mode, contextId)
+  const resolveUser = useReactorIdentityResolver(mode, contextId)
+  const resolveName = useCallback((userId: string) => resolveUser(userId).displayName, [resolveUser])
 
   const reactors = reaction.userIds
   const visible = reactors.slice(0, TOOLTIP_NAME_LIMIT)
@@ -191,11 +183,7 @@ export function ReactionPill({
   )
 
   return (
-    <div
-      className="relative inline-flex"
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-    >
+    <div className="relative inline-flex" onPointerEnter={handlePointerEnter} onPointerLeave={handlePointerLeave}>
       <button
         type="button"
         aria-pressed={isMine}
@@ -230,9 +218,7 @@ export function ReactionPill({
               <ReactionEmoji emoji={reaction.emoji} isCustom={reaction.isCustom} customEmojiMap={customEmojiMap} />
             </span>
             <span className="text-gray-400">{t('reactedBy')}</span>
-            <span className="font-medium text-gray-100">
-              {visible.map((id) => resolveName(id)).join(', ')}
-            </span>
+            <span className="font-medium text-gray-100">{visible.map((id) => resolveName(id)).join(', ')}</span>
             {remaining > 0 && (
               <button
                 type="button"
@@ -280,29 +266,3 @@ export function ReactionEmoji({
  * Looks at self -> member store (channel) -> dm conversation members,
  * with a graceful fallback for users who have left.
  */
-function useReactorNameResolver(mode: 'channel' | 'dm', contextId: string): (userId: string) => string {
-  const { t } = useTranslation('chat')
-  const self = useAuthStore((s) => s.user)
-  const members = useMemberStore((s) => s.members)
-  const dmConversation = useDmStore((s) =>
-    mode === 'dm' ? s.conversations.find((c) => c.id === contextId) : undefined
-  )
-
-  return useCallback(
-    (userId: string) => {
-      if (self && userId === self.id) {
-        const member = mode === 'channel' ? members.find((m) => m.userId === userId) : undefined
-        return member ? memberDisplayName(member) : self.displayName ?? self.username
-      }
-      if (mode === 'channel') {
-        const m = members.find((mem) => mem.userId === userId)
-        if (m) return memberDisplayName(m)
-      } else {
-        const member = dmConversation?.members.find((mem) => mem.userId === userId)
-        if (member) return member.displayName ?? member.username
-      }
-      return t('unknownUser')
-    },
-    [self, mode, members, dmConversation, t]
-  )
-}
