@@ -56,7 +56,7 @@ export default defineConfig(({ command }) => {
         theme_color: '#0f1017',
         background_color: '#0f1017',
         display: 'standalone',
-        orientation: 'portrait',
+        orientation: 'any',
         start_url: '/',
         id: '/',
         prefer_related_applications: false,

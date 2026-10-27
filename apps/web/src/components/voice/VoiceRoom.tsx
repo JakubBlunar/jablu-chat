@@ -31,21 +31,6 @@ export function VoiceRoom() {
   const prevScreenIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    const orient = screen?.orientation as
-      (ScreenOrientation & { lock?: (o: string) => Promise<void>; unlock?: () => void }) | undefined
-    const lock = (window as unknown as { __landscapeLock?: { disable: () => void; enable: () => void } })
-      .__landscapeLock
-
-    lock?.disable()
-    orient?.unlock?.()
-
-    return () => {
-      lock?.enable()
-      orient?.lock?.('portrait').catch(() => {})
-    }
-  }, [])
-
-  useEffect(() => {
     if (!room) return
 
     const update = () => {

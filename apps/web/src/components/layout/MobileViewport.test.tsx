@@ -136,6 +136,7 @@ it('hides navigation for a new reply even when the previous keyboard dismissal a
 it('refreshes geometry on PWA restore and removes viewport listeners on unmount', () => {
   const remove = jest.spyOn(viewport, 'removeEventListener')
   const { shell, unmount } = setup()
+  act(() => screen.getByRole('textbox').focus())
   viewport.height = 510
   fireEvent(window, new Event('pageshow'))
   expect(shell).toHaveStyle({ height: '510px' })
@@ -146,6 +147,80 @@ it('refreshes geometry on PWA restore and removes viewport listeners on unmount'
   expect(remove).toHaveBeenCalledWith('resize', expect.any(Function))
   expect(remove).toHaveBeenCalledWith('scroll', expect.any(Function))
   expect(shell.style.height).toBe('')
+})
+
+it('keeps the focused composer working in landscape without clearing the draft or selection', () => {
+  jest.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(390)
+  jest.replaceProperty(window, 'innerHeight', 390)
+  const { shell, nav } = setup()
+  const input = screen.getByRole('textbox') as HTMLTextAreaElement
+  input.value = 'Unsent draft'
+  input.setSelectionRange(3, 3)
+  act(() => input.focus())
+  resize(210, 40)
+  fireEvent(window, new Event('orientationchange'))
+  expect(input).toHaveFocus()
+  expect(input.value).toBe('Unsent draft')
+  expect(input.selectionStart).toBe(3)
+  expect(shell).toHaveStyle({ height: '210px', top: '40px' })
+  expect(nav).not.toBeVisible()
+})
+
+it('does not exceed the new layout height while an orientation change still reports old viewport geometry', () => {
+  jest.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(390)
+  const { shell } = setup()
+  act(() => screen.getByRole('textbox').focus())
+  resize(500)
+  fireEvent(window, new Event('orientationchange'))
+  expect(shell).toHaveStyle({ height: '390px', top: '0px' })
+  resize(210)
+  expect(shell).toHaveStyle({ height: '210px', top: '0px' })
+})
+
+it('recovers portrait height on resume even if iOS keeps reporting its landscape viewport', () => {
+  let layoutHeight = 390
+  jest.spyOn(document.documentElement, 'clientHeight', 'get').mockImplementation(() => layoutHeight)
+  jest.replaceProperty(window, 'innerHeight', 390)
+  viewport.height = 210
+  const { shell, nav } = setup()
+  const input = screen.getByRole('textbox')
+  act(() => input.focus())
+  resize(210, 40)
+  const visibility = jest.spyOn(document, 'visibilityState', 'get')
+  visibility.mockReturnValue('hidden')
+  fireEvent(document, new Event('visibilitychange'))
+  expect(input).not.toHaveFocus()
+  layoutHeight = 844
+  viewport.height = 390
+  visibility.mockReturnValue('visible')
+  fireEvent(document, new Event('visibilitychange'))
+  expect(shell).toHaveStyle({ height: '844px', top: '0px' })
+  expect(nav).toBeVisible()
+})
+
+it('does not reuse a stale landscape height when the mobile shell remounts in portrait', () => {
+  jest.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(844)
+  viewport.height = 390
+  viewport.offsetTop = 40
+  const { shell, nav } = setup()
+  expect(shell).toHaveStyle({ height: '844px', top: '0px' })
+  expect(nav).toBeVisible()
+  // A new keyboard session still follows the real viewport after recovery.
+  act(() => screen.getByRole('textbox').focus())
+  resize(500, 80)
+  expect(shell).toHaveStyle({ height: '500px', top: '80px' })
+  expect(nav).not.toBeVisible()
+})
+
+it('resets retained editor focus on a back-forward cache restore', () => {
+  const { shell, nav } = setup()
+  const input = screen.getByRole('textbox')
+  act(() => input.focus())
+  resize(500, 80)
+  fireEvent(window, new PageTransitionEvent('pageshow', { persisted: true }))
+  expect(input).not.toHaveFocus()
+  expect(shell).toHaveStyle({ height: '844px', top: '0px' })
+  expect(nav).toBeVisible()
 })
 
 it('keeps the CSS viewport fallback when the Visual Viewport API is unavailable', () => {

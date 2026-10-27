@@ -49,6 +49,9 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
     const onComposerClick = (event: MouseEvent) => {
       if (event.target instanceof HTMLTextAreaElement && event.target.closest('[data-message-composer]')) update(event)
     }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') update()
+    }
     document.addEventListener('focusin', update)
     document.addEventListener('focusout', onBlur)
     document.addEventListener('click', onComposerClick)
@@ -56,6 +59,9 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
     window.visualViewport?.addEventListener('scroll', update)
     window.addEventListener('resize', update)
     window.addEventListener('pageshow', update)
+    window.addEventListener('orientationchange', update)
+    window.screen.orientation?.addEventListener('change', update)
+    document.addEventListener('visibilitychange', onVisibility)
     update()
     return () => {
       clearTimeout(blurTimer)
@@ -66,6 +72,9 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
       window.visualViewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
       window.removeEventListener('pageshow', update)
+      window.removeEventListener('orientationchange', update)
+      window.screen.orientation?.removeEventListener('change', update)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
   return (

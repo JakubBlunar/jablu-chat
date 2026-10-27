@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
-const MOBILE_QUERY = '(max-width: 767px)'
+// Keep phones on the same chat shell when rotated; switching to the desktop
+// shell would unmount the focused composer and its keyboard viewport tracking.
+const MOBILE_QUERY = '(max-width: 767px), (pointer: coarse) and (orientation: landscape) and (max-width: 1023px) and (max-height: 599px)'
 const TABLET_QUERY = '(max-width: 1023px)'
 
 function subscribe(query: string) {
