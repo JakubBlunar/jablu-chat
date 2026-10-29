@@ -29,6 +29,30 @@ function makeAdapter(overrides: Partial<ScrollStoreAdapter> = {}): ScrollStoreAd
   }
 }
 
+function renderScrollableHistory(adapter: ScrollStoreAdapter, initialTarget?: HTMLElement) {
+  let scroll!: ReturnType<typeof useMessageScroll>
+  function Harness() {
+    scroll = useMessageScroll('ch-1', adapter)
+    return createElement('div', { ref: (element: HTMLDivElement | null) => {
+      scroll.scrollParentRef.current = element
+      if (!element) return
+      Object.defineProperties(element, {
+        clientHeight: { configurable: true, value: 400 },
+        scrollHeight: { configurable: true, value: 2000 }
+      })
+      element.getBoundingClientRect = () => ({ top: 100 } as DOMRect)
+      if (initialTarget) element.append(initialTarget)
+    } })
+  }
+  const view = render(createElement(Harness))
+  return {
+    ...view,
+    result: { get current() { return scroll } },
+    rerender: () => view.rerender(createElement(Harness)),
+    viewport: view.container.firstElementChild as HTMLDivElement
+  }
+}
+
 beforeEach(() => {
   resetMsgSeq()
 })
@@ -70,18 +94,18 @@ describe('useMessageScroll', () => {
       }
       const element = document.createElement('div')
       element.id = 'msg-original'
-      element.scrollIntoView = jest.fn()
-      if (loaded) document.body.appendChild(element)
+      element.getBoundingClientRect = () => ({ top: 800, height: 80 } as DOMRect)
       const adapter = makeAdapter({
         messages: snapshot.messages,
         getLoadedForId: () => 'ch-1',
         getSnapshot: () => snapshot,
         fetchMessagesAround: jest.fn(async () => {
           snapshot.messages = [target]
-          document.body.appendChild(element)
+          viewport.appendChild(element)
         })
       })
-      const { result, rerender, unmount } = renderHook(() => useMessageScroll('ch-1', adapter))
+      const { result, viewport, rerender, unmount } = renderScrollableHistory(adapter, loaded ? element : undefined)
+      viewport.scrollTop = 0
       try {
         act(() => result.current.handleJumpToMessage(target.id))
         expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(target.id)
@@ -89,7 +113,7 @@ describe('useMessageScroll', () => {
           adapter.scrollToMessageId = target.id
           rerender()
         })
-        await waitFor(() => expect(element.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' }))
+        await waitFor(() => expect(viewport.scrollTop).toBe(540))
         expect(element.classList.contains('bg-primary/10')).toBe(true)
         expect(result.current.atBottom).toBe(false)
         expect(adapter.fetchMessagesAround).toHaveBeenCalledTimes(loaded ? 0 : 1)
@@ -107,13 +131,13 @@ describe('useMessageScroll', () => {
       const snapshot = { messages: [visible], isLoading: false, hasMore: true, hasNewer: false }
       const element = document.createElement('div')
       element.id = 'msg-target'
-      element.scrollIntoView = jest.fn()
+      element.getBoundingClientRect = () => ({ top: 800, height: 80 } as DOMRect)
       const fetchAround = jest
         .fn<Promise<void>, [string, string]>()
         .mockRejectedValueOnce(new Error('offline'))
         .mockImplementationOnce(async () => {
           snapshot.messages = [target]
-          document.body.appendChild(element)
+          viewport.appendChild(element)
         })
       const adapter = makeAdapter({
         messages: snapshot.messages,
@@ -122,12 +146,12 @@ describe('useMessageScroll', () => {
         getSnapshot: () => snapshot,
         fetchMessagesAround: fetchAround
       })
-      const { result, unmount } = renderHook(() => useMessageScroll('ch-1', adapter))
+      const { result, viewport, unmount } = renderScrollableHistory(adapter)
       await waitFor(() => expect(result.current.historyError).toBe('historyLoadFailed'))
       expect(snapshot.messages).toEqual([visible])
       expect(adapter.clearMessages).not.toHaveBeenCalled()
       act(() => result.current.retryHistory?.())
-      await waitFor(() => expect(element.scrollIntoView).toHaveBeenCalled())
+      await waitFor(() => expect(viewport.scrollTop).toBe(540))
       expect(fetchAround).toHaveBeenLastCalledWith('ch-1', 'target')
       expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null)
       expect(result.current.historyError).toBeNull()

@@ -14,12 +14,12 @@ export function DesktopChrome({ children }: { children: ReactNode }) {
   useDesktopUpdateSync()
   if (!isDesktop) return <>{children}</>
 
-  // Anchor directly to the WebView viewport. Percentage heights through
-  // body/root can retain the hidden window's layout after a tray restore.
+  // The frame must never scroll when a message jump or restored focus reveals
+  // a descendant. `overflow: hidden` still allows programmatic scrolling.
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-surface">
+    <div className="fixed inset-0 flex flex-col overflow-clip bg-surface">
       <Suspense fallback={<div className="h-9 shrink-0" />}><DesktopTitleBar /></Suspense>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div className="min-h-0 flex-1 overflow-clip">{children}</div>
     </div>
   )
 }

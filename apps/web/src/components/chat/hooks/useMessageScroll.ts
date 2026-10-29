@@ -2,6 +2,7 @@ import type { Message } from '@chat/shared'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { historyErrorKey, requireMessageTarget, type HistoryErrorKey } from '@/lib/messageHistory'
 import { revealMessageElement } from '@/components/chat/WindowedMessage'
+import { scrollWithin } from '@/lib/scrollWithin'
 
 export interface ScrollStoreAdapter {
   messages: Message[]
@@ -447,7 +448,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
       // here — that would fight the scroll-to-message useEffect (it would
       // either flash to bottom then jump, or get yanked back to bottom by
       // the force-bottom window). The scroll-to-message effect handles its
-      // own positioning via scrollIntoView and clears the initial-snap guard
+      // own positioning inside the message list and clears the initial-snap guard
       // once it finishes. Read from storeRef so we don't have to take
       // scrollToMessageId as a dep (we only care about context changes here).
       const hasScrollToTarget = storeRef.current.scrollToMessageId !== null
@@ -599,7 +600,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
           () => {
             if (!anchorId) return
             requestAnimationFrame(() => {
-              revealMessageElement(`msg-${anchorId}`)?.scrollIntoView({ block: 'end', behavior: 'auto' })
+              scrollWithin(sp, revealMessageElement(`msg-${anchorId}`), 'end')
             })
           }
         ).finally(() => {
@@ -677,7 +678,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
       if (!id) return
       cancelAnimationFrame(rafId)
       rafId = requestAnimationFrame(() => {
-        revealMessageElement(id)?.scrollIntoView({ block: 'center', behavior: 'auto' })
+        scrollWithin(sp, revealMessageElement(id))
       })
     })
 
@@ -740,7 +741,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         }
         if (cancelled) return
         if (!el) throw new Error('historyLoadFailed')
-        el.scrollIntoView({ block: 'center', behavior: 'auto' })
+        scrollWithin(scrollParentRef.current, el)
         setAtBottom(false)
         hasInitialSnappedRef.current = true
         pendingGoToBottom.current = false

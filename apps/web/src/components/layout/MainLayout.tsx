@@ -383,7 +383,7 @@ function MainLayoutContent() {
   // ─── DM layout (desktop/tablet) ───
   if (viewMode === 'dm') {
     return (
-      <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+      <div className="flex h-full flex-col overflow-clip bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
         <VoicePlayback />
         <DmCallNotifications />
@@ -434,7 +434,7 @@ function MainLayoutContent() {
 
   // ─── Server layout (desktop/tablet) ───
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
+    <div className="flex h-full flex-col overflow-clip bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <SkipToMainLink />
       <VoicePlayback />
       <DmCallNotifications />
