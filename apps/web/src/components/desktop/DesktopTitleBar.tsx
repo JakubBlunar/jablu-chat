@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { createPortal } from 'react-dom'
 import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
 import { SavedMessagesBell } from '@/components/chat/SavedMessagesBell'
 import { DesktopUpdateButton } from './DesktopUpdateButton'
@@ -36,6 +37,9 @@ function ChevronRight() {
  *     areas set to `pointer-events: none` so the plugin still handles dragging
  *     and the caption buttons stay clickable, and controls opting back in.
  * The right padding reserves space for the plugin's caption buttons.
+ * Portal both layers to body alongside the plugin: DesktopChrome's fixed
+ * viewport shell creates a stacking context below the plugin, regardless of
+ * the z-index assigned to its descendants. Keep a spacer in the app layout.
  */
 export function DesktopTitleBar() {
   const { t: tCommon } = useTranslation('common')
@@ -47,67 +51,72 @@ export function DesktopTitleBar() {
   useTaskbarAttention()
 
   return (
-    <div className="relative h-8 shrink-0 select-none text-xs text-gray-300">
-      {/* Colored bar, painted behind the plugin's transparent caption controls. */}
-      <div className="absolute inset-0 z-[90] border-b border-black/30 bg-surface-darkest" aria-hidden />
+    <div className="h-8 shrink-0">
+      {createPortal(
+        <>
+          {/* Colored bar, painted behind the plugin's transparent caption controls. */}
+          <div className="fixed inset-x-0 top-0 z-[90] h-8 border-b border-black/30 bg-surface-darkest" aria-hidden />
 
-      {/* Interactive row, above the plugin's drag region. Empty space stays
-          click-through so the plugin can drag the window and expose its controls. */}
-      <div
-        className="absolute inset-0 z-[110] flex items-center gap-1 pl-1.5"
-        style={{ paddingRight: 'var(--tauri-frame-controls-width, 138px)', pointerEvents: 'none' }}
-      >
-        <button
-          type="button"
-          aria-label={tCommon('back')}
-          title={tCommon('back')}
-          disabled={!nav.canGoBack}
-          onClick={nav.goBack}
-          style={{ pointerEvents: 'auto' }}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronLeft />
-        </button>
-        <button
-          type="button"
-          aria-label={tCommon('forward')}
-          title={tCommon('forward')}
-          disabled={!nav.canGoForward}
-          onClick={nav.goForward}
-          style={{ pointerEvents: 'auto' }}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronRight />
-        </button>
+          {/* Interactive row, above the plugin's drag region. Empty space stays
+              click-through so the plugin can drag the window and expose its controls. */}
+          <div
+            className="fixed inset-x-0 top-0 z-[110] flex h-8 select-none items-center gap-1 pl-1.5 text-xs text-gray-300"
+            style={{ paddingRight: 'var(--tauri-frame-controls-width, 138px)', pointerEvents: 'none' }}
+          >
+            <button
+              type="button"
+              aria-label={tCommon('back')}
+              title={tCommon('back')}
+              disabled={!nav.canGoBack}
+              onClick={nav.goBack}
+              style={{ pointerEvents: 'auto' }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronLeft />
+            </button>
+            <button
+              type="button"
+              aria-label={tCommon('forward')}
+              title={tCommon('forward')}
+              disabled={!nav.canGoForward}
+              onClick={nav.goForward}
+              style={{ pointerEvents: 'auto' }}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronRight />
+            </button>
 
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2">
-          {isDm ? (
-            <span className="truncate font-medium text-gray-200">{dmName ?? tNav('directMessages')}</span>
-          ) : serverName ? (
-            <>
-              <span className="truncate font-semibold text-white">{serverName}</span>
-              {channelName && (
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2">
+              {isDm ? (
+                <span className="truncate font-medium text-gray-200">{dmName ?? tNav('directMessages')}</span>
+              ) : serverName ? (
                 <>
-                  <span className="text-gray-600">/</span>
-                  <span className="truncate text-gray-300">#{channelName}</span>
+                  <span className="truncate font-semibold text-white">{serverName}</span>
+                  {channelName && (
+                    <>
+                      <span className="text-gray-600">/</span>
+                      <span className="truncate text-gray-300">#{channelName}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <span className="font-medium text-gray-400">Jablu</span>
+              )}
+            </div>
+
+            <span style={{ pointerEvents: 'auto' }} className="mr-1 flex shrink-0 items-center gap-0.5">
+              <DesktopUpdateButton />
+              {isAuthenticated && (
+                <>
+                  <SavedMessagesBell size="sm" />
+                  <InAppNotificationBell size="sm" />
                 </>
               )}
-            </>
-          ) : (
-            <span className="font-medium text-gray-400">Jablu</span>
-          )}
-        </div>
-
-        <span style={{ pointerEvents: 'auto' }} className="mr-1 flex shrink-0 items-center gap-0.5">
-          <DesktopUpdateButton />
-          {isAuthenticated && (
-            <>
-              <SavedMessagesBell size="sm" />
-              <InAppNotificationBell size="sm" />
-            </>
-          )}
-        </span>
-      </div>
+            </span>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   )
 }
