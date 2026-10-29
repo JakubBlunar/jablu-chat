@@ -1,6 +1,7 @@
 import { type ChatInputBarHandle, type MentionChannel, type MentionMember } from '@/components/chat/ChatInputBar'
 import { useBotCommands } from '@/components/chat/useBotCommands'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useIsMobile } from '@/hooks/useMobile'
 import { api } from '@/lib/api'
 import { findOversizedAttachment } from '@/lib/attachmentLimits'
 import { getSocket } from '@/lib/socket'
@@ -47,6 +48,13 @@ export function useMessageComposer({
   )
   const targetBot = useDraftStore((s) => s.drafts[draftKey]?.bot ?? null)
   const [saving, setSaving] = useState(false)
+  const isMobile = useIsMobile()
+  const [focusAfterSend, setFocusAfterSend] = useState<string | null>(null)
+  useEffect(() => {
+    if (saving || focusAfterSend === null) return
+    if (!isMobile && focusAfterSend === draftKey) inputRef.current?.focus()
+    setFocusAfterSend(null)
+  }, [saving, focusAfterSend, draftKey, isMobile])
   const savingRef = useRef(false)
   const [dragOver, setDragOver] = useState(false)
   const [sizeError, setSizeError] = useState<string | null>(null)
@@ -353,6 +361,7 @@ export function useMessageComposer({
       onCancelReply()
       emitTypingStop()
       onSent?.()
+      setFocusAfterSend(draftKey)
     } catch (error) {
       console.error('Failed to save outgoing message on this device', error)
       setSizeError(t(error instanceof OutboxActionError ? error.message : 'outboxStorageFailed'))

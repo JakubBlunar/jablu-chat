@@ -60,7 +60,7 @@ mod win {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
 
-    use tauri::{AppHandle, Emitter, Manager};
+    use tauri::{AppHandle, Emitter};
     use windows::core::{Interface, HSTRING};
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::Foundation::TypedEventHandler;
@@ -160,19 +160,24 @@ mod win {
                     "notif: toast activated (tag={activated_tag}, action={action})"
                 ));
 
-                if let Some(window) = activated_app.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-                if let Some(url) = &url {
-                    crate::logging::log(&format!("notif: emitting navigate -> {url}"));
-                    match activated_app.emit("navigate", url.clone()) {
-                        Ok(()) => crate::logging::log("notif: navigate emitted"),
-                        Err(e) => crate::logging::log(&format!("notif: navigate emit failed: {e}")),
+                // Windows invokes toast activation on a COM callback thread.
+                // Restore and navigate together on the UI thread, using the same
+                // restore path as the tray (including publishing window state).
+                let app = activated_app.clone();
+                let target_url = url.clone();
+                if let Err(error) = activated_app.run_on_main_thread(move || {
+                    crate::show_main_window(&app);
+                    if let Some(url) = target_url {
+                        crate::logging::log(&format!("notif: emitting navigate -> {url}"));
+                        match app.emit("navigate", url) {
+                            Ok(()) => crate::logging::log("notif: navigate emitted"),
+                            Err(e) => crate::logging::log(&format!("notif: navigate emit failed: {e}")),
+                        }
+                    } else {
+                        crate::logging::log("notif: toast had no url, nothing to navigate to");
                     }
-                } else {
-                    crate::logging::log("notif: toast had no url, nothing to navigate to");
+                }) {
+                    crate::logging::log(&format!("notif: failed to schedule activation: {error}"));
                 }
 
                 forget(&activated_tag);

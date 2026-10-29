@@ -143,6 +143,7 @@ export function MessageMediaProvider({ attachments, linkPreviews, children }: Me
         close={() => setIndex(-1)}
         index={index < 0 ? 0 : index}
         slides={slides}
+        portal={{ container: { onContextMenu: (event) => event.stopPropagation() } }}
         labels={{
           Close: t('close'),
           Next: t('next'),

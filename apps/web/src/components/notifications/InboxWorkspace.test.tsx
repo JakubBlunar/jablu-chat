@@ -7,6 +7,7 @@ import { useInboxStore } from '@/stores/inbox.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { InboxWorkspace } from './InboxWorkspace'
 import { inboxTargetPath } from '@/lib/inbox'
+import { useLayoutStore } from '@/stores/layout.store'
 
 const mockNavigate = jest.fn()
 jest.mock('react-router-dom', () => ({
@@ -35,7 +36,9 @@ jest.mock('@/stores/thread.store', () => ({
   useThreadStore: { getState: () => ({ closeThread: jest.fn() }) }
 }))
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
-jest.mock('./InboxActivity', () => ({ InboxActivity: () => <div>legacy activity</div> }))
+jest.mock('./InboxActivity', () => ({
+  InboxActivity: ({ onNavigate }: { onNavigate: () => void }) => <button onClick={onNavigate}>legacy activity</button>
+}))
 
 const group: InboxGroup = {
   key: 'channel:c1',
@@ -88,6 +91,7 @@ beforeEach(() => {
   useInboxStore.getState().reset()
   useInboxStore.getState().syncUser('alice')
   useNotificationCenterStore.getState().reset()
+  useLayoutStore.setState({ navDrawerOpen: false })
   jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 0 })
   useInboxStore.getState().show()
   jest.mocked(api.getInbox).mockResolvedValue({
@@ -202,12 +206,23 @@ it('shows errors instead of an empty-success message and retries', async () => {
 })
 
 it('opens the exact preview target without marking read', async () => {
+  useLayoutStore.getState().openNavDrawer()
   mount()
   fireEvent.click(await screen.findByRole('button', { name: 'inboxRead' }))
   await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/channels/s1/c1?m=m1'))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(api.markInboxRead).not.toHaveBeenCalled()
   expect(useInboxStore.getState().reader?.group.key).toBe(group.key)
+  expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
+})
+
+it('closes the underlying navigation menu when opening a notification', async () => {
+  useLayoutStore.getState().openNavDrawer()
+  useInboxStore.getState().selectTab('activity')
+  mount()
+  fireEvent.click(screen.getByRole('button', { name: 'legacy activity' }))
+  expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
 it('continues a saved session and its thread anchor', async () => {

@@ -124,7 +124,9 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       const inServerView = useServerStore.getState().viewMode === 'server'
       const sameChannel = inServerView && !serverChanged && targetChannelId === oldChannelId
 
-      if (sameChannel) {
+      // URL sync can select the destination before its history has loaded.
+      // Only reuse an already selected channel when its message window is ready.
+      if (sameChannel && (!targetIsMessageable || useMessageStore.getState().loadedForChannelId === targetChannelId)) {
         if (scrollToMessageId && targetIsMessageable) {
           const msgs = useMessageStore.getState().messages
           if (!msgs.some((m) => m.id === scrollToMessageId)) {
@@ -218,7 +220,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       const inDmView = useServerStore.getState().viewMode === 'dm'
       const sameConv = inDmView && dmState.currentConversationId === conversationId
 
-      if (sameConv) {
+      if (sameConv && dmState.loadedForConvId === conversationId) {
         if (scrollToMessageId) {
           const alreadyHas = dmState.messages.some((m) => m.id === scrollToMessageId)
           if (!alreadyHas) {

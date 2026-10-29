@@ -154,6 +154,9 @@ export function MobileMessageDrawer({
       <div className="border-t border-white/5" />
 
       <div className="flex flex-col gap-1.5 px-3 pt-3">
+        {actions.canEdit && (
+          <SheetBtn icon={<EditIcon className="h-5 w-5" />} label={t('actionEdit')} onClick={actions.edit} />
+        )}
         <SheetBtn
           icon={<ReplyIcon className="h-5 w-5" />}
           label={t('actionReply')}
@@ -213,9 +216,6 @@ export function MobileMessageDrawer({
         {attachments.map((att) => (
           <AttachmentDownloadButton key={att.id} attachment={att} onSaved={close} />
         ))}
-        {actions.canEdit && (
-          <SheetBtn icon={<EditIcon className="h-5 w-5" />} label={t('actionEdit')} onClick={actions.edit} />
-        )}
         {actions.canBookmark && (
           <SheetBtn
             icon={<BookmarkIcon className="h-5 w-5" filled={actions.isBookmarked} />}

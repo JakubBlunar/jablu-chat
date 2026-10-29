@@ -1,9 +1,7 @@
+import { HashIcon as ChannelHashIcon } from '@/components/chat/chatIcons'
+
 export function HashIcon() {
-  return (
-    <svg className="h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M11 4h2l1 4h4v2h-3.382l.894 4H19v2h-3.618l1 4h-2.054l-1-4H9.382l-1 4H6.328l1-4H4v-2h3.618L6.724 10H3V8h3.382L5.5 4h2.054l1 4h5.946l-1-4zM10.618 10l.894 4h5.946l-.894-4h-5.946z" />
-    </svg>
-  )
+  return <ChannelHashIcon className="h-5 w-5 shrink-0 text-gray-400" aria-hidden />
 }
 
 export function ForumIcon() {

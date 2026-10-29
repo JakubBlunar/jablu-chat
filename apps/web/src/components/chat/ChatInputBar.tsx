@@ -318,6 +318,9 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             }}
             className={`min-h-11 min-w-11 shrink-0 text-primary transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'pr-3 py-3'}`}
             aria-label={t('sendMessage')}
+            onMouseDown={(event) => {
+              if (!isMobile) event.preventDefault()
+            }}
           >
             <svg className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />

@@ -61,6 +61,18 @@
     "joining": "Joining…"
   },
   "leaderboard": {
+    "description": "A leaderboard of chat activity in this server. Earn XP by taking part in conversations and watch your level grow.",
+    "howItWorks": "How activity levels work",
+    "faq": {
+      "earningQuestion": "How do I earn XP?",
+      "earningAnswer": "An eligible message in a server channel earns a random 15–25 XP. You can earn XP once every 60 seconds across this server, so sending more messages during that minute gives no extra XP.",
+      "levelsQuestion": "What do levels mean?",
+      "levelsAnswer": "Your level is a milestone for the XP you have earned here. Level 1 takes 100 XP, then reaching level 2 takes another 155 XP. Each next level needs more XP: 5 × level² + 50 × level + 100, using your current level.",
+      "rankingQuestion": "How is the ranking calculated?",
+      "rankingAnswer": "Members are ranked by total XP, highest first. If two members have the same XP, the member who joined the server earlier appears first. This reflects chat activity over time.",
+      "scopeQuestion": "What activity counts?",
+      "scopeAnswer": "XP is separate for each server. Direct messages, reactions, and time spent in voice do not earn XP. Server admins can pause leveling; existing XP is kept while new awards stop."
+    },
     "empty": "No one has earned XP in this server yet. Send a message to get things started!",
     "level": "Level {{level}}",
     "yourLevel": "Your level",

@@ -21,6 +21,7 @@ jest.mock('@/hooks/usePermissions', () => ({
 jest.mock('@/components/chat/useBotCommands', () => ({ useBotCommands: () => [] }))
 jest.mock('@/lib/api', () => ({ api: {} }))
 jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
+jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => true }))
 jest.mock('@/i18n/config', () => ({ i18n: { language: 'en' } }))
 
 it.each(['channel', 'dm'] as const)(

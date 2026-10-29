@@ -61,6 +61,18 @@
     "joining": "Pripájanie…"
   },
   "leaderboard": {
+    "description": "Rebríček aktivity v chate na tomto serveri. Zapojte sa do konverzácií, získavajte XP a zvyšujte svoju úroveň.",
+    "howItWorks": "Ako fungujú úrovne aktivity",
+    "faq": {
+      "earningQuestion": "Ako získam XP?",
+      "earningAnswer": "Za správu spĺňajúcu podmienky v kanáli servera získate náhodne 15–25 XP. XP možno získať raz za 60 sekúnd v rámci celého servera, takže ďalšie správy počas tejto minúty nepridajú žiadne XP navyše.",
+      "levelsQuestion": "Čo znamenajú úrovne?",
+      "levelsAnswer": "Úroveň je míľnikom XP získaných na tomto serveri. Úroveň 1 vyžaduje 100 XP a prechod na úroveň 2 ďalších 155 XP. Každá ďalšia úroveň vyžaduje viac XP: 5 × úroveň² + 50 × úroveň + 100, kde sa počíta vaša aktuálna úroveň.",
+      "rankingQuestion": "Ako sa určuje poradie?",
+      "rankingAnswer": "Členovia sú zoradení podľa celkového XP od najvyššieho. Pri zhode sa vyššie zobrazí člen, ktorý sa k serveru pripojil skôr. Poradie odráža dlhodobú aktivitu v chate.",
+      "scopeQuestion": "Aká aktivita sa počíta?",
+      "scopeAnswer": "Každý server má vlastné XP. Súkromné správy, reakcie a čas v hlasových kanáloch XP nepridávajú. Správcovia môžu získavanie XP pozastaviť; existujúce XP sa zachovajú, ale nové sa neprideľujú."
+    },
     "empty": "Na tomto serveri zatiaľ nikto nezískal XP. Napíšte správu a začnite!",
     "level": "Úroveň {{level}}",
     "yourLevel": "Vaša úroveň",

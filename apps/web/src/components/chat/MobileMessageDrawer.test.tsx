@@ -5,6 +5,7 @@ import { MobileMessageDrawer } from './MobileMessageDrawer'
 import { copyMessageContent } from '@/lib/messageClipboard'
 import { useTranslationStore } from '@/stores/translation.store'
 import { makeMessage } from '@/test/factories'
+import { useAuthStore } from '@/stores/auth.store'
 
 jest.mock('@/components/ui/BottomSheet', () => ({
   BottomSheet: ({ children }: { children: ReactNode }) => <div>{children}</div>
@@ -59,4 +60,17 @@ it("does not offer deleting someone else's DM based on server permissions", () =
     />
   )
   expect(screen.queryByRole('button', { name: 'actionDelete' })).not.toBeInTheDocument()
+})
+
+it('puts editing first in the action list for an own message', () => {
+  useAuthStore.setState({ user: { id: 'user-1' } } as never)
+  const edit = jest.fn()
+  render(
+    <MobileMessageDrawer message={makeMessage()} mode="dm" contextId="dm" onClose={jest.fn()} onReply={jest.fn()} onEdit={edit} />
+  )
+  const editButton = screen.getByRole('button', { name: 'actionEdit' })
+  expect(editButton.parentElement?.firstElementChild).toBe(editButton)
+  fireEvent.click(editButton)
+  expect(edit).toHaveBeenCalledTimes(1)
+  useAuthStore.setState({ user: null })
 })

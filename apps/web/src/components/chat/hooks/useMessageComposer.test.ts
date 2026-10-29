@@ -7,6 +7,7 @@ import { useMessageComposer } from './useMessageComposer'
 jest.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ has: () => false }) }))
 jest.mock('@/components/chat/useBotCommands', () => ({ useBotCommands: () => [] }))
 jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
+jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
 
 it('keeps independent drafts when switching composer identity', () => {
   useAuthStore.setState({ user: { id: 'draft-owner' } } as never)

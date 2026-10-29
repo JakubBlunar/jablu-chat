@@ -101,7 +101,7 @@ export function NotificationsSection() {
     // server-to-device push transport that follows.
     showNotification(t('notifications.testNotificationTitle'), t('notifications.testNotificationBody'), '/channels/@me')
     try {
-      const res = await api.post<{ devices: number }>('/push/test', {})
+      const res = await api.post<{ devices: number }>('/api/push/test', {})
       setTestResult(
         res.devices > 0
           ? t('notifications.sentToDevices', { count: res.devices })

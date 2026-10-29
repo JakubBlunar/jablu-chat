@@ -1,3 +1,5 @@
+import { isDesktop } from '@/lib/desktop'
+
 const DOWNLOAD_EXTENSIONS: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
@@ -32,7 +34,7 @@ export async function prepareMediaDownload(url: string, filename: string, signal
 }
 
 export async function saveMediaFile(file: File): Promise<boolean> {
-  if (navigator.maxTouchPoints > 0 && navigator.canShare?.({ files: [file] })) {
+  if (!isDesktop && navigator.maxTouchPoints > 0 && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] })
       return true
@@ -46,7 +48,9 @@ export async function saveMediaFile(file: File): Promise<boolean> {
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = file.name
-  anchor.target = '_blank'
+  // WebView2 handles downloads in the current webview. Opening a blob in a
+  // new window can discard the download along with the blob's webview context.
+  if (!isDesktop) anchor.target = '_blank'
   anchor.rel = 'noopener noreferrer'
   document.body.appendChild(anchor)
   try {

@@ -59,6 +59,19 @@ export function LeaderboardModal({ serverId, onClose }: { serverId: string; onCl
         </button>
       </div>
 
+      <p className="mt-2 text-sm text-gray-400">{tServer('leaderboard.description')}</p>
+      <details className="mt-3 rounded-md border border-white/10 bg-surface-darkest p-3 text-sm">
+        <summary className="cursor-pointer font-medium text-gray-200">{tServer('leaderboard.howItWorks')}</summary>
+        <dl className="mt-3 space-y-3 text-xs text-gray-400">
+          {['earning', 'levels', 'ranking', 'scope'].map((topic) => (
+            <div key={topic}>
+              <dt className="font-medium text-gray-200">{tServer(`leaderboard.faq.${topic}Question`)}</dt>
+              <dd className="mt-1">{tServer(`leaderboard.faq.${topic}Answer`)}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+
       {me && <MyProgressCard progress={me} />}
 
       {error && (

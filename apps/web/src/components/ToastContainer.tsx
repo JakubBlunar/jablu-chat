@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { useToastStore } from '@/stores/toast.store'
 
 export function ToastContainer() {
@@ -8,8 +9,8 @@ export function ToastContainer() {
 
   if (toasts.length === 0) return null
 
-  return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[100] flex flex-col gap-2" aria-live="polite" role="log">
+  return createPortal(
+    <div className="pointer-events-none fixed right-4 top-12 z-[10000] flex max-w-[calc(100vw-2rem)] flex-col gap-2" aria-live="polite" role="log">
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -18,12 +19,14 @@ export function ToastContainer() {
             if (toast.url) navigate(toast.url)
             removeToast(toast.id)
           }}
-          className="animate-toast-in pointer-events-auto w-80 cursor-pointer rounded-lg border border-border bg-surface-overlay p-3 shadow-lg transition-opacity hover:opacity-90"
+          style={{ backgroundColor: 'var(--color-surface-overlay, #121318)' }}
+          className="animate-toast-in pointer-events-auto w-80 max-w-full cursor-pointer rounded-lg border border-white/15 p-3 shadow-lg"
         >
           <div className="truncate text-sm font-semibold text-white">{toast.title}</div>
-          <div className="mt-0.5 truncate text-xs text-muted">{toast.body}</div>
+          <div className="mt-0.5 break-words text-xs text-gray-300">{toast.body}</div>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }

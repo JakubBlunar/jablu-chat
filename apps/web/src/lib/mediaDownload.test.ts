@@ -1,5 +1,7 @@
 import { prepareMediaDownload, saveMediaFile } from './mediaDownload'
 
+jest.mock('./desktop', () => ({ isDesktop: false }))
+
 describe('media downloads', () => {
   const originalFetch = globalThis.fetch
 
@@ -104,6 +106,19 @@ describe('media downloads', () => {
     jest.mocked(navigator.share).mockRejectedValue(new DOMException('Not allowed', 'NotAllowedError'))
     await expect(saveMediaFile(new File(['image'], 'photo.png'))).rejects.toThrow('Not allowed')
     expect(URL.createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it.each([0, 5])('downloads inside the desktop webview without opening a new window (touch points: %s)', async (touchPoints) => {
+    jest.replaceProperty(jest.requireMock('./desktop'), 'isDesktop', true)
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: touchPoints })
+    const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      expect(this.href).toBe('blob:download')
+      expect(this.download).toBe('photo.png')
+      expect(this.target).toBe('')
+    })
+    await expect(saveMediaFile(new File(['image'], 'photo.png'))).resolves.toBe(true)
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(navigator.share).not.toHaveBeenCalled()
   })
 
   it.each([0, 1])('downloads a blob without replacing the app when file sharing is unavailable (touch points: %s)', async (touchPoints) => {

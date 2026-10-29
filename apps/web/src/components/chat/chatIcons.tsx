@@ -244,11 +244,7 @@ export function HamburgerIcon({ className = 'h-6 w-6', strokeWidth = 2, ...rest 
 }
 
 export function HashChannelIcon({ className = 'h-6 w-6 text-gray-300', ...rest }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden={true} {...rest}>
-      <path d="M11 4h2l1 4h4v2h-3.382l.894 4H19v2h-3.618l1 4h-2.054l-1-4H9.382l-1 4H6.328l1-4H4v-2h3.618L6.724 10H3V8h3.382L5.5 4h2.054l1 4h5.946l-1-4zM10.618 10l.894 4h5.946l-.894-4h-5.946z" />
-    </svg>
-  )
+  return <HashIcon className={className} aria-hidden {...rest} />
 }
 
 export function AtIcon({ className = 'h-5 w-5 text-gray-400', ...rest }: IconProps) {

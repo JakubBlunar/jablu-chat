@@ -10,6 +10,7 @@ import { useInboxStore, type InboxTab } from '@/stores/inbox.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useThreadStore } from '@/stores/thread.store'
+import { useLayoutStore } from '@/stores/layout.store'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -30,6 +31,7 @@ export function InboxWorkspace() {
     if (!reader || reader.group.unavailable) return
     useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
     useThreadStore.getState().closeThread()
+    useLayoutStore.getState().closeNavDrawer()
     navigate(inboxTargetPath(reader.target))
   }, [readerRequest, navigate])
   return userId && open ? <InboxPanel /> : null
@@ -200,7 +202,10 @@ function InboxPanel() {
                   </button>
                 </div>
               )}
-              <InboxActivity onNavigate={close} />
+              <InboxActivity onNavigate={() => {
+                useLayoutStore.getState().closeNavDrawer()
+                close()
+              }} />
             </>
           ) : (
             <>
