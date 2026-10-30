@@ -143,6 +143,34 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
       })).toEqual({ navigating: false, loaded: first.id })
     })
 
+    test('cold launch restores the last channel from persisted history', async () => {
+      await page.goto('/')
+      await expect(page).toHaveURL(new RegExp(`/channels/${first.serverId}/${first.id}$`))
+      await visible(messages[0])
+    })
+
+    test('cold launch restores a DM or the friends list without selecting a channel', async () => {
+      await page.evaluate(async (dmId) => {
+        const modulePath = '/src/lib/notificationNavigation.ts'
+        const { navigateFromNotification } = await import(modulePath)
+        navigateFromNotification(`/channels/@me/${dmId}`)
+      }, dmId)
+      await visible(dmMessage)
+      await page.goto('/')
+      await expect(page).toHaveURL(new RegExp(`/channels/@me/${dmId}$`))
+      await visible(dmMessage)
+
+      const outcome = await page.evaluate(async () => {
+        const modulePath = '/src/lib/conversationNavigation.ts'
+        const { openConversation } = await import(modulePath)
+        return openConversation({ target: { kind: 'home' } })
+      })
+      expect(outcome.status).toBe('opened')
+      await expect(page).toHaveURL(/\/channels\/@me$/)
+      await page.goto('/')
+      await expect(page).toHaveURL(/\/channels\/@me$/)
+    })
+
     test('same-channel, repeated, cross-channel and cross-server notification jumps', async () => {
       for (const [channel, message] of [[first, messages[4]], [first, messages[4]], [second, secondMessage], [other, otherMessage], [first, messages[0]]] as const) {
         await jump(channel, message)

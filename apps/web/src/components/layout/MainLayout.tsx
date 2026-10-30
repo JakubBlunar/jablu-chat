@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Outlet } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
 import { SkipToMainLink } from '@/components/a11y/SkipToMainLink'
@@ -127,6 +128,7 @@ function HamburgerIcon() {
 export function MainLayout() {
   return (
     <ServerDialogsProvider>
+      <Outlet />
       <MainLayoutContent />
     </ServerDialogsProvider>
   )

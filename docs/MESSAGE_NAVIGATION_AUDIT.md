@@ -62,6 +62,11 @@ before a surface store starts its request, so it cannot masquerade as an empty
 channel. Previously loaded data is retained in stores, while adapters prevent it
 from being rendered as a different conversation.
 
+`MainLayout` renders its nested route outlet in every responsive layout. Its
+index route restores the current account's persisted channel, DM or friends list
+on a cold launch, including a desktop restart after an update. Explicit
+conversation/message links bypass this restoration.
+
 ## Regression rules for new features
 
 1. Call the public `openConversation` API or the thin `useAppNavigate`
