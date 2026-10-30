@@ -1,3 +1,4 @@
+import { useNavigationStore } from '@/stores/navigation.store'
 import { renderHook, act } from '@testing-library/react'
 import { useMessageStoreAdapter } from './useMessageStoreAdapter'
 import { channelKey, clearCache, peekContext } from '@/lib/cache/messageCache'
@@ -23,6 +24,7 @@ import { getSocket } from '@/lib/socket'
 const mockGetSocket = jest.mocked(getSocket)
 
 beforeEach(() => {
+  useNavigationStore.setState({ isNavigating: false })
   resetMsgSeq()
   clearCache()
   useMessageStore.setState({ messages: [], loadedForChannelId: null, hasMore: false, hasNewer: false })
@@ -31,11 +33,18 @@ beforeEach(() => {
 })
 
 describe('useMessageStoreAdapter', () => {
+  it.each(['channel', 'dm'] as const)('does not apply the previous %s jump to a newly selected conversation', (mode) => {
+    useMessageStore.setState({ loadedForChannelId: 'old', scrollToMessageId: 'old-target' })
+    useDmStore.setState({ loadedForConvId: 'old', scrollToMessageId: 'old-target' })
+    const { result } = renderHook(() => useMessageStoreAdapter(mode, 'new'))
+    expect(result.current.scrollToMessageId).toBeNull()
+  })
+
   describe('channel mode', () => {
     it('returns channel store state', () => {
       const msgs = makeMessages(3)
       useMessageStore.setState({
-        messages: msgs, isLoading: false, hasMore: true, hasNewer: false
+        loadedForChannelId: 'ch-1', messages: msgs, isLoading: false, hasMore: true, hasNewer: false
       })
 
       const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
@@ -112,7 +121,7 @@ describe('useMessageStoreAdapter', () => {
     it('returns DM store state', () => {
       const msgs = makeMessages(2)
       useDmStore.setState({
-        messages: msgs, isLoading: true, hasMore: false, hasNewer: true
+        loadedForConvId: 'conv-1', messages: msgs, isLoading: true, hasMore: false, hasNewer: true
       })
 
       const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
@@ -155,7 +164,7 @@ describe('useMessageStoreAdapter', () => {
   describe('getSnapshot', () => {
     it('returns current channel snapshot', () => {
       const msgs = makeMessages(4)
-      useMessageStore.setState({ messages: msgs, isLoading: false, hasMore: true, hasNewer: false })
+      useMessageStore.setState({ loadedForChannelId: 'ch-1', messages: msgs, isLoading: false, hasMore: true, hasNewer: false })
       const { result } = renderHook(() => useMessageStoreAdapter('channel', 'ch-1'))
       const snap = result.current.getSnapshot()
       expect(snap.messages).toHaveLength(4)
@@ -164,7 +173,7 @@ describe('useMessageStoreAdapter', () => {
 
     it('returns current DM snapshot', () => {
       const msgs = makeMessages(2)
-      useDmStore.setState({ messages: msgs, isLoading: true, hasMore: false, hasNewer: true })
+      useDmStore.setState({ loadedForConvId: 'conv-1', messages: msgs, isLoading: true, hasMore: false, hasNewer: true })
       const { result } = renderHook(() => useMessageStoreAdapter('dm', 'conv-1'))
       const snap = result.current.getSnapshot()
       expect(snap.messages).toHaveLength(2)
@@ -173,3 +182,13 @@ describe('useMessageStoreAdapter', () => {
   })
 })
 
+
+
+it('reports the coordinator loading phase before a surface store starts its history read', () => {
+  useNavigationStore.setState({ isNavigating: true })
+  useMessageStore.setState({ isLoading: false, loadedForChannelId: 'old', messages: makeMessages(2) })
+  const { result } = renderHook(() => useMessageStoreAdapter('channel', 'new'))
+  expect(result.current.isLoading).toBe(true)
+  expect(result.current.messages).toEqual([])
+  expect(result.current.deferInitialLoad).toBe(true)
+})

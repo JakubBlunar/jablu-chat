@@ -72,7 +72,7 @@ export function MobileNavDrawer({
   const { t: tCommon } = useTranslation('common')
   const { open, close } = useLayoutStore(useShallow((s) => ({ open: s.navDrawerOpen, close: s.closeNavDrawer })))
 
-  const { orchestratedGoToChannel, goToDms, goToFriends, goToDm } = useAppNavigate()
+  const { goToChannel, goToDms, goToFriends, goToDm } = useAppNavigate()
 
   const {
     viewMode,
@@ -147,10 +147,10 @@ export function MobileNavDrawer({
   const handleGoToVoiceRoom = useCallback(() => {
     if (voiceServerId && currentVoiceChannelId) {
       useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
-      void orchestratedGoToChannel(voiceServerId, currentVoiceChannelId)
+      void goToChannel(voiceServerId, currentVoiceChannelId)
       close()
     }
-  }, [voiceServerId, currentVoiceChannelId, orchestratedGoToChannel, close])
+  }, [voiceServerId, currentVoiceChannelId, goToChannel, close])
 
   const [groupDmOpen, setGroupDmOpen] = useState(false)
 
@@ -161,12 +161,12 @@ export function MobileNavDrawer({
   const handleOpenPinned = useCallback(
     (channel: Channel) => {
       if (!currentServerId) return
-      void orchestratedGoToChannel(currentServerId, channel.id)
+      void goToChannel(currentServerId, channel.id)
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
       close()
       setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
     },
-    [currentServerId, orchestratedGoToChannel, close]
+    [currentServerId, goToChannel, close]
   )
 
   const filteredConversations = useMemo(() => {
@@ -232,9 +232,9 @@ export function MobileNavDrawer({
 
   const handleServerClick = useCallback(
     (server: Server) => {
-      void orchestratedGoToChannel(server.id)
+      void goToChannel(server.id)
     },
-    [orchestratedGoToChannel]
+    [goToChannel]
   )
 
   const handleDmClick = useCallback(() => {
@@ -243,11 +243,11 @@ export function MobileNavDrawer({
 
   const handleChannelClick = useCallback(
     async (ch: Channel) => {
-      if (currentServerId) await orchestratedGoToChannel(currentServerId, ch.id)
+      if (currentServerId) await goToChannel(currentServerId, ch.id)
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
       close()
     },
-    [currentServerId, orchestratedGoToChannel, close]
+    [currentServerId, goToChannel, close]
   )
 
   const handleVoiceChannelClick = useCallback(
@@ -468,7 +468,7 @@ export function MobileNavDrawer({
                                   }}
                                   onOpenPinned={handleOpenPinned}
                                   currentServer={currentServer}
-                                  orchestratedGoToChannel={async () => {
+                                  goToChannel={async () => {
                                     await handleChannelClick(ch)
                                   }}
                                 />
@@ -530,7 +530,7 @@ export function MobileNavDrawer({
                                           }}
                                           onOpenPinned={handleOpenPinned}
                                           currentServer={currentServer}
-                                          orchestratedGoToChannel={async () => {
+                                          goToChannel={async () => {
                                             await handleChannelClick(ch)
                                           }}
                                         />
@@ -600,7 +600,7 @@ export function MobileNavDrawer({
                                           }}
                                           onOpenPinned={handleOpenPinned}
                                           currentServer={currentServer}
-                                          orchestratedGoToChannel={orchestratedGoToChannel}
+                                          goToChannel={goToChannel}
                                           onSelect={close}
                                         />
                                       ))}
@@ -722,7 +722,7 @@ export function MobileNavDrawer({
                                   }}
                                   onOpenPinned={handleOpenPinned}
                                   currentServer={currentServer}
-                                  orchestratedGoToChannel={orchestratedGoToChannel}
+                                  goToChannel={goToChannel}
                                   onSelect={close}
                                 />
                               ))}

@@ -2,8 +2,12 @@ import { useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScroll'
 import { useThreadStore } from '@/stores/thread.store'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { useServerStore } from '@/stores/server.store'
+import { openConversation } from '@/lib/conversationNavigation'
 
 export function useThreadSurfaceAdapter(): ScrollStoreAdapter {
+  const deferInitialLoad = useNavigationStore((state) => state.isNavigating)
   const { messages, isLoading, hasMore, hasNewer, scrollToMessageId, scrollRequestNonce } = useThreadStore(
     useShallow((s) => ({
       messages: s.messages,
@@ -60,8 +64,28 @@ export function useThreadSurfaceAdapter(): ScrollStoreAdapter {
   }, [])
 
   return {
+    deferInitialLoad,
+    requestJump: (messageId) => {
+      const { channelId, parentMessage } = useThreadStore.getState()
+      const serverId = useServerStore.getState().currentServerId
+      if (serverId && channelId && parentMessage)
+        void openConversation({
+          target: { kind: 'channel', serverId, channelId },
+          position: { kind: 'message', messageId, threadParentId: parentMessage.id },
+          source: 'reply'
+        })
+    },
+    requestLatest: () => {
+      const { channelId, parentMessage } = useThreadStore.getState()
+      const serverId = useServerStore.getState().currentServerId
+      if (serverId && channelId && parentMessage)
+        void openConversation({
+          target: { kind: 'channel', serverId, channelId },
+          position: { kind: 'latest', threadParentId: parentMessage.id }
+        })
+    },
     messages,
-    isLoading,
+    isLoading: isLoading || deferInitialLoad,
     hasMore,
     hasNewer,
     scrollToMessageId,

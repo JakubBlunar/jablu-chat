@@ -4,6 +4,10 @@ test.use({ baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173' }
 
 // Synthetic account and messages: this regression needs only the Vite server.
 test('desktop title-bar actions and notification jumps preserve the frame and panels', async ({ page }) => {
+  // This uses a synthetic token and does not need the API. A running local
+  // backend can briefly admit its transport before rejecting auth, adding a
+  // real connection banner to an otherwise synthetic geometry fixture.
+  await page.routeWebSocket('**/socket.io/**', (socket) => socket.close())
   await page.setViewportSize({ width: 1292, height: 856 })
   await page.addInitScript(() => {
     Object.assign(window, {

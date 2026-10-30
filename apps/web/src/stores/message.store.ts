@@ -31,13 +31,14 @@ type MessageState = {
   typingUsers: Map<string, TypingEntry>
   scrollToMessageId: string | null
   scrollRequestNonce: number
-  fetchMessages: (channelId: string, cursor?: string) => Promise<void>
-  fetchMessagesAround: (channelId: string, messageId: string) => Promise<void>
+  fetchMessages: (channelId: string, cursor?: string, signal?: AbortSignal) => Promise<void>
+  fetchMessagesAround: (channelId: string, messageId: string, signal?: AbortSignal) => Promise<void>
   fetchNewerMessages: (channelId: string) => Promise<void>
   addMessage: (message: Message) => void
   updateMessage: (message: Message) => void
   removeMessage: (messageId: string) => void
   clearMessages: () => void
+  cancelPendingFetch: () => void
   stashCurrent: () => void
   hydrateFromCache: (channelId: string) => boolean
   revalidate: (channelId: string) => Promise<void>
@@ -68,7 +69,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   scrollToMessageId: null,
   scrollRequestNonce: 0,
 
-  fetchMessages: async (channelId, cursor) => {
+  fetchMessages: async (channelId, cursor, signal) => {
     const fetchId = ++_msgFetchId
     set({ isLoading: true, messagesError: null })
     try {
@@ -77,7 +78,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       params.set('limit', '50')
       const qs = params.toString()
       const path = `/api/channels/${channelId}/messages${qs ? `?${qs}` : ''}`
-      const page = await api.get<MessagesPage>(path)
+      const page = await (signal ? api.get<MessagesPage>(path, { signal }) : api.get<MessagesPage>(path))
       if (_msgFetchId !== fetchId) return
       const chronological = toChronological(page.messages)
 
@@ -113,12 +114,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     }
   },
 
-  fetchMessagesAround: async (channelId, messageId) => {
+  fetchMessagesAround: async (channelId, messageId, signal) => {
     const fetchId = ++_msgFetchId
     set({ isLoading: true, messagesError: null })
     try {
       const path = `/api/channels/${channelId}/messages?around=${messageId}&limit=100`
-      const page = await api.get<MessagesPage>(path)
+      const page = await (signal ? api.get<MessagesPage>(path, { signal }) : api.get<MessagesPage>(path))
       if (_msgFetchId !== fetchId) return
       requireMessageTarget(page.messages, messageId)
       const chronological = toChronological(page.messages)
@@ -187,6 +188,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
   removeMessage: (messageId) => set((s) => messageListPatch(s, removeMessageFromList(s.messages, messageId))),
 
+  cancelPendingFetch: () => {
+    ++_msgFetchId
+    set({ isLoading: false })
+  },
+
   clearMessages: () => {
     ++_msgFetchId
     clearTypingTimers(get().typingUsers)
@@ -197,6 +203,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       hasNewer: false,
       messagesError: null,
       loadedForChannelId: null,
+      scrollToMessageId: null,
       typingUsers: new Map()
     })
   },
@@ -232,6 +239,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       isLoading: false,
       messagesError: null,
       loadedForChannelId: channelId,
+      scrollToMessageId: null,
       typingUsers: new Map()
     })
     return true

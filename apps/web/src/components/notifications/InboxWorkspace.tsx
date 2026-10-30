@@ -2,14 +2,11 @@ import type { InboxGroup, InboxView } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
-import { inboxTargetPath } from '@/lib/inbox'
+import { openConversation } from '@/lib/conversationNavigation'
 import { useAuthStore } from '@/stores/auth.store'
 import { useInboxStore, type InboxTab } from '@/stores/inbox.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
-import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
-import { useThreadStore } from '@/stores/thread.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
@@ -21,7 +18,6 @@ export function InboxWorkspace() {
   const userId = useAuthStore((s) => (s.isAuthenticated ? (s.user?.id ?? null) : null))
   const open = useInboxStore((s) => s.open)
   const readerRequest = useInboxStore((s) => s.reader?.requestId)
-  const navigate = useNavigate()
   useEffect(() => {
     useInboxStore.getState().syncUser(userId)
     if (userId) void useInboxStore.getState().loadSession()
@@ -29,11 +25,14 @@ export function InboxWorkspace() {
   useEffect(() => {
     const reader = useInboxStore.getState().reader
     if (!reader || reader.group.unavailable) return
-    useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
-    useThreadStore.getState().closeThread()
-    useLayoutStore.getState().closeNavDrawer()
-    navigate(inboxTargetPath(reader.target))
-  }, [readerRequest, navigate])
+    const target = reader.target
+    void openConversation({
+      target: target.mode === 'dm' ? { kind: 'dm', conversationId: target.contextId }
+        : { kind: 'channel', serverId: target.serverId!, channelId: target.contextId },
+      position: target.messageId ? { kind: 'message', messageId: target.messageId, threadParentId: target.threadParentId } : { kind: 'unread' },
+      source: 'inbox'
+    })
+  }, [readerRequest])
   return userId && open ? <InboxPanel /> : null
 }
 

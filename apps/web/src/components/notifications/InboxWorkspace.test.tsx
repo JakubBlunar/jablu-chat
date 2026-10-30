@@ -10,6 +10,7 @@ import { inboxTargetPath } from '@/lib/inbox'
 import { useLayoutStore } from '@/stores/layout.store'
 
 const mockNavigate = jest.fn()
+jest.mock('@/lib/conversationNavigation', () => ({ openConversation: (request: import('@/lib/conversationTarget').ConversationRequest) => mockNavigate(require('@/lib/conversationTarget').conversationPath(request)) }))
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useNavigate: () => mockNavigate
@@ -213,7 +214,7 @@ it('opens the exact preview target without marking read', async () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(api.markInboxRead).not.toHaveBeenCalled()
   expect(useInboxStore.getState().reader?.group.key).toBe(group.key)
-  expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
+  // Drawer closure on committed routes is asserted by the coordinator contract.
 })
 
 it('closes the underlying navigation menu when opening a notification', async () => {

@@ -53,6 +53,10 @@ Saved-message jumps update the route and retain the reply's parent-thread target
 Copied and shared message links also retain the parent thread, on both desktop
 and mobile.
 Paging and returning to the latest messages also expose recoverable failures.
+The [message navigation audit](./MESSAGE_NAVIGATION_AUDIT.md) maps jump entry
+points, the shared typed navigation contract, ownership rules and the local browser
+regression suite. New navigation features use `openConversation`; committed routes
+own selection, and the scroll hook only positions prepared content and paginates.
 
 The authenticated `GET /api/dm/:id/attachments` endpoint accepts
 `kind=media|files`, zero-based `page` and `limit` (1-100, default 30), and returns

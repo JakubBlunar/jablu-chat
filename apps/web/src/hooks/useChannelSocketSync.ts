@@ -1,3 +1,4 @@
+import { useNavigationStore } from '@/stores/navigation.store'
 import { useEffect } from 'react'
 import { getSocket } from '@/lib/socket'
 import { useChannelStore } from '@/stores/channel.store'
@@ -21,6 +22,15 @@ export function useChannelSocketSync(isConnected: boolean) {
     const socket = getSocket()
     if (!socket) return
 
+    const current = () => {
+      const server = useServerStore.getState()
+      return (
+        server.viewMode === viewMode &&
+        (viewMode === 'server'
+          ? useChannelStore.getState().currentChannelId === channelId
+          : useDmStore.getState().currentConversationId === conversationId)
+      )
+    }
     let disposed = false
     let subscription = 0
     const cleanups: (() => void)[] = []
@@ -35,12 +45,17 @@ export function useChannelSocketSync(isConnected: boolean) {
     ) => {
       let unsubscribe: (() => void) | undefined
       const run = () => {
-        if (disposed || store.getState().isLoading) return
+        if (disposed || !current() || store.getState().isLoading || useNavigationStore.getState().isNavigating) return
         unsubscribe?.()
         refresh(store.getState())
       }
-      if (store.getState().isLoading) {
-        unsubscribe = store.subscribe(run)
+      if (store.getState().isLoading || useNavigationStore.getState().isNavigating) {
+        const resource = store.subscribe(run)
+        const navigation = useNavigationStore.subscribe(run)
+        unsubscribe = () => {
+          resource()
+          navigation()
+        }
         cleanups.push(unsubscribe)
       } else run()
     }
@@ -56,10 +71,17 @@ export function useChannelSocketSync(isConnected: boolean) {
           if (state.channelId === channelId) void state.fetchPosts()
         })
         whenReady(useThreadStore, (state) => {
-          if (state.isOpen && state.channelId === channelId && !state.hasNewer) void state.fetchMessages()
+          if (
+            state.isOpen &&
+            state.channelId === channelId &&
+            state.loadedForParentId === state.parentMessage?.id &&
+            !state.hasNewer
+          )
+            void state.fetchMessages()
         })
         whenReady(useForumReplyStore, (state) => {
-          if (state.channelId === channelId && !state.hasNewer) void state.fetchMessages()
+          if (state.channelId === channelId && state.loadedForPostId === state.postId && !state.hasNewer)
+            void state.fetchMessages()
         })
       })
       socket.emit('dm:watch', conversationId ? { conversationId } : {}, (result: { ok?: boolean }) => {
@@ -76,5 +98,5 @@ export function useChannelSocketSync(isConnected: boolean) {
       socket.off('message:subscriptions-reset', subscribe)
       cleanups.forEach((cleanup) => cleanup())
     }
-  }, [isConnected, channelId, conversationId])
+  }, [isConnected, channelId, conversationId, viewMode])
 }

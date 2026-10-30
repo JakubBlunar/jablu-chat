@@ -1,3 +1,4 @@
+jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 import { renderHook, act } from '@testing-library/react'
 import { useForumSurfaceAdapter } from './useForumSurfaceAdapter'
 import { useForumReplyStore } from '@/stores/forumReply.store'

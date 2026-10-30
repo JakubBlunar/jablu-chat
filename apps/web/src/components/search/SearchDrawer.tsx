@@ -3,7 +3,7 @@ import { MessageMediaProvider, useMessageMedia } from '@/components/media/Messag
 import { IconButton, Spinner } from '@/components/ui'
 import { PaginationControls } from '@/components/ui/PaginationControls'
 import { UserAvatar } from '@/components/UserAvatar'
-import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { openConversation } from '@/lib/conversationNavigation'
 import { useIsMobile } from '@/hooks/useMobile'
 import { resolveMediaUrl, type SearchResult } from '@/lib/api'
 import { formatSmartTimestamp } from '@/lib/format-time'
@@ -11,7 +11,6 @@ import { historyErrorKey, type HistoryErrorKey } from '@/lib/messageHistory'
 import { serverDisplayName } from '@/lib/serverProfile'
 import { useChannelStore } from '@/stores/channel.store'
 import { useMemberStore } from '@/stores/member.store'
-import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
 import type { Attachment } from '@chat/shared'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -71,7 +70,6 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     cancelDebounce
   } = useMessageSearch({ query, onQueryChange, defaultScope, currentServerId, currentChannelId, conversationId })
   const currentChannel = channels.find((c) => c.id === currentChannelId)
-  const { navigate, orchestratedGoToChannel, orchestratedGoToDm } = useAppNavigate()
   const [resultFailure, setResultFailure] = useState<{ result: SearchResult; key: HistoryErrorKey } | null>(null)
   const resultRequestRef = useRef(0)
   useEffect(
@@ -116,31 +114,16 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     setActiveId(result.id)
     setResultFailure(null)
     try {
-      const query = new URLSearchParams({ m: result.id })
-      if (result.threadParentId) query.set('thread', result.threadParentId)
-      let path: string
-      if (result.channelId) {
-        const serverId = result.channel?.serverId ?? currentServerId
-        if (!serverId) throw new Error('messageUnavailable')
-        await orchestratedGoToChannel(
-          serverId,
-          result.channelId,
-          result.channel?.type === 'forum' ? undefined : (result.threadParentId ?? result.id)
-        )
-        path = `/channels/${serverId}/${result.channelId}?${query}`
-      } else if (result.dmConversationId) {
-        await orchestratedGoToDm(result.dmConversationId, result.id)
-        path = `/channels/@me/${result.dmConversationId}?${query}`
-      } else {
-        throw new Error('messageUnavailable')
-      }
+      const serverId = result.channel?.serverId ?? currentServerId
+      const target = result.channelId && serverId ? { kind: 'channel' as const, serverId, channelId: result.channelId }
+        : result.dmConversationId ? { kind: 'dm' as const, conversationId: result.dmConversationId } : null
+      if (!target) throw new Error('messageUnavailable')
+      const outcome = await openConversation({ target, position: { kind: 'message', messageId: result.id, threadParentId: result.threadParentId }, source: 'search' })
       if (request !== resultRequestRef.current) return
-      const error = useNavigationStore.getState().error
-      if (error) {
-        useNavigationStore.getState().dismissError()
-        throw new Error(error.key)
+      if (outcome.status === 'cancelled') return
+      if (outcome.status !== 'opened') {
+        throw new Error(outcome.key)
       }
-      navigate(path)
       if (isMobile) onClose()
     } catch (error) {
       if (request !== resultRequestRef.current) return

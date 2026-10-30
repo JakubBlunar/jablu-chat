@@ -27,6 +27,7 @@ import { messageActionError } from '@/lib/messageActionError'
 import { usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
+import { openConversation } from '@/lib/conversationNavigation'
 import { showToast } from '@/stores/toast.store'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { useHasDraft } from '@/stores/draft.store'
@@ -531,9 +532,7 @@ export const MessageRow = memo(function MessageRow({
           <button
             type="button"
             onClick={() => {
-              import('@/stores/thread.store').then(({ useThreadStore }) => {
-                useThreadStore.getState().openThread(contextId, message)
-              })
+              if (serverId) void openConversation({ target: { kind: 'channel', serverId, channelId: contextId }, position: { kind: 'thread', parentId: message.id }, source: 'reply' })
             }}
             className="mt-1.5 flex max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-white/[0.03] px-2.5 py-1.5 text-xs transition hover:bg-white/[0.06] max-lg:min-h-11"
           >

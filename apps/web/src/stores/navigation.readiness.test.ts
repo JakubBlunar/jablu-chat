@@ -4,7 +4,7 @@ import { makeChannel, makeMessage } from '@/test/factories'
 import { useChannelStore } from './channel.store'
 import { useDmStore } from './dm.store'
 import { useMessageStore } from './message.store'
-import { useNavigationStore } from './navigation.store'
+import { useNavigationStore } from '@/test/conversationRouter'
 import { useServerStore } from './server.store'
 
 jest.mock('@/lib/api', () => ({
@@ -33,7 +33,7 @@ it.each([null, 'target'])('loads a selected channel with no loaded history (jump
   await useNavigationStore.getState().navigateToChannel({ serverId: 's1', channelId: 'ch1', scrollToMessageId })
   expect(api.get).toHaveBeenCalledWith(scrollToMessageId
     ? '/api/channels/ch1/messages?around=target&limit=100'
-    : '/api/channels/ch1/messages?limit=50')
+    : '/api/channels/ch1/messages?limit=50', { signal: expect.any(AbortSignal) })
   expect(useMessageStore.getState()).toMatchObject({ loadedForChannelId: 'ch1', messages: [target] })
   expect(useNavigationStore.getState().error).toBeNull()
 })

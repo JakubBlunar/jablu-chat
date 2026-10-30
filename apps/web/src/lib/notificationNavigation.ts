@@ -8,7 +8,9 @@
  * case when you click a toast for the channel you are already on.
  */
 
-type Navigator = (to: string) => void
+import { bindConversationRouter, openConversation, parseConversationPath } from './conversationNavigation'
+
+type Navigator = (to: string, options?: { replace?: boolean; state?: unknown }) => void
 
 let navigateRef: Navigator | null = null
 let pendingPath: string | null = null
@@ -16,6 +18,7 @@ let pendingPath: string | null = null
 /** Installed by the bridge component rendered inside the Router. */
 export function setNotificationNavigator(fn: Navigator | null): void {
   navigateRef = fn
+  bindConversationRouter(fn)
   if (fn && pendingPath) {
     const path = pendingPath
     pendingPath = null
@@ -27,6 +30,12 @@ export function navigateFromNotification(url: string): void {
   const path = normalizePath(url)
   if (!path) {
     console.warn('[notif] Rejected invalid notification target', url)
+    return
+  }
+
+  const conversation = parseConversationPath(path)
+  if (conversation) {
+    void openConversation({ ...conversation, source: 'notification' })
     return
   }
 

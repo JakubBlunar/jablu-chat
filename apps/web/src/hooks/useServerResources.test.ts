@@ -6,6 +6,18 @@ import { useMemberStore } from '@/stores/member.store'
 import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
 import { useNavigationStore } from '@/stores/navigation.store'
+import { useEffect } from 'react'
+
+it('does not clear a route-selected history from an obsolete empty-server render', () => {
+  const { clearMessages } = mockFetchers()
+  renderHook(() => {
+    useEffect(() => {
+      useServerStore.getState().setCurrentServer('s1')
+    }, [])
+    useServerResources()
+  })
+  expect(clearMessages).not.toHaveBeenCalled()
+})
 
 jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 
@@ -27,7 +39,7 @@ function mockFetchers() {
 }
 
 beforeEach(() => {
-  useNavigationStore.setState({ navigatingToServerId: null })
+  useNavigationStore.setState({ navigatingToServerId: null, isNavigating: false })
   useChannelPermissionsStore.setState({ requestedServerId: null, loadedServerId: null })
   useServerStore.setState({ viewMode: 'server', currentServerId: null, servers: [], isLoading: false })
   useChannelStore.setState({
@@ -63,14 +75,14 @@ describe('useServerResources', () => {
   it('does not restart old-view resources while navigation preloads another server', () => {
     const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
     useServerStore.setState({ currentServerId: 'old' })
-    useNavigationStore.setState({ navigatingToServerId: 'new' })
+    useNavigationStore.setState({ navigatingToServerId: 'new', isNavigating: true })
     renderHook(() => useServerResources())
     expect(fetchChannels).not.toHaveBeenCalled()
     expect(fetchChannelPermissions).not.toHaveBeenCalled()
     expect(fetchMembers).not.toHaveBeenCalled()
   })
 
-  it('revalidates cached channels and fetches missing members', () => {
+  it('only fills missing members when channels are cached', () => {
     const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
     useChannelStore.setState({ loadedServerId: 's1' } as never)
     useServerStore.setState({ viewMode: 'server', currentServerId: 's1' })
@@ -78,8 +90,8 @@ describe('useServerResources', () => {
     renderHook(() => useServerResources())
 
     expect(fetchMembers).toHaveBeenCalledWith('s1')
-    expect(fetchChannels).toHaveBeenCalledWith('s1')
-    expect(fetchChannelPermissions).toHaveBeenCalledWith('s1')
+    expect(fetchChannels).not.toHaveBeenCalled()
+    expect(fetchChannelPermissions).not.toHaveBeenCalled()
   })
 
   it('does not refetch members when they are already loaded for this server', () => {
@@ -93,15 +105,15 @@ describe('useServerResources', () => {
     expect(fetchMembers).not.toHaveBeenCalled()
   })
 
-  it('fetches channels, permissions, and members on a cold server with no cache', () => {
+  it('leaves cold structure loading to the coordinator and fills members', () => {
     const { fetchMembers, fetchChannels, fetchChannelPermissions } = mockFetchers()
     useServerStore.setState({ viewMode: 'server', currentServerId: 's1' })
 
     renderHook(() => useServerResources())
 
     expect(fetchMembers).toHaveBeenCalledWith('s1')
-    expect(fetchChannels).toHaveBeenCalledWith('s1')
-    expect(fetchChannelPermissions).toHaveBeenCalledWith('s1')
+    expect(fetchChannels).not.toHaveBeenCalled()
+    expect(fetchChannelPermissions).not.toHaveBeenCalled()
   })
 
   it('does not fetch while in DM view', () => {

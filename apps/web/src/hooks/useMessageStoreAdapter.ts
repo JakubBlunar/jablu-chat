@@ -5,7 +5,9 @@ import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScrol
 import { getSocket } from '@/lib/socket'
 import { useDmStore } from '@/stores/dm.store'
 import { useMessageStore } from '@/stores/message.store'
-import { useReadStateStore } from '@/stores/readState.store'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { openConversation } from '@/lib/conversationNavigation'
+import { useServerStore } from '@/stores/server.store'
 
 export type { ScrollStoreAdapter as MessageStoreData } from '@/components/chat/hooks/useMessageScroll'
 
@@ -15,30 +17,18 @@ const NOOP_CLEAR = () => {}
 
 export function useMessageStoreAdapter(mode: 'channel' | 'dm', contextId: string | null): ScrollStoreAdapter {
   const isDm = mode === 'dm'
-
-  // Anchor used by useMessageScroll to land on the first unread message
-  // instead of snapping to bottom. Prefer the session snapshot (taken on
-  // open and preserved across the in-channel ack); fall back to live read
-  // state for the initial paint before useChannelAck captures the snapshot.
-  const initialAnchorMessageId = useReadStateStore((s) => {
-    if (!contextId) return null
-    const snap = isDm ? s.dmViewSnapshots.get(contextId) : s.channelViewSnapshots.get(contextId)
-    if (snap) return snap.firstUnreadMessageId
-    const live = isDm ? s.dms.get(contextId) : s.channels.get(contextId)
-    if (!live || live.unreadCount === 0) return null
-    return live.firstUnreadMessageId ?? null
-  })
+  const deferInitialLoad = useNavigationStore((s) => s.isNavigating)
 
   const ch = useMessageStore(
     useShallow((s) =>
       isDm
         ? null
         : {
-            messages: s.messages,
+            messages: s.loadedForChannelId === contextId ? s.messages : EMPTY,
             isLoading: s.isLoading,
             hasMore: s.hasMore,
             hasNewer: s.hasNewer,
-            scrollToMessageId: s.scrollToMessageId,
+            scrollToMessageId: s.loadedForChannelId === contextId ? s.scrollToMessageId : null,
             scrollRequestNonce: s.scrollRequestNonce,
             fetchMessages: s.fetchMessages,
             fetchMessagesAround: s.fetchMessagesAround,
@@ -52,11 +42,11 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm', contextId: string
     useShallow((s) =>
       isDm
         ? {
-            messages: s.messages,
+            messages: s.loadedForConvId === contextId ? s.messages : EMPTY,
             isLoading: s.isLoading,
             hasMore: s.hasMore,
             hasNewer: s.hasNewer,
-            scrollToMessageId: s.scrollToMessageId,
+            scrollToMessageId: s.loadedForConvId === contextId ? s.scrollToMessageId : null,
             scrollRequestNonce: s.scrollRequestNonce,
             fetchMessages: s.fetchMessages,
             fetchMessagesAround: s.fetchMessagesAround,
@@ -131,12 +121,35 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm', contextId: string
   if (src) {
     return {
       messages: src.messages,
-      isLoading: src.isLoading,
+      isLoading: src.isLoading || deferInitialLoad,
       hasMore: src.hasMore,
       hasNewer: src.hasNewer,
       scrollToMessageId: src.scrollToMessageId,
       scrollRequestNonce: src.scrollRequestNonce,
-      initialAnchorMessageId,
+      deferInitialLoad,
+      requestJump: (messageId) => {
+        if (!contextId) return
+        const serverId = useServerStore.getState().currentServerId
+        if (!isDm && !serverId) return
+        void openConversation({
+          target: isDm
+            ? { kind: 'dm', conversationId: contextId }
+            : { kind: 'channel', serverId: serverId!, channelId: contextId },
+          position: { kind: 'message', messageId },
+          source: 'reply'
+        })
+      },
+      requestLatest: () => {
+        if (!contextId) return
+        const serverId = useServerStore.getState().currentServerId
+        if (!isDm && !serverId) return
+        void openConversation({
+          target: isDm
+            ? { kind: 'dm', conversationId: contextId }
+            : { kind: 'channel', serverId: serverId!, channelId: contextId },
+          position: { kind: 'latest' }
+        })
+      },
       fetchMessages: src.fetchMessages,
       fetchMessagesAround: src.fetchMessagesAround,
       fetchNewerMessages: src.fetchNewerMessages,
@@ -156,7 +169,8 @@ export function useMessageStoreAdapter(mode: 'channel' | 'dm', contextId: string
     hasNewer: false,
     scrollToMessageId: null,
     scrollRequestNonce: 0,
-    initialAnchorMessageId,
+    requestJump: NOOP_CLEAR,
+    requestLatest: NOOP_CLEAR,
     fetchMessages: NOOP_FETCH,
     fetchMessagesAround: NOOP_FETCH,
     clearMessages: NOOP_CLEAR,

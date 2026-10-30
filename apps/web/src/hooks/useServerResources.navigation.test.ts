@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useServerResources } from './useServerResources'
-import { useNavigationStore } from '@/stores/navigation.store'
+import { useNavigationStore } from '@/test/conversationRouter'
 import { useServerStore } from '@/stores/server.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'

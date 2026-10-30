@@ -16,6 +16,7 @@ import { useMessageStore } from '@/stores/message.store'
 import { useServerStore } from '@/stores/server.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useInboxStore } from '@/stores/inbox.store'
+import { useNavigationStore } from '@/stores/navigation.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useDmCallStore } from '@/stores/dmCall.store'
 import { createChannelHandlers } from './socket/channelHandlers'
@@ -46,6 +47,10 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
     const throttledReadStateSync = requestReadStateRefresh
 
     const syncMessages = () => {
+      // A cached destination can occupy the store before the route switches.
+      // Do not fetch the old channel over it during resume; navigation and
+      // the watch acknowledgement revalidate the destination after switching.
+      if (useNavigationStore.getState().isNavigating) return
       const channelId = useChannelStore.getState().currentChannelId
       if (channelId) {
         socket.emit('channel:join', { channelId })

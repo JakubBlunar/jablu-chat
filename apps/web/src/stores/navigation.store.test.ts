@@ -1,10 +1,11 @@
-import { useNavigationStore } from './navigation.store'
+import { useNavigationStore } from '@/test/conversationRouter'
 import { useChannelStore } from './channel.store'
 import { useServerStore } from './server.store'
 import { useMessageStore } from './message.store'
 import { useDmStore } from './dm.store'
 import { makeChannel, makeMessage, resetMsgSeq } from '@/test/factories'
 import { api } from '@/lib/api'
+import { waitFor } from '@testing-library/react'
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -80,6 +81,33 @@ beforeEach(() => {
 })
 
 describe('navigation.store', () => {
+  it.each(['channel', 'dm'] as const)('cancels an obsolete %s preload without losing the visible conversation', async (mode) => {
+    useServerStore.setState({ currentServerId: 's1', viewMode: mode === 'dm' ? 'dm' : 'server' })
+    useChannelStore.setState({
+      loadedServerId: 's1', currentChannelId: 'origin',
+      channels: [makeChannel('origin', 's1'), makeChannel('destination', 's1')]
+    })
+    const visible = makeMessage({ id: 'visible' })
+    useMessageStore.setState({ loadedForChannelId: 'origin', messages: [visible] })
+    useDmStore.setState({ currentConversationId: 'origin', loadedForConvId: 'origin', messages: [visible] })
+    let finish!: (page: { messages: ReturnType<typeof makeMessage>[]; hasMore: boolean }) => void
+    const deferred = new Promise<{ messages: ReturnType<typeof makeMessage>[]; hasMore: boolean }>((resolve) => { finish = resolve })
+    const fetch = mode === 'channel' ? jest.mocked(api.get) : jest.mocked(api.getDmMessages)
+    fetch.mockReturnValueOnce(deferred)
+    const pending = mode === 'channel'
+      ? useNavigationStore.getState().navigateToChannel({ serverId: 's1', channelId: 'destination' })
+      : useNavigationStore.getState().navigateToDm({ conversationId: 'destination' })
+    await waitFor(() => expect(fetch).toHaveBeenCalled())
+    const store = mode === 'channel' ? useMessageStore : useDmStore
+    expect(store.getState().messages).toEqual([visible])
+    useNavigationStore.getState().cancelNavigation()
+    finish({ messages: [makeMessage({ id: 'obsolete' })], hasMore: false })
+    expect(await pending).toBeNull()
+    expect(store.getState().messages).toEqual([visible])
+    expect(store.getState().isLoading).toBe(false)
+    expect(useNavigationStore.getState().error).toBeNull()
+  })
+
   it('keeps visible history after a failed cross-channel jump and retries the exact destination', async () => {
     const log = jest.spyOn(console, 'error').mockImplementation(() => {})
     useServerStore.setState({ currentServerId: 's1' })
@@ -93,7 +121,8 @@ describe('navigation.store', () => {
     const options = { serverId: 's1', channelId: 'ch2', scrollToMessageId: 'target' }
     await useNavigationStore.getState().navigateToChannel(options)
     expect(useMessageStore.getState().messages).toEqual([visible])
-    expect(useChannelStore.getState().currentChannelId).toBe('ch1')
+    expect(useChannelStore.getState().currentChannelId).toBe('ch2')
+    expect(useMessageStore.getState().loadedForChannelId).toBe('ch1')
     expect(useNavigationStore.getState().error?.key).toBe('messageUnavailable')
     jest.mocked(api.get).mockResolvedValueOnce({ messages: [makeMessage({ id: 'target' })], hasMore: false })
     expect(await useNavigationStore.getState().error?.retry()).toBe('/channels/s1/ch2')
@@ -146,7 +175,7 @@ describe('navigation.store', () => {
     })
 
     // Regression: clicking the "Voice Connected" pill in MobileNavDrawer
-    // invokes orchestratedGoToChannel(serverId, voiceChannelId). Without the
+    // invokes goToChannel(serverId, voiceChannelId). Without the
     // voice/forum guard, navigateToChannel would call GET
     // /api/channels/{voiceId}/messages, which the server rejects with 403
     // because messages are only available in text or forum channels.

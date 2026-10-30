@@ -1,12 +1,16 @@
+import { useNavigationStore } from '@/stores/navigation.store'
+jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 import { messageNotificationUrl, notificationTag } from '@chat/shared'
 import { navigateFromNotification, setNotificationNavigator } from './notificationNavigation'
 
 beforeEach(() => {
+  useNavigationStore.getState().reset()
   setNotificationNavigator(jest.fn())
   setNotificationNavigator(null)
 })
 
 afterEach(() => {
+  useNavigationStore.getState().reset()
   setNotificationNavigator(null)
   jest.restoreAllMocks()
 })
@@ -15,7 +19,7 @@ it('queues cold-start clicks until the actual router is mounted', () => {
   const navigate = jest.fn()
   navigateFromNotification('/channels/s1/ch1?m=m1')
   setNotificationNavigator(navigate)
-  expect(navigate).toHaveBeenCalledWith('/channels/s1/ch1?m=m1')
+  expect(navigate).toHaveBeenCalledWith('/channels/s1/ch1?m=m1', expect.objectContaining({ state: { conversationRequestId: expect.any(Number) } }))
 })
 
 it.each([
@@ -26,7 +30,7 @@ it.each([
   const navigate = jest.fn()
   setNotificationNavigator(navigate)
   navigateFromNotification(url)
-  expect(navigate).toHaveBeenCalledWith('/channels/s1/ch1?m=m1')
+  expect(navigate).toHaveBeenCalledWith('/channels/s1/ch1?m=m1', expect.objectContaining({ state: { conversationRequestId: expect.any(Number) } }))
 })
 
 it('routes a same-channel click every time rather than treating it as a no-op', () => {

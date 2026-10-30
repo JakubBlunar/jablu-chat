@@ -65,7 +65,7 @@ export function ChannelSidebar() {
       return { currentServer, removeServer: s.removeServer }
     })
   )
-  const { orchestratedGoToChannel } = useAppNavigate()
+  const { goToChannel } = useAppNavigate()
   const { channelsLoading, channels, categories, currentChannelId } = useChannelStore(
     useShallow((s) => ({
       channelsLoading: s.isLoading,
@@ -160,11 +160,11 @@ export function ChannelSidebar() {
 
   const handleOpenPinned = useCallback(
     (channel: Channel) => {
-      if (currentServer) void orchestratedGoToChannel(currentServer.id, channel.id)
+      if (currentServer) void goToChannel(currentServer.id, channel.id)
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
       setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
     },
-    [currentServer, orchestratedGoToChannel]
+    [currentServer, goToChannel]
   )
 
   const eventCount = useEventStore((s) =>
@@ -390,7 +390,7 @@ export function ChannelSidebar() {
                         onEditChannel={setEditingChannel}
                         onOpenPinned={handleOpenPinned}
                         currentServer={currentServer}
-                        orchestratedGoToChannel={orchestratedGoToChannel}
+                        goToChannel={goToChannel}
                       />
                     ))}
                   </ul>
@@ -441,7 +441,7 @@ export function ChannelSidebar() {
                                 onEditChannel={setEditingChannel}
                                 onOpenPinned={handleOpenPinned}
                                 currentServer={currentServer}
-                                orchestratedGoToChannel={orchestratedGoToChannel}
+                                goToChannel={goToChannel}
                               />
                             ))}
                           </ul>
@@ -478,7 +478,7 @@ export function ChannelSidebar() {
                                 onEditChannel={setEditingChannel}
                                 onOpenPinned={handleOpenPinned}
                                 currentServer={currentServer}
-                                orchestratedGoToChannel={orchestratedGoToChannel}
+                                goToChannel={goToChannel}
                               />
                             ))}
                           </ul>
@@ -537,7 +537,7 @@ export function ChannelSidebar() {
                         onEditChannel={setEditingChannel}
                         onOpenPinned={handleOpenPinned}
                         currentServer={currentServer}
-                        orchestratedGoToChannel={orchestratedGoToChannel}
+                        goToChannel={goToChannel}
                       />
                     ))}
                   </ul>
@@ -570,7 +570,7 @@ export function ChannelSidebar() {
                           onEditChannel={setEditingChannel}
                           onOpenPinned={handleOpenPinned}
                           currentServer={currentServer}
-                          orchestratedGoToChannel={orchestratedGoToChannel}
+                          goToChannel={goToChannel}
                         />
                       ))}
                     </ul>

@@ -28,8 +28,8 @@ function resolvePath(): string {
  * app rather than always dropping them on the friends list, which matters most
  * on desktop and installed PWA where relaunching is common.
  *
- * A server or channel that no longer exists is handled by MainLayout's
- * existing redirect effects, so a stale entry degrades to today's behaviour.
+ * The conversation coordinator resolves server landing channels and reports
+ * unavailable destinations through the same lifecycle as any other route.
  */
 export function RestoreLastLocation() {
   return <Navigate to={resolvePath()} replace />

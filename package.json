@@ -10,6 +10,8 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "test:navigation": "pnpm --filter @chat/web test:navigation",
+    "test:navigation:e2e": "playwright test --config playwright.navigation.config.ts",
     "lint": "turbo lint",
     "clean": "turbo clean",
     "db:migrate:dev": "pnpm --filter @chat/server db:migrate:dev",

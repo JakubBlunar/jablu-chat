@@ -17,7 +17,8 @@ interface ForumReplyState {
   loadedForPostId: string | null
   messagesError: string | null
 
-  fetchMessages: () => Promise<void>
+  cancelPendingFetch: () => void
+  fetchMessages: (signal?: AbortSignal) => Promise<void>
   fetchOlder: () => Promise<void>
   fetchNewer: () => Promise<void>
   reconcileToLatest: () => Promise<void>
@@ -46,7 +47,9 @@ export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
   loadedForPostId: null,
   messagesError: null,
 
-  fetchMessages: async () => {
+  cancelPendingFetch: () => { ++requestId; set({ isLoading: false }) },
+
+  fetchMessages: async (signal) => {
     const { channelId, postId, focusMessageId } = get()
     if (!channelId || !postId) return
     const fetchId = ++requestId
@@ -55,7 +58,8 @@ export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
       const result = await api.getThreadMessages(
         channelId,
         postId,
-        focusMessageId ? { around: focusMessageId } : undefined
+        focusMessageId ? { around: focusMessageId } : undefined,
+        ...signal ? [signal] as [AbortSignal] : []
       )
       if (fetchId !== requestId || get().postId !== postId || get().channelId !== channelId) return
       if (focusMessageId) requireMessageTarget(result.messages, focusMessageId)

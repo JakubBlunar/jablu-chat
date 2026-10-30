@@ -29,7 +29,7 @@ describe.each([
       readState: { unreadCount: 2, mentionCount: 1 },
       notifLevel: 'all' as const,
       currentServer: { id: 's1' },
-      orchestratedGoToChannel: jest.fn().mockResolvedValue(undefined)
+      goToChannel: jest.fn().mockResolvedValue(undefined)
     }
   }
 
@@ -61,9 +61,9 @@ describe.each([
     expect(screen.getByRole('menu', { name: 'general' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'markAsRead' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'voice.editChannel' })).not.toBeInTheDocument()
-    expect(initial.orchestratedGoToChannel).not.toHaveBeenCalled()
+    expect(initial.goToChannel).not.toHaveBeenCalled()
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     fireEvent.click(button)
-    expect(initial.orchestratedGoToChannel).toHaveBeenCalledWith('s1', 'c1')
+    expect(initial.goToChannel).toHaveBeenCalledWith('s1', 'c1')
   })
 })

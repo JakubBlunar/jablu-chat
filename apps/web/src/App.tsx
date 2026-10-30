@@ -123,7 +123,7 @@ function AuthBootstrap() {
 function NotificationRouterBridge() {
   const navigate = useNavigate()
   useEffect(() => {
-    setNotificationNavigator((to) => navigate(to))
+    setNotificationNavigator((to, options) => navigate(to, options))
     return () => setNotificationNavigator(null)
   }, [navigate])
   return null

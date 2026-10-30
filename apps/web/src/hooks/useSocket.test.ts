@@ -26,6 +26,10 @@ const mockSocket = {
   connect: jest.fn()
 }
 const mockAuth = { accessToken: 'token', user: { id: 'user' } }
+const mockNavigation = { isNavigating: false }
+jest.mock('@/stores/navigation.store', () => ({
+  useNavigationStore: { getState: () => mockNavigation }
+}))
 const mockMessages = {
   loadedForChannelId: null as string | null,
   messages: [] as { id: string }[],
@@ -86,6 +90,26 @@ jest.mock('./socket/serverHandlers', () => ({ createServerHandlers: () => ({}) }
 jest.mock('./socket/voiceHandlers', () => ({ createVoiceHandlers: () => ({}) }))
 
 describe('useSocket message recovery', () => {
+  it.each(['connect', 'resume'])('does not overwrite a prefetched destination during navigation on %s', (event) => {
+    mockNavigation.isNavigating = true
+    mockVisibility = { visibility: 'hidden', focused: false }
+    mockSocket.connected = true
+    Object.assign(mockMessages, { loadedForChannelId: 'next-channel', messages: [{ id: 'destination' }] })
+    const { unmount } = renderHook(() => useSocket())
+    try {
+      act(() => {
+        if (event === 'connect') mockListeners.get('connect')!()
+        else mockVisibilityListener!({ visibility: 'visible', focused: true })
+      })
+      expect(mockMessages.fetchMessages).not.toHaveBeenCalled()
+      expect(mockMessages.fetchNewerMessages).not.toHaveBeenCalled()
+      expect(mockDm.fetchMessages).not.toHaveBeenCalled()
+    } finally {
+      mockNavigation.isNavigating = false
+      unmount()
+    }
+  })
+
   beforeEach(() => {
     jest.clearAllMocks()
     mockListeners.clear()

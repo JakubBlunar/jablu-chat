@@ -11,14 +11,10 @@ export interface ScrollStoreAdapter {
   hasNewer: boolean
   scrollToMessageId: string | null
   scrollRequestNonce: number
-  /**
-   * Optional: when set and no explicit scrollToMessageId is pending, the
-   * initial fetch on context switch will be routed through
-   * fetchMessagesAround(initialAnchorMessageId) and the view will land on
-   * that message instead of snapping to bottom. Used to implement Discord's
-   * "open channel at first unread" behavior.
-   */
-  initialAnchorMessageId?: string | null
+  /** A navigation preload owns the store until it commits or is cancelled. */
+  deferInitialLoad?: boolean
+  requestJump: (messageId: string) => void
+  requestLatest: () => void
   fetchMessages: (id: string, before?: string) => Promise<void>
   fetchMessagesAround: (id: string, messageId: string) => Promise<void>
   fetchNewerMessages?: (id: string) => Promise<void>
@@ -170,12 +166,11 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     scrollToMessageId,
     scrollRequestNonce,
     fetchMessages,
-    fetchMessagesAround,
     fetchNewerMessages,
-    clearMessages,
     setScrollToMessageId,
     getLoadedForId
   } = store
+  const deferInitialLoad = store.deferInitialLoad ?? false
 
   const storeRef = useRef(store)
   storeRef.current = store
@@ -185,7 +180,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null)
   const newerSentinelRef = useRef<HTMLDivElement | null>(null)
   const [atBottom, setAtBottom] = useState(true)
-  const [settling, setSettling] = useState(false)
+  const settling = !!deferInitialLoad
   const activeContextRef = useRef(contextId)
   activeContextRef.current = contextId
   const [historyFailure, setHistoryFailure] = useState<{
@@ -194,22 +189,27 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     retry: () => void
   } | null>(null)
   const failureContextRef = useRef<string | null>(null)
+  const historyRequest = useRef(0)
+  const cancelHistory = useCallback(() => {
+    ++historyRequest.current
+  }, [])
+  useLayoutEffect(() => cancelHistory, [contextId, fetchMessages, cancelHistory])
 
   const runHistory = useCallback(
     async function run(action: () => Promise<void>, onSuccess?: () => void, checkError = true) {
       if (activeContextRef.current !== contextId) return
+      const request = ++historyRequest.current
       failureContextRef.current = null
       setHistoryFailure(null)
       try {
         await action()
-        if (activeContextRef.current !== contextId) return
+        if (activeContextRef.current !== contextId || historyRequest.current !== request) return
         const error = storeRef.current.getSnapshot().error
         if (checkError && error) throw new Error(error)
         onSuccess?.()
       } catch (error) {
-        if (activeContextRef.current !== contextId) return
+        if (activeContextRef.current !== contextId || historyRequest.current !== request) return
         console.error('Failed to load message history', error)
-        setSettling(false)
         failureContextRef.current = contextId
         setHistoryFailure({
           contextId,
@@ -224,10 +224,13 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   )
 
   const dismissHistoryError = useCallback(() => {
+    cancelHistory()
     failureContextRef.current = null
     setHistoryFailure(null)
+
     storeRef.current.setScrollToMessageId(null)
-  }, [])
+    storeRef.current.requestLatest()
+  }, [cancelHistory])
 
   const atBottomRef = useRef(true)
   atBottomRef.current = atBottom
@@ -281,7 +284,6 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     const sp = scrollParentRef.current
     if (sp) sp.scrollTop = sp.scrollHeight
     armForceBottom()
-    setSettling(false)
   }, [messages.length, isLoading, contextId, getLoadedForId, armForceBottom])
 
   /* ── Snap to bottom when a NEW bottom message is appended ──
@@ -413,110 +415,29 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     }
   }, [])
 
-  /* ── Context switch ── */
+  /* ── Position the coordinator's loaded window; never start initial reads. ── */
   const prevIdRef = useRef<string | null>(null)
-
   useLayoutEffect(() => {
+    if (deferInitialLoad) return
     const prev = prevIdRef.current
-
-    // Settling belongs to this context's load. An unread load in the previous
-    // context may still be pending, and its completion is ignored after we
-    // leave. Reveal cached/prefetched destinations (and null contexts) now;
-    // the fetch branches below hide them again only when positioning is needed.
-    setSettling(false)
-
-    if (prev && prev !== contextId) {
-      storeRef.current.onContextLeave?.(prev)
+    if (prev && prev !== contextId) storeRef.current.onContextLeave?.(prev)
+    prevIdRef.current = contextId
+    hasInitialSnappedRef.current = false
+    anchorMsgRef.current = null
+    const target = storeRef.current.scrollToMessageId
+    pendingGoToBottom.current = !!contextId && !target
+    if (contextId && !target && getLoadedForId() === contextId) {
+      const viewport = scrollParentRef.current
+      if (viewport) viewport.scrollTop = viewport.scrollHeight
+      pendingGoToBottom.current = false
+      hasInitialSnappedRef.current = true
+      setAtBottom(true)
+      armForceBottom()
     }
-
-    if (contextId) {
-      const alreadyLoaded = getLoadedForId() === contextId
-      // A "real" context switch (not the initial mount) happens when prev was
-      // set to some other context. We must re-arm the snap-to-bottom logic on
-      // every such switch — even if the store already has the data, because
-      // navigation.store may pre-fetch before flipping the channel id. Without
-      // this, the new scroll container starts at scrollTop=0 and the briefly
-      // visible top sentinel triggers load-older, stranding the user mid-list.
-      const isContextSwitch = prev !== null && prev !== contextId
-
-      if (!alreadyLoaded) {
-        storeRef.current.onContextJoin?.(contextId)
-      }
-      prevIdRef.current = contextId
-
-      // If a scroll-to-message request is pending, do NOT auto-snap to bottom
-      // here — that would fight the scroll-to-message useEffect (it would
-      // either flash to bottom then jump, or get yanked back to bottom by
-      // the force-bottom window). The scroll-to-message effect handles its
-      // own positioning inside the message list and clears the initial-snap guard
-      // once it finishes. Read from storeRef so we don't have to take
-      // scrollToMessageId as a dep (we only care about context changes here).
-      const hasScrollToTarget = storeRef.current.scrollToMessageId !== null
-
-      if (isContextSwitch) {
-        hasInitialSnappedRef.current = false
-        anchorMsgRef.current = null
-        if (!hasScrollToTarget) setAtBottom(true)
-      }
-
-      const initialAnchorId = storeRef.current.initialAnchorMessageId ?? null
-
-      if (!alreadyLoaded && !hasScrollToTarget && initialAnchorId) {
-        // Open the channel at the first unread message instead of snapping to
-        // bottom. We piggyback on the existing scroll-to-message effect by
-        // fetching the around-window and then setting the scrollTo target.
-        setSettling(true)
-        hasInitialSnappedRef.current = false
-        pendingGoToBottom.current = false
-        setAtBottom(false)
-        clearMessages()
-        void runHistory(
-          () => storeRef.current.fetchMessagesAround(contextId, initialAnchorId),
-          () => {
-            if (storeRef.current.getLoadedForId() !== contextId) return
-            storeRef.current.setScrollToMessageId(initialAnchorId)
-            setSettling(false)
-          }
-        )
-      } else if (!alreadyLoaded && !hasScrollToTarget) {
-        setSettling(true)
-        pendingGoToBottom.current = true
-        clearMessages()
-        void runHistory(
-          () => fetchMessages(contextId),
-          () => {
-            requestAnimationFrame(() => {
-              const sp = scrollParentRef.current
-              if (sp) sp.scrollTop = sp.scrollHeight
-              armForceBottom()
-            })
-          }
-        )
-      } else if (alreadyLoaded && !hasScrollToTarget) {
-        // Data is already in the store. This covers both:
-        //   - context switch where navigation.store pre-fetched the target
-        //     channel before flipping the channel id
-        //   - initial mount where messages are still in the store from
-        //     before (e.g. MessageArea remounted after returning from a
-        //     voice room or settings panel in the same channel)
-        // Snap synchronously here so the new scroll container never paints
-        // at scrollTop=0. We cannot rely on the pendingGoToBottom
-        // useLayoutEffect because none of its deps change again after this
-        // commit, so it wouldn't run a second time.
-        const sp = scrollParentRef.current
-        if (sp) sp.scrollTop = sp.scrollHeight
-        pendingGoToBottom.current = false
-        hasInitialSnappedRef.current = true
-        armForceBottom()
-      }
-    } else {
-      prevIdRef.current = null
-    }
-
     return () => {
       if (contextId) storeRef.current.onContextLeave?.(contextId)
     }
-  }, [contextId, clearMessages, fetchMessages, getLoadedForId, armForceBottom, runHistory])
+  }, [contextId, getLoadedForId, armForceBottom, deferInitialLoad])
 
   /* ── Load older messages (top sentinel) ── */
   const loadingOlderRef = useRef(false)
@@ -710,24 +631,18 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
 
   /* ── Scroll-to-message ── */
   useEffect(() => {
-    if (!scrollToMessageId || !contextId) return
+    if (!scrollToMessageId || !contextId || deferInitialLoad) return
 
+    // An inbox/query jump can supersede the initial unread load in the same
+    // channel. It owns positioning now: release the hidden initial view and
+    // prevent that older load from restoring its anchor or snapping to bottom.
+    pendingGoToBottom.current = false
+    forceBottomUntilRef.current = 0
     const targetId = scrollToMessageId
     let cancelled = false
-    let deadline: ReturnType<typeof setTimeout> | undefined
     const jump = async () => {
       try {
-        const snap = storeRef.current.getSnapshot()
-        if (storeRef.current.getLoadedForId() !== contextId || !snap.messages.some((m) => m.id === targetId)) {
-          await Promise.race([
-            fetchMessagesAround(contextId, targetId),
-            new Promise<never>((_, reject) => {
-              deadline = setTimeout(() => reject(new Error('historyLoadFailed')), 15_000)
-            })
-          ])
-          const error = storeRef.current.getSnapshot().error
-          if (error) throw new Error(error)
-        }
+        if (storeRef.current.getLoadedForId() !== contextId) throw new Error('historyLoadFailed')
         if (cancelled) return
         requireMessageTarget(storeRef.current.getSnapshot().messages, targetId)
         if (document.getElementById(`msg-${targetId}`)?.dataset.messageMounted === 'false') {
@@ -759,19 +674,16 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         setScrollToMessageId(null)
       } catch (error) {
         if (!cancelled) throw error
-      } finally {
-        clearTimeout(deadline)
       }
     }
     void runHistory(jump, undefined, false)
     return () => {
       cancelled = true
-      clearTimeout(deadline)
     }
-  }, [scrollToMessageId, scrollRequestNonce, contextId, fetchMessagesAround, setScrollToMessageId, runHistory])
+  }, [scrollToMessageId, scrollRequestNonce, contextId, setScrollToMessageId, runHistory, deferInitialLoad])
 
   const handleJumpToMessage = useCallback((messageId: string) => {
-    storeRef.current.setScrollToMessageId(messageId)
+    storeRef.current.requestJump(messageId)
   }, [])
 
   /* ── Stick to bottom ── */
@@ -780,25 +692,10 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
   }, [goToBottom])
 
   const handleBottomButtonClick = useCallback(() => {
-    dismissHistoryError()
     const snap = storeRef.current.getSnapshot()
-    if (snap.hasNewer && contextId) {
-      anchorMsgRef.current = null
-      void runHistory(
-        () => fetchMessages(contextId),
-        () => {
-          requestAnimationFrame(() => {
-            const sp = scrollParentRef.current
-            if (sp) sp.scrollTop = sp.scrollHeight
-            setAtBottom(true)
-            armForceBottom()
-          })
-        }
-      )
-    } else {
-      goToBottom('smooth')
-    }
-  }, [contextId, fetchMessages, goToBottom, armForceBottom, runHistory, dismissHistoryError])
+    if (snap.hasNewer) storeRef.current.requestLatest()
+    else goToBottom('smooth')
+  }, [goToBottom])
 
   const visibleFailure = historyFailure?.contextId === contextId ? historyFailure : null
 

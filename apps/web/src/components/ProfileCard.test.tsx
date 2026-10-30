@@ -14,7 +14,7 @@ jest.mock('react-i18next', () => ({
 
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: jest.fn(() => false) }))
 jest.mock('@/hooks/useAppNavigate', () => ({
-  useAppNavigate: () => ({ goToDm: jest.fn(), orchestratedGoToChannel: jest.fn() })
+  useAppNavigate: () => ({ goToDm: jest.fn(), goToChannel: jest.fn() })
 }))
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (select: (state: { user: { id: string } }) => unknown) => select({ user: { id: 'self' } })

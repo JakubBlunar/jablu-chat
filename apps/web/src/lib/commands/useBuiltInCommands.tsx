@@ -4,7 +4,7 @@ import { Permission } from '@chat/shared'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
-import { useNavigationStore } from '@/stores/navigation.store'
+import { openConversation } from '@/lib/conversationNavigation'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -51,8 +51,6 @@ export function useBuiltInCommands(): Command[] {
   const currentServerId = useServerStore((s) => s.currentServerId)
   const myUserId = useAuthStore((s) => s.user?.id)
   const updateStatus = useAuthStore((s) => s.updateStatus)
-  const navigateToChannel = useNavigationStore((s) => s.navigateToChannel)
-  const navigateToDm = useNavigationStore((s) => s.navigateToDm)
   const ackServer = useReadStateStore((s) => s.ackServer)
 
   const { has: hasPerm, isOwner } = usePermissions(currentServerId)
@@ -73,10 +71,9 @@ export function useBuiltInCommands(): Command[] {
         label: ch.name,
         keywords: ['channel', ch.type],
         icon: ch.type === 'voice' ? <VoiceIcon /> : <HashIcon />,
-        run: async ({ navigate, close }) => {
+        run: async ({ close }) => {
           close()
-          const path = await navigateToChannel({ serverId: ch.serverId, channelId: ch.id })
-          if (path) navigate(path)
+          await openConversation({ target: { kind: 'channel', serverId: ch.serverId, channelId: ch.id }, source: 'command' })
         }
       })
     }
@@ -88,10 +85,9 @@ export function useBuiltInCommands(): Command[] {
         label: getDmDisplayName(conv, myUserId, 'Unknown'),
         keywords: ['dm', 'direct message'],
         icon: <ChatIcon />,
-        run: async ({ navigate, close }) => {
+        run: async ({ close }) => {
           close()
-          const path = await navigateToDm({ conversationId: conv.id })
-          if (path) navigate(path)
+          await openConversation({ target: { kind: 'dm', conversationId: conv.id }, source: 'command' })
         }
       })
     }
@@ -104,10 +100,9 @@ export function useBuiltInCommands(): Command[] {
         keywords: ['server'],
         icon: <ServerIcon />,
         hint: t('memberCount', { count: srv.memberCount }),
-        run: async ({ navigate, close }) => {
+        run: async ({ close }) => {
           close()
-          const path = await navigateToChannel({ serverId: srv.id })
-          if (path) navigate(path)
+          await openConversation({ target: { kind: 'server', serverId: srv.id }, source: 'command' })
         }
       })
     }
@@ -131,9 +126,9 @@ export function useBuiltInCommands(): Command[] {
       label: t('cmdNewDm'),
       keywords: ['dm', 'message', 'new'],
       icon: <ChatIcon />,
-      run: ({ navigate, close }) => {
+      run: ({ close }) => {
         close()
-        navigate('/channels/@me')
+        void openConversation({ target: { kind: 'home' }, source: 'command' })
       }
     })
 
@@ -143,10 +138,10 @@ export function useBuiltInCommands(): Command[] {
       label: t('cmdAddFriend'),
       keywords: ['friend', 'invite'],
       icon: <UserPlusIcon />,
-      run: ({ navigate, close }) => {
+      run: async ({ close }) => {
         close()
-        navigate('/channels/@me')
-        setTimeout(() => dispatch('open-add-friend'), 50)
+        const outcome = await openConversation({ target: { kind: 'home' }, source: 'command' })
+        if (outcome.status === 'opened') dispatch('open-add-friend')
       }
     })
 
@@ -333,8 +328,6 @@ export function useBuiltInCommands(): Command[] {
     canManageServer,
     canManageChannels,
     xpEnabledHere,
-    navigateToChannel,
-    navigateToDm,
     ackServer,
     updateStatus,
     t

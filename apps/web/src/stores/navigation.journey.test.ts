@@ -22,7 +22,7 @@ import { useChannelStore } from './channel.store'
 import { useDmStore } from './dm.store'
 import { useMessageStore } from './message.store'
 import { useNavHistoryStore } from './navHistory.store'
-import { useNavigationStore } from './navigation.store'
+import { useNavigationStore } from '@/test/conversationRouter'
 import { useServerStore } from './server.store'
 
 /**

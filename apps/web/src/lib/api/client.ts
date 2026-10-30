@@ -699,7 +699,8 @@ export class ApiClient {
   getThreadMessages(
     channelId: string,
     parentId: string,
-    opts?: { cursor?: string; after?: string; around?: string; limit?: number }
+    opts?: { cursor?: string; after?: string; around?: string; limit?: number },
+    signal?: AbortSignal
   ): Promise<{ messages: Message[]; hasMore: boolean; hasNewer?: boolean }> {
     const params = new URLSearchParams()
     if (opts?.cursor) params.set('cursor', opts.cursor)
@@ -707,7 +708,7 @@ export class ApiClient {
     if (opts?.around) params.set('around', opts.around)
     if (opts?.limit != null) params.set('limit', String(opts.limit))
     const qs = params.toString()
-    return this.get(`/api/channels/${channelId}/messages/${parentId}/thread${qs ? `?${qs}` : ''}`)
+    return this.get(`/api/channels/${channelId}/messages/${parentId}/thread${qs ? `?${qs}` : ''}`, signal ? { signal } : undefined)
   }
 
   getAutoModRules(serverId: string): Promise<AutoModRule[]> {
@@ -1198,13 +1199,14 @@ export class ApiClient {
   getDmMessages(
     conversationId: string,
     cursor?: string,
-    limit = 50
+    limit = 50,
+    signal?: AbortSignal
   ): Promise<{ messages: Message[]; hasMore: boolean }> {
     const params = new URLSearchParams()
     if (cursor) params.set('cursor', cursor)
     params.set('limit', String(limit))
     const qs = params.toString()
-    return this.get(`/api/dm/${conversationId}/messages${qs ? `?${qs}` : ''}`)
+    return this.get(`/api/dm/${conversationId}/messages${qs ? `?${qs}` : ''}`, signal ? { signal } : undefined)
   }
 
   getDmMessagesAfter(
@@ -1218,9 +1220,10 @@ export class ApiClient {
   getDmMessagesAround(
     conversationId: string,
     messageId: string,
-    limit = 50
+    limit = 50,
+    signal?: AbortSignal
   ): Promise<{ messages: Message[]; hasMore: boolean; hasNewer: boolean }> {
-    return this.get(`/api/dm/${conversationId}/messages?around=${messageId}&limit=${limit}`)
+    return this.get(`/api/dm/${conversationId}/messages?around=${messageId}&limit=${limit}`, signal ? { signal } : undefined)
   }
 
   getReadStates(): Promise<{

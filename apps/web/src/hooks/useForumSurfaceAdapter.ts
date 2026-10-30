@@ -2,8 +2,12 @@ import { useCallback, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import type { ScrollStoreAdapter } from '@/components/chat/hooks/useMessageScroll'
 import { useForumReplyStore } from '@/stores/forumReply.store'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { useServerStore } from '@/stores/server.store'
+import { openConversation } from '@/lib/conversationNavigation'
 
 export function useForumSurfaceAdapter(channelId: string | null): ScrollStoreAdapter {
+  const deferInitialLoad = useNavigationStore((state) => state.isNavigating)
   const { messages, isLoading, hasMore, hasNewer, scrollToMessageId, scrollRequestNonce } = useForumReplyStore(
     useShallow((s) => ({
       messages: s.messages,
@@ -68,8 +72,28 @@ export function useForumSurfaceAdapter(channelId: string | null): ScrollStoreAda
   }, [])
 
   return {
+    deferInitialLoad,
+    requestJump: (messageId) => {
+      const postId = useForumReplyStore.getState().postId
+      const serverId = useServerStore.getState().currentServerId
+      if (serverId && channelId && postId)
+        void openConversation({
+          target: { kind: 'channel', serverId, channelId },
+          position: { kind: 'message', messageId, threadParentId: postId },
+          source: 'reply'
+        })
+    },
+    requestLatest: () => {
+      const postId = useForumReplyStore.getState().postId
+      const serverId = useServerStore.getState().currentServerId
+      if (serverId && channelId && postId)
+        void openConversation({
+          target: { kind: 'channel', serverId, channelId },
+          position: { kind: 'latest', threadParentId: postId }
+        })
+    },
     messages,
-    isLoading,
+    isLoading: isLoading || deferInitialLoad,
     hasMore,
     hasNewer,
     scrollToMessageId,

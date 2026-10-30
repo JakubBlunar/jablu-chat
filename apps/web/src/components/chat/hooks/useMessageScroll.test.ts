@@ -16,6 +16,8 @@ function makeAdapter(overrides: Partial<ScrollStoreAdapter> = {}): ScrollStoreAd
 
   return {
     ...state,
+    requestJump: jest.fn(),
+    requestLatest: jest.fn(),
     fetchMessages: jest.fn(async () => {}),
     fetchMessagesAround: jest.fn(async () => {}),
     fetchNewerMessages: jest.fn(async () => {}),
@@ -33,21 +35,27 @@ function renderScrollableHistory(adapter: ScrollStoreAdapter, initialTarget?: HT
   let scroll!: ReturnType<typeof useMessageScroll>
   function Harness() {
     scroll = useMessageScroll('ch-1', adapter)
-    return createElement('div', { ref: (element: HTMLDivElement | null) => {
-      scroll.scrollParentRef.current = element
-      if (!element) return
-      Object.defineProperties(element, {
-        clientHeight: { configurable: true, value: 400 },
-        scrollHeight: { configurable: true, value: 2000 }
-      })
-      element.getBoundingClientRect = () => ({ top: 100 } as DOMRect)
-      if (initialTarget) element.append(initialTarget)
-    } })
+    return createElement('div', {
+      ref: (element: HTMLDivElement | null) => {
+        scroll.scrollParentRef.current = element
+        if (!element) return
+        Object.defineProperties(element, {
+          clientHeight: { configurable: true, value: 400 },
+          scrollHeight: { configurable: true, value: 2000 }
+        })
+        element.getBoundingClientRect = () => ({ top: 100 }) as DOMRect
+        if (initialTarget) element.append(initialTarget)
+      }
+    })
   }
   const view = render(createElement(Harness))
   return {
     ...view,
-    result: { get current() { return scroll } },
+    result: {
+      get current() {
+        return scroll
+      }
+    },
     rerender: () => view.rerender(createElement(Harness)),
     viewport: view.container.firstElementChild as HTMLDivElement
   }
@@ -58,6 +66,7 @@ beforeEach(() => {
 })
 
 beforeAll(() => {
+  document.elementFromPoint = jest.fn(() => null)
   class FakeObserver {
     observe() {}
     disconnect() {}
@@ -75,141 +84,60 @@ beforeAll(() => {
 })
 
 describe('useMessageScroll', () => {
-  describe('recoverable history navigation', () => {
-    let errorLog: jest.SpyInstance
-    beforeEach(() => {
-      errorLog = jest.spyOn(console, 'error').mockImplementation(() => {})
-    })
-    afterEach(() => {
-      errorLog.mockRestore()
+  describe('coordinator positioning contract', () => {
+    it('delegates jumps and latest intent without reading or clearing history', () => {
+      const adapter = makeAdapter({
+        requestJump: jest.fn(),
+        requestLatest: jest.fn(),
+        hasNewer: true,
+        getSnapshot: () => ({ messages: [], isLoading: false, hasMore: false, hasNewer: true })
+      })
+      const { result } = renderHook(() => useMessageScroll('ch-1', adapter))
+      act(() => result.current.handleJumpToMessage('target'))
+      act(() => result.current.handleBottomButtonClick())
+      expect(adapter.requestJump).toHaveBeenCalledWith('target')
+      expect(adapter.requestLatest).toHaveBeenCalledTimes(1)
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+      expect(adapter.fetchMessagesAround).not.toHaveBeenCalled()
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
     })
 
-    it.each([true, false])('centers and highlights an original message (already loaded: %s)', async (loaded) => {
+    it('centers and highlights a coordinator-loaded target', async () => {
       const target = makeMessage({ id: 'original' })
-      const snapshot = {
-        messages: loaded ? [target] : [makeMessage({ id: 'visible' })],
-        isLoading: false,
-        hasMore: true,
-        hasNewer: false
-      }
       const element = document.createElement('div')
       element.id = 'msg-original'
-      element.getBoundingClientRect = () => ({ top: 800, height: 80 } as DOMRect)
+      element.getBoundingClientRect = () => ({ top: 800, height: 80 }) as DOMRect
       const adapter = makeAdapter({
-        messages: snapshot.messages,
+        messages: [target],
+        scrollToMessageId: 'original',
         getLoadedForId: () => 'ch-1',
-        getSnapshot: () => snapshot,
-        fetchMessagesAround: jest.fn(async () => {
-          snapshot.messages = [target]
-          viewport.appendChild(element)
-        })
+        getSnapshot: () => ({ messages: [target], isLoading: false, hasMore: false, hasNewer: false })
       })
-      const { result, viewport, rerender, unmount } = renderScrollableHistory(adapter, loaded ? element : undefined)
-      viewport.scrollTop = 0
-      try {
-        act(() => result.current.handleJumpToMessage(target.id))
-        expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(target.id)
-        await act(async () => {
-          adapter.scrollToMessageId = target.id
-          rerender()
-        })
-        await waitFor(() => expect(viewport.scrollTop).toBe(540))
-        expect(element.classList.contains('bg-primary/10')).toBe(true)
-        expect(result.current.atBottom).toBe(false)
-        expect(adapter.fetchMessagesAround).toHaveBeenCalledTimes(loaded ? 0 : 1)
-        if (!loaded) expect(adapter.fetchMessagesAround).toHaveBeenCalledWith('ch-1', target.id)
-        expect(adapter.setScrollToMessageId).toHaveBeenLastCalledWith(null)
-      } finally {
-        unmount()
-        element.remove()
-      }
+      const { viewport, unmount } = renderScrollableHistory(adapter, element)
+      await waitFor(() => expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null))
+      expect(viewport.scrollTop).toBe(540)
+      expect(element.classList.contains('bg-primary/10')).toBe(true)
+      expect(adapter.fetchMessagesAround).not.toHaveBeenCalled()
+      unmount()
     })
 
-    it('preserves visible messages after a failed jump and retries the original target', async () => {
-      const visible = makeMessage({ id: 'visible' })
-      const target = makeMessage({ id: 'target' })
-      const snapshot = { messages: [visible], isLoading: false, hasMore: true, hasNewer: false }
+    it('waits for the complete coordinator load before consuming a scroll target', async () => {
+      const target = makeMessage({ id: 'original' })
       const element = document.createElement('div')
-      element.id = 'msg-target'
-      element.getBoundingClientRect = () => ({ top: 800, height: 80 } as DOMRect)
-      const fetchAround = jest
-        .fn<Promise<void>, [string, string]>()
-        .mockRejectedValueOnce(new Error('offline'))
-        .mockImplementationOnce(async () => {
-          snapshot.messages = [target]
-          viewport.appendChild(element)
-        })
+      element.id = 'msg-original'
       const adapter = makeAdapter({
-        messages: snapshot.messages,
-        scrollToMessageId: 'target',
+        messages: [target],
+        scrollToMessageId: 'original',
+        deferInitialLoad: true,
         getLoadedForId: () => 'ch-1',
-        getSnapshot: () => snapshot,
-        fetchMessagesAround: fetchAround
+        getSnapshot: () => ({ messages: [target], isLoading: false, hasMore: false, hasNewer: false })
       })
-      const { result, viewport, unmount } = renderScrollableHistory(adapter)
-      await waitFor(() => expect(result.current.historyError).toBe('historyLoadFailed'))
-      expect(snapshot.messages).toEqual([visible])
-      expect(adapter.clearMessages).not.toHaveBeenCalled()
-      act(() => result.current.retryHistory?.())
-      await waitFor(() => expect(viewport.scrollTop).toBe(540))
-      expect(fetchAround).toHaveBeenLastCalledWith('ch-1', 'target')
-      expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null)
-      expect(result.current.historyError).toBeNull()
+      const { rerender, unmount } = renderScrollableHistory(adapter, element)
+      expect(adapter.setScrollToMessageId).not.toHaveBeenCalled()
+      adapter.deferInitialLoad = false
+      rerender()
+      await waitFor(() => expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null))
       unmount()
-      element.remove()
-    })
-
-    it('reports an unavailable target instead of polling empty history indefinitely', async () => {
-      const adapter = makeAdapter({ scrollToMessageId: 'deleted', getLoadedForId: () => 'ch-1' })
-      const { result } = renderHook(() => useMessageScroll('ch-1', adapter))
-      await waitFor(() => expect(result.current.historyError).toBe('messageUnavailable'))
-      expect(adapter.fetchMessagesAround).toHaveBeenCalledTimes(1)
-      act(() => result.current.dismissHistoryError?.())
-      expect(adapter.setScrollToMessageId).toHaveBeenCalledWith(null)
-      expect(result.current.historyError).toBeNull()
-    })
-
-    it('bounds a stalled jump and offers recovery', async () => {
-      jest.useFakeTimers()
-      const adapter = makeAdapter({
-        scrollToMessageId: 'target',
-        getLoadedForId: () => 'ch-1',
-        fetchMessagesAround: jest.fn(() => new Promise(() => {}))
-      })
-      const { result, unmount } = renderHook(() => useMessageScroll('ch-1', adapter))
-      await act(async () => {
-        await jest.advanceTimersByTimeAsync(15_001)
-      })
-      expect(result.current.historyError).toBe('historyLoadFailed')
-      expect(result.current.retryHistory).toEqual(expect.any(Function))
-      unmount()
-      jest.useRealTimers()
-    })
-
-    it('does not report a failed old jump after switching conversations', async () => {
-      let reject!: (error: Error) => void
-      let loadedId = 'ch-1'
-      const adapter = makeAdapter({
-        scrollToMessageId: 'old-target',
-        getLoadedForId: () => loadedId,
-        fetchMessagesAround: jest.fn(
-          () =>
-            new Promise((_resolve, fail) => {
-              reject = fail
-            })
-        )
-      })
-      const { result, rerender } = renderHook(({ id }) => useMessageScroll(id, adapter), {
-        initialProps: { id: 'ch-1' }
-      })
-      adapter.scrollToMessageId = null
-      loadedId = 'ch-2'
-      rerender({ id: 'ch-2' })
-      await act(async () => {
-        reject(new Error('old failure'))
-      })
-      expect(result.current.historyError).toBeNull()
-      expect(errorLog).not.toHaveBeenCalled()
     })
   })
 
@@ -239,102 +167,29 @@ describe('useMessageScroll', () => {
   })
 
   describe('context switch', () => {
-    it('calls clearMessages and fetchMessages for a new context', () => {
-      const adapter = makeAdapter({ getLoadedForId: jest.fn(() => null) })
-      renderHook(() => useMessageScroll('ch-1', adapter))
-
-      expect(adapter.clearMessages).toHaveBeenCalled()
-      expect(adapter.fetchMessages).toHaveBeenCalledWith('ch-1')
-    })
-
-    it('sets settling to true during context switch', () => {
-      const adapter = makeAdapter({ getLoadedForId: jest.fn(() => null) })
-      const { result } = renderHook(() => useMessageScroll('ch-1', adapter))
-
+    it('never competes with the coordinator before or after loading', () => {
+      const adapter = makeAdapter({ deferInitialLoad: true })
+      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
       expect(result.current.settling).toBe(true)
-    })
-
-    it('does not refetch when context is already loaded', () => {
-      const adapter = makeAdapter({ getLoadedForId: jest.fn(() => 'ch-1') })
-      renderHook(() => useMessageScroll('ch-1', adapter))
-
-      expect(adapter.clearMessages).not.toHaveBeenCalled()
+      adapter.deferInitialLoad = false
+      rerender()
+      expect(result.current.settling).toBe(false)
       expect(adapter.fetchMessages).not.toHaveBeenCalled()
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
     })
-
-    it('calls onContextJoin for new context', () => {
-      const adapter = makeAdapter({ getLoadedForId: jest.fn(() => null) })
-      renderHook(() => useMessageScroll('ch-1', adapter))
-
-      expect(adapter.onContextJoin).toHaveBeenCalledWith('ch-1')
+    it('does not start a second loader for a new unprepared context', () => {
+      const adapter = makeAdapter()
+      const { rerender } = renderHook(({ id }) => useMessageScroll(id, adapter), { initialProps: { id: 'ch-1' } })
+      rerender({ id: 'ch-2' })
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
+      expect(adapter.fetchMessagesAround).not.toHaveBeenCalled()
+      expect(adapter.clearMessages).not.toHaveBeenCalled()
     })
-
-    it('calls onContextLeave when switching contexts', () => {
-      const adapter = makeAdapter({ getLoadedForId: jest.fn(() => null) })
-      const { rerender } = renderHook(({ contextId }) => useMessageScroll(contextId, adapter), {
-        initialProps: { contextId: 'ch-1' }
-      })
-
-      rerender({ contextId: 'ch-2' })
+    it('stashes the outgoing context through its leave callback', () => {
+      const adapter = makeAdapter({ getLoadedForId: () => 'ch-1' })
+      const { rerender } = renderHook(({ id }) => useMessageScroll(id, adapter), { initialProps: { id: 'ch-1' } })
+      rerender({ id: 'ch-2' })
       expect(adapter.onContextLeave).toHaveBeenCalledWith('ch-1')
-    })
-
-    // Regression: navigation.store pre-fetches messages for the target channel
-    // before flipping the channel id, so when MessageArea re-renders with the
-    // new contextId, getLoadedForId() already returns the new id (alreadyLoaded
-    // is true). Previously this caused the snap-to-bottom logic to be skipped
-    // entirely, leaving the user at scrollTop=0; the briefly-visible top
-    // sentinel then triggered load-older and stranded them mid-list.
-    it('does not refetch but still snaps on context switch when target is already loaded', () => {
-      let loadedId: string | null = 'ch-1'
-      const adapter = makeAdapter({ getLoadedForId: () => loadedId })
-
-      const { result, rerender } = renderHook(({ contextId }) => useMessageScroll(contextId, adapter), {
-        initialProps: { contextId: 'ch-1' }
-      })
-
-      expect(result.current.settling).toBe(false)
-
-      loadedId = 'ch-2'
-      rerender({ contextId: 'ch-2' })
-
-      // The snap happens synchronously inline (no settling flash, no refetch)
-      // because the data is already in the store.
-      expect(result.current.settling).toBe(false)
-      expect(adapter.clearMessages).not.toHaveBeenCalled()
-      expect(adapter.fetchMessages).not.toHaveBeenCalled()
-    })
-
-    it.each(['ch-2', null])('reveals the next context (%s) after leaving a pending unread load', async (nextId) => {
-      let loadedId: string | null = null
-      let finishUnreadLoad!: () => void
-      const adapter = makeAdapter({
-        initialAnchorMessageId: 'first-unread',
-        getLoadedForId: () => loadedId,
-        fetchMessagesAround: jest.fn(
-          () => new Promise<void>((resolve) => {
-            finishUnreadLoad = resolve
-          })
-        )
-      })
-      const { result, rerender } = renderHook(({ id }) => useMessageScroll(id, adapter), {
-        initialProps: { id: 'ch-1' as string | null }
-      })
-      expect(result.current.settling).toBe(true)
-      expect(adapter.fetchMessagesAround).toHaveBeenCalledWith('ch-1', 'first-unread')
-
-      // Navigation has already hydrated or fetched the destination's history.
-      loadedId = nextId
-      adapter.initialAnchorMessageId = null
-      adapter.messages = nextId ? [makeMessage({ channelId: nextId })] : []
-      rerender({ id: nextId })
-
-      expect(result.current.settling).toBe(false)
-      expect(adapter.fetchMessages).not.toHaveBeenCalled()
-
-      await act(async () => finishUnreadLoad())
-      expect(result.current.settling).toBe(false)
-      expect(adapter.setScrollToMessageId).not.toHaveBeenCalled()
     })
   })
 
@@ -417,76 +272,6 @@ describe('useMessageScroll', () => {
       await Promise.resolve()
       expect(adapter.fetchMessages).not.toHaveBeenCalled()
     })
-
-    it('settling is true during context switch and remains until messages arrive', () => {
-      const adapter = makeAdapter({
-        getLoadedForId: jest.fn(() => null),
-        messages: []
-      })
-
-      const { result } = renderHook(({ adapter: a }) => useMessageScroll('ch-1', a), { initialProps: { adapter } })
-
-      expect(result.current.settling).toBe(true)
-    })
-
-    it('clears settling when thread finishes loading with zero messages', async () => {
-      const state = {
-        messages: [] as Message[],
-        isLoading: true,
-        hasMore: false,
-        hasNewer: false
-      }
-      let loadedId: string | null = null
-      const fetchMessagesSpy = jest.fn(async () => {
-        await Promise.resolve()
-        state.isLoading = false
-        state.messages = []
-        loadedId = 'ch-1'
-      })
-      const adapter: ScrollStoreAdapter = {
-        get messages() {
-          return state.messages
-        },
-        get isLoading() {
-          return state.isLoading
-        },
-        get hasMore() {
-          return state.hasMore
-        },
-        get hasNewer() {
-          return state.hasNewer
-        },
-        scrollToMessageId: null,
-        scrollRequestNonce: 0,
-        fetchMessages: fetchMessagesSpy,
-        fetchMessagesAround: jest.fn(async () => {}),
-        clearMessages: jest.fn(() => {
-          state.messages = []
-        }),
-        setScrollToMessageId: jest.fn(),
-        getLoadedForId: () => loadedId,
-        getSnapshot: () => ({
-          messages: state.messages,
-          isLoading: state.isLoading,
-          hasMore: state.hasMore,
-          hasNewer: state.hasNewer
-        }),
-        onContextJoin: jest.fn(),
-        onContextLeave: jest.fn()
-      }
-
-      const { result, rerender } = renderHook(() => useMessageScroll('ch-1', adapter))
-
-      expect(result.current.settling).toBe(true)
-
-      await act(async () => {
-        const p = fetchMessagesSpy.mock.results[0]?.value as Promise<void> | undefined
-        if (p) await p
-        rerender()
-      })
-
-      expect(result.current.settling).toBe(false)
-    })
   })
 
   describe('null contextId', () => {
@@ -523,6 +308,8 @@ describe('useMessageScroll', () => {
         hasNewer: false
       }
       const adapter: ScrollStoreAdapter = {
+        requestJump: jest.fn(),
+        requestLatest: jest.fn(),
         get messages() {
           return state.messages
         },
@@ -569,6 +356,8 @@ describe('useMessageScroll', () => {
         hasNewer: false
       }
       const adapter: ScrollStoreAdapter = {
+        requestJump: jest.fn(),
+        requestLatest: jest.fn(),
         get messages() {
           return state.messages
         },
@@ -616,6 +405,8 @@ describe('useMessageScroll', () => {
         hasNewer: false
       }
       const adapter: ScrollStoreAdapter = {
+        requestJump: jest.fn(),
+        requestLatest: jest.fn(),
         get messages() {
           return state.messages
         },
@@ -774,7 +565,8 @@ describe('useMessageScroll', () => {
       act(() => result.current.handleBottomButtonClick())
 
       expect(adapter.clearMessages).not.toHaveBeenCalled()
-      expect(adapter.fetchMessages).toHaveBeenCalledWith('ch-1')
+      expect(adapter.requestLatest).toHaveBeenCalledTimes(1)
+      expect(adapter.fetchMessages).not.toHaveBeenCalled()
     })
   })
 })

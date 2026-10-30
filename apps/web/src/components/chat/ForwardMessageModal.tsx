@@ -25,7 +25,7 @@ export function ForwardMessageModal({ message, sourceChannelId, onClose, onForwa
   const currentServerId = useServerStore((s) => s.currentServerId)
   const channels = useChannelStore((s) => s.channels)
   const permissionsMap = useChannelPermissionsStore((s) => s.permissionsMap)
-  const { orchestratedGoToChannel } = useAppNavigate()
+  const { goToChannel } = useAppNavigate()
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
@@ -88,7 +88,7 @@ export function ForwardMessageModal({ message, sourceChannelId, onClose, onForwa
       onClose()
       onForwarded?.()
       if (openDestination) {
-        void orchestratedGoToChannel(currentServerId, selected.id).catch((error) => {
+        void goToChannel(currentServerId, selected.id).catch((error) => {
           console.error('Could not open forwarded destination', error)
           showToast(t('forwardSent'), t('forwardOpenFailed'), path)
         })

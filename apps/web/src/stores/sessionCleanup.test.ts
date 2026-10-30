@@ -101,7 +101,8 @@ it('disconnects producers and persistence before clearing session state and awai
   })
   await startedPurge
 
-  expect(calls.slice(0, 4)).toEqual([
+  expect(calls.slice(0, 5)).toEqual([
+    'navigation.reset',
     'voiceConnection.disconnect',
     'dmCall.reset',
     'socket.disconnect',
@@ -186,7 +187,7 @@ it.each([false, true])(
         })
       : expect(cleanup).resolves.toBeUndefined()
     await voiceStarted
-    expect(calls).toEqual(['voiceConnection.disconnect'])
+    expect(calls).toEqual(['navigation.reset', 'voiceConnection.disconnect'])
     if (fails) failVoice(new Error('media teardown failed'))
     else finishVoice()
     await assertion

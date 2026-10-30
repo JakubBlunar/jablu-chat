@@ -1,3 +1,4 @@
+jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 import { renderHook, act } from '@testing-library/react'
 import { useThreadSurfaceAdapter } from './useThreadSurfaceAdapter'
 import { useThreadStore } from '@/stores/thread.store'

@@ -18,7 +18,7 @@ export const TextChannelItem = memo(function TextChannelItem({
   onEditChannel,
   onOpenPinned,
   currentServer,
-  orchestratedGoToChannel
+  goToChannel
 }: {
   ch: Channel
   active: boolean
@@ -28,7 +28,7 @@ export const TextChannelItem = memo(function TextChannelItem({
   onEditChannel?: (ch: Channel) => void
   onOpenPinned?: (ch: Channel) => void
   currentServer: { id: string } | null
-  orchestratedGoToChannel: (serverId: string, channelId: string) => Promise<unknown>
+  goToChannel: (serverId: string, channelId: string) => Promise<unknown>
 }) {
   const badge = computeChannelBadge(readState, notifLevel)
   const { showUnread: showUnreadDot, mentionCount, hasIndicator } = badge
@@ -44,7 +44,7 @@ export const TextChannelItem = memo(function TextChannelItem({
         <button
           type="button"
           onClick={() => {
-            if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
+            if (currentServer) void goToChannel(currentServer.id, ch.id)
             useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
           }}
           className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[15px] transition ${

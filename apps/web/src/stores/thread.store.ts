@@ -20,7 +20,8 @@ interface ThreadState {
 
   openThread: (channelId: string, parentMessage: Message, opts?: { focusMessageId?: string }) => void
   closeThread: () => void
-  fetchMessages: () => Promise<void>
+  cancelPendingFetch: () => void
+  fetchMessages: (signal?: AbortSignal) => Promise<void>
   fetchMore: () => Promise<void>
   fetchNewer: () => Promise<void>
   reconcileToLatest: () => Promise<void>
@@ -94,7 +95,9 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     })
   },
 
-  fetchMessages: async () => {
+  cancelPendingFetch: () => { ++requestId; set({ isLoading: false }) },
+
+  fetchMessages: async (signal) => {
     const { channelId, parentMessage, focusMessageId } = get()
     if (!channelId || !parentMessage) return
 
@@ -104,7 +107,8 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       const result = await api.getThreadMessages(
         channelId,
         parentMessage.id,
-        focusMessageId ? { around: focusMessageId } : undefined
+        focusMessageId ? { around: focusMessageId } : undefined,
+        ...signal ? [signal] as [AbortSignal] : []
       )
       if (fetchId !== requestId) return
       if (focusMessageId) requireMessageTarget(result.messages, focusMessageId)

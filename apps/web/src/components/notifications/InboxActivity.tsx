@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import type { InAppNotificationDto } from '@/lib/api/types'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { openConversation } from '@/lib/conversationNavigation'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
-import { getDmCallUrl, messageNotificationUrl } from '@chat/shared'
+import { getDmCallUrl } from '@chat/shared'
 import type { TFunction } from 'i18next'
 
 function titleFor(n: InAppNotificationDto, t: TFunction<'nav'>, language: string): string {
@@ -221,8 +222,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           const conv = typeof p.conversationId === 'string' ? p.conversationId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (conv) {
-            const path = `/channels/@me/${conv}`
-            navigate(messageId ? messageNotificationUrl(path, messageId) : path)
+            void openConversation({ target: { kind: 'dm', conversationId: conv }, position: messageId ? { kind: 'message', messageId } : { kind: 'unread' }, source: 'inbox' })
           }
         } else if (['mention', 'thread_reply', 'channel_message', 'reply'].includes(n.kind)) {
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
@@ -230,15 +230,14 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           const threadParentId = typeof p.threadParentId === 'string' ? p.threadParentId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (serverId && channelId) {
-            const path = `/channels/${serverId}/${channelId}`
-            navigate(messageId ? messageNotificationUrl(path, messageId, threadParentId) : path)
+            void openConversation({ target: { kind: 'channel', serverId, channelId }, position: messageId ? { kind: 'message', messageId, threadParentId } : { kind: 'unread' }, source: 'inbox' })
           }
         } else if (n.kind === 'dm_call') {
           if (typeof p.conversationId === 'string' && typeof p.callId === 'string') {
             navigate(getDmCallUrl(p.conversationId, p.callId))
           }
         } else if (n.kind === 'friend_request' || n.kind === 'friend_accepted') {
-          navigate('/channels/@me')
+          void openConversation({ target: { kind: 'home' }, source: 'inbox' })
         } else if (
           n.kind === 'moderation' ||
           n.kind === 'role_changed' ||
@@ -249,7 +248,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           // server to open either, so fall back to the home view.
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
           const removed = n.kind === 'moderation' && (p.action === 'kick' || p.action === 'ban')
-          navigate(serverId && !removed ? `/channels/${serverId}` : '/channels/@me')
+          void openConversation({ target: serverId && !removed ? { kind: 'server', serverId } : { kind: 'home' }, source: 'inbox' })
         }
         // `announcement` has nowhere to go; clicking it just marks it seen.
       } finally {

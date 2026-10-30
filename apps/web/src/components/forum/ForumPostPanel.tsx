@@ -87,20 +87,11 @@ export function ForumPostPanel({
   const scrollRef = useRef(scroll)
   scrollRef.current = scroll
 
-  /* ── Pre-set loading state when a new post is selected ── */
+  /* Conversation navigation prepares history; the surface only positions it. */
   useEffect(() => {
     if (!currentPostId || !channelId) return
     setEditing(false)
     setMenuOpen(false)
-    const replyState = useForumReplyStore.getState()
-    if (replyState.loadedForPostId === currentPostId && replyState.channelId === channelId) return
-    useForumReplyStore.setState({
-      channelId,
-      postId: currentPostId,
-      isLoading: true,
-      loadedForPostId: null
-    })
-    void useForumReplyStore.getState().fetchMessages()
   }, [currentPostId, channelId])
 
   /* ── Keep forum post list reply count in sync (only after thread fetch completed for this post) ── */

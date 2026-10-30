@@ -64,10 +64,10 @@ export function useDmContext(isDm: boolean, userId: string | undefined) {
     return 'Unknown'
   }, [otherMember, currentConv, userId])
 
-  const { orchestratedGoToChannel } = useAppNavigate()
+  const { goToChannel } = useAppNavigate()
   const handleChannelClick = useCallback(
-    (serverId: string, chId: string) => void orchestratedGoToChannel(serverId, chId),
-    [orchestratedGoToChannel]
+    (serverId: string, chId: string) => void goToChannel(serverId, chId),
+    [goToChannel]
   )
 
   return {

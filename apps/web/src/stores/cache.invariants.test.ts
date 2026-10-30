@@ -1,3 +1,4 @@
+import { useReadStateStore } from './readState.store'
 import { clearCache } from '@/lib/cache/messageCache'
 import { clearStructureCache } from '@/lib/cache/structureCache'
 import { FakeApi, seedMessages } from '@/test/fakeApi'
@@ -16,14 +17,14 @@ jest.mock('@/lib/socket', () => ({
   getSocket: () => mockSocket
 }))
 
-const mockFetchMembers = jest.fn()
+const mockFetchMembers = jest.fn().mockResolvedValue(undefined)
 jest.mock('./member.store', () => ({
   useMemberStore: {
     getState: () => ({ fetchMembers: mockFetchMembers })
   }
 }))
 
-const mockFetchEmojis = jest.fn()
+const mockFetchEmojis = jest.fn().mockResolvedValue(undefined)
 jest.mock('./emoji.store', () => ({
   useEmojiStore: {
     getState: () => ({ fetch: mockFetchEmojis })
@@ -35,7 +36,7 @@ import { useChannelStore } from './channel.store'
 import { useDmStore } from './dm.store'
 import { useMessageStore } from './message.store'
 import { useNavHistoryStore } from './navHistory.store'
-import { useNavigationStore } from './navigation.store'
+import { useNavigationStore } from '@/test/conversationRouter'
 import { useServerStore } from './server.store'
 
 /**
@@ -47,13 +48,14 @@ import { useServerStore } from './server.store'
 let api: FakeApi
 
 beforeEach(() => {
+  useReadStateStore.getState().reset()
   resetMsgSeq()
   clearCache(false)
   clearStructureCache(false)
   localStorage.clear()
   mockSocket.emit.mockClear()
-  mockFetchMembers.mockReset()
-  mockFetchEmojis.mockReset()
+  mockFetchMembers.mockReset().mockResolvedValue(undefined)
+  mockFetchEmojis.mockReset().mockResolvedValue(undefined)
 
   api = new FakeApi({
     servers: [

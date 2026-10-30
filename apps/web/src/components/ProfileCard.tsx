@@ -214,7 +214,7 @@ function ProfileCardContent({
   const [loadFailed, setLoadFailed] = useState(false)
   const dmRequest = useRef({ version: 0 })
   const activity = useActivityStore((s) => s.activities.get(user.id))
-  const { orchestratedGoToChannel } = useAppNavigate()
+  const { goToChannel } = useAppNavigate()
 
   const refreshCanDm = useCallback(async () => {
     const requestState = dmRequest.current
@@ -382,7 +382,7 @@ function ProfileCardContent({
                   key={s.id}
                   type="button"
                   onClick={() => {
-                    void orchestratedGoToChannel(s.id)
+                    void goToChannel(s.id)
                     onClose()
                   }}
                   className="flex w-full items-center gap-2 rounded px-2 py-1 text-left transition hover:bg-white/5"

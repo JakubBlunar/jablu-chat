@@ -2,8 +2,10 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { SavedMessagesBell } from './SavedMessagesBell'
 import type { SavedMessageLocation } from './SavedMessagesList'
+import { useLayoutStore } from '@/stores/layout.store'
 
 const mockNavigate = jest.fn()
+jest.mock('@/lib/conversationNavigation', () => ({ openConversation: (request: import('@/lib/conversationTarget').ConversationRequest) => mockNavigate(require('@/lib/conversationTarget').conversationPath(request)) }))
 let mockLocation: SavedMessageLocation
 jest.mock('@/hooks/useAppNavigate', () => ({ useAppNavigate: () => ({ navigate: mockNavigate }) }))
 jest.mock('@/hooks/useFocusTrap', () => ({ useFocusTrap: jest.fn() }))
@@ -26,9 +28,11 @@ it.each<[SavedMessageLocation, string]>([
 ])('routes a saved message to its real URL and preserves thread context', (location, expected) => {
   mockNavigate.mockClear()
   mockLocation = location
+  useLayoutStore.getState().openNavDrawer()
   render(<SavedMessagesBell />)
   fireEvent.click(screen.getByRole('button'))
   fireEvent.click(screen.getByRole('button', { name: 'Jump' }))
   expect(mockNavigate).toHaveBeenCalledWith(expected)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
 })

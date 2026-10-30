@@ -21,10 +21,11 @@ Unmuted channels and their servers stay highlighted while unread, including when
 notification delivery is set to mentions only. Muted channels have no indicator.
 Selection alone does not hide unread indicators.
 
-Numbered server badges count mentions. The page title, PWA badge, Windows taskbar
-overlay and tray count combine channel mentions with unread DMs, rather than counting
-every ordinary channel message. Counts display up to `99+`; the tray tooltip retains
-the exact count and the overlay clears at zero.
+Numbered server badges count mentions. The page title and PWA badge combine channel
+mentions with unread DMs. The Windows taskbar overlay and tray count match unread
+Inbox notifications, including ordinary channel alerts and non-message events.
+Counts display up to `99+`; the tray tooltip retains the exact count and the overlay
+clears at zero.
 
 The bell counts durable notification records (including coalesced conversations
 and non-message events), not unread messages, so its count can legitimately differ

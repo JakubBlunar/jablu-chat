@@ -338,7 +338,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
         <p className="text-sm text-red-400">{messagesError}</p>
         <button
           type="button"
-          onClick={() => contextId && store.fetchMessages(contextId)}
+          onClick={() => store.requestLatest()}
           className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-text transition hover:bg-primary/80"
         >
           {tCommon('retry')}
@@ -449,7 +449,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             onCancelReply={() => setReplyTarget(null)}
             onSent={() => {
               if (hasNewer && navigator.onLine) {
-                void store.fetchMessages(contextId).then(() => scroll.stickToBottom())
+                store.requestLatest()
               } else scroll.stickToBottom()
             }}
             channels={isDm ? dmMentionChannels(dm.mutualServers) : undefined}

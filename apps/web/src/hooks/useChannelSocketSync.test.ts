@@ -1,3 +1,4 @@
+import { useNavigationStore } from '@/stores/navigation.store'
 import { act, renderHook } from '@testing-library/react'
 import { useChannelSocketSync } from './useChannelSocketSync'
 import { getSocket } from '@/lib/socket'
@@ -14,6 +15,7 @@ const socket = { emit: jest.fn(), on: jest.fn(), off: jest.fn() }
 const refresh = jest.fn().mockResolvedValue(undefined)
 beforeEach(() => {
   jest.clearAllMocks()
+  useNavigationStore.setState({ isNavigating: false })
   jest.mocked(getSocket).mockReturnValue(socket as never)
   useServerStore.setState({ viewMode: 'server' })
   useChannelStore.setState({ currentChannelId: 'first' })
@@ -55,5 +57,43 @@ it('ignores old acknowledgements after switching and restores subscriptions afte
   socket.emit.mockClear()
   hook.rerender({ connected: true })
   expect(socket.emit).toHaveBeenCalledWith('channel:watch', { channelId: 'second' }, expect.any(Function))
+  hook.unmount()
+})
+
+it('defers watch refresh through the entire navigation, including thread loading', () => {
+  const threadRefresh = jest.fn().mockResolvedValue(undefined)
+  useNavigationStore.setState({ isNavigating: true })
+  useThreadStore.setState({
+    isOpen: true,
+    channelId: 'first',
+    loadedForParentId: 'parent',
+    parentMessage: { id: 'parent' } as never,
+    hasNewer: false,
+    isLoading: true,
+    fetchMessages: threadRefresh
+  })
+  const hook = renderHook(() => useChannelSocketSync(true))
+  act(() => ack('first')({ ok: true }))
+  act(() => useThreadStore.setState({ isLoading: false }))
+  expect(refresh).not.toHaveBeenCalled()
+  expect(threadRefresh).not.toHaveBeenCalled()
+  act(() => useNavigationStore.setState({ isNavigating: false }))
+  expect(refresh).toHaveBeenCalledTimes(1)
+  expect(threadRefresh).toHaveBeenCalledTimes(1)
+  hook.unmount()
+})
+it('never refreshes an unprepared reply window or an obsolete committed selection', () => {
+  const replies = jest.fn().mockResolvedValue(undefined)
+  useThreadStore.setState({
+    isOpen: true,
+    channelId: 'first',
+    parentMessage: { id: 'parent' } as never,
+    loadedForParentId: null,
+    hasNewer: false,
+    fetchMessages: replies
+  })
+  const hook = renderHook(() => useChannelSocketSync(true))
+  act(() => ack('first')({ ok: true }))
+  expect(replies).not.toHaveBeenCalled()
   hook.unmount()
 })

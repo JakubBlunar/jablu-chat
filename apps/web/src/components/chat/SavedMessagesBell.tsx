@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BookmarkIcon } from '@/components/chat/chatIcons'
 import { SavedMessagesList, type SavedMessageLocation } from '@/components/chat/SavedMessagesList'
-import { useAppNavigate } from '@/hooks/useAppNavigate'
+import { openConversation } from '@/lib/conversationNavigation'
 import { useTranslation } from 'react-i18next'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
+import { useLayoutStore } from '@/stores/layout.store'
 
 export function SavedMessagesBell({
   className = '',
@@ -15,7 +16,6 @@ export function SavedMessagesBell({
   size?: 'sm' | 'md' | 'rail'
 }) {
   const { t } = useTranslation('chat')
-  const { navigate } = useAppNavigate()
   const [open, setOpen] = useState(false)
   const [panelPos, setPanelPos] = useState<{
     left: number
@@ -72,13 +72,10 @@ export function SavedMessagesBell({
 
   const handleJump = (messageId: string, opts: SavedMessageLocation) => {
     setOpen(false)
-    const query = new URLSearchParams({ m: messageId })
-    if (opts.threadParentId) query.set('thread', opts.threadParentId)
-    if (opts.conversationId) {
-      navigate(`/channels/@me/${opts.conversationId}?${query}`)
-    } else if (opts.serverId && opts.channelId) {
-      navigate(`/channels/${opts.serverId}/${opts.channelId}?${query}`)
-    }
+    useLayoutStore.getState().closeNavDrawer()
+    const target = opts.conversationId ? { kind: 'dm' as const, conversationId: opts.conversationId }
+      : opts.serverId && opts.channelId ? { kind: 'channel' as const, serverId: opts.serverId, channelId: opts.channelId } : null
+    if (target) void openConversation({ target, position: { kind: 'message', messageId, threadParentId: opts.threadParentId }, source: 'saved' })
   }
 
   const panel =

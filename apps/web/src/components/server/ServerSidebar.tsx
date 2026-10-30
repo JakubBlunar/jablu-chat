@@ -43,7 +43,7 @@ export function ServerSidebar() {
       isLoading: s.isLoading
     }))
   )
-  const { goToDms, orchestratedGoToChannel } = useAppNavigate()
+  const { goToDms, goToChannel } = useAppNavigate()
   const navigatingToServerId = useNavigationStore((s) => s.navigatingToServerId)
 
   const { dmReadStates, channelReadStates, channelToServer } = useReadStateStore(
@@ -117,7 +117,7 @@ export function ServerSidebar() {
             ) : (
               <ServerRailList servers={servers} isLoading={isLoading} currentServerId={currentServerId} viewMode={viewMode}
                 navigatingToServerId={navigatingToServerId} serverBadges={serverBadges}
-                onServerClick={(server) => void orchestratedGoToChannel(server.id)} />
+                onServerClick={(server) => void goToChannel(server.id)} />
             )}
           </div>
         </SimpleBar>

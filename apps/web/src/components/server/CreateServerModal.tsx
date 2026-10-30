@@ -13,7 +13,7 @@ type CreateServerModalProps = {
 export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
   const { t } = useTranslation('server')
   const createServer = useServerStore((s) => s.createServer)
-  const { orchestratedGoToChannel } = useAppNavigate()
+  const { goToChannel } = useAppNavigate()
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +30,7 @@ export function CreateServerModal({ open, onClose }: CreateServerModalProps) {
     setError(null)
     try {
       const server = await createServer(trimmed)
-      void orchestratedGoToChannel(server.id)
+      void goToChannel(server.id)
       setName('')
       onClose()
     } catch (e) {

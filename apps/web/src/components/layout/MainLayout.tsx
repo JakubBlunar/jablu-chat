@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import { SkipToMainLink } from '@/components/a11y/SkipToMainLink'
 import { ChannelSidebar } from '@/components/channel/ChannelSidebar'
 import { ServerDialogsProvider } from '@/components/server/ServerDialogsProvider'
@@ -26,19 +25,16 @@ import { useActivityReporter } from '@/hooks/useActivityReporter'
 import { usePresenceReporter } from '@/hooks/usePresenceReporter'
 import { useDetectedActivity } from '@/hooks/useDetectedActivity'
 import { useIsMobile, useIsTablet } from '@/hooks/useMobile'
-import { useMessageJumpFromQuery } from '@/hooks/useMessageJumpFromQuery'
 import { useChannelSocketSync } from '@/hooks/useChannelSocketSync'
 import { useCacheBootstrap } from '@/hooks/useCacheBootstrap'
 import { useRouteSync } from '@/hooks/useRouteSync'
 import { useServerResources } from '@/hooks/useServerResources'
-import { useSortedChannels } from '@/hooks/useSortedChannels'
 import { useSocket } from '@/hooks/useSocket'
 import { useChannelStore } from '@/stores/channel.store'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useNavHistoryStore } from '@/stores/navHistory.store'
-import { useNavigationStore } from '@/stores/navigation.store'
 import { useServerStore } from '@/stores/server.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
@@ -140,10 +136,8 @@ function MainLayoutContent() {
   const { t } = useTranslation('a11y')
   const { t: tCommon } = useTranslation('common')
   useRouteSync()
-  useMessageJumpFromQuery()
   useCacheBootstrap(useAuthStore((s) => s.user?.id ?? null))
   useServerResources()
-  const navigate = useNavigate()
 
   const { socket, isConnected } = useSocket()
   useChannelSocketSync(isConnected)
@@ -159,25 +153,20 @@ function MainLayoutContent() {
   useDetectedActivity(socket)
   useAppBadge()
 
-  const { viewMode, fetchServers, servers, serversLoading, currentServerId } = useServerStore(
+  const { viewMode, fetchServers, servers, serversLoading } = useServerStore(
     useShallow((s) => ({
       viewMode: s.viewMode,
       fetchServers: s.fetchServers,
       servers: s.servers,
-      serversLoading: s.isLoading,
-      currentServerId: s.currentServerId
+      serversLoading: s.isLoading
     }))
   )
-  const { channels, currentChannelId, channelLoadedServerId } = useChannelStore(
+  const { channels, currentChannelId } = useChannelStore(
     useShallow((s) => ({
       channels: s.channels,
-      currentChannelId: s.currentChannelId,
-      channelLoadedServerId: s.loadedServerId
+      currentChannelId: s.currentChannelId
     }))
   )
-  const isNavigating = useNavigationStore((s) => s.isNavigating)
-
-  const { textChannels } = useSortedChannels(channels)
   const currentChannelType = channels.find((c) => c.id === currentChannelId)?.type
 
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
@@ -243,57 +232,6 @@ function MainLayoutContent() {
   useEffect(() => {
     void useGifStore.getState().fetch()
   }, [])
-
-  // Auto-redirect: server view with no server → navigate to first server
-  // Also redirect if the server ID in the URL doesn't match any known server
-  useEffect(() => {
-    if (viewMode !== 'server') return
-    if (serversLoading || servers.length === 0) return
-    if (!currentServerId) {
-      // Prefer where the user last was; servers[0] is an arbitrary choice that
-      // happens to be whatever the API returned first.
-      const last = useNavHistoryStore.getState().lastLocation
-      const remembered = last?.kind === 'server' && servers.some((s) => s.id === last.serverId) ? last : null
-      if (remembered) {
-        const path = remembered.channelId
-          ? `/channels/${remembered.serverId}/${remembered.channelId}`
-          : `/channels/${remembered.serverId}`
-        navigate(path, { replace: true })
-        return
-      }
-      navigate(`/channels/${servers[0].id}`, { replace: true })
-      return
-    }
-    const exists = servers.some((s) => s.id === currentServerId)
-    if (!exists) {
-      navigate('/channels/@me', { replace: true })
-    }
-  }, [viewMode, servers, serversLoading, currentServerId, navigate])
-
-  // Auto-redirect: invalid/missing channel → navigate to first text channel
-  useEffect(() => {
-    if (viewMode !== 'server') return
-    if (isNavigating) return
-    if (useChannelStore.getState().isLoading) return
-    if (!currentServerId || channels.length === 0) return
-    if (channelLoadedServerId !== currentServerId) return
-    const valid = currentChannelId != null && channels.some((c) => c.id === currentChannelId)
-    if (valid) return
-    const remembered = useNavHistoryStore.getState().getLastChannel(currentServerId)
-    const target = channels.find((c) => c.id === remembered) ?? textChannels[0]
-    if (target) {
-      navigate(`/channels/${currentServerId}/${target.id}`, { replace: true })
-    }
-  }, [
-    viewMode,
-    currentServerId,
-    channels,
-    currentChannelId,
-    textChannels,
-    navigate,
-    channelLoadedServerId,
-    isNavigating
-  ])
 
   const showMemberSidebar = !isMobile && memberSidebarVisible && !channelInfoDrawerOpen
 

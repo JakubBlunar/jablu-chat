@@ -12,7 +12,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarkStore } from '@/stores/bookmark.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
-import { useThreadStore } from '@/stores/thread.store'
+import { openConversation } from '@/lib/conversationNavigation'
 import { useTranslationStore } from '@/stores/translation.store'
 import { showToast } from '@/stores/toast.store'
 
@@ -179,7 +179,7 @@ export function useMessageActionController({
       complete()
     },
     thread: () => {
-      useThreadStore.getState().openThread(contextId, message)
+      if (serverId) void openConversation({ target: { kind: 'channel', serverId, channelId: contextId }, position: { kind: 'thread', parentId: message.id }, source: 'reply' })
       complete()
     }
   }

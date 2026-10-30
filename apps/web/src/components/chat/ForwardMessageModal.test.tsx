@@ -9,7 +9,7 @@ import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
 import { makeChannel, makeMessage } from '@/test/factories'
 
 const mockNavigate = jest.fn().mockResolvedValue(undefined)
-jest.mock('@/hooks/useAppNavigate', () => ({ useAppNavigate: () => ({ orchestratedGoToChannel: mockNavigate }) }))
+jest.mock('@/hooks/useAppNavigate', () => ({ useAppNavigate: () => ({ goToChannel: mockNavigate }) }))
 jest.mock('@/components/ui/ModalOverlay', () => ({
   ModalOverlay: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))

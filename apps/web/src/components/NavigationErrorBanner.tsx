@@ -1,13 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { useNavigationStore } from '@/stores/navigation.store'
 
 export function NavigationErrorBanner() {
   const error = useNavigationStore((state) => state.error)
   const dismiss = useNavigationStore((state) => state.dismissError)
   const navigating = useNavigationStore((state) => state.isNavigating)
-  const navigate = useNavigate()
-  const location = useLocation()
   const { t } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
   if (!error) return null
@@ -22,10 +19,7 @@ export function NavigationErrorBanner() {
         disabled={navigating}
         className="min-h-11 px-2 underline"
         onClick={() => {
-          void error.retry().then((path) => {
-            if (!useNavigationStore.getState().error)
-              navigate(path ?? `${location.pathname}${location.search}`, { replace: !path })
-          })
+          void error.retry()
         }}
       >
         {tCommon('retry')}

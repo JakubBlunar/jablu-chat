@@ -12,6 +12,7 @@ work.
 | [Desktop releases](./RELEASING.md) | Building, signing, publishing and updating the desktop app |
 | [Notifications](./NOTIFICATIONS.md) | Engagement, preferences, durable records, push, fan-out limits and regression tests |
 | [Direct conversations](./CONVERSATIONS.md) | DM media, search, personal controls and group management |
+| [Message navigation audit](./MESSAGE_NAVIGATION_AUDIT.md) | Shared navigation API, ownership guards, jump entry points and local regression coverage |
 | [Backlog](./BACKLOG.md) | Prioritized scalability and reliability initiatives with acceptance criteria |
 
 The [activity tracking guide](./ACTIVITY_TRACKING.md) covers detection, recovery,

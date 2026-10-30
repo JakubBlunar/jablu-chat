@@ -6,29 +6,14 @@ import { api, ApiError, type SearchResult } from '@/lib/api'
 import { useChannelStore } from '@/stores/channel.store'
 import { useServerStore } from '@/stores/server.store'
 
-const mockNavigate = jest.fn()
-const mockGoToChannel = jest.fn()
-const mockGoToDm = jest.fn()
-const mockNavigation: { error: { key: string } | null; dismissError: () => void } = {
-  error: null,
-  dismissError: () => {
-    mockNavigation.error = null
-  }
-}
+const mockOpen = jest.fn()
+jest.mock('@/lib/conversationNavigation', () => ({ openConversation: (...args: unknown[]) => mockOpen(...args) }))
 
 jest.mock('@/lib/api', () => ({
   api: { searchMessages: jest.fn() },
   ApiError: jest.requireActual('@/lib/api/errors').ApiError,
   resolveMediaUrl: (value: string) => value
 }))
-jest.mock('@/hooks/useAppNavigate', () => ({
-  useAppNavigate: () => ({
-    navigate: mockNavigate,
-    orchestratedGoToDm: mockGoToDm,
-    orchestratedGoToChannel: mockGoToChannel
-  })
-}))
-jest.mock('@/stores/navigation.store', () => ({ useNavigationStore: { getState: () => mockNavigation } }))
 jest.mock('@/components/UserAvatar', () => ({ UserAvatar: () => null }))
 jest.mock('simplebar-react', () => ({
   __esModule: true,
@@ -60,10 +45,7 @@ function Harness({ initial = '' }: { initial?: string }) {
   )
 }
 beforeEach(() => {
-  mockNavigate.mockReset()
-  mockGoToChannel.mockReset().mockResolvedValue(undefined)
-  mockGoToDm.mockReset().mockResolvedValue(undefined)
-  mockNavigation.error = null
+  mockOpen.mockReset().mockResolvedValue({ status: 'opened' })
   mockIsMobile = false
   search.mockReset().mockResolvedValue({ results: [], total: 0 })
   useServerStore.setState({ currentServerId: null })
@@ -249,8 +231,10 @@ it.each(['text', 'forum'] as const)(
     search.mockResolvedValue({ results: [result], total: 1 })
     render(<SearchDrawer query="reply" onQueryChange={jest.fn()} onClose={jest.fn()} defaultScope="all" />)
     fireEvent.click(await screen.findByText('Thread reply'))
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/channels/server/channel?m=reply&thread=parent'))
-    expect(mockGoToChannel).toHaveBeenCalledWith('server', 'channel', type === 'forum' ? undefined : 'parent')
+    await waitFor(() => expect(mockOpen).toHaveBeenCalledWith({
+      target: { kind: 'channel', serverId: 'server', channelId: 'channel' },
+      position: { kind: 'message', messageId: 'reply', threadParentId: 'parent' }, source: 'search'
+    }))
   }
 )
 
@@ -267,15 +251,13 @@ it('keeps a failed result visible and retries the full navigation intent', async
     createdAt: '2026-10-17T10:00:00Z'
   }
   search.mockResolvedValue({ results: [result], total: 1 })
-  mockGoToDm.mockImplementationOnce(async () => {
-    mockNavigation.error = { key: 'historyLoadFailed' }
-  })
+  mockOpen.mockResolvedValueOnce({ status: 'error', key: 'historyLoadFailed' })
   render(<Harness initial="recoverable" />)
   fireEvent.click(await screen.findByText('Recoverable result'))
   expect(await screen.findByRole('alert')).toHaveTextContent('historyLoadFailed')
-  expect(mockNavigate).not.toHaveBeenCalled()
+  expect(mockOpen).toHaveBeenCalledTimes(1)
   fireEvent.click(screen.getByRole('button', { name: 'retry' }))
-  await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/channels/@me/conv?m=message'))
-  expect(mockGoToDm).toHaveBeenCalledTimes(2)
+  await waitFor(() => expect(mockOpen).toHaveBeenCalledTimes(2))
+  expect(mockOpen).toHaveBeenLastCalledWith({ target: { kind: 'dm', conversationId: 'conv' }, position: { kind: 'message', messageId: 'message', threadParentId: undefined }, source: 'search' })
   log.mockRestore()
 })

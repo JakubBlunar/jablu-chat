@@ -10,6 +10,7 @@ import { CreatePostModal } from './CreatePostModal'
 import { ForumPostPanel } from './ForumPostPanel'
 import { useServerDisplayName } from '@/lib/serverProfile'
 import { useServerStore } from '@/stores/server.store'
+import { openConversation } from '@/lib/conversationNavigation'
 
 function ForumPostCard({ post, layout, onClick }: { post: ForumPost; layout: 'list' | 'grid'; onClick: () => void }) {
   const { t, i18n } = useTranslation('forum')
@@ -135,7 +136,10 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
   const toggleTag = useForumStore((s) => s.toggleTag)
   const clearTagFilters = useForumStore((s) => s.clearTagFilters)
   const setSearchQuery = useForumStore((s) => s.setSearchQuery)
-  const openPost = useForumStore((s) => s.openPost)
+  const handleOpenPost = (postId: string) => {
+    const serverId = channel?.serverId
+    if (serverId) void openConversation({ target: { kind: 'channel', serverId, channelId }, position: { kind: 'message', messageId: postId }, source: 'link' })
+  }
   const fetchMore = useForumStore((s) => s.fetchMore)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -376,13 +380,13 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
             ) : layout === 'grid' ? (
               <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
                 {filteredPosts.map((post) => (
-                  <ForumPostCard key={post.id} post={post} layout="grid" onClick={() => openPost(post.id)} />
+                  <ForumPostCard key={post.id} post={post} layout="grid" onClick={() => handleOpenPost(post.id)} />
                 ))}
               </div>
             ) : (
               <div className="mt-4 space-y-2">
                 {filteredPosts.map((post) => (
-                  <ForumPostCard key={post.id} post={post} layout="list" onClick={() => openPost(post.id)} />
+                  <ForumPostCard key={post.id} post={post} layout="list" onClick={() => handleOpenPost(post.id)} />
                 ))}
               </div>
             )}

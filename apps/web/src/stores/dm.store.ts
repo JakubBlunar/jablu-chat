@@ -23,14 +23,15 @@ type DmState = {
   scrollRequestNonce: number
   fetchConversations: () => Promise<void>
   setCurrentConversation: (id: string | null) => void
-  fetchMessages: (conversationId: string, cursor?: string) => Promise<void>
-  fetchMessagesAround: (conversationId: string, messageId: string) => Promise<void>
+  fetchMessages: (conversationId: string, cursor?: string, signal?: AbortSignal) => Promise<void>
+  fetchMessagesAround: (conversationId: string, messageId: string, signal?: AbortSignal) => Promise<void>
   fetchNewerMessages: (conversationId: string) => Promise<void>
   setScrollToMessageId: (id: string | null) => void
   addMessage: (message: Message) => void
   updateMessage: (message: Message) => void
   removeMessage: (messageId: string) => void
   clearMessages: () => void
+  cancelPendingFetch: () => void
   stashCurrent: () => void
   hydrateFromCache: (conversationId: string) => boolean
   revalidate: (conversationId: string) => Promise<void>
@@ -70,11 +71,11 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
 
-  fetchMessages: async (conversationId, cursor) => {
+  fetchMessages: async (conversationId, cursor, signal) => {
     const fetchId = ++_dmFetchId
     set({ isLoading: true, messagesError: null })
     try {
-      const page = await api.getDmMessages(conversationId, cursor, 50)
+      const page = await api.getDmMessages(conversationId, cursor, 50, ...signal ? [signal] as [AbortSignal] : [])
       if (_dmFetchId !== fetchId) return
       const chronological = toChronological(page.messages)
 
@@ -110,11 +111,11 @@ export const useDmStore = create<DmState>((set, _get) => ({
     }
   },
 
-  fetchMessagesAround: async (conversationId, messageId) => {
+  fetchMessagesAround: async (conversationId, messageId, signal) => {
     const fetchId = ++_dmFetchId
     set({ isLoading: true, messagesError: null })
     try {
-      const page = await api.getDmMessagesAround(conversationId, messageId, 100)
+      const page = await api.getDmMessagesAround(conversationId, messageId, 100, ...signal ? [signal] as [AbortSignal] : [])
       if (_dmFetchId !== fetchId) return
       requireMessageTarget(page.messages, messageId)
       const chronological = toChronological(page.messages)
@@ -186,9 +187,14 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   removeMessage: (messageId) => set((s) => messageListPatch(s, removeMessageFromList(s.messages, messageId))),
 
+  cancelPendingFetch: () => {
+    ++_dmFetchId
+    set({ isLoading: false })
+  },
+
   clearMessages: () => {
     ++_dmFetchId
-    set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null, messagesError: null, isLoading: false })
+    set({ messages: [], hasMore: false, hasNewer: false, loadedForConvId: null, messagesError: null, isLoading: false, scrollToMessageId: null })
   },
 
   stashCurrent: () => {
@@ -215,7 +221,8 @@ export const useDmStore = create<DmState>((set, _get) => ({
       hasNewer: entry.hasNewer,
       isLoading: false,
       messagesError: null,
-      loadedForConvId: conversationId
+      loadedForConvId: conversationId,
+      scrollToMessageId: null
     })
     return true
   },

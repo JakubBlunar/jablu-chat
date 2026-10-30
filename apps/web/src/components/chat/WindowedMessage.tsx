@@ -4,7 +4,9 @@ import { flushSync } from 'react-dom'
 /** Stable scroll targets survive while expensive offscreen message trees are parked. */
 export function revealMessageElement(id: string): HTMLElement | null {
   const element = document.getElementById(id)
-  element?.dispatchEvent(new Event('message:reveal'))
+  // Mounted targets already have measurable content. Dispatching their reveal
+  // from a scroll effect needlessly invokes flushSync inside React's lifecycle.
+  if (element?.dataset.messageMounted === 'false') element.dispatchEvent(new Event('message:reveal'))
   return element
 }
 

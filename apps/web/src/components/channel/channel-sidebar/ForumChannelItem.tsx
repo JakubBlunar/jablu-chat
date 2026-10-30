@@ -17,7 +17,7 @@ export const ForumChannelItem = memo(function ForumChannelItem({
   onEditChannel,
   onOpenPinned,
   currentServer,
-  orchestratedGoToChannel,
+  goToChannel,
   compact = false,
   onSelect
 }: {
@@ -29,7 +29,7 @@ export const ForumChannelItem = memo(function ForumChannelItem({
   onEditChannel?: (ch: Channel) => void
   onOpenPinned?: (ch: Channel) => void
   currentServer: { id: string } | null
-  orchestratedGoToChannel: (serverId: string, channelId: string) => Promise<unknown>
+  goToChannel: (serverId: string, channelId: string) => Promise<unknown>
   compact?: boolean
   onSelect?: () => void
 }) {
@@ -47,7 +47,7 @@ export const ForumChannelItem = memo(function ForumChannelItem({
         <button
           type="button"
           onClick={() => {
-            if (currentServer) void orchestratedGoToChannel(currentServer.id, ch.id)
+            if (currentServer) void goToChannel(currentServer.id, ch.id)
             useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
             onSelect?.()
           }}

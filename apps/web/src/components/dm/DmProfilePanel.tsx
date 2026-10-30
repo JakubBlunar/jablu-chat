@@ -60,7 +60,7 @@ export function DmProfilePanel({
       ? member.status
       : 'online'
     : 'offline'
-  const { orchestratedGoToChannel } = useAppNavigate()
+  const { goToChannel } = useAppNavigate()
 
   return (
     <div className="flex w-full shrink-0 flex-col border-l border-white/5 bg-surface-dark md:w-[280px]">
@@ -111,7 +111,7 @@ export function DmProfilePanel({
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => void orchestratedGoToChannel(s.id)}
+                    onClick={() => void goToChannel(s.id)}
                     className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left transition hover:bg-white/5"
                   >
                     <DmServerIcon name={s.name} iconUrl={s.iconUrl} />

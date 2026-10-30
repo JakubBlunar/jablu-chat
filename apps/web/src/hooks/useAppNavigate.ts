@@ -1,72 +1,42 @@
 import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useNavHistoryStore } from '@/stores/navHistory.store'
-import { useNavigationStore } from '@/stores/navigation.store'
+import { openConversation, parseConversationPath } from '@/lib/conversationNavigation'
 
+/** Thin UI conveniences; all conversation requests use the same coordinator. */
 export function useAppNavigate() {
-  const navigate = useNavigate()
-
-  const goToServer = useCallback((serverId: string) => navigate(`/channels/${serverId}`), [navigate])
-
-  const goToChannel = useCallback(
-    (serverId: string, channelId: string) => navigate(`/channels/${serverId}/${channelId}`),
-    [navigate]
+  const routerNavigate = useNavigate()
+  const navigate = useCallback(
+    (path: string) => {
+      const request = parseConversationPath(path)
+      if (request) void openConversation(request)
+      else routerNavigate(path)
+    },
+    [routerNavigate]
   )
-
-  /**
-   * The DM rail button. Reopens whichever DM screen the user last had open,
-   * which may legitimately be the friends list.
-   */
+  const goToChannel = useCallback(
+    (serverId: string, channelId?: string | null, messageId?: string | null) =>
+      openConversation({
+        target: channelId ? { kind: 'channel', serverId, channelId } : { kind: 'server', serverId },
+        position: messageId ? { kind: 'message', messageId } : { kind: 'unread' },
+        source: 'sidebar'
+      }),
+    []
+  )
+  const goToServer = useCallback((serverId: string) => goToChannel(serverId), [goToChannel])
+  const goToDm = useCallback(
+    (conversationId: string, messageId?: string | null) =>
+      openConversation({
+        target: { kind: 'dm', conversationId },
+        position: messageId ? { kind: 'message', messageId } : { kind: 'unread' },
+        source: 'sidebar'
+      }),
+    []
+  )
   const goToDms = useCallback(() => {
     const last = useNavHistoryStore.getState().lastDmScreen
-    navigate(last ? `/channels/@me/${last}` : '/channels/@me')
-  }, [navigate])
-
-  /** The friends list specifically, ignoring history. */
-  const goToFriends = useCallback(() => {
-    useNavHistoryStore.getState().recordDmScreen(null)
-    navigate('/channels/@me')
-  }, [navigate])
-
-  const goToDm = useCallback(
-    (conversationId: string) => {
-      useNavHistoryStore.getState().recordDmScreen(conversationId)
-      navigate(`/channels/@me/${conversationId}`)
-    },
-    [navigate]
-  )
-
-  const orchestratedGoToChannel = useCallback(
-    async (serverId: string, channelId?: string | null, scrollToMessageId?: string | null) => {
-      const path = await useNavigationStore.getState().navigateToChannel({
-        serverId,
-        channelId,
-        scrollToMessageId
-      })
-      if (path) navigate(path)
-    },
-    [navigate]
-  )
-
-  const orchestratedGoToDm = useCallback(
-    async (conversationId: string, scrollToMessageId?: string | null) => {
-      const path = await useNavigationStore.getState().navigateToDm({
-        conversationId,
-        scrollToMessageId
-      })
-      if (path) navigate(path)
-    },
-    [navigate]
-  )
-
-  return {
-    navigate,
-    goToServer,
-    goToChannel,
-    goToDms,
-    goToFriends,
-    goToDm,
-    orchestratedGoToChannel,
-    orchestratedGoToDm
-  } as const
+    return openConversation({ target: last ? { kind: 'dm', conversationId: last } : { kind: 'home' } })
+  }, [])
+  const goToFriends = useCallback(() => openConversation({ target: { kind: 'home' } }), [])
+  return { navigate, goToServer, goToChannel, goToDms, goToFriends, goToDm } as const
 }
