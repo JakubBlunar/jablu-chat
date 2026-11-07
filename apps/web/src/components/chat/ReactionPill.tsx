@@ -20,9 +20,10 @@ type Props = {
   contextId: string
   customEmojiMap?: Map<string, CustomEmoji>
   onShowReactors: (initialEmoji: string) => void
+  onToggle?: () => void
 }
 
-export function ReactionPill({ reaction, messageId, mode, contextId, customEmojiMap, onShowReactors }: Props) {
+export function ReactionPill({ reaction, messageId, mode, contextId, customEmojiMap, onShowReactors, onToggle }: Props) {
   const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
   const isMobile = useIsMobile()
@@ -163,13 +164,14 @@ export function ReactionPill({ reaction, messageId, mode, contextId, customEmoji
       longPressFired.current = false
       return
     }
+    if (onToggle) { onToggle(); return }
     toggleMessageReaction({
       mode,
       messageId,
       emoji: reaction.emoji,
       isCustom: reaction.isCustom
     })
-  }, [mode, messageId, reaction.emoji, reaction.isCustom])
+  }, [mode, messageId, reaction.emoji, reaction.isCustom, onToggle])
 
   const handleOthersClick = useCallback(
     (e: React.MouseEvent) => {

@@ -2,7 +2,8 @@ import { useNotificationCenterStore } from './notificationCenter.store'
 import { api } from '@/lib/api'
 
 jest.mock('@/lib/api', () => ({ api: {
-  getInAppNotificationUnreadCount: jest.fn(), getInAppNotifications: jest.fn()
+  getInAppNotificationUnreadCount: jest.fn(), getInAppNotifications: jest.fn(),
+  markInAppNotificationRead: jest.fn(), markAllInAppNotificationsRead: jest.fn()
 } }))
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -10,6 +11,18 @@ const deferred = <T,>() => {
   return { promise, resolve }
 }
 beforeEach(() => { useNotificationCenterStore.getState().reset(); jest.clearAllMocks() })
+
+it('refreshes per-server notice counts on bumps, read and read-all across reloads', async () => {
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 2, serverCounts: { server: 2 } })
+  await useNotificationCenterStore.getState().fetchUnread()
+  expect(useNotificationCenterStore.getState().serverCounts).toEqual({ server: 2 })
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 1, serverCounts: { server: 1 } })
+  await useNotificationCenterStore.getState().markRead('notice')
+  expect(useNotificationCenterStore.getState().serverCounts).toEqual({ server: 1 })
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 0, serverCounts: {} })
+  await useNotificationCenterStore.getState().markAllRead()
+  expect(useNotificationCenterStore.getState().serverCounts).toEqual({})
+})
 
 it('turns 100 notification bumps into one active and one trailing badge request', async () => {
   const first = deferred<{ count: number }>()

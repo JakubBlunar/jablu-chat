@@ -3,6 +3,7 @@ import type { MicMode, PttBinding, VadMode } from '@/lib/micMode'
 import type { NoiseReductionMode } from '@/lib/voiceProcessingSettings'
 import { applyAccentPreset, type AccentPreset } from '@/lib/accent'
 import type { AppLocale } from '@/i18n/locales'
+import type { ThemePreference } from '@/hooks/useTheme'
 import { detectAppLocale, isAppLocale } from '@/i18n/locales'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
@@ -51,6 +52,7 @@ const VALID_SS_RES: ScreenShareResolution[] = ['720p', '1080p', 'native']
 const VALID_SS_FPS: ScreenShareFps[] = [5, 15, 20, 30]
 
 export type SettingsSlice = {
+  theme: ThemePreference
   accent: AccentPreset
   memberSidebarVisible: boolean
   compactPreviews: boolean
@@ -84,6 +86,7 @@ export type SettingsSlice = {
 }
 
 type SettingsActions = {
+  setTheme: (theme: ThemePreference) => void
   setAccent: (preset: AccentPreset) => void
   setMemberSidebarVisible: (v: boolean) => void
   setCompactPreviews: (v: boolean) => void
@@ -122,6 +125,7 @@ type SettingsActions = {
 export type SettingsState = SettingsSlice & SettingsActions
 
 const defaults: SettingsSlice = {
+  theme: 'dark',
   accent: 'amber',
   memberSidebarVisible: defaultMemberSidebarVisible(),
   compactPreviews: false,
@@ -158,6 +162,7 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
   if (!p || typeof p !== 'object') return {}
   const o = p as Record<string, unknown>
   const out: Partial<SettingsSlice> = {}
+  if (o.theme === 'light' || o.theme === 'dark' || o.theme === 'system') out.theme = o.theme
 
   if (typeof o.accent === 'string' && VALID_ACCENTS.includes(o.accent as AccentPreset))
     out.accent = o.accent as AccentPreset
@@ -223,6 +228,9 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       ...defaults,
+      setTheme: (theme) => {
+        if (theme === 'light' || theme === 'dark' || theme === 'system') set({ theme })
+      },
 
       setAccent: (preset) => {
         applyAccentPreset(preset)
@@ -309,6 +317,7 @@ export const useSettingsStore = create<SettingsState>()(
         ...coercePersisted(persisted)
       }),
       partialize: (s) => ({
+        theme: s.theme,
         accent: s.accent,
         memberSidebarVisible: s.memberSidebarVisible,
         compactPreviews: s.compactPreviews,

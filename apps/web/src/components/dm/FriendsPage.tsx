@@ -91,7 +91,7 @@ export function FriendsPage() {
             >
               {tFriends('tabs.pending')}
               {pending.length > 0 && (
-                <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-on-solid">
                   {pending.length}
                 </span>
               )}
@@ -103,7 +103,7 @@ export function FriendsPage() {
           type="button"
           onClick={() => setAddFriendOpen(!addFriendOpen)}
           className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-            addFriendOpen ? 'bg-transparent text-gray-300' : 'bg-green-600 text-white hover:bg-green-700'
+            addFriendOpen ? 'bg-transparent text-gray-300' : 'bg-green-600 text-on-solid hover:bg-green-700'
           }`}
         >
           {tFriends('addFriend')}

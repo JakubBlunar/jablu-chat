@@ -32,6 +32,15 @@ const props = {
   onServerClick: jest.fn()
 }
 
+it('keeps an active server highlighted for unread events until the notification is read', () => {
+  const { rerender } = render(<ServerRailList {...props} currentServerId={a}
+    serverBadges={new Map([[a, { unread: true, mentions: 3, notifications: 1 }]])} />)
+  expect(screen.getByRole('button', { name: 'Alpha' }).closest('[data-server-unread]')).toBeTruthy()
+  expect(screen.getByText('1')).toBeInTheDocument()
+  rerender(<ServerRailList {...props} currentServerId={a} serverBadges={new Map([[a, { unread: true, mentions: 3 }]])} />)
+  expect(screen.getByRole('button', { name: 'Alpha' }).closest('[data-server-unread]')).toBeNull()
+})
+
 beforeEach(() => {
   jest.clearAllMocks()
   useServerLayoutStore.getState().reset()

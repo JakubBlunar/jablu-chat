@@ -304,5 +304,15 @@
   "forwardedFrom": "Přeposláno od",
   "forwardedIn": "v",
   "forwardedDirectMessage": "soukromé zprávě",
-  "forwardedAttachment": "[příloha]"
+  "forwardedAttachment": "[příloha]",
+  "jinx": {
+    "and": "a",
+    "say": "říkají:",
+    "reactTogether": "Reagovat na všechny",
+    "showOriginals": "Zobrazit původní zprávy ({{count}})",
+    "hideOriginals": "Skrýt původní zprávy",
+    "loadingReactions": "Načítají se společné reakce…",
+    "morePeople": "a další ({{count}})",
+    "fewerPeople": "Zobrazit méně"
+  }
 }

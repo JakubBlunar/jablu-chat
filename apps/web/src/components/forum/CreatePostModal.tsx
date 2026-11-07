@@ -221,7 +221,7 @@ export function CreatePostModal({
                 <button
                   type="button"
                   onClick={() => removeFile(i)}
-                  className="absolute -right-1 -top-1 rounded-full bg-red-600 p-1 text-white"
+                  className="absolute -right-1 -top-1 rounded-full bg-red-600 p-1 text-on-solid"
                   aria-label={t('create.removeAttachment')}
                 >
                   <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>

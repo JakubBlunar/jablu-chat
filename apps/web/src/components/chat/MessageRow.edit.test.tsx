@@ -236,7 +236,9 @@ describe('reply preview navigation', () => {
     const preview = screen.getByRole('button', { name: 'jumpToMessage' })
     expect(preview.parentElement).toHaveTextContent('@Original author')
     expect(preview.parentElement?.querySelector('img')).toHaveAttribute('src', '/original.png')
-    expect(screen.getByText('@Original author')).toHaveStyle({ color: '#12ab34' })
+    expect(screen.getByText('@Original author')).toHaveStyle({
+      color: 'color-mix(in srgb, #12ab34 var(--role-color-share, 100%), #101828)'
+    })
     expect(preview.compareDocumentPosition(screen.getByRole('button', { name: 'testuser' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )

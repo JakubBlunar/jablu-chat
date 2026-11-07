@@ -15,6 +15,7 @@ import type { MessageActivity } from '@chat/shared'
 import { useInboxStore } from '@/stores/inbox.store'
 import { useThreadStore } from '@/stores/thread.store'
 import { useForumStore } from '@/stores/forum.store'
+import { useForumReplyStore } from '@/stores/forumReply.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -24,6 +25,7 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { showNotification } from '@/lib/notifications'
 import { isAppFocused } from '@/lib/appVisibility'
+import { playJinxForNewMessage } from '@/lib/jinxSound'
 import { notifBody } from './helpers'
 import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewPayload } from './types'
 
@@ -75,9 +77,17 @@ function notifyThreadReply(
 export function createChannelHandlers() {
   const onMessageNew = (msg: Message & { background?: boolean; mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
     if (msg.threadParentId) {
-      if (!msg.background) useThreadStore.getState().addMessage(msg)
+      if (!msg.background) {
+        const before = useThreadStore.getState().messages
+        useThreadStore.getState().addMessage(msg)
+        if (useThreadStore.getState().isOpen && useThreadStore.getState().parentMessage?.id === msg.threadParentId) {
+          playJinxForNewMessage(before, useThreadStore.getState().messages, msg)
+        }
+      }
       if (!msg.background && useForumStore.getState().currentPostId === msg.threadParentId) {
+        const before = useForumReplyStore.getState().messages
         window.dispatchEvent(new CustomEvent('forum-reply', { detail: msg }))
+        playJinxForNewMessage(before, useForumReplyStore.getState().messages, msg)
       }
       notifyThreadReply(msg)
       return
@@ -87,7 +97,11 @@ export function createChannelHandlers() {
     const myId = useAuthStore.getState().user?.id
     const isViewingChannel = viewMode === 'server' && msg.channelId != null && msg.channelId === channelId
     if (isViewingChannel && !msg.background) {
+      const before = useMessageStore.getState().messages
       useMessageStore.getState().addMessage(msg)
+      if (useNotifPrefStore.getState().getEffective(msg.channelId!, msg.serverId) !== 'none') {
+        playJinxForNewMessage(before, useMessageStore.getState().messages, msg)
+      }
     }
 
     if (msg.channelId && !isViewingChannel && !msg.background) {

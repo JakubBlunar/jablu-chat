@@ -47,7 +47,7 @@ export function useChannelAck(
   }, [mode, contextId])
 
   useEffect(() => {
-    if (!contextId || !ready || !atBottom || inboxPaused) return
+    if (!contextId || !ready || inboxPaused) return
     let timer: ReturnType<typeof setTimeout> | undefined
     const canRead = () => {
       const el = scrollParentRef.current
@@ -73,10 +73,22 @@ export function useChannelAck(
       }, 250)
     }
     schedule()
+    // Geometry can settle after the "atBottom" flag changes (smooth scrolling,
+    // image loading, viewport changes). Retry from the actual surface instead
+    // of waiting for another React state transition that may never happen.
+    const element = scrollParentRef.current
+    element?.addEventListener('scroll', schedule, { passive: true })
+    const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    if (element) {
+      resize?.observe(element)
+      if (element.firstElementChild) resize?.observe(element.firstElementChild)
+    }
     const unsubscribe = subscribeAppVisibility(schedule)
     return () => {
       clearTimeout(timer)
       unsubscribe()
+      element?.removeEventListener('scroll', schedule)
+      resize?.disconnect()
     }
   }, [mode, contextId, readState, ready, atBottom, scrollParentRef, inboxPaused, callChatVisible])
 }

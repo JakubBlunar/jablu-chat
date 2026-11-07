@@ -44,6 +44,7 @@ import {
   WsPollVoteDto,
   WsPresenceStateDto,
   WsReactionToggleDto,
+  WsReactionSetManyDto,
   WsActivityUpdateDto,
   WsActivityClearDto,
   WsSendMessageDto,
@@ -1140,6 +1141,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       }
     }
     return { ok: true }
+  }
+
+  @WsThrottle(10, 10)
+  @SubscribeMessage('reaction:setMany')
+  async onReactionSetMany(@ConnectedSocket() client: Socket, @MessageBody() body: WsReactionSetManyDto) {
+    const user = (client.data as { user: WsUser }).user
+    const first = await this.prisma.message.findUnique({ where: { id: body.messageIds[0] }, select: { channelId: true } })
+    if (first?.channelId) {
+      const archive = await this.assertNotArchived(first.channelId)
+      if (archive.archived) return { ok: false, error: 'This channel is archived' }
+      const send = await this.assertCanSendInChannel(first.channelId, user.id)
+      if (send.denied) return { ok: false, error: 'You do not have permission to interact in this channel' }
+    }
+    const result = await this.messages.setManyReactions(body.messageIds, user.id, body.emoji, body.isCustom ?? false, body.present)
+    const event = result.action === 'added' ? 'reaction:add' : 'reaction:remove'
+    for (const messageId of result.changedIds) {
+      const payload = { messageId, emoji: body.emoji, userId: user.id, isCustom: body.isCustom ?? false }
+      if (result.channelId) this.emitToChannel(result.channelId, event, payload)
+      else if (result.directConversationId) this.emitToDm(result.directConversationId, event, {
+        ...payload, conversationId: result.directConversationId
+      })
+    }
+    return { ok: true, action: result.action }
   }
 
   @WsThrottle(10, 10)

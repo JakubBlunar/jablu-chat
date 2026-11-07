@@ -82,7 +82,7 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
       )}
       <div className="rounded-md bg-surface-dark p-4">
         <h3 className="mb-3 text-sm font-semibold text-white">{t('webhooks.createTitle')}</h3>
-        <div className="flex items-end gap-3">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
             <Input
               id="webhook-name"
@@ -93,7 +93,7 @@ export function WebhooksTab({ server: _server }: { server: Server }) {
               placeholder={t('webhooks.namePlaceholder')}
             />
           </div>
-          <div className="w-40">
+          <div className="w-full sm:w-40">
             <Select
               label={t('webhooks.channelLabel')}
               value={channelId}

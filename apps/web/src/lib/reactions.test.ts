@@ -1,4 +1,4 @@
-import { toggleMessageReaction, toggleMessageReactionAndRemember } from './reactions'
+import { toggleMessageReaction, toggleMessageReactionAndRemember, toggleGroupedReaction } from './reactions'
 import { addRecentReaction } from '@/stores/reactions.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMessageStore } from '@/stores/message.store'
@@ -70,6 +70,52 @@ beforeEach(() => {
   useMessageStore.setState({ messages: [makeMessage()] } as never)
   useThreadStore.setState({ messages: [] } as never)
   useForumReplyStore.setState({ messages: [] } as never)
+})
+
+describe('toggleGroupedReaction', () => {
+  const start = () => {
+    const result = toggleGroupedReaction({ mode: 'channel', messages: useMessageStore.getState().messages, emoji: '🔥' })
+    operations.push(result)
+    return result
+  }
+  it('adds to all originals in one operation and remembers the emoji once', async () => {
+    useMessageStore.setState({ messages: [makeMessage(), makeMessage({ id: 'm2' })] })
+    const result = start()
+    expect(mockEmit).toHaveBeenCalledTimes(1)
+    expect(lastEmit?.event).toBe('reaction:setMany')
+    expect(lastEmit?.payload).toEqual({ messageIds: ['m1', 'm2'], emoji: '🔥', isCustom: false, present: true })
+    expect(useMessageStore.getState().messages.every((m) => m.reactions?.[0]?.userIds.includes('self'))).toBe(true)
+    lastEmit?.ack?.({ ok: true, action: 'added' })
+    expect(await result).toBe(true)
+    expect(addRecentReaction).toHaveBeenCalledTimes(1)
+  })
+  it('removes a partial own reaction consistently, and restores each original on rejection', async () => {
+    useMessageStore.setState({ messages: [makeMessage({ reactions: [{ emoji: '🔥', count: 1, userIds: ['self'], isCustom: false }] }), makeMessage({ id: 'm2' })] })
+    const result = start()
+    expect(lastEmit?.payload).toMatchObject({ present: false })
+    expect(useMessageStore.getState().messages.every((m) => m.reactions?.length === 0)).toBe(true)
+    lastEmit?.ack?.({ ok: false, error: 'Denied' })
+    expect(await result).toBe(false)
+    expect(useMessageStore.getState().messages.map((m) => m.reactions?.length)).toEqual([1, 0])
+  })
+  it('blocks repeated clicks and individual toggles during a group request', async () => {
+    const result = start()
+    expect(await start()).toBe(false)
+    expect(await toggle({ mode: 'channel', messageId: 'm1', emoji: '🔥' })).toBe(false)
+    expect(mockEmit).toHaveBeenCalledTimes(1)
+    lastEmit?.ack?.({ ok: true, action: 'added' })
+    await result
+  })
+  it('keeps confirmed broadcasts if the group ack is lost', async () => {
+    let reject!: (error: Error) => void
+    mockEmit.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+    const result = start()
+    listeners.get('reaction:add')?.({ messageId: 'm1', emoji: '🔥', userId: 'self' })
+    reject(new Error('timeout'))
+    await result
+    expect(useMessageStore.getState().messages[0].reactions).toHaveLength(1)
+    expect(listeners.size).toBe(0)
+  })
 })
 
 describe('toggleMessageReaction', () => {

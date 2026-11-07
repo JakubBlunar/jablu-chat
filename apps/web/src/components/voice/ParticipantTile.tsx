@@ -165,7 +165,7 @@ export function ParticipantTile({
           compact ? 'bottom-1 left-1 px-1.5 py-0.5' : 'bottom-2 left-2 px-2 py-1'
         }`}
       >
-        <span className={`font-medium text-white ${compact ? 'max-w-[80px] truncate text-[10px]' : 'text-xs'}`}>
+        <span className={`font-medium text-on-solid ${compact ? 'max-w-[80px] truncate text-[10px]' : 'text-xs'}`}>
           {displayName}
         </span>
         {isMicMuted && <MutedIcon />}

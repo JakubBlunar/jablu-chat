@@ -170,7 +170,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   const style = cachedStyle
 
   return (
-    <div className="group/code relative my-1 overflow-hidden rounded-md bg-[#282c34] text-sm">
+    <div className="media-dark group/code relative my-1 overflow-hidden rounded-md bg-[#282c34] text-sm">
       <div className="flex items-center justify-between border-b border-white/10 px-3 py-1">
         <span className="text-xs text-gray-400">{language || 'code'}</span>
         <button type="button" onClick={handleCopy} className="text-xs text-gray-400 transition hover:text-white">

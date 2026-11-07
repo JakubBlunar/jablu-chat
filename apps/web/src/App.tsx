@@ -14,6 +14,7 @@ import { startAppVisibilityTracking } from './lib/appVisibility'
 import { setNotificationNavigator } from './lib/notificationNavigation'
 import { Spinner } from '@/components/ui'
 import { LocaleSync } from '@/i18n/LocaleSync'
+import { ThemeSync } from '@/components/layout/ThemeSync'
 import { LoginPage } from './pages/LoginPage'
 import { useAuthStore } from './stores/auth.store'
 import { ensureNamespacesLoaded, I18N_NAMESPACES } from '@/i18n/loadBundles'
@@ -141,6 +142,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Router>
+        <ThemeSync />
         <DesktopChrome>
           <LocaleSync>
             <AuthBootstrap />

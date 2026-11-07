@@ -154,7 +154,7 @@
     "threshold": "Threshold:",
     "auto": "Auto",
     "manual": "Manual",
-    "autoCalibrateHint": "Automatically calibrates from ambient noise when you join or unmute.",
+    "autoCalibrateHint": "Continuously adapts to background noise and keeps the microphone open through short pauses in speech.",
     "sensitivity": "Sensitivity: {{value}}",
     "sensitive": "Sensitive",
     "lessSensitive": "Less sensitive",

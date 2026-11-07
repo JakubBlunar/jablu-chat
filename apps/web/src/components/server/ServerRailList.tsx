@@ -49,6 +49,7 @@ function RailItem({
   menuItems?: ContextMenuItem[]
 }) {
   const drag = useDraggable({ id, disabled })
+  const count = (badge?.mentions ?? 0) + (badge?.notifications ?? 0)
   const drop = useDroppable({ id, disabled })
   const button = (
     <button
@@ -60,8 +61,8 @@ function RailItem({
       aria-expanded={expanded}
       title={title}
       onClick={onClick}
-      className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold text-white transition-colors ${
-        active ? 'rounded-2xl bg-primary' : 'rounded-[24px] bg-surface hover:rounded-2xl hover:bg-primary'
+      className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden text-sm font-semibold transition-colors ${
+        active ? 'rounded-2xl bg-primary text-primary-text' : 'rounded-[24px] bg-surface text-gray-100 hover:rounded-2xl hover:bg-primary hover:text-primary-text'
       } ${drop.isOver ? 'ring-2 ring-primary' : ''}`}
     >
       {children}
@@ -74,6 +75,7 @@ function RailItem({
         drop.setNodeRef(node)
       }}
       className={`group/pill relative flex w-full justify-center ${drag.isDragging ? 'opacity-30' : ''}`}
+      data-server-unread={badge?.unread ? 'true' : undefined}
     >
       <span
         aria-hidden
@@ -89,9 +91,9 @@ function RailItem({
         ) : (
           button
         )}
-        {badge && badge.mentions > 0 ? (
-          <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-0.5 text-[10px] font-bold text-white">
-            {badge.mentions > 10 ? '10+' : badge.mentions}
+        {count > 0 ? (
+          <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-0.5 text-[10px] font-bold text-on-solid">
+            {count > 10 ? '10+' : count}
           </span>
         ) : badge?.unread ? (
           <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface-darkest bg-red-500" />
@@ -186,6 +188,12 @@ export function ServerRailList({
   }
   const byId = new Map(servers.map((s) => [s.id, s]))
   const activeServerId = viewMode === 'server' ? currentServerId : null
+  const badgeForServer = (id: string) => {
+    const badge = serverBadges.get(id)
+    if (id !== activeServerId) return badge
+    // Opening a channel does not read server events or other server notices.
+    return badge?.notifications ? { unread: true, mentions: 0, notifications: badge.notifications } : undefined
+  }
   const renderServer = (serverId: string) => {
     const server = byId.get(serverId)
     if (!server) return null
@@ -227,7 +235,7 @@ export function ServerRailList({
           { id: 'organize', label: t('organizeServers'), disabled: !editable, onSelect: () => setOrganizeOpen(true) }
         ]}
         active={activeServerId === serverId}
-        badge={activeServerId === serverId ? undefined : serverBadges.get(serverId)}
+        badge={badgeForServer(serverId)}
         onClick={() => onServerClick(server)}
       >
         {server.iconUrl ? (
@@ -256,8 +264,9 @@ export function ServerRailList({
           if (entry.type === 'server') return renderServer(entry.serverId)
           const badge = entry.serverIds.reduce<ServerBadge>(
             (sum, id) => {
-              const item = id === activeServerId ? undefined : serverBadges.get(id)
-              return { unread: sum.unread || !!item?.unread, mentions: sum.mentions + (item?.mentions ?? 0) }
+              const item = badgeForServer(id)
+              return { unread: sum.unread || !!item?.unread, mentions: sum.mentions + (item?.mentions ?? 0),
+                notifications: (sum.notifications ?? 0) + (item?.notifications ?? 0) }
             },
             { unread: false, mentions: 0 }
           )

@@ -37,7 +37,7 @@ export const UserAvatar = memo(function UserAvatar({
         <img src={resolveMediaUrl(avatarUrl)} alt="" className="h-full w-full rounded-full object-cover" />
       ) : (
         <div
-          className="flex h-full w-full items-center justify-center rounded-full font-semibold text-white"
+          className="flex h-full w-full items-center justify-center rounded-full font-semibold text-on-solid"
           style={{ backgroundColor: `hsl(${hue} 45% 42%)` }}
         >
           {letter}

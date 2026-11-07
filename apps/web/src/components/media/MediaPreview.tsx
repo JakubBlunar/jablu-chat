@@ -96,7 +96,7 @@ export function MediaPreview({
         <button
           type="button"
           aria-label={t('expand')}
-          className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded bg-black/60 text-xl text-white"
+          className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded bg-black/60 text-xl text-on-solid"
           onClick={onOpen}
         >
           <span aria-hidden>&#x2922;</span>

@@ -27,6 +27,7 @@ import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { Permission, usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import { computeServerBadges } from '@/lib/unread'
+import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -213,10 +214,11 @@ export function MobileNavDrawer({
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
+  const serverNotifications = useNotificationCenterStore((s) => s.serverCounts)
   const serverBadges = useMemo(
-    () => computeServerBadges(channelReadStates, channelToServer, getEffective),
+    () => computeServerBadges(channelReadStates, channelToServer, getEffective, serverNotifications),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs]
+    [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs, serverNotifications]
   )
 
   const getNotifLevel = useCallback(

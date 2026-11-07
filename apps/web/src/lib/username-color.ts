@@ -8,5 +8,9 @@ export function hashUsernameToHue(username: string): number {
 
 export function usernameAccentStyle(username: string): { color: string } {
   const h = hashUsernameToHue(username)
-  return { color: `hsl(${h} 65% 68%)` }
+  return { color: `hsl(${h} 65% var(--username-lightness, 68%))` }
+}
+
+export function roleColorStyle(color: string): { color: string } {
+  return { color: `color-mix(in srgb, ${color} var(--role-color-share, 100%), #101828)` }
 }

@@ -328,7 +328,7 @@ export function EventDetail({ event, serverId, onBack, onClose }: Props) {
               type="button"
               variant="primary"
               onClick={handleJoinVoice}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 hover:text-white"
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 text-on-solid hover:bg-emerald-500 hover:text-on-solid"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />

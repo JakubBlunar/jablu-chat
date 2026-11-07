@@ -71,7 +71,7 @@ export function ProfileSection() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"
+            className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 text-on-solid opacity-0 transition group-hover:opacity-100"
             title={t('profile.changeAvatarTitle')}
           >
             <CameraIcon />

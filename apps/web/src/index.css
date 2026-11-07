@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'simplebar-react/dist/simplebar.min.css';
+@import './themes.css';
 
 :root {
   --app-text-scale: 1;
@@ -206,6 +207,7 @@ select {
 }
 
 @theme {
+  --color-on-solid: #ffffff;
   /* ──── Primary accent ──── */
   /* Preset A: Amber (default) */
   --color-primary: #f59e0b;

@@ -1,6 +1,8 @@
 import { MAX_MESSAGE_LENGTH } from '@chat/shared'
 import {
   ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsInt,
@@ -90,6 +92,27 @@ export class WsReactionToggleDto {
   @IsOptional()
   @IsBoolean()
   isCustom?: boolean
+}
+
+export class WsReactionSetManyDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  messageIds!: string[]
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  emoji!: string
+
+  @IsOptional()
+  @IsBoolean()
+  isCustom?: boolean
+
+  @IsBoolean()
+  present!: boolean
 }
 
 export class WsMessageChannelDto {

@@ -554,7 +554,7 @@ function FriendButton({
           type="button"
           disabled={loading}
           onClick={handleAccept}
-          className="flex-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+          className="flex-1 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-on-solid transition hover:bg-green-700 disabled:opacity-50"
         >
           {t('friendship.acceptRequest')}
         </button>

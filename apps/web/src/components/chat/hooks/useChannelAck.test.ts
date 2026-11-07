@@ -76,7 +76,7 @@ it.each(['channel', 'dm'] as const)('automatically reads a focused %s at the lat
   expect(mode === 'channel' ? ackChannel : ackDm).toHaveBeenCalledTimes(1)
 })
 
-it.each([{ ready: false }, { atBottom: false }, { scrollParentRef: { current: null } }])(
+it.each([{ ready: false }, { scrollParentRef: { current: null } }])(
   'does not read while the message surface is not ready: %j',
   async (override) => {
     renderHook(() => useChannelAck('channel', 'ch1', options(override)))
@@ -85,6 +85,27 @@ it.each([{ ready: false }, { atBottom: false }, { scrollParentRef: { current: nu
     expect(captureChannelView).toHaveBeenCalledWith('ch1')
   }
 )
+
+it.each(['channel', 'dm'] as const)('retries %s acknowledgement when geometry settles without a state change', async (mode) => {
+  const opts = options({ atBottom: true })
+  let scrollTop = 600
+  const element = opts.scrollParentRef.current
+  Object.defineProperties(element, {
+    scrollHeight: { value: 1000 }, clientHeight: { value: 200 }, scrollTop: { get: () => scrollTop }
+  })
+  renderHook(() => useChannelAck(mode, mode === 'channel' ? 'ch1' : 'dm1', opts))
+  await flushAck()
+  expect(mode === 'channel' ? ackChannel : ackDm).not.toHaveBeenCalled()
+  act(() => { scrollTop = 800; element.dispatchEvent(new Event('scroll')) })
+  await flushAck()
+  expect(mode === 'channel' ? ackChannel : ackDm).toHaveBeenCalledTimes(1)
+})
+
+it('uses actual bottom geometry even if the atBottom hint is stale', async () => {
+  renderHook(() => useChannelAck('channel', 'ch1', options({ atBottom: false })))
+  await flushAck()
+  expect(ackChannel).toHaveBeenCalledWith('ch1')
+})
 
 it('checks actual scroll geometry, not just stale atBottom state', async () => {
   const opts = options()

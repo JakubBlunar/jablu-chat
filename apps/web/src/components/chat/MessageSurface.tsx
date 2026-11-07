@@ -1,8 +1,9 @@
 import type { Message } from '@chat/shared'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { MessageRow } from '@/components/chat/MessageRow'
+import { groupMessages } from '@/lib/messageGrouping'
 import { WindowedMessage } from '@/components/chat/WindowedMessage'
 import { type ChannelRef } from '@/components/MarkdownContent'
 import { formatDateSeparator, formatTimeOnly, isDifferentDay } from '@/lib/format-time'
@@ -12,6 +13,13 @@ import { useChatLookups } from '@/hooks/useChatLookups'
 import { useServerStore } from '@/stores/server.store'
 
 const GROUP_GAP_MS = 5 * 60 * 1000
+const GroupedMessageRow = lazy(() => import('./GroupedMessageRow').then((m) => ({ default: m.GroupedMessageRow })))
+
+function TimelineMessageRow({ messages, ...props }: ComponentProps<typeof MessageRow> & { messages: Message[] }) {
+  return messages.length > 1 ? <Suspense fallback={<MessageRow {...props} />}>
+    <GroupedMessageRow {...props} messages={messages} />
+  </Suspense> : <MessageRow {...props} />
+}
 
 function isGap(a: Message, b: Message): boolean {
   const ta = new Date(a.createdAt).getTime()
@@ -108,18 +116,20 @@ export const MessageSurface = memo(function MessageSurface({
   const serverId = useServerStore((s) => s.currentServerId)
   const lookups = useChatLookups(serverId)
   const renderedItems = useMemo(() => {
-    const items: { msg: Message; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i]
-      const prev = i > 0 ? messages[i - 1] : undefined
+    const items: { msg: Message; group: Message[]; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
+    const groups = groupMessages(messages, firstUnreadId)
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i]
+      const msg = group[0]
+      const prev = i > 0 ? groups[i - 1].at(-1) : undefined
       const newDay = !prev || isDifferentDay(prev.createdAt, msg.createdAt)
       const showHead =
         !!msg.replyToId || !!msg.replyTo || newDay || !prev || prev.authorId !== msg.authorId || isGap(prev, msg)
-      const isLastOwn = lastOwnMsgId != null && lastOwnMsgId === msg.id
-      items.push({ msg, showHead, newDay, isLastOwn })
+      const isLastOwn = lastOwnMsgId != null && group.some((m) => m.id === lastOwnMsgId)
+      items.push({ msg, group, showHead, newDay, isLastOwn })
     }
     return items
-  }, [messages, lastOwnMsgId])
+  }, [messages, lastOwnMsgId, firstUnreadId])
 
   // True only when the divider message is present in the rendered list AND the
   // divider element is above the visible viewport (i.e. user has already
@@ -152,7 +162,7 @@ export const MessageSurface = memo(function MessageSurface({
   }, [dividerInList, scroll.scrollParentRef])
 
   const pillTimeLabel = unreadSince ? formatTimeOnly(unreadSince) : ''
-  const initialAnchor = firstUnreadId ? messages.findIndex((m) => m.id === firstUnreadId) : -1
+  const initialAnchor = firstUnreadId ? renderedItems.findIndex((item) => item.group.some((m) => m.id === firstUnreadId)) : -1
 
   const scrollChildren = (
     <>
@@ -165,8 +175,9 @@ export const MessageSurface = memo(function MessageSurface({
               <Spinner size="md" />
             </div>
           )}
-          {renderedItems.map(({ msg, showHead, newDay, isLastOwn }, index) => (
+          {renderedItems.map(({ msg, group, showHead, newDay, isLastOwn }, index) => (
             <WindowedMessage key={`${contextId}:${msg.id}`} id={`msg-${msg.id}`} root={scroll.scrollParentRef}
+              aliasIds={group.slice(1).map((m) => `msg-${m.id}`)}
               initialMounted={messages.length <= 50 || (initialAnchor >= 0 ? Math.abs(index - initialAnchor) < 20 : index >= messages.length - 24)}
               estimate={(showHead ? 64 : 30) + Math.min(400, Math.floor((msg.content?.length ?? 0) / 70) * 22) + (msg.attachments?.length ? 240 : 0)}
               label={`${tChat('messageListLabel')}: ${msg.content ?? ''}`}
@@ -174,7 +185,8 @@ export const MessageSurface = memo(function MessageSurface({
                 {newDay && <DateSeparator date={msg.createdAt} />}
                 {firstUnreadId === msg.id && <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />}
               </>}>
-              <MessageRow
+              <TimelineMessageRow
+                messages={group}
                 omitDomId
                 mode={mode}
                 message={msg}

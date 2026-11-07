@@ -24,7 +24,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useDraftReply } from '@/stores/draft.store'
 import { useServerStore } from '@/stores/server.store'
 import { api } from '@/lib/api'
-import { usernameAccentStyle } from '@/lib/username-color'
+import { roleColorStyle, usernameAccentStyle } from '@/lib/username-color'
 import { IconButton, Spinner } from '@/components/ui'
 import { memberDisplayName, useServerDisplayName } from '@/lib/serverProfile'
 
@@ -334,7 +334,7 @@ export function ForumPostPanel({
                     handleUserClick(post.authorId, (e.currentTarget as HTMLElement).getBoundingClientRect())
                   }}
                   className="text-left text-sm font-semibold hover:underline"
-                  style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(authorName)}
+                  style={authorRoleColor ? roleColorStyle(authorRoleColor) : usernameAccentStyle(authorName)}
                 >
                   {authorName}
                 </button>

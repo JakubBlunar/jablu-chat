@@ -25,11 +25,11 @@ describe('hashUsernameToHue', () => {
 describe('usernameAccentStyle', () => {
   it('returns an HSL color string', () => {
     const { color } = usernameAccentStyle('alice')
-    expect(color).toMatch(/^hsl\(\d+ 65% 68%\)$/)
+    expect(color).toMatch(/^hsl\(\d+ 65% var\(--username-lightness, 68%\)\)$/)
   })
 
   it('uses the hue from hashUsernameToHue', () => {
     const hue = hashUsernameToHue('testuser')
-    expect(usernameAccentStyle('testuser').color).toBe(`hsl(${hue} 65% 68%)`)
+    expect(usernameAccentStyle('testuser').color).toBe(`hsl(${hue} 65% var(--username-lightness, 68%))`)
   })
 })

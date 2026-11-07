@@ -1425,7 +1425,7 @@ export class ApiClient {
     return this.get(`/api/notifications${s ? `?${s}` : ''}`)
   }
 
-  getInAppNotificationUnreadCount(): Promise<{ count: number }> {
+  getInAppNotificationUnreadCount(): Promise<{ count: number; serverCounts?: Record<string, number> }> {
     return this.get('/api/notifications/unread-count')
   }
 

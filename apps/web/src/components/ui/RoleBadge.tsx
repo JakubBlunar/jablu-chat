@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn'
+import { roleColorStyle } from '@/lib/username-color'
 
 const FALLBACK_COLOR = 'var(--color-primary)'
 
@@ -34,7 +35,7 @@ export function RoleBadge({
   return (
     <span
       className={cn('inline-flex items-center gap-1 rounded ring-1', s.chip, className)}
-      style={{ color: resolved, borderColor: `${resolved}66` }}
+      style={{ ...roleColorStyle(resolved), borderColor: `${resolved}66` }}
     >
       {showDot && (
         <span

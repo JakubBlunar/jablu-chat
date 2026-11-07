@@ -146,7 +146,7 @@ export function AccountSection() {
             <div className="rounded-full border-[6px] border-surface-darkest">
               <UserAvatar username={user?.username ?? ''} avatarUrl={user?.avatarUrl} size="lg" />
             </div>
-            <p className="mb-3 rounded-md bg-black/40 px-2.5 py-0.5 text-lg font-bold text-white backdrop-blur-sm">
+            <p className="mb-3 rounded-md bg-black/40 px-2.5 py-0.5 text-lg font-bold text-on-solid backdrop-blur-sm">
               {user?.displayName ?? user?.username}
             </p>
           </div>

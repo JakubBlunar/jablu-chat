@@ -445,6 +445,20 @@ export class InAppNotificationsService {
     })
   }
 
+  /** Server notices have no channel read state. Count all unread rows, rather
+   * than only the current page of the notification bell. */
+  async unreadServerCounts(userId: string): Promise<Record<string, number>> {
+    const rows = await this.prisma.$queryRaw<{ serverId: string; count: bigint }[]>`
+      SELECT payload->>'serverId' AS "serverId", COUNT(*) AS count
+      FROM in_app_notifications
+      WHERE user_id = ${userId} AND read_at IS NULL
+        AND kind IN ('server_event', 'announcement', 'moderation', 'role_changed', 'level_up')
+        AND jsonb_typeof(payload->'serverId') = 'string'
+      GROUP BY payload->>'serverId'
+    `
+    return Object.fromEntries(rows.filter((row) => row.serverId).map((row) => [row.serverId, Number(row.count)]))
+  }
+
   async markRead(userId: string, id: string): Promise<InAppNotificationWire> {
     const row = await this.prisma.inAppNotification.findFirst({
       where: { id, userId }

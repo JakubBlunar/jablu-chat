@@ -34,7 +34,7 @@ export function TagChip({
         <button
           type="button"
           onClick={onRemove}
-          className="rounded-sm px-1 text-gray-300 hover:bg-black/20 hover:text-white"
+          className="rounded-sm px-1 text-gray-300 hover:bg-black/20 hover:text-on-solid"
           aria-label={`Remove ${name}`}
         >
           x
@@ -51,7 +51,7 @@ export function TagChip({
         className={cn(
           'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium transition',
           active
-            ? 'border-transparent text-white shadow-[inset_0_0_0_1px_rgba(0,0,0,0.25)]'
+            ? 'border-transparent text-on-solid shadow-[inset_0_0_0_1px_rgba(0,0,0,0.25)]'
             : 'border-white/10 hover:border-white/20 hover:text-white',
           className,
         )}

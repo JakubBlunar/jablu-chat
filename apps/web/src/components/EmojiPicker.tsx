@@ -7,6 +7,7 @@ import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { resolveMediaUrl } from '@/lib/api'
+import { useTheme } from '@/hooks/useTheme'
 
 export type CustomEmojiDef = {
   id: string
@@ -28,6 +29,7 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
   const { t: tCommon } = useTranslation('common')
   const ref = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
+  const theme = useTheme()
   useFocusTrap(ref, !isMobile, onClose)
 
   const custom = useMemo(() => {
@@ -95,7 +97,7 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
             data={data}
             custom={custom}
             onEmojiSelect={handleEmojiSelect}
-            theme="dark"
+            theme={theme}
             previewPosition="none"
             skinTonePosition="search"
             set="native"
@@ -114,7 +116,7 @@ export function EmojiPicker({ onSelect, onClose, customEmojis, reactionMode, onC
         data={data}
         custom={custom}
         onEmojiSelect={handleEmojiSelect}
-        theme="dark"
+        theme={theme}
         previewPosition="none"
         skinTonePosition="search"
         set="native"

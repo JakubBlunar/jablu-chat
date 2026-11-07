@@ -9,6 +9,13 @@ const state = (unreadCount: number, mentionCount: number) => ({
   unreadCount, mentionCount, lastReadAt: '', firstUnreadMessageId: null
 })
 
+it('adds durable server notices without double-counting message notifications', () => {
+  const badges = computeServerBadges(new Map([['ch', state(3, 1)]]), new Map([['ch', 's1']]), () => 'all', { s1: 2, s2: 1 })
+  expect(badges.get('s1')).toEqual({ unread: true, mentions: 1, notifications: 2 })
+  expect(badges.get('s2')).toEqual({ unread: true, mentions: 0, notifications: 1 })
+  expect(computeServerBadges(new Map(), new Map(), () => 'none', { s1: 2 }).size).toBe(0)
+})
+
 beforeEach(() => {
   useDmStore.setState({ conversations: [] })
   useReadStateStore.setState({

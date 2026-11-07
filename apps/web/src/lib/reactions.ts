@@ -29,6 +29,57 @@ type ReactionStore = {
 const CHANNEL_STORES: ReactionStore[] = [useMessageStore, useThreadStore, useForumReplyStore]
 const pending = new Set<string>()
 
+/** One acknowledged operation for the whole visual group, with per-original
+ * rollback. A partial existing reaction is removed from all originals. */
+export async function toggleGroupedReaction(params: {
+  mode: 'channel' | 'dm'; messages: Message[]; emoji: string; isCustom?: boolean
+}): Promise<boolean> {
+  const { mode, emoji, isCustom = false } = params
+  const socket = getSocket()
+  const userId = useAuthStore.getState().user?.id
+  if (!socket?.connected || !userId) {
+    showToast(i18n.t('chat:actionAddReaction'), i18n.t('chat:messageAction_offline'))
+    return false
+  }
+  const stores = mode === 'dm' ? [useDmStore] : CHANNEL_STORES
+  const originals = params.messages.map((m) => stores.flatMap((s) => s.getState().messages).find((v) => v.id === m.id) ?? m)
+  const previous = new Map(originals.map((m) => [m.id, !!m.reactions?.some((r) => r.emoji === emoji && r.userIds.includes(userId))]))
+  const present = ![...previous.values()].some(Boolean)
+  const keys = originals.map((m) => JSON.stringify([userId, mode, m.id, emoji]))
+  if (!originals.length || originals.length > 50 || keys.some((key) => pending.has(key))) return false
+  keys.forEach((key) => pending.add(key))
+  const apply = (messageId: string, value: boolean) => {
+    if (useAuthStore.getState().user?.id !== userId) return
+    for (const store of stores) {
+      if (value) store.getState().addReaction(messageId, emoji, userId, isCustom)
+      else store.getState().removeReaction(messageId, emoji, userId)
+    }
+  }
+  const confirmed = new Map<string, boolean>()
+  const observe = (value: boolean) => (payload: { messageId: string; emoji: string; userId: string }) => {
+    if (payload.userId === userId && payload.emoji === emoji && previous.has(payload.messageId)) confirmed.set(payload.messageId, value)
+  }
+  const onAdd = observe(true)
+  const onRemove = observe(false)
+  socket.on('reaction:add', onAdd)
+  socket.on('reaction:remove', onRemove)
+  originals.forEach((m) => apply(m.id, present))
+  try {
+    await requestMessageAction('reaction:setMany', { messageIds: originals.map((m) => m.id), emoji, isCustom, present })
+    originals.forEach((m) => apply(m.id, confirmed.get(m.id) ?? present))
+    if (!isCustom) addRecentReaction(emoji)
+    return true
+  } catch (error) {
+    originals.forEach((m) => apply(m.id, confirmed.get(m.id) ?? previous.get(m.id)!))
+    showToast(i18n.t('chat:actionAddReaction'), messageActionError(error))
+    return false
+  } finally {
+    keys.forEach((key) => pending.delete(key))
+    socket.off('reaction:add', onAdd)
+    socket.off('reaction:remove', onRemove)
+  }
+}
+
 export async function toggleMessageReactionAndRemember(params: Parameters<typeof toggleMessageReaction>[0]): Promise<boolean> {
   const success = await toggleMessageReaction(params)
   if (success && !params.isCustom) addRecentReaction(params.emoji)

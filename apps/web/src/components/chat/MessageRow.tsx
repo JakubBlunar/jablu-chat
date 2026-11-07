@@ -24,7 +24,7 @@ import { useIsMobile } from '@/hooks/useMobile'
 import { formatSmartTimestamp, formatTimeOnly } from '@/lib/format-time'
 import { editMessage } from '@/lib/messageActions'
 import { messageActionError } from '@/lib/messageActionError'
-import { usernameAccentStyle } from '@/lib/username-color'
+import { roleColorStyle, usernameAccentStyle } from '@/lib/username-color'
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
 import { openConversation } from '@/lib/conversationNavigation'
@@ -73,7 +73,8 @@ export const MessageRow = memo(function MessageRow({
   hideThreadAction,
   omitDomId = false,
   hidePinAction,
-  hideBookmarkAction
+  hideBookmarkAction,
+  contentOnly = false
 }: {
   mode: 'channel' | 'dm'
   message: Message
@@ -93,6 +94,7 @@ export const MessageRow = memo(function MessageRow({
   omitDomId?: boolean
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
+  contentOnly?: boolean
 }) {
   const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
@@ -146,14 +148,14 @@ export const MessageRow = memo(function MessageRow({
   }, [message.content])
 
   useEffect(() => {
-    if (!isAuthor) return
+    if (!isAuthor || contentOnly) return
     const onIntent = (e: Event) => {
       const id = (e as CustomEvent<string>).detail
       if (id === message.id) handleStartEdit()
     }
     window.addEventListener('edit-message-intent', onIntent)
     return () => window.removeEventListener('edit-message-intent', onIntent)
-  }, [isAuthor, message.id, handleStartEdit])
+  }, [isAuthor, contentOnly, message.id, handleStartEdit])
 
   const handleSaveEdit = useCallback(async () => {
     if (editPending.current) return
@@ -262,13 +264,13 @@ export const MessageRow = memo(function MessageRow({
       id={omitDomId ? undefined : `msg-${message.id}`}
       data-message-interactive={editing || drawerOpen || mobileEmojiPicker || reactorsEmoji != null ? 'true' : undefined}
       onClick={handleRowClick}
-      onTouchStart={handleTouchStart}
+      onTouchStart={contentOnly ? undefined : handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
-      onContextMenu={handleContextMenu}
-      onKeyDown={handleKeyDown}
+      onContextMenu={contentOnly ? undefined : handleContextMenu}
+      onKeyDown={contentOnly ? undefined : handleKeyDown}
       tabIndex={-1}
-      className={`group relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 rounded-md px-2 py-0.5 transition ${
+      className={contentOnly ? 'min-w-0' : `group relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 rounded-md px-2 py-0.5 transition ${
         editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
       } ${showHead ? 'mt-4' : ''}`}
     >
@@ -289,7 +291,7 @@ export const MessageRow = memo(function MessageRow({
       {mobileEmojiPicker && (
         <MobileEmojiPickerOverlay messageId={message.id} mode={mode} onClose={() => setMobileEmojiPicker(false)} />
       )}
-      {!editing && !isMobile && (
+      {!contentOnly && !editing && !isMobile && (
         <MessageActions
           ref={actionsRef}
           message={message}
@@ -323,14 +325,14 @@ export const MessageRow = memo(function MessageRow({
                 onUserClick(replyAuthor.id, event.currentTarget.getBoundingClientRect())
               }}
               className="max-w-[40%] shrink-0 truncate rounded font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              style={replyAuthorRoleColor ? { color: replyAuthorRoleColor } : usernameAccentStyle(replyName)}
+              style={replyAuthorRoleColor ? roleColorStyle(replyAuthorRoleColor) : usernameAccentStyle(replyName)}
             >
               @{replyName}
             </button>
           ) : (
             <span
               className="max-w-[40%] shrink-0 truncate font-medium"
-              style={replyAuthorRoleColor ? { color: replyAuthorRoleColor } : usernameAccentStyle(replyName)}
+              style={replyAuthorRoleColor ? roleColorStyle(replyAuthorRoleColor) : usernameAccentStyle(replyName)}
             >
               {replyAuthor ? `@${replyName}` : replyName}
             </span>
@@ -354,7 +356,7 @@ export const MessageRow = memo(function MessageRow({
         </div>
       )}
 
-      {showHead ? (
+      {!contentOnly && (showHead ? (
         isWebhook ? (
           <div className="col-start-1 mt-0.5 self-start">
             <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
@@ -372,15 +374,15 @@ export const MessageRow = memo(function MessageRow({
             </span>
           )}
         </div>
-      )}
+      ))}
 
       <div className="col-start-2 min-w-0">
-        {showHead && (
+        {!contentOnly && showHead && (
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 leading-5">
             {isWebhook ? (
               <span
                 className="text-[15px] font-semibold"
-                style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(name)}
+                style={authorRoleColor ? roleColorStyle(authorRoleColor) : usernameAccentStyle(name)}
               >
                 {name}
               </span>
@@ -389,7 +391,7 @@ export const MessageRow = memo(function MessageRow({
                 type="button"
                 onClick={handleAuthorClick}
                 className="text-[15px] font-semibold hover:underline"
-                style={authorRoleColor ? { color: authorRoleColor } : usernameAccentStyle(name)}
+                style={authorRoleColor ? roleColorStyle(authorRoleColor) : usernameAccentStyle(name)}
               >
                 {name}
               </button>
@@ -561,7 +563,7 @@ export const MessageRow = memo(function MessageRow({
           </button>
         )}
 
-        {reactions.length > 0 && (
+        {!contentOnly && reactions.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {reactions.map((r) => (
               <ReactionPill

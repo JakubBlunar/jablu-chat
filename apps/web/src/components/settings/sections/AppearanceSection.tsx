@@ -5,9 +5,12 @@ import { APP_LOCALES, LOCALE_LABELS, type AppLocale } from '@/i18n/locales'
 import { FONT_SCALES, type FontScale, useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { TranslationPreferenceSection } from '@/components/settings/sections/TranslationPreferenceSection'
+import type { ThemePreference } from '@/hooks/useTheme'
 
 export function AppearanceSection() {
   const { t } = useTranslation('settings')
+  const theme = useSettingsStore((s) => s.theme)
+  const setTheme = useSettingsStore((s) => s.setTheme)
   const [localeSaving, setLocaleSaving] = useState(false)
   const [localeSaveFailed, setLocaleSaveFailed] = useState(false)
   const accent = useSettingsStore((s) => s.accent)
@@ -128,7 +131,14 @@ export function AppearanceSection() {
 
       <div className="border-t border-white/10 pt-6">
         <h2 className="mb-1 text-base font-semibold text-white">{t('appearance.themeTitle')}</h2>
-        <p className="text-sm text-gray-400">{t('appearance.themeHint')}</p>
+        <p className="mb-3 text-sm text-gray-400">{t('appearance.themeHint')}</p>
+        <label htmlFor="jablu-theme" className="sr-only">{t('appearance.themeTitle')}</label>
+        <select id="jablu-theme" value={theme} onChange={(event) => setTheme(event.target.value as ThemePreference)}
+          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-sm text-white ring-1 ring-white/10">
+          {(['system', 'light', 'dark'] as const).map((value) => (
+            <option key={value} value={value}>{t(`appearance.theme_${value}`)}</option>
+          ))}
+        </select>
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ import type { MessageActivity } from '@chat/shared'
 import { useInboxStore } from '@/stores/inbox.store'
 import { showNotification } from '@/lib/notifications'
 import { isAppFocused } from '@/lib/appVisibility'
+import { playJinxForNewMessage } from '@/lib/jinxSound'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
 import { useReadStateStore } from '@/stores/readState.store'
@@ -53,6 +54,9 @@ export function createDmHandlers() {
     const isViewingConversation = viewMode === 'dm' && payload.conversationId === currentConvId
     if (isViewingConversation && !payload.background) {
       dmState.addMessage(payload)
+      if (!dmState.conversations.find((c) => c.id === currentConvId)?.muted) {
+        playJinxForNewMessage(dmState.messages, useDmStore.getState().messages, payload)
+      }
     } else if (!payload.background) {
       cacheAddMessage(dmKey(payload.conversationId), payload)
     }

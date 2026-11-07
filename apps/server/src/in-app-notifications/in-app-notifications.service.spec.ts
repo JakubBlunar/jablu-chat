@@ -330,4 +330,14 @@ describe('InAppNotificationsService', () => {
       expect(events.emit).not.toHaveBeenCalled()
     })
   })
+  it('aggregates unread server notices independently of paginated notification rows', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ serverId: 's1', count: 2n }, { serverId: 's2', count: 1n }])
+    expect(await service.unreadServerCounts('u1')).toEqual({ s1: 2, s2: 1 })
+    const [strings, userId] = prisma.$queryRaw.mock.calls[0]
+    expect(userId).toBe('u1')
+    expect(strings.join('')).toContain('read_at IS NULL')
+    expect(strings.join('')).toContain("'server_event'")
+    expect(strings.join('')).not.toContain("'channel_message'")
+  })
+
 })

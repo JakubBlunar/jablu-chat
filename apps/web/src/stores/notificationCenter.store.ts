@@ -4,6 +4,7 @@ import type { InAppNotificationDto } from '@/lib/api/types'
 
 type State = {
   unreadCount: number
+  serverCounts: Record<string, number>
   items: InAppNotificationDto[]
   nextCursor: string | undefined
   loading: boolean
@@ -34,6 +35,7 @@ let listDirty = false
 
 export const useNotificationCenterStore = create<State>((set, get) => ({
   unreadCount: 0,
+  serverCounts: {},
   items: [],
   nextCursor: undefined,
   loading: false,
@@ -62,9 +64,9 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
         const request = ++unreadRequest
         set({ loading: true })
         try {
-          const { count } = await api.getInAppNotificationUnreadCount()
+          const { count, serverCounts = {} } = await api.getInAppNotificationUnreadCount()
           if (generation !== epoch || request !== unreadRequest) return
-          set({ unreadCount: count, unreadError: false })
+          set({ unreadCount: count, serverCounts, unreadError: false })
         } catch (error) {
           console.error('Failed to refresh notification count', error)
           if (generation === epoch && request === unreadRequest) set({ unreadError: true })
@@ -128,6 +130,7 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
         items: s.items.map((it) => (it.id === id ? { ...it, readAt: new Date().toISOString() } : it)),
         unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount
       }))
+      await get().fetchUnread()
     } catch (error) {
       console.error('Failed to mark notification read', error)
       if (generation !== epoch) return
@@ -147,8 +150,10 @@ export const useNotificationCenterStore = create<State>((set, get) => ({
       if (generation !== epoch) return
       set((s) => ({
         unreadCount: 0,
+        serverCounts: {},
         items: s.items.map((it) => ({ ...it, readAt: it.readAt ?? new Date().toISOString() }))
       }))
+      await get().fetchUnread()
     } catch (error) {
       console.error('Failed to mark all notifications read', error)
       if (generation !== epoch) return

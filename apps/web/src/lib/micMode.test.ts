@@ -90,6 +90,9 @@ it('stops VAD capture synchronously and returns the AudioContext-close completio
   const closing = deferred()
   closeContext.mockReturnValueOnce(closing.promise)
   startMicMode('activity')
+  // Startup now stays audible while the first analyser sample arrives.
+  expect(unmute).toHaveBeenCalledTimes(1)
+  unmute.mockClear()
   const teardown = stopMicMode(true)
   expect(teardown).toBeInstanceOf(Promise)
   expect(stopTrack).toHaveBeenCalledTimes(1)

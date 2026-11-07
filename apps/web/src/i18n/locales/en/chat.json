@@ -295,5 +295,15 @@
   "forwardedFrom": "Forwarded from",
   "forwardedIn": "in",
   "forwardedDirectMessage": "direct message",
-  "forwardedAttachment": "[attachment]"
+  "forwardedAttachment": "[attachment]",
+  "jinx": {
+    "and": "and",
+    "say": "say:",
+    "reactTogether": "React to all",
+    "showOriginals": "Show {{count}} originals",
+    "hideOriginals": "Hide originals",
+    "loadingReactions": "Loading shared reactions…",
+    "morePeople": "and {{count}} others",
+    "fewerPeople": "Show fewer"
+  }
 }

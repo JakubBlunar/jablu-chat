@@ -86,13 +86,13 @@ function MediaThumb({ attachment }: { attachment: Attachment }) {
       {isVideo && (
         <span
           aria-hidden
-          className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/60 px-1 text-sm text-white"
+          className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/60 px-1 text-sm text-on-solid"
         >
           &#9654;
         </span>
       )}
       {attachment.type === 'gif' && (
-        <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-bold text-white">
+        <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[9px] font-bold text-on-solid">
           GIF
         </span>
       )}

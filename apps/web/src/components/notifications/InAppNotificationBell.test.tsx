@@ -79,6 +79,7 @@ it('does not mark items read on failure and retries the actual failed operation'
     unreadCount: 1
   })
   expect(useNotificationCenterStore.getState().items[0].readAt).toBeNull()
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 0, serverCounts: {} })
   await useNotificationCenterStore.getState().retryAction()
   expect(api.markAllInAppNotificationsRead).toHaveBeenCalledTimes(2)
   expect(useNotificationCenterStore.getState()).toMatchObject({ unreadCount: 0, actionError: false })

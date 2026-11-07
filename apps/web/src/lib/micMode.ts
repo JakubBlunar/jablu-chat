@@ -1,6 +1,7 @@
 export type MicMode = 'always' | 'activity' | 'push-to-talk'
 
 import { voiceTrackSources } from './voiceTrackSources'
+import { VoiceActivityDetector } from './voiceActivity'
 import i18n from 'i18next'
 import { useSettingsStore } from '@/stores/settings.store'
 import { desktopAPI, isDesktop } from '@/lib/desktop'
@@ -127,19 +128,13 @@ function startVAD(): MicCleanup {
   // almost immediately, instead of ramping up over several frames.
   analyser.smoothingTimeConstant = 0.1
   source.connect(analyser)
+  if (audioCtx.state === 'suspended') void audioCtx.resume().catch(() => {})
 
   const dataArray = new Uint8Array(analyser.frequencyBinCount)
-  let speaking = false
-  let silenceFrames = 0
-  const SILENCE_DELAY = 35
-
+  const detector = new VoiceActivityDetector()
+  let speaking = true
   let running = true
-  const isAuto = getVadMode() === 'auto'
-  let calibrated = !isAuto
-  let autoThreshold = 0
-  const calibrationSamples: number[] = []
-  const calibrationStart = performance.now()
-  const CALIBRATION_MS = 600
+  let frame = 0
 
   function getAvg(): number {
     analyser.getByteFrequencyData(dataArray)
@@ -153,56 +148,31 @@ function startVAD(): MicCleanup {
   function tick() {
     if (!running) return
 
-    const avg = getAvg()
-
-    if (!calibrated) {
-      calibrationSamples.push(avg)
-      if (performance.now() - calibrationStart >= CALIBRATION_MS) {
-        const ambient = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length
-        // Lower multiplier than before to compensate for the less-smoothed,
-        // spikier signal from the reduced smoothingTimeConstant above.
-        autoThreshold = Math.max(Math.round(ambient * 1.5 + 5), 6)
-        calibrated = true
-      }
-      requestAnimationFrame(tick)
-      return
+    // RAF can be throttled while hidden; avoid chopping speech when the page
+    // cannot sample reliably. Manual mute is controlled by the caller's mode lifecycle.
+    const next = document.hidden || audioCtx.state === 'suspended' || detector.update(getAvg(), performance.now(), getVadMode(), getVadThreshold())
+    if (next !== speaking) {
+      speaking = next
+      setTrackMuted(!speaking)
     }
-
-    const threshold = isAuto ? autoThreshold : getVadThreshold()
-
-    if (avg > threshold) {
-      silenceFrames = 0
-      if (!speaking) {
-        speaking = true
-        setTrackMuted(false)
-      }
-    } else {
-      silenceFrames++
-      if (speaking && silenceFrames > SILENCE_DELAY) {
-        speaking = false
-        setTrackMuted(true)
-      }
-    }
-
-    requestAnimationFrame(tick)
+    frame = requestAnimationFrame(tick)
   }
 
-  setTrackMuted(true)
-  requestAnimationFrame(tick)
+  // No calibration blackout: the first spoken word is analysed immediately.
+  setTrackMuted(false)
+  frame = requestAnimationFrame(tick)
 
   const onVisibility = () => {
     if (document.hidden) {
+      speaking = true
       setTrackMuted(false)
-    } else {
-      speaking = false
-      silenceFrames = SILENCE_DELAY + 1
-      setTrackMuted(true)
     }
   }
   document.addEventListener('visibilitychange', onVisibility)
 
   return (skipUnmute?: boolean) => {
     running = false
+    cancelAnimationFrame(frame)
     document.removeEventListener('visibilitychange', onVisibility)
     source.disconnect()
     analysisTrack.stop()

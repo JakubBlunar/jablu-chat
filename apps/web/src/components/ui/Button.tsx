@@ -10,7 +10,7 @@ const variants = {
   secondary:
     'text-gray-300 hover:bg-white/5 hover:text-white',
   danger:
-    'bg-red-600 text-white hover:bg-red-700',
+    'bg-red-600 text-on-solid hover:bg-red-700',
   ghost:
     'text-gray-300 hover:bg-white/10 hover:text-white',
 } as const

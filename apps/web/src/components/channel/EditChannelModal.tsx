@@ -272,7 +272,7 @@ export function EditChannelModal({ channel, onClose }: { channel: Channel; onClo
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-on-solid transition hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting ? tCommon('deleting') : tChannels('channelForm.confirmDelete')}
               </button>

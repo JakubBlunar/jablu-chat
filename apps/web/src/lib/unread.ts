@@ -4,7 +4,7 @@ import { useDmStore } from '@/stores/dm.store'
 
 export type NotifLevel = 'all' | 'mentions' | 'none'
 
-export type ServerBadge = { unread: boolean; mentions: number }
+export type ServerBadge = { unread: boolean; mentions: number; notifications?: number }
 
 export type ChannelBadge = {
   showUnread: boolean
@@ -38,7 +38,8 @@ export function computeChannelBadge(
 export function computeServerBadges(
   channels: ReadonlyMap<string, { unreadCount: number; mentionCount: number }>,
   channelToServer: ReadonlyMap<string, string>,
-  getEffective: (channelId: string, serverId?: string) => NotifLevel
+  getEffective: (channelId: string, serverId?: string) => NotifLevel,
+  serverNotifications: Readonly<Record<string, number>> = {}
 ): Map<string, ServerBadge> {
   const badges = new Map<string, ServerBadge>()
   for (const [channelId, serverId] of channelToServer) {
@@ -50,6 +51,11 @@ export function computeServerBadges(
     serverBadge.unread = true
     serverBadge.mentions += badge.mentionCount
     badges.set(serverId, serverBadge)
+  }
+  for (const [serverId, count] of Object.entries(serverNotifications)) {
+    if (count <= 0 || getEffective('', serverId) === 'none') continue
+    const badge = badges.get(serverId) ?? { unread: false, mentions: 0 }
+    badges.set(serverId, { ...badge, unread: true, notifications: count })
   }
   return badges
 }

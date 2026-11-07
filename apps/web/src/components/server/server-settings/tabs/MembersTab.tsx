@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
+import { roleColorStyle } from '@/lib/username-color'
 import { Button } from '@/components/ui/Button'
 import { InlineAlert } from '@/components/ui/InlineAlert'
 import { MultiSelect } from '@/components/ui/MultiSelect'
@@ -263,7 +264,7 @@ export function MembersTab({ server }: { server: Server }) {
                   <div className="min-w-0 flex-1">
                     <p
                       className="truncate text-sm font-medium"
-                      style={roleColor ? { color: roleColor } : { color: '#9ca3af' }}
+                      style={roleColor ? roleColorStyle(roleColor) : { color: 'var(--color-gray-400)' }}
                     >
                       {memberDisplayName(m)}
                     </p>

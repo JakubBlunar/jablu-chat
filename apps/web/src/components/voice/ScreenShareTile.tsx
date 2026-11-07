@@ -101,7 +101,7 @@ export function ScreenShareTile({
   const isLocal = participant.isLocal
 
   return (
-    <div className="group/ss relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-black">
+    <div className="media-dark group/ss relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-black">
       <video
         ref={videoRef}
         autoPlay
@@ -123,7 +123,7 @@ export function ScreenShareTile({
         <svg className="h-3 w-3 text-green-400" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" />
         </svg>
-        <span className="text-xs font-medium text-white">{isLocal ? 'Your Screen' : `${displayName}'s Screen`}</span>
+        <span className="text-xs font-medium text-on-solid">{isLocal ? 'Your Screen' : `${displayName}'s Screen`}</span>
       </div>
 
       {hasAudio && !isLocal && (
@@ -200,7 +200,7 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
       <button
         type="button"
         onClick={handleMuteToggle}
-        className="p-0.5 text-white transition hover:text-gray-300"
+        className="p-0.5 text-on-solid transition hover:text-gray-300"
         title={isMuted ? t('screenShareAudio.unmute') : t('screenShareAudio.mute')}
       >
         {isMuted ? (
@@ -214,7 +214,7 @@ function ScreenAudioControls({ participantIdentity }: { participantIdentity: str
         )}
       </button>
       {!showSlider && (
-        <span className="cursor-pointer text-[10px] tabular-nums text-white/70" onClick={toggleSlider}>
+        <span className="cursor-pointer text-[10px] tabular-nums text-on-solid/70" onClick={toggleSlider}>
           {isMuted ? 0 : volume}%
         </span>
       )}

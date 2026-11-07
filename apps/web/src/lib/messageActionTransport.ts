@@ -23,6 +23,7 @@ interface MessageActionPayloads {
   'dm:pin': DmMessageId
   'dm:unpin': DmMessageId
   'reaction:toggle': MessageId & { emoji: string; isCustom?: boolean }
+  'reaction:setMany': { messageIds: string[]; emoji: string; isCustom?: boolean; present: boolean }
   'message:send': SendMessageInput & {
     channelId: string
     clientMessageId: string
@@ -34,7 +35,7 @@ interface MessageActionPayloads {
 type MessageActionResponse<K extends keyof MessageActionPayloads> = K extends
   'message:edit' | 'dm:edit' | 'message:send'
   ? MessageAcknowledgement
-  : K extends 'reaction:toggle'
+  : K extends 'reaction:toggle' | 'reaction:setMany'
     ? Acknowledgement & { action?: 'added' | 'removed' }
     : Acknowledgement
 

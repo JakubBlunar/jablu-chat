@@ -4,7 +4,7 @@ const base =
   'flex items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none'
 
 const variants = {
-  danger: 'bg-red-500 text-white',
+  danger: 'bg-red-500 text-on-solid',
   primary: 'bg-primary text-primary-text',
 } as const
 

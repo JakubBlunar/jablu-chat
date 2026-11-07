@@ -156,7 +156,7 @@
     "threshold": "Práh:",
     "auto": "Automaticky",
     "manual": "Ručně",
-    "autoCalibrateHint": "Při připojení nebo zapnutí mikrofonu se práh automaticky nastaví podle okolního hluku.",
+    "autoCalibrateHint": "Průběžně se přizpůsobuje okolnímu hluku a při krátkých přestávkách v řeči ponechá mikrofon zapnutý.",
     "sensitivity": "Citlivost: {{value}}",
     "sensitive": "Vyšší citlivost",
     "lessSensitive": "Nižší citlivost",

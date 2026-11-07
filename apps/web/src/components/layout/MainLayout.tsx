@@ -105,7 +105,7 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean }) {
   if (showReconnected) {
     return (
       <div
-        className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-white"
+        className="shrink-0 bg-emerald-600 px-4 py-1.5 text-center text-xs font-medium text-on-solid"
         role="status"
         aria-live="polite"
       >

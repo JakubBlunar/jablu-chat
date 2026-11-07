@@ -6,8 +6,23 @@ beforeEach(() => {
   localStorage.clear()
 })
 
+it('defaults to dark until the user chooses another theme', () => {
+  expect(useSettingsStore.getInitialState().theme).toBe('dark')
+})
+
 it('keeps full previews as the default', () => {
   expect(useSettingsStore.getState().compactPreviews).toBe(false)
+})
+
+it('persists theme choices and ignores malformed stored themes', async () => {
+  useSettingsStore.getState().setTheme('light')
+  expect(JSON.parse(localStorage.getItem('jablu-settings')!).state.theme).toBe('light')
+  localStorage.setItem('jablu-settings', JSON.stringify({ state: { theme: 'broken' }, version: 1 }))
+  await useSettingsStore.persist.rehydrate()
+  expect(useSettingsStore.getState().theme).toBe('light')
+  localStorage.setItem('jablu-settings', JSON.stringify({ state: { theme: 'system' }, version: 1 }))
+  await useSettingsStore.persist.rehydrate()
+  expect(useSettingsStore.getState().theme).toBe('system')
 })
 
 it('persists voice output volume and validates saved and live values', async () => {

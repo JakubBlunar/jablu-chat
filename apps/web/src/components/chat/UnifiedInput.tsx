@@ -144,7 +144,7 @@ export function UnifiedInput({
                 type="button"
                 onClick={() => removeFile(i)}
                 aria-label={t('removeAttachment', { name: file.name })}
-                className="absolute -right-1.5 -top-1.5 flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-white shadow transition hover:bg-red-500"
+                className="absolute -right-1.5 -top-1.5 flex h-11 w-11 items-center justify-center rounded-full bg-red-600 text-on-solid shadow transition hover:bg-red-500"
               >
                 <XSmallIcon />
               </button>

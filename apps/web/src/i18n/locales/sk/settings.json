@@ -29,7 +29,10 @@
     "translateErrorTitle": "Nepodarilo sa uložiť",
     "translateErrorMessage": "Predvolený jazyk prekladu sa nepodarilo uložiť. Skúste to znova.",
     "themeTitle": "Vzhľad",
-    "themeHint": "Tmavý režim je predvolený a plne podporovaný. Svetlý motív je v pláne."
+    "themeHint": "Vyber si vzhľad pre toto zariadenie. Systém sa automaticky prispôsobí operačnému systému.",
+    "theme_system": "Podľa systému",
+    "theme_light": "Svetlý",
+    "theme_dark": "Tmavý"
   },
   "install": {
     "desktopBanner": "Používajte Jablu pre Windows s natívnymi hovormi, zdieľaním obrazovky a oznámeniami v systémovej lište.",

@@ -1,11 +1,16 @@
 export type NotifSoundKind = 'message' | 'mention' | 'friend'
 
-type SoundKind = NotifSoundKind | 'join' | 'leave'
+type SoundKind = NotifSoundKind | 'join' | 'leave' | 'jinx'
 type Note = { frequency: number; offset: number; duration: number; volume: number }
 
 // Related, soft chimes: rising for arrival, falling for departure, and a
 // quieter single note for messages. Durations include the full release tail.
 const scores: Record<SoundKind, readonly Note[]> = {
+  jinx: [
+    { frequency: 523.25, offset: 0, duration: 0.16, volume: 0.14 },
+    { frequency: 783.99, offset: 0.13, duration: 0.38, volume: 0.18 },
+    { frequency: 1046.5, offset: 0.13, duration: 0.38, volume: 0.09 }
+  ],
   join: [
     { frequency: 440, offset: 0, duration: 0.28, volume: 0.18 },
     { frequency: 587.33, offset: 0.12, duration: 0.32, volume: 0.16 }
@@ -94,6 +99,8 @@ async function play(kind: SoundKind): Promise<void> {
 export function playJoinSound() {
   void play('join')
 }
+
+export function playJinxSound() { void play('jinx') }
 
 export function playLeaveSound() {
   void play('leave')

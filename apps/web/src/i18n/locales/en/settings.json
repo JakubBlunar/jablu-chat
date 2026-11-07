@@ -29,7 +29,10 @@
     "translateErrorTitle": "Couldn't save preference",
     "translateErrorMessage": "The default translation language was not saved. Try again.",
     "themeTitle": "Theme",
-    "themeHint": "Dark mode is the default and only fully supported theme. A light theme is planned for the future."
+    "themeHint": "Choose a theme for this device. System follows your operating system automatically.",
+    "theme_system": "System",
+    "theme_light": "Light",
+    "theme_dark": "Dark"
   },
   "install": {
     "desktopBanner": "Use Jablu for Windows for native calls, screen sharing and tray notifications.",

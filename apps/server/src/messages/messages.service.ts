@@ -729,6 +729,46 @@ export class MessagesService {
     }
   }
 
+  /** Explicit desired state makes a grouped reaction safe to retry. All targets
+   * are checked before any write; bulk writes avoid one round trip per original. */
+  async setManyReactions(messageIds: string[], userId: string, emoji: string, isCustom: boolean, present: boolean) {
+    const ids = [...new Set(messageIds)]
+    if (!ids.length || ids.length > 50) throw new BadRequestException('Invalid reaction targets')
+    const messages = await this.prisma.message.findMany({
+      where: { id: { in: ids }, deleted: false },
+      select: { id: true, channelId: true, directConversationId: true }
+    })
+    if (messages.length !== ids.length) throw new NotFoundException('Message not found')
+    const context = messages[0]
+    if (messages.some((m) => m.channelId !== context.channelId || m.directConversationId !== context.directConversationId)) {
+      throw new BadRequestException('Messages must belong to the same conversation')
+    }
+    if (context.channelId) await this.requireMessageChannelMember(context.channelId, userId)
+    else if (context.directConversationId) {
+      const member = await this.prisma.directConversationMember.findUnique({
+        where: { conversationId_userId: { conversationId: context.directConversationId, userId } }
+      })
+      if (!member) throw new ForbiddenException('Not a member of this conversation')
+    } else throw new BadRequestException('Message has no conversation')
+
+    // Serialize this user's reaction writes across devices; emit only actual
+    // changes so bounded reaction previews cannot be incremented twice.
+    const changedIds = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
+      if (present) {
+        const created = await tx.reaction.createManyAndReturn({
+          data: ids.map((messageId) => ({ messageId, userId, emoji, isCustom })),
+          skipDuplicates: true, select: { messageId: true }
+        })
+        return created.map((r) => r.messageId)
+      }
+      const existing = await tx.reaction.findMany({ where: { messageId: { in: ids }, userId, emoji }, select: { messageId: true } })
+      await tx.reaction.deleteMany({ where: { messageId: { in: ids }, userId, emoji } })
+      return existing.map((r) => r.messageId)
+    })
+    return { ...context, changedIds, action: present ? 'added' as const : 'removed' as const }
+  }
+
   async toggleReaction(messageId: string, userId: string, emoji: string, isCustom = false) {
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, deleted: false }

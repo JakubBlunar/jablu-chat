@@ -12,6 +12,7 @@ import { prefetchProfileCard } from '@/stores/profileCard.store'
 import type { Member } from '@/stores/member.store'
 import { getRoleColor } from '@/stores/member.store'
 import { memberDisplayName } from '@/lib/serverProfile'
+import { roleColorStyle } from '@/lib/username-color'
 
 export function resolveMemberPresence(m: Member, onlineIds: Set<string>): UserStatus {
   const s = m.user.status as UserStatus | undefined
@@ -177,7 +178,7 @@ const MemberRow = memo(function MemberRow({
           <div className="flex flex-wrap items-center gap-1.5">
             <span
               className={`truncate text-[15px] font-medium ${dimmed ? 'text-gray-200' : 'text-white'}`}
-              style={dimmed ? undefined : roleColor ? { color: roleColor } : undefined}
+              style={dimmed ? undefined : roleColor ? roleColorStyle(roleColor) : undefined}
             >
               {name}
             </span>

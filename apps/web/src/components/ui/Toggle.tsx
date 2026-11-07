@@ -27,7 +27,7 @@ export function Toggle({
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
     >
       <span
-        className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow"
+        className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-on-solid shadow"
         style={{
           transform: `translateX(${checked ? 20 : 0}px)`,
           transition: 'transform 150ms ease-in-out'

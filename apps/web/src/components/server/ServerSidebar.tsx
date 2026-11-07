@@ -13,6 +13,7 @@ import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useServerStore } from '@/stores/server.store'
 import { computeServerBadges } from '@/lib/unread'
+import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { ServerRailList } from './ServerRailList'
 
 function DmIcon() {
@@ -63,10 +64,11 @@ export function ServerSidebar() {
 
   const hasDmUnread = Array.from(dmReadStates.values()).some((rs) => rs.unreadCount > 0)
 
+  const serverNotifications = useNotificationCenterStore((s) => s.serverCounts)
   const serverBadges = useMemo(
-    () => computeServerBadges(channelReadStates, channelToServer, getEffective),
+    () => computeServerBadges(channelReadStates, channelToServer, getEffective, serverNotifications),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs]
+    [getEffective, channelReadStates, channelToServer, notifPrefs, serverPrefs, serverNotifications]
   )
 
   const [joinOpen, setJoinOpen] = useState(false)

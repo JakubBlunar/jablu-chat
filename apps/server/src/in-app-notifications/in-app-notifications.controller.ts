@@ -19,8 +19,11 @@ export class InAppNotificationsController {
   }
 
   @Get('unread-count')
-  unreadCount(@CurrentUser() user: { id: string }) {
-    return this.notifications.unreadCount(user.id).then((count) => ({ count }))
+  async unreadCount(@CurrentUser() user: { id: string }) {
+    const [count, serverCounts] = await Promise.all([
+      this.notifications.unreadCount(user.id), this.notifications.unreadServerCounts(user.id)
+    ])
+    return { count, serverCounts }
   }
 
   @Post('read-all')

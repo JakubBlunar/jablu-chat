@@ -39,7 +39,7 @@ export function UnreadDmShortcuts({ onNavigate }: { onNavigate?: () => void }) {
           </button>
           <span
             aria-hidden
-            className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-1 text-[10px] font-bold leading-none text-white"
+            className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface-darkest bg-red-500 px-1 text-[10px] font-bold leading-none text-on-solid"
           >
             {count > 99 ? '99+' : count}
           </span>

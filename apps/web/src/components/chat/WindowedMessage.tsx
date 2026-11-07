@@ -6,11 +6,11 @@ export function revealMessageElement(id: string): HTMLElement | null {
   const element = document.getElementById(id)
   // Mounted targets already have measurable content. Dispatching their reveal
   // from a scroll effect needlessly invokes flushSync inside React's lifecycle.
-  if (element?.dataset.messageMounted === 'false') element.dispatchEvent(new Event('message:reveal'))
+  if (element?.dataset.messageMounted === 'false') element.dispatchEvent(new Event('message:reveal', { bubbles: true }))
   return element
 }
 
-export function WindowedMessage({ id, root, initialMounted, estimate, label, decoration, children }: {
+export function WindowedMessage({ id, root, initialMounted, estimate, label, decoration, children, aliasIds }: {
   id: string
   root: RefObject<HTMLDivElement | null>
   initialMounted: boolean
@@ -18,6 +18,7 @@ export function WindowedMessage({ id, root, initialMounted, estimate, label, dec
   label: string
   decoration?: ReactNode
   children: ReactNode
+  aliasIds?: string[]
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)
@@ -71,7 +72,9 @@ export function WindowedMessage({ id, root, initialMounted, estimate, label, dec
   }, [root])
 
   return (
-    <div ref={ref} id={id} data-message-window data-message-mounted={mounted} style={{ display: 'flow-root' }}>
+    <div ref={ref} id={id} data-message-window data-message-mounted={mounted} style={{ display: 'flow-root', position: 'relative' }}>
+      {aliasIds?.map((alias) => <div key={alias} id={alias} data-message-mounted={mounted}
+        aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-md" />)}
       {decoration}
       <div ref={body} style={{ display: 'flow-root', ...(mounted ? {} : { height: height.current }) }}>
         {mounted ? children : (
