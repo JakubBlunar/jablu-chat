@@ -1,4 +1,4 @@
-import { type ChatInputBarHandle, type MentionChannel, type MentionMember } from '@/components/chat/ChatInputBar'
+import { type ChatInputBarHandle, type MentionMember } from '@/components/chat/ChatInputBar'
 import { useBotCommands } from '@/components/chat/useBotCommands'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useIsMobile } from '@/hooks/useMobile'
@@ -16,7 +16,7 @@ import { useMessageStore } from '@/stores/message.store'
 import { OutboxActionError, useOutboxStore } from '@/stores/outbox.store'
 import { useThreadStore } from '@/stores/thread.store'
 import type { Message } from '@chat/shared'
-import { MAX_MESSAGE_LENGTH, Permission } from '@chat/shared'
+import { MAX_MESSAGE_LENGTH, Permission, replaceMemberMentions } from '@chat/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { resolveTextCommand } from '../composerCommands'
@@ -149,79 +149,58 @@ export function useMessageComposer({
     if (replyTarget) inputRef.current?.focus()
   }, [replyTarget])
 
-  const mentionMembersRef = useRef<MentionMember[]>([])
-  const mentionChannelsRef = useRef<MentionChannel[]>(channels ?? [])
-  useEffect(() => {
-    const buildMembers = () => {
-      if (isDm) {
-        const conv = useDmStore.getState().conversations.find((c) => c.id === contextId)
-        if (!conv) return []
-        return conv.members
-          .filter((m) => m.userId !== userId)
-          .map((m) => ({
-            userId: m.userId,
-            username: m.username,
-            displayName: m.displayName,
-            avatarUrl: m.avatarUrl
-          }))
-      }
-      const userRows = useMemberStore
-        .getState()
-        .members.filter((m) => m.userId !== userId)
+  const roster = useMemberStore((s) => s.members)
+  const dmMembers = useDmStore((s) => (isDm ? s.conversations.find((c) => c.id === contextId)?.members : undefined))
+  const channelRoster = useChannelStore((s) => s.channels)
+  const mentionMembers = useMemo<MentionMember[]>(() => {
+    if (isDm) {
+      if (!dmMembers) return []
+      return dmMembers
         .map((m) => ({
           userId: m.userId,
-          username: m.user.username,
-          displayName: m.displayName ?? m.user.displayName,
-          avatarUrl: m.user.avatarUrl
+          username: m.username,
+          displayName: m.displayName,
+          avatarUrl: m.avatarUrl
         }))
-      if (!canPingBroadcast) {
-        return userRows
-      }
-      const seenRole = new Set<string>()
-      const roleRows: MentionMember[] = []
-      for (const m of useMemberStore.getState().members) {
-        for (const r of m.roles ?? []) {
-          if (r.isDefault || seenRole.has(r.id)) continue
-          seenRole.add(r.id)
-          roleRows.push({
-            userId: `__role__:${r.id}`,
-            username: r.name,
-            displayName: null,
-            avatarUrl: null
-          })
-        }
-      }
-      roleRows.sort((a, b) => a.username.localeCompare(b.username))
-      return [...userRows, ...roleRows]
     }
-    const buildChannels = () => {
-      if (isDm) return channels ?? []
-      return useChannelStore
-        .getState()
-        .channels.filter((c) => c.type === 'text')
-        .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name }))
+    const userRows = roster
+      .filter((m) => !serverId || m.serverId === serverId)
+      .map((m) => ({
+        userId: m.userId,
+        username: m.user.username,
+        displayName: m.displayName ?? m.user.displayName,
+        globalDisplayName: m.displayName ? m.user.displayName : undefined,
+        avatarUrl: m.user.avatarUrl
+      }))
+    if (!canPingBroadcast) {
+      return userRows
     }
-    mentionMembersRef.current = buildMembers()
-    mentionChannelsRef.current = buildChannels()
-    const unsubs = [
-      useMemberStore.subscribe(() => {
-        mentionMembersRef.current = buildMembers()
-      }),
-      useChannelStore.subscribe(() => {
-        mentionChannelsRef.current = buildChannels()
-      }),
-      ...(isDm
-        ? [
-            useDmStore.subscribe(() => {
-              mentionMembersRef.current = buildMembers()
-            })
-          ]
-        : [])
-    ]
-    return () => unsubs.forEach((fn) => fn())
-  }, [isDm, userId, channels, contextId, canPingBroadcast])
-  const mentionMembers = mentionMembersRef.current
-  const mentionChannels = mentionChannelsRef.current
+    const seenRole = new Set<string>()
+    const roleRows: MentionMember[] = []
+    for (const m of roster.filter((m) => !serverId || m.serverId === serverId)) {
+      for (const r of m.roles ?? []) {
+        if (r.isDefault || seenRole.has(r.id)) continue
+        seenRole.add(r.id)
+        roleRows.push({
+          userId: `__role__:${r.id}`,
+          username: r.name,
+          displayName: null,
+          avatarUrl: null
+        })
+      }
+    }
+    roleRows.sort((a, b) => a.username.localeCompare(b.username))
+    return [...userRows, ...roleRows]
+  }, [isDm, dmMembers, roster, serverId, canPingBroadcast])
+  const mentionChannels = useMemo(
+    () =>
+      isDm
+        ? (channels ?? [])
+        : channelRoster
+            .filter((c) => c.type === 'text' && (!serverId || c.serverId === serverId))
+            .map((c) => ({ id: c.id, serverId: c.serverId, name: c.name })),
+    [isDm, channels, channelRoster, serverId]
+  )
 
   const editLastOwnMessage = useCallback(() => {
     if (!userId) return
@@ -315,6 +294,14 @@ export function useMessageComposer({
       }
     }
 
+    content = replaceMemberMentions(
+      content,
+      mentionMembers.filter((m) => !m.userId.startsWith('__'))
+    )
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      setSizeError(t('messageTooLong', { count: MAX_MESSAGE_LENGTH }))
+      return
+    }
     if (!content && !files.length) return
     savingRef.current = true
     setSaving(true)

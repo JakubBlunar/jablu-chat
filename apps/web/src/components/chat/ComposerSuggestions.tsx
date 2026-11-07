@@ -35,7 +35,7 @@ export function MentionPopup({
                 <span className="text-[10px] font-semibold text-indigo-200">R</span>
               </div>
             ) : (
-              <UserAvatar username={m.username} avatarUrl={m.avatarUrl} size="sm" />
+              <UserAvatar username={m.displayName ?? m.username} avatarUrl={m.avatarUrl} size="sm" />
             )}
             <div className="min-w-0 flex-1">
               <span
@@ -43,7 +43,7 @@ export function MentionPopup({
                   isBroadcast ? 'text-yellow-300' : isRole ? 'text-indigo-200' : ''
                 }`}
               >
-                @{m.username}
+                @{isBroadcast || isRole ? m.username : (m.displayName ?? m.username)}
               </span>
               {isBroadcast && (
                 <span className="block truncate text-xs text-gray-500">

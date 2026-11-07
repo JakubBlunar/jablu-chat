@@ -1,5 +1,15 @@
+import { mentionText, resolveMentionIdentity } from '@chat/shared'
 import type { BotCommandWithBot } from '@chat/shared'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type RefObject
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { applyComposerCompletion, findComposerTrigger } from '../composerCompletion'
 import type {
@@ -55,6 +65,16 @@ export function useComposerSuggestions({
   const [triggerStart, setTriggerStart] = useState(0)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const dismissed = useRef<{ value: string; cursor: number } | null>(null)
+  const pendingSelection = useRef<{ value: string; cursor: number } | null>(null)
+  useLayoutEffect(() => {
+    const next = pendingSelection.current
+    if (!next) return
+    pendingSelection.current = null
+    if (next.value !== value || !taRef.current) return
+    taRef.current.setSelectionRange(next.cursor, next.cursor)
+    taRef.current.focus()
+  }, [value, taRef])
+
   const dismissSuggestions = useCallback(() => {
     const element = taRef.current
     dismissed.current = element ? { value: element.value, cursor: element.selectionStart } : null
@@ -75,7 +95,7 @@ export function useComposerSuggestions({
     const userEntries = members.filter((m) => !m.userId.startsWith('__role__:'))
     const roleResults = roleEntries.filter((m) => m.username.toLowerCase().includes(q)).slice(0, 6)
     const userResults = userEntries
-      .filter((m) => m.username.toLowerCase().includes(q) || (m.displayName && m.displayName.toLowerCase().includes(q)))
+      .filter((m) => [m.username, m.displayName, m.globalDisplayName].some((name) => name?.toLowerCase().includes(q)))
       .slice(0, Math.max(0, 10 - broadcastEntries.length - roleResults.length))
     return [...broadcastEntries, ...roleResults, ...userResults]
   }, [popupMode, query, members])
@@ -176,18 +196,21 @@ export function useComposerSuggestions({
           insert = `@"${safe}" `
         }
       } else {
-        insert = `@${member.username} `
+        const name = member.displayName?.trim()
+        const identities = members?.filter((m) => !m.userId.startsWith('__')) ?? []
+        const safeAlias =
+          name &&
+          !/["\\\r\n]/.test(name) &&
+          !['everyone', 'here'].includes(name.toLowerCase()) &&
+          resolveMentionIdentity(name, identities)?.userId === member.userId
+        insert = `${mentionText(safeAlias ? name : member.username)} `
       }
       const next = applyComposerCompletion(value, triggerStart, el.selectionStart, insert)
+      pendingSelection.current = next
       onChange(next.value)
       setPopupMode('none')
-      requestAnimationFrame(() => {
-        const cursor = next.cursor
-        el.setSelectionRange(cursor, cursor)
-        el.focus()
-      })
     },
-    [value, triggerStart, onChange, taRef]
+    [value, triggerStart, onChange, taRef, members]
   )
 
   const insertChannel = useCallback(
@@ -196,13 +219,9 @@ export function useComposerSuggestions({
       if (!el) return
       const insert = `#${channel.name} `
       const next = applyComposerCompletion(value, triggerStart, el.selectionStart, insert)
+      pendingSelection.current = next
       onChange(next.value)
       setPopupMode('none')
-      requestAnimationFrame(() => {
-        const cursor = next.cursor
-        el.setSelectionRange(cursor, cursor)
-        el.focus()
-      })
     },
     [value, triggerStart, onChange, taRef]
   )
@@ -213,13 +232,9 @@ export function useComposerSuggestions({
       if (!el) return
       const insert = `:${emoji.name}: `
       const next = applyComposerCompletion(value, triggerStart, el.selectionStart, insert)
+      pendingSelection.current = next
       onChange(next.value)
       setPopupMode('none')
-      requestAnimationFrame(() => {
-        const cursor = next.cursor
-        el.setSelectionRange(cursor, cursor)
-        el.focus()
-      })
     },
     [value, triggerStart, onChange, taRef]
   )

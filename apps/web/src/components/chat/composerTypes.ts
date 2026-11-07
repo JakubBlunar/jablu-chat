@@ -9,6 +9,7 @@ export type MentionMember = {
   userId: string
   username: string
   displayName: string | null
+  globalDisplayName?: string | null
   avatarUrl: string | null
 }
 

@@ -185,5 +185,6 @@
   "cmdSettingsVoice": "Settings: Voice & Video",
   "cmdSettingsShortcuts": "Settings: Keyboard shortcuts",
   "cmdOpenServerSettings": "Open server settings",
-  "cmdShowShortcuts": "Show keyboard shortcuts"
+  "cmdShowShortcuts": "Show keyboard shortcuts",
+  "inboxNotificationUnread": "{{count}} unread"
 }

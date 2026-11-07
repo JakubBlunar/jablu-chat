@@ -27,9 +27,13 @@ export function InboxWorkspace() {
     if (!reader || reader.group.unavailable) return
     const target = reader.target
     void openConversation({
-      target: target.mode === 'dm' ? { kind: 'dm', conversationId: target.contextId }
-        : { kind: 'channel', serverId: target.serverId!, channelId: target.contextId },
-      position: target.messageId ? { kind: 'message', messageId: target.messageId, threadParentId: target.threadParentId } : { kind: 'unread' },
+      target:
+        target.mode === 'dm'
+          ? { kind: 'dm', conversationId: target.contextId }
+          : { kind: 'channel', serverId: target.serverId!, channelId: target.contextId },
+      position: target.messageId
+        ? { kind: 'message', messageId: target.messageId, threadParentId: target.threadParentId }
+        : { kind: 'unread' },
       source: 'inbox'
     })
   }, [readerRequest])
@@ -46,22 +50,33 @@ function InboxPanel() {
   const panel = useRef<HTMLDivElement>(null)
   const tablist = useRef<HTMLDivElement>(null)
   const close = useCallback(() => useInboxStore.getState().close(), [])
-  const { tab, counts, groups, loading, pending, error, nextCursor, session, sessionLoaded, newActivity, keepCurrentView } =
-    useInboxStore(
-      useShallow((s) => ({
-        tab: s.tab,
-        counts: s.counts,
-        groups: s.groups,
-        loading: s.loading,
-        pending: s.pending,
-        error: s.error,
-        nextCursor: s.nextCursor,
-        session: s.session,
-        sessionLoaded: s.sessionLoaded,
-        newActivity: s.newActivity,
-        keepCurrentView: s.keepCurrentView
-      }))
-    )
+  const {
+    tab,
+    counts,
+    groups,
+    loading,
+    pending,
+    error,
+    nextCursor,
+    session,
+    sessionLoaded,
+    newActivity,
+    keepCurrentView
+  } = useInboxStore(
+    useShallow((s) => ({
+      tab: s.tab,
+      counts: s.counts,
+      groups: s.groups,
+      loading: s.loading,
+      pending: s.pending,
+      error: s.error,
+      nextCursor: s.nextCursor,
+      session: s.session,
+      sessionLoaded: s.sessionLoaded,
+      newActivity: s.newActivity,
+      keepCurrentView: s.keepCurrentView
+    }))
+  )
   const { notificationCount, notificationError } = useNotificationCenterStore(
     useShallow((s) => ({ notificationCount: s.unreadCount, notificationError: s.unreadError }))
   )
@@ -106,22 +121,36 @@ function InboxPanel() {
         onKeyDownCapture={keepCurrentView}
         onWheelCapture={keepCurrentView}
         onTouchMoveCapture={keepCurrentView}
-        className="flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden bg-surface-dark pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-gray-200 shadow-2xl md:h-[min(85dvh,850px)] md:max-w-4xl md:rounded-2xl md:ring-1 md:ring-white/10"
+        className="flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-gray-200 shadow-2xl md:h-[min(85dvh,850px)] md:max-w-4xl md:rounded-2xl md:ring-1 md:ring-white/10"
       >
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 md:px-6">
-          <div>
+        <header className="flex shrink-0 items-center justify-between gap-3 bg-surface-dark px-4 pb-3 pt-5 md:px-6 md:pt-6">
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-white">{t('mobileInbox')}</h1>
-            <p className="text-xs text-gray-400">{t('inboxReviewHint')}</p>
+            <p className="mt-1 text-sm text-gray-400">{t('inboxReviewHint')}</p>
           </div>
-          <button type="button" className={button} onClick={close} aria-label={common('close')}>
-            &times;
+          <button
+            type="button"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-white/10 hover:text-white"
+            onClick={close}
+            aria-label={common('close')}
+          >
+            <svg
+              aria-hidden="true"
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m6 6 12 12M6 18 18 6" />
+            </svg>
           </button>
         </header>
         <div
           ref={tablist}
           role="tablist"
           aria-label={t('inboxViews')}
-          className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none"
+          className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 bg-surface-dark px-3 pb-3 pt-1 md:px-5 scrollbar-none"
         >
           {TABS.map((view, index) => (
             <button
@@ -150,18 +179,22 @@ function InboxPanel() {
                 }
               }}
               onClick={() => useInboxStore.getState().selectTab(view)}
-              className={`${button} flex shrink-0 items-center ${tab === view ? 'bg-primary/20 text-white ring-1 ring-primary/40' : 'text-gray-400'}`}
+              className={`${button} flex shrink-0 items-center gap-2 ${tab === view ? 'bg-primary/15 text-primary ring-1 ring-primary/30' : 'text-gray-400 hover:text-gray-100'}`}
             >
               {t(`inboxTab_${view}`)}
               {view === 'activity' ? (
                 notificationError ? (
-                  <span aria-hidden="true" className="ml-1.5 text-red-300" title={t('inboxCountFailed')}>!</span>
+                  <span aria-hidden="true" className="ml-1.5 text-red-300" title={t('inboxCountFailed')}>
+                    !
+                  </span>
                 ) : (
                   <CountBadge count={notificationCount} className="ml-1.5" />
                 )
-              ) : (
-                <span className="ml-1.5 text-xs opacity-70">{counts[view]}</span>
-              )}
+              ) : counts[view] > 0 ? (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-md bg-white/10 px-1.5 text-[11px] font-semibold">
+                  {counts[view]}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -192,7 +225,7 @@ function InboxPanel() {
                     {t('inboxProgress', { current: session.index + 1, total: session.groups.length })}
                   </p>
                   <button
-                    className={`${button} bg-primary text-white hover:bg-primary/80`}
+                    className={`${button} bg-primary text-primary-text hover:bg-primary-hover`}
                     type="button"
                     disabled={pending || !sessionLoaded}
                     onClick={start}
@@ -201,10 +234,12 @@ function InboxPanel() {
                   </button>
                 </div>
               )}
-              <InboxActivity onNavigate={() => {
-                useLayoutStore.getState().closeNavDrawer()
-                close()
-              }} />
+              <InboxActivity
+                onNavigate={() => {
+                  useLayoutStore.getState().closeNavDrawer()
+                  close()
+                }}
+              />
             </>
           ) : (
             <>
@@ -215,7 +250,7 @@ function InboxPanel() {
                     {t('inboxRefresh')}
                   </button>
                   <button
-                    className={`${button} bg-primary text-white hover:bg-primary/80`}
+                    className={`${button} bg-primary text-primary-text hover:bg-primary-hover`}
                     type="button"
                     disabled={pending || !sessionLoaded || (!unfinished && !counts[tab])}
                     onClick={start}

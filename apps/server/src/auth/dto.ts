@@ -18,7 +18,7 @@ import { APP_LOCALES, type AppLocale } from '@chat/shared'
 
 export class RegisterDto {
   @IsString()
-  @MinLength(5)
+  @MinLength(4)
   @MaxLength(20)
   @Matches(/^[a-zA-Z0-9_-]+$/, {
     message: 'Username can only contain letters, numbers, hyphens, and underscores'

@@ -3,7 +3,7 @@ import base from './playwright.config'
 
 export default defineConfig({
   ...base,
-  testMatch: ['appearance-jinx.spec.ts', 'private-area-regressions.spec.ts'],
+  testMatch: ['appearance-jinx.spec.ts', 'private-area-regressions.spec.ts', 'inbox-mentions.spec.ts'],
   retries: 0,
   timeout: 90_000,
   use: { ...base.use, baseURL: 'http://127.0.0.1:5180' },

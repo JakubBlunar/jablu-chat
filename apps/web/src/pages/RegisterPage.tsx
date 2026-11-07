@@ -110,9 +110,13 @@ export function RegisterPage() {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           maxLength={20}
+          minLength={4}
+          pattern={'[a-zA-Z0-9_\\-]+'}
+          aria-describedby="username-hint"
           placeholder={t('usernamePlaceholder')}
           required
         />
+        <p id="username-hint" className="-mt-2 text-xs text-gray-400">{t('usernameHint')}</p>
 
         <Input
           id="email"

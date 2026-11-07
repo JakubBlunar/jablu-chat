@@ -287,6 +287,32 @@ describe('ReadStateService', () => {
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(1)
     })
 
+    it('resolves a server nickname to the account and does not notify a namesake of a canonical handle', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        { userId: 'reno-user', username: 'jt', displayName: 'Global', serverName: 'Reno' },
+        { userId: 'namesake', username: 'other', displayName: 'jt', serverName: null }
+      ])
+      expect((await service.resolveMentions('@Reno', serverId, 'sender', [], 0n)).userIds).toEqual(['reno-user'])
+      expect((await service.resolveMentions('@jt', serverId, 'sender', [], 0n)).userIds).toEqual(['reno-user'])
+    })
+
+    it('does not turn ambiguous nicknames into multiple notifications or role mentions', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        { userId: 'a', username: 'alpha', displayName: null, serverName: 'Reno' },
+        { userId: 'b', username: 'bravo', displayName: null, serverName: 'Reno' }
+      ])
+      expect((await service.resolveMentions('@Reno', serverId, 'sender', [], 1n << 7n)).userIds).toEqual([])
+      expect(prisma.role.findMany).not.toHaveBeenCalled()
+    })
+
+    it('does not redirect a sender account mention to someone using their name', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        { userId: 'sender', username: 'reno', displayName: null, serverName: null },
+        { userId: 'other', username: 'jt', displayName: null, serverName: 'Reno' }
+      ])
+      expect((await service.resolveMentions('@reno', serverId, 'sender', [], 0n)).userIds).toEqual([])
+    })
+
     it('reuses assigned-role mention permissions from an authorized send attempt', async () => {
       const result = await service.resolveMentions('hey @alice', serverId, 'u-bob', [], 0n)
       expect(result.userIds).toEqual(['u-alice'])

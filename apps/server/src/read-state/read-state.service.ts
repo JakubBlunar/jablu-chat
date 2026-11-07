@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { hasPermission, Permission } from '@chat/shared'
+import { hasPermission, Permission, resolveMentionIdentity } from '@chat/shared'
 import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
@@ -222,15 +222,10 @@ export class ReadStateService {
   ): Promise<{ userIds: string[]; everyone: boolean; here: boolean }> {
     const mentions = new Set<string>()
 
-    const quotedPattern = /@"([^"]+)"/g
+    const quotedPattern = /(?<![\p{L}\p{N}_@])@(?:"([^"\r\n]+)"|([\p{L}\p{N}_-]+))/gu
     let match: RegExpExecArray | null
     while ((match = quotedPattern.exec(content)) !== null) {
-      mentions.add(match[1].trim().toLowerCase())
-    }
-
-    const wordPattern = /@(\w+)/g
-    while ((match = wordPattern.exec(content)) !== null) {
-      mentions.add(match[1].toLowerCase())
+      mentions.add((match[1] ?? match[2]).trim().toLowerCase())
     }
 
     const hasEveryone = mentions.has('everyone')
@@ -271,26 +266,20 @@ export class ReadStateService {
     }[]>`
       SELECT sm.user_id AS "userId", u.username, u.display_name AS "displayName", sm.display_name AS "serverName"
       FROM server_members sm JOIN users u ON u.id = sm.user_id
-      WHERE sm.server_id = ${serverId} AND sm.user_id <> ${excludeUserId}
+      WHERE sm.server_id = ${serverId}
         AND (lower(u.username) = ANY(${tokens}::text[]) OR lower(btrim(u.display_name)) = ANY(${tokens}::text[])
           OR lower(btrim(sm.display_name)) = ANY(${tokens}::text[]))
     ` : []
-    for (const m of members) {
-      if (m.userId === excludeUserId) continue
-      const un = m.username.toLowerCase()
-      const dn = m.displayName?.trim().toLowerCase()
-      if (mentions.has(un)) {
-        userIdSet.add(m.userId)
-        consumedTokens.add(un)
-      }
-      if (dn && mentions.has(dn)) {
-        userIdSet.add(m.userId)
-        consumedTokens.add(dn)
-      }
-      const serverName = m.serverName?.trim().toLowerCase()
-      if (serverName && mentions.has(serverName)) {
-        userIdSet.add(m.userId)
-        consumedTokens.add(serverName)
+    const identities = members.map((m) => ({
+      userId: m.userId, username: m.username, displayName: m.serverName ?? m.displayName,
+      globalDisplayName: m.serverName ? m.displayName : undefined
+    }))
+    for (const token of tokens) {
+      const identity = resolveMentionIdentity(token, identities)
+      if (identity && identity.userId !== excludeUserId) userIdSet.add(identity.userId)
+      // An ambiguous nickname must not turn into a role-wide ping.
+      if (identities.some((m) => [m.username, m.displayName, m.globalDisplayName].some((name) => name?.trim().toLowerCase() === token))) {
+        consumedTokens.add(token)
       }
     }
 

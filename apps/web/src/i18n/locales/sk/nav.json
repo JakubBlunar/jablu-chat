@@ -196,5 +196,6 @@
   "cmdSettingsVoice": "Nastavenia: Hlas a video",
   "cmdSettingsShortcuts": "Nastavenia: Klávesové skratky",
   "cmdOpenServerSettings": "Otvoriť nastavenia servera",
-  "cmdShowShortcuts": "Zobraziť klávesové skratky"
+  "cmdShowShortcuts": "Zobraziť klávesové skratky",
+  "inboxNotificationUnread": "Neprečítané: {{count}}"
 }

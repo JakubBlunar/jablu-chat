@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { Fragment, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import type { InAppNotificationDto } from '@/lib/api/types'
@@ -8,6 +8,10 @@ import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { getDmCallUrl } from '@chat/shared'
 import type { TFunction } from 'i18next'
+import { formatDateSeparator, formatSmartTimestamp, formatFullDateTime, isDifferentDay } from '@/lib/format-time'
+import { useServerStore } from '@/stores/server.store'
+import { useMemberStore } from '@/stores/member.store'
+import { memberDisplayName } from '@/lib/serverProfile'
 
 function titleFor(n: InAppNotificationDto, t: TFunction<'nav'>, language: string): string {
   const p = n.payload
@@ -179,6 +183,8 @@ function iconFor(kind: InAppNotificationDto['kind']) {
 }
 
 export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
+  const servers = useServerStore((s) => s.servers)
+  const members = useMemberStore((s) => s.members)
   const unreadCount = useNotificationCenterStore((s) => s.unreadCount)
   const items = useNotificationCenterStore((s) => s.items)
   const listLoading = useNotificationCenterStore((s) => s.listLoading)
@@ -222,7 +228,11 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           const conv = typeof p.conversationId === 'string' ? p.conversationId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (conv) {
-            void openConversation({ target: { kind: 'dm', conversationId: conv }, position: messageId ? { kind: 'message', messageId } : { kind: 'unread' }, source: 'inbox' })
+            void openConversation({
+              target: { kind: 'dm', conversationId: conv },
+              position: messageId ? { kind: 'message', messageId } : { kind: 'unread' },
+              source: 'inbox'
+            })
           }
         } else if (['mention', 'thread_reply', 'channel_message', 'reply'].includes(n.kind)) {
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
@@ -230,7 +240,11 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           const threadParentId = typeof p.threadParentId === 'string' ? p.threadParentId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (serverId && channelId) {
-            void openConversation({ target: { kind: 'channel', serverId, channelId }, position: messageId ? { kind: 'message', messageId, threadParentId } : { kind: 'unread' }, source: 'inbox' })
+            void openConversation({
+              target: { kind: 'channel', serverId, channelId },
+              position: messageId ? { kind: 'message', messageId, threadParentId } : { kind: 'unread' },
+              source: 'inbox'
+            })
           }
         } else if (n.kind === 'dm_call') {
           if (typeof p.conversationId === 'string' && typeof p.callId === 'string') {
@@ -248,7 +262,10 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
           // server to open either, so fall back to the home view.
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
           const removed = n.kind === 'moderation' && (p.action === 'kick' || p.action === 'ban')
-          void openConversation({ target: serverId && !removed ? { kind: 'server', serverId } : { kind: 'home' }, source: 'inbox' })
+          void openConversation({
+            target: serverId && !removed ? { kind: 'server', serverId } : { kind: 'home' },
+            source: 'inbox'
+          })
         }
         // `announcement` has nowhere to go; clicking it just marks it seen.
       } finally {
@@ -264,8 +281,15 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {showLoading && <span className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/70" />}
-      <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-3 pb-2">
-        <span className="text-sm font-semibold text-white">{t('inboxActivity')}</span>
+      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-2 md:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold text-gray-200">{t('inboxActivity')}</h2>
+          {unreadCount > 0 && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              {t('inboxNotificationUnread', { count: unreadCount })}
+            </span>
+          )}
+        </div>
         {unreadCount > 0 && (
           <button
             type="button"
@@ -313,31 +337,95 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
         ) : items.length === 0 && listLoading ? (
           <div className="h-full" />
         ) : items.length === 0 && !listError && !unreadError && !actionError ? (
-          <div className="flex h-full items-center justify-center px-3">
-            <p className="text-sm text-gray-500">{t('inboxCaughtUp')}</p>
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center">
+            <span className="rounded-2xl bg-primary/10 p-4 text-primary" aria-hidden="true">
+              {iconFor('mention')}
+            </span>
+            <p className="text-base font-medium text-gray-200">{t('inboxCaughtUp')}</p>
           </div>
         ) : items.length > 0 ? (
-          <ul>
-            {items.map((n) => {
+          <ul className="space-y-2 px-3 pb-5 md:px-5">
+            {items.map((n, index) => {
               const snippet = snippetFor(n, tChat)
+              const stamp = n.updatedAt || n.createdAt
+              const newDay =
+                index === 0 || isDifferentDay(items[index - 1].updatedAt || items[index - 1].createdAt, stamp)
+              const server = servers.find((server) => server.id === n.payload.serverId)
+              const context = server?.name ?? (typeof n.payload.serverName === 'string' ? n.payload.serverName : null)
+              const author = members.find(
+                (member) => member.serverId === n.payload.serverId && member.userId === n.payload.authorId
+              )
+              const notice = author ? { ...n, payload: { ...n.payload, authorName: memberDisplayName(author) } } : n
               return (
-                <li key={n.id} className={`border-b border-white/5 last:border-0 ${n.readAt ? '' : 'bg-primary/5'}`}>
-                  <button
-                    type="button"
-                    onClick={() => void onItemClick(n)}
-                    className={`flex min-h-11 w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-white/5 ${
-                      n.readAt ? 'opacity-70' : ''
-                    }`}
+                <Fragment key={n.id}>
+                  {newDay && (
+                    <li role="presentation" className="px-1 pb-1 pt-3">
+                      <h3 className="text-xs font-semibold text-gray-400">{formatDateSeparator(stamp)}</h3>
+                    </li>
+                  )}
+                  <li
+                    data-notification-read={!!n.readAt}
+                    className={`group/notice relative flex min-w-0 overflow-hidden rounded-xl border transition ${n.readAt ? 'border-white/5 bg-surface-dark/50 hover:border-white/10' : 'border-primary/20 bg-primary/[0.045] hover:border-primary/40'}`}
                   >
-                    <span className={`mt-0.5 ${n.readAt ? 'text-gray-400' : 'text-primary'}`} aria-hidden>
-                      {iconFor(n.kind)}
-                    </span>
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-sm font-medium text-white">{titleFor(n, t, i18n.language)}</span>
-                      {snippet ? <span className="line-clamp-2 text-xs text-gray-400">{snippet}</span> : null}
-                    </span>
-                  </button>
-                </li>
+                    <button
+                      type="button"
+                      onClick={() => void onItemClick(n)}
+                      className="flex min-h-16 min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left transition hover:bg-white/[0.025] md:px-4 md:py-3.5"
+                    >
+                      <span
+                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${n.readAt ? 'bg-white/5 text-gray-400' : 'bg-primary/10 text-primary'}`}
+                        aria-hidden
+                      >
+                        {iconFor(n.kind)}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                          {context && (
+                            <span className="min-w-0 truncate text-[11px] font-medium text-gray-400">{context}</span>
+                          )}
+                          <time
+                            dateTime={stamp}
+                            title={formatFullDateTime(stamp)}
+                            className="ml-auto shrink-0 text-[11px] text-gray-500"
+                          >
+                            {formatSmartTimestamp(stamp)}
+                          </time>
+                        </span>
+                        <span
+                          className={`break-words text-sm leading-5 ${n.readAt ? 'font-medium text-gray-200' : 'font-semibold text-white'}`}
+                        >
+                          {titleFor(notice, t, i18n.language)}
+                        </span>
+                        {snippet ? (
+                          <span className="line-clamp-2 break-words text-[13px] leading-5 text-gray-400">
+                            {snippet}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                    {!n.readAt && (
+                      <button
+                        type="button"
+                        aria-label={t('inboxMarkRead')}
+                        title={t('inboxMarkRead')}
+                        disabled={pendingIds.includes(n.id) || markAllPending}
+                        onClick={() => void markRead(n.id)}
+                        className="my-2 mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-primary transition hover:bg-primary/10 disabled:opacity-50 md:opacity-0 md:group-hover/notice:opacity-100 md:focus-visible:opacity-100"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="m5 12 4 4L19 6" />
+                        </svg>
+                      </button>
+                    )}
+                  </li>
+                </Fragment>
               )
             })}
           </ul>
