@@ -93,6 +93,7 @@
   "notificationServer": "server",
   "notificationEvent": "Událost",
   "notificationGeneric": "Oznámení",
+  "notificationReaction": "{{author}} reaguje {{emoji}} na vaši zprávu",
   "notificationAnnouncement": "Sdělení",
   "notificationMention": "{{author}} vás zmínil v #{{channel}}",
   "notificationReply": "{{author}} vám odpověděl v #{{channel}}",

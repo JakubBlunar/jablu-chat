@@ -174,6 +174,7 @@ export type InAppNotificationKind =
   | 'friend_request'
   | 'channel_message'
   | 'reply'
+  | 'reaction'
   | 'moderation'
   | 'role_changed'
   | 'level_up'

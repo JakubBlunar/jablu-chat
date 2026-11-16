@@ -632,6 +632,8 @@ enum InAppNotificationKind {
   channel_message
   /// Someone replied to your message without @mentioning you.
   reply
+  /// Someone reacted to your message.
+  reaction
   /// You were timed out, kicked, or banned.
   moderation
   /// A role was assigned to or removed from you.

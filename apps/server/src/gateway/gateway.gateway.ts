@@ -29,6 +29,7 @@ import { ReadStateService } from '../read-state/read-state.service'
 import { RedisService } from '../redis/redis.service'
 import { RolesService } from '../roles/roles.service'
 import { registerEventListeners } from './gateway-event-listeners'
+import { deliverReactionNotifications } from './reaction-notifications'
 import { COMPACT_MESSAGES_ROOM, emitMessageEvent, fullMessageRoom, joinMessageContext, leaveMessageContext } from './message-subscriptions'
 import {
   WsChannelIdDto,
@@ -1155,6 +1156,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       if (send.denied) return { ok: false, error: 'You do not have permission to interact in this channel' }
     }
     const result = await this.messages.setManyReactions(body.messageIds, user.id, body.emoji, body.isCustom ?? false, body.present)
+    if (result.action === 'added') void deliverReactionNotifications(this, result.changedIds, user.id, body.emoji, body.isCustom ?? false)
     const event = result.action === 'added' ? 'reaction:add' : 'reaction:remove'
     for (const messageId of result.changedIds) {
       const payload = { messageId, emoji: body.emoji, userId: user.id, isCustom: body.isCustom ?? false }
@@ -1178,6 +1180,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       if (sendCheck.denied) return { ok: false, error: 'You do not have permission to interact in this channel' }
     }
     const result = await this.messages.toggleReaction(body.messageId, user.id, body.emoji, body.isCustom ?? false)
+    if (result.action === 'added') void deliverReactionNotifications(this, [body.messageId], user.id, body.emoji, result.isCustom)
     const event = result.action === 'added' ? 'reaction:add' : 'reaction:remove'
     const payload = {
       messageId: body.messageId,

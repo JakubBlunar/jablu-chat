@@ -265,6 +265,7 @@ describe('InAppNotificationsService', () => {
         expect.arrayContaining([
           InAppNotificationKind.mention,
           InAppNotificationKind.thread_reply,
+          InAppNotificationKind.reaction,
           InAppNotificationKind.reply
         ])
       )
@@ -274,6 +275,12 @@ describe('InAppNotificationsService', () => {
       prisma.inAppNotification.updateMany.mockResolvedValue({ count: 1 })
 
       await service.markDmRead('u1', 'conv-1')
+
+      expect(prisma.inAppNotification.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ OR: expect.arrayContaining([
+          { kind: InAppNotificationKind.reaction, payload: { path: ['conversationId'], equals: 'conv-1' } }
+        ]) })
+      }))
 
       expect(events.emit).toHaveBeenCalledWith(NOTIFICATION_CLEAR_EVENT, {
         userId: 'u1',

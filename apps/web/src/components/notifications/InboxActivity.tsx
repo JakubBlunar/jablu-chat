@@ -32,6 +32,8 @@ function titleFor(n: InAppNotificationDto, t: TFunction<'nav'>, language: string
       return t('notificationMessage', { author, channel, count })
     case 'reply':
       return t('notificationReply', { author, channel })
+    case 'reaction':
+      return t('notificationReaction', { author, emoji: p.isCustom ? `:${p.emoji}:` : p.emoji })
     case 'friend_request': {
       const name = typeof p.requesterName === 'string' ? p.requesterName : t('notificationSomeone')
       return t('notificationFriendRequest', { name })
@@ -107,6 +109,13 @@ function iconFor(kind: InAppNotificationDto['kind']) {
     strokeLinejoin: 'round' as const
   }
   switch (kind) {
+    case 'reaction':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8 14s1 3 4 3 4-3 4-3M8 9h.01M16 9h.01" />
+        </svg>
+      )
     case 'dm_call':
       return (
         <svg {...common}>
@@ -224,7 +233,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
     (n: InAppNotificationDto) => {
       const p = n.payload
       try {
-        if (n.kind === 'dm_message') {
+        if (n.kind === 'dm_message' || (n.kind === 'reaction' && typeof p.conversationId === 'string')) {
           const conv = typeof p.conversationId === 'string' ? p.conversationId : null
           const messageId = typeof p.messageId === 'string' ? p.messageId : null
           if (conv) {
@@ -234,7 +243,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
               source: 'inbox'
             })
           }
-        } else if (['mention', 'thread_reply', 'channel_message', 'reply'].includes(n.kind)) {
+        } else if (['mention', 'thread_reply', 'channel_message', 'reply', 'reaction'].includes(n.kind)) {
           const serverId = typeof p.serverId === 'string' ? p.serverId : null
           const channelId = typeof p.channelId === 'string' ? p.channelId : null
           const threadParentId = typeof p.threadParentId === 'string' ? p.threadParentId : null

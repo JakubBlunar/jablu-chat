@@ -1,6 +1,7 @@
 import { Permission, hasPermission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
 import { deliverChannelMessage, deliverDmMessage } from './message-notifications'
+import { deliverReactionNotifications } from './reaction-notifications'
 import { InAppNotificationKind } from '../prisma-client'
 import { mapMessageToWire, messageInclude } from '../messages/message-wire'
 import { friendAcceptedPushCopy, friendRequestPushCopy, moderationPushCopy } from '../push/push-copy'
@@ -812,6 +813,7 @@ export function registerEventListeners(gw: ChatGateway) {
         directConversationId: string | null
       }) => {
         const socketEvent = ev === 'rest:reaction:added' ? 'reaction:add' : 'reaction:remove'
+        if (ev === 'rest:reaction:added') void deliverReactionNotifications(gw, [payload.messageId], payload.userId, payload.emoji, payload.isCustom)
         const data = {
           messageId: payload.messageId,
           emoji: payload.emoji,

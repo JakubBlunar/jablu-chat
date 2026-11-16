@@ -271,6 +271,7 @@ export class InAppNotificationsService {
     return [
       InAppNotificationKind.mention,
       InAppNotificationKind.thread_reply,
+      InAppNotificationKind.reaction,
       InAppNotificationKind.reply
     ].map((kind) => ({
       kind,
@@ -329,7 +330,10 @@ export class InAppNotificationsService {
       where: {
         userId,
         readAt: null,
-        dedupeKey: `dm:${conversationId}`
+        OR: [
+          { dedupeKey: `dm:${conversationId}` },
+          { kind: InAppNotificationKind.reaction, payload: { path: ['conversationId'], equals: conversationId } }
+        ]
       },
       data: { readAt: new Date() }
     })

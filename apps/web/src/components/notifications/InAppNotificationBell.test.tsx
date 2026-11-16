@@ -6,6 +6,9 @@ import { useInboxStore } from '@/stores/inbox.store'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { api } from '@/lib/api'
 import type { InAppNotificationDto } from '@/lib/api/types'
+import { openConversation } from '@/lib/conversationNavigation'
+
+jest.mock('@/lib/conversationNavigation', () => ({ openConversation: jest.fn() }))
 
 jest.mock('@/lib/api', () => ({
   api: {
@@ -129,4 +132,24 @@ it('discards legacy notification responses arriving after account cleanup', asyn
   resolve({ items: [item] })
   await request
   expect(useNotificationCenterStore.getState()).toMatchObject({ items: [], listLoading: false, unreadCount: 0 })
+})
+
+it.each(['channel', 'dm'])('opens the reacted message in a %s and marks the alert read', async (mode) => {
+  const reaction: InAppNotificationDto = {
+    ...item, kind: 'reaction',
+    payload: {
+      authorName: 'Friend', emoji: '🎉', messageId: 'message', snippet: 'Your message',
+      ...(mode === 'dm' ? { conversationId: 'dm' } : { serverId: 'server', channelId: 'channel', threadParentId: 'parent' })
+    }
+  }
+  jest.mocked(api.getInAppNotifications).mockResolvedValue({ items: [reaction] })
+  jest.mocked(api.markInAppNotificationRead).mockResolvedValue(reaction)
+  render(<InboxActivity onNavigate={jest.fn()} />)
+  fireEvent.click(await screen.findByText('notificationReaction'))
+  expect(openConversation).toHaveBeenCalledWith({
+    target: mode === 'dm' ? { kind: 'dm', conversationId: 'dm' } : { kind: 'channel', serverId: 'server', channelId: 'channel' },
+    position: mode === 'dm' ? { kind: 'message', messageId: 'message' } : { kind: 'message', messageId: 'message', threadParentId: 'parent' },
+    source: 'inbox'
+  })
+  expect(api.markInAppNotificationRead).toHaveBeenCalledWith('n1')
 })

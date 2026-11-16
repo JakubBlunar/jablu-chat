@@ -4,6 +4,19 @@ import { ThemeSync } from './ThemeSync'
 import { useSettingsStore } from '@/stores/settings.store'
 
 let mockAuthenticated = true
+let mockNativeTheme: 'dark' | 'light' = 'dark'
+let mockNativeListener: ((event: { payload: 'dark' | 'light' }) => void) | undefined
+const mockUnlisten = jest.fn()
+const mockReadTheme = jest.fn(async () => mockNativeTheme)
+jest.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    theme: mockReadTheme,
+    onThemeChanged: jest.fn(async (listener: typeof mockNativeListener) => {
+      mockNativeListener = listener
+      return mockUnlisten
+    })
+  })
+}))
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (selector: (s: { isAuthenticated: boolean }) => unknown) =>
     selector({ isAuthenticated: mockAuthenticated })
@@ -12,6 +25,10 @@ let light = false
 const listeners = new Set<() => void>()
 beforeEach(() => {
   mockAuthenticated = true
+  mockNativeTheme = 'dark'
+  mockNativeListener = undefined
+  mockUnlisten.mockClear()
+  mockReadTheme.mockClear()
   light = false
   listeners.clear()
   window.matchMedia = jest.fn(() => ({
@@ -37,6 +54,11 @@ it('follows OS changes live and honors explicit overrides', () => {
   })
   expect(document.documentElement.dataset.theme).toBe('light')
   expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#946000')
+  act(() => {
+    light = false
+    listeners.forEach((listener) => listener())
+  })
+  expect(document.documentElement.dataset.theme).toBe('dark')
   act(() => useSettingsStore.getState().setTheme('dark'))
   expect(document.documentElement.dataset.theme).toBe('dark')
   act(() => {
@@ -51,6 +73,41 @@ it('follows OS changes live and honors explicit overrides', () => {
   unmount()
   expect(listeners.size).toBe(0)
   expect(document.documentElement.dataset.theme).toBeUndefined()
+})
+
+it('follows native desktop changes in both directions even with stale WebView media', async () => {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+  try {
+    const { unmount } = view('/channels/@me')
+    await act(async () => {})
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    act(() => mockNativeListener?.({ payload: 'light' }))
+    expect(document.documentElement.dataset.theme).toBe('light')
+    act(() => mockNativeListener?.({ payload: 'dark' }))
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    // An OS change missed while tray-hidden is recovered on focus.
+    mockNativeTheme = 'light'
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    expect(document.documentElement.dataset.theme).toBe('light')
+    act(() => useSettingsStore.getState().setTheme('dark'))
+    act(() => mockNativeListener?.({ payload: 'light' }))
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    unmount()
+    expect(mockUnlisten).toHaveBeenCalledTimes(1)
+    expect(listeners.size).toBe(0)
+  } finally {
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
+  }
+})
+
+it('rechecks browser appearance on resume when no media change was delivered', () => {
+  view('/channels/@me')
+  light = true
+  act(() => document.dispatchEvent(new Event('visibilitychange')))
+  expect(document.documentElement.dataset.theme).toBe('light')
+  light = false
+  act(() => window.dispatchEvent(new Event('pageshow')))
+  expect(document.documentElement.dataset.theme).toBe('dark')
 })
 
 it.each(['/login', '/register', '/forgot-password', '/reset-password', '/admin'])('keeps %s dark', (path) => {

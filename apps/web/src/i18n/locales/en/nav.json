@@ -90,6 +90,7 @@
   "notificationAnnouncement": "Announcement",
   "notificationMention": "{{author}} mentioned you in #{{channel}}",
   "notificationReply": "{{author}} replied to you in #{{channel}}",
+  "notificationReaction": "{{author}} reacted {{emoji}} to your message",
   "notificationDm_one": "{{author}} — Direct message",
   "notificationDm_other": "{{author}} — {{count}} messages",
   "notificationCall": "{{author}} — Incoming call",

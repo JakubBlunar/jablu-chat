@@ -24,6 +24,7 @@ import { createDmHandlers } from './socket/dmHandlers'
 import { createPresenceHandlers } from './socket/presenceHandlers'
 import { createServerHandlers } from './socket/serverHandlers'
 import { createVoiceHandlers } from './socket/voiceHandlers'
+import { onReactionNotification } from './socket/reactionNotifications'
 import { startMessageOutbox } from '@/lib/messageOutbox'
 import { requestReadStateRefresh, cancelReadStateRefresh } from '@/lib/readStateRefresh'
 
@@ -261,6 +262,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       throttledReadStateSync()
     }
     socket.on('in_app_notification:new', onInAppNotificationNew)
+    socket.on('notification:reaction', onReactionNotification)
     const onInboxActivity = () => useInboxStore.getState().bump()
     socket.on('message:new', onInboxActivity)
     socket.on('dm:new', onInboxActivity)
@@ -375,6 +377,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:removed', srv.onFriendRemoved)
       socket.off('bot:command-error', onBotCommandError)
       socket.off('in_app_notification:new', onInAppNotificationNew)
+      socket.off('notification:reaction', onReactionNotification)
       socket.off('message:new', onInboxActivity)
       socket.off('dm:new', onInboxActivity)
       socket.off('notification:clear', onNotificationClear)
