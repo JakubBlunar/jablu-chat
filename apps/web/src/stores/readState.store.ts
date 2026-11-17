@@ -30,6 +30,7 @@ type ReadStateState = {
   ackServer: (serverId: string) => Promise<boolean>
   ackChannel: (channelId: string) => Promise<boolean>
   ackDm: (conversationId: string) => Promise<boolean>
+  removeDm: (conversationId: string) => void
   markDmUnread: (conversationId: string) => Promise<boolean>
   pausedDmAcks: Set<string>
   resumeDmAck: (conversationId: string) => void
@@ -157,6 +158,18 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     channelViewSnapshots.delete(channelId)
     set({ channels, channelViewSnapshots })
     return true
+  },
+
+  removeDm: (conversationId) => {
+    // A response captured before closing the chat must not restore its badge.
+    ++readRequest
+    const dms = new Map(get().dms)
+    const dmViewSnapshots = new Map(get().dmViewSnapshots)
+    const pausedDmAcks = new Set(get().pausedDmAcks)
+    dms.delete(conversationId)
+    dmViewSnapshots.delete(conversationId)
+    pausedDmAcks.delete(conversationId)
+    set({ dms, dmViewSnapshots, pausedDmAcks })
   },
 
   ackDm: (conversationId) => {

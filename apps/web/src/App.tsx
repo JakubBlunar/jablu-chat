@@ -17,6 +17,7 @@ import { LocaleSync } from '@/i18n/LocaleSync'
 import { ThemeSync } from '@/components/layout/ThemeSync'
 import { LoginPage } from './pages/LoginPage'
 import { useAuthStore } from './stores/auth.store'
+import { useSettingsStore } from './stores/settings.store'
 import { ensureNamespacesLoaded, I18N_NAMESPACES } from '@/i18n/loadBundles'
 
 const Router = isElectron ? HashRouter : BrowserRouter
@@ -104,14 +105,35 @@ function AuthBootstrap() {
   }, [])
 
   useEffect(() => {
-    return useAuthStore.subscribe((state) => {
+    let disposed = false
+    const sync = () => {
+      if (disposed) return
+      const state = useAuthStore.getState()
       // Only re-registers an already-granted permission. Prompting here would be
       // rejected by iOS Safari for lacking a user gesture, permanently burning the
       // one prompt we get; Settings has a button that asks from a real click.
       if (state.isAuthenticated && state.accessToken && getNotifSettings().enabled) {
         subscribeToPush(state.accessToken).catch(() => {})
       }
+    }
+    const unsub = useAuthStore.subscribe(sync)
+    const unsubSettings = useSettingsStore.subscribe((state, previous) => {
+      if (state.notifEnabled !== previous.notifEnabled) sync()
     })
+    sync()
+    // Permission may already be granted before the worker finishes installing.
+    if ('serviceWorker' in navigator) void navigator.serviceWorker.ready.then(sync).catch(() => {})
+    window.addEventListener('online', sync)
+    window.addEventListener('focus', sync)
+    window.addEventListener('pageshow', sync)
+    return () => {
+      disposed = true
+      unsub()
+      unsubSettings()
+      window.removeEventListener('online', sync)
+      window.removeEventListener('focus', sync)
+      window.removeEventListener('pageshow', sync)
+    }
   }, [])
 
   return null

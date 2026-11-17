@@ -31,6 +31,19 @@ export function computeChannelBadge(
   return { showUnread, showMentions, mentionCount, hasIndicator: showUnread || showMentions }
 }
 
+/** Keep the destination of a server unread indicator reachable when collapsed. */
+export function getVisibleCategoryChannels<T extends { id: string }>(
+  channels: T[],
+  collapsed: boolean,
+  activeId: string | null,
+  readStates: ReadonlyMap<string, { unreadCount: number; mentionCount: number }>,
+  getEffective: (id: string) => NotifLevel
+): T[] {
+  if (!collapsed) return channels
+  return channels.filter((channel) => channel.id === activeId ||
+    computeChannelBadge(readStates.get(channel.id), getEffective(channel.id)).hasIndicator)
+}
+
 /**
  * Aggregate all server icons in one pass instead of scanning every channel
  * again for each server in the rail.

@@ -1,4 +1,5 @@
 import { useDmStore } from './dm.store'
+import { useReadStateStore } from './readState.store'
 import { makeMessage, makeMessages, resetMsgSeq } from '@/test/factories'
 
 jest.mock('@/lib/api', () => ({
@@ -213,6 +214,9 @@ describe('dm.store', () => {
 
   describe('closeConversation', () => {
     it('optimistically removes conversation and clears currentConversationId', async () => {
+      useReadStateStore.setState({ dms: new Map([['c1', {
+        unreadCount: 3, mentionCount: 0, firstUnreadMessageId: 'm1', lastReadAt: ''
+      }]]) })
       mockApi.closeDm.mockResolvedValueOnce(undefined)
       useDmStore.setState({
         conversations: [makeConversation({ id: 'c1' }), makeConversation({ id: 'c2' })],
@@ -223,6 +227,7 @@ describe('dm.store', () => {
 
       expect(useDmStore.getState().conversations).toHaveLength(1)
       expect(useDmStore.getState().currentConversationId).toBeNull()
+      expect(useReadStateStore.getState().dms.has('c1')).toBe(false)
     })
 
     it('preserves the conversation and surfaces an API failure', async () => {

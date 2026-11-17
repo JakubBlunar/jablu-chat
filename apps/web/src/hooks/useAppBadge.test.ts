@@ -36,6 +36,7 @@ it('ignores list/loading changes and unsubscribes when the app layout unmounts',
   act(() => useNotificationCenterStore.setState({ listLoading: true }))
   expect(desktopAPI?.setTrayUnread).toHaveBeenCalledTimes(1)
   hook.unmount()
+  expect(desktopAPI?.setTrayUnread).toHaveBeenLastCalledWith(0)
   act(() => useNotificationCenterStore.setState({ unreadCount: 5 }))
-  expect(desktopAPI?.setTrayUnread).toHaveBeenCalledTimes(1)
+  expect(desktopAPI?.setTrayUnread).toHaveBeenCalledTimes(2)
 })

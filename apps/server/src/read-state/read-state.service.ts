@@ -82,7 +82,7 @@ export class ReadStateService {
         FROM direct_conversation_members dcm
         LEFT JOIN dm_read_states drs
           ON drs.conversation_id = dcm.conversation_id AND drs.user_id = ${userId}
-        WHERE dcm.user_id = ${userId}
+        WHERE dcm.user_id = ${userId} AND dcm.closed_at IS NULL
       `
     ])
 

@@ -64,6 +64,7 @@ describe('ReadStateService', () => {
       expect(dmSql).toContain('FROM direct_conversation_members dcm')
       expect(dmSql).toContain('LEFT JOIN dm_read_states')
       expect(dmSql).toContain('COALESCE(drs.last_read_at, dcm.joined_at)')
+      expect(dmSql).toContain('dcm.closed_at IS NULL')
     })
 
     it('includes firstUnreadMessageId for channels and DMs', async () => {

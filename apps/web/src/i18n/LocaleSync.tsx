@@ -91,7 +91,7 @@ export function LocaleSync({ children }: { children: React.ReactNode }) {
     if (previousLocale.current === locale) return
     previousLocale.current = locale
     if (accessToken && getNotifSettings().enabled) {
-      void subscribeToPush(accessToken)
+      void subscribeToPush(accessToken).catch(() => {})
     }
   }, [locale, accessToken])
 

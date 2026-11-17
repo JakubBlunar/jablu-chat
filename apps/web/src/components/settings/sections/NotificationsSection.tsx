@@ -25,17 +25,34 @@ export function NotificationsSection() {
   const [pushError, setPushError] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<string | null>(null)
   const accessToken = useAuthStore((s) => s.accessToken)
+  const pushFailureMessage = t('notifications.pushSubscriptionFailed')
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!accessToken || !settings.enabled || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setPushStatus('inactive')
       return
     }
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => setPushStatus(sub ? 'active' : 'inactive'))
-      .catch(() => setPushStatus('error'))
-  }, [])
+    let disposed = false
+    setPushStatus('checking')
+    // A browser endpoint alone does not prove the server registered this device.
+    void subscribeToPush(accessToken, false, true)
+      .then((active) => {
+        if (!disposed) setPushStatus(active ? 'active' : 'inactive')
+      })
+      .catch((error: unknown) => {
+        if (disposed) return
+        setPushStatus('error')
+        setPushError(error instanceof Error ? error.message : pushFailureMessage)
+      })
+    return () => {
+      disposed = true
+    }
+  }, [accessToken, settings.enabled, pushFailureMessage])
+
+  const showRegistrationResult = (active: boolean) => {
+    setPushStatus(active ? 'active' : 'error')
+    setPushError(active ? null : t('notifications.pushSubscriptionMissing'))
+  }
 
   const toggle = async (key: 'enabled' | 'soundEnabled') => {
     const next = { ...settings, [key]: !settings[key] }
@@ -52,12 +69,10 @@ export function NotificationsSection() {
         }
       } else if (permStatus === 'granted') {
         try {
-          await subscribeToPush(accessToken, true)
-          const reg = await navigator.serviceWorker.ready
-          const sub = await reg.pushManager.getSubscription()
-          setPushStatus(sub ? 'active' : 'inactive')
-        } catch {
-          /* non-critical */
+          showRegistrationResult(await subscribeToPush(accessToken, true))
+        } catch (error: unknown) {
+          setPushStatus('error')
+          setPushError(error instanceof Error ? error.message : t('notifications.pushSubscriptionFailed'))
         }
       }
     }
@@ -68,11 +83,7 @@ export function NotificationsSection() {
     setPermStatus(granted ? 'granted' : 'denied')
     if (granted && accessToken) {
       try {
-        await subscribeToPush(accessToken, true)
-        const reg = await navigator.serviceWorker.ready
-        const sub = await reg.pushManager.getSubscription()
-        setPushStatus(sub ? 'active' : 'error')
-        setPushError(sub ? null : t('notifications.pushSubscriptionMissing'))
+        showRegistrationResult(await subscribeToPush(accessToken, true))
       } catch (e: unknown) {
         setPushStatus('error')
         setPushError(e instanceof Error ? e.message : t('notifications.pushSubscriptionFailed'))
@@ -84,11 +95,10 @@ export function NotificationsSection() {
     if (!accessToken) return
     setPushError(null)
     try {
-      await subscribeToPush(accessToken, true)
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
-      setPushStatus(sub ? 'active' : 'error')
-      if (!sub) setPushError(t('notifications.pushSubscriptionMissing'))
+      const next = { ...settings, enabled: true }
+      setSettings(next)
+      saveNotifSettings(next)
+      showRegistrationResult(await subscribeToPush(accessToken, true))
     } catch (e: unknown) {
       setPushStatus('error')
       setPushError(e instanceof Error ? e.message : t('notifications.pushSubscriptionFailed'))

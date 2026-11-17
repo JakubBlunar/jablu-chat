@@ -48,6 +48,10 @@ let pendingCleanup: Promise<void> | undefined
 
 async function clearSession() {
   if (pendingCleanup) return pendingCleanup
+  const token = useAuthStore.getState().accessToken
+  // This path also handles expired/revoked sessions and account changes.
+  // Invalidate pending registrations before publishing the signed-out state.
+  const pushCleanup = unsubscribeFromPush(token ?? undefined).catch(() => {})
   useAuthStore.setState({
     user: null,
     accessToken: null,
@@ -57,7 +61,16 @@ async function clearSession() {
     isManualStatus: false
   })
   const revision = sessionRevision
-  const cleanup = cleanupSession(() => sessionRevision === revision)
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const cleanup = Promise.all([
+    cleanupSession(() => sessionRevision === revision),
+    Promise.race([
+      pushCleanup,
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(resolve, 5000)
+      })
+    ]).finally(() => clearTimeout(timeout))
+  ]).then(() => {})
   pendingCleanup = cleanup
   try {
     await cleanup
@@ -147,9 +160,7 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         ++authAttempt
         const rt = get().refreshToken
-        const at = get().accessToken
         const cleanup = async () => {
-          if (at) await unsubscribeFromPush(at).catch(() => {})
           if (rt) await api.logout(rt).catch(() => {})
         }
         let timeout: ReturnType<typeof setTimeout> | undefined

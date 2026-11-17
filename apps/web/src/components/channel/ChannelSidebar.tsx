@@ -14,6 +14,7 @@ import { useShallow } from 'zustand/react/shallow'
 
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { api } from '@/lib/api'
+import { getVisibleCategoryChannels } from '@/lib/unread'
 
 import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
@@ -400,6 +401,8 @@ export function ChannelSidebar() {
               {/* Category groups */}
               {categoryGroups.map((group) => {
                 const isCollapsed = collapsedCategoryIds.includes(group.category.id)
+                const visibleText = getVisibleCategoryChannels(group.textChannels, isCollapsed, currentChannelId, channelReadStates, getNotifLevel)
+                const visibleForums = getVisibleCategoryChannels(group.forumChannels, isCollapsed, currentChannelId, channelReadStates, getNotifLevel)
                 const hasChannels =
                   group.textChannels.length > 0 || group.voiceChannels.length > 0 || group.forumChannels.length > 0
                 return (
@@ -426,11 +429,11 @@ export function ChannelSidebar() {
                         </button>
                       </CategoryContextMenu>
                     </div>
-                    {!isCollapsed && hasChannels && (
+                    {hasChannels && (
                       <>
-                        {group.textChannels.length > 0 && (
+                        {visibleText.length > 0 && (
                           <ul className="space-y-0.5">
-                            {group.textChannels.map((ch) => (
+                            {visibleText.map((ch) => (
                               <TextChannelItem
                                 key={ch.id}
                                 ch={ch}
@@ -446,7 +449,7 @@ export function ChannelSidebar() {
                             ))}
                           </ul>
                         )}
-                        {group.voiceChannels.length > 0 && (
+                        {!isCollapsed && group.voiceChannels.length > 0 && (
                           <ul className="space-y-1">
                             {group.voiceChannels.map((ch) => (
                               <VoiceChannelItem
@@ -465,9 +468,9 @@ export function ChannelSidebar() {
                             ))}
                           </ul>
                         )}
-                        {group.forumChannels.length > 0 && (
+                        {visibleForums.length > 0 && (
                           <ul className="space-y-0.5">
-                            {group.forumChannels.map((ch) => (
+                            {visibleForums.map((ch) => (
                               <ForumChannelItem
                                 key={ch.id}
                                 ch={ch}

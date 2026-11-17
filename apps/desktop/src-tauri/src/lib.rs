@@ -41,6 +41,28 @@ fn get_version(app: AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+/// Read the Windows app appearance directly: window/WebView theme state can
+/// remain cached after an automatic OS theme switch while the app is in the tray.
+#[tauri::command]
+fn get_system_theme(app: AppHandle) -> Option<&'static str> {
+    #[cfg(windows)]
+    {
+        use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+        if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
+        {
+            if let Ok(light) = key.get_value::<u32, _>("AppsUseLightTheme") {
+                return Some(if light == 0 { "dark" } else { "light" });
+            }
+        }
+    }
+    match app.get_webview_window("main")?.theme().ok()? {
+        tauri::Theme::Light => Some("light"),
+        tauri::Theme::Dark => Some("dark"),
+        _ => None,
+    }
+}
+
 #[tauri::command]
 fn show_notification(
     app: AppHandle,
@@ -350,6 +372,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_platform,
             get_version,
+            get_system_theme,
             show_notification,
             dismiss_notification,
             get_window_state,

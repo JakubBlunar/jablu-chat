@@ -3,6 +3,7 @@ import { getDeviceId } from '@/lib/deviceId'
 import { logNotification, navigateFromNotification } from '@/lib/notificationNavigation'
 import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
 import { useSettingsStore } from '@/stores/settings.store'
+import { useAuthStore } from '@/stores/auth.store'
 import { notificationTag } from '@chat/shared'
 
 export type { NotifSoundKind }
@@ -53,11 +54,19 @@ export function showNotification(
   onClick?: () => void,
   soundKind: NotifSoundKind = 'message'
 ) {
+  const session = useAuthStore.getState()
+  if (!session.isAuthenticated) return
+  const isCurrent = () => {
+    const current = useAuthStore.getState()
+    return current.isAuthenticated && current.accessToken === session.accessToken && getNotifSettings().enabled
+  }
   const settings = getNotifSettings()
   if (!settings.enabled) return
 
   if (isAppFocused()) {
-    import('@/stores/toast.store').then(({ showToast }) => showToast(title, body, url))
+    import('@/stores/toast.store').then(({ showToast }) => {
+      if (isCurrent()) showToast(title, body, url)
+    })
     if (settings.soundEnabled) playNotifSound(soundKind)
     return
   }
@@ -76,12 +85,28 @@ export function showNotification(
   if (!('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
-  const n = new Notification(title, {
+  const options: NotificationOptions = {
     body,
     icon: '/favicon-32x32.png',
     silent: true,
     tag
-  })
+  }
+  let n: Notification
+  try {
+    n = new Notification(title, options)
+  } catch {
+    // Mobile browsers require persistent notifications through a service worker.
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker
+        .getRegistration()
+        .then((reg) => {
+          if (isCurrent()) return reg?.showNotification(title, { ...options, data: { url: url ?? '/' } })
+        })
+        .catch(() => {})
+      if (settings.soundEnabled) playNotifSound(soundKind)
+    }
+    return
+  }
 
   n.onclick = () => {
     window.focus()
@@ -146,12 +171,34 @@ export function playSound(kind: NotifSoundKind = 'message') {
 
 // ─── Web Push Subscription ─────────────────────────────────────
 
-let pushSubscribed = false
-let pushSubscribedLocale: string | null = null
+let pushRegistration: { token: string; locale: string } | null = null
+let pushRevision = 0
+let pushQueue: Promise<unknown> = Promise.resolve()
+let activePushRequest: AbortController | null = null
+
+// Serialize browser subscription changes across logout/login and Settings.
+function queuePush<T>(run: () => Promise<T>): Promise<T> {
+  const result = pushQueue.then(run)
+  pushQueue = result.catch(() => {})
+  return result
+}
+
+async function pushFetch(url: string, options?: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  activePushRequest = controller
+  const timeout = setTimeout(() => controller.abort(), 10_000)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+    if (activePushRequest === controller) activePushRequest = null
+  }
+}
 
 async function getVapidKey(): Promise<string | null> {
   try {
-    const resp = await fetch('/api/push/vapid-key')
+    const resp = await pushFetch('/api/push/vapid-key')
+    if (!resp.ok) return null
     const data = await resp.json()
     return data.key ?? null
   } catch {
@@ -175,28 +222,42 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
  *   when called from a user gesture: iOS Safari silently rejects
  *   `requestPermission()` outside one, which would burn the prompt for good.
  */
-export async function subscribeToPush(token: string, promptForPermission = false): Promise<void> {
+export async function subscribeToPush(token: string, promptForPermission = false, force = false): Promise<boolean> {
   const locale = useSettingsStore.getState().locale
-  if (pushSubscribed && pushSubscribedLocale === locale) return
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+  const revision = pushRevision
+  const isCurrent = () => {
+    const session = useAuthStore.getState()
+    return revision === pushRevision && session.isAuthenticated && session.accessToken === token && getNotifSettings().enabled
+  }
+  if (!isCurrent()) return false
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return false
 
-  if (Notification.permission === 'denied') return
+  if (Notification.permission === 'denied') return false
   if (Notification.permission === 'default') {
-    if (!promptForPermission) return
+    if (!promptForPermission) return false
     const result = await Notification.requestPermission()
-    if (result !== 'granted') return
+    if (result !== 'granted') return false
   }
 
-  try {
-    const vapidKey = await getVapidKey()
-    if (!vapidKey) return
-
-    const regs = await navigator.serviceWorker.getRegistrations()
-    if (regs.length === 0) return
-
-    const reg = await navigator.serviceWorker.ready
+  return queuePush(async () => {
+    if (!isCurrent()) return false
+    // Unlike `ready`, this also settles when no worker has been installed yet.
+    const reg = await navigator.serviceWorker.getRegistration()
+    if (!reg?.active || !isCurrent()) return false
     let sub = await reg.pushManager.getSubscription()
 
+    if (!isCurrent()) return false
+    if (
+      sub &&
+      !promptForPermission &&
+      !force &&
+      pushRegistration?.token === token &&
+      pushRegistration.locale === locale
+    )
+      return true
+    pushRegistration = null
+    const vapidKey = await getVapidKey()
+    if (!vapidKey || !isCurrent()) return false
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -204,8 +265,9 @@ export async function subscribeToPush(token: string, promptForPermission = false
       })
     }
 
+    if (!isCurrent()) return false
     const subJson = sub.toJSON()
-    await fetch('/api/push/subscribe', {
+    const response = await pushFetch('/api/push/subscribe', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -220,39 +282,41 @@ export async function subscribeToPush(token: string, promptForPermission = false
       })
     })
 
-    pushSubscribed = true
-    pushSubscribedLocale = locale
-  } catch {
-    // Push subscription failed -- non-critical
-  }
+    if (!isCurrent()) return false
+    if (!response.ok) throw new Error(`Push registration failed (HTTP ${response.status})`)
+    pushRegistration = { token, locale }
+    return true
+  })
 }
 
-export async function unsubscribeFromPush(token: string): Promise<void> {
+export async function unsubscribeFromPush(token?: string): Promise<void> {
+  ++pushRevision
+  pushRegistration = null
+  activePushRequest?.abort()
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
-  try {
-    const regs = await navigator.serviceWorker.getRegistrations()
-    if (regs.length === 0) return
-
-    const reg = await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.getSubscription()
+  return queuePush(async () => {
+    const reg = await navigator.serviceWorker.getRegistration()
+    const sub = await reg?.pushManager.getSubscription()
     if (!sub) return
 
-    await fetch('/api/push/unsubscribe', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ endpoint: sub.endpoint })
-    })
-
-    await sub.unsubscribe()
-    pushSubscribed = false
-    pushSubscribedLocale = null
-  } catch {
-    // Unsubscribe failed -- non-critical
-  }
+    // Stop delivery on this device even offline or with an expired access token.
+    // Server cleanup must never prevent the browser from revoking its endpoint.
+    try {
+      await sub.unsubscribe()
+    } finally {
+      if (token) {
+        await pushFetch('/api/push/unsubscribe', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ endpoint: sub.endpoint })
+        }).catch(() => {})
+      }
+    }
+  })
 }
 
 export function setupPushNavigation(): (() => void) | undefined {

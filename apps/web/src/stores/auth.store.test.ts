@@ -32,6 +32,7 @@ jest.mock('../lib/notifications', () => ({
 jest.mock('./sessionCleanup', () => ({ cleanupSession: jest.fn() }))
 
 import { api } from '../lib/api'
+import { unsubscribeFromPush } from '../lib/notifications'
 
 const mockUser: User = {
   id: 'user-1',
@@ -179,6 +180,14 @@ describe('auth.store', () => {
   })
 
   describe('session cleanup', () => {
+    it('revokes push delivery when an expired session is cleared by refresh', async () => {
+      signIn()
+      jest.mocked(api.refreshToken).mockRejectedValueOnce(Object.assign(new Error('expired'), { status: 401 }))
+      await expect(useAuthStore.getState().refreshSession()).rejects.toThrow('expired')
+      expect(unsubscribeFromPush).toHaveBeenCalledWith('at-1')
+      expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    })
+
     it('awaits cleanup after clearing auth and manual presence', async () => {
       signIn()
       const started = deferred<void>()

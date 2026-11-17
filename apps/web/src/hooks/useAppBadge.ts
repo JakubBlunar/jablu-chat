@@ -55,6 +55,9 @@ export function useAppBadge() {
       useNotifPrefStore.subscribe(recalc),
       useNotificationCenterStore.subscribe(recalc),
     ]
-    return () => unsubs.forEach((u) => u())
+    return () => {
+      unsubs.forEach((u) => u())
+      updateBadge(0, 0)
+    }
   }, [])
 }

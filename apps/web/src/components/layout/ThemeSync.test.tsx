@@ -8,6 +8,8 @@ let mockNativeTheme: 'dark' | 'light' = 'dark'
 let mockNativeListener: ((event: { payload: 'dark' | 'light' }) => void) | undefined
 const mockUnlisten = jest.fn()
 const mockReadTheme = jest.fn(async () => mockNativeTheme)
+const mockReadSystemTheme = jest.fn(async () => null as 'dark' | 'light' | null)
+jest.mock('@tauri-apps/api/core', () => ({ invoke: () => mockReadSystemTheme() }))
 jest.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
     theme: mockReadTheme,
@@ -29,6 +31,7 @@ beforeEach(() => {
   mockNativeListener = undefined
   mockUnlisten.mockClear()
   mockReadTheme.mockClear()
+  mockReadSystemTheme.mockReset().mockResolvedValue(null)
   light = false
   listeners.clear()
   window.matchMedia = jest.fn(() => ({
@@ -108,6 +111,28 @@ it('rechecks browser appearance on resume when no media change was delivered', (
   light = false
   act(() => window.dispatchEvent(new Event('pageshow')))
   expect(document.documentElement.dataset.theme).toBe('dark')
+})
+
+it('recovers a scheduled Windows switch when native events and WebView media stay stale', async () => {
+  jest.useFakeTimers()
+  Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })
+  try {
+    mockReadSystemTheme.mockResolvedValue('dark')
+    const { unmount } = view('/channels/@me')
+    await act(async () => {})
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    mockReadSystemTheme.mockResolvedValue('light')
+    await act(async () => { await jest.advanceTimersByTimeAsync(30_000) })
+    expect(document.documentElement.dataset.theme).toBe('light')
+    // Window theme and media never changed in this reproduction.
+    expect(mockNativeTheme).toBe('dark')
+    expect(light).toBe(false)
+    unmount()
+    expect(jest.getTimerCount()).toBe(0)
+  } finally {
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
+    jest.useRealTimers()
+  }
 })
 
 it.each(['/login', '/register', '/forgot-password', '/reset-password', '/admin'])('keeps %s dark', (path) => {

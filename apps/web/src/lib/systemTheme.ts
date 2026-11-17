@@ -1,4 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 
 export type SystemTheme = 'light' | 'dark'
 const QUERY = '(prefers-color-scheme: light)'
@@ -25,11 +26,15 @@ export function subscribeSystemTheme(listener: () => void): () => void {
       publish()
       if (!shell) return
       const request = ++revision
-      void shell.theme().then((theme) => {
-        if (disposed || request !== revision || !theme) return
-        nativeTheme = theme
-        publish()
-      }).catch(() => {})
+      void invoke<SystemTheme | null>('get_system_theme')
+        .then((theme) => theme ?? shell.theme())
+        .catch(() => shell.theme()) // Compatibility with older desktop shells.
+        .then((theme) => {
+          if (disposed || request !== revision || !theme) return
+          nativeTheme = theme
+          publish()
+        })
+        .catch(() => {})
     }
     const onMediaChange = () => {
       if (!shell) publish()
@@ -39,24 +44,31 @@ export function subscribeSystemTheme(listener: () => void): () => void {
     window.addEventListener('focus', refresh)
     window.addEventListener('pageshow', refresh)
     document.addEventListener('visibilitychange', refresh)
+    // A scheduled OS switch may deliver neither a native nor a media event.
+    const poll = shell ? window.setInterval(refresh, 30_000) : undefined
     if (shell) {
       // Subscribe before the initial read, and ignore reads older than an event.
-      void shell.onThemeChanged(({ payload }) => {
-        if (disposed) return
-        ++revision
-        nativeTheme = payload
-        publish()
-      }).then((off) => {
-        if (disposed) off()
-        else {
-          unlisten = off
+      void shell
+        .onThemeChanged(({ payload }) => {
+          if (disposed) return
+          ++revision
+          nativeTheme = payload
+          publish()
           refresh()
-        }
-      }).catch(refresh)
+        })
+        .then((off) => {
+          if (disposed) off()
+          else {
+            unlisten = off
+            refresh()
+          }
+        })
+        .catch(refresh)
     }
     stop = () => {
       disposed = true
       unlisten?.()
+      clearInterval(poll)
       media?.removeEventListener('change', onMediaChange)
       window.removeEventListener('focus', refresh)
       window.removeEventListener('pageshow', refresh)

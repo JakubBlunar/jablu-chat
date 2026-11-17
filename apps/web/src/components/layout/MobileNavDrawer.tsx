@@ -26,7 +26,7 @@ import { VoicePanel } from '@/components/voice/LazyVoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { Permission, usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
-import { computeServerBadges } from '@/lib/unread'
+import { getVisibleCategoryChannels, computeServerBadges } from '@/lib/unread'
 import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -482,6 +482,8 @@ export function MobileNavDrawer({
                         {/* Category groups */}
                         {categoryGroups.map((group) => {
                           const isCollapsed = collapsedCategoryIds.includes(group.category.id)
+                          const visibleText = getVisibleCategoryChannels(group.textChannels, isCollapsed, currentChannelId, channelReadStates, getNotifLevel)
+                          const visibleForums = getVisibleCategoryChannels(group.forumChannels, isCollapsed, currentChannelId, channelReadStates, getNotifLevel)
                           return (
                             <div key={group.category.id} className="mt-2">
                               <CategoryContextMenu
@@ -514,11 +516,11 @@ export function MobileNavDrawer({
                                   </span>
                                 </button>
                               </CategoryContextMenu>
-                              {!isCollapsed && (
+                              {(
                                 <>
-                                  {group.textChannels.length > 0 && (
+                                  {visibleText.length > 0 && (
                                     <ul className="space-y-0.5">
-                                      {group.textChannels.map((ch) => (
+                                      {visibleText.map((ch) => (
                                         <TextChannelItem
                                           key={ch.id}
                                           ch={ch}
@@ -539,7 +541,7 @@ export function MobileNavDrawer({
                                       ))}
                                     </ul>
                                   )}
-                                  {group.voiceChannels.length > 0 && (
+                                  {!isCollapsed && group.voiceChannels.length > 0 && (
                                     <ul className="space-y-0.5">
                                       {group.voiceChannels.map((ch) => {
                                         const participants = voiceParticipants[ch.id] ?? []
@@ -585,9 +587,9 @@ export function MobileNavDrawer({
                                       })}
                                     </ul>
                                   )}
-                                  {group.forumChannels.length > 0 && (
+                                  {visibleForums.length > 0 && (
                                     <ul className="space-y-0.5">
-                                      {group.forumChannels.map((ch) => (
+                                      {visibleForums.map((ch) => (
                                         <ForumChannelItem
                                           key={ch.id}
                                           ch={ch}

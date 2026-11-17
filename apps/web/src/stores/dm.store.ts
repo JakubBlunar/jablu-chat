@@ -7,6 +7,7 @@ import { CACHE_PAGE_SIZE, dmKey, evictContext, getContext, putContext } from '@/
 import { isForbidden } from '@/lib/cache/isForbidden'
 import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
 import { compareDmConversations } from '@/lib/dmDisplay'
+import { useReadStateStore } from './readState.store'
 
 type DmState = {
   conversations: DmConversation[]
@@ -276,6 +277,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
   removeConversation: (conversationId) => {
     evictContext(dmKey(conversationId))
+    useReadStateStore.getState().removeDm(conversationId)
     set((s) => {
       const updates: Partial<DmState> = {
         conversations: s.conversations.filter((c) => c.id !== conversationId)

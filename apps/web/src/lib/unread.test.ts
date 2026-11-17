@@ -1,4 +1,4 @@
-import { computeChannelBadge, computeServerBadge, computeServerBadges, computeTotalBadge, type NotifLevel } from './unread'
+import { computeChannelBadge, computeServerBadge, computeServerBadges, computeTotalBadge, getVisibleCategoryChannels, type NotifLevel } from './unread'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useChannelStore } from '@/stores/channel.store'
@@ -28,6 +28,15 @@ beforeEach(() => {
 
 it('has no indicator without a read state', () => {
   expect(computeChannelBadge(undefined, 'all').hasIndicator).toBe(false)
+})
+
+it('keeps unread and selected channels visible in collapsed categories on mobile and desktop', () => {
+  const channels = ['read', 'active', 'unread', 'mention', 'muted'].map((id) => ({ id }))
+  const readStates = new Map([['unread', state(2, 0)], ['mention', state(0, 1)], ['muted', state(4, 2)]])
+  const level = (id: string): NotifLevel => id === 'muted' ? 'none' : 'all'
+  expect(getVisibleCategoryChannels(channels, true, 'active', readStates, level).map((ch) => ch.id))
+    .toEqual(['active', 'unread', 'mention'])
+  expect(getVisibleCategoryChannels(channels, false, 'active', readStates, level)).toEqual(channels)
 })
 
 it.each<[NotifLevel, number, number, boolean, number]>([

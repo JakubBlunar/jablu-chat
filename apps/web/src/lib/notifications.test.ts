@@ -1,5 +1,10 @@
 import { getNotifSettings, saveNotifSettings, showNotification, playSound, requestPermission } from './notifications'
 
+let mockAuthenticated = true
+jest.mock('@/stores/auth.store', () => ({
+  useAuthStore: { getState: () => ({ isAuthenticated: mockAuthenticated, accessToken: 'token' }) }
+}))
+
 jest.mock('@/lib/sounds', () => ({
   playNotifSound: jest.fn(),
 }))
@@ -17,6 +22,7 @@ const mockShowToast = jest.mocked(showToast)
 
 beforeEach(async () => {
   jest.clearAllMocks()
+  mockAuthenticated = true
   localStorage.clear()
   await useSettingsStore.persist.rehydrate()
   useSettingsStore.setState({ notifEnabled: true, notifSoundEnabled: true })
@@ -47,6 +53,16 @@ describe('saveNotifSettings', () => {
 })
 
 describe('showNotification', () => {
+  it('ignores a late notification after logout', async () => {
+    jest.spyOn(document, 'hasFocus').mockReturnValue(true)
+    showNotification('Old account', 'Body')
+    mockAuthenticated = false
+    await Promise.resolve()
+    expect(mockShowToast).not.toHaveBeenCalled()
+    mockPlayNotifSound.mockClear()
+    showNotification('Logged out', 'Body')
+    expect(mockPlayNotifSound).not.toHaveBeenCalled()
+  })
   it('does nothing when notifications disabled', () => {
     saveNotifSettings({ enabled: false })
 
@@ -105,6 +121,26 @@ describe('showNotification', () => {
     showNotification('Title', 'Body')
 
     expect(MockNotification).toHaveBeenCalledWith('Title', expect.objectContaining({ body: 'Body' }))
+  })
+
+  it('uses persistent notifications when a mobile browser rejects the constructor', async () => {
+    jest.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const mobileNotification = jest.fn(() => { throw new TypeError('Use ServiceWorkerRegistration.showNotification') })
+    Object.defineProperty(mobileNotification, 'permission', { value: 'granted', configurable: true })
+    Object.defineProperty(window, 'Notification', { configurable: true, value: mobileNotification })
+    const showPersistent = jest.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true, value: { getRegistration: jest.fn().mockResolvedValue({ showNotification: showPersistent }) }
+    })
+    try {
+      showNotification('Title', 'Body', '/channels/@me/chat')
+      await Promise.resolve()
+      expect(showPersistent).toHaveBeenCalledWith('Title', expect.objectContaining({
+        body: 'Body', data: { url: '/channels/@me/chat' }
+      }))
+    } finally {
+      Reflect.deleteProperty(navigator, 'serviceWorker')
+    }
   })
 })
 
