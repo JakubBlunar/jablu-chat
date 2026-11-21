@@ -32,6 +32,7 @@ import { showToast } from '@/stores/toast.store'
 import { DraftBadge } from '@/components/chat/DraftBadge'
 import { useHasDraft } from '@/stores/draft.store'
 import { useServerDisplayName } from '@/lib/serverProfile'
+import { reactionActivityKey } from './hooks/useSeenReactionActivity'
 
 const EmojiPicker = lazyWithRetry(() => import('@/components/EmojiPicker').then((m) => ({ default: m.EmojiPicker })))
 
@@ -74,7 +75,8 @@ export const MessageRow = memo(function MessageRow({
   omitDomId = false,
   hidePinAction,
   hideBookmarkAction,
-  contentOnly = false
+  contentOnly = false,
+  unseenReactionKeys
 }: {
   mode: 'channel' | 'dm'
   message: Message
@@ -95,6 +97,7 @@ export const MessageRow = memo(function MessageRow({
   hidePinAction?: boolean
   hideBookmarkAction?: boolean
   contentOnly?: boolean
+  unseenReactionKeys?: ReadonlySet<string>
 }) {
   const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
@@ -569,6 +572,7 @@ export const MessageRow = memo(function MessageRow({
               <ReactionPill
                 key={r.emoji}
                 reaction={r}
+                unseen={unseenReactionKeys?.has(reactionActivityKey(r))}
                 messageId={message.id}
                 mode={mode}
                 contextId={contextId}

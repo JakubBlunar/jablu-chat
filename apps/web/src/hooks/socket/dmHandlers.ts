@@ -11,7 +11,7 @@ import { dmKey, markStale } from '@/lib/cache/messageCache'
 import type { MessageActivity } from '@chat/shared'
 import { useInboxStore } from '@/stores/inbox.store'
 import { showNotification } from '@/lib/notifications'
-import { isAppFocused } from '@/lib/appVisibility'
+import { isPresentingLiveChat } from '@/lib/chatPresentation'
 import { playJinxForNewMessage } from '@/lib/jinxSound'
 import { useAuthStore } from '@/stores/auth.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -62,14 +62,15 @@ export function createDmHandlers() {
     }
     const notify = (conversation: Pick<DmConversation, 'muted'>) => {
       if (payload.authorId === myId || conversation.muted) return
-      if (!isViewingConversation || !isAppFocused()) {
+      if (!isViewingConversation || !isPresentingLiveChat('dm', payload.conversationId)) {
         const author = payload.author?.displayName ?? payload.author?.username ?? 'Someone'
         showNotification(
           i18n.t('chat:notification.dmTitle', { name: author }),
           payload.background && payload.content ? payload.content : notifBody(payload),
           messageNotificationUrl(`/channels/@me/${payload.conversationId}`, payload.id),
           undefined,
-          'mention'
+          'mention',
+          payload.createdAt
         )
       }
     }

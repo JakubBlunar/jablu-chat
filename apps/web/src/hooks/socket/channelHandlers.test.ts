@@ -1,6 +1,8 @@
 import { createChannelHandlers } from './channelHandlers'
 
 jest.mock('@/lib/notifications', () => ({
+  getNotifSettings: () => ({ enabled: true, soundEnabled: true }),
+  notificationsInDnd: () => false,
   showNotification: jest.fn()
 }))
 jest.mock('@/lib/appVisibility', () => ({ isAppFocused: jest.fn(() => true) }))
@@ -145,7 +147,8 @@ describe('onMessageNew', () => {
       'Bob: hello',
       '/channels/s1/ch1?m=m1',
       undefined,
-      'message'
+      'message',
+      baseMsg.createdAt
     )
   })
 
@@ -159,7 +162,8 @@ describe('onMessageNew', () => {
       expect.any(String),
       expect.any(String),
       undefined,
-      'mention'
+      'mention',
+      baseMsg.createdAt
     )
   })
 
@@ -179,6 +183,20 @@ describe('onMessageNew', () => {
     handlers.onMessageNew({ ...baseMsg, serverId: 's1' } as any)
 
     expect(mockShowNotification).not.toHaveBeenCalled()
+  })
+
+  it('alerts once for a direct reply in a mentions-only channel', () => {
+    useChannelStore.setState({ currentChannelId: 'other-ch' })
+    useNotifPrefStore.setState({ getEffective: () => 'mentions' })
+
+    handlers.onMessageNew({
+      ...baseMsg,
+      serverId: 's1',
+      replyToId: 'original',
+      replyTo: { id: 'original', content: 'Question', author: { id: 'me', username: 'me', avatarUrl: null } }
+    } as Parameters<typeof handlers.onMessageNew>[0])
+
+    expect(mockShowNotification.mock.calls.map(([, , url]) => url)).toEqual(['/channels/s1/ch1?m=m1'])
   })
 
   it('does not increment unread for own messages', () => {

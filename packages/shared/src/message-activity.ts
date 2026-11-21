@@ -4,6 +4,8 @@ export type MessageActivity = {
   contextId: string
   event: string
   isMention?: boolean
+  isReply?: boolean
+  isThreadParticipant?: boolean
   message?: {
     id: string
     authorId: string | null

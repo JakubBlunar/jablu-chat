@@ -1,6 +1,7 @@
 import { XSmallIcon } from '@/components/chat/chatIcons'
 import { ChatInputBar } from '@/components/chat/ChatInputBar'
 import { formatBytes } from '@/lib/format-bytes'
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
 import type { MessageComposerProps } from './composerTypes'
 import { useMessageComposer } from './hooks/useMessageComposer'
 import { OutboxMessages } from './OutboxMessages'
@@ -14,8 +15,11 @@ export function UnifiedInput({
   gifEnabled,
   placeholder,
   onCommand,
-  threadParentId
-}: MessageComposerProps) {
+  threadParentId,
+  dropZoneRef
+}: MessageComposerProps & { dropZoneRef?: RefObject<HTMLElement | null> }) {
+  const composerRef = useRef<HTMLDivElement>(null)
+  const [dragOver, setDragOver] = useState(false)
   const {
     t,
     inputRef,
@@ -27,8 +31,6 @@ export function UnifiedInput({
     setValue,
     setTargetBot,
     saving,
-    dragOver,
-    setDragOver,
     sizeError,
     maxUploadMb,
     limitFailed,
@@ -44,8 +46,7 @@ export function UnifiedInput({
     send,
     addFiles,
     removeFile,
-    handlePaste,
-    handleDrop
+    handlePaste
   } = useMessageComposer({
     mode,
     contextId,
@@ -58,19 +59,58 @@ export function UnifiedInput({
     onCommand,
     threadParentId
   })
+  const disabled = !contextId || saving || restoringFiles
+  const attachDroppedFiles = useEffectEvent((droppedFiles: FileList) => void addFiles(droppedFiles))
+
+  useEffect(() => {
+    const target = dropZoneRef?.current ?? composerRef.current
+    if (!target) return
+    setDragOver(false)
+
+    const onDragOver = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes('Files')) return
+      event.preventDefault()
+      event.stopPropagation()
+      event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'
+      if (!disabled) setDragOver(true)
+    }
+    const onDragLeave = (event: DragEvent) => {
+      if (!(event.relatedTarget instanceof Node && target.contains(event.relatedTarget))) setDragOver(false)
+    }
+    const onDrop = (event: DragEvent) => {
+      const transfer = event.dataTransfer
+      if (!transfer || (!transfer.files.length && !transfer.types.includes('Files'))) return
+      event.preventDefault()
+      event.stopPropagation()
+      setDragOver(false)
+      if (!disabled && transfer.files.length) attachDroppedFiles(transfer.files)
+    }
+
+    target.addEventListener('dragover', onDragOver)
+    target.addEventListener('dragleave', onDragLeave)
+    target.addEventListener('drop', onDrop)
+    return () => {
+      target.removeEventListener('dragover', onDragOver)
+      target.removeEventListener('dragleave', onDragLeave)
+      target.removeEventListener('drop', onDrop)
+    }
+  }, [contextId, mode, threadParentId, disabled, dropZoneRef])
+
   return (
     <div
+      ref={composerRef}
       data-message-composer
       className={`relative shrink-0 border-t border-black/20 bg-surface px-4 pb-2 pt-2 ${
         dragOver ? 'ring-2 ring-inset ring-primary' : ''
       }`}
-      onDragOver={(e) => {
-        e.preventDefault()
-        setDragOver(true)
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={handleDrop}
     >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-x-0 -top-9 z-10 flex justify-center">
+          <span className="rounded-md bg-surface-darkest px-3 py-1 text-sm text-primary shadow">
+            {t('dropFilesToAttach')}
+          </span>
+        </div>
+      )}
       <OutboxMessages mode={mode} contextId={contextId} threadParentId={threadParentId} />
       {draftError && (
         <p role="alert" className="mb-2 text-sm text-red-400">
@@ -164,7 +204,7 @@ export function UnifiedInput({
             onFilesPicked={(fl) => addFiles(fl)}
             onPaste={handlePaste}
             placeholder={placeholder}
-            disabled={!contextId || saving || restoringFiles}
+            disabled={disabled}
             hasAttachments={files.length > 0}
             members={mentionMembers.length > 0 ? mentionMembers : undefined}
             channels={mentionChannels}

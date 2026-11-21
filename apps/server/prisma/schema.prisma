@@ -25,7 +25,7 @@ model User {
   customStatus String?    @map("custom_status")
   locale       String?    @map("locale")
   /// When true, the server never sends web push to this user.
-  pushSuppressAll       Boolean @default(false) @map("push_suppress_all")
+  pushSuppressAll       Boolean? @map("push_suppress_all")
   pushQuietHoursEnabled Boolean @default(false) @map("push_quiet_hours_enabled")
   /// IANA timezone for quiet hours (e.g. Europe/Prague). Null/invalid treated as no quiet window.
   pushQuietHoursTz      String? @map("push_quiet_hours_tz")

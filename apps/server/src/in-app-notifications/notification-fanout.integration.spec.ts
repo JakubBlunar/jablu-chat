@@ -103,6 +103,26 @@ describeWithDatabase('Notification fan-out (PostgreSQL)', () => {
     expect(rows[0].payload).toEqual(expect.objectContaining({ count: 25 }))
   })
 
+  it('keeps the newest unread target when older message fan-out finishes later', async () => {
+    const userId = ids[0]
+    const now = Date.now()
+    const [seen, older, latest] = await Promise.all([3000, 2000, 1000].map((age) => prisma.message.create({
+      data: { channelId, authorId: ids[1], content: 'notification', createdAt: new Date(now - age) }
+    })))
+    await prisma.channelReadState.create({ data: { userId, channelId, lastReadAt: seen.createdAt } })
+
+    await service.recordChannelMessage([userId], { ...channelMessage, messageId: latest.id })
+    await service.recordChannelMessage([userId], { ...channelMessage, messageId: older.id })
+    await service.recordChannelMessage([userId], { ...channelMessage, messageId: seen.id })
+    await service.recordMentions([userId], { ...channelMessage, messageId: seen.id })
+
+    const rows = await prisma.inAppNotification.findMany({ where: { userId } })
+    expect(rows.find(({ kind }) => kind === 'channel_message')).toMatchObject({
+      readAt: null, payload: { messageId: latest.id, count: 2 }
+    })
+    expect(rows.find(({ kind }) => kind === 'mention')?.readAt).toBeInstanceOf(Date)
+  })
+
   it('restarts channel and DM counts after reading without creating duplicate rows', async () => {
     await service.recordChannelMessage([ids[0]], channelMessage)
     await service.recordChannelMessage([ids[0]], channelMessage)
@@ -121,6 +141,39 @@ describeWithDatabase('Notification fan-out (PostgreSQL)', () => {
       expect(row.payload).toEqual(expect.objectContaining({ count: 1 }))
       expect(row.readAt).toBeNull()
     }
+  })
+
+  it('keeps reactions quiet and acknowledges only the requested version for the current account', async () => {
+    const userId = ids[0]
+    const otherUserId = ids[1]
+    const input = {
+      kind: InAppNotificationKind.reaction,
+      dedupeKey: 'reaction:m1:actor:👍',
+      payload: { ...channelMessage, emoji: '👍', isCustom: false }
+    }
+    await service.record([userId, otherUserId], input)
+    await service.record([userId], {
+      ...input,
+      dedupeKey: 'reaction:dm-m1:actor:👍',
+      payload: { ...dmMessage, messageId: 'dm-m1', emoji: '👍', isCustom: false }
+    })
+    await service.markChannelRead(userId, channelId)
+    await service.markDmRead(userId, conversationId)
+    expect(await service.unreadCount(userId)).toBe(0)
+    const activity = await service.unseenReactions(userId)
+    expect(activity).toHaveLength(2)
+    const reaction = activity.find(({ messageId }) => messageId === 'm1')!
+    const version = { id: reaction.id, updatedAt: reaction.updatedAt }
+    expect((await service.markReactionsSeen(otherUserId, [version])).ids).toEqual([])
+
+    const updatedAt = new Date(Date.parse(reaction.updatedAt) + 1000)
+    await prisma.inAppNotification.update({ where: { id: reaction.id }, data: { updatedAt } })
+    expect((await service.markReactionsSeen(userId, [version])).ids).toEqual([])
+    expect((await service.markReactionsSeen(userId, [{ ...version, updatedAt: updatedAt.toISOString() }])).ids)
+      .toEqual([reaction.id])
+    expect((await service.unseenReactions(userId)).map(({ messageId }) => messageId)).toEqual(['dm-m1'])
+    expect(await service.unseenReactions(otherUserId)).toHaveLength(1)
+    expect((await prisma.inAppNotification.findUniqueOrThrow({ where: { id: reaction.id } })).updatedAt).toEqual(updatedAt)
   })
 
   it('keeps mention retries read and preserves existing thread coalescing semantics', async () => {

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
+import { messageNotificationUrl, type NotificationDismissal, type ReactionActivity, type ReactionActivityVersion } from '@chat/shared'
 import { InAppNotificationKind, Prisma } from '../prisma-client'
 import { EventBusService } from '../events/event-bus.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -17,7 +18,12 @@ export const IN_APP_NOTIFICATION_USERS_EVENT = 'in_app_notification:users' as co
  * A `urls` of `null` means "everything", used by mark-all-read.
  */
 export const NOTIFICATION_CLEAR_EVENT = 'notification:clear' as const
-export type NotificationClearPayload = { userId: string; urls: string[] | null }
+export type NotificationClearPayload = { userId: string } & NotificationDismissal
+
+const SERVER_NOTICE_KINDS = [
+  InAppNotificationKind.server_event, InAppNotificationKind.announcement, InAppNotificationKind.moderation,
+  InAppNotificationKind.role_changed, InAppNotificationKind.level_up
+]
 
 export type InAppNotificationWire = {
   id: string
@@ -59,8 +65,10 @@ export class InAppNotificationsService {
     this.events.emit(IN_APP_NOTIFICATION_USERS_EVENT, { userIds: u })
   }
 
-  private emitClear(userId: string, urls: string[] | null) {
-    const payload: NotificationClearPayload = { userId, urls }
+  private emitClear(userId: string, urls: string[] | null, through?: Date, includeThreads = false) {
+    const payload: NotificationClearPayload = {
+      userId, urls, ...(through && { throughAt: through.toISOString() }), ...(includeThreads && { includeThreads })
+    }
     this.events.emit(NOTIFICATION_CLEAR_EVENT, payload)
   }
 
@@ -148,8 +156,30 @@ export class InAppNotificationsService {
   ): Promise<void> {
     const targets = [...new Set(userIds)]
     const payload = JSON.stringify(input.payload)
+    const messageKind = ['mention', 'reply', 'thread_reply', 'channel_message', 'dm_message'].includes(input.kind)
+    // A notification write may arrive after its message has already been read.
+    const initialRead = messageKind ? Prisma.sql`
+      CASE WHEN EXISTS (
+        SELECT 1 FROM messages m
+        LEFT JOIN inbox_thread_read_states t ON t.user_id = recipients.user_id AND t.thread_parent_id = m.thread_parent_id
+        LEFT JOIN channel_read_states c ON c.user_id = recipients.user_id AND c.channel_id = m.channel_id
+        LEFT JOIN dm_read_states d ON d.user_id = recipients.user_id AND d.conversation_id = m.direct_conversation_id
+        WHERE m.id = ${payload}::jsonb->>'messageId'
+          AND m.created_at <= COALESCE(t.last_read_at, c.last_read_at, d.last_read_at)
+      ) THEN ${new Date()}::timestamp ELSE NULL END` : Prisma.sql`NULL::timestamp`
+    const keepNewerUnreadTarget = Prisma.sql`
+      notification.read_at IS NULL AND EXISTS (
+        SELECT 1 FROM messages current_msg, messages incoming_msg
+        WHERE current_msg.id = notification.payload->>'messageId' AND incoming_msg.id = EXCLUDED.payload->>'messageId'
+          AND (current_msg.created_at, current_msg.id) > (incoming_msg.created_at, incoming_msg.id)
+      )
+    `
+    const updateGuard = input.countMode
+      ? Prisma.sql`WHERE NOT (EXCLUDED.read_at IS NOT NULL AND ${keepNewerUnreadTarget})`
+      : Prisma.empty
     const updatedPayload = input.countMode
-      ? Prisma.sql`EXCLUDED.payload || jsonb_build_object('count', (
+      ? Prisma.sql`(CASE WHEN ${keepNewerUnreadTarget} THEN notification.payload ELSE EXCLUDED.payload END) ||
+        jsonb_build_object('count', (
           CASE
             WHEN ${input.countMode === 'unread'} AND notification.read_at IS NOT NULL THEN 0
             WHEN jsonb_typeof(notification.payload->'count') = 'number'
@@ -170,15 +200,16 @@ export class InAppNotificationsService {
         // A consistent recipient order also gives overlapping fan-outs the same lock order.
         await tx.$executeRaw`
           INSERT INTO in_app_notifications AS notification
-            (id, user_id, kind, dedupe_key, payload, created_at, updated_at)
+            (id, user_id, kind, dedupe_key, payload, created_at, updated_at, read_at)
           SELECT gen_random_uuid()::text, user_id, ${input.kind}::"InAppNotificationKind",
-            ${input.dedupeKey ?? null}, ${payload}::jsonb, ${now}, ${now}
+            ${input.dedupeKey ?? null}, ${payload}::jsonb, ${now}, ${now}, ${initialRead}
           FROM unnest(${batch}::text[]) AS recipients(user_id)
           ORDER BY user_id
           ON CONFLICT (user_id, dedupe_key) DO UPDATE
           SET payload = ${updatedPayload},
-            read_at = ${input.preserveRead ? Prisma.sql`notification.read_at` : Prisma.sql`NULL`},
+            read_at = ${input.preserveRead ? Prisma.sql`COALESCE(notification.read_at, EXCLUDED.read_at)` : Prisma.sql`EXCLUDED.read_at`},
             updated_at = EXCLUDED.updated_at
+          ${updateGuard}
         `
         await this.applyTtlAndCap(tx, batch)
       })
@@ -267,78 +298,88 @@ export class InAppNotificationsService {
    * server_event, friend_*) has no channel to open and clears on click or on
    * mark-all-read instead.
    */
-  private channelScopedMatchers(channelId: string): Prisma.InAppNotificationWhereInput[] {
-    return [
-      InAppNotificationKind.mention,
-      InAppNotificationKind.thread_reply,
-      InAppNotificationKind.reaction,
-      InAppNotificationKind.reply
-    ].map((kind) => ({
-      kind,
-      payload: { path: ['channelId'], equals: channelId }
-    }))
+  private channelScopedMatcher(channelId: string, includeThreads: boolean): Prisma.InAppNotificationWhereInput {
+    const kinds = [InAppNotificationKind.mention, InAppNotificationKind.reply] as InAppNotificationKind[]
+    if (includeThreads) kinds.push(InAppNotificationKind.thread_reply)
+    return {
+      kind: { in: kinds },
+      payload: { path: ['channelId'], equals: channelId },
+      ...(!includeThreads && { AND: { payload: { path: ['threadParentId'], equals: Prisma.AnyNull } } })
+    }
   }
 
-  /** Mark coalesced channel/thread/mention/reply rows for a given channel as read. */
-  async markChannelRead(userId: string, channelId: string): Promise<void> {
+  private async refreshMentionCounts(userId: string, channelIds: string[]) {
+    if (!channelIds.length) return
+    await this.prisma.$executeRaw`
+      UPDATE channel_read_states crs
+      SET mention_count = (
+        SELECT COUNT(*)::int FROM in_app_notifications n
+        WHERE n.user_id = crs.user_id AND n.kind = 'mention' AND n.read_at IS NULL
+          AND n.payload->>'channelId' = crs.channel_id
+      )
+      WHERE crs.user_id = ${userId} AND crs.channel_id = ANY(${channelIds}::text[])
+    `
+  }
+
+  async markChannelRead(userId: string, channelId: string, through?: Date): Promise<void> {
     const res = await this.prisma.inAppNotification.updateMany({
       where: {
         userId,
         readAt: null,
-        OR: [{ dedupeKey: `channel:${channelId}` }, ...this.channelScopedMatchers(channelId)]
+        ...(through && { updatedAt: { lte: through } }),
+        OR: [{ dedupeKey: `channel:${channelId}` }, this.channelScopedMatcher(channelId, false)]
       },
       data: { readAt: new Date() }
     })
-    if (res.count > 0) this.emitUsers([userId])
+    if (through) await this.refreshMentionCounts(userId, [channelId])
+    if (res.count > 0 || through) this.emitUsers([userId])
 
     const ch = await this.prisma.channel
       .findUnique({ where: { id: channelId }, select: { serverId: true } })
       .catch(() => null)
-    if (ch) this.emitClear(userId, [`/channels/${ch.serverId}/${channelId}`])
+    if (ch) this.emitClear(userId, [`/channels/${ch.serverId}/${channelId}`], through)
   }
 
   /** Mark all channel-scoped rows for an entire server as read for a single user. */
-  async markServerChannelsRead(userId: string, channelIds: string[]): Promise<void> {
-    if (channelIds.length === 0) return
-    const channelDedupeKeys = channelIds.map((id) => `channel:${id}`)
-    const dedupeRes = await this.prisma.inAppNotification.updateMany({
-      where: {
-        userId,
-        readAt: null,
-        dedupeKey: { in: channelDedupeKeys }
-      },
-      data: { readAt: new Date() }
+  async markServerChannelsRead(userId: string, channelIds: string[], serverId?: string, through?: Date): Promise<void> {
+    if (channelIds.length === 0 && !serverId) return
+    const matchers: Prisma.InAppNotificationWhereInput[] = channelIds.map((id) => this.channelScopedMatcher(id, true))
+    if (channelIds.length) matchers.push({ dedupeKey: { in: channelIds.map((id) => `channel:${id}`) } })
+    if (serverId) matchers.push({
+      kind: { in: SERVER_NOTICE_KINDS }, payload: { path: ['serverId'], equals: serverId }
     })
-    let crossKindAffected = 0
-    for (const channelId of channelIds) {
-      const res = await this.prisma.inAppNotification.updateMany({
-        where: {
-          userId,
-          readAt: null,
-          OR: this.channelScopedMatchers(channelId)
-        },
-        data: { readAt: new Date() }
-      })
-      crossKindAffected += res.count
-    }
-    if (dedupeRes.count + crossKindAffected > 0) this.emitUsers([userId])
-  }
-
-  /** Mark the coalesced DM row for a given conversation as read. */
-  async markDmRead(userId: string, conversationId: string): Promise<void> {
     const res = await this.prisma.inAppNotification.updateMany({
       where: {
         userId,
         readAt: null,
-        OR: [
-          { dedupeKey: `dm:${conversationId}` },
-          { kind: InAppNotificationKind.reaction, payload: { path: ['conversationId'], equals: conversationId } }
-        ]
+        ...(through && { updatedAt: { lte: through } }),
+        OR: matchers
+      },
+      data: { readAt: new Date() }
+    })
+    if (through) await this.refreshMentionCounts(userId, channelIds)
+    if (res.count > 0 || through) this.emitUsers([userId])
+    const urls = (await Promise.all(channelIds.map(async (id) => {
+      const owner = serverId ?? (await this.prisma.channel.findUnique({ where: { id }, select: { serverId: true } }))?.serverId
+      return owner ? `/channels/${owner}/${id}` : null
+    }))).filter((url): url is string => url !== null)
+    if (serverId) urls.push(`/channels/${serverId}`)
+    if (urls.length > 0) this.emitClear(userId, urls, through, true)
+  }
+
+  /** Mark the coalesced DM row for a given conversation as read. */
+  async markDmRead(userId: string, conversationId: string, through?: Date): Promise<void> {
+    const res = await this.prisma.inAppNotification.updateMany({
+      where: {
+        userId,
+        readAt: null,
+        dedupeKey: `dm:${conversationId}`,
+        ...(through && { updatedAt: { lte: through } })
       },
       data: { readAt: new Date() }
     })
     if (res.count > 0) this.emitUsers([userId])
-    this.emitClear(userId, [`/channels/@me/${conversationId}`])
+    this.emitClear(userId, [`/channels/@me/${conversationId}`], through)
   }
 
   async recordDmMessages(
@@ -445,8 +486,36 @@ export class InAppNotificationsService {
 
   async unreadCount(userId: string): Promise<number> {
     return this.prisma.inAppNotification.count({
-      where: { userId, readAt: null }
+      where: { userId, readAt: null, kind: { not: InAppNotificationKind.reaction } }
     })
+  }
+
+  async unseenReactions(userId: string): Promise<ReactionActivity[]> {
+    const rows = await this.prisma.inAppNotification.findMany({
+      where: { userId, readAt: null, kind: InAppNotificationKind.reaction },
+      select: { id: true, updatedAt: true, payload: true },
+      orderBy: { id: 'asc' }
+    })
+    return rows.flatMap(({ id, updatedAt, payload }) => {
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return []
+      const { messageId, emoji, isCustom } = payload
+      if (typeof messageId !== 'string' || typeof emoji !== 'string') return []
+      return [{ id, updatedAt: updatedAt.toISOString(), messageId, emoji, isCustom: isCustom === true }]
+    })
+  }
+
+  async markReactionsSeen(userId: string, reactions: ReactionActivityVersion[]): Promise<{ ids: string[]; readAt: string }> {
+    const readAt = new Date()
+    const versions = reactions.map(({ id, updatedAt }) => Prisma.sql`(${id}, ${new Date(updatedAt)}::timestamp)`)
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      UPDATE in_app_notifications
+      SET read_at = ${readAt}
+      WHERE user_id = ${userId} AND kind = 'reaction' AND read_at IS NULL
+        AND (id, updated_at) IN (${Prisma.join(versions)})
+      RETURNING id
+    `
+    if (rows.length > 0) this.emitUsers([userId])
+    return { ids: rows.map(({ id }) => id), readAt: readAt.toISOString() }
   }
 
   /** Server notices have no channel read state. Count all unread rows, rather
@@ -476,6 +545,16 @@ export class InAppNotificationsService {
     // Like every other mutating method here: without this the badge on the user's
     // other devices stays stale until a full reload.
     this.emitUsers([userId])
+    if (['mention', 'reply', 'thread_reply', 'channel_message', 'dm_message'].includes(row.kind)) {
+      const payload = this.toWire(row).payload
+      if (typeof payload.messageId === 'string') {
+        const path = typeof payload.conversationId === 'string' ? `/channels/@me/${payload.conversationId}`
+          : typeof payload.serverId === 'string' && typeof payload.channelId === 'string'
+            ? `/channels/${payload.serverId}/${payload.channelId}` : null
+        if (path) this.emitClear(userId, [messageNotificationUrl(path, payload.messageId,
+          typeof payload.threadParentId === 'string' ? payload.threadParentId : null)])
+      }
+    }
     return this.toWire(updated)
   }
 

@@ -24,6 +24,7 @@ jest.mock('react-i18next', () => ({
 jest.mock('@/hooks/useAppNavigate', () => ({ useAppNavigate: () => ({ goToDm }) }))
 jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
 jest.mock('@/lib/notifications', () => ({
+  useNotificationsEnabled: () => true,
   showNotification: jest.fn(),
   clearNotifications: jest.fn().mockResolvedValue(undefined)
 }))

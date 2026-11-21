@@ -1,7 +1,7 @@
-import { hasPermission, messageNotificationUrl, messagePreviewText, Permission } from '@chat/shared'
+import { hasPermission, notificationMessageTarget, messageNotificationUrl, messagePreviewText, Permission } from '@chat/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { messagePushCopy } from '../push/push-copy'
-import { PushService } from '../push/push.service'
+import { PushService, type PushPayload } from '../push/push.service'
 import { RedisService } from '../redis/redis.service'
 import type { RolesService } from '../roles/roles.service'
 import type { ChannelRecipientPlan } from './channel-recipient-plan'
@@ -17,6 +17,36 @@ export type PushContext = {
    * case push is redundant. Never "has a socket" — see `ChatGateway.isUserActivelyEngaged`.
    */
   isUserActivelyEngaged: (userId: string) => boolean
+}
+
+export const notificationPresentationKey = (userId: string, messageId: string) => `notification:presented:${userId}:${messageId}`
+const FOREGROUND_GRACE_MS = 2_000
+
+export async function dispatchMessagePush(
+  ctx: Pick<PushContext, 'push' | 'redis' | 'isUserActivelyEngaged'>,
+  eligible: string[],
+  payload: PushPayload,
+  directed: ReadonlySet<string>
+) {
+  const away: string[] = []
+  const pending: string[] = []
+  const target = notificationMessageTarget(payload.url)
+  for (const id of eligible) {
+    if (!ctx.isUserActivelyEngaged(id)) away.push(id)
+    else if (target && directed.has(id)) pending.push(id)
+  }
+  const send = (ids: string[]) => ids.length
+    ? ctx.push.sendToUsers(ids, { ...payload, directedUserIds: ids.filter((id) => directed.has(id)) })
+    : Promise.resolve()
+  const immediate = send(away)
+  if (!target || !pending.length) return immediate
+  const fallback = (async () => {
+    await new Promise((resolve) => setTimeout(resolve, FOREGROUND_GRACE_MS))
+    const presented = await ctx.redis.client.mget(...pending.map((id) => notificationPresentationKey(id, target.messageId)))
+      .catch(() => null)
+    await send(pending.filter((_, index) => !presented?.[index]))
+  })()
+  await Promise.all([immediate, fallback])
 }
 
 export function describePushPreview(
@@ -118,20 +148,18 @@ export async function sendPushToOfflineMembers(
     select: { userId: true, notifLevel: true }
   })
 
-  const awayMembers = members.filter((m) => !ctx.isUserActivelyEngaged(m.userId))
-
-  if (awayMembers.length === 0) return
+  if (members.length === 0) return
 
   const serverPrefMap = new Map<string, string>()
-  for (const m of awayMembers) {
+  for (const m of members) {
     if (m.notifLevel) serverPrefMap.set(m.userId, m.notifLevel)
   }
 
-  const awayUserIds = awayMembers.map((m) => m.userId)
-  const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, awayUserIds)
+  const userIds = members.map((m) => m.userId)
+  const channelPrefMap = await getChannelNotifPrefs(ctx, channelId, userIds)
   const mentionSet = new Set(mentionedUserIds)
 
-  const prefFilteredIds = awayUserIds.filter((id) => {
+  const prefFilteredIds = userIds.filter((id) => {
     const channelLevel = channelPrefMap.get(id)
     const serverLevel = serverPrefMap.get(id)
     const effective = channelLevel ?? serverLevel ?? 'all'
@@ -155,11 +183,11 @@ export async function sendPushToOfflineMembers(
     content,
     attachments
   )
-  await ctx.push.sendToUsers(eligibleIds, {
+  await dispatchMessagePush(ctx, eligibleIds, {
     ...copy.en,
     localized: copy,
     url
-  })
+  }, mentionSet)
 }
 
 /**
@@ -176,9 +204,11 @@ export async function sendPushToThreadParticipants(
   senderName: string,
   content: string | undefined,
   attachments?: { type: string }[],
-  messageId?: string
+  messageId?: string,
+  mentionedUserIds: string[] = [],
+  knownParticipants?: string[]
 ) {
-  const [parent, replies] = await Promise.all([
+  const [parent, replies] = knownParticipants ? [null, []] : await Promise.all([
     ctx.prisma.message.findUnique({
       where: { id: parentId },
       select: { authorId: true }
@@ -190,7 +220,7 @@ export async function sendPushToThreadParticipants(
     })
   ])
 
-  const participantSet = new Set<string>()
+  const participantSet = new Set<string>([...(knownParticipants ?? []), ...mentionedUserIds])
   if (parent?.authorId) participantSet.add(parent.authorId)
   for (const r of replies) {
     if (r.authorId) participantSet.add(r.authorId)
@@ -199,12 +229,8 @@ export async function sendPushToThreadParticipants(
 
   if (participantSet.size === 0) return
 
-  const participantIds = [...participantSet]
-  const awayIds = participantIds.filter((id) => !ctx.isUserActivelyEngaged(id))
-  if (awayIds.length === 0) return
-
   const members = await ctx.prisma.serverMember.findMany({
-    where: { serverId, userId: { in: awayIds } },
+    where: { serverId, userId: { in: [...participantSet] } },
     select: { userId: true, notifLevel: true }
   })
   const serverPrefMap = new Map<string, string>()
@@ -240,11 +266,11 @@ export async function sendPushToThreadParticipants(
     content,
     attachments
   )
-  await ctx.push.sendToUsers(eligibleIds, {
+  await dispatchMessagePush(ctx, eligibleIds, {
     ...copy.en,
     localized: copy,
     url: messageId
       ? messageNotificationUrl(`/channels/${serverId}/${channelId}`, messageId, parentId)
       : `/channels/${serverId}/${channelId}`
-  })
+  }, participantSet)
 }

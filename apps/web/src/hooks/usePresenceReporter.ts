@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import type { Socket } from 'socket.io-client'
 import { getAppVisibilityState, subscribeAppVisibility } from '@/lib/appVisibility'
-import { clearNotifications } from '@/lib/notifications'
 
 /**
  * Tells the server whether this session is on screen, which is what decides
@@ -13,17 +12,8 @@ export function usePresenceReporter(socket: Socket | null) {
   useEffect(() => {
     if (!socket) return
 
-    let wasFocused = getAppVisibilityState().focused
-
     const report = () => {
       const { visibility, focused } = getAppVisibilityState()
-
-      // Coming back to the app makes every pending OS toast redundant — whatever
-      // they were about is now on screen. The per-item `notification:clear`
-      // events only cover things read on *another* device.
-      if (focused && !wasFocused) void clearNotifications(null)
-      wasFocused = focused
-
       if (!socket.connected) return
       socket.emit('presence:state', { visibility, focused })
     }

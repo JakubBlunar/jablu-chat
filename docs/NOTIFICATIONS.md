@@ -21,9 +21,8 @@ Unmuted channels and their servers stay highlighted while unread, including when
 notification delivery is set to mentions only. Muted channels have no indicator.
 Selection alone does not hide unread indicators.
 
-Numbered server badges count mentions. The page title and PWA badge combine channel
-mentions with unread DMs. The Windows taskbar overlay and tray count match unread
-Inbox notifications, including ordinary channel alerts and non-message events.
+Numbered server badges count mentions. The page title, PWA badge, Windows taskbar
+overlay and tray count combine channel mentions with unread DMs.
 Counts display up to `99+`; the tray tooltip retains the exact count and the overlay
 clears at zero.
 
@@ -69,19 +68,23 @@ Each socket registers a session in `PresenceRegistry`
 | `lastInputAt` | Refreshed by `activity:heartbeat`                      |
 
 A user is **actively engaged** when at least one session is `visible` and has
-had input within `AWAY_THRESHOLD_MS` (5 minutes). Only then is push suppressed.
+had input within `AWAY_THRESHOLD_MS` (5 minutes). Ambient message push is
+suppressed during engagement. For a DM, mention, direct reply or participating
+thread, the server waits briefly for a focused presentation receipt for that
+message. If it receives no receipt, the push worker checks that the message is
+still unread before sending.
 
 Three deliberate choices:
 
-- **Visibility, not focus, gates push.** Jablu open on a second monitor while
-  you work elsewhere still means you will see the message. Waking your phone for
-  it would be noise.
+- **Presence is tracked per window.** A focused window can confirm delivery of
+  a directed message. A visible window on a second monitor may still get a local
+  OS alert and leave background push eligible.
 - **Input recency matters.** A visible window you walked away from an hour ago
   is not a reader. After five minutes you are treated as away and push resumes.
 - **It fails open.** If engagement cannot be determined, push. A duplicate
   notification is a much cheaper mistake than a missed one.
 
-Manual DND counts as engaged, which suppresses push — that is what DND means.
+Manual Do Not Disturb silences live alerts and background push until it expires.
 
 ### On the client
 
@@ -153,11 +156,11 @@ you look, not worth waking a phone for.
 
 ## Reading and cross-device cleanup
 
-Text channels and DMs are automatically acknowledged only when their message surface
-is loaded, visible, focused, and within 30 pixels of the bottom, with no newer history
-left to load. A short 250 ms debounce coalesces incoming bursts and rechecks focus
-before sending. Reading older history, viewing a voice room, minimizing to the tray,
-or leaving a conversation does not mark unseen messages read.
+Text channels, DMs, threads and forum posts are automatically acknowledged when their
+message surface is focused, visible, and at the live edge. After a short debounce,
+the client sends the last rendered message ID. The server advances that timeline
+through the message's timestamp. Newer messages and unopened threads remain unread.
+Marking a server read explicitly covers its visible channels, threads, and notices.
 
 The acknowledgement clears the unread marker/banner as well as the counts; the manual
 Mark as Read action remains available as an explicit override. Failed acknowledgements
@@ -172,12 +175,10 @@ so activity in a new channel survives a reload even before its first read-state 
 - `NOTIFICATION_CLEAR_EVENT` → socket `notification:clear` carrying the affected
   in-app URLs → every device takes down the matching OS toast.
 
-Clients turn a URL into a notification tag via the shared `notificationTag(url)`
-helper. It strips message/thread jump parameters so precise deep links still share
-a conversation's `jablu-${path}` tag across the page, service worker and desktop shell.
-Call invitation parameters remain part of the tag. `clearNotifications(null)`
-clears everything, which is what mark-all-read and returning focus to the app
-both do.
+The page, service worker, and desktop shell use a common tag for each root timeline
+or thread. Alert metadata keeps the precise message URL and timestamp for dismissal.
+On reconnect or resume, the client checks displayed message alerts against the server
+and removes stale ones. Simply focusing the app leaves unrelated alerts in place.
 
 ## Platform notes
 
@@ -254,8 +255,8 @@ instead of applying a new message id to the previous channel.
 
 Cached channel lists are revalidated when entering a server. Explicit navigation to
 a missing channel refreshes before resolving it, rather than silently selecting an
-unrelated channel. A message notification is not marked read merely by clicking it;
-reading its conversation uses the automatic acknowledgement described above.
+unrelated channel. Once the jump target is visible, the client dismisses its alert
+across connected devices. A jump into history leaves the timeline's unread cursor in place.
 
 ## Preferences
 
@@ -266,10 +267,11 @@ to the server member's `notifLevel`, defaulting to `all`.
 A reply is delivered like a mention, so a "mentions only" channel still notifies
 you when someone replies to you directly.
 
-Quiet hours and suppress-all apply to push only, in
-`filterUserIdsForWebPush`. They never suppress the in-app row — muting your phone
-should not erase your history. The test notification endpoint bypasses both, so
-troubleshooting works during quiet hours.
+The account-wide Notifications switch pauses alerts and sounds on every device and
+keeps existing push subscriptions registered. Inbox history and unread state remain
+available. Do Not Disturb silences live alerts and background push. Quiet hours
+apply to background push. The test notification bypasses quiet hours, honors the
+account switch, and reports how many devices were queued.
 
 ## Fan-out and resource limits
 

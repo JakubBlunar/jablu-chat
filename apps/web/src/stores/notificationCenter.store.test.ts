@@ -3,7 +3,7 @@ import { api } from '@/lib/api'
 
 jest.mock('@/lib/api', () => ({ api: {
   getInAppNotificationUnreadCount: jest.fn(), getInAppNotifications: jest.fn(),
-  markInAppNotificationRead: jest.fn(), markAllInAppNotificationsRead: jest.fn()
+  markInAppNotificationRead: jest.fn(), markAllInAppNotificationsRead: jest.fn(), markReactionsSeen: jest.fn()
 } }))
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -11,6 +11,30 @@ const deferred = <T,>() => {
   return { promise, resolve }
 }
 beforeEach(() => { useNotificationCenterStore.getState().reset(); jest.clearAllMocks() })
+
+it('acknowledges only visible reaction versions and preserves the numeric badge', async () => {
+  const older = { id: 'one', updatedAt: '2026-11-20T10:00:00.000Z', messageId: 'old', emoji: '👍', isCustom: false }
+  const current = { ...older, id: 'two', messageId: 'current' }
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 3, reactions: [older, current] })
+  const store = useNotificationCenterStore.getState
+  await store().fetchUnread()
+  const visible = store().reactionsByMessage.get('current')!
+  const pending = deferred<{ ids: string[]; readAt: string }>()
+  jest.mocked(api.markReactionsSeen).mockReturnValue(pending.promise)
+  const ack = store().markReactionsSeen(visible)
+  await store().markReactionsSeen(visible)
+  expect(api.markReactionsSeen).toHaveBeenCalledTimes(1)
+  expect(api.markReactionsSeen).toHaveBeenCalledWith([{ id: current.id, updatedAt: current.updatedAt }])
+
+  const newer = { ...current, updatedAt: '2026-11-20T10:01:00.000Z' }
+  jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 3, reactions: [older, newer] })
+  await store().fetchUnread()
+  pending.resolve({ ids: [current.id], readAt: '2026-11-20T10:00:04.000Z' })
+  await ack
+  expect(store().unreadCount).toBe(3)
+  expect(store().reactionsByMessage.get('old')).toEqual([older])
+  expect(store().reactionsByMessage.get('current')).toEqual([newer])
+})
 
 it('refreshes per-server notice counts on bumps, read and read-all across reloads', async () => {
   jest.mocked(api.getInAppNotificationUnreadCount).mockResolvedValue({ count: 2, serverCounts: { server: 2 } })

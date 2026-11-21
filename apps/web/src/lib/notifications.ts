@@ -4,7 +4,7 @@ import { logNotification, navigateFromNotification } from '@/lib/notificationNav
 import { type NotifSoundKind, playNotifSound } from '@/lib/sounds'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { notificationTag } from '@chat/shared'
+import { notificationMessageTarget, notificationTag, type NotificationDismissal } from '@chat/shared'
 
 export type { NotifSoundKind }
 export { notificationTag }
@@ -16,10 +16,17 @@ type NotifSettings = {
 
 export function getNotifSettings(): NotifSettings {
   const s = useSettingsStore.getState()
+  const suppressAll = useAuthStore.getState().user?.pushSuppressAll
   return {
-    enabled: s.notifEnabled,
+    enabled: suppressAll == null ? s.notifEnabled : !suppressAll,
     soundEnabled: s.notifSoundEnabled
   }
+}
+
+export function useNotificationsEnabled(): boolean {
+  const suppressAll = useAuthStore((s) => s.user?.pushSuppressAll)
+  const localEnabled = useSettingsStore((s) => s.notifEnabled)
+  return suppressAll == null ? localEnabled : !suppressAll
 }
 
 export function saveNotifSettings(p: Partial<NotifSettings>) {
@@ -37,35 +44,101 @@ export async function requestPermission(): Promise<boolean> {
   return result === 'granted'
 }
 
+type AlertTarget = { url?: string; createdAt?: string; displayedAt: string }
+const browserAlerts = new Map<Notification, AlertTarget>()
+let desktopAlertOwner: string | undefined
+const desktopAlerts = new Map<string, AlertTarget>()
+const recentMessages = new Map<string, number>()
+
+export function notificationsInDnd(): boolean {
+  const user = useAuthStore.getState().user
+  return !!user && user.status === 'dnd' &&
+    (!user.manualStatusExpiresAt || Date.parse(user.manualStatusExpiresAt) > Date.now())
+}
+
+function desktopStorageKey() {
+  return `jablu-desktop-alerts:${desktopAlertOwner}`
+}
+
+function loadDesktopAlerts() {
+  const userId = useAuthStore.getState().user?.id
+  if (desktopAlertOwner === userId) return
+  desktopAlertOwner = userId
+  desktopAlerts.clear()
+  if (!userId) return
+  try {
+    const values = JSON.parse(localStorage.getItem(desktopStorageKey()) ?? '[]') as [string, AlertTarget][]
+    for (const [tag, target] of values) desktopAlerts.set(tag, target)
+  } catch { /* best-effort cleanup */ }
+}
+
+function saveDesktopAlerts() {
+  if (!desktopAlertOwner) return
+  try {
+    localStorage.setItem(desktopStorageKey(), JSON.stringify([...desktopAlerts].slice(-100)))
+  } catch { /* best-effort cleanup */ }
+}
+
+function matchesDismissal(target: AlertTarget, dismissal: NotificationDismissal): boolean {
+  const { urls, throughAt, includeThreads } = dismissal
+  const cutoff = throughAt ? Date.parse(throughAt) : undefined
+  if (urls === null) return cutoff === undefined || Date.parse(target.displayedAt) <= cutoff
+  if (!target.url) return false
+  const targetUrl = target.url
+  const tag = notificationTag(targetUrl)
+  const message = notificationMessageTarget(targetUrl)
+  return urls.some((url) => {
+    if (notificationMessageTarget(url)) return url === targetUrl
+    if (notificationTag(url) !== tag && !(includeThreads && message?.threadParentId && url === targetUrl.split('?')[0])) {
+      return false
+    }
+    if (cutoff === undefined) return true
+    const date = message ? target.createdAt : target.displayedAt
+    return !!date && Date.parse(date) <= cutoff
+  })
+}
+
 /**
  * Three cases, and the distinction matters:
  *
- * - **Focused** — the user is reading this window. An in-app toast is enough; an
- *   OS toast would be noise.
- * - **Visible but unfocused** — Jablu on a second monitor. An OS toast, because
- *   the server will not push to their other devices while this session is visible.
- * - **Hidden** — tray, minimised, background tab. Also an OS toast, and the server
- *   pushes as well; the shared `tag` makes the OS show only one of the two.
+ * Focused windows show in-app toasts and tell the server that the alert was
+ * presented. Unfocused windows use OS alerts. Web clients share the worker's
+ * tag for each timeline so a background push can reuse the same slot.
  */
 export function showNotification(
   title: string,
   body: string,
   url?: string,
   onClick?: () => void,
-  soundKind: NotifSoundKind = 'message'
+  soundKind: NotifSoundKind = 'message',
+  createdAt?: string
 ) {
   const session = useAuthStore.getState()
   if (!session.isAuthenticated) return
   const isCurrent = () => {
     const current = useAuthStore.getState()
-    return current.isAuthenticated && current.accessToken === session.accessToken && getNotifSettings().enabled
+    return current.isAuthenticated && current.accessToken === session.accessToken && getNotifSettings().enabled && !notificationsInDnd()
   }
   const settings = getNotifSettings()
-  if (!settings.enabled) return
+  if (!settings.enabled || notificationsInDnd()) return
+  const target: AlertTarget = { url, createdAt, displayedAt: new Date().toISOString() }
+  const message = notificationMessageTarget(url)
+  if (message && url) {
+    const key = `${session.user?.id}:${url}`
+    const now = Date.now()
+    if (now - (recentMessages.get(key) ?? -Infinity) < 60_000) return
+    recentMessages.set(key, now)
+    if (recentMessages.size > 200) recentMessages.delete(recentMessages.keys().next().value!)
+  }
 
   if (isAppFocused()) {
     import('@/stores/toast.store').then(({ showToast }) => {
-      if (isCurrent()) showToast(title, body, url)
+      if (isCurrent()) {
+        showToast(title, body, url)
+        if (message && isAppFocused()) {
+          window.dispatchEvent(new CustomEvent('notification:presented', { detail: message.messageId }))
+        }
+      }
     })
     if (settings.soundEnabled) playNotifSound(soundKind)
     return
@@ -77,6 +150,13 @@ export function showNotification(
     electronAPI?: { showNotification: (t: string, b: string, u?: string, tag?: string) => void }
   }
   if (electronAPI?.showNotification) {
+    loadDesktopAlerts()
+    if (tag) {
+      desktopAlerts.delete(tag)
+      desktopAlerts.set(tag, target)
+      if (desktopAlerts.size > 100) desktopAlerts.delete(desktopAlerts.keys().next().value!)
+      saveDesktopAlerts()
+    }
     electronAPI.showNotification(title, body, url, tag)
     if (settings.soundEnabled) playNotifSound(soundKind)
     return
@@ -91,35 +171,44 @@ export function showNotification(
     silent: true,
     tag
   }
-  let n: Notification
-  try {
-    n = new Notification(title, options)
-  } catch {
-    // Mobile browsers require persistent notifications through a service worker.
-    if ('serviceWorker' in navigator) {
-      void navigator.serviceWorker
-        .getRegistration()
-        .then((reg) => {
-          if (isCurrent()) return reg?.showNotification(title, { ...options, data: { url: url ?? '/' } })
-        })
-        .catch(() => {})
-      if (settings.soundEnabled) playNotifSound(soundKind)
-    }
+  const showPersistent = async (registration: ServiceWorkerRegistration) => {
+    if (!isCurrent()) return
+    const previous = tag && typeof registration.getNotifications === 'function'
+      ? await registration.getNotifications({ tag }) : []
+    if (!isCurrent() || (message && previous.some((notification) => notification.data?.url === url))) return
+    await registration.showNotification(title, { ...options, data: { ...target, url: url ?? '/' } })
+  }
+  // Unfocused web clients share the worker's notification namespace with push.
+  if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistration === 'function') {
+    void navigator.serviceWorker.getRegistration().then((registration) => {
+      if (registration) return showPersistent(registration)
+      if (isCurrent()) showBrowserAlert()
+    }).catch(() => {
+      if (isCurrent()) showBrowserAlert()
+    })
+    if (settings.soundEnabled) playNotifSound(soundKind)
     return
   }
+  if (showBrowserAlert() && settings.soundEnabled) playNotifSound(soundKind)
 
-  n.onclick = () => {
-    window.focus()
-    if (onClick) {
-      onClick()
-    } else if (url) {
-      navigateFromNotification(url)
+  function showBrowserAlert() {
+    let notification: Notification
+    try {
+      notification = new Notification(title, options)
+    } catch {
+      return false
     }
-    n.close()
-  }
 
-  if (settings.soundEnabled) {
-    playNotifSound(soundKind)
+    browserAlerts.set(notification, target)
+    notification.onclose = () => browserAlerts.delete(notification)
+    notification.onclick = () => {
+      window.focus()
+      if (onClick) onClick()
+      else if (url) navigateFromNotification(url)
+      notification.close()
+      browserAlerts.delete(notification)
+    }
+    return true
   }
 }
 
@@ -131,26 +220,45 @@ export function showNotification(
  * Action Center via the desktop shell. Passing `null` clears everything, which
  * is what mark-all-read does.
  */
-export async function clearNotifications(urls: string[] | null): Promise<void> {
-  const tags = urls?.map((u) => notificationTag(u)).filter((t): t is string => !!t) ?? null
+export async function clearNotifications(urls: string[] | null, boundary: Omit<NotificationDismissal, 'urls'> = {}): Promise<void> {
+  const dismissal = { urls, ...boundary }
+  for (const [notification, target] of browserAlerts) {
+    if (!matchesDismissal(target, dismissal)) continue
+    browserAlerts.delete(notification)
+    notification.close()
+  }
 
   const { electronAPI } = window as unknown as {
-    electronAPI?: { dismissNotification?: (tag: string) => void }
+    electronAPI?: { dismissNotification?: (tag: string) => Promise<void>; dismissAllNotifications?: () => Promise<void> }
   }
-  if (electronAPI?.dismissNotification && tags) {
-    for (const tag of tags) electronAPI.dismissNotification(tag)
+  if (electronAPI?.dismissNotification) {
+    loadDesktopAlerts()
+    if (urls === null && !boundary.throughAt) void electronAPI.dismissAllNotifications?.()?.catch(() => {})
+    const tags = new Set<string>()
+    for (const [tag, target] of desktopAlerts) {
+      if (matchesDismissal(target, dismissal)) {
+        tags.add(tag)
+        desktopAlerts.delete(tag)
+      }
+    }
+    for (const url of urls ?? []) {
+      const tag = notificationTag(url)
+      if (tag && !boundary.throughAt && !notificationMessageTarget(url) && !desktopAlerts.has(tag)) tags.add(tag)
+    }
+    for (const tag of tags) void electronAPI.dismissNotification(tag)?.catch(() => {})
+    saveDesktopAlerts()
   }
 
   if (!('serviceWorker' in navigator)) return
   try {
-    const reg = await navigator.serviceWorker.ready
-    // `getNotifications` with no filter is the only way to reach ones this page
-    // never created, so always fetch all and filter locally.
+    const reg = await (navigator.serviceWorker.getRegistration?.() ?? navigator.serviceWorker.ready)
+    if (!reg) return
     const open = await reg.getNotifications()
     for (const n of open) {
-      if (tags === null || (n.tag && tags.includes(n.tag))) {
+      const timestamp = (n as Notification & { timestamp?: number }).timestamp
+      const target = { displayedAt: new Date(timestamp ?? 0).toISOString(), url: n.tag?.replace(/^jablu-/, ''), ...n.data }
+      if (matchesDismissal(target, dismissal)) {
         n.close()
-        electronAPI?.dismissNotification?.(n.tag)
       }
     }
   } catch {
@@ -158,14 +266,39 @@ export async function clearNotifications(urls: string[] | null): Promise<void> {
   }
 }
 
-/** True when the app is on screen; the server will not push to other devices. */
+let reconciliation: Promise<void> | null = null
+export function reconcileNotifications(): Promise<void> {
+  if (reconciliation) return reconciliation
+  const userId = useAuthStore.getState().user?.id
+  if (!userId) return Promise.resolve()
+  reconciliation = (async () => {
+    loadDesktopAlerts()
+    const targets = [...desktopAlerts.values(), ...browserAlerts.values()].map(({ url }) => url)
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration?.()
+      if (registration) targets.push(...(await registration.getNotifications()).map((alert) => alert.data?.url))
+    }
+    if (useAuthStore.getState().user?.id !== userId) return
+    const urls = [...new Set(targets.filter((url): url is string => !!notificationMessageTarget(url)))]
+    if (!urls.length) return
+    const { api } = await import('@/lib/api')
+    for (let index = 0; index < urls.length; index += 100) {
+      const result = await api.reconcileMessageAlerts(urls.slice(index, index + 100))
+      if (useAuthStore.getState().user?.id !== userId) return
+      if (result.urls.length) await clearNotifications(result.urls)
+    }
+  })().catch(() => { /* retry on the next connection or resume */ }).finally(() => { reconciliation = null })
+  return reconciliation
+}
+
+/** True when the app is on screen. */
 export function isAppVisible(): boolean {
   return getAppVisibilityState().visibility === 'visible'
 }
 
 export function playSound(kind: NotifSoundKind = 'message') {
   const settings = getNotifSettings()
-  if (!settings.soundEnabled) return
+  if (!settings.enabled || !settings.soundEnabled || notificationsInDnd()) return
   playNotifSound(kind)
 }
 

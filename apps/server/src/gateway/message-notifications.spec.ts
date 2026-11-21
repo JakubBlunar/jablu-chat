@@ -410,6 +410,28 @@ describe('deliverChannelMessage', () => {
     )
   })
 
+  it('pushes a thread mention to an away member who has never participated in the thread', async () => {
+    const { ctx, inApp, readState, push } = makeCtx(prisma, redis)
+    prisma.message.findUnique.mockResolvedValue({ authorId: 'r1' })
+    prisma.message.findMany.mockResolvedValue([{ authorId: 'r1' }])
+    inApp.resolveThreadParticipantUserIds.mockResolvedValue(['r1'])
+    readState.resolveMentions.mockResolvedValue({ userIds: ['r2'], everyone: false, here: false })
+
+    await deliverChannelMessage(ctx, {
+      serverId: 'srv-1',
+      channelId: 'ch-1',
+      senderId: 'sender',
+      message: { id: 'reply-1', threadParentId: 'parent-1', content: 'Hello @r2' }
+    })
+    await flush()
+
+    expect(inApp.recordMentions).toHaveBeenCalledWith(['r2'], expect.objectContaining({ messageId: 'reply-1' }))
+    const recipients = push.sendToUsers.mock.calls
+      .filter(([, payload]) => payload.url === '/channels/srv-1/ch-1?m=reply-1&thread=parent-1')
+      .flatMap(([ids]) => ids as string[])
+    expect(recipients.filter((id) => id === 'r2')).toHaveLength(1)
+  })
+
   it('uses senderDisplayName for synthetic webhook senders', async () => {
     const { ctx, push } = makeCtx(prisma, redis)
 
@@ -440,6 +462,7 @@ describe('deliverDmMessage', () => {
   beforeEach(() => {
     prisma = createMockPrismaService()
     redis = createMockRedisService()
+    redis.client.mget.mockResolvedValue([null])
     prisma.directConversationMember.findMany.mockResolvedValue([
       { userId: 'sender' },
       { userId: 'other' }
@@ -484,7 +507,7 @@ describe('deliverDmMessage', () => {
     expect(push.sendToUsers).toHaveBeenCalledWith(['other'], expect.any(Object))
   })
 
-  it('skips push for DM members actively looking at the app', async () => {
+  it('does not immediately push while a DM may be shown by a foreground session', async () => {
     const { ctx, push, isUserActivelyEngaged } = makeCtx(prisma, redis)
     isUserActivelyEngaged.mockReturnValue(true)
 
@@ -500,5 +523,46 @@ describe('deliverDmMessage', () => {
     await flush()
 
     expect(push.sendToUsers).not.toHaveBeenCalled()
+  })
+
+  it('falls back to push when the foreground session never presents the DM', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate'] })
+    try {
+      const { ctx, inApp, push, isUserActivelyEngaged } = makeCtx(prisma, redis)
+      isUserActivelyEngaged.mockReturnValue(true)
+
+      await deliverDmMessage(ctx, {
+        conversationId: 'conv-1',
+        message: { id: 'dm-1', content: 'Hello' },
+        senderId: 'sender'
+      })
+      await flush()
+      expect(inApp.recordDmMessages).toHaveBeenCalledWith(['other'], expect.objectContaining({ messageId: 'dm-1' }))
+
+      await jest.advanceTimersByTimeAsync(10_000)
+      await flush()
+      expect(push.sendToUsers).toHaveBeenCalledWith(['other'], expect.objectContaining({
+        url: '/channels/@me/conv-1?m=dm-1'
+      }))
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('keeps a DM off push after a foreground device presents that exact message', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate'] })
+    try {
+      const { ctx, push, isUserActivelyEngaged } = makeCtx(prisma, redis)
+      isUserActivelyEngaged.mockReturnValue(true)
+      redis.client.mget.mockResolvedValue(['1'])
+      await deliverDmMessage(ctx, {
+        conversationId: 'conv-1', message: { id: 'dm-1', content: 'Hello' }, senderId: 'sender'
+      })
+      await jest.advanceTimersByTimeAsync(2_000)
+      expect(redis.client.mget).toHaveBeenCalledWith('notification:presented:other:dm-1')
+      expect(push.sendToUsers).not.toHaveBeenCalled()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 })

@@ -189,6 +189,14 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MessageArea', () => {
+  it('includes DM history in the composer drop zone', () => {
+    render(<MessageArea mode="dm" contextId="conv-1" />)
+
+    const composer = jest.mocked(UnifiedInput).mock.lastCall?.[0]
+    expect(composer).toMatchObject({ mode: 'dm', contextId: 'conv-1' })
+    expect(composer?.dropZoneRef?.current).toContainElement(screen.getByTestId('messages'))
+  })
+
   it('shows the matching DM conversation below a call and toggles chat without losing its draft', async () => {
     jest.mocked(useVoiceConnectionStore).mockImplementation((selector: any) => selector({
       currentDmCallId: 'call', currentChannelId: 'conv-1', viewingVoiceRoom: true

@@ -56,6 +56,7 @@ import { RichActivityTracker, type ActivityPolicy } from './rich-activity'
 import { NotificationsService } from '../notifications/notifications.service'
 import {
   describePushPreview as describePushPreviewText,
+  notificationPresentationKey,
   sendPushToOfflineMembers as sendPushToOfflineMembersWithCtx,
   sendPushToThreadParticipants as sendPushToThreadParticipantsWithCtx
 } from './gateway-push-helpers'
@@ -146,7 +147,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
 
   private readonly onNotificationClear = (data: NotificationClearPayload) => {
-    this.server?.to(`user:${data.userId}`).emit('notification:clear', { urls: data.urls })
+    const { userId, ...dismissal } = data
+    this.server?.to(`user:${userId}`).emit('notification:clear', dismissal)
   }
 
   onModuleDestroy() {
@@ -432,11 +434,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       .map(([chId]) => chId)
   }
 
-  private async hydrateManualPresenceFromDb(userId: string): Promise<void> {
+  private async hydrateAccountState(client: Socket, userId: string): Promise<void> {
     const pu = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { manualStatus: true, manualStatusExpiresAt: true }
+      select: { manualStatus: true, manualStatusExpiresAt: true, pushSuppressAll: true }
     })
+    if (pu) {
+      client.emit('user:notification-preference', { userId, pushSuppressAll: pu.pushSuppressAll })
+    }
     if (!pu?.manualStatus) {
       this.manualPresence.delete(userId)
       return
@@ -544,7 +549,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     })
 
     if (!user.isBot) {
-      await this.hydrateManualPresenceFromDb(user.id)
+      await this.hydrateAccountState(client, user.id)
     }
 
     if (user.isBot) {
@@ -1245,6 +1250,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       focused: body.focused
     })
     return { ok: true }
+  }
+
+  @WsThrottle(50, 10)
+  @SubscribeMessage('notification:presented')
+  async onNotificationPresented(@ConnectedSocket() client: Socket, @MessageBody() body: WsMessageIdDto) {
+    const user = (client.data as { user: WsUser }).user
+    if (!this.presence.get(client.id)?.focused) return
+    await this.redis.client.set(notificationPresentationKey(user.id, body.messageId), '1', 'EX', 60).catch(() => {})
   }
 
   @WsThrottle(2, 5)

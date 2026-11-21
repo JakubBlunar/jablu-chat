@@ -5,6 +5,8 @@ import type { ScrollState } from './hooks/useMessageScroll'
 import { makeMessage, makeMessages, resetMsgSeq } from '@/test/factories'
 import React from 'react'
 
+jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
+
 jest.mock('@/components/chat/MessageRow', () => ({
   MessageRow: ({
     message,

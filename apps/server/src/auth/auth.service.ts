@@ -358,44 +358,43 @@ export class AuthService implements OnModuleInit {
     const current = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        pushSuppressAll: true,
         pushQuietHoursEnabled: true,
-        pushQuietHoursTz: true,
-        pushQuietHoursStartMin: true,
-        pushQuietHoursEndMin: true
+        pushQuietHoursTz: true
       }
     })
     if (!current) {
       throw new UnauthorizedException('User not found')
     }
 
-    const nextEnabled = dto.pushQuietHoursEnabled ?? current.pushQuietHoursEnabled
-    let nextTz =
-      dto.pushQuietHoursTz !== undefined ? dto.pushQuietHoursTz : current.pushQuietHoursTz
-
-    if (nextEnabled) {
-      const tz = (nextTz?.trim() || 'UTC').trim()
-      try {
-        assertValidIanaTimeZone(tz)
-      } catch {
-        throw new BadRequestException('Invalid timezone')
+    const quietHoursChanged = dto.pushQuietHoursEnabled !== undefined || dto.pushQuietHoursTz !== undefined
+    let quietHoursTz
+    if (quietHoursChanged) {
+      quietHoursTz = null
+      if (dto.pushQuietHoursEnabled ?? current.pushQuietHoursEnabled) {
+        const timezone = dto.pushQuietHoursTz !== undefined ? dto.pushQuietHoursTz : current.pushQuietHoursTz
+        quietHoursTz = timezone?.trim() || 'UTC'
+        try {
+          assertValidIanaTimeZone(quietHoursTz)
+        } catch {
+          throw new BadRequestException('Invalid timezone')
+        }
       }
-      nextTz = tz
-    } else {
-      nextTz = null
     }
 
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        pushSuppressAll: dto.pushSuppressAll ?? current.pushSuppressAll,
-        pushQuietHoursEnabled: nextEnabled,
-        pushQuietHoursTz: nextEnabled ? nextTz : null,
-        pushQuietHoursStartMin: dto.pushQuietHoursStartMin ?? current.pushQuietHoursStartMin,
-        pushQuietHoursEndMin: dto.pushQuietHoursEndMin ?? current.pushQuietHoursEndMin
+        pushSuppressAll: dto.pushSuppressAll ?? undefined,
+        pushQuietHoursEnabled: dto.pushQuietHoursEnabled ?? undefined,
+        pushQuietHoursTz: quietHoursTz,
+        pushQuietHoursStartMin: dto.pushQuietHoursStartMin ?? undefined,
+        pushQuietHoursEndMin: dto.pushQuietHoursEndMin ?? undefined
       },
       select: PROFILE_SELECT
     })
+    if (dto.pushSuppressAll != null) {
+      this.events.emit('user:notification-preference', { userId, pushSuppressAll: user.pushSuppressAll })
+    }
     return user
   }
 

@@ -42,6 +42,7 @@ export type DesktopAPI = {
   setTrayUnread: (count: number) => Promise<void>
   /** Removes a previously shown toast from the Action Center by tag. */
   dismissNotification: (tag: string) => Promise<void>
+  dismissAllNotifications: () => Promise<void>
   getAutoLaunch: () => Promise<boolean>
   setAutoLaunch: (enabled: boolean) => Promise<boolean>
   getStartMinimized: () => Promise<boolean>
@@ -132,6 +133,7 @@ function buildDesktopAPI(): DesktopAPI {
     onWindowState: (cb) => on<DesktopWindowState>('window-state', cb),
     setTrayUnread: (count) => invoke('set_tray_unread', { count }),
     dismissNotification: (tag) => invoke('dismiss_notification', { tag }),
+    dismissAllNotifications: () => invoke('dismiss_all_notifications'),
     getAutoLaunch: () => invoke<boolean>('get_auto_launch'),
     setAutoLaunch: (enabled) => invoke<boolean>('set_auto_launch', { enabled }),
     getStartMinimized: () => invoke<boolean>('get_start_minimized'),

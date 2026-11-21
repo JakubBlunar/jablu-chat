@@ -2,13 +2,16 @@ import type { Message } from '@chat/shared'
 import { groupMessages } from './messageGrouping'
 import { isAppFocused } from './appVisibility'
 import { playJinxSound } from './sounds'
-import { useSettingsStore } from '@/stores/settings.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { getNotifSettings, notificationsInDnd } from './notifications'
 
 /** Called only by live socket handlers, never API/cache hydration or edits. */
 export function playJinxForNewMessage(before: Message[], after: Message[], incoming: Message) {
+  const settings = getNotifSettings()
   if (
-    !useSettingsStore.getState().notifSoundEnabled ||
+    !settings.enabled ||
+    !settings.soundEnabled ||
+    notificationsInDnd() ||
     !isAppFocused() ||
     before.some((m) => m.id === incoming.id) ||
     !after.some((m) => m.id === incoming.id)

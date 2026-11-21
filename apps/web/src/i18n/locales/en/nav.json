@@ -53,6 +53,7 @@
   "inboxSaveLater": "Later",
   "inboxSavedLater": "Saved for later",
   "inboxMarkRead": "Mark read",
+  "inboxMarkSeen": "Mark as seen",
   "inboxStartCatchup": "Start catch-up",
   "inboxContinueCatchup": "Continue catch-up",
   "inboxSessionComplete": "Review finished. Anything you skipped stays unread.",

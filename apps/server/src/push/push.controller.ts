@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator'
+import { ArrayMaxSize, IsArray, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { PushService } from './push.service'
 
@@ -32,6 +32,14 @@ class UnsubscribeDto {
   endpoint: string
 }
 
+class ReconcileAlertsDto {
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(512, { each: true })
+  urls!: string[]
+}
+
 @Controller('push')
 export class PushController {
   constructor(private readonly push: PushService) {}
@@ -39,6 +47,13 @@ export class PushController {
   @Get('vapid-key')
   getVapidKey() {
     return { key: this.push.getVapidPublicKey() }
+  }
+
+  @Post('reconcile-alerts')
+  @UseGuards(UnifiedAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async reconcileAlerts(@CurrentUser() user: { id: string }, @Body() dto: ReconcileAlertsDto) {
+    return { urls: await this.push.staleMessageAlerts(user.id, dto.urls) }
   }
 
   @Post('subscribe')
@@ -58,8 +73,7 @@ export class PushController {
   @UseGuards(UnifiedAuthGuard)
   @HttpCode(HttpStatus.OK)
   async test(@CurrentUser() user: { id: string }) {
-    const devices = await this.push.countSubscriptions(user.id)
-    await this.push.sendTest(user.id, {
+    const devices = await this.push.sendTest(user.id, {
       title: 'Jablu test notification',
       body: 'Push is working on this device.',
       localized: {

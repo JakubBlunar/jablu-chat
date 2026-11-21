@@ -1,4 +1,5 @@
-import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { reactionsSeenSchema } from '@chat/shared'
 import { UnifiedAuthGuard } from '../auth/unified-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { InAppNotificationsService } from './in-app-notifications.service'
@@ -20,10 +21,19 @@ export class InAppNotificationsController {
 
   @Get('unread-count')
   async unreadCount(@CurrentUser() user: { id: string }) {
-    const [count, serverCounts] = await Promise.all([
-      this.notifications.unreadCount(user.id), this.notifications.unreadServerCounts(user.id)
+    const [count, serverCounts, reactions] = await Promise.all([
+      this.notifications.unreadCount(user.id),
+      this.notifications.unreadServerCounts(user.id),
+      this.notifications.unseenReactions(user.id)
     ])
-    return { count, serverCounts }
+    return { count, serverCounts, reactions }
+  }
+
+  @Post('reactions/seen')
+  markReactionsSeen(@CurrentUser() user: { id: string }, @Body() body: unknown) {
+    const parsed = reactionsSeenSchema.safeParse(body)
+    if (!parsed.success) throw new BadRequestException('Invalid reaction activity')
+    return this.notifications.markReactionsSeen(user.id, parsed.data.reactions)
   }
 
   @Post('read-all')

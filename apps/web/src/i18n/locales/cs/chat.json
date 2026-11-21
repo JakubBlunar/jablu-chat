@@ -75,6 +75,7 @@
   "removeAttachment": "Odebrat {{name}}",
   "messageTooLong": "Zpráva může obsahovat nejvýše {{count}} znaků.",
   "tooManyAttachments": "Můžete přiložit nejvýše 20 souborů.",
+  "dropFilesToAttach": "Přetažením přiložíte soubory",
   "outboxTitle": "Odchozí zprávy",
   "outbox_queued": "Ve frontě - odešle se po opětovném připojení aplikace",
   "outbox_sending": "Odesílání...",

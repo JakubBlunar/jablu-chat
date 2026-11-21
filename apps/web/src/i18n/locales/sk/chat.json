@@ -75,6 +75,7 @@
   "removeAttachment": "Odstrániť {{name}}",
   "messageTooLong": "Správa môže obsahovať najviac {{count}} znakov.",
   "tooManyAttachments": "Môžete priložiť najviac 20 súborov.",
+  "dropFilesToAttach": "Presunutím priložíte súbory",
   "outboxTitle": "Odchádzajúce správy",
   "outbox_queued": "Vo fronte - odošle sa po opätovnom pripojení aplikácie",
   "outbox_sending": "Odosielanie...",

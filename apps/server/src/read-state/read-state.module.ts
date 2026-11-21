@@ -3,9 +3,10 @@ import { InAppNotificationsModule } from '../in-app-notifications/in-app-notific
 import { RolesModule } from '../roles/roles.module'
 import { ReadStateController } from './read-state.controller'
 import { ReadStateService } from './read-state.service'
+import { InboxModule } from '../inbox/inbox.module'
 
 @Module({
-  imports: [RolesModule, InAppNotificationsModule],
+  imports: [RolesModule, InAppNotificationsModule, InboxModule],
   controllers: [ReadStateController],
   providers: [ReadStateService],
   exports: [ReadStateService]

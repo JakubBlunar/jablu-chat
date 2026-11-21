@@ -51,10 +51,12 @@ it('rejects cross-origin and protocol-relative targets with a diagnostic', () =>
   expect(warn).toHaveBeenCalledTimes(2)
 })
 
-it('keeps precise message/thread targets but shares the conversation toast tag', () => {
+it('shares tags within each timeline and keeps thread alerts separate from the root', () => {
   const path = '/channels/s1/ch1'
   const url = messageNotificationUrl(path, 'reply', 'parent')
   expect(url).toBe('/channels/s1/ch1?m=reply&thread=parent')
-  expect(notificationTag(url)).toBe(notificationTag(path))
+  expect(notificationTag(url)).toBe(notificationTag(messageNotificationUrl(path, 'next-reply', 'parent')))
+  expect(notificationTag(url)).not.toBe(notificationTag(path))
+  expect(notificationTag(messageNotificationUrl(path, 'root'))).toBe(notificationTag(path))
   expect(notificationTag('/channels/@me/dm?call=call1')).toBe('jablu-/channels/@me/dm?call=call1')
 })

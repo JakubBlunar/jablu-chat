@@ -2,12 +2,13 @@ import {
   BadRequestException, ConflictException, GoneException, Injectable, NotFoundException
 } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
-import type { InboxGroup, InboxHighlight, InboxPage, InboxSession, InboxTarget, InboxView } from '@chat/shared'
+import { messageNotificationUrl, type InboxGroup, type InboxHighlight, type InboxPage, type InboxSession, type InboxTarget, type InboxView } from '@chat/shared'
 import { Prisma } from '../prisma-client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
 import { EventBusService } from '../events/event-bus.service'
-import { IN_APP_NOTIFICATION_USERS_EVENT } from '../in-app-notifications/in-app-notifications.service'
+import { IN_APP_NOTIFICATION_USERS_EVENT, NOTIFICATION_CLEAR_EVENT } from '../in-app-notifications/in-app-notifications.service'
+import { preserveThreadReadBaselines } from '../read-state/thread-read-baseline'
 import { groupKey, integer, isoDate, object, storedSession, target, uuid, view } from './inbox.validation'
 import { indexInboxPage } from './inbox-page-index'
 
@@ -461,12 +462,16 @@ export class InboxService {
     return { ok: true as const }
   }
 
-  private async acknowledge(tx: Database, userId: string, t: InboxTarget, cutoff: Date, session?: InboxSession) {
+  private async acknowledge(tx: Database, userId: string, t: InboxTarget, cutoff: Date, session?: InboxSession, observed = false) {
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
     // Coalesced rows updated after the frozen snapshot must remain outstanding.
     const cleared = await tx.$queryRaw<{ mentions: bigint }[]>`
       WITH cleared AS (
         UPDATE in_app_notifications n SET read_at = ${cutoff}
-        WHERE n.user_id = ${userId} AND n.read_at IS NULL AND n.updated_at <= ${cutoff}
+        WHERE n.user_id = ${userId} AND n.read_at IS NULL
+          AND (CASE WHEN ${observed} THEN EXISTS (
+            SELECT 1 FROM messages m WHERE m.id = n.payload->>'messageId' AND m.created_at <= ${cutoff}
+          ) ELSE n.updated_at <= ${cutoff} END)
           AND (
             (${t.mode === 'dm'} AND n.dedupe_key = ${`dm:${t.contextId}`})
             OR (${t.mode === 'channel'} AND EXISTS (
@@ -480,19 +485,7 @@ export class InboxService {
       SELECT COUNT(*) FILTER (WHERE kind = 'mention') AS mentions FROM cleared
     `
     if (t.mode === 'channel' && t.threadParentId === null) {
-      // Preserve the pre-Inbox channel baseline before advancing only the root.
-      await tx.$executeRaw`
-        INSERT INTO inbox_thread_read_states (user_id, thread_parent_id, last_read_at)
-        SELECT ${userId}, m.id, COALESCE(crs.last_read_at, sm.joined_at)
-        FROM messages m
-        JOIN channels c ON c.id = m.channel_id
-        JOIN server_members sm ON sm.server_id = c.server_id AND sm.user_id = ${userId}
-        LEFT JOIN channel_read_states crs ON crs.channel_id = c.id AND crs.user_id = ${userId}
-        WHERE m.channel_id = ${t.contextId} AND m.thread_parent_id IS NULL
-          AND EXISTS (SELECT 1 FROM messages reply WHERE reply.thread_parent_id = m.id)
-        ORDER BY m.id
-        ON CONFLICT (user_id, thread_parent_id) DO NOTHING
-      `
+      await preserveThreadReadBaselines(tx, userId, t.contextId, cutoff)
       await tx.$executeRaw`
         INSERT INTO channel_read_states (user_id, channel_id, last_read_at, mention_count)
         SELECT ${userId}, ${t.contextId}, GREATEST(${cutoff}, sm.joined_at), (
@@ -551,11 +544,69 @@ export class InboxService {
     return null
   }
 
-  private emitReceipt(userId: string, t: InboxTarget, at: Date | null) {
+  private emitReceipt(userId: string, t: InboxTarget, at: Date | null, cutoff: Date) {
     if (at && t.mode === 'dm') {
       this.events.emit('dm:read', { conversationId: t.contextId, userId, lastReadAt: at.toISOString() })
     }
     this.bump(userId)
+    const path = this.notificationPath(t)
+    const url = t.threadParentId ? `${path}?thread=${encodeURIComponent(t.threadParentId)}` : path
+    this.events.emit(NOTIFICATION_CLEAR_EVENT, { userId, urls: [url], throughAt: cutoff.toISOString() })
+  }
+
+  private notificationPath(t: InboxTarget) {
+    return t.mode === 'dm' ? `/channels/@me/${t.contextId}` : `/channels/${t.serverId}/${t.contextId}`
+  }
+
+  async readRendered(userId: string, t: InboxTarget, seenOnly = false) {
+    const messageId = t.messageId
+    if (!messageId) throw new BadRequestException('Missing observed message')
+    await this.requireTarget(userId, t)
+    if (seenOnly) {
+      // A jump into history acknowledges this alert without moving the conversation cursor.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
+        const [cleared] = await tx.$queryRaw<{ mentions: bigint }[]>`
+          WITH cleared AS (
+            UPDATE in_app_notifications SET read_at = NOW()
+            WHERE user_id = ${userId} AND read_at IS NULL AND payload->>'messageId' = ${messageId}
+              AND kind IN ('mention', 'reply', 'thread_reply', 'channel_message', 'dm_message')
+              AND (kind IN ('mention', 'reply') OR COALESCE((payload->>'count')::int, 1) <= 1)
+            RETURNING kind
+          )
+          SELECT COUNT(*) FILTER (WHERE kind = 'mention') AS mentions FROM cleared
+        `
+        if (t.mode === 'channel' && cleared.mentions > 0n) {
+          await tx.$executeRaw`
+            UPDATE channel_read_states SET mention_count = GREATEST(0, mention_count - ${Number(cleared.mentions)})
+            WHERE user_id = ${userId} AND channel_id = ${t.contextId}
+          `
+        }
+      })
+      this.bump(userId)
+      this.events.emit(NOTIFICATION_CLEAR_EVENT, {
+        userId, urls: [messageNotificationUrl(this.notificationPath(t), messageId, t.threadParentId)]
+      })
+      return { ok: true as const }
+    }
+    const scope = t.mode === 'dm'
+      ? { directConversationId: t.contextId }
+      : { channelId: t.contextId, threadParentId: t.threadParentId }
+    const observed = await this.prisma.message.findFirst({
+      where: { ...scope, id: messageId, deleted: false },
+      select: { createdAt: true }
+    })
+    if (!observed) throw this.unavailable()
+    // The stored cursors have millisecond precision. Preserve a timestamp tie
+    // until the final message at that timestamp is also on screen.
+    const newerTie = await this.prisma.message.findFirst({
+      where: { ...scope, createdAt: observed.createdAt, id: { gt: messageId }, deleted: false },
+      select: { id: true }
+    })
+    const cutoff = new Date(observed.createdAt.getTime() - (newerTie ? 1 : 0))
+    const receipt = await this.prisma.$transaction((tx) => this.acknowledge(tx, userId, t, cutoff, undefined, true))
+    this.emitReceipt(userId, t, receipt, cutoff)
+    return { ok: true as const }
   }
 
   async read(userId: string, body: unknown) {
@@ -565,7 +616,7 @@ export class InboxService {
     if (cutoff > new Date()) throw new BadRequestException('Inbox cutoff cannot be in the future')
     await this.requireTarget(userId, t)
     const receipt = await this.prisma.$transaction((tx) => this.acknowledge(tx, userId, t, cutoff))
-    this.emitReceipt(userId, t, receipt)
+    this.emitReceipt(userId, t, receipt, cutoff)
     return { ok: true as const }
   }
 
@@ -704,7 +755,7 @@ export class InboxService {
       if (updated.count !== 1) throw new ConflictException('Inbox session revision conflict')
       return session
     })
-    if (receiptTarget) this.emitReceipt(userId, receiptTarget, receipt)
+    if (receiptTarget) this.emitReceipt(userId, receiptTarget, receipt, new Date(session.snapshotAt))
     else this.bump(userId)
     return { session: await this.refreshed(userId, session) }
   }

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import type { NotificationDismissal } from '@chat/shared'
 import i18n from 'i18next'
 import { api } from '@/lib/api'
 import { getAppVisibilityState, subscribeAppVisibility } from '@/lib/appVisibility'
 import { markAllStale } from '@/lib/cache/messageCache'
-import { clearNotifications } from '@/lib/notifications'
+import { clearNotifications, reconcileNotifications } from '@/lib/notifications'
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket'
 import { useAuthStore } from '@/stores/auth.store'
 import { isAppLocale } from '@/i18n/locales'
@@ -24,7 +25,6 @@ import { createDmHandlers } from './socket/dmHandlers'
 import { createPresenceHandlers } from './socket/presenceHandlers'
 import { createServerHandlers } from './socket/serverHandlers'
 import { createVoiceHandlers } from './socket/voiceHandlers'
-import { onReactionNotification } from './socket/reactionNotifications'
 import { startMessageOutbox } from '@/lib/messageOutbox'
 import { requestReadStateRefresh, cancelReadStateRefresh } from '@/lib/readStateRefresh'
 
@@ -118,6 +118,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
 
       // Catch up on anything that landed while this client was asleep or offline.
       void useNotificationCenterStore.getState().fetchUnread()
+      void reconcileNotifications()
       throttledReadStateSync()
     }
     const onDisconnect = () => {
@@ -244,6 +245,13 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       useAuthStore.getState().setUser({ ...user, locale: data.locale })
     }
     socket.on('user:locale', onUserLocale)
+    const onNotificationPreference = (data: { userId: string; pushSuppressAll: boolean | null }) => {
+      const { user } = useAuthStore.getState()
+      if (user && user.id === data.userId && user.pushSuppressAll !== data.pushSuppressAll) {
+        useAuthStore.setState({ user: { ...user, pushSuppressAll: data.pushSuppressAll } })
+      }
+    }
+    socket.on('user:notification-preference', onNotificationPreference)
     socket.on('user:profile', srv.onUserProfile)
     socket.on('friend:request', srv.onFriendRequest)
     socket.on('friend:accepted', srv.onFriendAccepted)
@@ -262,15 +270,19 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       throttledReadStateSync()
     }
     socket.on('in_app_notification:new', onInAppNotificationNew)
-    socket.on('notification:reaction', onReactionNotification)
+    const onNotificationPresented = (event: Event) => {
+      const messageId = (event as CustomEvent<string>).detail
+      if (socket.connected && typeof messageId === 'string') socket.emit('notification:presented', { messageId })
+    }
+    window.addEventListener('notification:presented', onNotificationPresented)
     const onInboxActivity = () => useInboxStore.getState().bump()
     socket.on('message:new', onInboxActivity)
     socket.on('dm:new', onInboxActivity)
 
     // Sent when the user reads something on any of their devices, so this one
     // can take its now-stale toast down.
-    const onNotificationClear = (data: { urls: string[] | null }) => {
-      void clearNotifications(data.urls)
+    const onNotificationClear = ({ urls, ...boundary }: NotificationDismissal) => {
+      void clearNotifications(urls, boundary)
     }
     socket.on('notification:clear', onNotificationClear)
 
@@ -291,6 +303,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       void useDmStore.getState().fetchConversations()
       void useDmCallStore.getState().sync()
       void useNotificationCenterStore.getState().fetchUnread()
+      void reconcileNotifications()
       throttledReadStateSync()
       useInboxStore.getState().bump()
     })
@@ -369,6 +382,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('category:reorder', srv.onCategoryReorder)
       socket.off('server:updated', srv.onServerUpdated)
       socket.off('user:locale', onUserLocale)
+      socket.off('user:notification-preference', onNotificationPreference)
       socket.off('user:profile', srv.onUserProfile)
       socket.off('friend:request', srv.onFriendRequest)
       socket.off('friend:accepted', srv.onFriendAccepted)
@@ -377,7 +391,7 @@ export function useSocket(): { socket: ReturnType<typeof getSocket>; isConnected
       socket.off('friend:removed', srv.onFriendRemoved)
       socket.off('bot:command-error', onBotCommandError)
       socket.off('in_app_notification:new', onInAppNotificationNew)
-      socket.off('notification:reaction', onReactionNotification)
+      window.removeEventListener('notification:presented', onNotificationPresented)
       socket.off('message:new', onInboxActivity)
       socket.off('dm:new', onInboxActivity)
       socket.off('notification:clear', onNotificationClear)

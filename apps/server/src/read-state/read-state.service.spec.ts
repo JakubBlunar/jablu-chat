@@ -161,16 +161,26 @@ describe('ReadStateService', () => {
   })
 
   describe('ackChannel', () => {
-    it('upserts with zero mentions and current timestamp', async () => {
+    it('scopes an acknowledgement to the requested channel', async () => {
       prisma.channelReadState.upsert.mockResolvedValue(undefined)
       await service.ackChannel(userId, 'ch-1')
 
       expect(prisma.channelReadState.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { userId_channelId: { userId, channelId: 'ch-1' } },
-          update: expect.objectContaining({ mentionCount: 0 }),
         }),
       )
+    })
+
+    it('leaves unopened threads unread when acknowledging the root timeline', async () => {
+      prisma.channelReadState.upsert.mockResolvedValue(undefined)
+      await service.ackChannel(userId, 'ch-1')
+
+      expect(prisma.channelReadState.upsert).toHaveBeenCalledTimes(1)
+      const threadWrites = prisma.$executeRaw.mock.calls.filter(([sql]) =>
+        sql.join(' ').includes('inbox_thread_read_states')
+      )
+      expect(threadWrites.every(([sql]) => sql.join(' ').includes('DO NOTHING'))).toBe(true)
     })
   })
 

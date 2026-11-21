@@ -75,6 +75,7 @@
   "removeAttachment": "Remove {{name}}",
   "messageTooLong": "Messages can contain at most {{count}} characters.",
   "tooManyAttachments": "You can attach at most 20 files.",
+  "dropFilesToAttach": "Drop files to attach",
   "outboxTitle": "Outgoing messages",
   "outbox_queued": "Queued - sends when the app reconnects",
   "outbox_sending": "Sending...",

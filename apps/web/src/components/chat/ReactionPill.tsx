@@ -7,6 +7,7 @@ import type { ReactionGroup } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useReactorIdentityResolver } from './hooks/useReactorIdentityResolver'
+import { reactionActivityKey } from './hooks/useSeenReactionActivity'
 
 const HOVER_DELAY_MS = 250
 const HOVER_CLOSE_DELAY_MS = 120
@@ -21,9 +22,10 @@ type Props = {
   customEmojiMap?: Map<string, CustomEmoji>
   onShowReactors: (initialEmoji: string) => void
   onToggle?: () => void
+  unseen?: boolean
 }
 
-export function ReactionPill({ reaction, messageId, mode, contextId, customEmojiMap, onShowReactors, onToggle }: Props) {
+export function ReactionPill({ reaction, messageId, mode, contextId, customEmojiMap, onShowReactors, onToggle, unseen }: Props) {
   const { t } = useTranslation('chat')
   const userId = useAuthStore((s) => s.user?.id)
   const isMobile = useIsMobile()
@@ -190,6 +192,7 @@ export function ReactionPill({ reaction, messageId, mode, contextId, customEmoji
         type="button"
         aria-pressed={isMine}
         aria-label={`${reaction.emoji} ${reaction.count}`}
+        data-unseen-reaction={unseen ? reactionActivityKey(reaction) : undefined}
         onClick={handleClick}
         onFocus={handleFocus}
         onBlur={handleBlur}
@@ -197,7 +200,9 @@ export function ReactionPill({ reaction, messageId, mode, contextId, customEmoji
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition ${
-          isMine
+          unseen
+            ? 'bg-primary/20 text-primary ring-2 ring-primary/70'
+            : isMine
             ? 'bg-primary/20 text-primary ring-1 ring-primary/40'
             : 'bg-surface-dark text-gray-300 ring-1 ring-white/10 hover:bg-surface-hover'
         }`}

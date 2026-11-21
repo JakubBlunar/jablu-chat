@@ -118,7 +118,7 @@ describe('InAppNotificationsService', () => {
     })
 
     expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, { userIds: ['u1'] })
-    expect(executedQuery().text).toContain('read_at = notification.read_at')
+    expect(executedQuery().text).toContain('read_at = COALESCE(notification.read_at, EXCLUDED.read_at)')
   })
 
   it('preserves thread context in mention notification payloads', async () => {
@@ -241,6 +241,19 @@ describe('InAppNotificationsService', () => {
   })
 
   describe('clearing on read', () => {
+    it('broadcasts dismissal only for alerts belonging to the server explicitly marked read', async () => {
+      prisma.inAppNotification.updateMany.mockResolvedValue({ count: 1 })
+      prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
+
+      await service.markServerChannelsRead('u1', ['c1', 'c2'])
+
+      const clears = events.emit.mock.calls
+        .filter(([event]) => event === NOTIFICATION_CLEAR_EVENT)
+        .map(([, payload]) => payload as { userId: string; urls: string[] | null })
+      expect(clears.every(({ userId, urls }) => userId === 'u1' && urls !== null)).toBe(true)
+      expect(clears.flatMap(({ urls }) => urls ?? []).sort()).toEqual(['/channels/s1/c1', '/channels/s1/c2'])
+    })
+
     it('markChannelRead clears the toast for that channel on other devices', async () => {
       prisma.inAppNotification.updateMany.mockResolvedValue({ count: 1 })
       prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
@@ -253,22 +266,18 @@ describe('InAppNotificationsService', () => {
       })
     })
 
-    it('markChannelRead also clears reply rows, not just mentions and threads', async () => {
+    it('markChannelRead clears message-related rows and leaves reactions unseen', async () => {
       prisma.inAppNotification.updateMany.mockResolvedValue({ count: 1 })
       prisma.channel.findUnique.mockResolvedValue({ serverId: 's1' })
 
       await service.markChannelRead('u1', 'c1')
 
       const where = prisma.inAppNotification.updateMany.mock.calls[0][0].where
-      const kinds = where.OR.map((clause: { kind?: string }) => clause.kind).filter(Boolean)
-      expect(kinds).toEqual(
-        expect.arrayContaining([
-          InAppNotificationKind.mention,
-          InAppNotificationKind.thread_reply,
-          InAppNotificationKind.reaction,
-          InAppNotificationKind.reply
-        ])
-      )
+      const kinds = where.OR.flatMap((clause: { kind?: { in?: string[] } }) => clause.kind?.in ?? [])
+      expect(kinds).toEqual([
+        InAppNotificationKind.mention,
+        InAppNotificationKind.reply
+      ])
     })
 
     it('markDmRead clears the toast for that conversation', async () => {
@@ -277,9 +286,7 @@ describe('InAppNotificationsService', () => {
       await service.markDmRead('u1', 'conv-1')
 
       expect(prisma.inAppNotification.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({ OR: expect.arrayContaining([
-          { kind: InAppNotificationKind.reaction, payload: { path: ['conversationId'], equals: 'conv-1' } }
-        ]) })
+        where: { userId: 'u1', readAt: null, dedupeKey: 'dm:conv-1' }
       }))
 
       expect(events.emit).toHaveBeenCalledWith(NOTIFICATION_CLEAR_EVENT, {
@@ -287,6 +294,37 @@ describe('InAppNotificationsService', () => {
         urls: ['/channels/@me/conv-1']
       })
     })
+  })
+
+  it('excludes reactions from the numeric unread count', async () => {
+    await service.unreadCount('u1')
+    expect(prisma.inAppNotification.count).toHaveBeenCalledWith({
+      where: { userId: 'u1', readAt: null, kind: { not: InAppNotificationKind.reaction } }
+    })
+  })
+
+  it('returns unseen reaction locations and publishes account-wide changes when seen', async () => {
+    const updatedAt = new Date('2026-11-20T10:00:00.000Z')
+    prisma.inAppNotification.findMany.mockResolvedValue([
+      { id: 'first', updatedAt, payload: { messageId: 'original', emoji: '🎉' } },
+      { id: 'bad', updatedAt, payload: {} }
+    ])
+    const reactions = await service.unseenReactions('u1')
+    expect(prisma.inAppNotification.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'u1', readAt: null, kind: InAppNotificationKind.reaction }
+    }))
+    expect(reactions).toEqual([
+      { id: 'first', updatedAt: updatedAt.toISOString(), messageId: 'original', emoji: '🎉', isCustom: false }
+    ])
+
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: 'first' }])
+    await expect(service.markReactionsSeen('u1', reactions)).resolves.toMatchObject({ ids: ['first'] })
+    const [parts, , userId, values] = prisma.$queryRaw.mock.calls[0]
+    expect(parts.join('')).toContain("kind = 'reaction' AND read_at IS NULL")
+    expect(parts.join('')).toContain('(id, updated_at)')
+    expect(userId).toBe('u1')
+    expect(values.values).toEqual(['first', updatedAt])
+    expect(events.emit).toHaveBeenCalledWith(IN_APP_NOTIFICATION_USERS_EVENT, { userIds: ['u1'] })
   })
 
   describe('record', () => {

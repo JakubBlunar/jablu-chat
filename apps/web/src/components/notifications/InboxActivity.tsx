@@ -195,6 +195,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
   const servers = useServerStore((s) => s.servers)
   const members = useMemberStore((s) => s.members)
   const unreadCount = useNotificationCenterStore((s) => s.unreadCount)
+  const hasUnseenReactions = useNotificationCenterStore((s) => s.reactionsByMessage.size > 0)
   const items = useNotificationCenterStore((s) => s.items)
   const listLoading = useNotificationCenterStore((s) => s.listLoading)
   const listError = useNotificationCenterStore((s) => s.listError)
@@ -278,7 +279,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
         }
         // `announcement` has nowhere to go; clicking it just marks it seen.
       } finally {
-        if (!n.readAt && !['mention', 'thread_reply', 'channel_message', 'reply', 'dm_message'].includes(n.kind)) {
+        if (!n.readAt && !['mention', 'thread_reply', 'channel_message', 'reply', 'dm_message', 'reaction'].includes(n.kind)) {
           void markRead(n.id)
         }
         onNavigate()
@@ -299,7 +300,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
             </span>
           )}
         </div>
-        {unreadCount > 0 && (
+        {(unreadCount > 0 || hasUnseenReactions) && (
           <button
             type="button"
             className="min-h-11 text-xs font-medium text-primary hover:underline"
@@ -365,6 +366,8 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
                 (member) => member.serverId === n.payload.serverId && member.userId === n.payload.authorId
               )
               const notice = author ? { ...n, payload: { ...n.payload, authorName: memberDisplayName(author) } } : n
+              const unseenReaction = n.kind === 'reaction' && !n.readAt
+              const markReadLabel = t(n.kind === 'reaction' ? 'inboxMarkSeen' : 'inboxMarkRead')
               return (
                 <Fragment key={n.id}>
                   {newDay && (
@@ -374,7 +377,7 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
                   )}
                   <li
                     data-notification-read={!!n.readAt}
-                    className={`group/notice relative flex min-w-0 overflow-hidden rounded-xl border transition ${n.readAt ? 'border-white/5 bg-surface-dark/50 hover:border-white/10' : 'border-primary/20 bg-primary/[0.045] hover:border-primary/40'}`}
+                    className={`group/notice relative flex min-w-0 overflow-hidden rounded-xl border transition ${n.readAt || unseenReaction ? 'border-white/5 bg-surface-dark/50 hover:border-white/10' : 'border-primary/20 bg-primary/[0.045] hover:border-primary/40'}`}
                   >
                     <button
                       type="button"
@@ -400,9 +403,10 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
                             {formatSmartTimestamp(stamp)}
                           </time>
                         </span>
-                        <span
-                          className={`break-words text-sm leading-5 ${n.readAt ? 'font-medium text-gray-200' : 'font-semibold text-white'}`}
-                        >
+                        <span className={`break-words text-sm leading-5 ${n.readAt || unseenReaction ? 'font-medium text-gray-200' : 'font-semibold text-white'}`}>
+                          {unseenReaction && (
+                            <span aria-hidden className="mr-1.5 inline-block size-1.5 rounded-full bg-primary align-middle" />
+                          )}
                           {titleFor(notice, t, i18n.language)}
                         </span>
                         {snippet ? (
@@ -415,8 +419,8 @@ export function InboxActivity({ onNavigate }: { onNavigate: () => void }) {
                     {!n.readAt && (
                       <button
                         type="button"
-                        aria-label={t('inboxMarkRead')}
-                        title={t('inboxMarkRead')}
+                        aria-label={markReadLabel}
+                        title={markReadLabel}
                         disabled={pendingIds.includes(n.id) || markAllPending}
                         onClick={() => void markRead(n.id)}
                         className="my-2 mr-2 flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-primary transition hover:bg-primary/10 disabled:opacity-50 md:opacity-0 md:group-hover/notice:opacity-100 md:focus-visible:opacity-100"

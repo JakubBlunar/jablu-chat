@@ -4,6 +4,7 @@ import * as webPush from 'web-push'
 import { PushService } from './push.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
+import { RolesService } from '../roles/roles.service'
 import { createMockPrismaService, MockPrismaService } from '../__mocks__/prisma.mock'
 import { createMockRedisService, MockRedisService } from '../__mocks__/redis.mock'
 
@@ -42,6 +43,7 @@ describe('PushService', () => {
         PushService,
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redis },
+        { provide: RolesService, useValue: { getChannelPermissionsForUsers: jest.fn() } },
         {
           provide: ConfigService,
           useValue: { get: (key: string, fallback?: string) => config[key] ?? fallback }
@@ -191,6 +193,14 @@ describe('PushService', () => {
     })
   })
 
+  it('does not send a test notification for a muted account', async () => {
+    service.onModuleInit()
+    prisma.user.findUnique.mockResolvedValue({ pushSuppressAll: true })
+    await expect(service.sendTest('u1', { title: 'Test', body: 'T' })).resolves.toBe(0)
+    expect(redis.client.rpush).not.toHaveBeenCalled()
+    expect(prisma.pushSubscription.deleteMany).not.toHaveBeenCalled()
+  })
+
   describe('onModuleInit', () => {
     it('sets VAPID details when keys are configured', () => {
       service.onModuleInit()
@@ -229,6 +239,30 @@ describe('PushService', () => {
           }))
         )
       })
+    })
+
+    it('skips a queued push if the account mutes before delivery', async () => {
+      await service.sendToUser('u1', { title: 'T', body: 'B' })
+      const [key, job] = redis.client.rpush.mock.calls[0] as [string, string]
+      prisma.pushSubscription.findMany.mockImplementation(async (query) => {
+        const filtersMutedUsers = query?.where?.user?.OR?.every(
+          (preference: { pushSuppressAll: boolean | null }) => preference.pushSuppressAll !== true
+        )
+        return filtersMutedUsers ? [] : [{ id: 'sub1', userId: 'u1', endpoint: 'ep1', p256dh: 'p', auth: 'a' }]
+      })
+
+      deliverQueuedJob([key, job])
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(prisma.pushSubscription.findMany).toHaveBeenCalledWith({
+        where: {
+          userId: { in: ['u1'] },
+          user: { OR: [{ pushSuppressAll: false }, { pushSuppressAll: null }] }
+        }
+      })
+      expect(mockWebPush.sendNotification).not.toHaveBeenCalled()
+      expect(prisma.pushSubscription.deleteMany).not.toHaveBeenCalled()
     })
 
     it('splits a large fan-out into jobs of at most 100 recipients', async () => {
@@ -289,6 +323,80 @@ describe('PushService', () => {
       expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
         where: { id: { in: ['sub1'] } }
       })
+    })
+
+    it('skips queued DM push when the message is read on another device before dispatch', async () => {
+      const createdAt = new Date(Date.now() - 1_000)
+      prisma.message.findUnique.mockResolvedValue({ id: 'm1', directConversationId: 'dm1', createdAt })
+      prisma.directConversationMember.findMany.mockResolvedValue([{ userId: 'u1', joinedAt: new Date(0) }])
+      prisma.inAppNotification.findMany.mockResolvedValue([])
+      prisma.pushSubscription.findMany.mockResolvedValue([
+        { id: 'phone', userId: 'u1', endpoint: 'phone-endpoint', p256dh: 'p', auth: 'a' }
+      ])
+      mockWebPush.sendNotification.mockResolvedValue({} as webPush.SendResult)
+      await service.sendToUser('u1', { title: 'DM', body: 'Hello', url: '/channels/@me/dm1?m=m1' })
+      const [key, job] = redis.client.rpush.mock.calls[0] as [string, string]
+
+      prisma.dmReadState.findMany.mockResolvedValue([{
+        userId: 'u1', conversationId: 'dm1', lastReadAt: new Date()
+      }])
+      deliverQueuedJob([key, job])
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      expect(prisma.dmReadState.findMany).toHaveBeenCalled()
+      expect(mockWebPush.sendNotification).not.toHaveBeenCalled()
+    })
+
+    it('reconciles only alerts whose exact messages are no longer unread', async () => {
+      const oldUrl = '/channels/@me/dm1?m=m1'
+      const newUrl = '/channels/@me/dm1?m=m2'
+      const cutoff = new Date()
+      prisma.message.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => ({
+        directConversationId: 'dm1', createdAt: new Date(cutoff.getTime() + (where.id === 'm1' ? -1000 : 1000))
+      }))
+      prisma.directConversationMember.findMany.mockResolvedValue([{ userId: 'u1', joinedAt: new Date(0) }])
+      prisma.dmReadState.findMany.mockResolvedValue([{ userId: 'u1', lastReadAt: cutoff }])
+      prisma.inAppNotification.findMany.mockResolvedValue([])
+
+      await expect(service.staleMessageAlerts('u1', [oldUrl, newUrl, oldUrl])).resolves.toEqual([oldUrl])
+    })
+
+    it('retries a temporary provider failure without resending to an endpoint that succeeded', async () => {
+      jest.useFakeTimers({ doNotFake: ['setImmediate'] })
+      try {
+        prisma.pushSubscription.findMany.mockResolvedValue([
+          { id: 'desktop', userId: 'u1', endpoint: 'desktop-endpoint', p256dh: 'p', auth: 'a' },
+          { id: 'phone', userId: 'u1', endpoint: 'phone-endpoint', p256dh: 'p', auth: 'a' }
+        ])
+        prisma.pushSubscription.findUnique.mockResolvedValue({
+          userId: 'u1', endpoint: 'phone-endpoint', p256dh: 'p', auth: 'a'
+        })
+        let phoneAttempts = 0
+        mockWebPush.sendNotification.mockImplementation(async ({ endpoint }) => {
+          if (endpoint === 'phone-endpoint' && ++phoneAttempts === 1) {
+            throw Object.assign(new Error('Service unavailable'), { statusCode: 503 })
+          }
+          return {} as webPush.SendResult
+        })
+        await service.sendToUser('u1', { title: 'Alert', body: 'Hello' })
+        const [key, job] = redis.client.rpush.mock.calls[0] as [string, string]
+        deliverQueuedJob([key, job])
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        expect(phoneAttempts).toBe(1)
+
+        await jest.advanceTimersByTimeAsync(60_000)
+        const queuedRetry = redis.client.rpush.mock.calls[1] as [string, string] | undefined
+        if (queuedRetry) {
+          deliverQueuedJob(queuedRetry)
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+
+        expect(mockWebPush.sendNotification.mock.calls.map(([subscription]) => subscription.endpoint).sort())
+          .toEqual(['desktop-endpoint', 'phone-endpoint', 'phone-endpoint'])
+        expect(prisma.pushSubscription.deleteMany).not.toHaveBeenCalled()
+      } finally {
+        jest.useRealTimers()
+      }
     })
 
     it('does not clean up on non-410 errors', async () => {

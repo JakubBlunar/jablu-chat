@@ -9,6 +9,7 @@ import { useServerDisplayName } from '@/lib/serverProfile'
 import { formatSmartTimestamp } from '@/lib/format-time'
 import { aggregateReactions } from '@/lib/messageGrouping'
 import { toggleGroupedReaction } from '@/lib/reactions'
+import { reactionActivityKey } from './hooks/useSeenReactionActivity'
 import { api } from '@/lib/api'
 import { useServerStore } from '@/stores/server.store'
 import { useEmojiStore, buildNameMap, EMPTY_EMOJIS } from '@/stores/emoji.store'
@@ -103,6 +104,7 @@ function useGroupedReactions(messages: Message[], mode: RowProps['mode'], contex
 
 export function GroupedMessageRow({
   messages,
+  unseenReactionKeys,
   ...props
 }: Omit<RowProps, 'message' | 'showHead'> & { messages: Message[] }) {
   const { t } = useTranslation('chat')
@@ -192,6 +194,7 @@ export function GroupedMessageRow({
             <ReactionPill
               key={`${reaction.isCustom}:${reaction.emoji}`}
               reaction={reaction}
+              unseen={unseenReactionKeys?.has(reactionActivityKey(reaction))}
               messageId={messages[0].id}
               mode={props.mode}
               contextId={props.contextId}

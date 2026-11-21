@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { ReadBoundary } from '@chat/shared'
 import { api } from '@/lib/api'
 import { computeChannelBadge, type NotifLevel } from '@/lib/unread'
 
@@ -28,13 +29,13 @@ type ReadStateState = {
   fetchAll: () => Promise<void>
   reset: () => void
   ackServer: (serverId: string) => Promise<boolean>
-  ackChannel: (channelId: string) => Promise<boolean>
-  ackDm: (conversationId: string) => Promise<boolean>
+  ackChannel: (channelId: string, boundary?: ReadBoundary) => Promise<boolean>
+  ackDm: (conversationId: string, boundary?: ReadBoundary) => Promise<boolean>
   removeDm: (conversationId: string) => void
   markDmUnread: (conversationId: string) => Promise<boolean>
   pausedDmAcks: Set<string>
   resumeDmAck: (conversationId: string) => void
-  incrementChannel: (channelId: string, isMention: boolean, serverId?: string, messageId?: string) => void
+  incrementChannel: (channelId: string, isMention: boolean, serverId?: string, messageId?: string, thread?: boolean) => void
   incrementDm: (conversationId: string, messageId?: string) => void
   captureChannelView: (channelId: string) => void
   captureDmView: (conversationId: string) => void
@@ -134,13 +135,18 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     return true
   },
 
-  ackChannel: async (channelId) => {
+  ackChannel: async (channelId, boundary) => {
     const previous = get().channels.get(channelId)
     try {
-      await api.ackChannel(channelId)
+      if (boundary) await api.ackChannel(channelId, boundary)
+      else await api.ackChannel(channelId)
     } catch (error) {
       console.error('Failed to mark channel as read', error)
       return false
+    }
+    if (boundary) {
+      await get().fetchAll()
+      return true
     }
     if (get().channels.get(channelId) !== previous) return false
     if (previous?.unreadCount === 0 && previous.mentionCount === 0) {
@@ -172,16 +178,23 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     set({ dms, dmViewSnapshots, pausedDmAcks })
   },
 
-  ackDm: (conversationId) => {
+  ackDm: (conversationId, boundary) => {
     const pending = pendingDmAcks.get(conversationId)
-    if (pending) return pending
+    if (pending) {
+      return boundary ? pending.then(() => get().pausedDmAcks.has(conversationId) ? false : get().ackDm(conversationId, boundary)) : pending
+    }
     const operation = (async () => {
     const previous = get().dms.get(conversationId)
     try {
-      await api.ackDm(conversationId)
+      if (boundary) await api.ackDm(conversationId, boundary)
+      else await api.ackDm(conversationId)
     } catch (error) {
       console.error('Failed to mark DM as read', error)
       return false
+    }
+    if (boundary) {
+      await get().fetchAll()
+      return true
     }
     if (get().dms.get(conversationId) !== previous) return false
     if (previous?.unreadCount === 0 && previous.mentionCount === 0) {
@@ -229,7 +242,7 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     }
   },
 
-  incrementChannel: (channelId, isMention, serverId?, messageId?) => {
+  incrementChannel: (channelId, isMention, serverId, messageId, thread = false) => {
     const channels = new Map(get().channels)
     const current = channels.get(channelId) ?? {
       unreadCount: 0,
@@ -239,11 +252,11 @@ export const useReadStateStore = create<ReadStateState>()((set, get) => ({
     }
     channels.set(channelId, {
       ...current,
-      unreadCount: current.unreadCount + 1,
+      unreadCount: current.unreadCount + (thread ? 0 : 1),
       mentionCount: isMention ? current.mentionCount + 1 : current.mentionCount,
       // Capture the oldest unread message id so the "New Messages" divider
       // works on the user's next visit. Only set on the 0 -> 1 transition.
-      firstUnreadMessageId: current.firstUnreadMessageId ?? messageId ?? null
+      firstUnreadMessageId: current.firstUnreadMessageId ?? (thread ? null : messageId ?? null)
     })
     const update: Partial<ReadStateState> = { channels }
     if (serverId && !get().channelToServer.has(channelId)) {

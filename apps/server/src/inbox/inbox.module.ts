@@ -6,6 +6,7 @@ import { InboxService } from './inbox.service'
 @Module({
   imports: [RolesModule],
   controllers: [InboxController],
-  providers: [InboxService]
+  providers: [InboxService],
+  exports: [InboxService]
 })
 export class InboxModule {}

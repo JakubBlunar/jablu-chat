@@ -69,6 +69,8 @@ export type MockPrismaService = {
   registrationInvite: MockModel
   channelReadState: MockModel
   dmReadState: MockModel
+  inAppNotification: MockModel
+  inboxThreadReadState: MockModel
   storageAudit: MockModel
   userVolumeSetting: MockModel
   auditLog: MockModel
@@ -117,6 +119,8 @@ export function createMockPrismaService(): MockPrismaService {
     registrationInvite: createMockModel(),
     channelReadState: createMockModel(),
     dmReadState: createMockModel(),
+    inAppNotification: createMockModel(),
+    inboxThreadReadState: createMockModel(),
     storageAudit: createMockModel(),
     userVolumeSetting: createMockModel(),
     auditLog: createMockModel(),

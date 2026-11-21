@@ -26,6 +26,7 @@ const mockSocket = {
   connect: jest.fn()
 }
 const mockAuth = { accessToken: 'token', user: { id: 'user' } }
+const mockSetAuthState = jest.fn()
 const mockNavigation = { isNavigating: false }
 jest.mock('@/stores/navigation.store', () => ({
   useNavigationStore: { getState: () => mockNavigation }
@@ -48,7 +49,7 @@ const mockDm = {
 }
 
 jest.mock('@/lib/api', () => ({ api: {} }))
-jest.mock('@/lib/notifications', () => ({ clearNotifications: jest.fn() }))
+jest.mock('@/lib/notifications', () => ({ clearNotifications: jest.fn(), reconcileNotifications: jest.fn() }))
 jest.mock('@/lib/socket', () => ({
   connectSocket: () => mockSocket,
   disconnectSocket: jest.fn(),
@@ -57,7 +58,8 @@ jest.mock('@/lib/socket', () => ({
 jest.mock('@/lib/messageOutbox', () => ({ startMessageOutbox: jest.fn() }))
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: Object.assign((selector: (state: typeof mockAuth) => unknown) => selector(mockAuth), {
-    getState: () => mockAuth
+    getState: () => mockAuth,
+    setState: (state: unknown) => mockSetAuthState(state)
   })
 }))
 jest.mock('@/stores/channel.store', () => ({
@@ -90,6 +92,18 @@ jest.mock('./socket/serverHandlers', () => ({ createServerHandlers: () => ({}) }
 jest.mock('./socket/voiceHandlers', () => ({ createVoiceHandlers: () => ({}) }))
 
 describe('useSocket message recovery', () => {
+  it('applies notification preference changes only for the current account', () => {
+    renderHook(() => useSocket())
+    const onPreference = mockListeners.get('user:notification-preference') as
+      | ((data: { userId: string; pushSuppressAll: boolean }) => void)
+      | undefined
+    expect(onPreference).toBeDefined()
+    onPreference?.({ userId: 'another-account', pushSuppressAll: true })
+    expect(mockSetAuthState).not.toHaveBeenCalled()
+    onPreference?.({ userId: 'user', pushSuppressAll: true })
+    expect(mockSetAuthState).toHaveBeenCalledWith({ user: { id: 'user', pushSuppressAll: true } })
+  })
+
   it.each(['connect', 'resume'])('does not overwrite a prefetched destination during navigation on %s', (event) => {
     mockNavigation.isNavigating = true
     mockVisibility = { visibility: 'hidden', focused: false }

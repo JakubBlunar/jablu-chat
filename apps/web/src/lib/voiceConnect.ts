@@ -1,7 +1,7 @@
 import { DisconnectReason, Room, RoomEvent } from 'livekit-client'
 import { api } from '@/lib/api'
 import { getValidatedDevices } from '@/lib/deviceSettings'
-import { getNotifSettings } from '@/lib/notifications'
+import { getNotifSettings, notificationsInDnd } from '@/lib/notifications'
 import { getSocket } from '@/lib/socket'
 import { playJoinSound } from '@/lib/sounds'
 import { buildAudioCaptureOptions } from '@/lib/voiceAudioCaptureOptions'
@@ -10,7 +10,7 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
 function showVoiceError(message: string) {
   const settings = getNotifSettings()
-  if (settings.enabled && 'Notification' in window && Notification.permission === 'granted') {
+  if (settings.enabled && !notificationsInDnd() && 'Notification' in window && Notification.permission === 'granted') {
     new Notification('Jablu', { body: message, silent: !settings.soundEnabled })
   }
   window.dispatchEvent(new CustomEvent('voice:error', { detail: { message } }))

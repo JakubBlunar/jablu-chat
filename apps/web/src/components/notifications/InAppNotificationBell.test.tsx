@@ -134,7 +134,27 @@ it('discards legacy notification responses arriving after account cleanup', asyn
   expect(useNotificationCenterStore.getState()).toMatchObject({ items: [], listLoading: false, unreadCount: 0 })
 })
 
-it.each(['channel', 'dm'])('opens the reacted message in a %s and marks the alert read', async (mode) => {
+it('keeps a thread mention unread when following it from Activity', async () => {
+  jest.mocked(api.getInAppNotifications).mockResolvedValue({
+    items: [{
+      ...item,
+      kind: 'mention',
+      payload: { serverId: 'server', channelId: 'channel', threadParentId: 'parent', messageId: 'reply' }
+    }]
+  })
+  render(<InboxActivity onNavigate={jest.fn()} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: /notificationMention/ })).toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: /notificationMention/ }))
+
+  expect(openConversation).toHaveBeenCalledWith({
+    target: { kind: 'channel', serverId: 'server', channelId: 'channel' },
+    position: { kind: 'message', messageId: 'reply', threadParentId: 'parent' },
+    source: 'inbox'
+  })
+  expect(api.markInAppNotificationRead).not.toHaveBeenCalled()
+})
+
+it.each(['channel', 'dm'])('opens the reacted message in a %s and keeps manual dismissal available', async (mode) => {
   const reaction: InAppNotificationDto = {
     ...item, kind: 'reaction',
     payload: {
@@ -151,5 +171,7 @@ it.each(['channel', 'dm'])('opens the reacted message in a %s and marks the aler
     position: mode === 'dm' ? { kind: 'message', messageId: 'message' } : { kind: 'message', messageId: 'message', threadParentId: 'parent' },
     source: 'inbox'
   })
+  expect(api.markInAppNotificationRead).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'inboxMarkSeen' }))
   expect(api.markInAppNotificationRead).toHaveBeenCalledWith('n1')
 })

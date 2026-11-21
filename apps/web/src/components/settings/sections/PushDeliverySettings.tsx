@@ -19,7 +19,7 @@ const DEFAULT_START = 22 * 60
 const DEFAULT_END = 8 * 60
 
 /**
- * Server-side push delivery rules (silence all, quiet hours). Same UI for mobile and desktop — only the settings shell differs.
+ * Account-wide scheduling for background push delivery.
  */
 export function PushDeliverySettings() {
   const { t } = useTranslation('settings')
@@ -29,7 +29,6 @@ export function PushDeliverySettings() {
   const zones = useTimeZoneOptions()
   const sortedZones = useMemo(() => [...zones].sort((a, b) => a.localeCompare(b)), [zones])
 
-  const [suppressAll, setSuppressAll] = useState(false)
   const [quietEnabled, setQuietEnabled] = useState(false)
   const [tz, setTz] = useState('UTC')
   const [startTime, setStartTime] = useState(() => minutesToTimeValue(DEFAULT_START))
@@ -39,7 +38,6 @@ export function PushDeliverySettings() {
   const [success, setSuccess] = useState<string | null>(null)
   const {
     id: userId,
-    pushSuppressAll,
     pushQuietHoursEnabled,
     pushQuietHoursTz,
     pushQuietHoursStartMin,
@@ -48,12 +46,11 @@ export function PushDeliverySettings() {
 
   useEffect(() => {
     if (!userId) return
-    setSuppressAll(pushSuppressAll ?? false)
     setQuietEnabled(pushQuietHoursEnabled ?? false)
     setTz(pushQuietHoursTz?.trim() || 'UTC')
     setStartTime(minutesToTimeValue(pushQuietHoursStartMin ?? DEFAULT_START))
     setEndTime(minutesToTimeValue(pushQuietHoursEndMin ?? DEFAULT_END))
-  }, [userId, pushSuppressAll, pushQuietHoursEnabled, pushQuietHoursTz, pushQuietHoursStartMin, pushQuietHoursEndMin])
+  }, [userId, pushQuietHoursEnabled, pushQuietHoursTz, pushQuietHoursStartMin, pushQuietHoursEndMin])
 
   const save = useCallback(async () => {
     if (!user) return
@@ -62,9 +59,8 @@ export function PushDeliverySettings() {
     setSuccess(null)
     try {
       await updatePushPrefs({
-        pushSuppressAll: suppressAll,
-        pushQuietHoursEnabled: suppressAll ? false : quietEnabled,
-        pushQuietHoursTz: suppressAll || !quietEnabled ? null : tz.trim() || 'UTC',
+        pushQuietHoursEnabled: quietEnabled,
+        pushQuietHoursTz: quietEnabled ? tz.trim() || 'UTC' : null,
         pushQuietHoursStartMin: timeValueToMinutes(startTime),
         pushQuietHoursEndMin: timeValueToMinutes(endTime)
       })
@@ -74,7 +70,7 @@ export function PushDeliverySettings() {
     } finally {
       setSaving(false)
     }
-  }, [user, suppressAll, quietEnabled, tz, startTime, endTime, updatePushPrefs, t])
+  }, [user, quietEnabled, tz, startTime, endTime, updatePushPrefs, t])
 
   if (!user) return null
 
@@ -84,27 +80,13 @@ export function PushDeliverySettings() {
       <p className="text-xs text-gray-500">{t('pushDelivery.description')}</p>
 
       <ToggleRow
-        label={t('pushDelivery.silenceAll')}
-        description={t('pushDelivery.silenceAllDescription')}
-        checked={suppressAll}
-        onChange={() =>
-          setSuppressAll((v) => {
-            const next = !v
-            if (next) setQuietEnabled(false)
-            return next
-          })
-        }
-      />
-
-      <ToggleRow
         label={t('pushDelivery.quietHours')}
         description={t('pushDelivery.quietHoursDescription')}
         checked={quietEnabled}
         onChange={() => setQuietEnabled((v) => !v)}
-        disabled={suppressAll}
       />
 
-      {quietEnabled && !suppressAll && (
+      {quietEnabled && (
         <div className="space-y-3 border-t border-white/10 pt-3">
           <div>
             <label htmlFor={tzFieldId} className="mb-1 block text-xs font-medium text-gray-400">

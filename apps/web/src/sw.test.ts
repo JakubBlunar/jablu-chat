@@ -65,12 +65,31 @@ it('continues showing ordinary message notifications without an expiry', () => {
   expect(showNotification).toHaveBeenCalledWith('Alice', expect.objectContaining({ body: 'Hello' }))
 })
 
-it('retains the exact message target while coalescing and clearing by conversation', () => {
-  push({ title: 'Alice', url: '/channels/s1/ch1?m=reply&thread=parent' })
-  expect(showNotification).toHaveBeenCalledWith('Alice', expect.objectContaining({
-    data: { url: '/channels/s1/ch1?m=reply&thread=parent' },
-    tag: 'jablu-/channels/s1/ch1'
-  }))
+it('retains the exact thread reply target in the push notification', () => {
+  const url = '/channels/s1/ch1?m=reply&thread=parent-1'
+  push({ title: 'Alice', url })
+  expect(showNotification).toHaveBeenCalledWith('Alice', expect.objectContaining({ data: { url } }))
+})
+
+it('coalesces alerts within a thread while keeping the root and other threads independent', () => {
+  const rootUrl = '/channels/s1/ch1?m=root'
+  const firstReplyUrl = '/channels/s1/ch1?m=reply-1&thread=parent-1'
+  const secondReplyUrl = '/channels/s1/ch1?m=reply-2&thread=parent-1'
+  const otherThreadUrl = '/channels/s1/ch1?m=reply-3&thread=parent-2'
+  for (const url of [rootUrl, firstReplyUrl, secondReplyUrl, otherThreadUrl]) push({ title: 'Alice', url })
+
+  const tags = showNotification.mock.calls.map(([, options]) => options.tag)
+  expect(tags).toEqual([expect.any(String), expect.any(String), expect.any(String), expect.any(String)])
+  const [root, firstReply, secondReply, otherThread] = tags
+  expect({ coalesces: firstReply === secondReply, independent: new Set([root, firstReply, otherThread]).size })
+    .toEqual({ coalesces: true, independent: 3 })
+})
+
+it('does not alert the device twice when the provider redelivers the same message', async () => {
+  const delivered = { title: 'Alice', body: 'Hello', url: '/channels/@me/dm?m=message-1' }
+  const callbacks = [push(delivered), push(delivered)].flatMap((event) => event.waitUntil.mock.calls)
+  await Promise.all(callbacks.map(([work]) => work))
+  expect(showNotification).toHaveBeenCalledTimes(1)
 })
 
 function click(url: string) {
@@ -84,6 +103,14 @@ it('opens a cold PWA at the exact call invitation without accepting', async () =
   await event.waitUntil.mock.calls[0][0]
   expect(event.notification.close).toHaveBeenCalled()
   expect(openWindow).toHaveBeenCalledWith('https://jablu.test/channels/@me/dm?call=call-id')
+})
+
+it('closes the clicked toast and opens the exact thread reply', async () => {
+  const event = click('/channels/s1/ch1?m=reply&thread=parent')
+  await event.waitUntil.mock.calls[0][0]
+
+  expect(event.notification.close).toHaveBeenCalledTimes(1)
+  expect(openWindow).toHaveBeenCalledWith('https://jablu.test/channels/s1/ch1?m=reply&thread=parent')
 })
 
 it('focuses and navigates an existing PWA while retaining the call identifier', async () => {

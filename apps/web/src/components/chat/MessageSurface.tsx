@@ -11,14 +11,31 @@ import { Spinner } from '@/components/ui'
 import type { ScrollState } from '@/components/chat/hooks/useMessageScroll'
 import { useChatLookups } from '@/hooks/useChatLookups'
 import { useServerStore } from '@/stores/server.store'
+import { useInboxStore } from '@/stores/inbox.store'
+import { useSeenReactionActivity } from './hooks/useSeenReactionActivity'
+import { useSeenMessageAlert } from './hooks/useSeenMessageAlert'
 
 const GROUP_GAP_MS = 5 * 60 * 1000
 const GroupedMessageRow = lazy(() => import('./GroupedMessageRow').then((m) => ({ default: m.GroupedMessageRow })))
 
-function TimelineMessageRow({ messages, ...props }: ComponentProps<typeof MessageRow> & { messages: Message[] }) {
-  return messages.length > 1 ? <Suspense fallback={<MessageRow {...props} />}>
-    <GroupedMessageRow {...props} messages={messages} />
-  </Suspense> : <MessageRow {...props} />
+function TimelineMessageRow({
+  messages, viewportRef, reactionsPaused, ...props
+}: ComponentProps<typeof MessageRow> & {
+  messages: Message[]
+  viewportRef: ScrollState['scrollParentRef']
+  reactionsPaused: boolean
+}) {
+  const { ref, unseenReactionKeys } = useSeenReactionActivity(messages, viewportRef, reactionsPaused)
+  const normalRow = <MessageRow {...props} unseenReactionKeys={unseenReactionKeys} />
+  return (
+    <div ref={ref}>
+      {messages.length > 1 ? (
+        <Suspense fallback={normalRow}>
+          <GroupedMessageRow {...props} messages={messages} unseenReactionKeys={unseenReactionKeys} />
+        </Suspense>
+      ) : normalRow}
+    </div>
+  )
 }
 
 function isGap(a: Message, b: Message): boolean {
@@ -56,6 +73,7 @@ export interface MessageSurfaceProps {
   hasNewer: boolean
   mode: 'channel' | 'dm'
   contextId: string
+  threadParentId?: string | null
 
   emptyState?: React.ReactNode
   /** Renders at the visual top of the scroll area (e.g. forum root post, thread parent preview) */
@@ -93,6 +111,7 @@ export const MessageSurface = memo(function MessageSurface({
   hasNewer,
   mode,
   contextId,
+  threadParentId = null,
   emptyState,
   headerContent,
   lastOwnMsgId,
@@ -114,6 +133,8 @@ export const MessageSurface = memo(function MessageSurface({
   const { t: tChat } = useTranslation('chat')
   const { t: tCommon } = useTranslation('common')
   const serverId = useServerStore((s) => s.currentServerId)
+  const inboxOpen = useInboxStore((s) => s.open)
+  useSeenMessageAlert(mode, contextId, threadParentId, scroll.scrollParentRef, !isLoading && !scroll.settling)
   const lookups = useChatLookups(serverId)
   const renderedItems = useMemo(() => {
     const items: { msg: Message; group: Message[]; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
@@ -187,6 +208,8 @@ export const MessageSurface = memo(function MessageSurface({
               </>}>
               <TimelineMessageRow
                 messages={group}
+                viewportRef={scroll.scrollParentRef}
+                reactionsPaused={inboxOpen || scroll.settling}
                 omitDomId
                 mode={mode}
                 message={msg}

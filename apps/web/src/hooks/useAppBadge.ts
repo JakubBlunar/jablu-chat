@@ -6,17 +6,12 @@ import { useDmStore } from '@/stores/dm.store'
 import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
-import { useNotificationCenterStore } from '@/stores/notificationCenter.store'
 
 const BASE_TITLE = 'Jablu'
 
-function updateBadge(count: number, notificationCount: number) {
-  // On desktop the native window title is owned by `useToolbarTitle` (server /
-  // channel name), so we don't touch document.title; instead we surface the
-  // inbox notification count in the tray and taskbar. Ordinary channel alerts
-  // and non-message notifications must contribute, just as they do to flashing.
+function updateBadge(count: number) {
   if (isDesktop) {
-    void desktopAPI?.setTrayUnread(notificationCount).catch((error) => console.error('Failed to update desktop unread badge:', error))
+    void desktopAPI?.setTrayUnread(count).catch((error) => console.error('Failed to update desktop unread badge:', error))
   } else {
     document.title = count > 0 ? `(${count > 99 ? '99+' : count}) ${BASE_TITLE}` : BASE_TITLE
   }
@@ -37,14 +32,11 @@ function updateBadge(count: number, notificationCount: number) {
 export function useAppBadge() {
   useEffect(() => {
     let previousCount: number | undefined
-    let previousNotifications: number | undefined
     const recalc = () => {
       const count = computeTotalBadge()
-      const notifications = useNotificationCenterStore.getState().unreadCount
-      if (count === previousCount && notifications === previousNotifications) return
+      if (count === previousCount) return
       previousCount = count
-      previousNotifications = notifications
-      updateBadge(count, notifications)
+      updateBadge(count)
     }
     recalc()
     const unsubs = [
@@ -52,12 +44,11 @@ export function useAppBadge() {
       useServerStore.subscribe(recalc),
       useChannelStore.subscribe(recalc),
       useDmStore.subscribe(recalc),
-      useNotifPrefStore.subscribe(recalc),
-      useNotificationCenterStore.subscribe(recalc),
+      useNotifPrefStore.subscribe(recalc)
     ]
     return () => {
       unsubs.forEach((u) => u())
-      updateBadge(0, 0)
+      updateBadge(0)
     }
   }, [])
 }

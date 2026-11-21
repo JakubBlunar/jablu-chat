@@ -1,11 +1,13 @@
 import type { PrismaService } from '../prisma/prisma.service'
 
 export type WebPushPrefs = {
-  pushSuppressAll: boolean
+  pushSuppressAll: boolean | null
   pushQuietHoursEnabled: boolean
   pushQuietHoursTz: string | null
   pushQuietHoursStartMin: number
   pushQuietHoursEndMin: number
+  manualStatus?: string | null
+  manualStatusExpiresAt?: Date | null
 }
 
 /** Current local time as minutes from midnight [0, 1439] in `timeZone`, or null if invalid. */
@@ -37,6 +39,7 @@ export function isInQuietHoursWindow(localMinutes: number, startMin: number, end
 
 export function shouldDeliverWebPush(prefs: WebPushPrefs, now: Date = new Date()): boolean {
   if (prefs.pushSuppressAll) return false
+  if (prefs.manualStatus === 'dnd' && (!prefs.manualStatusExpiresAt || prefs.manualStatusExpiresAt > now)) return false
   if (!prefs.pushQuietHoursEnabled) return true
   const tz = prefs.pushQuietHoursTz?.trim()
   if (!tz) return true
@@ -60,7 +63,9 @@ export async function filterUserIdsForWebPush(
       pushQuietHoursEnabled: true,
       pushQuietHoursTz: true,
       pushQuietHoursStartMin: true,
-      pushQuietHoursEndMin: true
+      pushQuietHoursEndMin: true,
+      manualStatus: true,
+      manualStatusExpiresAt: true
     }
   })
   const allowed = new Set(rows.filter((r) => shouldDeliverWebPush(r, now)).map((r) => r.id))

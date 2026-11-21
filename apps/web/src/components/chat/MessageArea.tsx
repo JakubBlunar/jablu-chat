@@ -123,6 +123,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       store.getLoadedForId() === contextId,
     atBottom: scroll.atBottom,
     scrollParentRef: scroll.scrollParentRef,
+    latestMessageId: messages.at(-1)?.id,
     callChatVisible
   })
   const unreadSnapshot = useReadStateStore((s) => {
@@ -246,6 +247,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const channelRefsRef = useRef(dm.channelRefs)
   channelRefsRef.current = dm.channelRefs
+  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(
@@ -370,7 +372,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
     ) : null
 
   const messageList = (
-    <>
+    <div ref={dropZoneRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       {!isDm && pinned.pinnedOpen && channelId && (
         <PinnedPanel
           messages={pinned.pinnedMessages}
@@ -443,6 +445,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           )}
 
           <UnifiedInput
+            dropZoneRef={dropZoneRef}
             mode={mode}
             contextId={contextId}
             replyTarget={replyTarget}
@@ -486,7 +489,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 
   const channelHeader = !isDm ? (

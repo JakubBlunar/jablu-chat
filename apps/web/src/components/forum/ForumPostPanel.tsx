@@ -9,6 +9,7 @@ import { MessageSurface } from '@/components/chat/MessageSurface'
 import { useProfileCard } from '@/components/chat/hooks/useProfileCard'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
 import { useInboxAnchor } from '@/hooks/useInboxAnchor'
+import { useChannelAck } from '@/components/chat/hooks/useChannelAck'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
 import { UserAvatar } from '@/components/UserAvatar'
 import { MarkdownContent } from '@/components/MarkdownContent'
@@ -62,6 +63,14 @@ export function ForumPostPanel({
 
   const adapter = useForumSurfaceAdapter(channelId)
   const scroll = useMessageScroll(currentPostId, adapter)
+  useChannelAck('channel', channelId, {
+    threadParentId: currentPostId,
+    ready: !!currentPostId && !adapter.isLoading && !adapter.hasNewer && !scroll.settling && !adapter.scrollToMessageId &&
+      adapter.getLoadedForId() === currentPostId,
+    atBottom: scroll.atBottom,
+    scrollParentRef: scroll.scrollParentRef,
+    latestMessageId: adapter.messages.at(-1)?.id
+  })
   useInboxAnchor(
     'channel',
     channelId,
@@ -79,6 +88,7 @@ export function ForumPostPanel({
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const deleteBtnRef = useRef<HTMLButtonElement>(null)
@@ -382,6 +392,7 @@ export function ForumPostPanel({
 
   return (
     <div
+      ref={dropZoneRef}
       className={`flex min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${isMobile ? 'absolute inset-0 z-20 w-full border-l-0' : 'w-80'}`}
     >
       {/* Header */}
@@ -495,6 +506,7 @@ export function ForumPostPanel({
         hasNewer={adapter.hasNewer}
         mode="channel"
         contextId={channelId}
+        threadParentId={currentPostId}
         headerContent={headerContent}
         emptyState={emptyState}
         onReply={handleReply}
@@ -506,6 +518,7 @@ export function ForumPostPanel({
 
       {!post.isLocked && (
         <UnifiedInput
+          dropZoneRef={dropZoneRef}
           mode="channel"
           contextId={channelId}
           threadParentId={currentPostId}

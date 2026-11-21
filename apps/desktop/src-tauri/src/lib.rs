@@ -90,6 +90,11 @@ fn dismiss_notification(app: AppHandle, tag: String) {
     notifications::dismiss(&app, &tag);
 }
 
+#[tauri::command]
+fn dismiss_all_notifications(app: AppHandle) {
+    notifications::dismiss_all(&app);
+}
+
 /// Native window state, mirrored to the web layer so it can tell "hidden in the
 /// tray" from "on screen" — a distinction the webview's own `visibilityState`
 /// does not make reliably.
@@ -375,6 +380,7 @@ pub fn run() {
             get_system_theme,
             show_notification,
             dismiss_notification,
+            dismiss_all_notifications,
             get_window_state,
             restart_app,
             set_tray_unread,

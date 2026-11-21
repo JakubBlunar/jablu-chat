@@ -10,6 +10,8 @@ import type { InAppNotificationsService } from '../in-app-notifications/in-app-n
 import { InAppNotificationKind } from '../prisma-client'
 import type { DmService } from '../dm/dm.service'
 import {
+  dispatchMessagePush,
+  getChannelNotifPrefs,
   getMessageNotificationPreview,
   sendPushToOfflineMembers,
   sendPushToThreadParticipants
@@ -161,10 +163,19 @@ export async function deliverChannelMessage(
     mentionedUserIds
   }, recipientPlan)
 
+  const participants = message.threadParentId && senderId
+    ? await ctx.inApp.resolveThreadParticipantUserIds(message.threadParentId, senderId).catch((err) => {
+        log.warn(`resolveThreadParticipantUserIds failed: ${(err as Error)?.message}`)
+        return undefined
+      })
+    : undefined
+
   ctx.emitToChannel(channelId, 'message:new', {
     ...message,
     serverId,
     mentionedUserIds,
+    replyTargetId,
+    threadParticipantIds: participants,
     mentionEveryone,
     mentionHere
   })
@@ -232,27 +243,17 @@ export async function deliverChannelMessage(
         .catch((err) => log.warn(`record reply failed: ${(err as Error)?.message}`))
     }
 
-    if (isThreadReply && message.threadParentId && senderId) {
-      void (async () => {
-        try {
-          const participantIds = await ctx.inApp.resolveThreadParticipantUserIds(
-            message.threadParentId!,
-            senderId
-          )
-          if (participantIds.length === 0) return
-          await ctx.inApp.recordThreadActivity(participantIds, {
+    if (message.threadParentId && participants?.length) {
+      const participantIds = participants.filter((id) => !mentionedUserIds.includes(id))
+      if (participantIds.length) void ctx.inApp.recordThreadActivity(participantIds, {
             serverId,
             channelId,
             channelName: safeChannelName,
-            threadParentId: message.threadParentId!,
+            threadParentId: message.threadParentId,
             messageId: message.id,
             authorName,
             ...preview
-          })
-        } catch (err) {
-          log.warn(`recordThreadActivity failed: ${(err as Error)?.message}`)
-        }
-      })()
+          }).catch((err) => log.warn(`recordThreadActivity failed: ${(err as Error)?.message}`))
     }
 
     if (!isThreadReply) {
@@ -320,7 +321,9 @@ export async function deliverChannelMessage(
         senderNameForPush,
         message.content ?? undefined,
         attachments,
-        message.id
+        message.id,
+        mentionedUserIds,
+        participants
       ).catch((err) => log.warn(`Thread push failed: ${(err as Error)?.message}`))
     } else {
       sendPushToOfflineMembers(
@@ -374,7 +377,13 @@ async function resolveReplyTarget(
 
     const perms = recipients ? (await recipients.permissionsFor([authorId])).get(authorId) ?? 0n :
       await ctx.roles.getChannelPermissions(serverId, channelId, authorId)
-    return hasPermission(perms, Permission.VIEW_CHANNEL) ? authorId : null
+    if (!hasPermission(perms, Permission.VIEW_CHANNEL)) return null
+    const [members, prefs] = await Promise.all([
+      recipients?.members(),
+      getChannelNotifPrefs(ctx, channelId, [authorId])
+    ])
+    const level = prefs.get(authorId) ?? members?.find((member) => member.userId === authorId)?.notifLevel
+    return level === 'none' ? null : authorId
   } catch {
     return null
   }
@@ -488,9 +497,7 @@ export async function deliverDmMessage(
       .catch((err) => log.warn(`DM link preview failed: ${(err as Error)?.message}`))
   }
 
-  if (!skipPush) {
-    const awayMembers = notificationMemberIds.filter((id) => !ctx.isUserActivelyEngaged(id))
-    if (awayMembers.length > 0) {
+  if (!skipPush && notificationMemberIds.length > 0) {
       const copy = messagePushCopy(
         {
           en: `DM from ${authorName}`,
@@ -500,13 +507,11 @@ export async function deliverDmMessage(
         message.content ?? undefined,
         message.attachments ?? undefined
       )
-      ctx.push
-        .sendToUsers(awayMembers, {
+      void dispatchMessagePush(ctx, notificationMemberIds, {
           ...copy.en,
           localized: copy,
           url: messageNotificationUrl(`/channels/@me/${conversationId}`, message.id)
-        })
+        }, new Set(notificationMemberIds))
         .catch((err) => log.warn(`DM push failed: ${(err as Error)?.message}`))
-    }
   }
 }

@@ -72,7 +72,7 @@ export function WindowedMessage({ id, root, initialMounted, estimate, label, dec
   }, [root])
 
   return (
-    <div ref={ref} id={id} data-message-window data-message-mounted={mounted} style={{ display: 'flow-root', position: 'relative' }}>
+    <div ref={ref} id={id} data-message-window data-message-mounted={mounted} data-last-message-id={aliasIds?.at(-1)?.slice(4)} style={{ display: 'flow-root', position: 'relative' }}>
       {aliasIds?.map((alias) => <div key={alias} id={alias} data-message-mounted={mounted}
         aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-md" />)}
       {decoration}

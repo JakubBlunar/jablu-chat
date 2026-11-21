@@ -24,7 +24,7 @@ import { useNotifPrefStore } from '@/stores/notifPref.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useServerStore } from '@/stores/server.store'
 import { showNotification } from '@/lib/notifications'
-import { isAppFocused } from '@/lib/appVisibility'
+import { isPresentingLiveChat } from '@/lib/chatPresentation'
 import { playJinxForNewMessage } from '@/lib/jinxSound'
 import { notifBody } from './helpers'
 import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewPayload } from './types'
@@ -38,21 +38,24 @@ import type { MessageDeletePayload, TypingPayload, ReactionPayload, LinkPreviewP
  * only fires for threads the user has actually opened. The server-side push and
  * bell row remain the authoritative delivery for everyone else.
  */
-function notifyThreadReply(
-  msg: Message & { background?: boolean; mentionedUserIds?: string[]; serverId?: string }
-) {
+type IncomingMessage = Message & {
+  background?: boolean; mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean
+  replyTargetId?: string | null; threadParticipantIds?: string[]; isThreadParticipant?: boolean
+}
+
+function notifyThreadReply(msg: IncomingMessage) {
   const myId = useAuthStore.getState().user?.id
   if (!myId || msg.authorId === myId) return
 
   const thread = useThreadStore.getState()
   // Already reading this thread — the message is on screen.
-  if (thread.isOpen && thread.parentMessage?.id === msg.threadParentId && isAppFocused()) return
+  if (msg.channelId && isPresentingLiveChat('channel', msg.channelId, msg.threadParentId)) return
 
   const isMentioned = (msg.mentionedUserIds ?? []).includes(myId)
   const isParticipant =
-    thread.parentMessage?.id === msg.threadParentId &&
-    (thread.parentMessage?.authorId === myId ||
-      thread.messages.some((m) => m.authorId === myId))
+    msg.isThreadParticipant ?? msg.threadParticipantIds?.includes(myId) ??
+    (thread.parentMessage?.id === msg.threadParentId &&
+      (thread.parentMessage?.authorId === myId || thread.messages.some((m) => m.authorId === myId)))
   if (!isMentioned && !isParticipant) return
 
   if (msg.channelId) {
@@ -70,12 +73,13 @@ function notifyThreadReply(
     i18n.t('chat:notification.message', { author, preview: msg.background && msg.content ? msg.content : notifBody(msg) }),
     url,
     undefined,
-    isMentioned ? 'mention' : 'message'
+    isMentioned ? 'mention' : 'message',
+    msg.createdAt
   )
 }
 
 export function createChannelHandlers() {
-  const onMessageNew = (msg: Message & { background?: boolean; mentionedUserIds?: string[]; serverId?: string; mentionEveryone?: boolean; mentionHere?: boolean }) => {
+  const onMessageNew = (msg: IncomingMessage) => {
     if (msg.threadParentId) {
       if (!msg.background) {
         const before = useThreadStore.getState().messages
@@ -88,6 +92,10 @@ export function createChannelHandlers() {
         const before = useForumReplyStore.getState().messages
         window.dispatchEvent(new CustomEvent('forum-reply', { detail: msg }))
         playJinxForNewMessage(before, useForumReplyStore.getState().messages, msg)
+      }
+      const myId = useAuthStore.getState().user?.id
+      if (msg.channelId && myId && msg.authorId !== myId && msg.mentionedUserIds?.includes(myId)) {
+        useReadStateStore.getState().incrementChannel(msg.channelId, true, msg.serverId, msg.id, true)
       }
       notifyThreadReply(msg)
       return
@@ -112,12 +120,13 @@ export function createChannelHandlers() {
 
     if (msg.channelId && msg.authorId !== myId) {
       const isMentioned = myId
-        ? (msg.mentionedUserIds ?? []).includes(myId) || !!msg.mentionEveryone || !!msg.mentionHere
+        ? msg.mentionedUserIds?.includes(myId) ?? (!!msg.mentionEveryone || !!msg.mentionHere)
         : false
+      const isDirectReply = !!myId && (msg.replyTargetId === undefined ? msg.replyTo?.author?.id : msg.replyTargetId) === myId
       useReadStateStore.getState().incrementChannel(msg.channelId, isMentioned, msg.serverId, msg.id)
 
       const level = useNotifPrefStore.getState().getEffective(msg.channelId, msg.serverId)
-      if ((!isViewingChannel || !isAppFocused()) && level !== 'none' && (level !== 'mentions' || isMentioned)) {
+      if (!isPresentingLiveChat('channel', msg.channelId) && level !== 'none' && (level !== 'mentions' || isMentioned || isDirectReply)) {
         const author = msg.author?.displayName ?? msg.author?.username ?? 'Someone'
         const preview = msg.background && msg.content ? msg.content : notifBody(msg)
         const url = msg.serverId
@@ -132,7 +141,8 @@ export function createChannelHandlers() {
           i18n.t('chat:notification.message', { author, preview }),
           url,
           undefined,
-          isMentioned ? 'mention' : 'message'
+          isMentioned || isDirectReply ? 'mention' : 'message',
+          msg.createdAt
         )
       }
     }
@@ -145,7 +155,9 @@ export function createChannelHandlers() {
     if (activity.message && activity.event === 'message:new') {
       const myId = useAuthStore.getState().user?.id
       onMessageNew({ ...activity.message, channelId: activity.contextId, background: true,
-        mentionedUserIds: activity.isMention && myId ? [myId] : [] } as unknown as Parameters<typeof onMessageNew>[0])
+        mentionedUserIds: activity.isMention && myId ? [myId] : [],
+        replyTargetId: activity.isReply ? myId : null,
+        isThreadParticipant: activity.isThreadParticipant } as unknown as IncomingMessage)
     }
   }
 

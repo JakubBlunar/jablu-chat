@@ -3,7 +3,7 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
-import { notificationTag } from '@chat/shared'
+import { notificationMessageTarget, notificationTag } from '@chat/shared'
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -59,6 +59,7 @@ registerRoute(
   })
 )
 
+const recentDeliveries = new Map<string, number>()
 self.addEventListener('push', (event) => {
   if (!event.data) return
 
@@ -68,22 +69,43 @@ self.addEventListener('push', (event) => {
       body?: string
       url?: string
       expiresAt?: number
+      createdAt?: string
     }
 
     if (typeof payload.expiresAt === 'number' && payload.expiresAt <= Date.now()) return
 
     const title = payload.title ?? 'Jablu'
     const notifUrl = payload.url ?? '/'
+    const now = Date.now()
+    const precise = !!notificationMessageTarget(notifUrl) || new URLSearchParams(notifUrl.split('?')[1]).has('call')
+    if (precise && now - (recentDeliveries.get(notifUrl) ?? -Infinity) < 600_000) return
+    if (precise) {
+      recentDeliveries.delete(notifUrl)
+      recentDeliveries.set(notifUrl, now)
+      if (recentDeliveries.size > 200) recentDeliveries.delete(recentDeliveries.keys().next().value!)
+    }
     const options: NotificationOptions & { renotify?: boolean } = {
       body: payload.body ?? '',
       icon: '/pwa-192x192.png',
       badge: '/favicon-32x32.png',
-      data: { url: notifUrl },
+      data: { url: notifUrl, ...(payload.createdAt && { createdAt: payload.createdAt }) },
       tag: notificationTag(notifUrl),
       renotify: true
     }
 
-    event.waitUntil(self.registration.showNotification(title, options))
+    const show = async () => {
+      try {
+        if (precise && typeof self.registration.getNotifications === 'function') {
+          const open = await self.registration.getNotifications({ tag: options.tag })
+          if (open.some((notification) => notification.data?.url === notifUrl)) return
+        }
+        await self.registration.showNotification(title, options)
+      } catch (error) {
+        recentDeliveries.delete(notifUrl)
+        throw error
+      }
+    }
+    event.waitUntil(show())
   } catch (_err) {
     event.waitUntil(
       self.registration.showNotification('Jablu', {

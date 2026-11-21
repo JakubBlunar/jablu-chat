@@ -56,7 +56,6 @@ export function useMessageComposer({
     setFocusAfterSend(null)
   }, [saving, focusAfterSend, draftKey, isMobile])
   const savingRef = useRef(false)
-  const [dragOver, setDragOver] = useState(false)
   const [sizeError, setSizeError] = useState<string | null>(null)
   const [maxUploadMb, setMaxUploadMb] = useState<number | null>(null)
   const [limitFailed, setLimitFailed] = useState(false)
@@ -359,8 +358,10 @@ export function useMessageComposer({
   }
 
   async function addFiles(newFiles: FileList | File[]) {
+    if (!userId || !contextId || savingRef.current || restoringFiles) return
     setSizeError(null)
-    const next = [...files, ...Array.from(newFiles)]
+    const existing = useDraftStore.getState().files[draftKey] ?? EMPTY_DRAFT_FILES
+    const next = [...existing, ...Array.from(newFiles)]
     if (next.length > 20) {
       setSizeError(t('tooManyAttachments'))
       return
@@ -406,14 +407,6 @@ export function useMessageComposer({
     }
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragOver(false)
-    if (e.dataTransfer?.files?.length) {
-      addFiles(e.dataTransfer.files)
-    }
-  }
-
   const retryFiles = useCallback(() => {
     void useDraftStore.getState().loadFiles(draftKey)
   }, [draftKey])
@@ -429,8 +422,6 @@ export function useMessageComposer({
     setValue,
     setTargetBot,
     saving,
-    dragOver,
-    setDragOver,
     sizeError,
     maxUploadMb,
     limitFailed,
@@ -446,7 +437,6 @@ export function useMessageComposer({
     send,
     addFiles,
     removeFile,
-    handlePaste,
-    handleDrop
+    handlePaste
   }
 }

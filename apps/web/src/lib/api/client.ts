@@ -21,6 +21,9 @@ import type {
   LoginRequest,
   Message,
   Poll,
+  ReactionActivity,
+  ReactionActivityVersion,
+  ReadBoundary,
   RefreshTokenRequest,
   RegisterRequest,
   RegisteredGame,
@@ -83,7 +86,8 @@ export class ApiClient {
     path: string,
     body?: unknown,
     skipRefresh = false,
-    externalSignal?: AbortSignal
+    externalSignal?: AbortSignal,
+    reportErrors = true
   ): Promise<T> {
     const controller = new AbortController()
     const cancel = () => controller.abort(externalSignal?.reason)
@@ -93,7 +97,7 @@ export class ApiClient {
       controller.abort(new DOMException('Request timed out', 'TimeoutError'))
     }, 30_000)
     try {
-      return await this.requestWithSignal<T>(method, path, body, skipRefresh, controller.signal)
+      return await this.requestWithSignal<T>(method, path, body, skipRefresh, controller.signal, reportErrors)
     } finally {
       clearTimeout(timeout)
       externalSignal?.removeEventListener('abort', cancel)
@@ -105,7 +109,8 @@ export class ApiClient {
     path: string,
     body: unknown,
     skipRefresh: boolean,
-    signal: AbortSignal
+    signal: AbortSignal,
+    reportErrors: boolean
   ): Promise<T> {
     signal.throwIfAborted()
     const headers: Record<string, string> = {
@@ -133,11 +138,11 @@ export class ApiClient {
     ) {
       const currentToken = readPersistedAuth().accessToken
       if (currentToken && currentToken !== accessToken) {
-        return this.requestWithSignal<T>(method, path, body, true, signal)
+        return this.requestWithSignal<T>(method, path, body, true, signal, reportErrors)
       }
       const refreshed = await this.tryRefreshToken()
       if (refreshed) {
-        return this.requestWithSignal<T>(method, path, body, true, signal)
+        return this.requestWithSignal<T>(method, path, body, true, signal, reportErrors)
       }
       if (!refreshed) {
         this.onAuthFailure?.()
@@ -170,7 +175,7 @@ export class ApiClient {
         }
       }
       const apiError = new ApiError(message, res.status, errBody)
-      if (res.status !== 401) this.onApiError?.(apiError)
+      if (reportErrors && res.status !== 401) this.onApiError?.(apiError)
       throw apiError
     }
 
@@ -1250,12 +1255,12 @@ export class ApiClient {
     return this.request('PUT', `/api/servers/${serverId}/ack`)
   }
 
-  ackChannel(channelId: string): Promise<{ ok: boolean }> {
-    return this.request('PUT', `/api/channels/${channelId}/ack`)
+  ackChannel(channelId: string, boundary?: ReadBoundary): Promise<{ ok: boolean }> {
+    return this.request('PUT', `/api/channels/${channelId}/ack`, boundary, false, undefined, !boundary)
   }
 
-  ackDm(conversationId: string): Promise<{ ok: boolean }> {
-    return this.request('PUT', `/api/dm/${conversationId}/ack`)
+  ackDm(conversationId: string, boundary?: ReadBoundary): Promise<{ ok: boolean }> {
+    return this.request('PUT', `/api/dm/${conversationId}/ack`, boundary, false, undefined, !boundary)
   }
 
   getSessions(): Promise<ActiveSession[]> {
@@ -1425,8 +1430,20 @@ export class ApiClient {
     return this.get(`/api/notifications${s ? `?${s}` : ''}`)
   }
 
-  getInAppNotificationUnreadCount(): Promise<{ count: number; serverCounts?: Record<string, number> }> {
+  getInAppNotificationUnreadCount(): Promise<{
+    count: number
+    serverCounts?: Record<string, number>
+    reactions?: ReactionActivity[]
+  }> {
     return this.get('/api/notifications/unread-count')
+  }
+
+  reconcileMessageAlerts(urls: string[]): Promise<{ urls: string[] }> {
+    return this.request('POST', '/api/push/reconcile-alerts', { urls }, false, undefined, false)
+  }
+
+  markReactionsSeen(reactions: ReactionActivityVersion[]): Promise<{ ids: string[]; readAt: string }> {
+    return this.request('POST', '/api/notifications/reactions/seen', { reactions }, false, undefined, false)
   }
 
   markInAppNotificationRead(id: string): Promise<InAppNotificationDto> {

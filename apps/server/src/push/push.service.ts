@@ -1,9 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { notificationMessageTarget } from '@chat/shared'
 import * as webPush from 'web-push'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
+import { RolesService } from '../roles/roles.service'
 import { filterUserIdsForWebPush } from './push-user-allow'
+import { unreadMessageAlert } from './message-alert-state'
 import type { LocalizedPushCopy, PushLocale } from './push-copy'
 
 const PUSH_QUEUE_KEY = 'push:queue'
@@ -22,12 +25,14 @@ export type PushPayload = {
   localized?: Partial<LocalizedPushCopy>
   url?: string
   expiresAt?: number
+  directedUserIds?: string[]
 }
 
 type PushJob = {
   userIds: string[]
   payload: PushPayload
   attempt: number
+  test?: boolean
 }
 
 function isPushLocale(locale: unknown): locale is PushLocale {
@@ -36,6 +41,13 @@ function isPushLocale(locale: unknown): locale is PushLocale {
 
 function normalizePushLocale(locale: unknown): PushLocale {
   return isPushLocale(locale) ? locale : 'en'
+}
+
+function isRetryableProviderError(err: { statusCode?: number; code?: string; message?: string }) {
+  return err.statusCode === 408 || err.statusCode === 429 ||
+    (typeof err.statusCode === 'number' && err.statusCode >= 500 && err.statusCode <= 599) ||
+    ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN'].includes(err.code ?? '') ||
+    err.message === 'Socket timeout'
 }
 
 @Injectable()
@@ -50,7 +62,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    private readonly roles: RolesService
   ) {}
 
   onModuleInit() {
@@ -80,6 +93,21 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     return this.config.get<string>('VAPID_PUBLIC_KEY') ?? null
   }
 
+  async staleMessageAlerts(userId: string, urls: string[]): Promise<string[]> {
+    const targets = [...new Set(urls)].flatMap((url) => {
+      const target = notificationMessageTarget(url)
+      return target ? [{ url, target }] : []
+    })
+    const stale: string[] = []
+    for (let index = 0; index < targets.length; index += PUSH_CONCURRENCY) {
+      await Promise.all(targets.slice(index, index + PUSH_CONCURRENCY).map(async ({ url, target }) => {
+        const message = await unreadMessageAlert(this.prisma, this.roles, target, [userId])
+        if (!message?.userIds.length) stale.push(url)
+      }))
+    }
+    return stale
+  }
+
   async subscribe(
     userId: string,
     endpoint: string,
@@ -104,11 +132,6 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     })
   }
 
-  /** Number of devices registered for push, surfaced by the settings test button. */
-  async countSubscriptions(userId: string): Promise<number> {
-    return this.prisma.pushSubscription.count({ where: { userId } })
-  }
-
   async unsubscribe(endpoint: string, userId: string) {
     await this.prisma.pushSubscription.deleteMany({ where: { endpoint, userId } }).catch(() => {})
   }
@@ -129,15 +152,19 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Bypasses quiet hours and suppress-all on purpose: the point of the test button
-   * is to prove the transport reaches this device, not to re-run the filters.
+   * A requested test bypasses quiet hours, but still honors the account switch.
    */
-  async sendTest(userId: string, payload: PushPayload) {
-    if (!this.enabled) return
-    await this.enqueue([userId], payload)
+  async sendTest(userId: string, payload: PushPayload): Promise<number> {
+    if (!this.enabled) return 0
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { pushSuppressAll: true } })
+    if (!user || user.pushSuppressAll) return 0
+    const devices = await this.prisma.pushSubscription.count({ where: { userId } })
+    if (devices === 0) return 0
+    await this.enqueue([userId], payload, true)
+    return devices
   }
 
-  private async enqueue(userIds: string[], payload: PushPayload) {
+  private async enqueue(userIds: string[], payload: PushPayload, test = false) {
     if (!this.enabled || userIds.length === 0) return
     if (payload.expiresAt !== undefined && payload.expiresAt <= Date.now()) return
 
@@ -154,21 +181,26 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       groups.set(null, userIds)
     }
 
+    const defaultExpiry = notificationMessageTarget(payload.url) ? Date.now() + PUSH_TTL_S * 1000 : undefined
+    const expiresAt = payload.expiresAt ?? defaultExpiry
     const basePayload: PushPayload = {
       title: payload.title,
       body: payload.body,
       ...(payload.url !== undefined ? { url: payload.url } : {}),
-      ...(payload.expiresAt !== undefined ? { expiresAt: payload.expiresAt } : {})
+      ...(expiresAt !== undefined ? { expiresAt } : {})
     }
     const jobs: PushJob[] = []
     for (const [locale, recipients] of groups) {
       const copy = locale === null ? undefined : payload.localized?.[locale]
       const queuedPayload = copy ? { ...basePayload, ...copy } : basePayload
       for (let i = 0; i < recipients.length; i += PUSH_JOB_BATCH_SIZE) {
+        const batch = recipients.slice(i, i + PUSH_JOB_BATCH_SIZE)
+        const directed = payload.directedUserIds && new Set(payload.directedUserIds)
         jobs.push({
-          userIds: recipients.slice(i, i + PUSH_JOB_BATCH_SIZE),
-          payload: queuedPayload,
-          attempt: 0
+          userIds: batch,
+          payload: { ...queuedPayload, ...(directed && { directedUserIds: batch.filter((id) => directed.has(id)) }) },
+          attempt: 0,
+          ...(test && { test: true })
         })
       }
     }
@@ -266,11 +298,35 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
   private async processJob(job: PushJob) {
     if (job.payload.expiresAt !== undefined && job.payload.expiresAt <= Date.now()) return
     try {
+      const eligible = job.test ? job.userIds : await filterUserIdsForWebPush(this.prisma, job.userIds)
+      if (eligible.length === 0) return
+      const target = notificationMessageTarget(job.payload.url)
+      const message = target ? await unreadMessageAlert(this.prisma, this.roles, target, eligible, job.payload.directedUserIds) : null
+      if (target && !message?.userIds.length) return
       const subs = await this.prisma.pushSubscription.findMany({
-        where: { userId: { in: job.userIds } }
+        where: {
+          userId: { in: message?.userIds ?? eligible },
+          // A preference can change after enqueueing or between retries.
+          user: { OR: [{ pushSuppressAll: false }, { pushSuppressAll: null }] }
+        }
       })
       if (subs.length === 0) return
+      const checkedAt = Date.now()
       const locales = job.payload.localized ? await this.resolveUserLocales(job.userIds) : undefined
+
+      const stillEligible = async (sub: typeof subs[number]) => {
+        const [current, allowed, unread] = await Promise.all([
+          this.prisma.pushSubscription.findUnique({
+            where: { id: sub.id },
+            select: { userId: true, endpoint: true, auth: true, p256dh: true, user: { select: { pushSuppressAll: true } } }
+          }),
+          job.test ? Promise.resolve([sub.userId]) : filterUserIdsForWebPush(this.prisma, [sub.userId]),
+          target ? unreadMessageAlert(this.prisma, this.roles, target, [sub.userId], job.payload.directedUserIds) : null
+        ])
+        return current?.userId === sub.userId && current.endpoint === sub.endpoint &&
+          current.auth === sub.auth && current.p256dh === sub.p256dh && current.user?.pushSuppressAll !== true &&
+          allowed.length > 0 && (!target || !!unread?.userIds.length)
+      }
 
       const stale: string[] = []
       let sent = 0
@@ -280,53 +336,70 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       const sendNext = async () => {
         while (nextSub < subs.length) {
           const sub = subs[nextSub++]
-          await this.withPushSlot(async () => {
+          const locale = locales?.get(sub.userId) ?? normalizePushLocale(sub.locale)
+          const localized = job.payload.localized?.[locale]
+          const jsonPayload = JSON.stringify({
+            title: localized?.title ?? job.payload.title,
+            body: localized?.body ?? job.payload.body,
+            ...(job.payload.url !== undefined ? { url: job.payload.url } : {}),
+            ...(job.payload.expiresAt !== undefined ? { expiresAt: job.payload.expiresAt } : {}),
+            ...(message && { createdAt: message.createdAt.toISOString() })
+          })
+          for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             const ttl =
               job.payload.expiresAt === undefined
                 ? PUSH_TTL_S
                 : Math.min(PUSH_TTL_S, Math.floor((job.payload.expiresAt - Date.now()) / 1000))
-            if (ttl <= 0) return
+            if (ttl <= 0) break
             try {
-              const locale = locales?.get(sub.userId) ?? normalizePushLocale(sub.locale)
-              const localized = job.payload.localized?.[locale]
-              const jsonPayload = JSON.stringify({
-                title: localized?.title ?? job.payload.title,
-                body: localized?.body ?? job.payload.body,
-                ...(job.payload.url !== undefined ? { url: job.payload.url } : {}),
-                ...(job.payload.expiresAt !== undefined ? { expiresAt: job.payload.expiresAt } : {})
+              let dispatched = false
+              await this.withPushSlot(async () => {
+                // Preferences and receipts can change while a send waits for a slot or backs off.
+                if ((attempt > 0 || Date.now() - checkedAt >= 1000) && !(await stillEligible(sub).catch(() => false))) return
+                const remaining = job.payload.expiresAt === undefined
+                  ? ttl : Math.min(ttl, Math.floor((job.payload.expiresAt - Date.now()) / 1000))
+                if (remaining <= 0) return
+                await webPush.sendNotification(
+                  { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                  jsonPayload,
+                  {
+                    TTL: remaining,
+                    // Without high urgency FCM can batch the message until the phone wakes.
+                    urgency: 'high',
+                    timeout: PUSH_TIMEOUT_MS
+                  }
+                )
+                dispatched = true
               })
-              await webPush.sendNotification(
-                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                jsonPayload,
-                {
-                  TTL: ttl,
-                  // Without high urgency FCM batches the message until the phone next
-                  // wakes on its own, which can be many minutes on a locked device.
-                  urgency: 'high',
-                  timeout: PUSH_TIMEOUT_MS
-                }
-              )
-              sent++
+              if (dispatched) sent++
+              break
             } catch (err: any) {
               if (err?.statusCode === 410 || err?.statusCode === 404) {
                 stale.push(sub.id)
-              } else {
-                failed++
-                this.logger.debug(`Push send failed (${err?.statusCode ?? 'no status'}) for ${sub.endpoint.slice(0, 60)}`)
+                break
               }
+              const delay = 1000 * (2 ** attempt)
+              if (attempt + 1 >= MAX_RETRIES || !isRetryableProviderError(err ?? {}) ||
+                (job.payload.expiresAt !== undefined && Date.now() + delay >= job.payload.expiresAt)) {
+                failed++
+                this.logger.debug(`Push send failed (${err?.statusCode ?? err?.code ?? 'no status'})`)
+                break
+              }
+              await new Promise((resolve) => setTimeout(resolve, delay))
             }
-          })
+          }
         }
       }
       await Promise.all(Array.from({ length: Math.min(PUSH_CONCURRENCY, subs.length) }, sendNext))
 
       this.logger.debug(
-        `Push "${job.payload.title}": ${sent} sent, ${failed} failed, ${stale.length} stale ` +
+        `Push: ${sent} accepted, ${failed} failed, ${stale.length} stale ` +
           `across ${job.userIds.length} user(s)`
       )
 
       if (stale.length > 0) {
         await this.prisma.pushSubscription.deleteMany({ where: { id: { in: stale } } })
+          .catch(() => this.logger.warn('Could not remove expired push subscriptions'))
       }
     } catch (err) {
       if (job.payload.expiresAt !== undefined && job.payload.expiresAt <= Date.now()) return

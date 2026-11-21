@@ -21,8 +21,8 @@ export interface User {
   customStatus: string | null
   locale: AppLocale | null
   dmPrivacy: DmPrivacy
-  /** Server-side: no web push when true. */
-  pushSuppressAll: boolean
+  /** Account notification switch. Null falls back to the legacy device preference for local alerts. */
+  pushSuppressAll: boolean | null
   pushQuietHoursEnabled: boolean
   pushQuietHoursTz: string | null
   /** Minutes from midnight [0, 1439] in pushQuietHoursTz. */

@@ -9,7 +9,7 @@ import { isElectron } from './lib/electron'
 import { api } from './lib/api'
 import './stores/settings.store'
 import { showToast } from './stores/toast.store'
-import { getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
+import { clearNotifications, getNotifSettings, setupElectronNavigation, setupPushNavigation, subscribeToPush } from './lib/notifications'
 import { startAppVisibilityTracking } from './lib/appVisibility'
 import { setNotificationNavigator } from './lib/notificationNavigation'
 import { Spinner } from '@/components/ui'
@@ -97,18 +97,32 @@ function AuthBootstrap() {
     const cleanupPush = setupPushNavigation()
     const cleanupElectron = setupElectronNavigation()
     const cleanupVisibility = startAppVisibilityTracking()
+    const preventFileNavigation = (event: DragEvent) => {
+      if (
+        event.dataTransfer?.files.length &&
+        !(event.target instanceof HTMLInputElement && event.target.type === 'file')
+      ) {
+        event.preventDefault()
+      }
+    }
+    window.addEventListener('drop', preventFileNavigation)
     return () => {
       cleanupPush?.()
       cleanupElectron?.()
       cleanupVisibility()
+      window.removeEventListener('drop', preventFileNavigation)
     }
   }, [])
 
   useEffect(() => {
     let disposed = false
+    let clearedForMutedAccount: string | undefined
     const sync = () => {
       if (disposed) return
       const state = useAuthStore.getState()
+      const mutedAccount = state.isAuthenticated && state.user?.pushSuppressAll ? state.user.id : undefined
+      if (mutedAccount && mutedAccount !== clearedForMutedAccount) void clearNotifications(null)
+      clearedForMutedAccount = mutedAccount
       // Only re-registers an already-granted permission. Prompting here would be
       // rejected by iOS Safari for lacking a user gesture, permanently burning the
       // one prompt we get; Settings has a button that asks from a real click.

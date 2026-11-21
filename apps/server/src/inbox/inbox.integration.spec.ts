@@ -490,7 +490,7 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
     expect(await prisma.channelReadState.count({ where: { userId } })).toBe(0)
   })
 
-  it('legacy channel acknowledgment still acknowledges now and resets thread unread baseline for future activity', async () => {
+  it('preserves unread replies across the channel action and acknowledges them only from their thread', async () => {
     const parent = await message({ authorId: userId })
     const first = await message({ threadParentId: parent.id })
     await notification('thread_reply', first.id, { threadParentId: parent.id })
@@ -503,7 +503,32 @@ databaseDescribe('Inbox catch-up (PostgreSQL)', () => {
       messageId: next.id, authorName: 'Other', snippet: 'New thread message'
     })
     const page = await inbox.page(userId, { view: 'replies' })
-    expect(page.groups[0]).toMatchObject({ unreadCount: 1, replyCount: 1 })
+    expect(page.groups[0]).toMatchObject({ unreadCount: 2, replyCount: 2 })
+    await inbox.readRendered(userId, channelTarget(first.id, parent.id))
+    expect((await inbox.page(userId, { view: 'replies' })).groups[0]).toMatchObject({ unreadCount: 1 })
+  })
+
+  it('uses the visible message as a read boundary and preserves newer activity and unopened threads', async () => {
+    const visible = await message()
+    const newer = await message({ createdAt: newAt })
+    const reply = await message({ threadParentId: visible.id, createdAt: newAt })
+    const olderAlert = await notification('mention', visible.id)
+    const laterAlert = await notification('mention', newer.id)
+    const threadAlert = await notification('thread_reply', reply.id, { threadParentId: visible.id })
+    const dismissed = jest.fn()
+    events.on('notification:clear', dismissed)
+
+    await inbox.readRendered(userId, channelTarget(visible.id))
+
+    const cursor = await readState.getAllForUser(userId)
+    expect(cursor.channels.find(({ channelId: id }) => id === channelId))
+      .toMatchObject({ lastReadAt: oldAt.toISOString(), unreadCount: 1, firstUnreadMessageId: newer.id })
+    const stillUnread = await prisma.inAppNotification.findMany({ where: { userId, readAt: null } })
+    expect(stillUnread.map(({ id }) => id).sort()).toEqual([laterAlert.id, threadAlert.id].sort())
+    expect((await prisma.inAppNotification.findUniqueOrThrow({ where: { id: olderAlert.id } })).readAt).not.toBeNull()
+    expect(dismissed).toHaveBeenCalledWith({
+      userId, urls: [`/channels/${serverId}/${channelId}`], throughAt: oldAt.toISOString()
+    })
   })
 
   it('inherits pre-feature channel read history once, then preserves independent thread unread on Inbox root reads', async () => {

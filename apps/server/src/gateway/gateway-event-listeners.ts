@@ -432,6 +432,10 @@ export function registerEventListeners(gw: ChatGateway) {
     }
   })
 
+  gw.events.on('user:notification-preference', (payload: { userId: string; pushSuppressAll: boolean | null }) => {
+    gw.server.to(`user:${payload.userId}`).emit('user:notification-preference', payload)
+  })
+
   gw.events.on(
     'user:locale',
     (payload: { userId: string; locale: string }) => {

@@ -3,6 +3,7 @@ import { hasPermission, Permission, resolveMentionIdentity } from '@chat/shared'
 import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RolesService } from '../roles/roles.service'
+import { preserveThreadReadBaselines } from './thread-read-baseline'
 
 @Injectable()
 export class ReadStateService {
@@ -112,31 +113,32 @@ export class ReadStateService {
   }
 
   async ackServer(userId: string, serverId: string) {
+    const now = new Date()
     const permMap = await this.roles.getAllChannelPermissions(serverId, userId)
     const visibleIds = Object.entries(permMap)
       .filter(([, perms]) => hasPermission(perms, Permission.VIEW_CHANNEL))
       .map(([chId]) => chId)
-    if (visibleIds.length === 0) return
-    const now = new Date()
-    await this.prisma.$executeRaw`
+    if (visibleIds.length > 0) {
+      await this.prisma.$executeRaw`
       INSERT INTO channel_read_states (user_id, channel_id, last_read_at, mention_count)
       SELECT ${userId}, unnest(${visibleIds}::text[]), ${now}, 0
       ON CONFLICT (user_id, channel_id) DO UPDATE
-        SET last_read_at = EXCLUDED.last_read_at, mention_count = 0
-    `
-    await this.ackThreads(userId, visibleIds, now)
-    await this.inApp.markServerChannelsRead(userId, visibleIds).catch(() => {})
+        SET last_read_at = GREATEST(channel_read_states.last_read_at, EXCLUDED.last_read_at)
+      `
+      await this.ackThreads(userId, visibleIds, now)
+    }
+    await this.inApp.markServerChannelsRead(userId, visibleIds, serverId, now)
   }
 
   async ackChannel(userId: string, channelId: string) {
     const now = new Date()
+    await preserveThreadReadBaselines(this.prisma, userId, channelId, now)
     await this.prisma.channelReadState.upsert({
       where: { userId_channelId: { userId, channelId } },
       update: { lastReadAt: now, mentionCount: 0 },
       create: { userId, channelId, lastReadAt: now, mentionCount: 0 }
     })
-    await this.ackThreads(userId, [channelId], now)
-    await this.inApp.markChannelRead(userId, channelId).catch(() => {})
+    await this.inApp.markChannelRead(userId, channelId, now)
   }
 
   private async ackThreads(userId: string, channelIds: string[], at: Date) {
@@ -154,21 +156,23 @@ export class ReadStateService {
   }
 
   async ackDm(userId: string, conversationId: string) {
+    const now = new Date()
     await this.prisma.directConversationMember.updateMany({
       where: { userId, conversationId },
       data: { markedUnread: false }
     })
     await this.prisma.dmReadState.upsert({
       where: { userId_conversationId: { userId, conversationId } },
-      update: { lastReadAt: new Date(), mentionCount: 0 },
+      update: { lastReadAt: now, mentionCount: 0 },
       create: {
         userId,
         conversationId,
-        lastReadAt: new Date(),
+        lastReadAt: now,
         mentionCount: 0
       }
     })
-    await this.inApp.markDmRead(userId, conversationId).catch(() => {})
+    await this.inApp.markDmRead(userId, conversationId, now)
+    return now
   }
 
   async markDmUnread(userId: string, conversationId: string) {

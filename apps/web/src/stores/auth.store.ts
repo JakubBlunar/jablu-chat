@@ -27,7 +27,7 @@ function normalizeAuthUser(raw: User | AuthResponse['user']): AuthUser {
     manualStatusExpiresAt: r.manualStatusExpiresAt ?? null,
     status: r.status as UserStatus,
     dmPrivacy: (r.dmPrivacy as DmPrivacy) ?? 'everyone',
-    pushSuppressAll: r.pushSuppressAll ?? false,
+    pushSuppressAll: r.pushSuppressAll ?? null,
     pushQuietHoursEnabled: r.pushQuietHoursEnabled ?? false,
     pushQuietHoursTz: r.pushQuietHoursTz ?? null,
     pushQuietHoursStartMin: r.pushQuietHoursStartMin ?? 22 * 60,
@@ -278,9 +278,21 @@ export const useAuthStore = create<AuthState>()(
       },
 
       updatePushPrefs: async (data) => {
-        const user = await api.updatePushPrefs(data)
-        const u = normalizeAuthUser(user)
-        set({ user: u, isManualStatus: manualPresenceActive(u) })
+        const userId = get().user?.id
+        const revision = sessionRevision
+        const updated = await api.updatePushPrefs(data)
+        const user = get().user
+        if (!user || user.id !== userId || updated.id !== userId || revision !== sessionRevision) return
+        set({
+          user: {
+            ...user,
+            ...(data.pushSuppressAll !== undefined && { pushSuppressAll: updated.pushSuppressAll }),
+            pushQuietHoursEnabled: updated.pushQuietHoursEnabled,
+            pushQuietHoursTz: updated.pushQuietHoursTz,
+            pushQuietHoursStartMin: updated.pushQuietHoursStartMin,
+            pushQuietHoursEndMin: updated.pushQuietHoursEndMin
+          }
+        })
       },
 
       setUser: (user) => {

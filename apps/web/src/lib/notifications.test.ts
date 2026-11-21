@@ -1,8 +1,14 @@
-import { getNotifSettings, saveNotifSettings, showNotification, playSound, requestPermission } from './notifications'
+import { clearNotifications, getNotifSettings, saveNotifSettings, showNotification, playSound, requestPermission } from './notifications'
 
 let mockAuthenticated = true
+let mockSuppressAll: boolean | null = null
+let mockStatus: 'online' | 'dnd' = 'online'
 jest.mock('@/stores/auth.store', () => ({
-  useAuthStore: { getState: () => ({ isAuthenticated: mockAuthenticated, accessToken: 'token' }) }
+  useAuthStore: { getState: () => ({
+    isAuthenticated: mockAuthenticated,
+    accessToken: 'token',
+    user: { pushSuppressAll: mockSuppressAll, status: mockStatus, manualStatus: mockStatus === 'dnd' ? 'dnd' : null }
+  }) }
 }))
 
 jest.mock('@/lib/sounds', () => ({
@@ -23,6 +29,8 @@ const mockShowToast = jest.mocked(showToast)
 beforeEach(async () => {
   jest.clearAllMocks()
   mockAuthenticated = true
+  mockSuppressAll = null
+  mockStatus = 'online'
   localStorage.clear()
   await useSettingsStore.persist.rehydrate()
   useSettingsStore.setState({ notifEnabled: true, notifSoundEnabled: true })
@@ -82,6 +90,21 @@ describe('showNotification', () => {
     expect(mockPlayNotifSound).toHaveBeenCalledWith('message')
   })
 
+  it.each([true, false])('honors Do Not Disturb for live alerts and sounds with focus %s', async (focused) => {
+    jest.spyOn(document, 'hasFocus').mockReturnValue(focused)
+    const desktop = { showNotification: jest.fn() }
+    Object.defineProperty(window, 'electronAPI', { value: desktop, configurable: true })
+    mockStatus = 'dnd'
+    try {
+      showNotification('New DM', 'Hi', '/channels/@me/chat')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect([mockShowToast, desktop.showNotification, mockPlayNotifSound].map((mock) => mock.mock.calls.length))
+        .toEqual([0, 0, 0])
+    } finally {
+      Reflect.deleteProperty(window, 'electronAPI')
+    }
+  })
+
   it('uses custom sound kind', () => {
     jest.spyOn(document, 'hasFocus').mockReturnValue(true)
 
@@ -112,6 +135,24 @@ describe('showNotification', () => {
     delete (window as any).electronAPI
   })
 
+  it('stops native notifications when the account is muted and resumes despite a legacy local mute', () => {
+    jest.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const desktop = { showNotification: jest.fn() }
+    Object.defineProperty(window, 'electronAPI', { value: desktop, configurable: true })
+    try {
+      mockSuppressAll = true
+      showNotification('Muted', 'Body')
+      expect(desktop.showNotification).not.toHaveBeenCalled()
+      expect(mockPlayNotifSound).not.toHaveBeenCalled()
+      saveNotifSettings({ enabled: false })
+      mockSuppressAll = false
+      showNotification('Resumed', 'Body')
+      expect(desktop.showNotification).toHaveBeenCalledTimes(1)
+    } finally {
+      Reflect.deleteProperty(window, 'electronAPI')
+    }
+  })
+
   it('falls back to Web Notification API', () => {
     jest.spyOn(document, 'hasFocus').mockReturnValue(false)
     const MockNotification = jest.fn()
@@ -136,10 +177,57 @@ describe('showNotification', () => {
       showNotification('Title', 'Body', '/channels/@me/chat')
       await Promise.resolve()
       expect(showPersistent).toHaveBeenCalledWith('Title', expect.objectContaining({
-        body: 'Body', data: { url: '/channels/@me/chat' }
+        body: 'Body', data: expect.objectContaining({ url: '/channels/@me/chat' })
       }))
     } finally {
       Reflect.deleteProperty(navigator, 'serviceWorker')
+    }
+  })
+})
+
+describe('clearNotifications', () => {
+  it('closes only the matching browser toast after a cross-device read', async () => {
+    jest.spyOn(document, 'hasFocus').mockReturnValue(false)
+    const original = Object.getOwnPropertyDescriptor(window, 'Notification')
+    const readToast = { close: jest.fn() }
+    const unrelatedToast = { close: jest.fn() }
+    const browserNotification = jest.fn().mockReturnValueOnce(readToast).mockReturnValueOnce(unrelatedToast)
+    Object.defineProperty(browserNotification, 'permission', { value: 'granted' })
+    Object.defineProperty(window, 'Notification', { configurable: true, value: browserNotification })
+    try {
+      showNotification('First DM', 'Hello', '/channels/@me/first?m=m1')
+      showNotification('Second DM', 'Hello', '/channels/@me/second?m=m2')
+      expect(browserNotification).toHaveBeenCalledTimes(2)
+
+      await clearNotifications(['/channels/@me/first'])
+
+      expect(unrelatedToast.close).not.toHaveBeenCalled()
+      expect(readToast.close).toHaveBeenCalledTimes(1)
+    } finally {
+      if (original) Object.defineProperty(window, 'Notification', original)
+      else Reflect.deleteProperty(window, 'Notification')
+    }
+  })
+
+  it('keeps a newer push visible when a read arrives for an older message in the same DM', async () => {
+    const original = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker')
+    const newerToast = {
+      data: { url: '/channels/@me/chat?m=new' },
+      tag: 'jablu-/channels/@me/chat',
+      close: jest.fn()
+    }
+    const getNotifications = jest.fn().mockResolvedValue([newerToast])
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true, value: { ready: Promise.resolve({ getNotifications }) }
+    })
+    try {
+      await clearNotifications(['/channels/@me/chat?m=old'])
+
+      expect(getNotifications).toHaveBeenCalled()
+      expect(newerToast.close).not.toHaveBeenCalled()
+    } finally {
+      if (original) Object.defineProperty(navigator, 'serviceWorker', original)
+      else Reflect.deleteProperty(navigator, 'serviceWorker')
     }
   })
 })

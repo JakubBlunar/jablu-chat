@@ -1,6 +1,6 @@
 import type { Message } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { MessageSurface } from '@/components/chat/MessageSurface'
 import { UnifiedInput } from '@/components/chat/UnifiedInput'
@@ -14,6 +14,7 @@ import { useThreadStore } from '@/stores/thread.store'
 import { useDraftReply } from '@/stores/draft.store'
 import { useThreadSurfaceAdapter } from '@/hooks/useThreadSurfaceAdapter'
 import { useMessageScroll } from '@/components/chat/hooks/useMessageScroll'
+import { useChannelAck } from '@/components/chat/hooks/useChannelAck'
 import { useInboxAnchor } from '@/hooks/useInboxAnchor'
 import { IconButton, Spinner } from '@/components/ui'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
@@ -32,6 +33,7 @@ export function ThreadPanel({
   onCommand?: (cmd: string, args?: string) => boolean | void
 }) {
   const { t } = useTranslation('chat')
+  const dropZoneRef = useRef<HTMLDivElement>(null)
   const { isOpen, parentMessage, channelId, closeThread, reconcileToLatest } = useThreadStore(
     useShallow((s) => ({
       isOpen: s.isOpen,
@@ -44,6 +46,14 @@ export function ThreadPanel({
   const adapter = useThreadSurfaceAdapter()
   const contextId = isOpen && parentMessage ? parentMessage.id : null
   const scroll = useMessageScroll(contextId, adapter)
+  useChannelAck('channel', channelId, {
+    threadParentId: contextId,
+    ready: !!contextId && !adapter.isLoading && !adapter.hasNewer && !scroll.settling && !adapter.scrollToMessageId &&
+      adapter.getLoadedForId() === contextId,
+    atBottom: scroll.atBottom,
+    scrollParentRef: scroll.scrollParentRef,
+    latestMessageId: adapter.messages.at(-1)?.id
+  })
   useInboxAnchor(
     'channel',
     channelId,
@@ -106,6 +116,7 @@ export function ThreadPanel({
   return (
     <ResponsivePanel overlay={overlay || isMobile} maxWidth={maxWidth} onClose={closeThread}>
       <div
+        ref={dropZoneRef}
         className={`flex h-full w-full min-h-0 shrink-0 flex-col border-l border-white/10 bg-surface-dark ${overlay || isMobile ? 'border-l-0' : ''}`}
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
@@ -124,12 +135,14 @@ export function ThreadPanel({
           hasNewer={adapter.hasNewer}
           mode="channel"
           contextId={channelId}
+          threadParentId={parentMessage.id}
           headerContent={parentPreview}
           emptyState={emptyState}
           onReply={handleReply}
         />
 
         <UnifiedInput
+          dropZoneRef={dropZoneRef}
           mode="channel"
           contextId={channelId}
           threadParentId={parentMessage.id}

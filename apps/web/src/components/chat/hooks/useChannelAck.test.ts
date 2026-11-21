@@ -29,10 +29,16 @@ let clearChannelView: jest.Mock
 let captureChannelView: jest.Mock
 
 function options(overrides = {}) {
+  const viewport = document.createElement('div')
+  const message = document.createElement('div')
+  message.id = 'msg-last-shown'
+  message.dataset.messageWindow = ''
+  message.dataset.messageMounted = 'true'
+  viewport.append(message)
   return {
     ready: true,
     atBottom: true,
-    scrollParentRef: { current: document.createElement('div') },
+    scrollParentRef: { current: viewport },
     ...overrides
   }
 }
@@ -76,6 +82,20 @@ it.each(['channel', 'dm'] as const)('automatically reads a focused %s at the lat
   expect(mode === 'channel' ? ackChannel : ackDm).toHaveBeenCalledTimes(1)
 })
 
+it.each(['channel', 'dm'] as const)('sends the last rendered message as the %s read boundary', async (mode) => {
+  const opts = options()
+  const contextId = mode === 'channel' ? 'ch1' : 'dm1'
+  const ack = mode === 'channel' ? ackChannel : ackDm
+
+  renderHook(() => useChannelAck(mode, contextId, opts))
+  const arrival = new Map([[contextId, { ...unread, unreadCount: 4, firstUnreadMessageId: 'not-yet-rendered' }]])
+  act(() => useReadStateStore.setState(mode === 'channel' ? { channels: arrival } : { dms: arrival }))
+  await flushAck()
+
+  expect(ack).toHaveBeenCalledTimes(1)
+  expect(ack).toHaveBeenCalledWith(contextId, expect.objectContaining({ throughMessageId: 'last-shown' }))
+})
+
 it.each([{ ready: false }, { scrollParentRef: { current: null } }])(
   'does not read while the message surface is not ready: %j',
   async (override) => {
@@ -104,7 +124,7 @@ it.each(['channel', 'dm'] as const)('retries %s acknowledgement when geometry se
 it('uses actual bottom geometry even if the atBottom hint is stale', async () => {
   renderHook(() => useChannelAck('channel', 'ch1', options({ atBottom: false })))
   await flushAck()
-  expect(ackChannel).toHaveBeenCalledWith('ch1')
+  expect(ackChannel).toHaveBeenCalledWith('ch1', { throughMessageId: 'last-shown' })
 })
 
 it('checks actual scroll geometry, not just stale atBottom state', async () => {
@@ -126,7 +146,7 @@ it('keeps hidden/unfocused messages unread, then reads on focus', async () => {
     jest.mocked(subscribeAppVisibility).mock.calls[0][0]({ visibility: 'visible', focused: true })
   })
   await flushAck()
-  expect(ackChannel).toHaveBeenCalledWith('ch1')
+  expect(ackChannel).toHaveBeenCalledWith('ch1', { throughMessageId: 'last-shown' })
 })
 
 it('rechecks focus when an acknowledgement is about to run', async () => {
@@ -159,7 +179,7 @@ it('reads visible call chat and cancels pending reads when chat is hidden', asyn
   expect(ackDm).not.toHaveBeenCalled()
   rerender({ visible: true })
   await flushAck()
-  expect(ackDm).toHaveBeenCalledWith('dm1')
+  expect(ackDm).toHaveBeenCalledWith('dm1', { throughMessageId: 'last-shown' })
 })
 
 it('does not read a different conversation through the call-chat exception', async () => {
@@ -187,7 +207,14 @@ it('acknowledges subsequent incoming messages while staying at the bottom', asyn
     useReadStateStore.setState({ channels: new Map([['ch1', { ...unread, unreadCount: 4 }]]) })
   })
   await flushAck()
+  expect(ackChannel).toHaveBeenCalledTimes(1)
+  act(() => {
+    opts.scrollParentRef.current.firstElementChild!.id = 'msg-next-shown'
+    opts.scrollParentRef.current.dispatchEvent(new Event('scroll'))
+  })
+  await flushAck()
   expect(ackChannel).toHaveBeenCalledTimes(2)
+  expect(ackChannel).toHaveBeenLastCalledWith('ch1', { throughMessageId: 'next-shown' })
 })
 
 it.each(['channel', 'dm'] as const)('never automatically acknowledges a %s while Inbox covers it', async (mode) => {

@@ -246,6 +246,21 @@ mod win {
             crate::logging::log(&format!("notif: failed to remove toast ({tag}): {e}"));
         }
     }
+
+    pub fn dismiss_all(app: &AppHandle) {
+        if let Ok(mut map) = live_toasts().lock() {
+            map.clear();
+        }
+        let result = (|| -> windows::core::Result<()> {
+            ToastNotificationManager::History()?.RemoveGroupWithId(
+                &HSTRING::from("jablu"),
+                &HSTRING::from(app.config().identifier.as_str()),
+            )
+        })();
+        if let Err(error) = result {
+            crate::logging::log(&format!("notif: failed to clear alerts: {error}"));
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -264,6 +279,11 @@ pub fn dismiss(app: &tauri::AppHandle, tag: &str) {
     win::dismiss(app, tag);
 }
 
+#[cfg(windows)]
+pub fn dismiss_all(app: &tauri::AppHandle) {
+    win::dismiss_all(app);
+}
+
 /// Non-Windows fallback: use the notification plugin (no click handling).
 #[cfg(not(windows))]
 pub fn show(
@@ -279,3 +299,6 @@ pub fn show(
 
 #[cfg(not(windows))]
 pub fn dismiss(_app: &tauri::AppHandle, _tag: &str) {}
+
+#[cfg(not(windows))]
+pub fn dismiss_all(_app: &tauri::AppHandle) {}

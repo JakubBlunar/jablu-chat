@@ -85,6 +85,8 @@ export function emitMessageEvent(
     author?: { username?: string; displayName?: string }
     attachments?: { type: string; filename: string }[]
     mentionedUserIds?: string[]
+    replyTargetId?: string | null
+    threadParticipantIds?: string[]
   }
   if (event === (mode === 'channel' ? 'message:new' : 'dm:new') && message?.id) {
     activity.message = {
@@ -105,17 +107,31 @@ export function emitMessageEvent(
         .map((a) => ({ type: a.type, filename: a.filename.slice(0, 100) }))
     }
   }
-  const mentionedRooms =
-    mode === 'channel' && activity.message
-      ? [...new Set(message.mentionedUserIds ?? [])].map((userId) => mentionRoom(id, userId))
-      : []
+  const mentioned = new Set(message.mentionedUserIds ?? [])
+  const participants = new Set(message.threadParticipantIds ?? [])
+  const directed = mode === 'channel' && activity.message
+    ? new Set([...mentioned, ...participants, ...(message.replyTargetId ? [message.replyTargetId] : [])]) : new Set<string>()
+  const directedRooms = [...directed].map((userId) => mentionRoom(id, userId))
   server
     .to(backgroundRoom(mode, id))
-    .except([full, ...mentionedRooms])
+    .except([full, ...directedRooms])
     .emit('message:activity', { ...activity, isMention: mode === 'dm' })
-  if (mentionedRooms.length)
+  const deliveries = new Map<number, string[]>()
+  for (const userId of directed) {
+    const flags = Number(mentioned.has(userId)) | (Number(message.replyTargetId === userId) << 1) | (Number(participants.has(userId)) << 2)
+    const rooms = deliveries.get(flags) ?? []
+    rooms.push(mentionRoom(id, userId))
+    deliveries.set(flags, rooms)
+  }
+  for (const [flags, rooms] of deliveries) {
     server
-      .to(mentionedRooms)
+      .to(rooms)
       .except(full)
-      .emit('message:activity', { ...activity, isMention: true })
+      .emit('message:activity', {
+        ...activity,
+        isMention: !!(flags & 1),
+        ...(flags & 2 ? { isReply: true } : {}),
+        ...(flags & 4 ? { isThreadParticipant: true } : {})
+      })
+  }
 }

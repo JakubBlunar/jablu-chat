@@ -7,6 +7,8 @@ jest.mock('@/lib/api', () => ({
 }))
 
 jest.mock('@/lib/notifications', () => ({
+  getNotifSettings: () => ({ enabled: true, soundEnabled: true }),
+  notificationsInDnd: () => false,
   showNotification: jest.fn()
 }))
 jest.mock('@/lib/appVisibility', () => ({ isAppFocused: jest.fn(() => true) }))
@@ -27,6 +29,7 @@ function resetStores() {
   useServerStore.setState({ viewMode: 'dm' } as any)
   useDmStore.setState({
     currentConversationId: 'conv1',
+    hasNewer: false,
     conversations: [{ id: 'conv1' }],
     messages: [],
     addMessage: jest.fn(),
@@ -76,6 +79,16 @@ describe('onDmNew', () => {
     expect(mockNotify).toHaveBeenCalled()
   })
 
+  it('alerts for a new DM while its selected conversation is showing older history', () => {
+    useDmStore.setState({ hasNewer: true })
+
+    handlers.onDmNew(basePayload as Parameters<typeof handlers.onDmNew>[0])
+
+    expect(useReadStateStore.getState().incrementDm).toHaveBeenCalledWith('conv1', 'dm-msg-1')
+    expect(useReadStateStore.getState().ackDm).not.toHaveBeenCalled()
+    expect(mockNotify.mock.calls.map(([, , url]) => url)).toEqual(['/channels/@me/conv1?m=dm-msg-1'])
+  })
+
   it('increments unread and shows notification when not viewing', () => {
     useDmStore.setState({ ...useDmStore.getState(), currentConversationId: 'other-conv' } as any)
 
@@ -87,7 +100,8 @@ describe('onDmNew', () => {
       'Hey!',
       '/channels/@me/conv1?m=dm-msg-1',
       undefined,
-      'mention'
+      'mention',
+      basePayload.createdAt
     )
   })
 

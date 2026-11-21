@@ -1,23 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  getNotifSettings,
   saveNotifSettings,
   requestPermission,
   showNotification,
   subscribeToPush,
-  unsubscribeFromPush
+  useNotificationsEnabled
 } from '@/lib/notifications'
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
+import { useSettingsStore } from '@/stores/settings.store'
 import { PushDeliverySettings } from '@/components/settings/sections/PushDeliverySettings'
 import { isDesktop } from '@/lib/desktop'
 
 export function NotificationsSection() {
   const { t } = useTranslation('settings')
-  const [settings, setSettings] = useState(getNotifSettings)
+  const enabled = useNotificationsEnabled()
+  const soundEnabled = useSettingsStore((s) => s.notifSoundEnabled)
+  const suppressAll = useAuthStore((s) => s.user?.pushSuppressAll)
+  const updatePushPrefs = useAuthStore((s) => s.updatePushPrefs)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [permStatus, setPermStatus] = useState<string>(
     'Notification' in window ? Notification.permission : 'unsupported'
   )
@@ -28,7 +33,7 @@ export function NotificationsSection() {
   const pushFailureMessage = t('notifications.pushSubscriptionFailed')
 
   useEffect(() => {
-    if (!accessToken || !settings.enabled || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!accessToken || !enabled || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setPushStatus('inactive')
       return
     }
@@ -47,34 +52,24 @@ export function NotificationsSection() {
     return () => {
       disposed = true
     }
-  }, [accessToken, settings.enabled, pushFailureMessage])
+  }, [accessToken, enabled, pushFailureMessage])
 
   const showRegistrationResult = (active: boolean) => {
     setPushStatus(active ? 'active' : 'error')
     setPushError(active ? null : t('notifications.pushSubscriptionMissing'))
   }
 
-  const toggle = async (key: 'enabled' | 'soundEnabled') => {
-    const next = { ...settings, [key]: !settings[key] }
-    setSettings(next)
-    saveNotifSettings(next)
-
-    if (key === 'enabled' && accessToken) {
-      if (!next.enabled) {
-        try {
-          await unsubscribeFromPush(accessToken)
-          setPushStatus('inactive')
-        } catch {
-          /* non-critical */
-        }
-      } else if (permStatus === 'granted') {
-        try {
-          showRegistrationResult(await subscribeToPush(accessToken, true))
-        } catch (error: unknown) {
-          setPushStatus('error')
-          setPushError(error instanceof Error ? error.message : t('notifications.pushSubscriptionFailed'))
-        }
-      }
+  const updateEnabled = async (next: boolean) => {
+    if (!accessToken || saving) return
+    setSaving(true)
+    setSaveError(null)
+    setTestResult(null)
+    try {
+      await updatePushPrefs({ pushSuppressAll: !next })
+    } catch {
+      setSaveError(t('notifications.preferenceSaveFailed'))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -95,9 +90,6 @@ export function NotificationsSection() {
     if (!accessToken) return
     setPushError(null)
     try {
-      const next = { ...settings, enabled: true }
-      setSettings(next)
-      saveNotifSettings(next)
       showRegistrationResult(await subscribeToPush(accessToken, true))
     } catch (e: unknown) {
       setPushStatus('error')
@@ -114,7 +106,7 @@ export function NotificationsSection() {
       const res = await api.post<{ devices: number }>('/api/push/test', {})
       setTestResult(
         res.devices > 0
-          ? t('notifications.sentToDevices', { count: res.devices })
+          ? t('notifications.queuedForDevices', { count: res.devices })
           : t('notifications.noRegisteredDevices')
       )
     } catch (e: unknown) {
@@ -128,7 +120,38 @@ export function NotificationsSection() {
     <div className="space-y-6">
       <p className="text-sm text-gray-400">{t('notifications.description')}</p>
 
-      {!isDesktop && permStatus !== 'granted' && permStatus !== 'unsupported' && (
+      <div className="space-y-3">
+        <ToggleRow
+          label={t('notifications.notificationsLabel')}
+          description={t('notifications.notificationsDescription')}
+          checked={enabled}
+          disabled={!accessToken || saving}
+          onChange={(next) => void updateEnabled(next)}
+        />
+        {saveError && <p role="alert" className="text-xs text-red-400">{saveError}</p>}
+        {suppressAll == null && !enabled && (
+          <div className="rounded-lg bg-surface-dark p-4">
+            <p className="text-sm text-gray-300">{t('notifications.legacyDeviceMuted')}</p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-2"
+              disabled={!accessToken || saving}
+              onClick={() => void updateEnabled(false)}
+            >
+              {t('notifications.muteOnAllDevices')}
+            </Button>
+          </div>
+        )}
+        <ToggleRow
+          label={t('notifications.soundLabel')}
+          description={t('notifications.soundDescription')}
+          checked={soundEnabled}
+          onChange={(next) => saveNotifSettings({ soundEnabled: next })}
+        />
+      </div>
+
+      {enabled && !isDesktop && permStatus !== 'granted' && permStatus !== 'unsupported' && (
         <div className="rounded-lg bg-surface-dark p-4">
           <p className="text-sm text-gray-300">
             {t(permStatus === 'denied' ? 'notifications.browserBlocked' : 'notifications.browserNotEnabled')}
@@ -142,7 +165,7 @@ export function NotificationsSection() {
         </div>
       )}
 
-      {!isDesktop && permStatus === 'granted' && (
+      {enabled && !isDesktop && permStatus === 'granted' && (
         <div className="rounded-lg bg-surface-dark p-4">
           <div className="flex items-center gap-2">
             <span
@@ -176,7 +199,7 @@ export function NotificationsSection() {
         </div>
       )}
 
-      {!isDesktop && permStatus === 'granted' && pushStatus !== 'active' && pushStatus !== 'checking' && (
+      {enabled && !isDesktop && permStatus === 'granted' && pushStatus !== 'active' && pushStatus !== 'checking' && (
         <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
           <p className="text-sm font-medium text-yellow-400">{t('notifications.troubleshooting')}</p>
           <ul className="mt-2 space-y-1.5 text-xs text-gray-400">
@@ -199,25 +222,10 @@ export function NotificationsSection() {
         </div>
       )}
 
-      <div className="space-y-3">
-        <ToggleRow
-          label={t('notifications.notificationsLabel')}
-          description={t('notifications.notificationsDescription')}
-          checked={settings.enabled}
-          onChange={() => toggle('enabled')}
-        />
-        <ToggleRow
-          label={t('notifications.soundLabel')}
-          description={t('notifications.soundDescription')}
-          checked={settings.soundEnabled}
-          onChange={() => toggle('soundEnabled')}
-        />
-      </div>
-
       <div className="rounded-lg bg-surface-dark p-4">
         <p className="text-sm font-medium text-gray-200">{t('notifications.testDevice')}</p>
         <p className="mt-1 text-xs text-gray-500">{t('notifications.testDeviceDescription')}</p>
-        <Button type="button" variant="secondary" className="mt-2" onClick={() => void handleTestNotification()}>
+        <Button type="button" variant="secondary" className="mt-2" disabled={!enabled || saving} onClick={() => void handleTestNotification()}>
           {t('notifications.sendTest')}
         </Button>
         {testResult && <p className="mt-2 text-xs text-gray-400">{testResult}</p>}

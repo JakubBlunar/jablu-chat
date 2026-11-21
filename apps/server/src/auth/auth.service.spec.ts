@@ -524,6 +524,17 @@ describe('AuthService', () => {
   })
 
   describe('updatePushPrefs', () => {
+    it('publishes the account mute without rewriting quiet hours or subscriptions', async () => {
+      prisma.user.findUnique.mockResolvedValue({ pushQuietHoursEnabled: true, pushQuietHoursTz: 'UTC' })
+      prisma.user.update.mockResolvedValue({ ...mockProfile, pushSuppressAll: true })
+
+      await service.updatePushPrefs('user-1', { pushSuppressAll: true })
+
+      expect(prisma.user.update.mock.calls[0][0].data).toEqual({ pushSuppressAll: true })
+      expect(prisma.pushSubscription.deleteMany).not.toHaveBeenCalled()
+      expect(events.emit).toHaveBeenCalledWith('user:notification-preference', { userId: 'user-1', pushSuppressAll: true })
+    })
+
     it('enables quiet hours and normalizes timezone', async () => {
       prisma.user.findUnique.mockResolvedValue({
         pushSuppressAll: false,

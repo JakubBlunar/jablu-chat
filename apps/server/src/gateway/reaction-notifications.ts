@@ -1,11 +1,10 @@
 import { Logger } from '@nestjs/common'
-import { hasPermission, messageNotificationUrl, Permission } from '@chat/shared'
+import { hasPermission, Permission } from '@chat/shared'
 import type { ChatGateway } from './gateway.gateway'
 import { InAppNotificationKind } from '../prisma-client'
 import { getMessageNotificationPreview } from './gateway-push-helpers'
-import { messagePushCopy } from '../push/push-copy'
 
-type Context = Pick<ChatGateway, 'prisma' | 'roles' | 'notifications' | 'server'>
+type Context = Pick<ChatGateway, 'prisma' | 'roles' | 'notifications'>
 const logger = new Logger('ReactionNotifications')
 
 /** Shared by REST, socket toggles and grouped reactions. IDs are actual additions only. */
@@ -28,14 +27,12 @@ export async function deliverReactionNotifications(
     ])
     if (!actor) return
     const authorName = actor.displayName ?? actor.username
-    const reaction = isCustom ? `:${emoji}:` : emoji
     // One alert per author for a grouped action, pointing at their newest original.
     const notified = new Set<string>()
     for (const message of messages) {
       const recipientId = message.authorId
       if (!recipientId || message.author?.isBot || notified.has(recipientId)) continue
       notified.add(recipientId)
-      let url: string
       const payload: Record<string, unknown> = {
         messageId: message.id, authorName, actorId, emoji, isCustom,
         ...getMessageNotificationPreview(message.content ?? undefined, message.attachments)
@@ -54,7 +51,6 @@ export async function deliverReactionNotifications(
         ])
         if ((pref?.level ?? member.notifLevel) === 'none' || !hasPermission(permissions, Permission.VIEW_CHANNEL)) continue
         Object.assign(payload, { serverId, channelId, channelName, threadParentId: message.threadParentId })
-        url = messageNotificationUrl(`/channels/${serverId}/${channelId}`, message.id, message.threadParentId)
       } else if (message.directConversationId) {
         const conversationId = message.directConversationId
         const member = await ctx.prisma.directConversationMember.findUnique({
@@ -62,21 +58,14 @@ export async function deliverReactionNotifications(
         })
         if (!member || member.muted) continue
         payload.conversationId = conversationId
-        url = messageNotificationUrl(`/channels/@me/${conversationId}`, message.id)
       } else continue
 
-      const copy = messagePushCopy({
-        en: `${authorName} reacted ${reaction} to your message`,
-        cs: `${authorName} reaguje ${reaction} na vaši zprávu`,
-        sk: `${authorName} reaguje ${reaction} na vašu správu`
-      }, message.content ?? undefined, message.attachments)
       await ctx.notifications.dispatch({
-        userIds: [recipientId], kind: InAppNotificationKind.reaction,
+        userIds: [recipientId],
+        kind: InAppNotificationKind.reaction,
         dedupeKey: `reaction:${message.id}:${actorId}:${emoji}`,
-        payload, ...copy.en, localized: copy, url, push: true
+        payload
       })
-      // A personal event reaches the author even when this message isn't loaded.
-      ctx.server.to(`user:${recipientId}`).emit('notification:reaction', { ...payload, url })
     }
   } catch (error) {
     logger.warn('Reaction notification delivery failed', error)
