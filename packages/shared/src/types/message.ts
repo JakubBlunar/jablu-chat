@@ -3,6 +3,9 @@ export interface Message {
   channelId: string | null
   directConversationId: string | null
   authorId: string | null
+  /** Server-scoped colors at history fetch time, available before the member roster loads. */
+  authorRoleColor?: string | null
+  replyAuthorRoleColor?: string | null
   replyToId: string | null
   threadParentId: string | null
   webhookId: string | null

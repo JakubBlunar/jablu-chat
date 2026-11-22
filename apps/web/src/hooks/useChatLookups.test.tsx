@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Role } from '@chat/shared'
-import { createChatLookupSelector, useChatLookups } from './useChatLookups'
+import { createChatLookupSelector, resolveAuthorColor, useChatLookups } from './useChatLookups'
 import { usePermissions } from './usePermissions'
 import { processMentions } from '@/lib/markdownMentions'
 import { useMemberStore, type Member } from '@/stores/member.store'
@@ -98,4 +98,16 @@ it('renders server names in mentions while leaving DM names global', () => {
 it('renders brackets in server names as literal mention text', () => {
   const local = createChatLookupSelector('s1')({ members: [member({ displayName: 'Alice [team]' })] })
   expect(processMentions('@alice', local.membersByUsername)).toBe('[@Alice \\[team\\]](mention:alice)')
+})
+
+it('paints from history until the current roster can confirm a changed color, removal or departure', () => {
+  const colors = new Map<string, string | null>()
+  expect(resolveAuthorColor(colors, false, 'u1', '#fa6200')).toBe('#fa6200')
+  expect(resolveAuthorColor(colors, false, 'u1', undefined)).toBeNull()
+  colors.set('u1', '#1260ff')
+  expect(resolveAuthorColor(colors, true, 'u1', '#fa6200')).toBe('#1260ff')
+  colors.set('u1', null)
+  expect(resolveAuthorColor(colors, true, 'u1', '#fa6200')).toBeNull()
+  colors.delete('u1')
+  expect(resolveAuthorColor(colors, true, 'u1', '#fa6200')).toBeNull()
 })

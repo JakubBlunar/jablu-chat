@@ -48,11 +48,27 @@ export async function mapDmHistory(prisma: Pick<PrismaService, '$queryRaw'>,
   return rows.map((m) => ({ ...mapDmMessageToWire({ ...m, reactions: [] }), reactions: reactions.get(m.id) ?? [] }))
 }
 
-/** Two page-scoped aggregates replace unbounded relation hydration. */
-export async function mapHistory(prisma: Pick<PrismaService, '$queryRaw'>, rows: HistoryRow[], userId: string) {
+/** Resolve only the distinct authors shown on this page, including reply previews. */
+async function pageAuthorColors(prisma: Pick<PrismaService, '$queryRaw'>, rows: HistoryRow[], serverId: string) {
+  const ids = new Set<string>()
+  for (const row of rows) {
+    if (row.authorId) ids.add(row.authorId)
+    if (row.replyTo?.author) ids.add(row.replyTo.author.id)
+  }
+  if (!ids.size) return new Map<string, string>()
+  const colors = await prisma.$queryRaw<{ userId: string; color: string }[]>`
+    SELECT DISTINCT ON (mr.user_id) mr.user_id AS "userId", r.color
+    FROM server_member_roles mr JOIN server_roles r ON r.id = mr.role_id AND r.server_id = mr.server_id
+    WHERE mr.server_id = ${serverId} AND mr.user_id = ANY(${[...ids]}::text[]) AND r.color <> ''
+    ORDER BY mr.user_id, r.position DESC, r.id
+  `
+  return new Map(colors.map(row => [row.userId, row.color]))
+}
+
+export async function mapHistory(prisma: Pick<PrismaService, '$queryRaw'>, rows: HistoryRow[], userId: string, serverId: string) {
   if (!rows.length) return []
   const ids = rows.map((m) => m.id)
-  const [byMessage, threads] = await Promise.all([
+  const [byMessage, threads, colors] = await Promise.all([
     reactionSummaries(prisma, ids, userId),
     prisma.$queryRaw<ThreadSummary[]>`
       SELECT m.thread_parent_id AS "messageId", COUNT(*)::int AS count,
@@ -64,13 +80,19 @@ export async function mapHistory(prisma: Pick<PrismaService, '$queryRaw'>, rows:
          ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1) AS latest
       FROM messages m WHERE m.thread_parent_id = ANY(${ids}::text[]) AND m.deleted = false
       GROUP BY m.thread_parent_id
-    `
+    `,
+    pageAuthorColors(prisma, rows, serverId)
   ])
   const byThread = new Map(threads.map((t) => [t.messageId, t]))
   return rows.map((m) => {
     const thread = byThread.get(m.id)
     const wire = mapMessageToWire({ ...m, reactions: [], _count: { threadMessages: thread?.count ?? 0 },
       threadMessages: thread?.latest ? [thread.latest] : [] }, userId)
-    return { ...wire, reactions: byMessage.get(m.id) ?? [] }
+    return {
+      ...wire,
+      authorRoleColor: m.authorId ? colors.get(m.authorId) ?? null : null,
+      replyAuthorRoleColor: m.replyTo?.author ? colors.get(m.replyTo.author.id) ?? null : null,
+      reactions: byMessage.get(m.id) ?? []
+    }
   })
 }

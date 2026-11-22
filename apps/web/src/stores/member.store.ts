@@ -39,7 +39,7 @@ export function getRoleColor(member: Member): string | null {
   if (!member.roles || member.roles.length === 0) return null
   const withColor = member.roles.filter((r) => r.color)
   if (withColor.length === 0) return null
-  return withColor.reduce((best, r) => (r.position > best.position ? r : best), withColor[0]).color
+  return withColor.reduce((best, r) => (r.position > best.position || (r.position === best.position && r.id < best.id) ? r : best), withColor[0]).color
 }
 
 type MemberState = {
@@ -47,6 +47,7 @@ type MemberState = {
   onlineUserIds: Set<string>
   realtimeStatuses: Map<string, string>
   isLoading: boolean
+  rosterServerId: string | null
   loadedServerId: string | null
   clear: () => void
   fetchMembers: (serverId: string) => Promise<void>
@@ -106,10 +107,11 @@ export const useMemberStore = create<MemberState>((set, get) => ({
   onlineUserIds: new Set(),
   realtimeStatuses: new Map(),
   isLoading: false,
+  rosterServerId: null,
   loadedServerId: null,
   clear: () => {
     memberRequests.cancel()
-    set({ members: [], onlineUserIds: new Set(), realtimeStatuses: new Map(), isLoading: false, loadedServerId: null })
+    set({ members: [], onlineUserIds: new Set(), realtimeStatuses: new Map(), isLoading: false, loadedServerId: null, rosterServerId: null })
   },
 
   fetchMembers: (serverId) => memberRequests.run(serverId, async (signal) => {
@@ -137,7 +139,7 @@ export const useMemberStore = create<MemberState>((set, get) => ({
         : normalized
       // A slower response for a server the user already left must not replace
       // the list now on screen.
-      set({ members: patched, isLoading: false })
+      set({ members: patched, isLoading: false, rosterServerId: serverId })
     },
     fail: () => {
       set({ isLoading: false })

@@ -17,6 +17,14 @@ database('Compact history (PostgreSQL)', () => {
         const owner = await tx.user.create({ data: { username: `perf-${Date.now()}`, email: `perf-${Date.now()}@invalid.test`, passwordHash: 'fixture' } })
         const server = await tx.server.create({ data: { name: 'Performance fixture', ownerId: owner.id } })
         const channel = await tx.channel.create({ data: { name: 'fixture', type: 'text', serverId: server.id } })
+        const other = await tx.server.create({ data: { name: 'Other server', ownerId: owner.id } })
+        for (const [serverId, position, color] of [[server.id, 1, '#111111'], [server.id, 2, '#222222'],
+          [other.id, 3, '#333333']] as const) {
+          await tx.serverMember.upsert({ where: { userId_serverId: { userId: owner.id, serverId } },
+            create: { userId: owner.id, serverId }, update: {} })
+          const role = await tx.role.create({ data: { serverId, name: color, position, color } })
+          await tx.serverMemberRole.create({ data: { serverId, userId: owner.id, roleId: role.id } })
+        }
         const root = await tx.message.create({ data: { channelId: channel.id, authorId: owner.id, content: 'Poll and reactions' } })
         await tx.message.createMany({ data: [
           { channelId: channel.id, authorId: owner.id, threadParentId: root.id, content: 'visible reply' },
@@ -34,7 +42,8 @@ database('Compact history (PostgreSQL)', () => {
         await tx.pollVote.createMany({ data: ids.map(userId => ({ optionId: poll.options[0].id, userId })) })
         const compact = await tx.message.findMany({ where: { id: root.id }, include: historyInclude(owner.id) })
         expect(compact[0].poll?.options[0].votes).toHaveLength(1)
-        const wire = (await mapHistory(tx, compact, owner.id))[0]
+        const wire = (await mapHistory(tx, compact, owner.id, server.id))[0]
+        expect(wire.authorRoleColor).toBe('#222222')
         expect(wire.reactions[0]).toMatchObject({ count: 1001, usersComplete: false })
         expect(wire.reactions[0].userIds).toContain(owner.id)
         expect(wire.reactions[0].userIds.length).toBeLessThanOrEqual(4)

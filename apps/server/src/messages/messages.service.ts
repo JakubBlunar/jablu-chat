@@ -147,7 +147,7 @@ export class MessagesService {
   }
 
   async getMessages(channelId: string, userId: string, cursor?: string, limit = 50) {
-    await this.requireMessageChannelMember(channelId, userId)
+    const { serverId } = await this.requireMessageChannelMember(channelId, userId)
     const take = Math.min(Math.max(1, limit), 100)
 
     const baseWhere: Prisma.MessageWhereInput = {
@@ -189,13 +189,13 @@ export class MessagesService {
     const hasMore = rows.length > take
     const page = hasMore ? rows.slice(0, take) : rows
     return {
-      messages: await mapHistory(this.prisma, page, userId),
+      messages: await mapHistory(this.prisma, page, userId, serverId),
       hasMore
     }
   }
 
   async getMessagesAround(channelId: string, userId: string, messageId: string, limit = 50) {
-    await this.requireMessageChannelMember(channelId, userId)
+    const { serverId } = await this.requireMessageChannelMember(channelId, userId)
     const half = Math.floor(Math.min(Math.max(1, limit), 100) / 2)
 
     const anchor = await this.prisma.message.findFirst({
@@ -244,14 +244,14 @@ export class MessagesService {
     const allDesc = [...after.reverse(), ...(anchorRow ? [anchorRow] : []), ...before]
 
     return {
-      messages: await mapHistory(this.prisma, allDesc, userId),
+      messages: await mapHistory(this.prisma, allDesc, userId, serverId),
       hasMore: before.length >= half,
       hasNewer: after.length >= half
     }
   }
 
   async getMessagesAfter(channelId: string, userId: string, afterId: string, limit = 50) {
-    await this.requireMessageChannelMember(channelId, userId)
+    const { serverId } = await this.requireMessageChannelMember(channelId, userId)
     const take = Math.min(Math.max(1, limit), 100)
 
     const afterMsg = await this.prisma.message.findFirst({
@@ -282,7 +282,7 @@ export class MessagesService {
     const page = hasNewer ? rows.slice(0, take) : rows
     // Return in desc order for consistency with other endpoints
     return {
-      messages: await mapHistory(this.prisma, page.reverse(), userId),
+      messages: await mapHistory(this.prisma, page.reverse(), userId, serverId),
       hasMore: false,
       hasNewer
     }
@@ -441,7 +441,7 @@ export class MessagesService {
       select: { channelId: true }
     })
     if (!parent?.channelId) throw new NotFoundException('Parent message not found')
-    await this.requireMessageChannelMember(parent.channelId, userId)
+    const { serverId } = await this.requireMessageChannelMember(parent.channelId, userId)
 
     const take = Math.min(Math.max(1, opts?.limit ?? 50), 100)
 
@@ -504,7 +504,7 @@ export class MessagesService {
       const page = [...before, anchor, ...after]
 
       return {
-        messages: await mapHistory(this.prisma, page, userId),
+        messages: await mapHistory(this.prisma, page, userId, serverId),
         hasMore,
         hasNewer
       }
@@ -536,7 +536,7 @@ export class MessagesService {
       const hasNewer = rows.length > take
       const page = hasNewer ? rows.slice(0, take) : rows
       return {
-        messages: await mapHistory(this.prisma, page, userId),
+        messages: await mapHistory(this.prisma, page, userId, serverId),
         hasMore: false,
         hasNewer
       }
@@ -568,7 +568,7 @@ export class MessagesService {
       const hasMore = rows.length > take
       const page = (hasMore ? rows.slice(0, take) : rows).reverse()
       return {
-        messages: await mapHistory(this.prisma, page, userId),
+        messages: await mapHistory(this.prisma, page, userId, serverId),
         hasMore,
         hasNewer: false
       }
@@ -584,7 +584,7 @@ export class MessagesService {
     const hasMore = rows.length > take
     const page = (hasMore ? rows.slice(0, take) : rows).reverse()
     return {
-      messages: await mapHistory(this.prisma, page, userId),
+      messages: await mapHistory(this.prisma, page, userId, serverId),
       hasMore,
       hasNewer: false
     }

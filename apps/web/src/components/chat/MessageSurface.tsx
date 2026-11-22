@@ -10,7 +10,8 @@ import { type ChannelRef } from '@/components/MarkdownContent'
 import { formatDateSeparator, formatTimeOnly, isDifferentDay } from '@/lib/format-time'
 import { Spinner } from '@/components/ui'
 import type { ScrollState } from '@/components/chat/hooks/useMessageScroll'
-import { useChatLookups } from '@/hooks/useChatLookups'
+import { useMemberStore } from '@/stores/member.store'
+import { resolveAuthorColor, useChatLookups } from '@/hooks/useChatLookups'
 import { useServerStore } from '@/stores/server.store'
 import { useInboxStore } from '@/stores/inbox.store'
 import { useSeenReactionActivity } from './hooks/useSeenReactionActivity'
@@ -136,7 +137,9 @@ export const MessageSurface = memo(function MessageSurface({
   const serverId = useServerStore((s) => s.currentServerId)
   const inboxOpen = useInboxStore((s) => s.open)
   useSeenMessageAlert(mode, contextId, threadParentId, scroll.scrollParentRef, !isLoading && !scroll.settling)
-  const lookups = useChatLookups(serverId)
+  const serverScope = mode === 'dm' ? null : serverId
+  const rosterReady = useMemberStore(s => s.rosterServerId === serverScope)
+  const lookups = useChatLookups(serverScope)
   const renderedItems = useMemo(() => {
     const items: { msg: Message; group: Message[]; showHead: boolean; newDay: boolean; isLastOwn: boolean }[] = []
     const groups = groupMessages(messages, firstUnreadId)
@@ -239,8 +242,8 @@ export const MessageSurface = memo(function MessageSurface({
                 onChannelClick={onChannelClick}
                 membersByUsername={lookups.membersByUsername}
                 rolesByLowerName={mode === 'dm' ? undefined : lookups.rolesByLowerName}
-                authorRoleColor={lookups.authorColors.get(msg.authorId ?? '') ?? null}
-                replyAuthorRoleColor={lookups.authorColors.get(msg.replyTo?.author?.id ?? '') ?? null}
+                authorRoleColor={serverScope ? resolveAuthorColor(lookups.authorColors, rosterReady, msg.authorId, msg.authorRoleColor) : null}
+                replyAuthorRoleColor={serverScope ? resolveAuthorColor(lookups.authorColors, rosterReady, msg.replyTo?.author?.id, msg.replyAuthorRoleColor) : null}
                 hideThreadAction={hideThreadAction}
                 hidePinAction={hidePinAction}
                 hideBookmarkAction={hideBookmarkAction}

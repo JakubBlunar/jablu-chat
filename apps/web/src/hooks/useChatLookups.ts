@@ -52,6 +52,13 @@ export function createChatLookupSelector(serverId: string | null) {
   }
 }
 
+export function resolveAuthorColor(colors: ReadonlyMap<string, string | null>, rosterReady: boolean,
+  id: string | null | undefined, historyColor: string | null | undefined) {
+  if (!id) return null
+  if (colors.has(id) || rosterReady) return colors.get(id) ?? null
+  return historyColor ?? null
+}
+
 export function useChatLookups(serverId: string | null) {
   const selector = useMemo(() => createChatLookupSelector(serverId), [serverId])
   return useMemberStore(selector)
