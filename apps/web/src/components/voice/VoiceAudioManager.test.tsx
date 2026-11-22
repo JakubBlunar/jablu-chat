@@ -124,9 +124,23 @@ it('applies output and user volumes to existing and newly received tracks and pr
     act(() => useSettingsStore.getState().setLevelVoices(true))
     expect(levelers).toHaveLength(3)
     expect(levelers[0].connect).toHaveBeenLastCalledWith(panners[3])
-    act(() => useSettingsStore.getState().setSeparateVoices(false))
+    act(() => {
+      room.remoteParticipants.delete('third')
+      listeners.get(RoomEvent.ParticipantDisconnected)?.()
+    })
+    expect(levelers[0].connect).toHaveBeenLastCalledWith(panners[3])
+    act(() => {
+      room.remoteParticipants.delete('second')
+      listeners.get(RoomEvent.ParticipantDisconnected)?.()
+    })
     expect(levelers[0].connect).toHaveBeenLastCalledWith(gains[0])
     expect(gains[0].gain.value).toBeCloseTo(0.9)
+    act(() => {
+      room.remoteParticipants.set('second', participant('second'))
+      listeners.get(RoomEvent.ParticipantConnected)?.()
+    })
+    expect(panners.slice(6).map((node) => node.pan.value)).toEqual([-0.75, 0.75])
+    expect(levelers[0].connect).toHaveBeenLastCalledWith(panners[6])
     act(() => useSettingsStore.getState().setLevelVoices(false))
     expect(levelers.every((node) => node.disconnect.mock.calls.length > 0)).toBe(true)
   } finally {

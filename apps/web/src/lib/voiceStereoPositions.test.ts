@@ -18,7 +18,7 @@ it('keeps distinct positions through joins, departures, and roster reordering in
   positions.update(ids.slice(1).reverse())
   expect(ids.slice(1).map((id) => positions.get(id))).toEqual(largeGroup.slice(1))
   positions.update([ids[1]])
-  expect(positions.get(ids[1])).toBe(firstFour[1])
+  expect(positions.get(ids[1])).toBeUndefined()
   positions.update(ids)
   expect(ids.map((id) => positions.get(id))).toEqual(largeGroup)
 })

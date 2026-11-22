@@ -40,7 +40,6 @@ function nextPosition(occupied: Set<number>) {
 export class VoiceStereoPositions {
   private remembered = new Map<string, number>()
   private active = new Map<string, number>()
-  private hasGroup = false
   private storageKey: string
 
   constructor(listenerId: string) {
@@ -49,8 +48,10 @@ export class VoiceStereoPositions {
 
   update(identities: Iterable<string>) {
     const present = new Set(identities)
-    if (present.size > 1) this.hasGroup = true
-    if (!this.hasGroup) return
+    if (present.size < 2) {
+      this.active.clear()
+      return
+    }
     for (const id of this.active.keys()) {
       if (!present.has(id)) this.active.delete(id)
     }
