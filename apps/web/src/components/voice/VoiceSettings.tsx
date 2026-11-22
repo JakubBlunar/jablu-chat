@@ -50,6 +50,8 @@ export function VoiceSettings() {
     vadThreshold,
     vadMode,
     voiceJoinMuted,
+    separateVoices,
+    setSeparateVoices,
     voiceJoinDeafened,
     setVoiceJoinMuted,
     setVoiceJoinDeafened,
@@ -74,6 +76,14 @@ export function VoiceSettings() {
         key={`${noiseMode}-${capNoiseSuppression}-${capAutoGain}-${capEchoCancellation}`}
         deviceId={selectedInput}
         outputId={selectedOutput}
+      />
+      <ToggleRow
+        layout="inline"
+        label={t('settings.separateVoices')}
+        description={t('settings.separateVoicesHint')}
+        checked={separateVoices}
+        onChange={setSeparateVoices}
+        disabled={typeof AudioContext === 'undefined' || !AudioContext.prototype.createStereoPanner}
       />
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{t('settings.whenJoining')}</h3>

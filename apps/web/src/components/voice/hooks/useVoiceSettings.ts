@@ -60,6 +60,8 @@ export function useVoiceSettings() {
   const storeSetMicMode = useVoiceConnectionStore((s) => s.setMicMode)
 
   const voiceJoinMuted = useSettingsStore((s) => s.voiceJoinMuted)
+  const separateVoices = useSettingsStore((s) => s.separateVoices)
+  const setSeparateVoices = useSettingsStore((s) => s.setSeparateVoices)
   const voiceJoinDeafened = useSettingsStore((s) => s.voiceJoinDeafened)
   const setVoiceJoinMuted = useSettingsStore((s) => s.setVoiceJoinMuted)
   const setVoiceJoinDeafened = useSettingsStore((s) => s.setVoiceJoinDeafened)
@@ -194,6 +196,8 @@ export function useVoiceSettings() {
     vadThreshold,
     vadMode,
     voiceJoinMuted,
+    separateVoices,
+    setSeparateVoices,
     voiceJoinDeafened,
     setVoiceJoinMuted,
     setVoiceJoinDeafened,

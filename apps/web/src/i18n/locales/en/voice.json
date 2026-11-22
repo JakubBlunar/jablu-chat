@@ -141,6 +141,8 @@
   "screenShareStartFailed": "Failed to start screen sharing.",
   "screenShareStopFailed": "Failed to stop screen sharing.",
   "settings": {
+    "separateVoices": "Separate voices in headphones",
+    "separateVoicesHint": "Hear each person in a different stereo position. This device remembers their spot for future group calls.",
     "whenJoining": "When joining voice",
     "joinMuted": "Join muted",
     "joinMutedHint": "Your microphone stays off until you unmute.",

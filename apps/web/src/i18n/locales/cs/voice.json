@@ -143,6 +143,8 @@
   "screenShareStartFailed": "Nepodařilo se zahájit sdílení obrazovky.",
   "screenShareStopFailed": "Nepodařilo se ukončit sdílení obrazovky.",
   "settings": {
+    "separateVoices": "Oddělit hlasy ve sluchátkách",
+    "separateVoicesHint": "Ve skupinovém hovoru uslyšíte každého z jiného směru. Toto zařízení si polohu každého účastníka zapamatuje i pro další hovory.",
     "whenJoining": "Při připojení k hlasovému chatu",
     "joinMuted": "Připojit se se ztlumeným mikrofonem",
     "joinMutedHint": "Mikrofon zůstane vypnutý, dokud ho nezapnete.",

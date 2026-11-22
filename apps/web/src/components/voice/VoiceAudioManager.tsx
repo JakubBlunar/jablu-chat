@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useSettingsStore } from '@/stores/settings.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { getSavedCameraQuality } from '@/lib/deviceSettings'
+import { VoiceStereoPositions } from '@/lib/voiceStereoPositions'
 
 type HTMLMediaElementWithSinkId = HTMLMediaElement & {
   setSinkId?: (sinkId: string) => Promise<void>
@@ -16,7 +17,30 @@ type AudioEntry = {
   audio: HTMLAudioElement
   gain: GainNode
   source: MediaElementAudioSourceNode
+  panner?: StereoPannerNode
   trackId: string
+}
+
+function applyStereoPosition(entry: AudioEntry, position: number | undefined) {
+  const { source, gain } = entry
+  if (position === undefined) {
+    if (entry.panner) {
+      source.disconnect()
+      entry.panner.disconnect()
+      entry.panner = undefined
+      source.connect(gain)
+    }
+    return
+  }
+  if (!entry.panner) {
+    const ctx = getAudioCtx()
+    if (typeof ctx.createStereoPanner !== 'function') return
+    entry.panner = ctx.createStereoPanner()
+    source.disconnect()
+    source.connect(entry.panner)
+    entry.panner.connect(gain)
+  }
+  entry.panner.pan.value = position
 }
 
 let _audioCtx: AudioContext | null = null
@@ -72,19 +96,23 @@ export function VoiceAudioManager() {
   const detachEntry = useCallback((entry: AudioEntry) => {
     entry.gain.disconnect()
     entry.source.disconnect()
+    entry.panner?.disconnect()
     entry.audio.pause()
     entry.audio.srcObject = null
     entry.audio.remove()
   }, [])
 
   const attachTrack = useCallback(
-    (key: string, track: RemoteTrack) => {
+    (key: string, track: RemoteTrack, position?: number) => {
       const mst = track.mediaStreamTrack
       if (!mst || mst.readyState !== 'live') return
 
       const existing = nodesRef.current.get(key)
       if (existing) {
-        if (existing.trackId === mst.id) return
+        if (existing.trackId === mst.id) {
+          applyStereoPosition(existing, position)
+          return
+        }
         detachEntry(existing)
         nodesRef.current.delete(key)
       }
@@ -128,7 +156,9 @@ export function VoiceAudioManager() {
       })
       ensureCtxRunning()
 
-      nodesRef.current.set(key, { audio, gain, source, trackId: mst.id })
+      const entry: AudioEntry = { audio, gain, source, trackId: mst.id }
+      applyStereoPosition(entry, position)
+      nodesRef.current.set(key, entry)
     },
     [detachEntry]
   )
@@ -146,14 +176,17 @@ export function VoiceAudioManager() {
       return
     }
 
+    const positions = new VoiceStereoPositions(room.localParticipant.identity)
     function rebuild() {
       const activeKeys = new Set<string>()
+      const separate = useSettingsStore.getState().separateVoices
+      if (separate) positions.update(room!.remoteParticipants.keys())
       for (const p of room!.remoteParticipants.values()) {
         const micPub = p.getTrackPublication(Track.Source.Microphone)
         if (micPub?.track) {
           const key = p.identity
           activeKeys.add(key)
-          attachTrack(key, micPub.track as RemoteTrack)
+          attachTrack(key, micPub.track as RemoteTrack, separate ? positions.get(key) : undefined)
         }
 
         const ssAudioPub = p.getTrackPublication(Track.Source.ScreenShareAudio)
@@ -174,6 +207,9 @@ export function VoiceAudioManager() {
     }
 
     rebuild()
+    const unsubscribeSettings = useSettingsStore.subscribe((next, previous) => {
+      if (next.separateVoices !== previous.separateVoices) rebuild()
+    })
 
     room.on(RoomEvent.TrackSubscribed, rebuild)
     room.on(RoomEvent.TrackUnsubscribed, rebuild)
@@ -182,6 +218,7 @@ export function VoiceAudioManager() {
     room.on(RoomEvent.Disconnected, rebuild)
 
     return () => {
+      unsubscribeSettings()
       room.off(RoomEvent.TrackSubscribed, rebuild)
       room.off(RoomEvent.TrackUnsubscribed, rebuild)
       room.off(RoomEvent.ParticipantConnected, rebuild)

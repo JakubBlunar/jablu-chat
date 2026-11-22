@@ -63,6 +63,7 @@ export type SettingsSlice = {
   audioInputDeviceId: string
   audioOutputDeviceId: string
   voiceOutputVolume: number
+  separateVoices: boolean
   cameraDeviceId: string
   cameraQuality: CameraQuality
   backgroundBlurEnabled: boolean
@@ -99,6 +100,7 @@ type SettingsActions = {
   setAudioInputDeviceId: (id: string) => void
   setAudioOutputDeviceId: (id: string) => void
   setVoiceOutputVolume: (value: number) => void
+  setSeparateVoices: (enabled: boolean) => void
   setCameraDeviceId: (id: string) => void
   setCameraQuality: (q: CameraQuality) => void
   setBackgroundBlurEnabled: (v: boolean) => void
@@ -136,6 +138,7 @@ const defaults: SettingsSlice = {
   audioInputDeviceId: '',
   audioOutputDeviceId: '',
   voiceOutputVolume: 100,
+  separateVoices: false,
   cameraDeviceId: '',
   cameraQuality: '720p',
   backgroundBlurEnabled: false,
@@ -185,6 +188,7 @@ function coercePersisted(p: unknown): Partial<SettingsSlice> {
     out.collapsedCategoryIds = o.collapsedCategoryIds
   if (typeof o.audioInputDeviceId === 'string') out.audioInputDeviceId = o.audioInputDeviceId
   if (typeof o.audioOutputDeviceId === 'string') out.audioOutputDeviceId = o.audioOutputDeviceId
+  if (typeof o.separateVoices === 'boolean') out.separateVoices = o.separateVoices
   if (typeof o.voiceOutputVolume === 'number' && Number.isFinite(o.voiceOutputVolume))
     out.voiceOutputVolume = Math.max(0, Math.min(200, o.voiceOutputVolume))
   if (typeof o.cameraDeviceId === 'string') out.cameraDeviceId = o.cameraDeviceId
@@ -268,6 +272,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setAudioInputDeviceId: (id) => set({ audioInputDeviceId: id }),
       setAudioOutputDeviceId: (id) => set({ audioOutputDeviceId: id }),
+      setSeparateVoices: (enabled) => set({ separateVoices: enabled }),
       setVoiceOutputVolume: (value) => {
         if (Number.isFinite(value)) set({ voiceOutputVolume: Math.max(0, Math.min(200, value)) })
       },
@@ -328,6 +333,7 @@ export const useSettingsStore = create<SettingsState>()(
         audioInputDeviceId: s.audioInputDeviceId,
         audioOutputDeviceId: s.audioOutputDeviceId,
         voiceOutputVolume: s.voiceOutputVolume,
+        separateVoices: s.separateVoices,
         cameraDeviceId: s.cameraDeviceId,
         cameraQuality: s.cameraQuality,
         backgroundBlurEnabled: s.backgroundBlurEnabled,
