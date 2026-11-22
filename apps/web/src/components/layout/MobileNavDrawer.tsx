@@ -753,6 +753,7 @@ export function MobileNavDrawer({
                           <SectionHeading>{t('directMessages').toUpperCase()}</SectionHeading>
                           <IconButton
                             label={t('newMessage')}
+                            size="header"
                             onClick={() => {
                               close()
                               setGroupDmOpen(true)

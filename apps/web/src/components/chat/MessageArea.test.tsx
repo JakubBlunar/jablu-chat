@@ -46,7 +46,7 @@ jest.mock('@/components/DelayedRender', () => ({
 }))
 jest.mock('@/components/ui', () => ({
   CountBadge: () => null,
-  IconButton: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  IconButton: jest.requireActual('@/components/ui/IconButton').IconButton,
   Spinner: () => null,
 }))
 
@@ -189,6 +189,19 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MessageArea', () => {
+  it('switches DM panel tabs and closes the active tab on a second click', () => {
+    render(<MessageArea mode="dm" contextId="conv-1" />)
+    const pins = screen.getByRole('button', { name: 'pinnedMessagesTitle' })
+    const info = screen.getByRole('button', { name: 'conversationInfo' })
+    fireEvent.click(pins)
+    expect(pins).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(info)
+    expect(info).toHaveAttribute('aria-expanded', 'true')
+    expect(pins).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(info)
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('includes DM history in the composer drop zone', () => {
     render(<MessageArea mode="dm" contextId="conv-1" />)
 

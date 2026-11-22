@@ -16,16 +16,7 @@ const LEVELS: { value: NotifLevel; labelKey: string; descriptionKey: string }[] 
   { value: 'none', labelKey: 'notifications.muted', descriptionKey: 'notifications.mutedDescription' }
 ]
 
-export function NotifBellMenu({
-  channelId,
-  serverId,
-  triggerClassName = 'relative h-10 w-10 shrink-0'
-}: {
-  channelId: string
-  serverId?: string
-  /** Override the trigger button box (e.g. to match a toolbar's icon sizing). */
-  triggerClassName?: string
-}) {
+export function NotifBellMenu({ channelId, serverId }: { channelId: string; serverId?: string }) {
   const { t } = useTranslation('channels')
   const [open, setOpen] = useState(false)
   const storeLevel = useNotifPrefStore((s) => s.getEffective(channelId, serverId))
@@ -90,13 +81,14 @@ export function NotifBellMenu({
     <>
       <IconButton
         ref={btnRef}
-        size="lg"
+        size="header"
+        aria-expanded={open}
         label={t('notifications.settingsLabel')}
         onClick={(e) => {
           e.stopPropagation()
           setOpen((p) => !p)
         }}
-        className={cn(triggerClassName, isMuted && 'text-gray-500', isMentions && 'text-yellow-500')}
+        className={cn('relative', isMuted && 'text-gray-500', isMentions && 'text-yellow-500')}
       >
         <ChannelNotifPrefTriggerIcon level={level} />
       </IconButton>

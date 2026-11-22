@@ -6,7 +6,8 @@ const base =
 
 const variants = {
   ghost: 'text-gray-400 hover:bg-white/10 hover:text-white',
-  danger: 'text-gray-400 hover:text-red-400'
+  danger: 'text-gray-400 hover:text-red-400',
+  connected: 'text-green-400 hover:bg-green-500/10'
 } as const
 
 const sizes = {

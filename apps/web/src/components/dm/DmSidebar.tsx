@@ -10,7 +10,7 @@ import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useFriendStore } from '@/stores/friend.store'
-import { CountBadge } from '@/components/ui'
+import { CountBadge, IconButton } from '@/components/ui'
 import { resolveMediaUrl } from '@/lib/api'
 import { showToast } from '@/stores/toast.store'
 import { GroupDmModal } from './GroupDmModal'
@@ -115,15 +115,9 @@ export function DmSidebar() {
       />
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-black/20 px-4 shadow-sm">
         <span className="text-[15px] font-semibold text-white">{t('directMessages')}</span>
-        <button
-          type="button"
-          title={t('newMessage')}
-          aria-label={t('newMessage')}
-          onClick={() => setGroupDmOpen(true)}
-          className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-        >
+        <IconButton size="header" label={t('newMessage')} onClick={() => setGroupDmOpen(true)}>
           <PlusIcon />
-        </button>
+        </IconButton>
       </div>
 
       <div className="shrink-0 px-2 pt-2">
@@ -236,10 +230,9 @@ export function DmSidebar() {
                       aria-hidden
                     />
                   ))}
-                <button
-                  type="button"
-                  title={t('closeConversation')}
-                  aria-label={t('closeConversation')}
+                <IconButton
+                  size="md"
+                  label={t('closeConversation')}
                   onClick={(e) => {
                     e.stopPropagation()
                     void closeConversation(conv.id)
@@ -248,10 +241,10 @@ export function DmSidebar() {
                       })
                       .catch(() => showToast(tChat('conversationActionFailed'), tChat('conversationRetry')))
                   }}
-                  className="shrink-0 rounded p-1 text-gray-400 opacity-100 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100"
+                  className="min-h-8 min-w-8 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                 >
                   <CloseIcon />
-                </button>
+                </IconButton>
               </div>
             )
           })

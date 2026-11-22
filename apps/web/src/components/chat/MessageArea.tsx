@@ -492,6 +492,12 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
     </div>
   )
 
+  const toggleDmTab = (tab: ConversationInfoTab) => {
+    setDmSheetOpen(!dmSheetOpen || dmInfoTab !== tab)
+    setDmInfoTab(tab)
+    setSearchOpen(false)
+  }
+
   const channelHeader = !isDm ? (
     <header className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-black/20 px-2 shadow-sm md:px-4">
       {activeChannel ? (
@@ -549,7 +555,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             <div className="flex shrink-0 items-center gap-0.5">
               <IconButton
                 label={tChat('pinnedMessagesTitle')}
-                size="lg"
+                size="header"
                 className="relative"
                 onClick={() => void pinned.handleOpenPinned()}
               >
@@ -563,16 +569,15 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
               <NotifBellMenu
                 channelId={activeChannel.id}
                 serverId={activeChannel.serverId}
-                triggerClassName="relative shrink-0"
               />
               {isAdminOrOwner && (
-                <IconButton label={tChat('channelSettingsLabel')} size="lg" onClick={() => setEditingChannel(true)}>
+                <IconButton label={tChat('channelSettingsLabel')} size="header" onClick={() => setEditingChannel(true)}>
                   <SettingsCogIcon />
                 </IconButton>
               )}
               <IconButton
                 label={tChat('toggleMemberList')}
-                size="lg"
+                size="header"
                 onClick={() => {
                   if (panels.membersOverlay) useLayoutStore.getState().openMemberDrawer()
                   else useSettingsStore.getState().toggleMemberSidebarVisible()
@@ -597,17 +602,16 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             </div>
           )}
           {isMobile && (
-            <button
-              type="button"
-              aria-label={tChat('channelInfoActionSearch')}
+            <IconButton
+              size="header"
+              label={tChat('channelInfoActionSearch')}
               onClick={() => {
                 useThreadStore.getState().closeThread()
                 setSearchOpen(true)
               }}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-white/10"
             >
               <SearchIcon />
-            </button>
+            </IconButton>
           )}
         </>
       ) : (
@@ -660,16 +664,13 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             )}
             {contextId && <DmCallButton conversationId={contextId} />}
             {viewingDmVoice && (
-              <button
-                type="button"
-                title={tVoice(callChatOpen ? 'hideCallChat' : 'showCallChat')}
-                aria-label={tVoice(callChatOpen ? 'hideCallChat' : 'showCallChat')}
+              <IconButton
+                size="header"
+                active={callChatOpen}
+                label={tVoice(callChatOpen ? 'hideCallChat' : 'showCallChat')}
                 aria-expanded={callChatOpen}
                 aria-controls={callChatId}
                 onClick={() => setCallChatOpen((open) => !open)}
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition ${
-                  callChatOpen ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-white'
-                }`}
               >
                 <svg
                   aria-hidden="true"
@@ -681,44 +682,37 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
                 >
                   <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" />
                 </svg>
-              </button>
+              </IconButton>
             )}
             {isMobile && (
-              <button
-                type="button"
-                aria-label={tChat('channelInfoActionSearch')}
+              <IconButton
+                size="header"
+                label={tChat('channelInfoActionSearch')}
                 onClick={() => {
                   setDmSheetOpen(false)
                   setSearchOpen(true)
                 }}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-white/10"
               >
                 <SearchIcon />
-              </button>
+              </IconButton>
             )}
             {!isMobile && (
               <>
                 <IconButton
                   label={tChat('conversationInfo')}
-                  className="shrink-0"
-                  active={dmSheetOpen}
-                  onClick={() => {
-                    setDmInfoTab('details')
-                    setDmSheetOpen((open) => !open)
-                    setSearchOpen(false)
-                  }}
+                  size="header"
+                  active={dmSheetOpen && dmInfoTab === 'details'}
+                  aria-expanded={dmSheetOpen && dmInfoTab === 'details'}
+                  onClick={() => toggleDmTab('details')}
                 >
                   <MembersIcon />
                 </IconButton>
                 <IconButton
                   label={tChat('pinnedMessagesTitle')}
-                  className="shrink-0"
+                  size="header"
                   active={dmSheetOpen && dmInfoTab === 'pins'}
-                  onClick={() => {
-                    setDmInfoTab('pins')
-                    setDmSheetOpen(true)
-                    setSearchOpen(false)
-                  }}
+                  aria-expanded={dmSheetOpen && dmInfoTab === 'pins'}
+                  onClick={() => toggleDmTab('pins')}
                 >
                   <PinnedListIcon />
                 </IconButton>
