@@ -143,6 +143,8 @@
   "screenShareStartFailed": "Nepodarilo sa začať zdieľanie obrazovky.",
   "screenShareStopFailed": "Nepodarilo sa zastaviť zdieľanie obrazovky.",
   "settings": {
+    "levelVoices": "Vyrovnať hlasitosť hlasov",
+    "levelVoicesHint": "Zmenší rozdiely medzi tichými a hlasnými účastníkmi. Hlasitosť každého si potom môžete upraviť zvlášť.",
     "separateVoices": "Oddeliť hlasy v slúchadlách",
     "separateVoicesHint": "V skupinovom hovore budete každého počuť z iného smeru. Toto zariadenie si polohu každého účastníka zapamätá aj pre ďalšie hovory.",
     "whenJoining": "Pri pripojení k hlasovému chatu",

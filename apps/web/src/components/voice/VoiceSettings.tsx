@@ -51,6 +51,8 @@ export function VoiceSettings() {
     vadMode,
     voiceJoinMuted,
     separateVoices,
+    levelVoices,
+    setLevelVoices,
     setSeparateVoices,
     voiceJoinDeafened,
     setVoiceJoinMuted,
@@ -84,6 +86,13 @@ export function VoiceSettings() {
         checked={separateVoices}
         onChange={setSeparateVoices}
         disabled={typeof AudioContext === 'undefined' || !AudioContext.prototype.createStereoPanner}
+      />
+      <ToggleRow
+        layout="inline"
+        label={t('settings.levelVoices')}
+        description={t('settings.levelVoicesHint')}
+        checked={levelVoices}
+        onChange={setLevelVoices}
       />
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">{t('settings.whenJoining')}</h3>

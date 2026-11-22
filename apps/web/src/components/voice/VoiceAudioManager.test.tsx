@@ -31,6 +31,7 @@ jest.mock('@/stores/voice-connection.store', () => {
 it('applies output and user volumes to existing and newly received tracks and preserves deafen', async () => {
   const gains: { gain: { value: number }; connect: jest.Mock; disconnect: jest.Mock }[] = []
   const panners: { pan: { value: number }; connect: jest.Mock; disconnect: jest.Mock }[] = []
+  const levelers: { connect: jest.Mock; disconnect: jest.Mock }[] = []
   class FakeAudioContext extends EventTarget {
     state = 'running'
     destination = {}
@@ -40,10 +41,23 @@ it('applies output and user volumes to existing and newly received tracks and pr
       return gain
     }
     createMediaElementSource() {
-      return { connect: jest.fn(), disconnect: jest.fn() }
+      return { connect: jest.fn((node) => node), disconnect: jest.fn() }
+    }
+    createDynamicsCompressor() {
+      const node = {
+        threshold: { value: 0 },
+        knee: { value: 0 },
+        ratio: { value: 0 },
+        attack: { value: 0 },
+        release: { value: 0 },
+        connect: jest.fn((target) => target),
+        disconnect: jest.fn()
+      }
+      levelers.push(node)
+      return node
     }
     createStereoPanner() {
-      const panner = { pan: { value: 0 }, connect: jest.fn(), disconnect: jest.fn() }
+      const panner = { pan: { value: 0 }, connect: jest.fn((node) => node), disconnect: jest.fn() }
       panners.push(panner)
       return panner
     }
@@ -107,9 +121,18 @@ it('applies output and user volumes to existing and newly received tracks and pr
     expect(gains).toHaveLength(4)
     act(() => useSettingsStore.getState().setSeparateVoices(true))
     expect(panners.slice(3).map((node) => node.pan.value)).toEqual([-0.75, 0.75, -0.25])
+    act(() => useSettingsStore.getState().setLevelVoices(true))
+    expect(levelers).toHaveLength(3)
+    expect(levelers[0].connect).toHaveBeenLastCalledWith(panners[3])
+    act(() => useSettingsStore.getState().setSeparateVoices(false))
+    expect(levelers[0].connect).toHaveBeenLastCalledWith(gains[0])
+    expect(gains[0].gain.value).toBeCloseTo(0.9)
+    act(() => useSettingsStore.getState().setLevelVoices(false))
+    expect(levelers.every((node) => node.disconnect.mock.calls.length > 0)).toBe(true)
   } finally {
     unmount()
     useSettingsStore.getState().setSeparateVoices(false)
+    useSettingsStore.getState().setLevelVoices(false)
     useSettingsStore.getState().setVoiceOutputVolume(100)
     jest.restoreAllMocks()
     Reflect.deleteProperty(globalThis, 'AudioContext')

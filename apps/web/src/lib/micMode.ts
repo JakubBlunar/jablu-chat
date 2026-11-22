@@ -1,7 +1,7 @@
 export type MicMode = 'always' | 'activity' | 'push-to-talk'
 
 import { voiceTrackSources } from './voiceTrackSources'
-import { VoiceActivityDetector } from './voiceActivity'
+import { SpeechBandDetector, VoiceActivityDetector } from './voiceActivity'
 import i18n from 'i18next'
 import { useSettingsStore } from '@/stores/settings.store'
 import { desktopAPI, isDesktop } from '@/lib/desktop'
@@ -120,6 +120,7 @@ function startVAD(): MicCleanup {
   if (!mediaTrack) return () => {}
 
   const analysisTrack = mediaTrack.clone()
+  analysisTrack.enabled = true
   const audioCtx = new AudioContext()
   const source = audioCtx.createMediaStreamSource(new MediaStream([analysisTrack]))
   const analyser = audioCtx.createAnalyser()
@@ -131,6 +132,11 @@ function startVAD(): MicCleanup {
   if (audioCtx.state === 'suspended') void audioCtx.resume().catch(() => {})
 
   const dataArray = new Uint8Array(analyser.frequencyBinCount)
+  // Keep roughly 22 ms of audio at common device sample rates. The manual
+  // slider and its meter retain their original 512-sample measurement.
+  const speechFftSize = 2 ** Math.round(Math.log2(audioCtx.sampleRate * 0.022))
+  const spectrum = new Float32Array(speechFftSize / 2)
+  const speechBand = new SpeechBandDetector(spectrum.length, audioCtx.sampleRate)
   const detector = new VoiceActivityDetector()
   let speaking = true
   let running = true
@@ -150,7 +156,21 @@ function startVAD(): MicCleanup {
 
     // RAF can be throttled while hidden; avoid chopping speech when the page
     // cannot sample reliably. Manual mute is controlled by the caller's mode lifecycle.
-    const next = document.hidden || audioCtx.state === 'suspended' || detector.update(getAvg(), performance.now(), getVadMode(), getVadThreshold())
+    let next = true
+    if (!document.hidden && audioCtx.state !== 'suspended') {
+      const now = performance.now()
+      const mode = getVadMode()
+      let level: number
+      if (mode === 'auto') {
+        if (analyser.fftSize !== speechFftSize) analyser.fftSize = speechFftSize
+        analyser.getFloatFrequencyData(spectrum)
+        level = speechBand.level(spectrum, now)
+      } else {
+        if (analyser.fftSize !== 512) analyser.fftSize = 512
+        level = getAvg()
+      }
+      next = detector.update(level, now, mode, getVadThreshold())
+    }
     if (next !== speaking) {
       speaking = next
       setTrackMuted(!speaking)

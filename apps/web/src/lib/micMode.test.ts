@@ -47,6 +47,7 @@ beforeAll(() => {
   Object.defineProperty(globalThis, 'AudioContext', {
     configurable: true,
     value: jest.fn(() => ({
+      sampleRate: 48_000,
       close: closeContext,
       createMediaStreamSource: () => ({ connect: jest.fn(), disconnect: disconnectSource }),
       createAnalyser: () => ({ frequencyBinCount: 256 })

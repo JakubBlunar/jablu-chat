@@ -1,4 +1,20 @@
-import { VoiceActivityDetector } from './voiceActivity'
+import { SpeechBandDetector, VoiceActivityDetector } from './voiceActivity'
+
+it.each([32_000, 44_100, 48_000, 96_000])('detects a quiet vowel against broadband noise at %i Hz', (sampleRate) => {
+  const fftSize = 2 ** Math.round(Math.log2(sampleRate * 0.022))
+  const spectrum = new Float32Array(fftSize / 2).fill(-99)
+  const band = new SpeechBandDetector(spectrum.length, sampleRate)
+  const gate = new VoiceActivityDetector()
+  const tick = (ms: number) => gate.update(band.level(spectrum, ms), ms, 'auto', 18)
+  for (let t = 0; t < 2000; t += 20) expect(tick(t)).toBe(false)
+  for (const hz of [280, 560, 840, 1400]) spectrum[Math.round((hz * fftSize) / sampleRate)] = -81
+  tick(2000)
+  tick(2020)
+  for (let t = 2040; t < 3600; t += 20) expect(tick(t)).toBe(true)
+  spectrum.fill(-99)
+  expect(tick(4050)).toBe(true)
+  expect(tick(4550)).toBe(false)
+})
 
 it('detects the first word without calibrating speech into background noise', () => {
   const detector = new VoiceActivityDetector()

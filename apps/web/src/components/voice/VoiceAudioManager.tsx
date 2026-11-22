@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/stores/settings.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { getSavedCameraQuality } from '@/lib/deviceSettings'
 import { VoiceStereoPositions } from '@/lib/voiceStereoPositions'
+import { createVoiceLeveler } from '@/lib/voiceLeveling'
 
 type HTMLMediaElementWithSinkId = HTMLMediaElement & {
   setSinkId?: (sinkId: string) => Promise<void>
@@ -18,29 +19,26 @@ type AudioEntry = {
   gain: GainNode
   source: MediaElementAudioSourceNode
   panner?: StereoPannerNode
+  leveler?: DynamicsCompressorNode
   trackId: string
 }
 
-function applyStereoPosition(entry: AudioEntry, position: number | undefined) {
+function applyMicrophoneMix(entry: AudioEntry, position: number | undefined, levelVoices: boolean) {
   const { source, gain } = entry
-  if (position === undefined) {
-    if (entry.panner) {
-      source.disconnect()
-      entry.panner.disconnect()
-      entry.panner = undefined
-      source.connect(gain)
-    }
-    return
-  }
-  if (!entry.panner) {
-    const ctx = getAudioCtx()
-    if (typeof ctx.createStereoPanner !== 'function') return
-    entry.panner = ctx.createStereoPanner()
+  const ctx = getAudioCtx()
+  const pan = position !== undefined && typeof ctx.createStereoPanner === 'function'
+  if (pan !== !!entry.panner || levelVoices !== !!entry.leveler) {
     source.disconnect()
-    source.connect(entry.panner)
-    entry.panner.connect(gain)
+    entry.panner?.disconnect()
+    entry.leveler?.disconnect()
+    entry.panner = pan ? (entry.panner ?? ctx.createStereoPanner()) : undefined
+    entry.leveler = levelVoices ? (entry.leveler ?? createVoiceLeveler(ctx)) : undefined
+    let tail: AudioNode = source
+    if (entry.leveler) tail = tail.connect(entry.leveler)
+    if (entry.panner) tail = tail.connect(entry.panner)
+    tail.connect(gain)
   }
-  entry.panner.pan.value = position
+  if (entry.panner && position !== undefined) entry.panner.pan.value = position
 }
 
 let _audioCtx: AudioContext | null = null
@@ -97,20 +95,21 @@ export function VoiceAudioManager() {
     entry.gain.disconnect()
     entry.source.disconnect()
     entry.panner?.disconnect()
+    entry.leveler?.disconnect()
     entry.audio.pause()
     entry.audio.srcObject = null
     entry.audio.remove()
   }, [])
 
   const attachTrack = useCallback(
-    (key: string, track: RemoteTrack, position?: number) => {
+    (key: string, track: RemoteTrack, position?: number, levelVoices = false) => {
       const mst = track.mediaStreamTrack
       if (!mst || mst.readyState !== 'live') return
 
       const existing = nodesRef.current.get(key)
       if (existing) {
         if (existing.trackId === mst.id) {
-          applyStereoPosition(existing, position)
+          applyMicrophoneMix(existing, position, levelVoices)
           return
         }
         detachEntry(existing)
@@ -157,7 +156,7 @@ export function VoiceAudioManager() {
       ensureCtxRunning()
 
       const entry: AudioEntry = { audio, gain, source, trackId: mst.id }
-      applyStereoPosition(entry, position)
+      applyMicrophoneMix(entry, position, levelVoices)
       nodesRef.current.set(key, entry)
     },
     [detachEntry]
@@ -179,14 +178,14 @@ export function VoiceAudioManager() {
     const positions = new VoiceStereoPositions(room.localParticipant.identity)
     function rebuild() {
       const activeKeys = new Set<string>()
-      const separate = useSettingsStore.getState().separateVoices
+      const { separateVoices: separate, levelVoices } = useSettingsStore.getState()
       if (separate) positions.update(room!.remoteParticipants.keys())
       for (const p of room!.remoteParticipants.values()) {
         const micPub = p.getTrackPublication(Track.Source.Microphone)
         if (micPub?.track) {
           const key = p.identity
           activeKeys.add(key)
-          attachTrack(key, micPub.track as RemoteTrack, separate ? positions.get(key) : undefined)
+          attachTrack(key, micPub.track as RemoteTrack, separate ? positions.get(key) : undefined, levelVoices)
         }
 
         const ssAudioPub = p.getTrackPublication(Track.Source.ScreenShareAudio)
@@ -208,7 +207,7 @@ export function VoiceAudioManager() {
 
     rebuild()
     const unsubscribeSettings = useSettingsStore.subscribe((next, previous) => {
-      if (next.separateVoices !== previous.separateVoices) rebuild()
+      if (next.separateVoices !== previous.separateVoices || next.levelVoices !== previous.levelVoices) rebuild()
     })
 
     room.on(RoomEvent.TrackSubscribed, rebuild)
