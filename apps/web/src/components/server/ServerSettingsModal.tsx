@@ -1,10 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
 import { useIsMobile } from '@/hooks/useMobile'
-import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { useBackGestureClose } from '@/hooks/useBackGestureClose'
+import { MobileSettingsShell } from '@/components/settings/MobileSettingsShell'
 import type { Server } from '@/stores/server.store'
 import { SERVER_TABS, type Tab } from './server-settings/serverSettingsTypes'
 import { XIcon } from './server-settings/serverSettingsIcons'
@@ -36,26 +35,8 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
   const { t: tServerSettings } = useTranslation('server-settings')
   const { t: tCommon } = useTranslation('common')
   const [tab, setTab] = useState<Tab>('overview')
-  const [indexOpen, setIndexOpen] = useState(true)
   const [filter, setFilter] = useState('')
-  const back = () => {
-    if (indexOpen) onClose()
-    else setIndexOpen(true)
-  }
   const isMobile = useIsMobile()
-  const mobileRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(mobileRef, isMobile, back)
-  useBackGestureClose(isMobile, onClose, isMobile)
-  useBackGestureClose(isMobile && !indexOpen, () => setIndexOpen(true), isMobile)
-
-  const selectedRow = useRef<HTMLButtonElement>(null)
-  const heading = useRef<HTMLHeadingElement>(null)
-  useLayoutEffect(() => {
-    if (!isMobile || !selectedRow.current) return
-    const target = indexOpen ? selectedRow.current : heading.current
-    target?.focus({ preventScroll: true })
-  }, [isMobile, indexOpen])
-
   const matchesFilter = (key: Tab) =>
     tServerSettings('tabs.' + key)
       .toLocaleLowerCase()
@@ -84,74 +65,59 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
 
   if (isMobile) {
     return (
-      <div
-        ref={mobileRef}
-        className="fixed inset-0 z-50 flex flex-col bg-surface"
-        role="dialog"
-        aria-modal="true"
-        aria-label={tNav('serverSettings')}
-      >
-        <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
-          <button
-            type="button"
-            onClick={back}
-            className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label={indexOpen ? tNav('closeServerSettings') : tCommon('back')}
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 ref={heading} tabIndex={-1} className="ml-2 text-base font-semibold text-white">
-            {indexOpen ? tNav('serverSettings') : currentLabel}
-          </h1>
-        </div>
-        <div hidden={!indexOpen} className="min-h-0 overflow-y-auto p-3">
-          <input
-            type="search"
-            aria-label={tServerSettings('findSetting')}
-            placeholder={tServerSettings('findSetting')}
-            className="mb-3 w-full rounded bg-surface-darkest p-3"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          {Object.entries(settingGroups).map(([name, tabs]) => {
-            const visible = tabs.filter(matchesFilter)
-            if (!visible.length) return null
-            return (
-              <section key={name}>
-                <h2 className="mt-3 px-3 text-xs font-semibold text-gray-400">
-                  {tServerSettings('indexGroups.' + name)}
-                </h2>
-                {visible.map((key) => (
-                  <button
-                    type="button"
-                    key={key}
-                    className="block min-h-11 w-full rounded px-3 text-left hover:bg-white/10"
-                    onClick={(event) => {
-                      selectedRow.current = event.currentTarget
-                      setTab(key)
-                      setIndexOpen(false)
-                    }}
-                  >
-                    {tServerSettings('tabs.' + key)}
-                  </button>
-                ))}
-              </section>
-            )
-          })}
-          {!SERVER_TABS.some(matchesFilter) && (
-            <p role="status" className="p-3 text-sm text-gray-400">
-              {tServerSettings('lists.noResults')}
-            </p>
-          )}
-        </div>
-        {!indexOpen && (
-          <SimpleBar key={tab} className="min-h-0 flex-1">
-            <div className="p-4">{tabContent}</div>
-          </SimpleBar>
+      <MobileSettingsShell
+        title={tNav('serverSettings')}
+        detailTitle={currentLabel}
+        tab={tab}
+        closeLabel={tNav('closeServerSettings')}
+        backLabel={tCommon('back')}
+        onClose={onClose}
+        className="fixed inset-0 z-50 flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+        index={(openDetail) => (
+          <div className="p-3">
+            <input
+              type="search"
+              aria-label={tServerSettings('findSetting')}
+              placeholder={tServerSettings('findSetting')}
+              className="mb-3 w-full rounded bg-surface-darkest p-3"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {Object.entries(settingGroups).map(([name, tabs]) => {
+              const visible = tabs.filter(matchesFilter)
+              if (!visible.length) return null
+              return (
+                <section key={name}>
+                  <h2 className="mt-3 px-3 text-xs font-semibold text-gray-400">
+                    {tServerSettings('indexGroups.' + name)}
+                  </h2>
+                  {visible.map((key) => (
+                    <button
+                      type="button"
+                      key={key}
+                      data-settings-key={key}
+                      className="block min-h-11 w-full rounded px-3 text-left hover:bg-white/10"
+                      onClick={() => {
+                        setTab(key)
+                        openDetail()
+                      }}
+                    >
+                      {tServerSettings('tabs.' + key)}
+                    </button>
+                  ))}
+                </section>
+              )
+            })}
+            {!SERVER_TABS.some(matchesFilter) && (
+              <p role="status" className="p-3 text-sm text-gray-400">
+                {tServerSettings('lists.noResults')}
+              </p>
+            )}
+          </div>
         )}
-      </div>
+      >
+        <div className="p-4">{tabContent}</div>
+      </MobileSettingsShell>
     )
   }
 

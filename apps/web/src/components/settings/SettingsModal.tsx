@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SectionHeading } from '@/components/ui/SectionHeading'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-import { useBackGestureClose } from '@/hooks/useBackGestureClose'
+import { MobileSettingsShell } from './MobileSettingsShell'
 import { useIsMobile } from '@/hooks/useMobile'
 import SimpleBar from 'simplebar-react'
 import { VoiceSettings } from '@/components/voice/VoiceSettings'
@@ -58,21 +58,13 @@ export function SettingsModal({
   const [tab, setTab] = useState<Tab>((initialTab as Tab) || 'account')
   const modalRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
-  const [mobileIndex, setMobileIndex] = useState(!initialTab)
   const { isInstalled } = usePwaInstall()
   const platform = getDevicePlatform()
-  const back = () => {
-    if (isMobile && !mobileIndex) setMobileIndex(true)
-    else onClose()
-  }
-  useFocusTrap(modalRef, open, back)
-  useBackGestureClose(open, onClose, isMobile)
-  useBackGestureClose(open && !mobileIndex, () => setMobileIndex(true), isMobile)
+  useFocusTrap(modalRef, open && !isMobile, onClose)
 
   useEffect(() => {
     if (initialTab) {
       setTab(initialTab as Tab)
-      setMobileIndex(false)
     }
   }, [initialTab])
 
@@ -129,74 +121,62 @@ export function SettingsModal({
 
   if (isMobile) {
     return (
-      <div
-        ref={modalRef}
+      <MobileSettingsShell
+        title={t('title')}
+        detailTitle={currentLabel}
+        tab={tab}
+        directTab={initialTab}
+        closeLabel={t('closeSettings')}
+        backLabel={t('backToSettings')}
+        onClose={onClose}
         className={`fixed inset-x-0 bottom-0 z-[100] flex flex-col bg-surface pb-[env(safe-area-inset-bottom)] ${
           isElectron ? 'top-8' : 'top-0 pt-[env(safe-area-inset-top)]'
         }`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('title')}
-      >
-        <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
-          <button
-            type="button"
-            onClick={back}
-            className="flex h-11 w-11 items-center justify-center rounded text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label={mobileIndex ? t('closeSettings') : t('backToSettings')}
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="ml-2 text-base font-semibold text-white">{mobileIndex ? t('title') : currentLabel}</h1>
-        </div>
-        <SimpleBar key={mobileIndex ? 'index' : tab} className="min-h-0 flex-1">
-          <div className="px-4 py-6 [&_button]:min-h-11 [&_button]:min-w-11 [&_select]:min-h-11">
-            {mobileIndex ? (
-              <nav aria-label={t('title')} className="space-y-6">
-                {Array.from(new Set(visibleTabs.map((entry) => entry.group))).map((group) => (
-                  <section key={group}>
-                    <SectionHeading as="h2" className="mb-2">
-                      {t(`mobileGroup${group}`)}
-                    </SectionHeading>
-                    <div className="overflow-hidden rounded-xl bg-surface-dark">
-                      {visibleTabs
-                        .filter((entry) => entry.group === group)
-                        .map((entry) => (
-                          <button
-                            key={entry.key}
-                            type="button"
-                            onClick={() => {
-                              setTab(entry.key)
-                              setMobileIndex(false)
-                            }}
-                            className="flex min-h-14 w-full items-center justify-between border-b border-white/5 px-4 text-left text-sm text-gray-200 last:border-0 hover:bg-white/5"
+        index={(openDetail) => (
+          <div className="px-4 py-6">
+            <nav aria-label={t('title')} className="space-y-6">
+              {Array.from(new Set(visibleTabs.map((entry) => entry.group))).map((group) => (
+                <section key={group}>
+                  <SectionHeading as="h2" className="mb-2">
+                    {t(`mobileGroup${group}`)}
+                  </SectionHeading>
+                  <div className="overflow-hidden rounded-xl bg-surface-dark">
+                    {visibleTabs
+                      .filter((entry) => entry.group === group)
+                      .map((entry) => (
+                        <button
+                          key={entry.key}
+                          data-settings-key={entry.key}
+                          type="button"
+                          onClick={() => {
+                            setTab(entry.key)
+                            openDetail()
+                          }}
+                          className="flex min-h-14 w-full items-center justify-between border-b border-white/5 px-4 text-left text-sm text-gray-200 last:border-0 hover:bg-white/5"
+                        >
+                          {entry.label}
+                          <svg
+                            aria-hidden="true"
+                            className="h-4 w-4 text-gray-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
                           >
-                            {entry.label}
-                            <svg
-                              aria-hidden="true"
-                              className="h-4 w-4 text-gray-500"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <path d="m9 5 7 7-7 7" />
-                            </svg>
-                          </button>
-                        ))}
-                    </div>
-                  </section>
-                ))}
-                <LogOutButton onClose={onClose} mobile />
-              </nav>
-            ) : (
-              settingsContent
-            )}
+                            <path d="m9 5 7 7-7 7" />
+                          </svg>
+                        </button>
+                      ))}
+                  </div>
+                </section>
+              ))}
+              <LogOutButton onClose={onClose} mobile />
+            </nav>
           </div>
-        </SimpleBar>
-      </div>
+        )}
+      >
+        <div className="px-4 py-6 [&_button]:min-h-11 [&_button]:min-w-11 [&_select]:min-h-11">{settingsContent}</div>
+      </MobileSettingsShell>
     )
   }
 
