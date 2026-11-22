@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
 import { useDialogName } from '@/hooks/useDialogName'
+
+const SWIPE_DISMISS_DISTANCE = 60
+const SWIPE_SLOP = 8
 
 interface BottomSheetProps {
   open: boolean
@@ -34,8 +37,11 @@ export function BottomSheet({
   const { t } = useTranslation('common')
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
+  const [dragOffset, setDragOffset] = useState(0)
   const sheetRef = useRef<HTMLDivElement>(null)
   const backdropTouchStarted = useRef(false)
+  const swipeStart = useRef<{ pointerId: number; x: number; y: number } | null>(null)
+  const handleMoved = useRef(false)
   const name = useDialogName(sheetRef, open, children, label)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -50,12 +56,17 @@ export function BottomSheet({
     }
     clearTimeout(closeTimer.current)
     closeTimer.current = undefined
+    swipeStart.current = null
+    handleMoved.current = false
+    setDragOffset(0)
     setVisible(false)
     setReady(false)
   }, [open])
 
   const close = useCallback(() => {
     if (closeTimer.current) return
+    swipeStart.current = null
+    setDragOffset(0)
     setVisible(false)
     closeTimer.current = setTimeout(() => {
       closeTimer.current = undefined
@@ -65,6 +76,21 @@ export function BottomSheet({
   useFocusTrap(sheetRef, open, closeOnEscape ? close : undefined)
   useBackGestureClose(open, close, closeOnEscape)
   useEffect(() => () => clearTimeout(closeTimer.current), [])
+
+  function updateSwipe(event: PointerEvent<HTMLButtonElement>) {
+    const start = swipeStart.current
+    if (!start || event.pointerId !== start.pointerId) return
+    const x = Math.abs(event.clientX - start.x)
+    const y = event.clientY - start.y
+    if (Math.max(x, Math.abs(y)) > SWIPE_SLOP) handleMoved.current = true
+    return y > SWIPE_SLOP && y > x * 1.5 ? y : 0
+  }
+
+  function resetSwipe(event: PointerEvent<HTMLButtonElement>) {
+    if (event.pointerId !== swipeStart.current?.pointerId) return
+    swipeStart.current = null
+    setDragOffset(0)
+  }
 
   if (!open) return null
 
@@ -99,8 +125,9 @@ export function BottomSheet({
       }}
     >
       <div
-        className={`flex w-full max-w-lg flex-col rounded-t-2xl bg-surface-dark pb-4 shadow-2xl ring-1 ring-white/10 transition-transform duration-200 ${visible ? 'translate-y-0' : 'translate-y-full'} ${bodyScrollable ? '' : 'overflow-hidden'}`}
+        className={`flex w-full max-w-lg flex-col rounded-t-2xl bg-surface-dark pb-4 shadow-2xl ring-1 ring-white/10 ${dragOffset ? 'transition-none' : 'transition-transform duration-200'} ${visible ? 'translate-y-0' : 'translate-y-full'} ${bodyScrollable ? '' : 'overflow-hidden'}`}
         style={{
+          translate: dragOffset ? `0 ${dragOffset}px` : undefined,
           maxHeight: `${maxHeightDvh}dvh`,
           ...(bodyScrollable
             ? {}
@@ -114,8 +141,28 @@ export function BottomSheet({
         <button
           type="button"
           aria-label={t('close')}
-          onClick={close}
-          className="flex min-h-11 shrink-0 items-center justify-center py-3"
+          className="flex min-h-11 shrink-0 touch-none items-center justify-center py-3"
+          onPointerDown={(event) => {
+            if (!event.isPrimary || event.button !== 0) return
+            handleMoved.current = false
+            if (event.pointerType !== 'touch' || !visible) return
+            swipeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+          }}
+          onPointerMove={(event) => {
+            const offset = updateSwipe(event)
+            if (offset !== undefined) setDragOffset(offset)
+          }}
+          onPointerUp={(event) => {
+            const offset = updateSwipe(event)
+            resetSwipe(event)
+            if (offset !== undefined && offset >= SWIPE_DISMISS_DISTANCE) close()
+          }}
+          onPointerCancel={resetSwipe}
+          onLostPointerCapture={resetSwipe}
+          onClick={(event) => {
+            // A touch drag can still produce a click on the handle.
+            if (event.detail === 0 || !handleMoved.current) close()
+          }}
         >
           <div className="h-1 w-10 rounded-full bg-gray-600" />
         </button>

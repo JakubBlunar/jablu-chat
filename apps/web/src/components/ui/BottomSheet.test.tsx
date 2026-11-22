@@ -13,6 +13,54 @@ afterEach(async () => {
   await Promise.resolve()
   jest.restoreAllMocks()
 })
+
+function touchPointer(target: Element, type: string, clientY: number) {
+  const event = new MouseEvent(type, { bubbles: true, clientX: 100, clientY })
+  fireEvent(target, Object.assign(event, { pointerId: 1, pointerType: 'touch', isPrimary: true }))
+}
+
+it('follows a downward swipe from the handle and dismisses on release', async () => {
+  const onClose = jest.fn()
+  render(
+    <BottomSheet open onClose={onClose}>
+      Sheet contents
+    </BottomSheet>
+  )
+  const handle = screen.getByRole('button', { name: 'close' })
+  const panel = handle.parentElement
+  await waitFor(() => expect(panel).toHaveClass('translate-y-0'))
+  touchPointer(handle.firstElementChild!, 'pointerdown', 100)
+  touchPointer(handle, 'pointermove', 180)
+  expect(panel).toHaveStyle({ translate: '0 80px' })
+  expect(onClose).not.toHaveBeenCalled()
+  touchPointer(handle, 'pointerup', 180)
+  expect(panel).toHaveClass('translate-y-full')
+  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+})
+
+it('returns after a short handle drag and ignores its click while keeping taps enabled', async () => {
+  const onClose = jest.fn()
+  render(
+    <BottomSheet open onClose={onClose}>
+      Sheet contents
+    </BottomSheet>
+  )
+  const handle = screen.getByRole('button', { name: 'close' })
+  const panel = handle.parentElement!
+  await waitFor(() => expect(panel).toHaveClass('translate-y-0'))
+  touchPointer(handle, 'pointerdown', 100)
+  touchPointer(handle, 'pointermove', 130)
+  touchPointer(handle, 'pointerup', 130)
+  fireEvent.click(handle, { detail: 1 })
+  expect(panel.style.translate).toBe('')
+  expect(panel).toHaveClass('translate-y-0')
+
+  touchPointer(handle, 'pointerdown', 100)
+  touchPointer(handle, 'pointerup', 100)
+  fireEvent.click(handle, { detail: 1 })
+  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+})
+
 it('traps Tab and outside focus, isolates the background, and restores the trigger', async () => {
   const view = (open: boolean) => (
     <>
