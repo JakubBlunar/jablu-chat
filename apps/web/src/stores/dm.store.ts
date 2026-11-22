@@ -5,7 +5,7 @@ import { requireMessageTarget, historyErrorKey } from '@/lib/messageHistory'
 import { api, type DmConversation } from '@/lib/api'
 import { CACHE_PAGE_SIZE, dmKey, evictContext, getContext, putContext } from '@/lib/cache/messageCache'
 import { isForbidden } from '@/lib/cache/isForbidden'
-import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
+import { mergeNewerPage, mergeOlderPage, mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
 import { compareDmConversations } from '@/lib/dmDisplay'
 import { useReadStateStore } from './readState.store'
 
@@ -82,7 +82,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
 
       if (cursor) {
         set((s) => {
-          const merged = [...chronological, ...s.messages]
+          const merged = mergeOlderPage(s.messages, chronological)
           const trimmed = trimNewest(merged)
           return {
             messages: trimmed,
@@ -138,6 +138,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
     const { messages } = _get()
     if (!messages.length) return
     const newestId = messages[messages.length - 1].id
+    const atRequest = new Set(messages.map(message => message.id))
     const fetchId = ++_dmFetchId
     set({ isLoading: true, messagesError: null })
     try {
@@ -149,7 +150,7 @@ export const useDmStore = create<DmState>((set, _get) => ({
       }
       const chronological = toChronological(page.messages)
       set((s) => {
-        const merged = [...s.messages, ...chronological]
+        const merged = mergeNewerPage(s.messages, chronological, atRequest, !!page.hasNewer)
         const trimmed = trimOldest(merged)
         return {
           messages: trimmed,

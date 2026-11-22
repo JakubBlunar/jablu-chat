@@ -6,7 +6,7 @@ import { CACHE_PAGE_SIZE, channelKey, evictContext, getContext, putContext } fro
 import { isForbidden } from '@/lib/cache/isForbidden'
 import { requireMessageTarget, historyErrorKey } from '@/lib/messageHistory'
 import { evictServer as evictServerStructure } from '@/lib/cache/structureCache'
-import { mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
+import { mergeNewerPage, mergeOlderPage, mergeNewestPage, toChronological, trimOldest, trimNewest } from '@/lib/message-pagination'
 import { useChannelPermissionsStore } from './channel-permissions.store'
 import { useChannelStore } from './channel.store'
 
@@ -84,7 +84,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
       if (cursor) {
         set((s) => {
-          const merged = [...chronological, ...s.messages]
+          const merged = mergeOlderPage(s.messages, chronological)
           const trimmed = trimNewest(merged)
           return {
             messages: trimmed,
@@ -143,6 +143,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     const { messages } = get()
     if (!messages.length) return
     const newestId = messages[messages.length - 1].id
+    const atRequest = new Set(messages.map(message => message.id))
     const fetchId = ++_msgFetchId
     set({ isLoading: true, messagesError: null })
     try {
@@ -155,7 +156,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       }
       const chronological = toChronological(page.messages)
       set((s) => {
-        const merged = [...s.messages, ...chronological]
+        const merged = mergeNewerPage(s.messages, chronological, atRequest, !!page.hasNewer)
         const trimmed = trimOldest(merged)
         return {
           messages: trimmed,

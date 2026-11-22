@@ -1,3 +1,4 @@
+import { mergeOlderPage, uniqueMessages } from '@/lib/message-pagination'
 import { addMessageReaction, removeMessageReaction, replaceMessageInList, removeMessageFromList, messageListPatch } from '@/lib/messageCollection'
 import type { Message } from '@chat/shared'
 import { create } from 'zustand'
@@ -64,7 +65,7 @@ export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
       if (fetchId !== requestId || get().postId !== postId || get().channelId !== channelId) return
       if (focusMessageId) requireMessageTarget(result.messages, focusMessageId)
       set({
-        messages: result.messages,
+        messages: uniqueMessages(result.messages),
         hasMore: result.hasMore,
         hasNewer: !!result.hasNewer,
         isLoading: false,
@@ -87,7 +88,7 @@ export const useForumReplyStore = create<ForumReplyState>((set, get) => ({
       const result = await api.getThreadMessages(channelId, postId, { cursor: oldestMsg.id })
       if (fetchId !== requestId || get().postId !== postId || get().channelId !== channelId) return
       set((s) => ({
-        messages: [...result.messages, ...s.messages],
+        messages: mergeOlderPage(s.messages, result.messages),
         hasMore: result.hasMore,
         isLoading: false
       }))

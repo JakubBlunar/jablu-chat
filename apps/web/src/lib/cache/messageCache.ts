@@ -1,3 +1,4 @@
+import { uniqueMessages } from '../message-pagination'
 import type { Message } from '@chat/shared'
 
 /** How many contexts stay resident. Beyond this the least recently used goes. */
@@ -81,10 +82,11 @@ export function putContext(
   key: CacheKey,
   input: { messages: Message[]; hasMore: boolean; hasNewer: boolean; stale?: boolean; updatedAt?: number }
 ): void {
-  const trimmed = trimToPage(input.messages)
+  const unique = uniqueMessages(input.messages)
+  const trimmed = trimToPage(unique)
   const entry: CachedContext = {
     messages: trimmed,
-    hasMore: input.hasMore || trimmed.length < input.messages.length,
+    hasMore: input.hasMore || trimmed.length < unique.length,
     hasNewer: input.hasNewer,
     stale: input.stale ?? false,
     updatedAt: input.updatedAt ?? Date.now()

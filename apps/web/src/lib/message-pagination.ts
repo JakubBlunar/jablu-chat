@@ -2,8 +2,34 @@ import type { Message } from '@chat/shared'
 
 export const MAX_MESSAGES = 250
 
+/** Preserve the order of the first occurrence. Message IDs survive retries and reconnects. */
+export function uniqueMessages(messages: Message[]): Message[] {
+  const ids = new Set<string>()
+  const unique = messages.filter(message => {
+    if (ids.has(message.id)) return false
+    ids.add(message.id)
+    return true
+  })
+  return unique.length === messages.length ? messages : unique
+}
+
+export function mergeOlderPage(current: Message[], page: Message[]) {
+  const resident = new Set(current.map(message => message.id))
+  return uniqueMessages([...page.filter(message => !resident.has(message.id)), ...current])
+}
+
+export function mergeNewerPage(current: Message[], page: Message[], atRequest: Set<string>, hasNewer: boolean) {
+  const existing = new Map(current.map(message => [message.id, message]))
+  return uniqueMessages([
+    ...current.filter(message => atRequest.has(message.id)),
+    ...page.map(message => existing.get(message.id) ?? message),
+    // When more pages follow, retain a contiguous window so the next cursor cannot skip a gap.
+    ...(hasNewer ? [] : current.filter(message => !atRequest.has(message.id)))
+  ])
+}
+
 export function toChronological(messagesDesc: Message[]): Message[] {
-  return messagesDesc.slice().reverse()
+  return uniqueMessages(messagesDesc.slice().reverse())
 }
 
 export function trimOldest(msgs: Message[]): Message[] {
