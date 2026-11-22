@@ -57,6 +57,7 @@ it('updates a disappearing device list and removes the device listener on unmoun
 })
 
 it('releases a permission-label capture that resolves after unmount', async () => {
+  media.enumerateDevices.mockResolvedValue([{ kind: 'audioinput', deviceId: '', label: '' }])
   query.mockImplementation(({ name }) => Promise.resolve({ state: name === 'microphone' ? 'granted' : 'prompt' }))
   let finish!: (stream: MediaStream) => void
   media.getUserMedia.mockImplementation(
@@ -120,4 +121,17 @@ it('enumerates devices even when a previously granted capture fails', async () =
   media.getUserMedia.mockRejectedValue(new DOMException('Unavailable', 'NotFoundError'))
   const { result } = renderHook(useMediaDeviceSettings)
   await waitFor(() => expect(result.current.audioInputs).toHaveLength(1))
+})
+
+it('uses already-labeled microphones and cameras without opening either device', async () => {
+  query.mockResolvedValue({ state: 'granted' })
+  media.enumerateDevices.mockResolvedValue([
+    { kind: 'audioinput', deviceId: 'mic', label: 'Call microphone' },
+    { kind: 'videoinput', deviceId: 'cam', label: 'Camera' }
+  ])
+  const { result } = renderHook(useMediaDeviceSettings)
+  await waitFor(() => expect(result.current.cameraGranted).toBe(true))
+  expect(result.current.audioInputs[0].label).toBe('Call microphone')
+  expect(media.getUserMedia).not.toHaveBeenCalled()
+  expect(media.enumerateDevices).toHaveBeenCalledTimes(1)
 })

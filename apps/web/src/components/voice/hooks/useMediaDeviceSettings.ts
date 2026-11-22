@@ -35,6 +35,7 @@ export function useMediaDeviceSettings() {
     setAudioInputs(options('audioinput', 'settings.microphoneWithId'))
     setAudioOutputs(options('audiooutput', 'settings.speakerWithId'))
     setVideoInputs(options('videoinput', 'settings.cameraWithId'))
+    return devices
   }, [t])
 
   useEffect(() => {
@@ -45,25 +46,29 @@ export function useMediaDeviceSettings() {
       if (!media?.enumerateDevices) return
       const query = (name: PermissionName) =>
         navigator.permissions?.query?.({ name }).catch(() => null) ?? Promise.resolve(null)
-      const [mic, camera] = await Promise.all([
+      const [mic, camera, devices] = await Promise.all([
         query('microphone' as PermissionName),
-        query('camera' as PermissionName)
+        query('camera' as PermissionName),
+        enumerateDevices()
       ])
       if (!active()) return
-      setMicGranted(mic?.state === 'granted')
-      setCameraGranted(camera?.state === 'granted')
+      const hasLabels = (kind: MediaDeviceKind) => devices?.some((device) => device.kind === kind && !!device.label)
+      setMicGranted(mic?.state === 'granted' || (!mic && !!hasLabels('audioinput')))
+      setCameraGranted(camera?.state === 'granted' || (!camera && !!hasLabels('videoinput')))
       setMicDenied(mic?.state === 'denied')
       setCameraDenied(camera?.state === 'denied')
       const streams: MediaStream[] = []
       try {
         try {
-          if (mic?.state === 'granted' && media.getUserMedia) streams.push(await media.getUserMedia({ audio: true }))
+          if (mic?.state === 'granted' && !hasLabels('audioinput') && media.getUserMedia)
+            streams.push(await media.getUserMedia({ audio: true }))
           if (!active()) return
-          if (camera?.state === 'granted' && media.getUserMedia) streams.push(await media.getUserMedia({ video: true }))
+          if (camera?.state === 'granted' && !hasLabels('videoinput') && media.getUserMedia)
+            streams.push(await media.getUserMedia({ video: true }))
         } catch {
           // Device choices can still refresh when a previously granted capture fails.
         }
-        if (active()) await enumerateDevices()
+        if (active() && streams.length) await enumerateDevices()
       } finally {
         streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()))
       }
