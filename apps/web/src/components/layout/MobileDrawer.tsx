@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
+import { getIsMobileDevice, getIsStandalone } from '@/hooks/usePwaInstall'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
@@ -21,7 +22,9 @@ export function MobileDrawer({
 }: Props) {
   const [visible, setVisible] = useState(false)
   const [animating, setAnimating] = useState(false)
-  const swipe = useHorizontalSwipe(side, onClose)
+  const swipe = useHorizontalSwipe(side, onClose, {
+    preventBrowserPan: open && getIsMobileDevice() && getIsStandalone()
+  })
   const drawerRef = useRef<HTMLDivElement>(null)
   const backdropPressed = useRef(false)
   const name = useDialogName(drawerRef, visible, children, label)

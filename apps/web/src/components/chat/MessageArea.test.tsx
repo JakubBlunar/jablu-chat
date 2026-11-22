@@ -244,8 +244,10 @@ describe('MessageArea', () => {
       jest.mocked(getIsStandalone).mockReturnValue(standalone)
       render(<MessageArea mode="dm" contextId="conv-1" />)
       const history = screen.getByTestId('messages')
-      const edge = window.innerWidth - 32
+      const edge = window.innerWidth - 64
       fireEvent.touchStart(history, { touches: [{ clientX: edge, clientY: 100 }] })
+      const allowedPan = fireEvent.touchMove(history, { touches: [{ clientX: edge - 4, clientY: 101 }] })
+      expect(allowedPan).toBe(!standalone)
       fireEvent.touchMove(history, { touches: [{ clientX: edge - 95, clientY: 103 }] })
       // A committed swipe can curl back before the finger lifts.
       const allowedDefault = fireEvent.touchEnd(history, { changedTouches: [{ clientX: edge - 42, clientY: 113 }] })

@@ -6,7 +6,8 @@ export function isVerticalDrag(dx: number, dy: number) {
   return Math.abs(dy) > Math.abs(dx) + 8
 }
 
-export const drawerEdgeWidth = 48
+// Reachable from inside the screen even when the OS takes the outer edge.
+export const drawerEdgeWidth = 80
 
 export function startsDetailsDrawerSwipe(target: EventTarget | null, x: number) {
   return x >= window.innerWidth - drawerEdgeWidth && target instanceof Element && !!target.closest('[data-details-drawer-edge]')

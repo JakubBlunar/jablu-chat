@@ -211,12 +211,17 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const edgeEnabled = mobilePwa && !searchOpen && (isDm
     ? !!dm.currentConv && !dmSheetOpen
     : !!activeChannel && !!channelServer && !threadOpen && !channelInfoOpen)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
   const detailsSwipe = useHorizontalSwipe('left', () => {
     if (isDm) {
       setDmInfoTab('details')
       setDmSheetOpen(true)
     } else setChannelInfoOpen(true)
-  }, (event) => startsDetailsDrawerSwipe(event.target, event.touches[0].clientX))
+  }, {
+    startsAtEdge: (event) => startsDetailsDrawerSwipe(event.target, event.touches[0].clientX),
+    preventBrowserPan: edgeEnabled,
+    elementRef: dropZoneRef
+  })
   const { pinnedOpen, setPinnedOpen } = pinned
 
   useEffect(() => {
@@ -260,7 +265,6 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const channelRefsRef = useRef(dm.channelRefs)
   channelRefsRef.current = dm.channelRefs
-  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(
@@ -386,10 +390,9 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const messageList = (
     <div
-      ref={dropZoneRef}
       className="relative flex min-h-0 min-w-0 flex-1 flex-col"
       data-details-drawer-edge={edgeEnabled ? '' : undefined}
-      {...(edgeEnabled ? detailsSwipe : {})}
+      {...(edgeEnabled ? detailsSwipe : { ref: dropZoneRef })}
     >
       {!isDm && pinned.pinnedOpen && channelId && (
         <PinnedPanel

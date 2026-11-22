@@ -59,11 +59,17 @@ it.each([[true, true], [true, false], [false, true]])(
     const { shell } = setup()
     const swipe = (x: number) => {
       fireEvent.touchStart(shell, { touches: [{ clientX: x, clientY: 90 }] })
+      const allowedPan = fireEvent.touchMove(shell, { touches: [{ clientX: x + 5, clientY: 91 }] })
       fireEvent.touchEnd(shell, { changedTouches: [{ clientX: x + 90, clientY: 90 }] })
+      return allowedPan
     }
-    swipe(120)
+    expect(swipe(120)).toBe(true)
     expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
-    swipe(24)
+    fireEvent.touchStart(shell, { touches: [{ clientX: 64, clientY: 90 }] })
+    expect(fireEvent.touchMove(shell, { touches: [{ clientX: 65, clientY: 105 }] })).toBe(true)
+    expect(fireEvent.touchMove(shell, { touches: [{ clientX: 106, clientY: 105 }] })).toBe(true)
+    fireEvent.touchCancel(shell)
+    expect(swipe(64)).toBe(!(mobile && standalone))
     expect(useLayoutStore.getState().navDrawerOpen).toBe(mobile && standalone)
     act(() => useLayoutStore.getState().closeNavDrawer())
   }
