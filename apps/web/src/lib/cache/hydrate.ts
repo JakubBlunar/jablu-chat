@@ -1,5 +1,5 @@
 import type { Channel, ChannelCategory, Message } from '@chat/shared'
-import { readMessages, readStructure } from './db'
+import { cacheSession, readMessages, readStructure } from './db'
 import { type CacheKey, peekContext, putContext } from './messageCache'
 import { getChannels, getPermissions, getServerList, putChannels, putPermissions, putServerList } from './structureCache'
 
@@ -30,7 +30,9 @@ function withoutPersisting<T>(fn: () => T): T {
 export async function hydrateContextFromDisk(key: CacheKey): Promise<boolean> {
   if (peekContext(key)) return true
 
+  const session = cacheSession()
   const record = await readMessages(key)
+  if (session !== cacheSession()) return false
   if (peekContext(key)) return true
   if (!record || !Array.isArray(record.messages) || record.messages.length === 0) return false
 
@@ -48,10 +50,12 @@ export async function hydrateContextFromDisk(key: CacheKey): Promise<boolean> {
 
 /** Load one server's sidebar off disk, without clobbering fresher data. */
 export async function hydrateServerStructureFromDisk(serverId: string): Promise<void> {
+  const session = cacheSession()
   const [channels, permissions] = await Promise.all([
     readStructure<{ channels: Channel[]; categories: ChannelCategory[] }>(`channels:${serverId}`),
     readStructure<Record<string, string>>(`permissions:${serverId}`)
   ])
+  if (session !== cacheSession()) return
 
   withoutPersisting(() => {
     if (channels && !getChannels(serverId)) {
@@ -65,7 +69,8 @@ export async function hydrateServerStructureFromDisk(serverId: string): Promise<
 
 export async function hydrateServerListFromDisk(): Promise<void> {
   if (getServerList()) return
+  const session = cacheSession()
   const servers = await readStructure<unknown[]>('servers')
-  if (!servers || getServerList()) return
+  if (session !== cacheSession() || !servers || getServerList()) return
   withoutPersisting(() => putServerList(servers))
 }

@@ -1,10 +1,10 @@
 import { makeMessage } from '@/test/factories'
-import { readMessages, readStructure } from './db'
+import { cacheSession, readMessages, readStructure } from './db'
 import { hydrateContextFromDisk, hydrateServerListFromDisk } from './hydrate'
 import { clearCache, peekContext, putContext } from './messageCache'
 import { clearStructureCache, getServerList, putServerList } from './structureCache'
 
-jest.mock('./db', () => ({ readMessages: jest.fn(), readStructure: jest.fn() }))
+jest.mock('./db', () => ({ cacheSession: jest.fn(), readMessages: jest.fn(), readStructure: jest.fn() }))
 
 beforeEach(() => {
   clearCache(false)
@@ -26,4 +26,13 @@ it('keeps an authoritative empty server list when an older read completes', asyn
   putServerList([])
   await reading
   expect(getServerList()?.servers).toEqual([])
+})
+
+it('discards a pending history read across sign-out and immediate reauthentication', async () => {
+  jest.mocked(cacheSession).mockReturnValueOnce(Promise.resolve(null))
+  const key = 'ch:old'
+  jest.mocked(readMessages).mockResolvedValue({ key, messages: [makeMessage()], hasMore: false, hasNewer: false, updatedAt: 1 })
+  const reading = hydrateContextFromDisk(key)
+  expect(await reading).toBe(false)
+  expect(peekContext(key)).toBeNull()
 })

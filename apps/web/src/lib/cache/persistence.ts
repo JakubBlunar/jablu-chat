@@ -1,6 +1,6 @@
 import { getIsStandalone } from '@/hooks/usePwaInstall'
 import { isDesktop } from '@/lib/desktop'
-import { clearCacheDb, deleteMessages, deleteStructure, initCacheDb, writeMessages, writeStructure } from './db'
+import { clearCacheDb, deleteMessages, deleteStructure, initCacheDb, retireCacheSession, writeMessages, writeStructure } from './db'
 import { isHydrating } from './hydrate'
 import { type CacheKey, onCacheChange, peekContext } from './messageCache'
 import { getChannels, getPermissions, getServerList, onStructureChange, type StructureKind } from './structureCache'
@@ -33,12 +33,14 @@ function scheduleFlush() {
 }
 
 async function flush() {
+  const session = stopListening
   const messageKeys = [...pendingMessageKeys]
   const structureKeys = [...pendingStructureKeys]
   pendingMessageKeys.clear()
   pendingStructureKeys.clear()
 
   for (const key of messageKeys) {
+    if (session !== stopListening) return
     const entry = peekContext(key)
     if (!entry) {
       await deleteMessages(key)
@@ -54,6 +56,7 @@ async function flush() {
   }
 
   for (const key of structureKeys) {
+    if (session !== stopListening) return
     const value = readStructureFromMemory(key)
     if (value === null) {
       await deleteStructure(key)
@@ -86,6 +89,8 @@ let stopListening: (() => void) | null = null
 export async function startCachePersistence(userId: string | null): Promise<void> {
   stopCachePersistence()
 
+  if (!userId) return
+
   if ((isDesktop || getIsStandalone()) && typeof navigator !== 'undefined' && navigator.storage?.persist) {
     void navigator.storage.persist().catch(() => {})
   }
@@ -117,6 +122,7 @@ export async function startCachePersistence(userId: string | null): Promise<void
 }
 
 export function stopCachePersistence(): void {
+  retireCacheSession()
   stopListening?.()
   stopListening = null
   pendingMessageKeys.clear()

@@ -96,25 +96,44 @@ function openDb(): Promise<IDBDatabase | null> {
   return dbPromise
 }
 
-/** Runs a transaction and lets failures through, so callers can react to them. */
+type Owner = { key: 'owner'; userId: string; schema: string; token: string }
+type Binding = Promise<Owner | null>
+let binding: Binding | null = null
+let retired: Binding | null = null
+
+export function cacheSession() {
+  return binding
+}
+
+export function retireCacheSession() {
+  if (binding) retired = binding
+  binding = null
+}
+
+function transactionDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = tx.onabort = () => reject(tx.error)
+  })
+}
+
 async function runStore<T>(
   storeName: string,
   mode: IDBTransactionMode,
-  fn: (store: IDBObjectStore) => Promise<T> | T
+  fn: (store: IDBObjectStore) => Promise<T> | T,
+  session = binding
 ): Promise<T | null> {
+  const owner = await session
   const db = await openDb()
-  if (!db) return null
-
-  const tx = db.transaction(storeName, mode)
+  if (!db || !owner || binding !== session) return null
+  // Validate inside the data transaction so an account switch in another tab
+  // cannot land between the ownership check and the operation.
+  const tx = db.transaction([...new Set([STORE_META, storeName])], mode)
+  const current: Owner | undefined = await request(tx.objectStore(STORE_META).get('owner'))
+  if (current?.token !== owner.token || binding !== session) return null
   const result = await fn(tx.objectStore(storeName))
-  if (mode === 'readwrite') {
-    await new Promise<void>((resolve, reject) => {
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-      tx.onabort = () => reject(tx.error)
-    })
-  }
-  return result
+  if (mode === 'readwrite') await transactionDone(tx)
+  return binding === session ? result : null
 }
 
 /** The same, for the majority of callers for whom a failure is simply a miss. */
@@ -141,49 +160,57 @@ function fresh(updatedAt: number): boolean {
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 
 export async function cacheOwnedBy(userId: string | null): Promise<boolean> {
-  const meta = await withStore(STORE_META, 'readonly', store =>
-    request(store.get('owner') as IDBRequest<{userId: string | null; schema:string} | undefined>)
-  )
-  return !!meta && meta.userId === userId && meta.schema === SCHEMA_VERSION
+  if (!userId) return false
+  const owner = await withStore(STORE_META, 'readonly', store => request<Owner | undefined>(store.get('owner')))
+  return owner?.userId === userId
 }
 
-/**
- * Bind the cache to a user and schema. Anything belonging to a different user
- * or an older schema is dropped, so a cache can never leak across accounts.
- */
+const allStores = [STORE_META, STORE_MESSAGES, STORE_STRUCTURE]
+
 export async function initCacheDb(userId: string | null): Promise<void> {
-  const db = await openDb()
-  if (!db) return
-
-  if (await cacheOwnedBy(userId)) {
-    await pruneExpired()
-    return
+  retireCacheSession()
+  if (!userId) return
+  const session = bind().catch(() => null)
+  binding = session
+  async function bind(): Promise<Owner | null> {
+    const db = await openDb()
+    if (!db || session !== binding) return null
+    const tx = db.transaction(allStores, 'readwrite')
+    const meta = tx.objectStore(STORE_META)
+    const previous: Owner | undefined = await request(meta.get('owner'))
+    if (session !== binding) return null
+    const matches = previous?.userId === userId && previous.schema === SCHEMA_VERSION
+    if (!matches) {
+      tx.objectStore(STORE_MESSAGES).clear()
+      tx.objectStore(STORE_STRUCTURE).clear()
+    }
+    const owner: Owner = { key: 'owner', userId: userId!, schema: SCHEMA_VERSION,
+      token: (matches && previous.token) || crypto.randomUUID() }
+    meta.put(owner)
+    const cutoff = IDBKeyRange.upperBound(Date.now() - TTL_MS)
+    await Promise.all([STORE_MESSAGES, STORE_STRUCTURE].map(async name => {
+      const store = tx.objectStore(name)
+      const keys = await request(store.index(BY_UPDATED_AT).getAllKeys(cutoff))
+      for (const key of keys) store.delete(key)
+    }))
+    await transactionDone(tx)
+    return owner
   }
-
-  await clearCacheDb()
-  await withStore(STORE_META, 'readwrite', (store) => {
-    store.put({ key: 'owner', userId, schema: SCHEMA_VERSION })
-  })
+  await session
 }
 
 export async function clearCacheDb(): Promise<void> {
+  const session = binding ?? retired
+  const owner = await session
   const db = await openDb()
-  if (!db) return
-  for (const name of [STORE_MESSAGES, STORE_STRUCTURE, STORE_META]) {
-    await withStore(name, 'readwrite', (store) => {
-      store.clear()
-    })
-  }
-}
-
-async function pruneExpired(): Promise<void> {
-  const cutoff = Date.now() - TTL_MS
-  for (const name of [STORE_MESSAGES, STORE_STRUCTURE]) {
-    await withStore(name, 'readwrite', async (store) => {
-      const keys = await request(store.index(BY_UPDATED_AT).getAllKeys(IDBKeyRange.upperBound(cutoff)))
-      for (const key of keys) store.delete(key)
-    })
-  }
+  if (!owner || !db || (binding && binding !== session)) return
+  try {
+    const tx = db.transaction(allStores, 'readwrite')
+    const current: Owner | undefined = await request(tx.objectStore(STORE_META).get('owner'))
+    if (current?.token !== owner.token || (binding && binding !== session)) return
+    for (const name of allStores) tx.objectStore(name).clear()
+    await transactionDone(tx)
+  } catch { /* Disk storage is best effort. */ }
 }
 
 async function deleteOldest(store: IDBObjectStore, count: number): Promise<void> {
@@ -218,15 +245,16 @@ export async function readMessages(key: string): Promise<StoredMessages | null> 
 }
 
 export async function writeMessages(record: StoredMessages): Promise<void> {
+  const session = binding
   const put = () =>
     runStore(STORE_MESSAGES, 'readwrite', (store) => {
       store.put(record)
-    })
+    }, session)
 
   try {
     await put()
   } catch (err) {
-    if (!isQuotaError(err)) return
+    if (binding !== session || !isQuotaError(err)) return
     await evictOldestMessages()
     try {
       await put()
@@ -235,7 +263,7 @@ export async function writeMessages(record: StoredMessages): Promise<void> {
       return
     }
   }
-  await enforceMessageCap()
+  if (binding === session) await enforceMessageCap()
 }
 
 export async function deleteMessages(key: string): Promise<void> {
@@ -255,6 +283,7 @@ export async function readStructure<T>(key: string): Promise<T | null> {
 }
 
 export async function writeStructure(key: string, value: unknown, updatedAt = Date.now()): Promise<void> {
+  const session = binding
   try {
     await runStore(STORE_STRUCTURE, 'readwrite', (store) => {
       store.put({ key, value, updatedAt })
@@ -262,7 +291,7 @@ export async function writeStructure(key: string, value: unknown, updatedAt = Da
   } catch (err) {
     // Messages are the bulk of the cache, so they are what gets sacrificed to
     // make room for the far smaller structure records.
-    if (isQuotaError(err)) await evictOldestMessages()
+    if (binding === session && isQuotaError(err)) await evictOldestMessages()
   }
 }
 
@@ -274,5 +303,6 @@ export async function deleteStructure(key: string): Promise<void> {
 
 /** Test hook: forces the next call to reopen the database. */
 export function resetDbForTests(): void {
+  binding = retired = null
   dbPromise = null
 }
