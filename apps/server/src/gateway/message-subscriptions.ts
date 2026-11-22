@@ -71,7 +71,7 @@ export function emitMessageEvent(
   const full = fullMessageRoom(mode, id)
   // A newly added membership can receive full events until its background
   // rooms finish joining. This also keeps mixed-version rollout gap-free.
-  server.to(base).except(backgroundRoom(mode, id)).emit(event, data)
+  server.to(base).except([backgroundRoom(mode, id), full]).emit(event, data)
   server.to(full).emit(event, data)
   const activity: MessageActivity = { mode, contextId: id, event }
   // Producer data is internal, and only this explicit allowlist goes to background clients.

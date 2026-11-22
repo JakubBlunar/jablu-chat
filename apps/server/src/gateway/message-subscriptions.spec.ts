@@ -79,6 +79,11 @@ it('keeps membership transitions and background DM invalidations gap-free', asyn
   emitMessageEvent(io, 'dm', 'conversation', 'dm:new', { id: 'message' }, true)
   expect(s.events[0]!.event).toBe('dm:new')
   s.events.length = 0
+  await s.join(fullMessageRoom('dm', 'conversation'))
+  emitMessageEvent(io, 'dm', 'conversation', 'dm:new', { id: 'during-join' }, true)
+  expect(s.events).toEqual([{ event: 'dm:new', data: { id: 'during-join' } }])
+  s.events.length = 0
+  await s.leave(fullMessageRoom('dm', 'conversation'))
   await joinMessageContext(s, 'dm', 'conversation')
   emitMessageEvent(io, 'dm', 'conversation', 'dm:edit', { id: 'message', content: 'private text' }, true)
   expect(s.events).toEqual([
