@@ -58,7 +58,7 @@ export async function waitForMessages(page: Page, minCount = 1) {
   expect(count).toBeGreaterThanOrEqual(minCount)
 }
 
-export async function createTestServer(page: Page, request: APIRequestContext) {
+export async function getTestAdminToken(request: APIRequestContext): Promise<string> {
   const env = Object.fromEntries(
     ['.env', '.env.development', '.env.local'].filter(fs.existsSync).flatMap((file) =>
       fs
@@ -78,18 +78,23 @@ export async function createTestServer(page: Page, request: APIRequestContext) {
   })
   const auth = await response.json()
   expect(auth.ok).toBe(true)
+  return auth.token
+}
+
+export async function createTestServer(page: Page, request: APIRequestContext) {
+  const token = await getTestAdminToken(request)
   const ownerUserId = await page.evaluate(async () => {
     const path = '/src/stores/auth.store.ts'
     const { useAuthStore } = await import(/* @vite-ignore */ path)
     return useAuthStore.getState().user.id
   })
   const created = await request.post('http://localhost:3001/api/admin/servers', {
-    headers: { 'x-admin-token': auth.token },
+    headers: { 'x-admin-token': token },
     data: { name: `Settings QA ${Date.now()}`, ownerUserId }
   })
   expect(created.ok()).toBe(true)
   const server = await created.json()
-  await request.post('http://localhost:3001/api/admin/logout', { headers: { 'x-admin-token': auth.token } })
+  await request.post('http://localhost:3001/api/admin/logout', { headers: { 'x-admin-token': token } })
   return apiCall(page, 'get', `/api/servers/${server.id}`)
 }
 

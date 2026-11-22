@@ -137,6 +137,7 @@ database('Storage cleanup safety contracts (isolated PostgreSQL + real files)', 
       status: 'completed',
       planVersion: 1,
       totalFreeable: 20n,
+      storageStats: { messageCount: 1, attachmentCount: 1, dirSize: { attachments: 20 } },
       affectedMessages: 0,
       affectedAttachments: 1
     })

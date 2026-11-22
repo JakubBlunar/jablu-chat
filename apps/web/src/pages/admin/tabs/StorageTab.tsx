@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StorageAudit, StorageStats } from '../adminTypes'
 import { adminFetch } from '../adminApi'
 import { fmtBytes, fmtDate } from '../adminFormatters'
@@ -84,36 +84,57 @@ export function StorageTab() {
   useEffect(() => {
     if (!running) return
     let cancelled = false
-    const timer = window.setInterval(() => {
-      void adminFetch<StorageAudit[]>('/api/admin/storage/audits')
-        .then((next) => {
-          if (cancelled) return
-          setAudits(next)
-          if (!next.some((a) => a.status === 'executing')) void fetchData()
-        })
-        .catch((e) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : 'Progress unavailable; refresh to recover')
-        })
-    }, 2000)
+    let timer: number
+    const poll = async () => {
+      try {
+        const next = await adminFetch<StorageAudit[]>('/api/admin/storage/audits')
+        if (cancelled) return
+        setAudits(next)
+        if (!next.some((a) => a.status === 'executing')) return
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Progress unavailable; refresh to recover')
+      }
+      if (!cancelled) timer = window.setTimeout(poll, 2000)
+    }
+    timer = window.setTimeout(poll, 2000)
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+      window.clearTimeout(timer)
     }
-  }, [running, fetchData])
+  }, [running])
+
+  const previouslyRunning = useRef(false)
+  const latestAuditId = audits[0]?.id
+  useEffect(() => {
+    const finished = previouslyRunning.current && !running
+    previouslyRunning.current = running
+    if (!finished) return
+    // The report is already visible while a potentially long disk walk finishes.
+    let cancelled = false
+    void adminFetch<StorageStats>('/api/admin/storage')
+      .then((next) => {
+        if (!cancelled) setStats(next)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Storage statistics unavailable')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [running, latestAuditId])
 
   const handleRunAudit = async (mode: 'pressure' | 'deleted' | 'logs' = 'pressure') => {
     setAuditing(true)
     setError('')
     try {
-      const audit = await adminFetch<StorageAudit>(
+      const { storageStats, ...audit } = await adminFetch<StorageAudit & { storageStats?: StorageStats }>(
         `/api/admin/storage/audit${mode === 'pressure' ? '' : `?mode=${mode}`}`,
         {
           method: 'POST'
         }
       )
       setAudits((prev) => [audit, ...prev.filter((a) => a.id !== audit.id)])
-      const s = await adminFetch<StorageStats>('/api/admin/storage')
-      setStats(s)
+      setStats(storageStats ?? (await adminFetch<StorageStats>('/api/admin/storage')))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Audit failed')
     } finally {
@@ -127,8 +148,7 @@ export function StorageTab() {
     try {
       const updated = await adminFetch<StorageAudit>(`/api/admin/storage/cleanup/${auditId}`, { method: 'POST' })
       setAudits((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
-      const s = await adminFetch<StorageStats>('/api/admin/storage')
-      setStats(s)
+      if (updated.status !== 'executing') setStats(await adminFetch<StorageStats>('/api/admin/storage'))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Cleanup failed')
       await fetchData()

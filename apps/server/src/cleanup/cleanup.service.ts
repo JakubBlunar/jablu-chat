@@ -7,7 +7,7 @@ import { resolve, relative, isAbsolute } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { createHash } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
-import { Prisma, StorageCleanupItem } from '../prisma-client'
+import { Prisma, type StorageAudit, StorageCleanupItem } from '../prisma-client'
 import { PrismaService } from '../prisma/prisma.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { PlannedFile, snapshotFile, walkFiles, deletePlannedFile, localUploadPath } from './cleanup-files'
@@ -553,10 +553,11 @@ export class CleanupService implements OnModuleInit {
           if (!(await add('auditHistory', row.id, { id: row.id, status: row.status }, [], 'messageCount'))) break
         }
       }
-      return await this.prisma.storageAudit.update({
+      const completed = await this.prisma.storageAudit.update({
         where: { id: audit.id },
         data: { ...totals, planLimited: limited, status: 'completed' }
       })
+      return { ...completed, storageStats: stats }
     } catch (error) {
       await this.prisma.storageAudit.update({
         where: { id: audit.id },
@@ -663,9 +664,9 @@ export class CleanupService implements OnModuleInit {
     )
   }
   async startCleanup(auditId: string) {
-    let started!: (audit: Awaited<ReturnType<CleanupService['runAudit']>>) => void
+    let started!: (audit: StorageAudit) => void
     let rejected!: (error: unknown) => void
-    const ready = new Promise<Awaited<ReturnType<CleanupService['runAudit']>>>((resolve, reject) => {
+    const ready = new Promise<StorageAudit>((resolve, reject) => {
       started = resolve
       rejected = reject
     })
@@ -675,7 +676,7 @@ export class CleanupService implements OnModuleInit {
     })
     return ready
   }
-  async executeCleanup(auditId: string, onStarted?: (audit: Awaited<ReturnType<CleanupService['runAudit']>>) => void) {
+  async executeCleanup(auditId: string, onStarted?: (audit: StorageAudit) => void) {
     return this.exclusive(async (check) => {
       const audit = await this.prisma.storageAudit.findUnique({ where: { id: auditId } })
       if (!audit || audit.planVersion !== VERSION) throw new BadRequestException('Create a new audit before cleanup')

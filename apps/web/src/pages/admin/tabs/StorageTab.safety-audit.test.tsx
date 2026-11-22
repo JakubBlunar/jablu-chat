@@ -151,11 +151,55 @@ describe('Storage UI safety contracts', () => {
       expect(screen.queryByRole('button', { name: 'Execute Cleanup' })).toBeNull()
     }
   )
+  it('waits for a pending progress poll and measures storage once when execution ends', async () => {
+    jest.useFakeTimers()
+    let finish!: (result: StorageAudit[]) => void
+    let finishStats!: (result: StorageStats) => void
+    try {
+      fetchAdmin.mockImplementation(async (path) => {
+        if (path === '/api/admin/storage') {
+          if (fetchAdmin.mock.calls.filter(([url]) => url === path).length === 1) return stats as never
+          return new Promise((resolve) => {
+            finishStats = resolve
+          }) as never
+        }
+        if (path.includes('/cleanup/')) return { ...audit, status: 'executing' } as never
+        const reads = fetchAdmin.mock.calls.filter(([url]) => url === '/api/admin/storage/audits').length
+        if (reads === 1) return [audit] as never
+        return new Promise((resolve) => {
+          finish = resolve
+        }) as never
+      })
+      render(<StorageTab />)
+      await confirm()
+      await act(async () => {
+        jest.advanceTimersByTime(2000)
+      })
+      await act(async () => {
+        jest.advanceTimersByTime(6000)
+      })
+      expect(fetchAdmin.mock.calls.filter(([url]) => url === '/api/admin/storage/audits')).toHaveLength(2)
+      expect(fetchAdmin.mock.calls.filter(([url]) => url === '/api/admin/storage')).toHaveLength(1)
+      await act(async () => {
+        finish([{ ...audit, status: 'executed' }])
+      })
+      expect(screen.getByText('executed')).toBeTruthy()
+      expect(screen.getByText('15.0%')).toBeTruthy()
+      await act(async () => {
+        finishStats({ ...stats, totalBytes: 120 })
+      })
+      expect(screen.getByText('12.0%')).toBeTruthy()
+      expect(fetchAdmin.mock.calls.filter(([url]) => url === '/api/admin/storage')).toHaveLength(2)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('offers separate reviewed scopes for deleted messages and old logs', async () => {
     fetchAdmin.mockImplementation(async (path) => {
       if (path === '/api/admin/storage') return stats as never
       if (path === '/api/admin/storage/audits') return [audit] as never
-      return { ...audit, id: 'logs', mode: 'logs' } as never
+      return { ...audit, id: 'logs', mode: 'logs', storageStats: { ...stats, totalBytes: 175 } } as never
     })
     render(<StorageTab />)
     fireEvent.click(await screen.findByRole('button', { name: 'Review Old Logs' }))
@@ -163,5 +207,7 @@ describe('Storage UI safety contracts', () => {
       expect(fetchAdmin).toHaveBeenCalledWith('/api/admin/storage/audit?mode=logs', { method: 'POST' })
     )
     expect(await screen.findByText(/Purge reviewed old log records/)).toBeTruthy()
+    expect(screen.getByText('17.5%')).toBeTruthy()
+    expect(fetchAdmin.mock.calls.filter(([url]) => url === '/api/admin/storage')).toHaveLength(1)
   })
 })
