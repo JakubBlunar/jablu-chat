@@ -60,6 +60,7 @@ export function DesktopTitleBar() {
           {/* Interactive row, above the plugin's drag region. Empty space stays
               click-through so the plugin can drag the window and expose its controls. */}
           <div
+            data-desktop-titlebar=""
             className="fixed inset-x-0 top-0 z-[110] flex h-8 select-none items-center gap-1 pl-1.5 text-xs text-gray-300"
             style={{ paddingRight: 'var(--tauri-frame-controls-width, 138px)', pointerEvents: 'none' }}
           >

@@ -59,6 +59,9 @@ test('desktop title-bar actions and notification jumps preserve the frame and pa
     useMessageStore.setState({ messages, loadedForChannelId: 'ch1', isLoading: false, hasMore: false, hasNewer: false })
     useAuthStore.setState({ user: { id: 'me', username: 'Tester', displayName: null, avatarUrl: null, locale: 'en' }, isAuthenticated: true, isLoading: false, accessToken: 'synthetic-token' })
   })
+  const openSettings = page.getByRole('button', { name: 'User settings', exact: true })
+  await expect(openSettings).toBeVisible()
+  await page.evaluate(() => { window.location.hash = '/channels/s1/ch1' })
   await expect(page.locator('#main-content textarea')).toBeVisible()
   // Model tauri-plugin-frame's body-level overlay. A fixed app wrapper creates
   // a stacking context that can trap title-bar actions below this drag region.
@@ -83,11 +86,17 @@ test('desktop title-bar actions and notification jumps preserve the frame and pa
     document.documentElement.style.setProperty('--tauri-frame-controls-width', '138px')
     document.body.prepend(frame)
   })
+  await openSettings.click()
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await expect(settings).toBeVisible()
+  const composer = page.locator('#main-content textarea')
+  await expect.poll(() => composer.evaluate(element => !!element.closest('[inert]'))).toBe(true)
   const saved = page.getByRole('button', { name: 'Saved messages', exact: true })
   await saved.click({ timeout: 5000 })
   await expect(page.getByRole('dialog', { name: 'Saved messages', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(saved).toHaveAttribute('aria-expanded', 'false')
+  await expect(saved).toBeFocused()
   const inbox = page.getByRole('button', { name: 'Inbox', exact: true })
   await inbox.click()
   await expect(page.getByRole('dialog', { name: 'Inbox', exact: true })).toBeVisible()
@@ -101,6 +110,11 @@ test('desktop title-bar actions and notification jumps preserve the frame and pa
   expect(await page.evaluate(() =>
     document.elementFromPoint(innerWidth / 2, 16)?.hasAttribute('data-tauri-drag-region')
   )).toBe(true)
+  await page.keyboard.press('Tab')
+  await expect.poll(() => settings.evaluate(element => element.contains(document.activeElement))).toBe(true)
+  await settings.getByRole('button', { name: 'Close settings' }).click()
+  await expect(settings).toHaveCount(0)
+  await expect.poll(() => composer.evaluate(element => !!element.closest('[inert]'))).toBe(false)
   const snapshot = () => page.evaluate(() => {
     const content = document.getElementById('main-content')!
     const layout = content.parentElement!.parentElement!

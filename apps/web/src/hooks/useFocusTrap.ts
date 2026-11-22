@@ -11,6 +11,8 @@ const FOCUSABLE = [
 
 const traps: HTMLElement[] = []
 const isolated = new Map<HTMLElement, boolean>()
+// The app toolbar and Tauri's caption controls are separate body-level siblings.
+const WINDOW_CONTROLS = 'body > [data-desktop-titlebar], body > [data-tauri-frame-tb]'
 
 function focusableElements(root: HTMLElement | ShadowRoot): HTMLElement[] {
   const elements: HTMLElement[] = []
@@ -40,7 +42,7 @@ function isolateBackground() {
     const parent: HTMLElement | null = branch.parentElement
     if (!parent) break
     for (const sibling of parent.children) {
-      if (sibling instanceof HTMLElement && sibling !== branch) {
+      if (sibling instanceof HTMLElement && sibling !== branch && !sibling.matches(WINDOW_CONTROLS)) {
         isolated.set(sibling, sibling.inert)
         sibling.inert = true
       }
@@ -126,8 +128,9 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
     const handleFocus = (event: FocusEvent) => {
       if (
         isTop() &&
-        event.target instanceof Node &&
+        event.target instanceof Element &&
         !container.contains(event.target) &&
+        !event.target.closest(WINDOW_CONTROLS) &&
         !ownedPopups().some((popup) => popup.contains(event.target as Node))
       )
         focusFirst()
@@ -145,8 +148,9 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
       isolateBackground()
       if (previousTabIndex === null) container.removeAttribute('tabindex')
       const top = traps.at(-1)
-      if (triggerRef.current?.isConnected && (!top || top.contains(triggerRef.current))) {
-        triggerRef.current.focus()
+      const trigger = triggerRef.current
+      if (trigger?.isConnected && (!top || top.contains(trigger) || trigger.closest(WINDOW_CONTROLS))) {
+        trigger.focus()
       } else top?.focus()
     }
   }, [active, containerRef])
