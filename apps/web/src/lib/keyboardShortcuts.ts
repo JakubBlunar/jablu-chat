@@ -21,6 +21,8 @@ export const keyboardShortcuts: ShortcutGroup[] = [
   {
     categoryKey: 'messaging',
     shortcuts: [
+      { keys: ['↑ / ↓'], descriptionKey: 'readTimeline' },
+      { keys: ['R'], descriptionKey: 'replyTimeline' },
       { keys: ['Enter'], descriptionKey: 'sendMessage' },
       { keys: ['Shift', 'Enter'], descriptionKey: 'newLine' },
       { keys: ['Enter'], descriptionKey: 'saveEditedMessage' },

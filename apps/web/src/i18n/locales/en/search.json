@@ -35,5 +35,6 @@
   "resultCount_one": "{{count}} result",
   "resultCount_other": "{{count}} results",
   "dmBadge": "DM",
-  "searchGiphyPlaceholder": "Search GIPHY"
+  "searchGiphyPlaceholder": "Search GIPHY",
+  "backToResults": "Back to results"
 }

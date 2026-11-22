@@ -64,5 +64,8 @@
     "cancel": "Zrušiť",
     "save": "Uložiť",
     "saving": "Ukladá sa…"
-  }
+  },
+  "allSelectedTags": "Obsahuje všetky vybrané štítky",
+  "noMatch": "Žiadne zodpovedajúce príspevky",
+  "loadFailed": "Príspevky sa nepodarilo načítať"
 }

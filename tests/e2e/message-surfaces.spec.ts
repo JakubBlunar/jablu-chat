@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { loginAs, sendMessage, waitForMessages } from './helpers'
+import { apiCall, loginAs, sendMessage, waitForMessages } from './helpers'
 
 test.describe('Unified Message Surfaces', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,13 +8,11 @@ test.describe('Unified Message Surfaces', () => {
 
   test.describe('Text Channel MessageArea', () => {
     test('loads messages and scrolls to bottom on channel switch', async ({ page }) => {
-      const channelLinks = page.locator('a[href*="/channels/"]')
-      const firstChannel = channelLinks.first()
-      if (await firstChannel.isVisible({ timeout: 5_000 })) {
-        await firstChannel.click()
-        await page.waitForTimeout(1000)
-      }
-
+      const servers = await apiCall(page, 'get', '/api/servers')
+      const channels = await apiCall(page, 'get', '/api/servers/' + servers[0].id + '/channels')
+      const textChannel = channels.find((channel: {type:string}) => channel.type === 'text')
+      expect(textChannel).toBeTruthy()
+      await page.goto('/channels/' + servers[0].id + '/' + textChannel.id)
       const scrollContainer = page.locator('.chat-scroll')
       await expect(scrollContainer).toBeVisible({ timeout: 10_000 })
     })

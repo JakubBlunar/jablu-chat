@@ -19,7 +19,7 @@ export function ScreenShareDialog({
   onConfirm,
   onClose
 }: {
-  onConfirm: (settings: ScreenShareSettings) => void
+  onConfirm: (settings: ScreenShareSettings) => void | Promise<void>
   onClose: () => void
 }) {
   const { t: tCommon } = useTranslation('common')
@@ -27,8 +27,27 @@ export function ScreenShareDialog({
   const [resolution, setResolution] = useState<ScreenShareSettings['resolution']>('1080p')
   const [fps, setFps] = useState<ScreenShareSettings['fps']>(30)
   const [audio, setAudio] = useState(false)
-  const [highQualityAudio, setHighQualityAudio] = useState(() => useSettingsStore.getState().screenShareHighQualityAudio)
+  const [highQualityAudio, setHighQualityAudio] = useState(
+    () => useSettingsStore.getState().screenShareHighQualityAudio
+  )
   const setScreenShareHighQualityAudio = useSettingsStore((s) => s.setScreenShareHighQualityAudio)
+
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  async function share() {
+    setBusy(true)
+    setFailure(null)
+    try {
+      await onConfirm({ resolution, fps, audio, highQualityAudio: audio && highQualityAudio })
+    } catch (err) {
+      const name = err instanceof Error ? err.name : ''
+      setFailure(
+        name === 'AbortError' || name === 'NotAllowedError' ? t('screenNotSelected') : t('screenShareStartFailed')
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const supportsAudio = !isElectron || /win|linux/i.test(navigator.userAgent)
 
@@ -58,7 +77,9 @@ export function ScreenShareDialog({
                 type="button"
                 onClick={() => setResolution(r)}
                 className={`flex-1 rounded-md px-3 py-2 text-sm font-medium capitalize transition ${
-                  resolution === r ? 'bg-primary text-primary-text' : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
+                  resolution === r
+                    ? 'bg-primary text-primary-text'
+                    : 'bg-surface-darkest text-gray-300 hover:bg-white/10'
                 }`}
               >
                 {r === 'native' ? t('screenSharePicker.native') : r}
@@ -116,9 +137,7 @@ export function ScreenShareDialog({
                 />
                 <div className="text-left">
                   <span className="block text-sm text-gray-200">{t('screenShareSetup.betterAudio')}</span>
-                  <span className="block text-[11px] text-gray-500">
-                    {t('screenShareSetup.betterAudioHint')}
-                  </span>
+                  <span className="block text-[11px] text-gray-500">{t('screenShareSetup.betterAudioHint')}</span>
                 </div>
               </div>
             )}
@@ -126,6 +145,11 @@ export function ScreenShareDialog({
         )}
       </div>
 
+      {failure && (
+        <p role="alert" className="px-6 text-sm text-gray-300">
+          {failure}
+        </p>
+      )}
       <div className="flex justify-end gap-3 border-t border-white/5 px-6 py-4">
         <button
           type="button"
@@ -136,7 +160,8 @@ export function ScreenShareDialog({
         </button>
         <button
           type="button"
-          onClick={() => onConfirm({ resolution, fps, audio, highQualityAudio: audio ? highQualityAudio : false })}
+          disabled={busy}
+          onClick={() => void share()}
           className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-text transition hover:bg-primary-hover"
         >
           {t('screenShareSetup.shareScreen')}

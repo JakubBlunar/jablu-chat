@@ -353,5 +353,12 @@
     "noResults": "Žiadne výsledky. Skúste iné vyhľadávanie alebo filter.",
     "retry": "Skúsiť znova",
     "saved": "Zmeny uložené."
+  },
+  "findSetting": "Nájsť nastavenie",
+  "indexGroups": {
+    "general": "Všeobecné",
+    "people": "Ľudia a moderovanie",
+    "integrations": "Integrácie a emoji",
+    "management": "Správa"
   }
 }

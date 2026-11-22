@@ -253,3 +253,7 @@ select {
 .animate-toast-in {
   animation: toast-slide-in 0.2s ease-out;
 }
+
+[data-mobile-viewport] .chat-composer textarea {
+  max-height: clamp(44px, calc(var(--chat-visible-height, 100dvh) * 0.18), 160px);
+}

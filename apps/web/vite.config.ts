@@ -36,7 +36,10 @@ export default defineConfig(({ command }) => {
           // Login, chat, and locale resources work offline from installation.
           // Follow static imports only; optional features cache on first use.
           if (chunk.isEntry || chunk.moduleIds.some(id =>
-            /\/components\/layout\/MainLayout\.tsx$/.test(id) || id.includes('/i18n/locales/'))) visit(chunk.fileName)
+            id.endsWith('/components/layout/MainLayout.tsx') ||
+            id.endsWith('/components/notifications/InboxWorkspace.tsx') ||
+            id.includes('/workbox-window/') ||
+            id.includes('/i18n/locales/'))) visit(chunk.fileName)
         }
       }
     },

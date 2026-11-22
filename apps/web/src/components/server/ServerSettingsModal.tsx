@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
 import { ModalOverlay } from '@/components/ui/ModalOverlay'
@@ -24,16 +24,42 @@ import { WelcomeTab } from './server-settings/tabs/WelcomeTab'
 import { AfkTab } from './server-settings/tabs/AfkTab'
 import { LevelingTab } from './server-settings/tabs/LevelingTab'
 
+const settingGroups = {
+  general: ['overview', 'welcome', 'onboarding', 'afk', 'leveling'],
+  people: ['members', 'roles', 'bans', 'automod'],
+  integrations: ['webhooks', 'bots', 'emoji-stats'],
+  management: ['audit', 'insights', 'danger']
+} satisfies Record<string, Tab[]>
+
 export function ServerSettingsModal({ server, onClose }: { server: Server; onClose: () => void }) {
   const { t: tNav } = useTranslation('nav')
   const { t: tServerSettings } = useTranslation('server-settings')
   const { t: tCommon } = useTranslation('common')
   const [tab, setTab] = useState<Tab>('overview')
+  const [indexOpen, setIndexOpen] = useState(true)
+  const [filter, setFilter] = useState('')
+  const back = () => {
+    if (indexOpen) onClose()
+    else setIndexOpen(true)
+  }
   const isMobile = useIsMobile()
   const mobileRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(mobileRef, isMobile, onClose)
+  useFocusTrap(mobileRef, isMobile, back)
   useBackGestureClose(isMobile, onClose, isMobile)
+  useBackGestureClose(isMobile && !indexOpen, () => setIndexOpen(true), isMobile)
 
+  const selectedRow = useRef<HTMLButtonElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  useLayoutEffect(() => {
+    if (!isMobile || !selectedRow.current) return
+    const target = indexOpen ? selectedRow.current : heading.current
+    target?.focus({ preventScroll: true })
+  }, [isMobile, indexOpen])
+
+  const matchesFilter = (key: Tab) =>
+    tServerSettings('tabs.' + key)
+      .toLocaleLowerCase()
+      .includes(filter.toLocaleLowerCase().trim())
   const currentLabel = tServerSettings(`tabs.${tab}`)
 
   const tabContent = (
@@ -68,35 +94,63 @@ export function ServerSettingsModal({ server, onClose }: { server: Server; onClo
         <div className="flex h-12 shrink-0 items-center border-b border-white/10 px-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={back}
             className="rounded p-2 text-gray-400 transition hover:bg-white/10 hover:text-white"
-            aria-label={tNav('closeServerSettings')}
+            aria-label={indexOpen ? tNav('closeServerSettings') : tCommon('back')}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="ml-2 text-base font-semibold text-white">{currentLabel}</h1>
+          <h1 ref={heading} tabIndex={-1} className="ml-2 text-base font-semibold text-white">
+            {indexOpen ? tNav('serverSettings') : currentLabel}
+          </h1>
         </div>
-        <div className="shrink-0 overflow-x-auto border-b border-white/10 scrollbar-none">
-          <div className="flex gap-1 px-2 py-1.5">
-            {SERVER_TABS.map((tabKey) => (
-              <button
-                key={tabKey}
-                type="button"
-                onClick={() => setTab(tabKey)}
-                className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                  tab === tabKey ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {tServerSettings(`tabs.${tabKey}`)}
-              </button>
-            ))}
-          </div>
+        <div hidden={!indexOpen} className="min-h-0 overflow-y-auto p-3">
+          <input
+            type="search"
+            aria-label={tServerSettings('findSetting')}
+            placeholder={tServerSettings('findSetting')}
+            className="mb-3 w-full rounded bg-surface-darkest p-3"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          {Object.entries(settingGroups).map(([name, tabs]) => {
+            const visible = tabs.filter(matchesFilter)
+            if (!visible.length) return null
+            return (
+              <section key={name}>
+                <h2 className="mt-3 px-3 text-xs font-semibold text-gray-400">
+                  {tServerSettings('indexGroups.' + name)}
+                </h2>
+                {visible.map((key) => (
+                  <button
+                    type="button"
+                    key={key}
+                    className="block min-h-11 w-full rounded px-3 text-left hover:bg-white/10"
+                    onClick={(event) => {
+                      selectedRow.current = event.currentTarget
+                      setTab(key)
+                      setIndexOpen(false)
+                    }}
+                  >
+                    {tServerSettings('tabs.' + key)}
+                  </button>
+                ))}
+              </section>
+            )
+          })}
+          {!SERVER_TABS.some(matchesFilter) && (
+            <p role="status" className="p-3 text-sm text-gray-400">
+              {tServerSettings('lists.noResults')}
+            </p>
+          )}
         </div>
-        <SimpleBar className="min-h-0 flex-1">
-          <div className="px-4 py-4">{tabContent}</div>
-        </SimpleBar>
+        {!indexOpen && (
+          <SimpleBar key={tab} className="min-h-0 flex-1">
+            <div className="p-4">{tabContent}</div>
+          </SimpleBar>
+        )}
       </div>
     )
   }

@@ -9,6 +9,7 @@ interface ForumState {
   sortOrder: ForumSortOrder
   activeTagIds: string[]
   searchQuery: string
+  listError: boolean
   layout: ForumLayout
   currentPostId: string | null
   isLoading: boolean
@@ -43,6 +44,23 @@ interface ForumState {
 }
 
 let pageRequest = 0
+let queryTimer: ReturnType<typeof setTimeout> | undefined
+
+function matchesPost(post: ForumPost, state: ForumState) {
+  const query = state.searchQuery.toLowerCase().trim()
+  return (
+    state.activeTagIds.every((id) => post.tags?.some((tag) => tag.id === id)) &&
+    (!query || [post.title, post.content, post.author?.username].some((text) => text?.toLowerCase().includes(query)))
+  )
+}
+
+function postParams(sort: ForumSortOrder, tags: string[], query: string) {
+  const params = new URLSearchParams({ sort })
+  if (tags.length === 1) params.set('tagId', tags[0])
+  if (tags.length > 1) params.set('tagIds', tags.join(','))
+  if (query.trim()) params.set('q', query.trim())
+  return params
+}
 
 export const useForumStore = create<ForumState>((set, get) => ({
   posts: [],
@@ -50,6 +68,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   sortOrder: 'latest_activity',
   activeTagIds: [],
   searchQuery: '',
+  listError: false,
   layout: 'list',
   currentPostId: null,
   isLoading: false,
@@ -60,6 +79,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   init: (channelId, defaultLayout, defaultSortOrder) => {
     const prev = get()
     if (prev.channelId === channelId) return
+    clearTimeout(queryTimer)
     set({
       channelId,
       posts: [],
@@ -67,6 +87,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
       sortOrder: defaultSortOrder ?? 'latest_activity',
       activeTagIds: [],
       searchQuery: '',
+      listError: false,
       layout: defaultLayout ?? 'list',
       currentPostId: null,
       isLoading: true,
@@ -81,12 +102,10 @@ export const useForumStore = create<ForumState>((set, get) => ({
     const { channelId, sortOrder, activeTagIds } = get()
     if (!channelId) return
     const request = ++pageRequest
-    set({ isLoading: true })
+    clearTimeout(queryTimer)
+    set({ isLoading: true, listError: false, posts: [], hasMore: false, nextCursor: null })
     try {
-      const tagId = activeTagIds.length === 1 ? activeTagIds[0] : undefined
-      const params = new URLSearchParams()
-      params.set('sort', sortOrder)
-      if (tagId) params.set('tagId', tagId)
+      const params = postParams(sortOrder, activeTagIds, get().searchQuery)
       params.set('limit', '25')
       const result = await api.get<{ posts: ForumPost[]; hasMore: boolean; nextCursor?: string | null }>(
         `/api/channels/${channelId}/posts?${params}`
@@ -101,7 +120,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
       set({ posts: result.posts, hasMore: result.hasMore, nextCursor: result.nextCursor ?? null, isLoading: false })
     } catch {
       if (request !== pageRequest) return
-      set({ isLoading: false })
+      set({ isLoading: false, listError: true })
     }
   },
 
@@ -109,13 +128,10 @@ export const useForumStore = create<ForumState>((set, get) => ({
     const { channelId, posts, isLoading, sortOrder, activeTagIds } = get()
     if (!channelId || isLoading || posts.length === 0) return
     const request = ++pageRequest
-    set({ isLoading: true })
+    set({ isLoading: true, listError: false })
     const cursor = get().nextCursor ?? posts[posts.length - 1].id
     try {
-      const tagId = activeTagIds.length === 1 ? activeTagIds[0] : undefined
-      const params = new URLSearchParams()
-      params.set('sort', sortOrder)
-      if (tagId) params.set('tagId', tagId)
+      const params = postParams(sortOrder, activeTagIds, get().searchQuery)
       params.set('cursor', cursor)
       params.set('limit', '25')
       const result = await api.get<{ posts: ForumPost[]; hasMore: boolean; nextCursor?: string | null }>(
@@ -142,7 +158,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
         get().activeTagIds !== activeTagIds
       )
         return
-      set({ isLoading: false })
+      set({ isLoading: false, listError: true })
       if ((error as { status?: number }).status === 409) await get().fetchPosts()
     }
   },
@@ -150,7 +166,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   fetchTags: async (channelId) => {
     try {
       const tags = await api.get<ForumTag[]>(`/api/channels/${channelId}/tags`)
-      set({ tags })
+      if (get().channelId === channelId) set({ tags })
     } catch {
       /* ignore */
     }
@@ -164,7 +180,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
       attachmentIds
     })
     set((s) => {
-      if (s.posts.some((p) => p.id === post.id)) return s
+      if (!matchesPost(post, s) || s.posts.some((p) => p.id === post.id)) return s
       return { posts: [post, ...s.posts] }
     })
     return post
@@ -192,7 +208,12 @@ export const useForumStore = create<ForumState>((set, get) => ({
     get().fetchPosts()
   },
 
-  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSearchQuery: (query) => {
+    clearTimeout(queryTimer)
+    ++pageRequest
+    set({ searchQuery: query, isLoading: true, posts: [], hasMore: false, nextCursor: null, listError: false })
+    queryTimer = setTimeout(() => void get().fetchPosts(), 250)
+  },
 
   openPost: (postId) => {
     const { currentPostId } = get()
@@ -209,14 +230,14 @@ export const useForumStore = create<ForumState>((set, get) => ({
 
   addPost: (post) => {
     set((s) => {
-      if (s.posts.some((p) => p.id === post.id)) return s
+      if (!matchesPost(post, s) || s.posts.some((p) => p.id === post.id)) return s
       return { posts: [post, ...s.posts] }
     })
   },
 
   updatePost: (post) => {
     set((s) => ({
-      posts: s.posts.map((p) => (p.id === post.id ? post : p))
+      posts: s.posts.flatMap((p) => (p.id !== post.id ? [p] : matchesPost(post, s) ? [post] : []))
     }))
   },
 
@@ -236,6 +257,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
   },
 
   reset: () => {
+    clearTimeout(queryTimer)
     pageRequest++
     set({
       posts: [],
@@ -243,6 +265,7 @@ export const useForumStore = create<ForumState>((set, get) => ({
       sortOrder: 'latest_activity',
       activeTagIds: [],
       searchQuery: '',
+      listError: false,
       layout: 'list',
       currentPostId: null,
       isLoading: false,

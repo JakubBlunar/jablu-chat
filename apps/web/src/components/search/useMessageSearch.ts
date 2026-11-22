@@ -7,7 +7,8 @@ export function useMessageSearch({
   defaultScope = 'server',
   currentServerId,
   currentChannelId,
-  conversationId
+  conversationId,
+  initialOffset = 0
 }: {
   query: string
   onQueryChange: (value: string) => void
@@ -15,11 +16,12 @@ export function useMessageSearch({
   currentServerId: string | null
   currentChannelId: string | null
   conversationId?: string
+  initialOffset?: number
 }) {
   const [scope, setScope] = useState<Scope>(defaultScope)
   const [results, setResults] = useState<SearchResult[]>([])
   const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
+  const [offset, setOffset] = useState(initialOffset)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<{ message?: string } | null>(null)
   const [localQuery, setLocalQuery] = useState(query)

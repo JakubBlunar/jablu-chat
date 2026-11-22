@@ -1,6 +1,7 @@
 import type { Message } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/api'
+import { useLayoutStore } from '@/stores/layout.store'
 import { getSocket } from '@/lib/socket'
 
 export function usePinnedMessages(channelId: string | null, conversationId?: string | null) {
@@ -91,13 +92,13 @@ export function usePinnedMessages(channelId: string | null, conversationId?: str
     }
   }, [activeId, isDm])
 
+  const requested = useLayoutStore((s) => s.pinsRequestedFor)
   useEffect(() => {
-    const handler = () => {
-      if (activeId && !pinnedOpen) void handleOpenPinned()
-    }
-    window.addEventListener('open-pinned', handler)
-    return () => window.removeEventListener('open-pinned', handler)
-  }, [activeId, pinnedOpen, handleOpenPinned])
+    if (!channelId || requested !== channelId) return
+    useLayoutStore.setState({ pinsRequestedFor: null })
+    setPinnedOpen(true)
+    void loadPinned()
+  }, [requested, channelId, loadPinned])
 
   return { pinnedOpen, pinnedMessages, pinnedLoading, pinnedError, handleOpenPinned, setPinnedOpen, loadPinned, isDm }
 }

@@ -17,11 +17,22 @@ export function PanelResizeHandle({
   onChange: (width: number) => void
   onReset: () => void
 }) {
-  const drag = useRef<{ x: number; width: number; cursor: string; userSelect: string } | null>(null)
+  const drag = useRef<{
+    x: number
+    width: number
+    panel: HTMLElement
+    initial: string
+    next: number
+    frame: number
+    cursor: string
+    userSelect: string
+  } | null>(null)
   const direction = edge === 'right' ? 1 : -1
   const change = (width: number) => onChange(Math.round(Math.max(min, Math.min(max, width))))
   const stop = useCallback(() => {
     if (!drag.current) return
+    cancelAnimationFrame(drag.current.frame)
+    drag.current.panel.style.width = drag.current.initial
     document.body.style.cursor = drag.current.cursor
     document.body.style.userSelect = drag.current.userSelect
     drag.current = null
@@ -50,12 +61,17 @@ export function PanelResizeHandle({
         change(width)
       }}
       onPointerDown={(event) => {
-        if (event.button !== 0) return
+        const panel = event.currentTarget.parentElement
+        if (event.button !== 0 || !panel) return
         event.preventDefault()
         event.currentTarget.focus()
         event.currentTarget.setPointerCapture(event.pointerId)
         drag.current = {
           x: event.clientX,
+          panel,
+          initial: panel.style.width,
+          next: value,
+          frame: 0,
           width: value,
           cursor: document.body.style.cursor,
           userSelect: document.body.style.userSelect
@@ -64,9 +80,19 @@ export function PanelResizeHandle({
         document.body.style.userSelect = 'none'
       }}
       onPointerMove={(event) => {
-        if (drag.current) change(drag.current.width + (event.clientX - drag.current.x) * direction)
+        const state = drag.current
+        if (!state) return
+        state.next = Math.round(Math.max(min, Math.min(max, state.width + (event.clientX - state.x) * direction)))
+        if (!state.frame) state.frame = requestAnimationFrame(() => {
+          state.panel.style.width = state.next + 'px'
+          state.frame = 0
+        })
       }}
-      onPointerUp={stop}
+      onPointerUp={() => {
+        const next = drag.current?.next
+        stop()
+        if (next !== undefined && next !== value) change(next)
+      }}
       onPointerCancel={stop}
       onLostPointerCapture={stop}
     />

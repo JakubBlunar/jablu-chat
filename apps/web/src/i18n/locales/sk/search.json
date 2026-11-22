@@ -37,5 +37,6 @@
   "resultCount_many": "{{count}} výsledkov",
   "resultCount_other": "{{count}} výsledkov",
   "dmBadge": "SS",
-  "searchGiphyPlaceholder": "Hľadať na GIPHY"
+  "searchGiphyPlaceholder": "Hľadať na GIPHY",
+  "backToResults": "Späť na výsledky"
 }

@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/stores/auth.store'
+import { useSearchReturn, type SearchReturn } from '@/stores/searchReturn.store'
 import { MediaPreview } from '@/components/media/MediaPreview'
 import { MessageMediaProvider, useMessageMedia } from '@/components/media/MessageMediaGallery'
 import { IconButton, Spinner } from '@/components/ui'
@@ -41,18 +43,28 @@ type Props = {
   query: string
   onQueryChange: (q: string) => void
   onClose: () => void
+  resume?: SearchReturn
   defaultScope?: Scope
   conversationId?: string
 }
 
-export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'server', conversationId }: Props) {
+export function SearchDrawer({
+  query,
+  onQueryChange,
+  onClose,
+  defaultScope = 'server',
+  conversationId,
+  resume
+}: Props) {
   const { t } = useTranslation('search')
   const { t: tNav } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
   const { t: tChat } = useTranslation('chat')
-  const currentServerId = useServerStore((s) => s.currentServerId)
+  const activeServerId = useServerStore((s) => s.currentServerId)
   const members = useMemberStore((s) => s.members)
-  const currentChannelId = useChannelStore((s) => s.currentChannelId)
+  const activeChannelId = useChannelStore((s) => s.currentChannelId)
+  const currentChannelId = resume ? resume.channelId : activeChannelId
+  const currentServerId = resume ? resume.serverId : activeServerId
   const channels = useChannelStore((s) => s.channels)
   const {
     scope,
@@ -68,7 +80,15 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     handleLocalChange,
     handleScopeChange,
     cancelDebounce
-  } = useMessageSearch({ query, onQueryChange, defaultScope, currentServerId, currentChannelId, conversationId })
+  } = useMessageSearch({
+    query,
+    onQueryChange,
+    defaultScope: resume?.scope ?? defaultScope,
+    initialOffset: resume?.offset,
+    currentServerId: resume ? resume.serverId : currentServerId,
+    currentChannelId: resume ? resume.channelId : currentChannelId,
+    conversationId: resume ? resume.conversationId : conversationId
+  })
   const currentChannel = channels.find((c) => c.id === currentChannelId)
   const [resultFailure, setResultFailure] = useState<{ result: SearchResult; key: HistoryErrorKey } | null>(null)
   const resultRequestRef = useRef(0)
@@ -79,12 +99,14 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     []
   )
 
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(resume?.resultId ?? null)
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const pendingRestore = useRef(resume)
 
   const inputRef = useRef<HTMLInputElement>(null)
 
   const isMobile = useIsMobile()
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(resume?.filtersOpen ?? false)
   const filtersId = useId()
   const filterLabels: Record<string, string> = {
     'has:image': 'filterImage',
@@ -115,10 +137,32 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
     setResultFailure(null)
     try {
       const serverId = result.channel?.serverId ?? currentServerId
-      const target = result.channelId && serverId ? { kind: 'channel' as const, serverId, channelId: result.channelId }
-        : result.dmConversationId ? { kind: 'dm' as const, conversationId: result.dmConversationId } : null
+      const target =
+        result.channelId && serverId
+          ? { kind: 'channel' as const, serverId, channelId: result.channelId }
+          : result.dmConversationId
+            ? { kind: 'dm' as const, conversationId: result.dmConversationId }
+            : null
       if (!target) throw new Error('messageUnavailable')
-      const outcome = await openConversation({ target, position: { kind: 'message', messageId: result.id, threadParentId: result.threadParentId }, source: 'search' })
+      const owner = useAuthStore.getState().user?.id
+      const saved = {
+        query,
+        scope,
+        offset,
+        resultId: result.id,
+        filtersOpen,
+        serverId: resume ? resume.serverId : currentServerId,
+        channelId: resume ? resume.channelId : currentChannelId,
+        conversationId: resume ? resume.conversationId : conversationId,
+        scrollTop: resultsRef.current?.scrollTop ?? 0
+      }
+      const outcome = await openConversation({
+        target,
+        position: { kind: 'message', messageId: result.id, threadParentId: result.threadParentId },
+        source: 'search'
+      })
+      if (outcome.status === 'opened' && isMobile && owner && owner === useAuthStore.getState().user?.id)
+        useSearchReturn.setState({ saved, open: false })
       if (request !== resultRequestRef.current) return
       if (outcome.status === 'cancelled') return
       if (outcome.status !== 'opened') {
@@ -136,8 +180,24 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
 
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+    if (!resume) {
+      if (isMobile) useSearchReturn.setState({ saved: null, open: false })
+      inputRef.current?.focus()
+    }
+  }, [resume, isMobile])
+  useEffect(() => {
+    const saved = pendingRestore.current
+    if (!saved || loading || !results.length || !resultsRef.current) return
+    const scroller = resultsRef.current
+    const frame = requestAnimationFrame(() => {
+      scroller.scrollTop = saved.scrollTop
+      scroller
+        .querySelector<HTMLButtonElement>('[data-result-id="' + CSS.escape(saved.resultId) + '"]')
+        ?.focus({ preventScroll: true })
+      pendingRestore.current = undefined
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [loading, results])
 
   return (
     <aside className="flex h-full w-full shrink-0 flex-col border-l border-white/10 bg-surface-dark max-lg:[&_button]:min-h-11 max-lg:[&_button]:min-w-11 max-lg:[&_input]:min-h-11 max-lg:[&_input]:text-base">
@@ -353,7 +413,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
       )}
 
       {/* Results */}
-      <SimpleBar className="min-h-0 flex-1">
+      <SimpleBar scrollableNodeProps={{ ref: resultsRef }} className="min-h-0 flex-1">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Spinner size="lg" />
@@ -386,6 +446,7 @@ export function SearchDrawer({ query, onQueryChange, onClose, defaultScope = 'se
                 >
                   <button
                     type="button"
+                    data-result-id={r.id}
                     onClick={() => handleResultClick(r)}
                     className="flex w-full items-start gap-3 text-left"
                   >

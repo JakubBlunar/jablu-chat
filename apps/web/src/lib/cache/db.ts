@@ -139,6 +139,13 @@ function fresh(updatedAt: number): boolean {
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 
+export async function cacheOwnedBy(userId: string | null): Promise<boolean> {
+  const meta = await withStore(STORE_META, 'readonly', store =>
+    request(store.get('owner') as IDBRequest<{userId: string | null; schema:string} | undefined>)
+  )
+  return !!meta && meta.userId === userId && meta.schema === SCHEMA_VERSION
+}
+
 /**
  * Bind the cache to a user and schema. Anything belonging to a different user
  * or an older schema is dropped, so a cache can never leak across accounts.
@@ -147,11 +154,7 @@ export async function initCacheDb(userId: string | null): Promise<void> {
   const db = await openDb()
   if (!db) return
 
-  const meta = await withStore(STORE_META, 'readonly', (store) =>
-    request(store.get('owner') as IDBRequest<{ key: string; userId: string | null; schema: string } | undefined>)
-  )
-
-  if (meta && meta.userId === userId && meta.schema === SCHEMA_VERSION) {
+  if (await cacheOwnedBy(userId)) {
     await pruneExpired()
     return
   }

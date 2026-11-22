@@ -64,5 +64,8 @@
     "cancel": "Zrušit",
     "save": "Uložit",
     "saving": "Ukládání…"
-  }
+  },
+  "allSelectedTags": "Obsahuje všechny vybrané štítky",
+  "noMatch": "Žádné odpovídající příspěvky",
+  "loadFailed": "Příspěvky se nepodařilo načíst"
 }

@@ -90,24 +90,30 @@ export async function startCachePersistence(userId: string | null): Promise<void
     void navigator.storage.persist().catch(() => {})
   }
 
-  await initCacheDb(userId)
-
+  // Requests can finish while IndexedDB is opening. Collect their keys immediately,
+  // then flush only after the database has been bound to this session.
+  let ready = false
   const offCache = onCacheChange((key) => {
     if (isHydrating()) return
     pendingMessageKeys.add(key)
-    scheduleFlush()
+    if (ready) scheduleFlush()
   })
 
   const offStructure = onStructureChange((kind, serverId) => {
     if (isHydrating()) return
     pendingStructureKeys.add(structureKey(kind, serverId))
-    scheduleFlush()
+    if (ready) scheduleFlush()
   })
 
-  stopListening = () => {
+  const unsubscribe = () => {
     offCache()
     offStructure()
   }
+  stopListening = unsubscribe
+  await initCacheDb(userId)
+  if (stopListening !== unsubscribe) return
+  ready = true
+  if (pendingMessageKeys.size || pendingStructureKeys.size) scheduleFlush()
 }
 
 export function stopCachePersistence(): void {

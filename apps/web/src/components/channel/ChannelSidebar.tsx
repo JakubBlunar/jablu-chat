@@ -1,3 +1,4 @@
+import { useLayoutStore } from '@/stores/layout.store'
 import { CategoryContextMenu } from '@/components/channel/ChannelContextMenu'
 import { useServerDialogs } from '@/components/server/hooks/useServerDialogs'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -160,10 +161,12 @@ export function ChannelSidebar() {
   ])
 
   const handleOpenPinned = useCallback(
-    (channel: Channel) => {
-      if (currentServer) void goToChannel(currentServer.id, channel.id)
+    async (channel: Channel) => {
+      const serverId = currentServer?.id
+      if (!serverId) return
+      const navigation = goToChannel(serverId, channel.id)
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
-      setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
+      if ((await navigation).status === 'opened') useLayoutStore.setState({ pinsRequestedFor: channel.id })
     },
     [currentServer, goToChannel]
   )

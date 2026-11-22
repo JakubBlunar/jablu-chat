@@ -26,25 +26,32 @@ fn start_minimized_path(app: &AppHandle) -> Option<PathBuf> {
 /// Whether a login-launched instance should stay in the tray. Defaults to `true`
 /// (start hidden) when the user hasn't chosen otherwise.
 pub fn get_stored_start_minimized(app: &AppHandle) -> bool {
-    let Some(path) = start_minimized_path(app) else {
-        return true;
-    };
-    match fs::read_to_string(path) {
-        Ok(contents) => contents.trim() != "false",
-        Err(_) => true,
+    read_start_minimized(app).unwrap_or(true)
+}
+
+fn read_start_minimized(app: &AppHandle) -> Result<bool, String> {
+    let path = start_minimized_path(app).ok_or("could not resolve app config dir")?;
+    parse_start_minimized(fs::read_to_string(path))
+}
+
+fn parse_start_minimized(contents: std::io::Result<String>) -> Result<bool, String> {
+    match contents {
+        Ok(value) => value.trim().parse::<bool>().map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(true),
+        Err(e) => Err(e.to_string()),
     }
 }
 
 #[tauri::command]
-pub fn get_start_minimized(app: AppHandle) -> bool {
-    get_stored_start_minimized(&app)
+pub fn get_start_minimized(app: AppHandle) -> Result<bool, String> {
+    read_start_minimized(&app)
 }
 
 #[tauri::command]
 pub fn set_start_minimized(app: AppHandle, enabled: bool) -> Result<(), String> {
     let path = start_minimized_path(&app).ok_or("could not resolve app config dir")?;
     if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     fs::write(path, if enabled { "true" } else { "false" }).map_err(|e| e.to_string())
 }
@@ -78,5 +85,22 @@ pub fn take_show_on_next_launch(app: &AppHandle) -> bool {
         true
     } else {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_start_minimized;
+    use std::io::{Error, ErrorKind};
+
+    #[test]
+    fn distinguishes_a_new_install_from_corrupt_or_inaccessible_preferences() {
+        assert_eq!(
+            parse_start_minimized(Err(Error::from(ErrorKind::NotFound))),
+            Ok(true)
+        );
+        assert_eq!(parse_start_minimized(Ok("false\n".into())), Ok(false));
+        assert!(parse_start_minimized(Ok("invalid".into())).is_err());
+        assert!(parse_start_minimized(Err(Error::from(ErrorKind::PermissionDenied))).is_err());
     }
 }

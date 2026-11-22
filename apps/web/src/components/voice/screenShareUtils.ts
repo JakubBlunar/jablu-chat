@@ -18,12 +18,12 @@ const RESOLUTION_MAP = {
 export async function startScreenShareWithSettings(settings: ScreenShareSettings) {
   // Both web and the Tauri desktop shell (WebView2) use the standard
   // getDisplayMedia picker; the Electron desktopCapturer flow is gone.
-  await startScreenShareWeb(settings)
+  return startScreenShareWeb(settings)
 }
 
 /** @deprecated Use startScreenShareWithSettings */
 export async function startScreenShare() {
-  startScreenShareWithSettings({ resolution: '1080p', fps: 30, audio: false, highQualityAudio: false })
+  return startScreenShareWithSettings({ resolution: '1080p', fps: 30, audio: false, highQualityAudio: false })
 }
 
 function screenShareAudioPublishOptions(highQuality: boolean) {
@@ -41,8 +41,9 @@ function screenShareAudioPublishOptions(highQuality: boolean) {
 async function startScreenShareWeb(settings: ScreenShareSettings) {
   const store = useVoiceConnectionStore.getState()
   const room = store.room
-  if (!room) return
+  if (!room) throw new Error('Voice room unavailable')
 
+  const published: MediaStreamTrack[] = []
   let stream: MediaStream | null = null
   try {
     const videoConstraints: MediaTrackConstraints = {
@@ -60,7 +61,7 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
     })
 
     const videoTrack = stream.getVideoTracks()[0]
-    if (!videoTrack) return
+    if (!videoTrack) throw new Error('Missing display track')
 
     videoTrack.contentHint = 'detail'
 
@@ -82,6 +83,7 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
       degradationPreference: 'maintain-resolution'
     })
 
+    published.push(videoTrack)
     const audioTrack = stream.getAudioTracks()[0]
     let audioPub: { track?: { stop?: () => void } | null } | null = null
     if (audioTrack) {
@@ -106,9 +108,9 @@ async function startScreenShareWeb(settings: ScreenShareSettings) {
 
     store.setScreenSharing(true)
   } catch (err) {
-    if ((err as DOMException).name === 'NotAllowedError') return
     stream?.getTracks().forEach((t) => t.stop())
-    console.error('Failed to start screen share:', err)
+    await Promise.allSettled(published.map((track) => room.localParticipant.unpublishTrack(track)))
+    throw err
   }
 }
 

@@ -197,5 +197,6 @@
     "defaultDevice": "Default",
     "missingDevice": "Saved device (unavailable) — using default",
     "missingDeviceHint": "Your saved device is disconnected. Reconnect it or select a different one."
-  }
+  },
+  "screenNotSelected": "No screen was shared. Choose a source and allow capture to try again."
 }

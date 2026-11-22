@@ -1,3 +1,4 @@
+import { horizontalGesture, ownsHorizontalTouch } from '@/lib/horizontalGesture'
 import type { Message } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
 import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -197,22 +198,53 @@ export const MessageRow = memo(function MessageRow({
     }
   }, [])
 
-  const handleTouchStart = useCallback(() => {
-    if (!isMobile || editing) return
-    longPressFired.current = false
-    longPressTimer.current = setTimeout(() => {
-      longPressFired.current = true
-      setDrawerOpen(true)
-    }, 500)
-  }, [isMobile, editing])
+  const swipe = useRef<{ x: number; y: number } | null>(null)
+  const [replyCue, setReplyCue] = useState(false)
+  useEffect(() => cancelLongPress, [cancelLongPress])
+  const handleTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (!isMobile || editing) return
+      const point = event.touches[0]
+      swipe.current =
+        event.touches.length === 1 &&
+        !ownsHorizontalTouch(event.target, event.currentTarget) &&
+        !(event.target as Element).closest('button,img')
+          ? { x: point.clientX, y: point.clientY }
+          : null
+      longPressFired.current = false
+      longPressTimer.current = setTimeout(() => {
+        longPressFired.current = true
+        setDrawerOpen(true)
+      }, 500)
+    },
+    [isMobile, editing]
+  )
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = (event: React.TouchEvent) => {
     cancelLongPress()
-  }, [cancelLongPress])
+    const start = swipe.current
+    const point = event.changedTouches?.[0]
+    swipe.current = null
+    setReplyCue(false)
+    if (
+      !longPressFired.current &&
+      start &&
+      point &&
+      horizontalGesture(point.clientX - start.x, point.clientY - start.y, 'left')
+    ) {
+      event.preventDefault()
+      onReply(message)
+    }
+  }
 
-  const handleTouchMove = useCallback(() => {
+  const handleTouchMove = (event: React.TouchEvent) => {
     cancelLongPress()
-  }, [cancelLongPress])
+    const start = swipe.current
+    const point = event.touches?.[0]
+    if (!start || !point) return
+    if (Math.abs(point.clientY - start.y) > Math.abs(point.clientX - start.x) + 8) swipe.current = null
+    setReplyCue(!!swipe.current && horizontalGesture(point.clientX - start.x, point.clientY - start.y, 'left', 25))
+  }
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -264,19 +296,39 @@ export const MessageRow = memo(function MessageRow({
   return (
     <div
       ref={rowRef}
+      data-keyboard-message=""
       id={omitDomId ? undefined : `msg-${message.id}`}
-      data-message-interactive={editing || drawerOpen || mobileEmojiPicker || reactorsEmoji != null ? 'true' : undefined}
+      data-message-interactive={
+        editing || drawerOpen || mobileEmojiPicker || reactorsEmoji != null ? 'true' : undefined
+      }
       onClick={handleRowClick}
       onTouchStart={contentOnly ? undefined : handleTouchStart}
+      onTouchCancel={() => {
+        cancelLongPress()
+        swipe.current = null
+        setReplyCue(false)
+      }}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
       onContextMenu={contentOnly ? undefined : handleContextMenu}
       onKeyDown={contentOnly ? undefined : handleKeyDown}
       tabIndex={-1}
-      className={contentOnly ? 'min-w-0' : `group relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 rounded-md px-2 py-0.5 transition ${
-        editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
-      } ${showHead ? 'mt-4' : ''}`}
+      className={
+        contentOnly
+          ? 'min-w-0'
+          : `group relative grid grid-cols-[3rem_minmax(0,1fr)] gap-x-4 rounded-md px-2 py-0.5 transition ${
+              editing ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
+            } ${showHead ? 'mt-4' : ''}`
+      }
     >
+      {replyCue && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute right-2 top-0 rounded bg-surface-raised px-2 text-primary"
+        >
+          ↩
+        </span>
+      )}
       {drawerOpen && (
         <MobileMessageDrawer
           message={message}
@@ -359,25 +411,26 @@ export const MessageRow = memo(function MessageRow({
         </div>
       )}
 
-      {!contentOnly && (showHead ? (
-        isWebhook ? (
-          <div className="col-start-1 mt-0.5 self-start">
-            <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
-          </div>
+      {!contentOnly &&
+        (showHead ? (
+          isWebhook ? (
+            <div className="col-start-1 mt-0.5 self-start">
+              <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
+            </div>
+          ) : (
+            <button type="button" onClick={handleAuthorClick} className="col-start-1 mt-0.5 self-start">
+              <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
+            </button>
+          )
         ) : (
-          <button type="button" onClick={handleAuthorClick} className="col-start-1 mt-0.5 self-start">
-            <UserAvatar username={name} avatarUrl={avatarUrl} size="chat" />
-          </button>
-        )
-      ) : (
-        <div className="col-start-1 flex w-12 justify-center pt-1">
-          {!isDm && (
-            <span className="text-[10px] text-gray-500 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
-              {formatTimeOnly(message.createdAt)}
-            </span>
-          )}
-        </div>
-      ))}
+          <div className="col-start-1 flex w-12 justify-center pt-1">
+            {!isDm && (
+              <span className="text-[10px] text-gray-500 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
+                {formatTimeOnly(message.createdAt)}
+              </span>
+            )}
+          </div>
+        ))}
 
       <div className="col-start-2 min-w-0">
         {!contentOnly && showHead && (
@@ -537,7 +590,12 @@ export const MessageRow = memo(function MessageRow({
           <button
             type="button"
             onClick={() => {
-              if (serverId) void openConversation({ target: { kind: 'channel', serverId, channelId: contextId }, position: { kind: 'thread', parentId: message.id }, source: 'reply' })
+              if (serverId)
+                void openConversation({
+                  target: { kind: 'channel', serverId, channelId: contextId },
+                  position: { kind: 'thread', parentId: message.id },
+                  source: 'reply'
+                })
             }}
             className="mt-1.5 flex max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-white/[0.03] px-2.5 py-1.5 text-xs transition hover:bg-white/[0.06] max-lg:min-h-11"
           >

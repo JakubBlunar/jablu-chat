@@ -6,7 +6,7 @@ let intersect: IntersectionObserverCallback
 beforeEach(() => {
   global.IntersectionObserver = jest.fn((callback) => {
     intersect = callback
-    return { observe: jest.fn(), disconnect: jest.fn() }
+    return { observe: jest.fn(), unobserve: jest.fn(), disconnect: jest.fn() }
   }) as unknown as typeof IntersectionObserver
 })
 
@@ -17,7 +17,12 @@ function mount(initialMounted = false) {
   </WindowedMessage></div>)
 }
 function visibility(isIntersecting: boolean) {
-  act(() => intersect([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver))
+  act(() =>
+    intersect(
+      [{ target: document.getElementById('msg-target'), isIntersecting } as unknown as IntersectionObserverEntry],
+      {} as IntersectionObserver
+    )
+  )
 }
 
 it('keeps a stable scroll target and divider while parking expensive children', () => {
@@ -64,4 +69,23 @@ it('keeps every row intersected by a multi-message text selection mounted', () =
   expect(screen.getByText('Edit target')).toBeTruthy()
   window.getSelection()!.removeAllRanges()
   before.remove()
+})
+
+it('shares one observer across 600 parked rows and releases it on unmount', () => {
+  const root = createRef<HTMLDivElement>()
+  const { unmount } = render(
+    <div ref={root}>
+      {Array.from({ length: 600 }, (_, i) => (
+        <WindowedMessage key={i} id={'msg-' + i} root={root} initialMounted={false} estimate={40} label="Reveal">
+          {i}
+        </WindowedMessage>
+      ))}
+    </div>
+  )
+  expect(IntersectionObserver).toHaveBeenCalledTimes(1)
+  const observer = (IntersectionObserver as jest.Mock).mock.results[0].value
+  expect(observer.observe).toHaveBeenCalledTimes(600)
+  unmount()
+  expect(observer.unobserve).toHaveBeenCalledTimes(600)
+  expect(observer.disconnect).toHaveBeenCalledTimes(1)
 })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CameraQuality } from '@/lib/deviceSettings'
 import type { ScreenShareSettings } from './ScreenShareDialog'
@@ -24,23 +24,20 @@ export function useVoiceControls() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [cameraModalMode, setCameraModalMode] = useState<'start' | 'edit' | null>(null)
   const [showScreenShareDialog, setShowScreenShareDialog] = useState(false)
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     const handler = (e: Event) => {
       const msg = (e as CustomEvent<{ message: string }>).detail.message
       setErrorMsg(msg)
-      clearTimeout(errorTimerRef.current)
-      errorTimerRef.current = setTimeout(() => setErrorMsg(null), 5000)
     }
     window.addEventListener('voice:error', handler)
     return () => {
       window.removeEventListener('voice:error', handler)
-      clearTimeout(errorTimerRef.current)
     }
   }, [])
 
   useEffect(() => {
+    setErrorMsg(null)
     if (!connectedAt) {
       setElapsed(0)
       return
@@ -52,6 +49,7 @@ export function useVoiceControls() {
   }, [connectedAt])
 
   const handleCameraClick = useCallback(() => {
+    setErrorMsg(null)
     if (isCameraOn) {
       stopCamera()
     } else {
@@ -78,33 +76,25 @@ export function useVoiceControls() {
   }, [disconnect])
 
   const handleScreenShare = useCallback(() => {
+    setErrorMsg(null)
     if (isScreenSharing) {
       const room = useVoiceConnectionStore.getState().room
       room?.localParticipant
         .setScreenShareEnabled(false)
+        .then(() => useVoiceConnectionStore.getState().setScreenSharing(false))
         .catch(() => {
-          window.dispatchEvent(
-            new CustomEvent('voice:error', { detail: { message: t('screenShareStopFailed') } })
-          )
-        })
-        .finally(() => {
-          useVoiceConnectionStore.getState().setScreenSharing(false)
+          window.dispatchEvent(new CustomEvent('voice:error', { detail: { message: t('screenShareStopFailed') } }))
         })
     } else {
       setShowScreenShareDialog(true)
     }
   }, [isScreenSharing, t])
 
-  const handleScreenShareConfirm = useCallback((settings: ScreenShareSettings) => {
+  const handleScreenShareConfirm = useCallback(async (settings: ScreenShareSettings) => {
+    const { startScreenShareWithSettings } = await import('@/components/voice/screenShareUtils')
+    await startScreenShareWithSettings(settings)
     setShowScreenShareDialog(false)
-    import('@/components/voice/screenShareUtils')
-      .then(({ startScreenShareWithSettings }) => startScreenShareWithSettings(settings))
-      .catch(() => {
-      window.dispatchEvent(
-        new CustomEvent('voice:error', { detail: { message: t('screenShareStartFailed') } })
-      )
-    })
-  }, [t])
+  }, [])
 
   const mins = Math.floor(elapsed / 60)
   const secs = elapsed % 60
@@ -120,6 +110,7 @@ export function useVoiceControls() {
     elapsed,
     timeStr,
     errorMsg,
+    dismissError: () => setErrorMsg(null),
     cameraModalMode,
     setCameraModalMode,
     showScreenShareDialog,

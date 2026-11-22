@@ -386,6 +386,8 @@
       "accessibility": "Accessibility"
     },
     "descriptions": {
+      "readTimeline": "Read adjacent messages in the focused history",
+      "replyTimeline": "Reply to the focused message",
       "openCommandPalette": "Open command palette",
       "openKeyboardShortcuts": "Open keyboard shortcuts",
       "closeModal": "Close any open modal, panel, or popover",
@@ -414,5 +416,6 @@
       "tab": "Tab",
       "space": "Space"
     }
-  }
+  },
+  "nativePreferenceFailed": "Could not confirm the system setting."
 }

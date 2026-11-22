@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 type LayoutState = {
+  pinsRequestedFor: string | null
   navDrawerOpen: boolean
   memberDrawerOpen: boolean
   /** Desktop channel-info drawer. Transient (not persisted); suppresses the member sidebar while open. */
@@ -16,6 +17,7 @@ type LayoutState = {
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
+  pinsRequestedFor: null,
   navDrawerOpen: false,
   memberDrawerOpen: false,
   channelInfoDrawerOpen: false,

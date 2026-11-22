@@ -121,7 +121,7 @@ it('renders grouped views and expands highlights without acknowledging them', as
 
 it('filters on the server and retains the notification feed', async () => {
   mount()
-  fireEvent.click(screen.getByRole('tab', { name: /inboxTab_mentions/ }))
+  fireEvent.click(await screen.findByRole('tab', { name: /inboxTab_mentions/ }))
   await waitFor(() => expect(api.getInbox).toHaveBeenLastCalledWith('mentions', undefined))
   fireEvent.click(screen.getByRole('tab', { name: /inboxTab_activity/ }))
   expect(screen.getByText('legacy activity')).toBeInTheDocument()
@@ -154,10 +154,10 @@ it('puts Notifications first and updates its badge without interrupting the sele
   expect(screen.getByRole('tab', { name: /inboxTab_mentions/ })).toHaveAttribute('aria-selected', 'true')
 })
 
-it('makes count failures visible on the Notifications tab instead of showing a zero badge', () => {
+it('makes count failures visible on the Notifications tab instead of showing a zero badge', async () => {
   useNotificationCenterStore.setState({ unreadError: true })
   mount()
-  expect(screen.getAllByRole('tab')[0]).toHaveAccessibleName('inboxTab_activity inboxCountFailed')
+  expect((await screen.findAllByRole('tab'))[0]).toHaveAccessibleName('inboxTab_activity inboxCountFailed')
   expect(screen.getAllByRole('tab')[0]).toHaveTextContent('!')
 })
 
@@ -221,7 +221,7 @@ it('closes the underlying navigation menu when opening a notification', async ()
   useLayoutStore.getState().openNavDrawer()
   useInboxStore.getState().selectTab('activity')
   mount()
-  fireEvent.click(screen.getByRole('button', { name: 'legacy activity' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'legacy activity' }))
   expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
@@ -263,4 +263,15 @@ it('preserves thread targets in DM and channel message links', () => {
   expect(
     inboxTargetPath({ mode: 'dm', contextId: 'd1', serverId: null, threadParentId: null, messageId: 'dm-message' })
   ).toBe('/channels/@me/d1?m=dm-message')
+})
+
+it('restores the reader session with the inbox closed and defers fetching its list until opened', async () => {
+  useInboxStore.getState().close()
+  mount()
+  await waitFor(() => expect(api.getInboxSession).toHaveBeenCalled())
+  expect(api.getInbox).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  act(() => useInboxStore.getState().show())
+  await screen.findByRole('dialog')
+  expect(api.getInbox).toHaveBeenCalledTimes(1)
 })

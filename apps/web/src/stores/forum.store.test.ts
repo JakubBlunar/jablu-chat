@@ -91,13 +91,15 @@ describe('forum.store', () => {
       expect(mockGet).toHaveBeenCalledWith(expect.stringContaining('tagId=t1'))
     })
 
-    it('omits tagId when multiple tags are active', async () => {
-      useForumStore.setState({ channelId: 'ch1', activeTagIds: ['t1', 't2'] })
+    it('sends all selected tags and the search term before pagination', async () => {
+      useForumStore.setState({ channelId: 'ch1', activeTagIds: ['t1', 't2'], searchQuery: 'old post' })
       mockGet.mockResolvedValue({ posts: [], hasMore: false })
 
       await useForumStore.getState().fetchPosts()
 
-      expect(mockGet).toHaveBeenCalledWith(expect.not.stringContaining('tagId='))
+      const url = new URL(mockGet.mock.calls[0][0], 'https://test.local')
+      expect(url.searchParams.get('tagIds')).toBe('t1,t2')
+      expect(url.searchParams.get('q')).toBe('old post')
     })
 
     it('resets isLoading on error', async () => {
@@ -277,4 +279,28 @@ describe('forum.store', () => {
       expect(useForumStore.getState().activeTagIds).not.toContain('t1')
     })
   })
+})
+
+it('discards an old page during the debounce for a new query', async () => {
+  jest.useFakeTimers()
+  try {
+    useForumStore.setState({ channelId: 'forum' })
+    let release!: (page: unknown) => void
+    mockGet.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    )
+    const stale = useForumStore.getState().fetchPosts()
+    useForumStore.getState().setSearchQuery('new')
+    release({ posts: [{ id: 'old' }], hasMore: false })
+    await stale
+    expect(useForumStore.getState().posts).toEqual([])
+    mockGet.mockResolvedValueOnce({ posts: [{ id: 'new' }], hasMore: false })
+    await jest.advanceTimersByTimeAsync(250)
+    expect(useForumStore.getState().posts.map((p) => p.id)).toEqual(['new'])
+  } finally {
+    jest.useRealTimers()
+  }
 })

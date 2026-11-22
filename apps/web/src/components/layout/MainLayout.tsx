@@ -48,6 +48,7 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { CommandPaletteButton } from '@/components/CommandPaletteButton'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { OnboardingWizard } from '@/components/server/OnboardingWizard'
+import { SearchReturnBar } from '@/components/search/SearchReturnBar'
 import { InboxReadingBar } from '@/components/notifications/InboxReadingBar'
 
 const SettingsModal = lazy(() =>
@@ -58,12 +59,13 @@ const ScreenSharePicker = lazy(() =>
   import('@/components/voice/ScreenSharePicker').then((m) => ({ default: m.ScreenSharePicker }))
 )
 
-function VoicePlayback() {
+function ConnectedVoiceTools() {
   const connected = useVoiceConnectionStore((s) => s.room !== null)
   return connected ? (
-    <Suspense fallback={null}>
-      <VoiceAudioManager />
-    </Suspense>
+    <>
+      <Suspense fallback={null}><VoiceAudioManager /></Suspense>
+      <Suspense fallback={null}><ScreenSharePicker /></Suspense>
+    </>
   ) : null
 }
 
@@ -242,7 +244,7 @@ function MainLayoutContent() {
     return (
       <MobileViewport>
         <SkipToMainLink />
-        <VoicePlayback />
+        <ConnectedVoiceTools />
         <DmCallNotifications />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
@@ -251,6 +253,7 @@ function MainLayoutContent() {
         <UpdateBanner />
         <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 flex-col outline-none">
           <InboxReadingBar />
+          <SearchReturnBar />
           {viewMode === 'dm' ? (
             <MessageArea mode="dm" contextId={currentConvId} />
           ) : serversLoading && servers.length === 0 ? (
@@ -300,9 +303,6 @@ function MainLayoutContent() {
         <MobileBottomNav onOpenSettings={() => openSettings()} />
         <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
         <MemberDrawer />
-        <Suspense fallback={null}>
-          <ScreenSharePicker />
-        </Suspense>
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         {settingsOpen && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
@@ -325,7 +325,7 @@ function MainLayoutContent() {
     return (
       <div className="flex h-full flex-col overflow-clip bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
         <SkipToMainLink />
-        <VoicePlayback />
+        <ConnectedVoiceTools />
         <DmCallNotifications />
         <ToastContainer />
         <ConnectionBanner isConnected={isConnected} />
@@ -348,9 +348,6 @@ function MainLayoutContent() {
             <MessageArea mode="dm" contextId={currentConvId} compactNavigation={isTablet} />
           </div>
         </div>
-        <Suspense fallback={null}>
-          <ScreenSharePicker />
-        </Suspense>
         {isTablet && (
           <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
         )}
@@ -376,7 +373,7 @@ function MainLayoutContent() {
   return (
     <div className="flex h-full flex-col overflow-clip bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-white">
       <SkipToMainLink />
-      <VoicePlayback />
+      <ConnectedVoiceTools />
       <DmCallNotifications />
       <ToastContainer />
       <ConnectionBanner isConnected={isConnected} />
@@ -433,9 +430,6 @@ function MainLayoutContent() {
             />
           )}
         </div>
-        <Suspense fallback={null}>
-          <ScreenSharePicker />
-        </Suspense>
       </div>
       {isTablet && (
         <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />

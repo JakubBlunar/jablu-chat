@@ -37,5 +37,6 @@
   "resultCount_many": "{{count}} výsledků",
   "resultCount_other": "{{count}} výsledků",
   "dmBadge": "SZ",
-  "searchGiphyPlaceholder": "Hledat na GIPHY"
+  "searchGiphyPlaceholder": "Hledat na GIPHY",
+  "backToResults": "Zpět na výsledky"
 }

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { BadRequestException, ConflictException } from '@nestjs/common'
 import { Prisma, type ForumSortOrder } from '../prisma-client'
 import type { PrismaService } from '../prisma/prisma.service'
@@ -47,9 +48,18 @@ export async function forumPage(
   sort: ForumSortOrder,
   tagId: string | undefined,
   value: string | undefined,
-  take: number
+  take: number,
+  tagIds: string[] = [],
+  query = ''
 ) {
-  const cursor = decode(value, channelId, sort, tagId)
+  const tags = [...new Set(tagId ? [tagId, ...tagIds] : tagIds)].sort()
+  const scope =
+    query || tags.length > 1
+      ? createHash('sha256')
+          .update(JSON.stringify([tags, query]))
+          .digest('hex')
+      : tags[0]
+  const cursor = decode(value, channelId, sort, scope)
   const legacy = value && !cursor ? value : undefined
   const cutoff = new Date(cursor?.cutoff ?? Date.now())
   const activity = sort === 'newest' ? Prisma.sql`p.created_at` : Prisma.sql`COALESCE(reply.created_at, p.created_at)`
@@ -70,7 +80,19 @@ export async function forumPage(
       SELECT p.id, ${activity} AS activity FROM messages p ${join}
       WHERE p.channel_id = ${channelId} AND NOT p.deleted AND p.thread_parent_id IS NULL
         AND p.title IS NOT NULL AND p.created_at <= ${cutoff}
-        ${tagId ? Prisma.sql`AND EXISTS (SELECT 1 FROM forum_post_tags pt WHERE pt.message_id = p.id AND pt.tag_id = ${tagId})` : Prisma.empty}
+        ${
+          tags.length
+            ? Prisma.sql`AND (SELECT COUNT(DISTINCT pt.tag_id) FROM forum_post_tags pt
+          WHERE pt.message_id = p.id AND pt.tag_id IN (${Prisma.join(tags)})) = ${tags.length}`
+            : Prisma.empty
+        }
+        ${
+          query
+            ? Prisma.sql`AND (strpos(lower(p.title), lower(${query})) > 0
+          OR strpos(lower(p.content), lower(${query})) > 0
+          OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.author_id AND strpos(lower(u.username), lower(${query})) > 0))`
+            : Prisma.empty
+        }
     ), page AS (
       SELECT id, activity FROM ranked ${boundary} ORDER BY activity DESC, id DESC LIMIT ${take + 1}
     )
@@ -100,7 +122,7 @@ export async function forumPage(
               v: 1,
               channel: channelId,
               sort,
-              tag: tagId ?? null,
+              tag: scope ?? null,
               cutoff: cutoff.getTime(),
               at: last.at,
               id: last.id,

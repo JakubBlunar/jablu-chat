@@ -1,3 +1,4 @@
+import { prepareReadingRestore, readingPoint, rememberReadingPoint, clearVisits, recordVisit } from '@/lib/conversationVisits'
 import { create } from 'zustand'
 import { registerConversationCoordinator } from '@/lib/conversationNavigation'
 import type { Channel, ForumPost } from '@chat/shared'
@@ -8,7 +9,10 @@ import {
   type ConversationTarget,
   type ConversationOutcome
 } from '@/lib/conversationTarget'
-import { hydrateContextFromDisk } from '@/lib/cache/hydrate'
+import { cacheOwnedBy } from '@/lib/cache/db'
+import { useAuthStore } from './auth.store'
+import { Permission, hasPermission } from '@chat/shared'
+import { hydrateServerStructureFromDisk, hydrateContextFromDisk } from '@/lib/cache/hydrate'
 import { channelKey, dmKey, peekContext } from '@/lib/cache/messageCache'
 import { historyErrorKey, requireMessageTarget, type HistoryErrorKey } from '@/lib/messageHistory'
 import { getSocket } from '@/lib/socket'
@@ -117,6 +121,20 @@ function selectRoute(target: ConversationTarget) {
 
 async function serverChannels(serverId: string, requested: string | undefined, current: () => boolean) {
   const state = useChannelStore.getState()
+  if (!navigator.onLine) {
+    const owner = useAuthStore.getState().user?.id
+    if (owner && await cacheOwnedBy(owner)) {
+      await hydrateServerStructureFromDisk(serverId)
+      if (!current() || useAuthStore.getState().user?.id !== owner) return []
+      const permissions = useChannelPermissionsStore.getState()
+      if (state.hydrateFromCache(serverId) && permissions.hydrateFromCache(serverId)) {
+        const bits = useChannelPermissionsStore.getState().permissionsMap
+        return useChannelStore.getState().channels.filter(channel =>
+          channel.serverId === serverId && bits[channel.id] !== undefined && hasPermission(bits[channel.id], Permission.VIEW_CHANNEL)
+        )
+      }
+    }
+  }
   const missing =
     !!requested && !state.channels.some((channel) => channel.id === requested && channel.serverId === serverId)
   if (state.loadedServerId !== serverId || missing) {
@@ -152,7 +170,11 @@ function landingChannel(serverId: string, channels: Channel[]) {
   )
 }
 
-async function loadHistory(request: ConversationRequest, signal: AbortSignal, current: () => boolean) {
+async function loadHistory(
+  request: ConversationRequest,
+  signal: AbortSignal,
+  current: () => boolean
+): Promise<boolean> {
   const target = request.target
   if (target.kind !== 'channel' && target.kind !== 'dm') return false
   const dm = target.kind === 'dm'
@@ -166,8 +188,10 @@ async function loadHistory(request: ConversationRequest, signal: AbortSignal, cu
   const read = useReadStateStore.getState()
   const unread =
     (dm ? read.dmViewSnapshots : read.channelViewSnapshots).get(id) ?? (dm ? read.dms : read.channels).get(id)
+  const resume = readingPoint(request)
   const anchor =
-    position.kind === 'message'
+    resume?.id ??
+    (position.kind === 'message'
       ? (position.threadParentId ?? position.messageId)
       : position.kind === 'thread'
         ? position.parentId
@@ -175,7 +199,7 @@ async function loadHistory(request: ConversationRequest, signal: AbortSignal, cu
           ? position.threadParentId
           : position.kind === 'unread' && unread?.unreadCount
             ? unread.firstUnreadMessageId
-            : null
+            : null)
   if (!anchor) store().setScrollToMessageId(null)
   if (anchor) {
     if (loaded() !== id) {
@@ -189,9 +213,18 @@ async function loadHistory(request: ConversationRequest, signal: AbortSignal, cu
       await store().fetchMessagesAround(id, anchor, signal)
     }
     if (!current()) return false
+    if (
+      resume &&
+      (store().messagesError === 'messageUnavailable' ||
+        (!store().messagesError && !store().messages.some((m) => m.id === anchor)))
+    ) {
+      rememberReadingPoint(target.kind + ':' + id, null)
+      return loadHistory({ ...request, source: 'route' }, signal, current)
+    }
     if (store().messagesError) throw new Error(store().messagesError!)
     requireMessageTarget(store().messages, anchor)
     useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
+    prepareReadingRestore(target.kind + ':' + id, resume)
     store().setScrollToMessageId(anchor)
   } else if (loaded() !== id || store().hasNewer) {
     const key = dm ? dmKey(id) : channelKey(id)
@@ -307,6 +340,8 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     set({ activeNavId: ++counter, status: 'idle', isNavigating: false, navigatingToServerId: null, error: null })
   },
   reset: () => {
+    clearVisits()
+    useLayoutStore.setState({ pinsRequestedFor: null })
     get().cancelNavigation()
     set({ request: null, routeKey: null })
   },
@@ -316,6 +351,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
     if (request) void get().openConversation({ ...request, position: { kind: 'latest' } }, { replace: true })
   },
   openConversation: (request, options) => {
+    useLayoutStore.setState({ pinsRequestedFor: null })
     get().cancelNavigation()
     const id = ++counter
     set({
@@ -425,6 +461,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
               position.threadParentId ?? null
             )
         }
+        recordVisit(target)
         set({ status: empty ? 'empty' : 'ready', isNavigating: false, navigatingToServerId: null })
         const outcome: ConversationOutcome = { status: 'opened', path: conversationPath(request, false), target, empty }
         finishPending(id, outcome)

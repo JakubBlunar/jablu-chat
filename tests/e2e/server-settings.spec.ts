@@ -173,7 +173,10 @@ test('server settings save and moderate real local data', async ({ page, request
     await page.screenshot({ path: 'test-results/settings-audit-desktop.png' })
     await mobileSettings(page)
     for (const name of ['Overview', 'Members', 'Bans', 'Onboarding', 'Emojis', 'Audit Log']) {
+      const back = page.getByRole('dialog').getByRole('button', { name: 'Back', exact: true })
+      if (await back.isVisible()) await back.click()
       await page.getByRole('dialog').getByRole('button', { name, exact: true }).click()
+      await expect(page.getByRole('heading', { name, exact: true }).first()).toBeVisible()
       await page.waitForTimeout(350)
       expect(await page.getByRole('dialog').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
       await page.screenshot({ path: `test-results/settings-${name.toLowerCase().replaceAll(' ', '-')}-mobile.png` })
@@ -185,13 +188,11 @@ test('server settings save and moderate real local data', async ({ page, request
   }
 })
 
-test('large lists paginate, reset filters, and recover from a failed audit request', async ({ page }) => {
+test('large lists paginate, reset filters, and recover from a failed audit request', async ({ page, request }) => {
   test.setTimeout(120_000)
   page.setDefaultTimeout(10_000)
   await loginAs(page, 'admin')
-  await expect(page).toHaveURL(/\/channels\/[^/]+\/[^/]+$/)
-  const serverId = new URL(page.url()).pathname.split('/')[2]
-  const server = await apiCall(page, 'get', `/api/servers/${serverId}`)
+  const server = await createTestServer(page, request)
   try {
     const original = await apiCall(page, 'get', `/api/servers/${server.id}/members`)
     const members = [
@@ -301,12 +302,18 @@ test('large lists paginate, reset filters, and recover from a failed audit reque
     await expect(dialog.getByRole('button', { name: 'Retry' })).toHaveCount(0)
     await mobileSettings(page)
     for (const name of ['Overview', 'Members', 'Bans', 'Onboarding', 'Emojis', 'Audit Log']) {
+      const back = page.getByRole('dialog').getByRole('button', { name: 'Back', exact: true })
+      if (await back.isVisible()) await back.click()
       await page.getByRole('dialog').getByRole('button', { name, exact: true }).click()
+      await expect(page.getByRole('heading', { name, exact: true }).first()).toBeVisible()
       await page.waitForTimeout(350)
       expect(await page.getByRole('dialog').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
       await page.screenshot({ path: `test-results/settings-${name.toLowerCase().replaceAll(' ', '-')}-mobile.png` })
     }
   } finally {
-    if (!page.isClosed()) await page.unrouteAll({ behavior: 'ignoreErrors' })
+    if (!page.isClosed()) {
+      await page.unrouteAll({ behavior: 'ignoreErrors' })
+      await apiCall(page, 'deleteServer', server.id)
+    }
   }
 })

@@ -62,5 +62,8 @@
     "cancel": "Cancel",
     "save": "Save",
     "saving": "Saving…"
-  }
+  },
+  "allSelectedTags": "Matches all selected tags",
+  "noMatch": "No matching posts",
+  "loadFailed": "Could not load posts"
 }

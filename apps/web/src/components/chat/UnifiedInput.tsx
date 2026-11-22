@@ -145,6 +145,7 @@ export function UnifiedInput({
 
       {files.length > 0 && (
         <p className="mb-2 text-xs text-gray-400">
+          {t('stagedFileCount', { count: files.length })} ·{' '}
           {maxUploadMb !== null ? t('attachmentLimit', { max: maxUploadMb }) : t('attachmentLimitPending')}
           {limitFailed && (
             <button
@@ -158,16 +159,21 @@ export function UnifiedInput({
         </p>
       )}
       {files.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div
+          role="list"
+          aria-label={t('stagedFileCount', { count: files.length })}
+          className="mb-2 flex gap-2 overflow-x-auto p-1"
+        >
           {files.map((file, i) => (
             <div
               key={`${file.name}-${i}`}
-              className="relative w-32 rounded-lg bg-surface-dark p-1 ring-1 ring-white/10"
+              role="listitem"
+              className="relative w-32 shrink-0 rounded-lg bg-surface-dark p-1 ring-1 ring-white/10"
             >
               {previews[i] ? (
-                <img src={previews[i]} alt={file.name} className="h-20 w-20 rounded object-cover" />
+                <img src={previews[i]} alt={file.name} className="h-8 w-12 md:h-16 md:w-16 rounded object-cover" />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded text-xs text-gray-400">
+                <div className="flex h-8 w-12 md:h-16 md:w-16 items-center justify-center rounded text-xs text-gray-400">
                   {file.name.split('.').pop()?.toUpperCase()}
                 </div>
               )}

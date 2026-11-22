@@ -70,7 +70,9 @@ export class ForumPostsService {
     sort: ForumSortOrder = ForumSortOrder.latest_activity,
     tagId?: string,
     cursor?: string,
-    limit = 25
+    limit = 25,
+    tagIds: string[] = [],
+    query = ''
   ) {
     await this.requireForumChannel(channelId, userId)
     const take = Math.min(Math.max(1, limit), 50)
@@ -83,7 +85,7 @@ export class ForumPostsService {
       ...(tagId ? { forumPostTags: { some: { tagId } } } : {})
     }
 
-    const selection = await forumPage(this.prisma, channelId, sort, tagId, cursor, take)
+    const selection = await forumPage(this.prisma, channelId, sort, tagId, cursor, take, tagIds, query.trim())
     const rows = selection.page.length
       ? await this.prisma.message.findMany({
           where: { ...where, id: { in: selection.page.map((row) => row.id) } },

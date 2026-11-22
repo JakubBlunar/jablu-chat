@@ -102,6 +102,16 @@ database('Forum paging (PostgreSQL)', () => {
             await expect(
               service.listPosts(channel.id, user.id, 'newest', undefined, first.nextCursor!)
             ).rejects.toThrow('Invalid forum cursor')
+            const other = await tx.forumTag.create({ data: { channelId: channel.id, name: 'Other', color: '#000000' } })
+            await tx.forumPostTag.create({ data: { messageId: roots[1]!.id, tagId: other.id } })
+            const combined = await service.listPosts(channel.id, user.id, 'newest', undefined, undefined, 1, [tag.id, other.id], 'POST')
+            expect(combined.posts.map(post => post.id)).toEqual([roots[1]!.id])
+            const filtered = await service.listPosts(channel.id, user.id, 'newest', tag.id, undefined, 1, [], 'post')
+            expect(filtered.nextCursor).toBeTruthy()
+            await expect(service.listPosts(channel.id, user.id, 'newest', tag.id, filtered.nextCursor!, 1, [], 'body'))
+              .rejects.toThrow('Invalid forum cursor')
+            const literal = await service.listPosts(channel.id, user.id, 'newest', undefined, undefined, 3, [], '%')
+            expect(literal.posts).toHaveLength(0)
             const newestIds: string[] = []
             let newestCursor: string | undefined
             do {

@@ -199,5 +199,6 @@
     "defaultDevice": "Predvolené zariadenie",
     "missingDevice": "Uložené zariadenie nie je dostupné — používa sa predvolené zariadenie",
     "missingDeviceHint": "Uložené zariadenie je odpojené. Znova ho pripojte alebo vyberte iné."
-  }
+  },
+  "screenNotSelected": "Obrazovka sa nezdieľa. Vyberte zdroj a povoľte snímanie."
 }

@@ -522,6 +522,7 @@ function CarouselStrip({ tiles, onTileClick }: { tiles: TileEntry[]; onTileClick
 
 function VoiceRoomHeader({ channelName, participantCount }: { channelName: string | null; participantCount: number }) {
   const { t } = useTranslation('voice')
+  const { t: tCommonVoice } = useTranslation('common')
   const { t: tA11y } = useTranslation('a11y')
   const vc = useVoiceControls()
   const compactNavigation = useIsTablet()
@@ -669,7 +670,12 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
       </div>
 
       {vc.errorMsg && (
-        <div className="bg-red-500/10 px-4 py-1.5 text-center text-xs font-medium text-red-400">{vc.errorMsg}</div>
+        <div role="alert" className="bg-red-500/10 px-4 py-1.5 text-center text-xs font-medium text-red-400">
+          {vc.errorMsg}{' '}
+          <button type="button" className="ml-2 underline" onClick={vc.dismissError}>
+            {tCommonVoice('close')}
+          </button>
+        </div>
       )}
 
       {vc.cameraModalMode && (

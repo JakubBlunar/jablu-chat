@@ -315,5 +315,7 @@
     "loadingReactions": "Načítají se společné reakce…",
     "morePeople": "a další ({{count}})",
     "fewerPeople": "Zobrazit méně"
-  }
+  },
+  "formatText": "Formátovat text",
+  "stagedFileCount": "Přílohy ({{count}})"
 }

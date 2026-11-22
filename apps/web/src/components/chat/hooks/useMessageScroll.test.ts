@@ -1,3 +1,7 @@
+jest.mock('@/stores/navigation.store', () => ({
+  useNavigationStore: { getState: () => ({ request: null, isNavigating: false }) }
+}))
+
 import { createElement } from 'react'
 import { render, renderHook, act, fireEvent, waitFor } from '@testing-library/react'
 import { useMessageScroll, type ScrollStoreAdapter } from './useMessageScroll'

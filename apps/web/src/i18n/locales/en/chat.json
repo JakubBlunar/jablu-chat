@@ -306,5 +306,7 @@
     "loadingReactions": "Loading shared reactions…",
     "morePeople": "and {{count}} others",
     "fewerPeople": "Show fewer"
-  }
+  },
+  "formatText": "Format text",
+  "stagedFileCount": "Attachments ({{count}})"
 }

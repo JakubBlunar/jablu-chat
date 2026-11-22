@@ -180,21 +180,22 @@ fn set_tray_unread(app: AppHandle, count: i64) {
 }
 
 #[tauri::command]
-fn get_auto_launch(app: AppHandle) -> bool {
+fn get_auto_launch(app: AppHandle) -> Result<bool, String> {
     use tauri_plugin_autostart::ManagerExt;
-    app.autolaunch().is_enabled().unwrap_or(false)
+    app.autolaunch().is_enabled().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn set_auto_launch(app: AppHandle, enabled: bool) -> bool {
+fn set_auto_launch(app: AppHandle, enabled: bool) -> Result<bool, String> {
     use tauri_plugin_autostart::ManagerExt;
     let manager = app.autolaunch();
     if enabled {
-        let _ = manager.enable();
+        manager.enable()
     } else {
-        let _ = manager.disable();
+        manager.disable()
     }
-    manager.is_enabled().unwrap_or(false)
+    .map_err(|e| e.to_string())?;
+    manager.is_enabled().map_err(|e| e.to_string())
 }
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {

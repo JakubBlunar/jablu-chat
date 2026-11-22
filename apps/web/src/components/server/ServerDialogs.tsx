@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth.store'
 import { useServerStore } from '@/stores/server.store'
+import { ensureNamespacesLoaded } from '@/i18n/loadBundles'
 import { lazy, Suspense } from 'react'
 import type { ServerDialogState } from './hooks/useServerDialogState'
 const CreateChannelModal = lazy(() =>
@@ -10,7 +11,9 @@ const EditChannelModal = lazy(() =>
 )
 const InviteModal = lazy(() => import('@/components/server/InviteModal').then((m) => ({ default: m.InviteModal })))
 const ServerSettingsModal = lazy(() =>
-  import('@/components/server/ServerSettingsModal').then((m) => ({ default: m.ServerSettingsModal }))
+  Promise.all([import('@/components/server/ServerSettingsModal'), ensureNamespacesLoaded(['server-settings'])]).then(
+    ([m]) => ({ default: m.ServerSettingsModal })
+  )
 )
 const LeaderboardModal = lazy(() =>
   import('@/components/server/LeaderboardModal').then((m) => ({ default: m.LeaderboardModal }))

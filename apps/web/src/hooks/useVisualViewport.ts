@@ -38,12 +38,14 @@ export function useVisualViewport(ref: RefObject<HTMLElement | null>, active = t
     const viewport = window.visualViewport
     if (!active || !element || !viewport) return
     const previousHeight = element.style.height
+    const previousVisibleHeight = element.style.getPropertyValue('--chat-visible-height')
     const previousTop = element.style.top
     const previousInset = element.style.getPropertyValue('--keyboard-safe-area-bottom')
     let frame = 0
     const update = () => {
       const bounds = getVisualViewportBounds()
       if (!bounds) return
+      element.style.setProperty('--chat-visible-height', `${bounds.height}px`)
       element.style.height = `${bounds.height}px`
       element.style.top = `${bounds.top}px`
       // The keyboard already covers the home-indicator area.
@@ -91,6 +93,7 @@ export function useVisualViewport(ref: RefObject<HTMLElement | null>, active = t
       document.removeEventListener('visibilitychange', onVisibility)
       document.removeEventListener('focusin', afterFocus)
       document.removeEventListener('focusout', afterFocus)
+      element.style.setProperty('--chat-visible-height', previousVisibleHeight)
       element.style.height = previousHeight
       element.style.top = previousTop
       if (previousInset) element.style.setProperty('--keyboard-safe-area-bottom', previousInset)

@@ -68,6 +68,10 @@ async function prepare(page: Page, role: 'admin' | 'user', localServer?: { id: s
   })
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   if (!localServer) {
+    await expect.poll(() => page.evaluate(async () => {
+      const { useServerStore } = await import('/src/stores/' + 'server.store.ts')
+      return useServerStore.getState().servers.length
+    })).toBeGreaterThan(0)
     const server = await page.evaluate(async () => {
       const { useServerStore } = await import('/src/stores/' + 'server.store.ts')
       return useServerStore.getState().servers[0]
@@ -427,4 +431,37 @@ test('live processing changes restore voice activity and preserve mute', async (
       await apiCall(page, 'deleteServer', server.id)
     }
   }
+})
+
+test('keeps screen-share settings after a cancelled picker and retries in the same call',async({context,page,request})=>{
+  page.setDefaultTimeout(8_000)
+  await instrument(context)
+  await loginAs(page,'admin')
+  const server=await createTestServer(page,request)
+  try{
+    await apiCall(page,'post','/api/servers/'+server.id+'/channels',{name:'ux-call',type:'voice'})
+    const voice=await prepare(page,'admin',server)
+    await join(page,voice.name)
+    await page.evaluate(()=>{
+      let first=true
+      navigator.mediaDevices.getDisplayMedia=async()=>{
+        if(first){first=false;throw new DOMException('Picker dismissed','NotAllowedError')}
+        const canvas=document.createElement('canvas')
+        canvas.width=320
+        canvas.height=200
+        canvas.getContext('2d')!.fillRect(0,0,320,200)
+        return canvas.captureStream(15)
+      }
+    })
+    await page.getByRole('button',{name:'Share screen',exact:true}).first().click()
+    const dialog=page.getByRole('dialog').last()
+    await dialog.getByRole('button',{name:'720p'}).click()
+    const confirm=dialog.getByRole('button',{name:'Share Screen',exact:true})
+    await confirm.click()
+    await expect(dialog.getByRole('alert')).toContainText('No screen was shared')
+    expect((await voiceState(page)).connected).toBe(true)
+    await confirm.click()
+    await expect(dialog).toHaveCount(0)
+    await expect.poll(async()=> (await voiceState(page)).connected).toBe(true)
+  }finally{await disconnect(page);await apiCall(page,'deleteServer',server.id)}
 })

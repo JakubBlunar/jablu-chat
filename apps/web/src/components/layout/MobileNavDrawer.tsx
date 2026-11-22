@@ -160,12 +160,13 @@ export function MobileNavDrawer({
   const isAdminOrOwner = hasPerm(Permission.MANAGE_CHANNELS)
 
   const handleOpenPinned = useCallback(
-    (channel: Channel) => {
-      if (!currentServerId) return
-      void goToChannel(currentServerId, channel.id)
+    async (channel: Channel) => {
+      const serverId = currentServerId
+      if (!serverId) return
+      const navigation = goToChannel(serverId, channel.id)
       useVoiceConnectionStore.getState().setViewingVoiceRoom(false)
       close()
-      setTimeout(() => window.dispatchEvent(new CustomEvent('open-pinned')), 100)
+      if ((await navigation).status === 'opened') useLayoutStore.setState({ pinsRequestedFor: channel.id })
     },
     [currentServerId, goToChannel, close]
   )

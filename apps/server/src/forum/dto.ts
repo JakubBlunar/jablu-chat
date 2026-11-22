@@ -68,6 +68,18 @@ export class ListForumPostsDto {
   tagId?: string
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.split(',') : value))
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true })
+  tagIds?: string[]
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string
+
+  @IsOptional()
   @IsString()
   @MaxLength(2048)
   cursor?: string

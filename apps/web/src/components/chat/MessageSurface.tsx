@@ -1,10 +1,11 @@
+import { visibleMessageRow } from '@/lib/visibleMessageRow'
 import type { Message } from '@chat/shared'
 import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollToBottomButton } from '@/components/ScrollToBottomButton'
 import { MessageRow } from '@/components/chat/MessageRow'
 import { groupMessages } from '@/lib/messageGrouping'
-import { WindowedMessage } from '@/components/chat/WindowedMessage'
+import { WindowedMessage, revealMessageElement } from '@/components/chat/WindowedMessage'
 import { type ChannelRef } from '@/components/MarkdownContent'
 import { formatDateSeparator, formatTimeOnly, isDifferentDay } from '@/lib/format-time'
 import { Spinner } from '@/components/ui'
@@ -197,15 +198,30 @@ export const MessageSurface = memo(function MessageSurface({
             </div>
           )}
           {renderedItems.map(({ msg, group, showHead, newDay, isLastOwn }, index) => (
-            <WindowedMessage key={`${contextId}:${msg.id}`} id={`msg-${msg.id}`} root={scroll.scrollParentRef}
+            <WindowedMessage
+              key={`${contextId}:${msg.id}`}
+              id={`msg-${msg.id}`}
+              root={scroll.scrollParentRef}
               aliasIds={group.slice(1).map((m) => `msg-${m.id}`)}
-              initialMounted={messages.length <= 50 || (initialAnchor >= 0 ? Math.abs(index - initialAnchor) < 20 : index >= messages.length - 24)}
-              estimate={(showHead ? 64 : 30) + Math.min(400, Math.floor((msg.content?.length ?? 0) / 70) * 22) + (msg.attachments?.length ? 240 : 0)}
+              initialMounted={
+                renderedItems.length <= 50 ||
+                (initialAnchor >= 0 ? Math.abs(index - initialAnchor) < 20 : index >= renderedItems.length - 24)
+              }
+              estimate={
+                (showHead ? 64 : 30) +
+                Math.min(400, Math.floor((msg.content?.length ?? 0) / 70) * 22) +
+                (msg.attachments?.length ? 240 : 0)
+              }
               label={`${tChat('messageListLabel')}: ${msg.content ?? ''}`}
-              decoration={<>
-                {newDay && <DateSeparator date={msg.createdAt} />}
-                {firstUnreadId === msg.id && <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />}
-              </>}>
+              decoration={
+                <>
+                  {newDay && <DateSeparator date={msg.createdAt} />}
+                  {firstUnreadId === msg.id && (
+                    <NewMessagesDivider label={tChat('newMessagesDivider')} innerRef={dividerRef} />
+                  )}
+                </>
+              }
+            >
               <TimelineMessageRow
                 messages={group}
                 viewportRef={scroll.scrollParentRef}
@@ -261,6 +277,47 @@ export const MessageSurface = memo(function MessageSurface({
       <div
         ref={scroll.scrollParentRef}
         role="log"
+        tabIndex={0}
+        aria-keyshortcuts="ArrowUp ArrowDown R Escape"
+        onKeyDown={(event) => {
+          const log = event.currentTarget
+          const origin = event.target as HTMLElement
+          if (
+            event.defaultPrevented ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey ||
+            (origin !== log && !origin.matches('[data-keyboard-message], [data-message-window]'))
+          )
+            return
+          const current = origin.closest<HTMLElement>('[data-message-window]')
+          if (event.key === 'Escape') {
+            let parent: HTMLElement | null = log.parentElement
+            while (parent && !parent.querySelector('[data-message-composer] textarea')) parent = parent.parentElement
+            parent
+              ?.querySelector<HTMLTextAreaElement>('[data-message-composer] textarea')
+              ?.focus({ preventScroll: true })
+          } else if (event.key.toLowerCase() === 'r' && current) {
+            const message = messages.find((m) => m.id === current.id.slice(4))
+            if (message) onReply(message)
+          } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            const down = event.key === 'ArrowDown'
+            const adjacent = down ? current?.nextElementSibling : current?.previousElementSibling
+            const target = current
+              ? adjacent?.closest<HTMLElement>('[data-message-window]')
+              : visibleMessageRow(log.querySelectorAll('[data-message-window]'), log.getBoundingClientRect(), down ? 'first' : 'last')
+            if (target) {
+              revealMessageElement(target.id)
+              const focus = target.querySelector<HTMLElement>('[data-keyboard-message]') ?? target
+              focus.tabIndex = -1
+              focus.focus({ preventScroll: true })
+              focus.scrollIntoView({ block: 'nearest' })
+            }
+          } else return
+          event.preventDefault()
+          event.stopPropagation()
+        }}
         aria-label={tChat('messageListLabel')}
         aria-live="polite"
         className={`chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 [overflow-anchor:none]${scroll.settling ? ' invisible' : ''}`}
@@ -270,35 +327,25 @@ export const MessageSurface = memo(function MessageSurface({
 
       {showPill && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center px-3 pt-2">
-          <button
-            type="button"
-            data-testid="new-messages-pill"
-            onClick={onJumpToUnread}
-            className="pointer-events-auto flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-text shadow-lg ring-1 ring-black/10 transition hover:bg-primary/90"
-          >
-            <span className="truncate">{tChat('newMessagesPill', { count: unreadCount, time: pillTimeLabel })}</span>
+          <div className="pointer-events-auto flex items-center rounded-md bg-primary text-xs font-semibold text-primary-text shadow-lg">
+            <button
+              type="button"
+              data-testid="new-messages-pill"
+              onClick={onJumpToUnread}
+              className="min-h-11 truncate rounded-md px-3"
+            >
+              {tChat('newMessagesPill', { count: unreadCount, time: pillTimeLabel })}
+            </button>
             {onMarkAsRead && (
-              <span
-                role="button"
-                tabIndex={0}
-                aria-label={tChat('markAsRead')}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onMarkAsRead()
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    onMarkAsRead()
-                  }
-                }}
-                className="cursor-pointer rounded px-1 text-[11px] uppercase tracking-wide opacity-90 hover:opacity-100"
+              <button
+                type="button"
+                onClick={onMarkAsRead}
+                className="min-h-11 shrink-0 rounded-md border-l border-black/20 px-2"
               >
                 {tChat('markAsRead')}
-              </span>
+              </button>
             )}
-          </button>
+          </div>
         </div>
       )}
 

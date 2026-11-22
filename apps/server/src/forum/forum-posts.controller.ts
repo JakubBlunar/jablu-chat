@@ -26,7 +26,16 @@ export class ForumPostsController {
     @CurrentUser() user: { id: string },
     @Query() query: ListForumPostsDto
   ) {
-    return this.posts.listPosts(channelId, user.id, query.sort, query.tagId, query.cursor, query.limit)
+    return this.posts.listPosts(
+      channelId,
+      user.id,
+      query.sort,
+      query.tagId,
+      query.cursor,
+      query.limit,
+      query.tagIds,
+      query.q
+    )
   }
 
   @Get(':postId')

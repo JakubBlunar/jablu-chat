@@ -102,7 +102,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
 
   const userId = useAuthStore((s) => s.user?.id)
 
-  const scroll = useMessageScroll(contextId, store)
+  const scroll = useMessageScroll(contextId, store, mode)
   useInboxAnchor(
     mode,
     contextId,

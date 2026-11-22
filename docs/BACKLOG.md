@@ -2,6 +2,8 @@
 
 Part of the [Jablu documentation](./README.md).
 
+For the delivered interactions, measurements and remaining device checks, see the [web, mobile and desktop UX backlog](./UX_BACKLOG.md).
+
 These are planned initiatives, not implemented features or capacity guarantees.
 The recommended order is measurement, durable delivery, then worker isolation.
 Client efficiency can proceed independently once measurements are available.

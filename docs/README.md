@@ -14,6 +14,7 @@ work.
 | [Direct conversations](./CONVERSATIONS.md) | DM media, search, personal controls and group management |
 | [Message navigation audit](./MESSAGE_NAVIGATION_AUDIT.md) | Shared navigation API, ownership guards, jump entry points and local regression coverage |
 | [Backlog](./BACKLOG.md) | Prioritized scalability and reliability initiatives with acceptance criteria |
+| [UX backlog](./UX_BACKLOG.md) | Implemented interaction improvements, original UX evidence, browser verification and production startup measurements |
 
 The [activity tracking guide](./ACTIVITY_TRACKING.md) covers detection, recovery,
 privacy enforcement, and verification. The [original investigation](./ACTIVITY_TRACKING_REVIEW.md)

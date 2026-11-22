@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Permission } from '@chat/shared'
+import { useVisits, visitId } from '@/lib/conversationVisits'
+import { getChannels, getPermissions } from '@/lib/cache/structureCache'
+import { useChannelPermissionsStore } from '@/stores/channel-permissions.store'
+import { hasPermission, Permission } from '@chat/shared'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChannelStore } from '@/stores/channel.store'
 import { useDmStore } from '@/stores/dm.store'
@@ -45,6 +48,8 @@ function getDmDisplayName(
 
 export function useBuiltInCommands(): Command[] {
   const { t } = useTranslation('nav')
+  const recent = useVisits((s) => s.recent)
+  const perms = useChannelPermissionsStore((s) => s.permissionsMap)
   const channels = useChannelStore((s) => s.channels)
   const conversations = useDmStore((s) => s.conversations)
   const servers = useServerStore((s) => s.servers)
@@ -64,16 +69,34 @@ export function useBuiltInCommands(): Command[] {
   return useMemo<Command[]>(() => {
     const commands: Command[] = []
 
-    for (const ch of channels) {
+    const choices = [
+      ...channels.filter((ch) => perms[ch.id] === undefined || hasPermission(perms[ch.id], Permission.VIEW_CHANNEL))
+    ]
+    for (const target of recent) {
+      if (
+        target.kind !== 'channel' ||
+        target.serverId === currentServerId ||
+        !servers.some((s) => s.id === target.serverId)
+      )
+        continue
+      const permission = getPermissions(target.serverId)?.permissions[target.channelId]
+      const channel = getChannels(target.serverId)?.channels.find((c) => c.id === target.channelId)
+      if (channel && permission && hasPermission(BigInt(permission), Permission.VIEW_CHANNEL)) choices.push(channel)
+    }
+    for (const ch of choices) {
       commands.push({
         id: `nav:channel:${ch.id}`,
         section: 'navigation',
         label: ch.name,
+        hint: servers.find((server) => server.id === ch.serverId)?.name,
         keywords: ['channel', ch.type],
         icon: ch.type === 'voice' ? <VoiceIcon /> : <HashIcon />,
         run: async ({ close }) => {
           close()
-          await openConversation({ target: { kind: 'channel', serverId: ch.serverId, channelId: ch.id }, source: 'command' })
+          await openConversation({
+            target: { kind: 'channel', serverId: ch.serverId, channelId: ch.id },
+            source: 'command'
+          })
         }
       })
     }
@@ -318,8 +341,11 @@ export function useBuiltInCommands(): Command[] {
       run: ({ close }) => openSettings('shortcuts', close)
     })
 
-    return commands
+    const ranks = new Map(recent.slice(1).map((target, index) => [visitId(target), index]))
+    return commands.sort((a, b) => (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity))
   }, [
+    recent,
+    perms,
     channels,
     conversations,
     servers,

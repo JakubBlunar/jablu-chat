@@ -119,6 +119,7 @@ function ForumPostCard({ post, layout, onClick }: { post: ForumPost; layout: 'li
 export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenNav?: () => void }) {
   const { t } = useTranslation('nav')
   const { t: tForum } = useTranslation('forum')
+  const { t: tCommon } = useTranslation('common')
   const { t: tA11y } = useTranslation('a11y')
   const channel = useChannelStore((s) => s.channels.find((c) => c.id === channelId)) as Channel | undefined
 
@@ -145,23 +146,14 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
   const [createOpen, setCreateOpen] = useState(false)
   const [showGuidelines, setShowGuidelines] = useState(true)
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
-  const [_tagPickerOpen, setTagPickerOpen] = useState(false)
+  const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     init(channelId, channel?.defaultLayout, channel?.defaultSortOrder)
   }, [channelId, channel?.defaultLayout, channel?.defaultSortOrder, init])
 
-  const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return posts
-    const q = searchQuery.toLowerCase()
-    return posts.filter(
-      (p) =>
-        p.title?.toLowerCase().includes(q) ||
-        p.content?.toLowerCase().includes(q) ||
-        p.author?.username.toLowerCase().includes(q)
-    )
-  }, [posts, searchQuery])
+  const listError = useForumStore((s) => s.listError)
 
   const handleLoadMore = useCallback(() => {
     if (hasMore && !isLoading) fetchMore()
@@ -222,6 +214,7 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
                 <input
                   type="text"
                   placeholder={t('searchPostsPlaceholder')}
+                  maxLength={200}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full rounded-md border-0 bg-surface-darkest py-2 pl-9 pr-3 text-sm text-white outline-none ring-1 ring-white/10 transition placeholder:text-gray-600 focus:ring-2 focus:ring-primary"
@@ -257,7 +250,9 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
                 </button>
                 {sortDropdownOpen && (
                   <div className="absolute left-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-md bg-surface-darkest py-1 shadow-xl ring-1 ring-white/10">
-                    <p className="px-3 py-1 text-[10px] font-semibold uppercase text-gray-500">{tForum('list.sortBy')}</p>
+                    <p className="px-3 py-1 text-[10px] font-semibold uppercase text-gray-500">
+                      {tForum('list.sortBy')}
+                    </p>
                     <button
                       type="button"
                       onClick={() => {
@@ -306,8 +301,14 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
 
               {/* Tag chips */}
               {tags.length > 0 && (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
-                  {tags.map((tag) => (
+                <div
+                  className={
+                    tagPickerOpen
+                      ? 'flex min-w-0 flex-1 flex-wrap items-center gap-1.5'
+                      : 'flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto'
+                  }
+                >
+                  {(tagPickerOpen ? tags : tags.slice(0, 8)).map((tag) => (
                     <TagChip
                       key={tag.id}
                       name={tag.name}
@@ -319,6 +320,7 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
                   {tags.length > 8 && (
                     <button
                       type="button"
+                      aria-expanded={tagPickerOpen}
                       onClick={() => setTagPickerOpen((v) => !v)}
                       className="shrink-0 rounded-full bg-white/5 px-2 py-1 text-[11px] text-gray-400 hover:text-white"
                     >
@@ -347,6 +349,15 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
               )}
             </div>
 
+            {activeTagIds.length > 0 && <p className="text-xs text-gray-400">{tForum('allSelectedTags')}</p>}
+            {listError && (
+              <div role="alert">
+                {tForum('loadFailed')}{' '}
+                <button onClick={() => void (posts.length ? fetchMore() : useForumStore.getState().fetchPosts())}>
+                  {tCommon('retry')}
+                </button>
+              </div>
+            )}
             {/* Post guidelines */}
             {channel?.postGuidelines && showGuidelines && (
               <div className="mt-3 rounded-lg border border-white/10 bg-surface-dark px-3 py-2">
@@ -367,25 +378,37 @@ export function ForumView({ channelId, onOpenNav }: { channelId: string; onOpenN
             )}
 
             {/* Post list */}
-            {isLoading && filteredPosts.length === 0 ? (
+            {isLoading && posts.length === 0 ? (
               <div className="mt-8 flex flex-col items-center gap-2">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-primary" />
                 <p className="text-sm text-gray-500">{tForum('list.loading')}</p>
               </div>
-            ) : filteredPosts.length === 0 ? (
+            ) : listError && !posts.length ? null : !posts.length && (searchQuery || activeTagIds.length > 0) ? (
+              <div className="py-6 text-center">
+                {tForum('noMatch')}{' '}
+                <button
+                  onClick={() => {
+                    setSearchQuery('')
+                    clearTagFilters()
+                  }}
+                >
+                  {tForum('list.clearAll')}
+                </button>
+              </div>
+            ) : posts.length === 0 ? (
               <div className="mt-8 flex flex-col items-center gap-2 text-center">
                 <p className="text-sm text-gray-400">{tForum('list.empty')}</p>
                 <p className="text-xs text-gray-600">{tForum('list.beFirst')}</p>
               </div>
             ) : layout === 'grid' ? (
               <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-                {filteredPosts.map((post) => (
+                {posts.map((post) => (
                   <ForumPostCard key={post.id} post={post} layout="grid" onClick={() => handleOpenPost(post.id)} />
                 ))}
               </div>
             ) : (
               <div className="mt-4 space-y-2">
-                {filteredPosts.map((post) => (
+                {posts.map((post) => (
                   <ForumPostCard key={post.id} post={post} layout="list" onClick={() => handleOpenPost(post.id)} />
                 ))}
               </div>

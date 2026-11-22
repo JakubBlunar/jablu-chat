@@ -388,6 +388,8 @@
       "accessibility": "Prístupnosť"
     },
     "descriptions": {
+      "readTimeline": "Prejsť na susednú správu v histórii",
+      "replyTimeline": "Odpovedať na vybranú správu",
       "openCommandPalette": "Otvoriť paletu príkazov",
       "openKeyboardShortcuts": "Otvoriť prehľad klávesových skratiek",
       "closeModal": "Zavrieť otvorené dialógové okno, panel alebo vyskakovaciu ponuku",
@@ -416,5 +418,6 @@
       "tab": "Tab",
       "space": "Medzerník"
     }
-  }
+  },
+  "nativePreferenceFailed": "Nepodarilo sa overiť systémové nastavenie."
 }

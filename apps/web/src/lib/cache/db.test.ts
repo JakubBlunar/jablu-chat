@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import {
+  cacheOwnedBy,
   clearCacheDb,
   deleteMessages,
   deleteStructure,
@@ -171,4 +172,13 @@ describe('cache database', () => {
 
     globalThis.indexedDB = original
   })
+})
+
+it('confirms the owner before restoring a signed-in offline route',async()=>{
+  expect(await cacheOwnedBy('new')).toBe(false)
+  await initCacheDb('first')
+  expect(await cacheOwnedBy('first')).toBe(true)
+  expect(await cacheOwnedBy('second')).toBe(false)
+  await initCacheDb('second')
+  expect(await cacheOwnedBy('first')).toBe(false)
 })

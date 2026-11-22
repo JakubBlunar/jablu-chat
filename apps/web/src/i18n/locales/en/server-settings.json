@@ -353,5 +353,12 @@
     "noResults": "No matching results. Try a different search or filter.",
     "retry": "Retry",
     "saved": "Changes saved."
+  },
+  "findSetting": "Find a setting",
+  "indexGroups": {
+    "general": "General",
+    "people": "People and moderation",
+    "integrations": "Integrations and emoji",
+    "management": "Administration"
   }
 }

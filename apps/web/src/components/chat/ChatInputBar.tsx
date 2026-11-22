@@ -153,6 +153,16 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
   return (
     <div
       ref={wrapperRef}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setShowToolbar(false)
+      }}
+      onKeyDown={(e) => {
+        if (showToolbar && e.key === 'Escape') {
+          e.stopPropagation()
+          setShowToolbar(false)
+          taRef.current?.focus({ preventScroll: true })
+        }
+      }}
       className="chat-composer relative rounded-lg bg-surface-raised ring-1 ring-black/20 transition focus-within:ring-2 focus-within:ring-primary/55"
     >
       {popupOpen && popupMode === 'mention' && (
@@ -169,7 +179,11 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
       )}
 
       {showToolbar && !isMobile && (
-        <div className="flex items-center gap-0.5 border-b border-white/5 px-2 py-1">
+        <div
+          role="group"
+          aria-label={t('formatText')}
+          className="absolute bottom-full left-0 z-30 mb-1 flex items-center gap-1 rounded-md bg-surface-raised p-2 shadow-lg"
+        >
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
@@ -269,8 +283,6 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
             // touch-down moves the field before iOS's synthetic mouse-down.
             event.currentTarget.focus({ preventScroll: true })
           }}
-          onFocus={() => setShowToolbar(true)}
-          onBlur={() => setShowToolbar(false)}
           onChange={(e) => {
             onChange(e.target.value)
             onTyping?.()
@@ -282,6 +294,26 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           onSelect={detectTrigger}
         />
 
+        {!isMobile && (
+          <button
+            type="button"
+            aria-label={t('formatText')}
+            aria-expanded={showToolbar}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setShowToolbar(!showToolbar)
+              if (!showToolbar)
+                requestAnimationFrame(() =>
+                  wrapperRef.current
+                    ?.querySelector<HTMLButtonElement>('[role="group"] button')
+                    ?.focus({ preventScroll: true })
+                )
+            }}
+            className="min-h-11 shrink-0 px-2 text-sm font-semibold text-gray-400"
+          >
+            Aa
+          </button>
+        )}
         {gifEnabled && onGifSelect && (
           <button
             type="button"
@@ -310,14 +342,15 @@ export const ChatInputBar = forwardRef<ChatInputBarHandle, ChatInputBarProps>(fu
           <SmileIcon className="h-5 w-5" />
         </button>
 
-        {(value.trim().length > 0 || hasAttachments) && (
+        {(isMobile || value.trim().length > 0 || hasAttachments) && (
           <button
             type="button"
             onClick={() => {
               if (value.length <= MAX_MESSAGE_LENGTH) onSend()
             }}
-            className={`min-h-11 min-w-11 shrink-0 text-primary transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'pr-3 py-3'}`}
+            className={`min-h-11 min-w-11 shrink-0 text-primary disabled:opacity-30 transition hover:text-primary-hover ${isMobile ? 'px-2.5 py-3' : 'pr-3 py-3'}`}
             aria-label={t('sendMessage')}
+            disabled={disabled || (!value.trim() && !hasAttachments) || value.length > MAX_MESSAGE_LENGTH}
             onMouseDown={(event) => {
               if (!isMobile) event.preventDefault()
             }}

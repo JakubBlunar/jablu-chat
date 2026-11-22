@@ -266,6 +266,7 @@ describe('MessageSurface', () => {
         onMarkAsRead: onMark
       })
       const mark = screen.getByText('Mark As Read')
+      expect(mark.closest('button')?.parentElement?.closest('button')).toBeNull()
       mark.click()
       expect(onMark).toHaveBeenCalledTimes(1)
       expect(onJump).not.toHaveBeenCalled()

@@ -261,3 +261,27 @@ it('keeps a failed result visible and retries the full navigation intent', async
   expect(mockOpen).toHaveBeenLastCalledWith({ target: { kind: 'dm', conversationId: 'conv' }, position: { kind: 'message', messageId: 'message', threadParentId: undefined }, source: 'search' })
   log.mockRestore()
 })
+
+it('reopens the saved result page against the original channel after the active destination changes', async () => {
+  mockIsMobile = true
+  useChannelStore.setState({ currentChannelId: 'destination' })
+  const saved = {
+    query: 'hello',
+    scope: 'channel' as const,
+    offset: 25,
+    serverId: 'old-server',
+    channelId: 'original',
+    resultId: 'second',
+    scrollTop: 130,
+    filtersOpen: true
+  }
+  render(<SearchDrawer query={saved.query} resume={saved} onQueryChange={jest.fn()} onClose={jest.fn()} />)
+  await waitFor(() =>
+    expect(search).toHaveBeenCalledWith(
+      'hello',
+      { channelId: 'original', offset: 25 },
+      { signal: expect.any(AbortSignal) }
+    )
+  )
+  expect(screen.getByRole('textbox')).not.toHaveFocus()
+})

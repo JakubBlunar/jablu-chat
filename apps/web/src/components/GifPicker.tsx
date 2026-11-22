@@ -90,11 +90,17 @@ function GifPickerContent({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const request = useRef(0)
+  const fetching = useRef(false)
   const fetchGifs = useCallback(async (q: string, pos?: string) => {
+    if (pos && fetching.current) return
+    const generation = ++request.current
+    fetching.current = true
     setLoading(true)
     setError(false)
     try {
       const data = q.trim() ? await api.searchGifs(q.trim(), 20, pos) : await api.getTrendingGifs(20, pos)
+      if (generation !== request.current) return
       if (pos) {
         setResults((prev) => [...prev, ...data.results])
       } else {
@@ -102,37 +108,42 @@ function GifPickerContent({
       }
       setNextPos(data.next)
     } catch {
+      if (generation !== request.current) return
       if (!pos) setResults([])
       setError(true)
     } finally {
-      setLoading(false)
+      if (generation === request.current) {
+        fetching.current = false
+        setLoading(false)
+      }
     }
   }, [])
 
-  const mountedRef = useRef(false)
-
   useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true
-      fetchGifs('')
-      return
+    setResults([])
+    setNextPos('')
+    setLoading(true)
+    setError(false)
+    const currentRequest = request
+    if (query)
+      debounceRef.current = setTimeout(() => {
+        void fetchGifs(query)
+      }, 300)
+    else void fetchGifs('')
+    return () => {
+      ++currentRequest.current
+      fetching.current = false
+      clearTimeout(debounceRef.current)
     }
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setResults([])
-      setNextPos('')
-      fetchGifs(query)
-    }, 300)
-    return () => clearTimeout(debounceRef.current)
   }, [query, fetchGifs])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
-    if (!el || loading || !nextPos) return
+    if (!el || loading || error || !nextPos) return
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
       fetchGifs(query, nextPos)
     }
-  }, [loading, nextPos, query, fetchGifs])
+  }, [loading, error, nextPos, query, fetchGifs])
 
   const left: GifResult[] = []
   const right: GifResult[] = []
@@ -195,6 +206,11 @@ function GifPickerContent({
           </div>
         </div>
 
+        {error && results.length > 0 && (
+          <button type="button" onClick={() => void fetchGifs(query, nextPos)}>
+            {t('gifTryAgain')}
+          </button>
+        )}
         {loading && (
           <div className="flex justify-center py-4">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-500 border-t-white" />

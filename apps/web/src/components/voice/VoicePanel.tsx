@@ -128,7 +128,12 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
     return (
       <div className="border-t border-black/20 bg-surface-overlay px-3 py-2">
         {vc.errorMsg && (
-          <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>
+          <div role="alert" className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">
+            {vc.errorMsg}{' '}
+            <button type="button" className="ml-2 underline" onClick={vc.dismissError}>
+              {tCommon('close')}
+            </button>
+          </div>
         )}
         <div className="rounded-md bg-amber-500/10 px-2 py-2 text-[11px] text-amber-200">
           <p className="font-medium">{t('dropoutTitle', { channel: titleChannel })}</p>
@@ -158,7 +163,12 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
     <div className="border-t border-black/20 bg-surface-overlay px-3 py-2">
       {!viewingVoiceRoom && <VoiceCallStatus />}
       {vc.errorMsg && (
-        <div className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">{vc.errorMsg}</div>
+        <div role="alert" className="mb-1.5 rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-400">
+          {vc.errorMsg}{' '}
+          <button type="button" className="ml-2 underline" onClick={vc.dismissError}>
+            {tCommon('close')}
+          </button>
+        </div>
       )}
       {isReconnecting && (
         <div className="mb-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200">

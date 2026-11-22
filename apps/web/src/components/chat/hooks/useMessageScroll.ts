@@ -1,3 +1,6 @@
+import { visibleMessageRow } from '@/lib/visibleMessageRow'
+import { useNavigationStore } from '@/stores/navigation.store'
+import { takeReadingOffset, rememberReadingPoint } from '@/lib/conversationVisits'
 import type { Message } from '@chat/shared'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { historyErrorKey, requireMessageTarget, type HistoryErrorKey } from '@/lib/messageHistory'
@@ -157,7 +160,11 @@ function attachLoadOlderImageAnchor(sp: HTMLElement, prevTopId: string): void {
   const timeoutId = setTimeout(cleanup, LOAD_OLDER_IMAGE_ANCHOR_WINDOW_MS)
 }
 
-export function useMessageScroll(contextId: string | null, store: ScrollStoreAdapter): ScrollState {
+export function useMessageScroll(
+  contextId: string | null,
+  store: ScrollStoreAdapter,
+  mode?: 'channel' | 'dm'
+): ScrollState {
   const {
     messages,
     isLoading,
@@ -541,6 +548,28 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     if (!sp) return
 
     let ticking = false
+    const saveReadingPoint = () => {
+      if (
+        !mode ||
+        !contextId ||
+        activeContextRef.current !== contextId ||
+        storeRef.current.getLoadedForId() !== contextId ||
+        storeRef.current.scrollToMessageId ||
+        useNavigationStore.getState().isNavigating
+      )
+        return
+      const key = mode + ':' + contextId
+      if (sp.scrollHeight - sp.scrollTop - sp.clientHeight < 2) {
+        rememberReadingPoint(key, null)
+        return
+      }
+      const rect = sp.getBoundingClientRect()
+      const row = document
+        .elementFromPoint(rect.left + rect.width / 2, rect.top + 10)
+        ?.closest<HTMLElement>('[data-message-window]')
+      const anchor = row && sp.contains(row) ? row : visibleMessageRow(sp.querySelectorAll('[data-message-window]'), rect, 'first')
+      if (anchor) rememberReadingPoint(key, { id: anchor.id.slice(4), offset: anchor.getBoundingClientRect().top - rect.top })
+    }
     const updateAnchor = () => {
       ticking = false
       if (atBottomRef.current || pendingGoToBottom.current) {
@@ -554,6 +583,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     }
 
     const onScroll = () => {
+      saveReadingPoint()
       if (!ticking) {
         ticking = true
         requestAnimationFrame(updateAnchor)
@@ -563,7 +593,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     sp.addEventListener('scroll', onScroll, { passive: true })
     updateAnchor()
     return () => sp.removeEventListener('scroll', onScroll)
-  }, [messages.length])
+  }, [messages.length, contextId, mode])
 
   useEffect(() => {
     const sp = scrollParentRef.current
@@ -656,21 +686,27 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
         }
         if (cancelled) return
         if (!el) throw new Error('historyLoadFailed')
-        scrollWithin(scrollParentRef.current, el)
+        const viewport = scrollParentRef.current
+        const offset = mode ? takeReadingOffset(mode + ':' + contextId, targetId) : undefined
+        if (viewport && offset !== undefined)
+          viewport.scrollTop += el.getBoundingClientRect().top - viewport.getBoundingClientRect().top - offset
+        else scrollWithin(viewport, el)
         setAtBottom(false)
         hasInitialSnappedRef.current = true
         pendingGoToBottom.current = false
         forceBottomUntilRef.current = 0
-        el.classList.add('bg-primary/10')
-        const highlighted = el
-        setTimeout(() => {
-          highlighted.style.transition = 'background-color 1s ease'
-          void highlighted.offsetHeight
-          highlighted.classList.remove('bg-primary/10')
+        if (offset === undefined) {
+          el.classList.add('bg-primary/10')
+          const highlighted = el
           setTimeout(() => {
-            highlighted.style.transition = ''
-          }, 1000)
-        }, 5000)
+            highlighted.style.transition = 'background-color 1s ease'
+            void highlighted.offsetHeight
+            highlighted.classList.remove('bg-primary/10')
+            setTimeout(() => {
+              highlighted.style.transition = ''
+            }, 1000)
+          }, 5000)
+        }
         setScrollToMessageId(null)
       } catch (error) {
         if (!cancelled) throw error
@@ -680,7 +716,7 @@ export function useMessageScroll(contextId: string | null, store: ScrollStoreAda
     return () => {
       cancelled = true
     }
-  }, [scrollToMessageId, scrollRequestNonce, contextId, setScrollToMessageId, runHistory, deferInitialLoad])
+  }, [scrollToMessageId, scrollRequestNonce, contextId, setScrollToMessageId, runHistory, deferInitialLoad, mode])
 
   const handleJumpToMessage = useCallback((messageId: string) => {
     storeRef.current.requestJump(messageId)

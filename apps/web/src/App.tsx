@@ -23,12 +23,13 @@ import { ensureNamespacesLoaded, I18N_NAMESPACES } from '@/i18n/loadBundles'
 const Router = isElectron ? HashRouter : BrowserRouter
 const MainLayout = lazy(async () => {
   const [module] = await Promise.all([
-    import('./components/layout/MainLayout'), ensureNamespacesLoaded(I18N_NAMESPACES)
+    import('./components/layout/MainLayout'),
+    ensureNamespacesLoaded(I18N_NAMESPACES.filter((ns) => ns !== 'server-settings'))
   ])
   return { default: module.MainLayout }
 })
 const InboxWorkspace = lazy(async () => {
-  await ensureNamespacesLoaded(I18N_NAMESPACES)
+  await ensureNamespacesLoaded(['nav', 'common', 'chat'])
   const module = await import('@/components/notifications/InboxWorkspace')
   return { default: module.InboxWorkspace }
 })
