@@ -71,6 +71,12 @@ test('server settings save and moderate real local data', async ({ page, request
     const dialog = page.getByRole('dialog', { name: 'Server Settings', exact: true })
     const tab = (name: string) => dialog.getByRole('button', { name, exact: true }).click()
 
+    await tab('Insights')
+    await expect(dialog.getByRole('heading', { name: 'Message Activity' })).toBeVisible()
+    const count = (type: string) => server.channels.filter((c: { type: string }) => c.type === type).length
+    await expect(dialog.getByText(count('text') + ' text · ' + count('voice') + ' voice')).toBeVisible()
+    await tab('Overview')
+
     await page.locator('#overview-server-name').fill('Settings QA renamed')
     await dialog.getByRole('button', { name: 'Save', exact: true }).first().click()
     await expect(dialog.getByRole('status')).toHaveText('Changes saved.')

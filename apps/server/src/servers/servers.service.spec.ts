@@ -57,6 +57,25 @@ describe('ServersService', () => {
     service = module.get(ServersService)
   })
 
+  it('builds Insights channel totals and names from one read and accepts missing authors', async () => {
+    prisma.channel.findMany.mockResolvedValue([
+      { id: 'a', name: 'general', type: 'text' }, { id: 'b', name: 'calls', type: 'voice' },
+      { id: 'c', name: 'forum', type: 'forum' }
+    ])
+    prisma.serverMember.count.mockResolvedValue(4)
+    prisma.message.count.mockResolvedValue(2)
+    prisma.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ channel_id: 'a', count: 2n }])
+      .mockResolvedValueOnce([{ author_id: null, count: 2n }]).mockResolvedValueOnce([])
+    const result = await service.getInsights(serverId, userId)
+    expect(result.overview).toEqual({ totalChannels: 3, textChannels: 1, voiceChannels: 1, totalMessages: 2, totalMembers: 4 })
+    expect(result.topChannels).toEqual([{ channelId: 'a', name: 'general', count: 2 }])
+    expect(result.topContributors[0]).toMatchObject({ userId: null, username: 'deleted', count: 2 })
+    expect(prisma.channel.findMany).toHaveBeenCalledTimes(1)
+    expect(prisma.channel.count).not.toHaveBeenCalled()
+    expect(prisma.channel.groupBy).not.toHaveBeenCalled()
+    expect(prisma.user.findMany).not.toHaveBeenCalled()
+  })
+
   describe('getRosterPage', () => {
     it('bounds membership hydration and sends each role once with a stable continuation', async () => {
       prisma.server.findUnique.mockResolvedValue(server)

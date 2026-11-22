@@ -214,7 +214,7 @@ export function InsightsTab({ server }: { server: Server }) {
               <div className="space-y-0.5">
                 {data.topContributors.map((c, i) => (
                   <ContributorRow
-                    key={c.userId}
+                    key={c.userId ?? 'unknown-author'}
                     user={c}
                     count={c.count}
                     rank={i + 1}

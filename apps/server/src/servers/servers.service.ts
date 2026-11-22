@@ -921,28 +921,24 @@ export class ServersService {
   async getInsights(serverId: string, userId: string) {
     await this.roles.requirePermission(serverId, userId, Permission.MANAGE_SERVER)
 
-    const channelIds = (
-      await this.prisma.channel.findMany({
-        where: { serverId },
-        select: { id: true }
-      })
-    ).map((c) => c.id)
+    const channels = await this.prisma.channel.findMany({
+      where: { serverId },
+      select: { id: true, name: true, type: true }
+    })
+    const channelIds = channels.map((channel) => channel.id)
 
     const now = new Date()
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
     const [
       totalMembers,
-      totalChannels,
       totalMessages,
       messagesByDay,
       topChannelsRaw,
       topContributorsRaw,
-      membersByWeek,
-      channelBreakdown
+      membersByWeek
     ] = await Promise.all([
       this.prisma.serverMember.count({ where: { serverId } }),
-      this.prisma.channel.count({ where: { serverId } }),
       channelIds.length > 0
         ? this.prisma.message.count({
             where: { channelId: { in: channelIds }, deleted: false }
@@ -975,7 +971,7 @@ export class ServersService {
         : Promise.resolve([]),
 
       channelIds.length > 0
-        ? this.prisma.$queryRaw<{ author_id: string; count: bigint }[]>`
+        ? this.prisma.$queryRaw<{ author_id: string | null; count: bigint }[]>`
             SELECT author_id, COUNT(*)::bigint AS count
             FROM messages
             WHERE channel_id = ANY(${channelIds})
@@ -993,25 +989,12 @@ export class ServersService {
         WHERE server_id = ANY(${[serverId]})
         GROUP BY DATE_TRUNC('week', joined_at)
         ORDER BY week
-      `,
-
-      this.prisma.channel.groupBy({
-        by: ['type'],
-        where: { serverId },
-        _count: true
-      })
+      `
     ])
 
-    const channelMap = new Map(
-      (
-        await this.prisma.channel.findMany({
-          where: { serverId },
-          select: { id: true, name: true }
-        })
-      ).map((c) => [c.id, c.name])
-    )
+    const channelMap = new Map(channels.map((channel) => [channel.id, channel.name]))
 
-    const userIds = topContributorsRaw.map((r) => r.author_id)
+    const userIds = topContributorsRaw.map((r) => r.author_id).filter((id) => id !== null)
     const userMap = new Map(
       userIds.length > 0
         ? (
@@ -1026,10 +1009,10 @@ export class ServersService {
     return {
       overview: {
         totalMembers,
-        totalChannels,
+        totalChannels: channels.length,
         totalMessages,
-        textChannels: channelBreakdown.find((c) => c.type === 'text')?._count ?? 0,
-        voiceChannels: channelBreakdown.find((c) => c.type === 'voice')?._count ?? 0
+        textChannels: channels.filter(c => c.type === 'text').length,
+        voiceChannels: channels.filter(c => c.type === 'voice').length
       },
       messagesByDay: messagesByDay.map((r) => ({
         day: typeof r.day === 'string' ? r.day : new Date(r.day).toISOString().slice(0, 10),
@@ -1040,13 +1023,16 @@ export class ServersService {
         name: channelMap.get(r.channel_id) ?? 'deleted',
         count: Number(r.count)
       })),
-      topContributors: topContributorsRaw.map((r) => ({
-        userId: r.author_id,
-        username: userMap.get(r.author_id)?.username ?? 'deleted',
-        displayName: userMap.get(r.author_id)?.displayName ?? null,
-        avatarUrl: userMap.get(r.author_id)?.avatarUrl ?? null,
-        count: Number(r.count)
-      })),
+      topContributors: topContributorsRaw.map((r) => {
+        const user = r.author_id ? userMap.get(r.author_id) : undefined
+        return {
+          userId: r.author_id,
+          username: user?.username ?? 'deleted',
+          displayName: user?.displayName ?? null,
+          avatarUrl: user?.avatarUrl ?? null,
+          count: Number(r.count)
+        }
+      }),
       membersByWeek: membersByWeek.map((r) => ({
         week: r.week,
         count: Number(r.count)

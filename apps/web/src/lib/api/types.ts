@@ -149,7 +149,7 @@ export type ServerInsights = {
   messagesByDay: { day: string; count: number }[]
   topChannels: { channelId: string; name: string; count: number }[]
   topContributors: {
-    userId: string
+    userId: string | null
     username: string
     displayName: string | null
     avatarUrl: string | null
