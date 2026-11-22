@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '../prisma-client'
+import { Prisma, type AttachmentType } from '../prisma-client'
 import { FriendsService } from '../friends/friends.service'
 import { MessagesService } from '../messages/messages.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -271,40 +271,43 @@ export class DmService {
   async getConversations(userId: string) {
     const conversations = await this.prisma.directConversation.findMany({
       where: { members: { some: { userId, closedAt: null } } },
-      include: {
-        members: { select: memberSelect },
-        messages: {
-          where: { deleted: false },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: {
-            content: true,
-            authorId: true,
-            createdAt: true,
-            attachments: { select: { type: true, filename: true }, take: 1 },
-            author: { select: { username: true, displayName: true } }
-          }
-        }
-      },
+      include: { members: { select: memberSelect } },
       orderBy: { createdAt: 'desc' }
     })
+    if (!conversations.length) return []
+
+    // Limit inside each indexed conversation lookup. A nested Prisma take can
+    // fetch the full histories and discard all but one row per DM in Node.
+    const previews = await this.prisma.$queryRaw<{
+      conversationId: string
+      content: string | null
+      authorId: string | null
+      authorName: string | null
+      createdAt: Date
+      attachment: { type: AttachmentType; filename: string } | null
+    }[]>`
+      SELECT viewer.conversation_id AS "conversationId", msg.content, msg.author_id AS "authorId",
+        COALESCE(u.display_name, u.username) AS "authorName", msg.created_at AS "createdAt",
+        CASE WHEN a.filename IS NOT NULL THEN jsonb_build_object('type', a.type, 'filename', a.filename) END AS attachment
+      FROM direct_conversation_members viewer
+      CROSS JOIN LATERAL (
+        SELECT id, content, author_id, created_at FROM messages
+        WHERE direct_conversation_id = viewer.conversation_id AND deleted = false
+        ORDER BY created_at DESC, id DESC LIMIT 1
+      ) msg
+      LEFT JOIN users u ON u.id = msg.author_id
+      LEFT JOIN LATERAL (
+        SELECT filename, type FROM attachments WHERE message_id = msg.id ORDER BY id LIMIT 1
+      ) a ON true
+      WHERE viewer.user_id = ${userId} AND viewer.closed_at IS NULL
+    `
+    const byConversation = new Map(previews.map(({ conversationId, ...preview }) => [conversationId, preview]))
 
     return conversations
-      .map((c) => {
-        const lastMessage = c.messages[0] ?? null
-        return {
-          ...this.toConversationWire(c, userId),
-          lastMessage: lastMessage
-            ? {
-                content: lastMessage.content,
-                authorId: lastMessage.authorId,
-                authorName: lastMessage.author?.displayName ?? lastMessage.author?.username ?? null,
-                createdAt: lastMessage.createdAt,
-                attachment: lastMessage.attachments[0] ?? null
-              }
-            : null
-        }
-      })
+      .map((c) => ({
+        ...this.toConversationWire(c, userId),
+        lastMessage: byConversation.get(c.id) ?? null
+      }))
       .sort((a, b) => {
         const aTime = a.lastMessage?.createdAt ?? new Date(a.createdAt)
         const bTime = b.lastMessage?.createdAt ?? new Date(b.createdAt)

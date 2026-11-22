@@ -68,6 +68,12 @@ describe('DmService', () => {
     service = module.get(DmService)
   })
 
+  it('does not query history for an empty DM list', async () => {
+    prisma.directConversation.findMany.mockResolvedValue([])
+    await expect(service.getConversations(userA)).resolves.toEqual([])
+    expect(prisma.$queryRaw).not.toHaveBeenCalled()
+  })
+
   describe('requireMembership', () => {
     it('returns member when found', async () => {
       prisma.directConversationMember.findUnique.mockResolvedValue({ conversationId: convId, userId: userA })
