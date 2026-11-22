@@ -1,4 +1,4 @@
-import { horizontalGesture, isVerticalDrag, ownsHorizontalTouch, startsChannelDrawerSwipe } from '@/lib/horizontalGesture'
+import { horizontalGesture, isVerticalDrag, ownsHorizontalTouch, startsDetailsDrawerSwipe } from '@/lib/horizontalGesture'
 import type { Message } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
 import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -212,7 +212,7 @@ export const MessageRow = memo(function MessageRow({
       }
       const point = event.touches[0]
       swipe.current =
-        !startsChannelDrawerSwipe(event.target, point.clientX) &&
+        !startsDetailsDrawerSwipe(event.target, point.clientX) &&
         !ownsHorizontalTouch(event.target, event.currentTarget) &&
         !(event.target as Element).closest('button, [role=button], img')
           ? { x: point.clientX, y: point.clientY }

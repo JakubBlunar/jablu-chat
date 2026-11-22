@@ -14,7 +14,7 @@ import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
 import { getIsMobileDevice, getIsStandalone } from '@/hooks/usePwaInstall'
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
-import { startsChannelDrawerSwipe } from '@/lib/horizontalGesture'
+import { startsDetailsDrawerSwipe } from '@/lib/horizontalGesture'
 import { useChatPanelLayout } from '@/hooks/useChatPanelLayout'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
@@ -205,13 +205,18 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const [showPollCreator, setShowPollCreator] = useState(false)
   const [commandToast, setCommandToast] = useState<string | null>(null)
   const [channelInfoOpen, setChannelInfoOpen] = useState(false)
-  const mobileChannelDrawer = isMobile && !isDm && getIsMobileDevice() && getIsStandalone()
-  const edgeEnabled = mobileChannelDrawer && !!activeChannel && !!channelServer && !threadOpen && !searchOpen && !channelInfoOpen
-  const channelSwipe = useHorizontalSwipe('left', () => setChannelInfoOpen(true), (event) =>
-    startsChannelDrawerSwipe(event.target, event.touches[0].clientX)
-  )
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
   const [dmInfoTab, setDmInfoTab] = useState<ConversationInfoTab>('details')
+  const mobilePwa = isMobile && getIsMobileDevice() && getIsStandalone()
+  const edgeEnabled = mobilePwa && !searchOpen && (isDm
+    ? !!dm.currentConv && !dmSheetOpen
+    : !!activeChannel && !!channelServer && !threadOpen && !channelInfoOpen)
+  const detailsSwipe = useHorizontalSwipe('left', () => {
+    if (isDm) {
+      setDmInfoTab('details')
+      setDmSheetOpen(true)
+    } else setChannelInfoOpen(true)
+  }, (event) => startsDetailsDrawerSwipe(event.target, event.touches[0].clientX))
   const { pinnedOpen, setPinnedOpen } = pinned
 
   useEffect(() => {
@@ -380,7 +385,12 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
     ) : null
 
   const messageList = (
-    <div ref={dropZoneRef} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      ref={dropZoneRef}
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      data-details-drawer-edge={edgeEnabled ? '' : undefined}
+      {...(edgeEnabled ? detailsSwipe : {})}
+    >
       {!isDm && pinned.pinnedOpen && channelId && (
         <PinnedPanel
           messages={pinned.pinnedMessages}
@@ -768,9 +778,10 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
               />
             </Suspense>
           </ResponsivePanel>
-        ) : dmSheetOpen && dm.currentConv ? (
+        ) : (dmSheetOpen || mobilePwa) && dm.currentConv ? (
           <ConversationInfoPanel
             key={contextId}
+            drawerOpen={mobilePwa ? dmSheetOpen : undefined}
             overlay={panels.overlay}
             maxWidth={panels.maxPanelWidth}
             conversation={dm.currentConv}
@@ -794,11 +805,7 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       {channelHeader}
 
       <div className="relative flex min-h-0 flex-1">
-        <div
-          className="flex min-h-0 min-w-0 flex-1 flex-col"
-          data-channel-drawer-edge={edgeEnabled ? '' : undefined}
-          {...(edgeEnabled ? channelSwipe : {})}
-        >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {messageList}
         </div>
         <ThreadPanel
@@ -871,11 +878,11 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           <EditChannelModal channel={activeChannel} onClose={() => setEditingChannel(false)} />
         </Suspense>
       )}
-      {isMobile && (mobileChannelDrawer || channelInfoOpen) && activeChannel && channelServer && (
+      {isMobile && (mobilePwa || channelInfoOpen) && activeChannel && channelServer && (
         <ChannelInfoPanel
           key={activeChannel.id}
           open={channelInfoOpen}
-          fullscreen={mobileChannelDrawer}
+          fullscreen={mobilePwa}
           onClose={() => setChannelInfoOpen(false)}
           channelName={activeChannel.name}
           channelDescription={activeChannel.description}

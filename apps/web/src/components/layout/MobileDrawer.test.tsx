@@ -22,6 +22,18 @@ beforeEach(() => {
 })
 
 describe('MobileDrawer back-gesture integration', () => {
+  it('dismisses on a fresh backdrop tap and ignores a click carried over from opening', () => {
+    const onClose = jest.fn()
+    render(<MobileDrawer open side="right" onClose={onClose}>Details</MobileDrawer>)
+    const backdrop = screen.getByRole('dialog').firstElementChild!
+    fireEvent.click(backdrop, { detail: 1 })
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.pointerDown(backdrop)
+    fireEvent.pointerUp(backdrop)
+    fireEvent.click(backdrop, { detail: 1 })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('invokes onClose when the browser back gesture fires while the drawer is open', () => {
     const onClose = jest.fn()
 

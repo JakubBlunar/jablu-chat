@@ -12,6 +12,7 @@ import { ConversationActions } from './ConversationActions'
 import { GroupConversationDetails } from './GroupConversationDetails'
 import { ConversationLinksList } from './ConversationLinksList'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
+import { MobileDrawer } from '@/components/layout/MobileDrawer'
 
 const TABS = ['details', 'media', 'files', 'links', 'pins'] as const
 export type ConversationInfoTab = (typeof TABS)[number]
@@ -28,6 +29,7 @@ export function ConversationInfoPanel({
   onSearch,
   onJump,
   overlay = false,
+  drawerOpen,
   maxWidth
 }: {
   conversation: DmConversation
@@ -41,6 +43,7 @@ export function ConversationInfoPanel({
   onSearch: () => void
   onJump: (messageId: string) => void
   overlay?: boolean
+  drawerOpen?: boolean
   maxWidth?: number
 }) {
   const { t } = useTranslation('chat')
@@ -55,8 +58,8 @@ export function ConversationInfoPanel({
   )
 
   useEffect(() => {
-    if (tab === 'pins') void loadPinned()
-  }, [tab, loadPinned])
+    if (tab === 'pins' && drawerOpen !== false) void loadPinned()
+  }, [tab, loadPinned, drawerOpen])
 
   useEffect(() => {
     if (isMobile || dialogOpen) return
@@ -201,6 +204,19 @@ export function ConversationInfoPanel({
       </div>
     </div>
   )
+  if (isMobile && drawerOpen !== undefined)
+    return (
+      <MobileDrawer
+        open={drawerOpen}
+        onClose={onClose}
+        side="right"
+        width="w-full"
+        closeOnEscape={!dialogOpen}
+        aria-label={t('conversationInfo')}
+      >
+        <div className="h-full bg-surface-dark">{content}</div>
+      </MobileDrawer>
+    )
   if (isMobile)
     return (
       <BottomSheet open onClose={onClose} closeOnEscape={!dialogOpen} maxHeightDvh={88} bodyScrollable={false}>

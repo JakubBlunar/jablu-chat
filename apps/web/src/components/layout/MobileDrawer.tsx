@@ -23,12 +23,14 @@ export function MobileDrawer({
   const [animating, setAnimating] = useState(false)
   const swipe = useHorizontalSwipe(side, onClose)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const backdropPressed = useRef(false)
   const name = useDialogName(drawerRef, visible, children, label)
   useVisualViewport(drawerRef, visible)
   useFocusTrap(drawerRef, open && visible, closeOnEscape ? onClose : undefined)
   useBackGestureClose(open, onClose)
 
   useEffect(() => {
+    backdropPressed.current = false
     if (open) {
       setVisible(true)
       let enterFrame = 0
@@ -66,7 +68,12 @@ export function MobileDrawer({
         className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${
           animating ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
         }`}
-        onClick={onClose}
+        onPointerDown={() => { backdropPressed.current = true }}
+        onPointerCancel={() => { backdropPressed.current = false }}
+        onClick={() => {
+          if (backdropPressed.current) onClose()
+          backdropPressed.current = false
+        }}
         aria-hidden="true"
       />
       <div

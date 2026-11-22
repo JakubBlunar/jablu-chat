@@ -33,7 +33,8 @@ jest.mock('@/components/dm/DmProfilePanel', () => ({
   UserProfileIcon: () => null,
 }))
 jest.mock('@/components/dm/FriendsPage', () => ({ FriendsPage: () => <div data-testid="friends-page" /> }))
-jest.mock('@/components/dm/ConversationInfoPanel', () => ({ ConversationInfoPanel: () => null }))
+jest.mock('@/components/dm/ConversationActions', () => ({ ConversationActions: () => null }))
+jest.mock('@/components/media/AttachmentBrowser', () => ({ AttachmentBrowser: () => null }))
 jest.mock('@/components/dm/DmCallButton', () => ({ DmCallButton: () => null }))
 jest.mock('@/components/dm/DmCallInvitation', () => ({ DmCallInvitation: () => null }))
 jest.mock('@/components/voice/VoiceRoom', () => ({ VoiceRoom: () => <div>Active call</div> }))
@@ -123,7 +124,7 @@ jest.mock('@/components/chat/hooks/useReadReceipts', () => ({
 
 jest.mock('@/components/dm/hooks/useDmContext', () => ({
   useDmContext: () => ({
-    currentConv: null,
+    currentConv: { id: 'conv-1', isGroup: false, members: [] },
     otherMember: null,
     mutualServers: [],
     channelRefs: [],
@@ -195,7 +196,7 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MessageArea', () => {
-  describe('mobile channel info', () => {
+  describe('mobile conversation details', () => {
     const swipe = (target: HTMLElement, x: number, dx: number, dy = 0) => {
       fireEvent.touchStart(target, { touches: [{ clientX: x, clientY: 100 }] })
       fireEvent.touchEnd(target, { changedTouches: [{ clientX: x + dx, clientY: 100 + dy }] })
@@ -237,6 +238,24 @@ describe('MessageArea', () => {
       expect(screen.queryByRole('dialog')).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'general' }))
       expect(screen.getByRole('button', { name: 'channelInfoTabInfo' })).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it.each([true, false])('handles the DM details edge in standalone mode %s', async (standalone) => {
+      jest.mocked(getIsStandalone).mockReturnValue(standalone)
+      render(<MessageArea mode="dm" contextId="conv-1" />)
+      const history = screen.getByTestId('messages')
+      const edge = window.innerWidth - 32
+      fireEvent.touchStart(history, { touches: [{ clientX: edge, clientY: 100 }] })
+      fireEvent.touchMove(history, { touches: [{ clientX: edge - 95, clientY: 103 }] })
+      // A committed swipe can curl back before the finger lifts.
+      const allowedDefault = fireEvent.touchEnd(history, { changedTouches: [{ clientX: edge - 42, clientY: 113 }] })
+      expect(allowedDefault).toBe(!standalone)
+      if (standalone) {
+        const panel = within(await screen.findByRole('dialog', { name: 'conversationInfo' }))
+        expect(panel.getByRole('tab', { selected: true })).toHaveTextContent('profileTitle')
+        swipe(panel.getByRole('heading'), 100, 90)
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      } else expect(screen.queryByRole('dialog')).toBeNull()
     })
   })
 

@@ -2,6 +2,13 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MobileViewport } from './MobileViewport'
 import { MobileBottomNav } from './MobileBottomNav'
+import { getIsMobileDevice, getIsStandalone } from '@/hooks/usePwaInstall'
+import { useLayoutStore } from '@/stores/layout.store'
+
+jest.mock('@/hooks/usePwaInstall', () => ({
+  getIsStandalone: jest.fn(() => false),
+  getIsMobileDevice: jest.fn(() => true)
+}))
 
 jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 jest.mock('@/stores/auth.store', () => ({
@@ -43,6 +50,24 @@ function resize(height: number, offsetTop = 0, event = 'resize') {
     viewport.dispatchEvent(new Event(event))
   })
 }
+
+it.each([[true, true], [true, false], [false, true]])(
+  'opens navigation from the left edge with mobile=%s and standalone=%s',
+  (mobile, standalone) => {
+    jest.mocked(getIsMobileDevice).mockReturnValue(mobile)
+    jest.mocked(getIsStandalone).mockReturnValue(standalone)
+    const { shell } = setup()
+    const swipe = (x: number) => {
+      fireEvent.touchStart(shell, { touches: [{ clientX: x, clientY: 90 }] })
+      fireEvent.touchEnd(shell, { changedTouches: [{ clientX: x + 90, clientY: 90 }] })
+    }
+    swipe(120)
+    expect(useLayoutStore.getState().navDrawerOpen).toBe(false)
+    swipe(24)
+    expect(useLayoutStore.getState().navDrawerOpen).toBe(mobile && standalone)
+    act(() => useLayoutStore.getState().closeNavDrawer())
+  }
+)
 
 it('follows keyboard animation and viewport panning without a layout-viewport resize', () => {
   const { shell, nav } = setup()
