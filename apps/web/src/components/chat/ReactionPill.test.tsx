@@ -248,7 +248,7 @@ describe('ReactionPill', () => {
       expect(mockEmit).not.toHaveBeenCalled()
     })
 
-    it('cancels the long-press on touchmove', () => {
+    it.each(['touchMove', 'touchCancel'] as const)('cancels the long-press on %s', (event) => {
       const onShow = jest.fn()
       render(
         <ReactionPill reaction={reaction()} messageId="msg-1" mode="channel" contextId="ch-1" onShowReactors={onShow} />
@@ -259,7 +259,7 @@ describe('ReactionPill', () => {
       act(() => {
         jest.advanceTimersByTime(200)
       })
-      fireEvent.touchMove(btn)
+      fireEvent[event](btn)
       act(() => {
         jest.advanceTimersByTime(500)
       })

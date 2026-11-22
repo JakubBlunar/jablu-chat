@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom'
 import type { ReactNode } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MessageRow } from './MessageRow'
 import { useIsMobile } from '@/hooks/useMobile'
 import { useServerStore } from '@/stores/server.store'
@@ -236,4 +236,30 @@ it('preserves normal left-click behavior on message links', () => {
   document.addEventListener('click', preventNavigation, { once: true })
   fireEvent(link, click)
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
+it('gives interactive message text its own touch gesture', () => {
+  jest.mocked(useIsMobile).mockReturnValue(true)
+  const { onReply } = setup()
+  const mention = screen.getByRole('button', { name: '@mention' })
+  fireEvent.touchStart(mention, { touches: [{ clientX: 150, clientY: 20 }] })
+  fireEvent.touchEnd(mention, { changedTouches: [{ clientX: 40, clientY: 20 }] })
+  expect(onReply).not.toHaveBeenCalled()
+})
+
+it('cancels the original hold timer when a second finger joins', () => {
+  jest.useFakeTimers()
+  jest.mocked(useIsMobile).mockReturnValue(true)
+  try {
+    const { row, onReply } = setup()
+    const finger = { clientX: 90, clientY: 20 }
+    fireEvent.touchStart(row, { touches: [finger] })
+    fireEvent.touchStart(row, { touches: [finger, { clientX: 120, clientY: 30 }] })
+    fireEvent.touchCancel(row)
+    act(() => jest.advanceTimersByTime(700))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onReply).not.toHaveBeenCalled()
+  } finally {
+    jest.useRealTimers()
+  }
 })

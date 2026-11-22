@@ -7,7 +7,8 @@
  */
 
 const DB_NAME = 'jablu-cache'
-const DB_VERSION = 1
+const DB_VERSION = 2
+const BY_UPDATED_AT = 'byUpdatedAt'
 
 /**
  * Bump when the cached shape changes in a way older entries cannot satisfy,
@@ -68,11 +69,11 @@ function openDb(): Promise<IDBDatabase | null> {
 
     req.onupgradeneeded = () => {
       const db = req.result
-      if (!db.objectStoreNames.contains(STORE_MESSAGES)) {
-        db.createObjectStore(STORE_MESSAGES, { keyPath: 'key' })
-      }
-      if (!db.objectStoreNames.contains(STORE_STRUCTURE)) {
-        db.createObjectStore(STORE_STRUCTURE, { keyPath: 'key' })
+      for (const name of [STORE_MESSAGES, STORE_STRUCTURE]) {
+        const store = db.objectStoreNames.contains(name)
+          ? req.transaction!.objectStore(name)
+          : db.createObjectStore(name, { keyPath: 'key' })
+        if (!store.indexNames.contains(BY_UPDATED_AT)) store.createIndex(BY_UPDATED_AT, 'updatedAt')
       }
       if (!db.objectStoreNames.contains(STORE_META)) {
         db.createObjectStore(STORE_META, { keyPath: 'key' })
@@ -179,34 +180,30 @@ async function pruneExpired(): Promise<void> {
   const cutoff = Date.now() - TTL_MS
   for (const name of [STORE_MESSAGES, STORE_STRUCTURE]) {
     await withStore(name, 'readwrite', async (store) => {
-      const all = await request(store.getAll() as IDBRequest<Array<{ key: string; updatedAt: number }>>)
-      for (const record of all) {
-        if (record.updatedAt < cutoff) store.delete(record.key)
-      }
+      const keys = await request(store.index(BY_UPDATED_AT).getAllKeys(IDBKeyRange.upperBound(cutoff)))
+      for (const key of keys) store.delete(key)
     })
   }
 }
 
+async function deleteOldest(store: IDBObjectStore, count: number): Promise<void> {
+  if (count <= 0) return
+  const keys = await request(store.index(BY_UPDATED_AT).getAllKeys(undefined, count))
+  for (const key of keys) store.delete(key)
+}
+
 /** Drop the oldest half of cached messages, used when the quota is hit. */
-async function evictOldestMessages(fraction = 0.5): Promise<void> {
+async function evictOldestMessages(): Promise<void> {
   await withStore(STORE_MESSAGES, 'readwrite', async (store) => {
-    const all = await request(store.getAll() as IDBRequest<StoredMessages[]>)
-    const doomed = all
-      .sort((a, b) => a.updatedAt - b.updatedAt)
-      .slice(0, Math.max(1, Math.floor(all.length * fraction)))
-    for (const record of doomed) store.delete(record.key)
+    const count = await request(store.count())
+    await deleteOldest(store, Math.max(1, Math.floor(count / 2)))
   })
 }
 
 async function enforceMessageCap(): Promise<void> {
   await withStore(STORE_MESSAGES, 'readwrite', async (store) => {
     const count = await request(store.count())
-    if (count <= MAX_MESSAGE_RECORDS) return
-    const all = await request(store.getAll() as IDBRequest<StoredMessages[]>)
-    const doomed = all
-      .sort((a, b) => a.updatedAt - b.updatedAt)
-      .slice(0, all.length - MAX_MESSAGE_RECORDS)
-    for (const record of doomed) store.delete(record.key)
+    await deleteOldest(store, count - MAX_MESSAGE_RECORDS)
   })
 }
 

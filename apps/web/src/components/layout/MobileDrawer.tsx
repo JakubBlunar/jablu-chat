@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { horizontalGesture, ownsHorizontalTouch } from '@/lib/horizontalGesture'
+import { horizontalGesture, isVerticalDrag, ownsHorizontalTouch } from '@/lib/horizontalGesture'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
@@ -92,6 +92,13 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'a
           paddingBottom: 'var(--keyboard-safe-area-bottom, env(safe-area-inset-bottom, 0px))'
         }}
         onTouchStart={handleTouchStart}
+        onTouchMove={(event) => {
+          const start = touchStartRef.current
+          const point = event.touches[0]
+          if (start && (event.touches.length !== 1 || isVerticalDrag(point.clientX - start.x, point.clientY - start.y))) {
+            touchStartRef.current = null
+          }
+        }}
         onTouchCancel={() => {
           touchStartRef.current = null
         }}

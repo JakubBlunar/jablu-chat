@@ -1,4 +1,4 @@
-import { visibleMessageRow } from '@/lib/visibleMessageRow'
+import { firstReadingRow } from '@/lib/visibleMessageRow'
 import { useNavigationStore } from '@/stores/navigation.store'
 import { takeReadingOffset, rememberReadingPoint } from '@/lib/conversationVisits'
 import type { Message } from '@chat/shared'
@@ -564,10 +564,7 @@ export function useMessageScroll(
         return
       }
       const rect = sp.getBoundingClientRect()
-      const row = document
-        .elementFromPoint(rect.left + rect.width / 2, rect.top + 10)
-        ?.closest<HTMLElement>('[data-message-window]')
-      const anchor = row && sp.contains(row) ? row : visibleMessageRow(sp.querySelectorAll('[data-message-window]'), rect, 'first')
+      const anchor = firstReadingRow(sp, rect, 10)
       if (anchor) rememberReadingPoint(key, { id: anchor.id.slice(4), offset: anchor.getBoundingClientRect().top - rect.top })
     }
     const updateAnchor = () => {

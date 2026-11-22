@@ -285,3 +285,18 @@ it('reopens the saved result page against the original channel after the active 
   )
   expect(screen.getByRole('textbox')).not.toHaveFocus()
 })
+
+it('removes an old result and its retry action as soon as the reader edits the query', async () => {
+  search.mockResolvedValue({
+    results: [{ id: 'old', content: 'Previous result', authorId: null, author: null, channelId: null,
+      channel: null, dmConversationId: 'conv', createdAt: '2026-10-17T10:00:00Z' }], total: 1
+  })
+  mockOpen.mockResolvedValueOnce({ status: 'error', key: 'historyLoadFailed' })
+  render(<Harness initial="first" />)
+  fireEvent.click(await screen.findByText('Previous result'))
+  await screen.findByRole('alert')
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'second' } })
+  expect(screen.queryByText('Previous result')).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.getByText('submitHint')).toBeInTheDocument()
+})

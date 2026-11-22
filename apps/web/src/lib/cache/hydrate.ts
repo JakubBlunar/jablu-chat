@@ -31,6 +31,7 @@ export async function hydrateContextFromDisk(key: CacheKey): Promise<boolean> {
   if (peekContext(key)) return true
 
   const record = await readMessages(key)
+  if (peekContext(key)) return true
   if (!record || !Array.isArray(record.messages) || record.messages.length === 0) return false
 
   withoutPersisting(() => {
@@ -65,6 +66,6 @@ export async function hydrateServerStructureFromDisk(serverId: string): Promise<
 export async function hydrateServerListFromDisk(): Promise<void> {
   if (getServerList()) return
   const servers = await readStructure<unknown[]>('servers')
-  if (!servers) return
+  if (!servers || getServerList()) return
   withoutPersisting(() => putServerList(servers))
 }

@@ -137,6 +137,7 @@ export function ReactionPill({ reaction, messageId, mode, contextId, customEmoji
       e.stopPropagation()
       longPressFired.current = false
       cancelLongPress()
+      if (e.touches.length > 1) return
       longPressTimer.current = setTimeout(() => {
         longPressFired.current = true
         onShowReactors(reaction.emoji)
@@ -199,6 +200,7 @@ export function ReactionPill({ reaction, messageId, mode, contextId, customEmoji
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition ${
           unseen
             ? 'bg-primary/20 text-primary ring-2 ring-primary/70'

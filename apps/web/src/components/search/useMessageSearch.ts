@@ -96,6 +96,8 @@ export function useMessageSearch({
     searchController.current?.abort()
     setLoading(false)
     setLocalQuery(value)
+    setResults([])
+    setTotal(0)
     setError(null)
     if (timerRef.current) clearTimeout(timerRef.current)
     if (value.trim()) {
@@ -105,9 +107,6 @@ export function useMessageSearch({
     } else {
       setOffset(0)
       onQueryChange('')
-      setResults([])
-      setTotal(0)
-      setLoading(false)
     }
   }
   function handleScopeChange(s: Scope) {

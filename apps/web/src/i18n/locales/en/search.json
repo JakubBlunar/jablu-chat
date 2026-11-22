@@ -29,6 +29,7 @@
   "searchFilters": "Search filters",
   "searchFailed": "Search failed",
   "noResults": "No results found",
+  "submitHint": "Press Enter to search now",
   "typeToSearch": "Type to search",
   "previous": "Previous",
   "next": "Next",

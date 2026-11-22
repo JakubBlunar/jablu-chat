@@ -38,6 +38,7 @@ function surface() {
   ] as const) {
     const message = document.createElement('div')
     message.id = `msg-${id}`
+    message.dataset.messageWindow = ''
     message.getBoundingClientRect = () => new DOMRect(0, top, 300, 50)
     container.append(message)
   }

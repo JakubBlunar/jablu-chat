@@ -182,3 +182,29 @@ it('confirms the owner before restoring a signed-in offline route',async()=>{
   await initCacheDb('second')
   expect(await cacheOwnedBy('first')).toBe(false)
 })
+
+it('upgrades a populated version-one cache and prunes by timestamp without loading message bodies', async () => {
+  await new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('jablu-cache', 1)
+    open.onerror = () => reject(open.error)
+    open.onupgradeneeded = () => {
+      const db = open.result
+      const messages = db.createObjectStore('messages', { keyPath: 'key' })
+      messages.put(record('ch:recent'))
+      messages.put(record('ch:expired', Date.now() - 8 * DAY_MS))
+      db.createObjectStore('structure', { keyPath: 'key' }).put({ key: 'servers', value: ['s'], updatedAt: Date.now() })
+      db.createObjectStore('meta', { keyPath: 'key' }).put({ key: 'owner', userId: 'reader', schema: '1' })
+    }
+    open.onsuccess = () => { open.result.close(); resolve() }
+  })
+  const fullReads = jest.spyOn(IDBObjectStore.prototype, 'getAll')
+  try {
+    await initCacheDb('reader')
+    expect(await readMessages('ch:expired')).toBeNull()
+    expect((await readMessages('ch:recent'))?.messages).toHaveLength(1)
+    expect(await readStructure('servers')).toEqual(['s'])
+    expect(fullReads).not.toHaveBeenCalled()
+  } finally {
+    fullReads.mockRestore()
+  }
+})

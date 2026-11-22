@@ -2,6 +2,10 @@ export function horizontalGesture(dx: number, dy: number, direction: 'left' | 'r
   return (direction === 'left' ? -dx : dx) >= threshold && Math.abs(dx) > Math.abs(dy) * 1.5
 }
 
+export function isVerticalDrag(dx: number, dy: number) {
+  return Math.abs(dy) > Math.abs(dx) + 8
+}
+
 export function ownsHorizontalTouch(target: EventTarget | null, root: HTMLElement) {
   if (!(target instanceof Element)) return false
   if (target.closest('a, input, textarea, select, video, audio, [contenteditable=true], [role=slider]')) return true

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MobileDrawer } from './MobileDrawer'
 import { __testing as backGestureTesting } from '@/hooks/useBackGestureClose'
 
@@ -53,4 +53,18 @@ describe('MobileDrawer back-gesture integration', () => {
 
     expect(backGestureTesting.getStackSize()).toBe(0)
   })
+})
+
+it('keeps a vertical-first stroke with the list even when its release is mostly horizontal', () => {
+  const close = jest.fn()
+  render(<MobileDrawer open side="left" onClose={close}><div>Chats</div></MobileDrawer>)
+  const target = screen.getByText('Chats')
+  const point = (clientX: number, clientY: number) => ({ clientX, clientY })
+  fireEvent.touchStart(target, { touches: [point(180, 150)] })
+  fireEvent.touchMove(target, { touches: [point(180, 260)] })
+  fireEvent.touchEnd(target, { changedTouches: [point(70, 165)] })
+  expect(close).not.toHaveBeenCalled()
+  fireEvent.touchStart(target, { touches: [point(180, 150)] })
+  fireEvent.touchEnd(target, { changedTouches: [point(70, 165)] })
+  expect(close).toHaveBeenCalledTimes(1)
 })

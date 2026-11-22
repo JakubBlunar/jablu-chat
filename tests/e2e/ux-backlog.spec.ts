@@ -93,6 +93,7 @@ test('composer geometry, reading position, keyboard reply and recent switcher su
     await expect(page.getByText(/replying to/i).first()).toBeVisible()
 
     await page.setViewportSize({ width: 390, height: 844 })
+    await expect(page.getByRole('button', { name: 'Open navigation menu' })).toBeVisible()
     await input.focus()
     await page.evaluate(() => {
       Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: 450 })
@@ -206,16 +207,20 @@ test('phone swipe, drawer direction and return to a search result', async ({ pag
     await useEnglish(page)
     const row = page.locator('#msg-' + msg.id + ' [data-keyboard-message]').first()
     await expect(row).toBeVisible()
-    const swipe = async (target: typeof row, dx: number, dy: number) => {
+    const swipe = async (target: typeof row, dx: number, dy: number, verticalFirst = false) => {
       await target.evaluate(
-        (el, { dx, dy }) => {
+        (el, { dx, dy, verticalFirst }) => {
           const start = new Touch({ target: el, identifier: 1, clientX: 185, clientY: 180 })
           const end = new Touch({ target: el, identifier: 1, clientX: 185 + dx, clientY: 180 + dy })
           el.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [start] }))
+          if (verticalFirst) {
+            const turn = new Touch({ target: el, identifier: 1, clientX: 185, clientY: 290 })
+            el.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, touches: [turn] }))
+          }
           el.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, touches: [end] }))
           el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [end] }))
         },
-        { dx, dy }
+        { dx, dy, verticalFirst }
       )
     }
     await swipe(row, -24, 3)
@@ -227,13 +232,21 @@ test('phone swipe, drawer direction and return to a search result', async ({ pag
     const header = dialog.getByText(channel.name, { exact: true }).first()
     await swipe(header, -82, 110)
     await expect(dialog).toBeVisible()
+    await swipe(header, -95, 4, true)
+    await expect(dialog).toBeVisible()
     await swipe(header, -95, 4)
     await expect(dialog).toHaveCount(0)
     await page.getByRole('button', { name: 'Search', exact: true }).click()
     const search = page.getByRole('dialog').getByRole('textbox').first()
     await search.fill('phone search marker')
     await search.press('Enter')
-    await page.locator('[data-result-id="' + msg.id + '"]').click()
+    const hit = page.locator('[data-result-id="' + msg.id + '"]')
+    await expect(hit).toBeVisible()
+    await search.fill('different draft')
+    await expect(hit).toHaveCount(0)
+    await search.fill('phone search marker')
+    await search.press('Enter')
+    await hit.click()
     const back = page.getByRole('button', { name: /Back to results/ })
     await expect(back).toBeVisible()
     await back.click()

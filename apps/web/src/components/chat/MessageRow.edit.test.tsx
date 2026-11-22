@@ -288,7 +288,7 @@ describe('reply preview navigation', () => {
   it('supports tapping the preview on mobile', () => {
     jest.mocked(useIsMobile).mockReturnValue(true)
     const { onJumpToMessage, preview } = renderReply()
-    fireEvent.touchStart(preview)
+    fireEvent.touchStart(preview, { touches: [{ clientX: 20, clientY: 20 }] })
     fireEvent.touchEnd(preview)
     fireEvent.click(preview)
     expect(onJumpToMessage).toHaveBeenCalledTimes(1)
@@ -298,7 +298,7 @@ describe('reply preview navigation', () => {
   it('supports tapping the quoted author on mobile without jumping', () => {
     jest.mocked(useIsMobile).mockReturnValue(true)
     const { onUserClick, onJumpToMessage, authorButton } = renderReply()
-    fireEvent.touchStart(authorButton)
+    fireEvent.touchStart(authorButton, { touches: [{ clientX: 20, clientY: 20 }] })
     fireEvent.touchEnd(authorButton)
     fireEvent.click(authorButton)
     expect(onUserClick).toHaveBeenCalledTimes(1)
@@ -310,7 +310,7 @@ describe('reply preview navigation', () => {
     jest.mocked(useIsMobile).mockReturnValue(true)
     try {
       const { onUserClick, onJumpToMessage, authorButton } = renderReply()
-      fireEvent.touchStart(authorButton)
+      fireEvent.touchStart(authorButton, { touches: [{ clientX: 20, clientY: 20 }] })
       act(() => jest.advanceTimersByTime(500))
       fireEvent.touchEnd(authorButton)
       expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -327,7 +327,7 @@ describe('reply preview navigation', () => {
     jest.mocked(useIsMobile).mockReturnValue(true)
     try {
       const { onJumpToMessage, preview } = renderReply()
-      fireEvent.touchStart(preview)
+      fireEvent.touchStart(preview, { touches: [{ clientX: 20, clientY: 20 }] })
       act(() => jest.advanceTimersByTime(500))
       fireEvent.touchEnd(preview)
       expect(screen.getByRole('dialog')).toBeInTheDocument()

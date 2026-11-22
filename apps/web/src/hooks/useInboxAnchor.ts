@@ -1,5 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { firstReadingRow } from '@/lib/visibleMessageRow'
 import { useInboxStore } from '@/stores/inbox.store'
 
 export function useInboxAnchor(
@@ -31,10 +32,7 @@ export function useInboxAnchor(
     const sample = () => {
       if (useInboxStore.getState().open || useInboxStore.getState().reader?.group.unavailable || document.hidden) return
       const viewport = container.getBoundingClientRect()
-      const visible = [...container.querySelectorAll<HTMLElement>('[id^="msg-"]')].find((element) => {
-        const bounds = element.getBoundingClientRect()
-        return bounds.bottom > viewport.top + 8 && bounds.top < viewport.bottom
-      })
+      const visible = firstReadingRow(container, viewport, 8)
       const messageId = visible?.id.slice(4)
       if (!messageId || messageId === candidate) return
       candidate = messageId

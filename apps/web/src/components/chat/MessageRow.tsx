@@ -1,4 +1,4 @@
-import { horizontalGesture, ownsHorizontalTouch } from '@/lib/horizontalGesture'
+import { horizontalGesture, isVerticalDrag, ownsHorizontalTouch } from '@/lib/horizontalGesture'
 import type { Message } from '@chat/shared'
 import { useTranslation } from 'react-i18next'
 import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -204,11 +204,16 @@ export const MessageRow = memo(function MessageRow({
   const handleTouchStart = useCallback(
     (event: React.TouchEvent<HTMLDivElement>) => {
       if (!isMobile || editing) return
+      cancelLongPress()
+      if (event.touches.length !== 1) {
+        swipe.current = null
+        setReplyCue(false)
+        return
+      }
       const point = event.touches[0]
       swipe.current =
-        event.touches.length === 1 &&
         !ownsHorizontalTouch(event.target, event.currentTarget) &&
-        !(event.target as Element).closest('button,img')
+        !(event.target as Element).closest('button, [role=button], img')
           ? { x: point.clientX, y: point.clientY }
           : null
       longPressFired.current = false
@@ -217,7 +222,7 @@ export const MessageRow = memo(function MessageRow({
         setDrawerOpen(true)
       }, 500)
     },
-    [isMobile, editing]
+    [isMobile, editing, cancelLongPress]
   )
 
   const handleTouchEnd = (event: React.TouchEvent) => {
@@ -242,7 +247,7 @@ export const MessageRow = memo(function MessageRow({
     const start = swipe.current
     const point = event.touches?.[0]
     if (!start || !point) return
-    if (Math.abs(point.clientY - start.y) > Math.abs(point.clientX - start.x) + 8) swipe.current = null
+    if (isVerticalDrag(point.clientX - start.x, point.clientY - start.y)) swipe.current = null
     setReplyCue(!!swipe.current && horizontalGesture(point.clientX - start.x, point.clientY - start.y, 'left', 25))
   }
 

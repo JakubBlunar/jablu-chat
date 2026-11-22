@@ -24,10 +24,14 @@ const SECTION_LABEL_KEYS: Record<CommandSection, string> = {
 }
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return open ? <OpenCommandPalette onClose={onClose} /> : null
+}
+
+function OpenCommandPalette({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation('nav')
   const { t: tCommon } = useTranslation('common')
   const [query, setQuery] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
   const listRef = useRef<HTMLDivElement>(null)
@@ -52,40 +56,27 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     return out
   }, [grouped])
 
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [query])
-
-  useEffect(() => {
-    if (open) {
-      setQuery('')
-      setSelectedIndex(0)
-    }
-  }, [open])
-
-  const close = useCallback(() => {
-    onClose()
-  }, [onClose])
+  const selectedIndex = Math.max(0, flatItems.findIndex((item) => item.id === selectedId))
 
   const runCommand = useCallback(
     async (cmd: Command) => {
       try {
-        await cmd.run({ navigate, close })
+        await cmd.run({ navigate, close: onClose })
       } catch {
         /* commands are responsible for their own error surfaces */
       }
     },
-    [navigate, close]
+    [navigate, onClose]
   )
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' && flatItems.length) {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev + 1) % Math.max(flatItems.length, 1))
-      } else if (e.key === 'ArrowUp') {
+        setSelectedId(flatItems[(selectedIndex + 1) % flatItems.length]?.id ?? null)
+      } else if (e.key === 'ArrowUp' && flatItems.length) {
         e.preventDefault()
-        setSelectedIndex((prev) => (prev - 1 + flatItems.length) % Math.max(flatItems.length, 1))
+        setSelectedId(flatItems[(selectedIndex - 1 + flatItems.length) % flatItems.length]?.id ?? null)
       } else if (e.key === 'Enter' && flatItems.length > 0) {
         e.preventDefault()
         void runCommand(flatItems[selectedIndex])
@@ -101,8 +92,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const el = listRef.current?.querySelector('[data-selected="true"]')
     el?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex])
-
-  if (!open) return null
 
   let runningIndex = 0
 
@@ -138,7 +127,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             aria-activedescendant={flatItems[selectedIndex] ? `${listId}-${flatItems[selectedIndex].id}` : undefined}
             onKeyDown={handleKeyDown}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setSelectedId(null)
+            }}
             placeholder={t('quickSwitcherPlaceholder')}
             className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
           />
@@ -190,7 +182,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                         selected ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
                       }`}
                       onClick={() => void runCommand(cmd)}
-                      onMouseEnter={() => setSelectedIndex(index)}
+                      onMouseEnter={() => setSelectedId(cmd.id)}
                     >
                       {cmd.icon}
                       <span className="truncate">{cmd.label}</span>

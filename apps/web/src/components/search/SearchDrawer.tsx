@@ -176,6 +176,7 @@ export function SearchDrawer({
     }
   }
 
+  const editingQuery = localQuery !== query
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
 
@@ -394,7 +395,7 @@ export function SearchDrawer({
       )}
 
       {/* Result count */}
-      {resultFailure && (
+      {resultFailure && !editingQuery && results.some((r) => r.id === resultFailure.result.id) && (
         <div role="alert" className="shrink-0 border-b border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
           <p>{tChat(resultFailure.key)}</p>
           <button
@@ -406,7 +407,7 @@ export function SearchDrawer({
           </button>
         </div>
       )}
-      {query.trim() && !loading && !error && (
+      {query.trim() && !editingQuery && !loading && !error && (
         <div className="border-b border-white/10 px-3 py-1.5">
           <span className="text-xs text-gray-500">{t('resultCount', { count: total })}</span>
         </div>
@@ -414,7 +415,9 @@ export function SearchDrawer({
 
       {/* Results */}
       <SimpleBar scrollableNodeProps={{ ref: resultsRef }} className="min-h-0 flex-1">
-        {loading ? (
+        {editingQuery ? (
+          <p className="px-3 py-8 text-center text-sm text-gray-500">{t('submitHint')}</p>
+        ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <Spinner size="lg" />
           </div>
