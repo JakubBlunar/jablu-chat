@@ -22,6 +22,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { ForumChannelItem } from '@/components/channel/channel-sidebar/ForumChannelItem'
 import { CountBadge, IconButton } from '@/components/ui'
 import { SectionHeading } from '@/components/ui/SectionHeading'
+import { returnToVoiceRoom } from '@/lib/voiceRoomNavigation'
 import { VoicePanel } from '@/components/voice/LazyVoicePanel'
 import { useAppNavigate } from '@/hooks/useAppNavigate'
 import { Permission, usePermissions } from '@/hooks/usePermissions'
@@ -135,23 +136,14 @@ export function MobileNavDrawer({
 
   const pendingFriendCount = useFriendStore((s) => s.pending.length)
 
-  const { viewingVoiceRoom, currentVoiceChannelId, voiceServerId } = useVoiceConnectionStore(
+  const { viewingVoiceRoom, currentVoiceChannelId } = useVoiceConnectionStore(
     useShallow((s) => ({
       viewingVoiceRoom: s.viewingVoiceRoom,
-      currentVoiceChannelId: s.currentChannelId ?? s.voiceNetworkDropout?.channelId ?? null,
-      voiceServerId: s.currentServerId ?? s.voiceNetworkDropout?.serverId ?? null
+      currentVoiceChannelId: s.currentChannelId ?? s.voiceNetworkDropout?.channelId ?? null
     }))
   )
 
   const voiceParticipants = useVoiceStore((s) => s.participants)
-
-  const handleGoToVoiceRoom = useCallback(() => {
-    if (voiceServerId && currentVoiceChannelId) {
-      useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
-      void goToChannel(voiceServerId, currentVoiceChannelId)
-      close()
-    }
-  }, [voiceServerId, currentVoiceChannelId, goToChannel, close])
 
   const [groupDmOpen, setGroupDmOpen] = useState(false)
 
@@ -257,7 +249,7 @@ export function MobileNavDrawer({
     (ch: Channel) => {
       const store = useVoiceConnectionStore.getState()
       if (store.currentChannelId === ch.id) {
-        store.setViewingVoiceRoom(true)
+        void returnToVoiceRoom()
       } else if (currentServerId) {
         import('@/lib/voiceConnect').then(({ joinVoiceChannel }) => joinVoiceChannel(currentServerId, ch.id, ch.name))
       }
@@ -850,7 +842,7 @@ export function MobileNavDrawer({
               </ContextMenu>
 
               {/* Voice panel */}
-              <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />
+              <VoicePanel />
             </div>
           </div>
 

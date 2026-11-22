@@ -177,19 +177,14 @@ function MainLayoutContent() {
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
   const currentConvId = useDmStore((s) => s.currentConversationId)
 
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
-  const openSettings = useCallback((tab?: string) => {
-    setSettingsInitialTab(tab)
-    setSettingsOpen(true)
-  }, [])
+  const [settings, setSettings] = useState<{ tab?: string; returnToCaller?: boolean } | null>(null)
+  const openSettings = useCallback((tab?: string) => setSettings({ tab }), [])
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as string | undefined
-      if (detail) setSettingsInitialTab(detail)
-      setSettingsOpen(true)
+      const detail = (e as CustomEvent<string | { tab: string; returnToCaller?: boolean }>).detail
+      setSettings(typeof detail === 'string' ? { tab: detail } : detail ?? {})
     }
     window.addEventListener('open-settings', handler)
     return () => window.removeEventListener('open-settings', handler)
@@ -199,8 +194,7 @@ function MainLayoutContent() {
     const handler = (e: KeyboardEvent) => {
       if (e.key === '/' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
-        setSettingsInitialTab('shortcuts')
-        setSettingsOpen(true)
+        openSettings('shortcuts')
       }
       if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
@@ -213,14 +207,13 @@ function MainLayoutContent() {
           target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
         if (!isEditable) {
           e.preventDefault()
-          setSettingsInitialTab('shortcuts')
-          setSettingsOpen(true)
+          openSettings('shortcuts')
         }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isMobile])
+  }, [isMobile, openSettings])
 
   useEffect(() => {
     // Covers signing in as a different user without a page reload; the
@@ -305,15 +298,13 @@ function MainLayoutContent() {
         <MobileNavDrawer onOpenSettings={openSettings} onOpenQuickSwitcher={() => setCommandPaletteOpen(true)} />
         <MemberDrawer />
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
-        {settingsOpen && (
+        {settings && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal
-              open={settingsOpen}
-              initialTab={settingsInitialTab}
-              onClose={() => {
-                setSettingsOpen(false)
-                setSettingsInitialTab(undefined)
-              }}
+              open
+              initialTab={settings.tab}
+              returnToCaller={settings.returnToCaller}
+              onClose={() => setSettings(null)}
             />
           </Suspense>
         )}
@@ -354,15 +345,13 @@ function MainLayoutContent() {
         )}
         <MemberDrawer />
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
-        {settingsOpen && (
+        {settings && (
           <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
             <SettingsModal
-              open={settingsOpen}
-              initialTab={settingsInitialTab}
-              onClose={() => {
-                setSettingsOpen(false)
-                setSettingsInitialTab(undefined)
-              }}
+              open
+              initialTab={settings.tab}
+              returnToCaller={settings.returnToCaller}
+              onClose={() => setSettings(null)}
             />
           </Suspense>
         )}
@@ -437,15 +426,13 @@ function MainLayoutContent() {
       )}
       <MemberDrawer />
       <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
-      {settingsOpen && (
+      {settings && (
         <Suspense fallback={<Spinner size="lg" className="fixed inset-0 z-50 bg-black/60" />}>
           <SettingsModal
-            open={settingsOpen}
-            initialTab={settingsInitialTab}
-            onClose={() => {
-              setSettingsOpen(false)
-              setSettingsInitialTab(undefined)
-            }}
+            open
+            initialTab={settings.tab}
+            returnToCaller={settings.returnToCaller}
+            onClose={() => setSettings(null)}
           />
         </Suspense>
       )}

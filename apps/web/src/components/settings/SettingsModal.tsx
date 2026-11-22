@@ -48,11 +48,13 @@ function CloseIcon() {
 export function SettingsModal({
   open,
   onClose,
-  initialTab
+  initialTab,
+  returnToCaller
 }: {
   open: boolean
   onClose: () => void
   initialTab?: string
+  returnToCaller?: boolean
 }) {
   const { t } = useTranslation('settings')
   const [tab, setTab] = useState<Tab>((initialTab as Tab) || 'account')
@@ -126,6 +128,7 @@ export function SettingsModal({
         detailTitle={currentLabel}
         tab={tab}
         directTab={initialTab}
+        returnToCaller={returnToCaller}
         closeLabel={t('closeSettings')}
         backLabel={t('backToSettings')}
         onClose={onClose}

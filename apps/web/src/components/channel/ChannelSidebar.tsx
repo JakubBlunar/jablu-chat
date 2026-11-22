@@ -19,6 +19,7 @@ import { getVisibleCategoryChannels } from '@/lib/unread'
 
 import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
+import { returnToVoiceRoom } from '@/lib/voiceRoomNavigation'
 import { VoicePanel } from '@/components/voice/LazyVoicePanel'
 import { Permission, usePermissions } from '@/hooks/usePermissions'
 import { formatEventSchedule } from '@/lib/eventTime'
@@ -226,7 +227,7 @@ export function ChannelSidebar() {
     (ch: Channel) => {
       const store = useVoiceConnectionStore.getState()
       if (store.currentChannelId === ch.id) {
-        store.setViewingVoiceRoom(true)
+        void returnToVoiceRoom()
         return
       }
       if (!currentServer) return

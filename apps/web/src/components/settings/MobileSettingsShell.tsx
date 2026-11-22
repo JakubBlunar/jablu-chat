@@ -7,6 +7,7 @@ interface Props {
   detailTitle: string
   tab: string
   directTab?: string
+  returnToCaller?: boolean
   closeLabel: string
   backLabel: string
   onClose: () => void
@@ -20,6 +21,7 @@ export function MobileSettingsShell({
   detailTitle,
   tab,
   directTab,
+  returnToCaller,
   closeLabel,
   backLabel,
   onClose,
@@ -33,10 +35,10 @@ export function MobileSettingsShell({
   const heading = useRef<HTMLHeadingElement>(null)
   const visitedDetail = useRef(false)
   const selectedFromIndex = useRef(false)
-  const back = () => (indexOpen ? onClose() : setIndexOpen(true))
+  const back = () => (indexOpen || returnToCaller ? onClose() : setIndexOpen(true))
   useFocusTrap(dialog, true, back)
   useBackGestureClose(true, onClose)
-  useBackGestureClose(!indexOpen, () => setIndexOpen(true))
+  useBackGestureClose(!indexOpen && !returnToCaller, () => setIndexOpen(true))
 
   useEffect(() => {
     if (directTab) setIndexOpen(false)
@@ -63,7 +65,7 @@ export function MobileSettingsShell({
         <button
           type="button"
           onClick={back}
-          aria-label={indexOpen ? closeLabel : backLabel}
+          aria-label={indexOpen || returnToCaller ? closeLabel : backLabel}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-white/10 hover:text-white"
         >
           <svg

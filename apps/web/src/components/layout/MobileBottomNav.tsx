@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { InAppNotificationBell } from '@/components/notifications/InAppNotificationBell'
+import { returnToVoiceRoom } from '@/lib/voiceRoomNavigation'
+import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { UserAvatar } from '@/components/UserAvatar'
 import { useAuthStore } from '@/stores/auth.store'
 import { useLayoutStore } from '@/stores/layout.store'
@@ -9,6 +11,8 @@ import { getVisualViewportBounds } from '@/hooks/useVisualViewport'
 export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { t } = useTranslation('nav')
   const user = useAuthStore((s) => s.user)
+  const activeRoom = useVoiceConnectionStore(s => s.currentChannelId && !s.viewingVoiceRoom
+    ? s.currentChannelName || t('voice:defaultChannelName') : null)
   const drawerOpen = useLayoutStore((s) => s.navDrawerOpen)
   const [composing, setComposing] = useState(false)
   useEffect(() => {
@@ -101,6 +105,16 @@ export function MobileBottomNav({ onOpenSettings }: { onOpenSettings: () => void
         </svg>
         {t('mobileChats')}
       </button>
+      {activeRoom && (
+        <button type="button" onClick={returnToVoiceRoom}
+          aria-label={t('voice:returnToRoom', { room: activeRoom })}
+          className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium text-green-400">
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <path d="M4 14v-2a8 8 0 0 1 16 0v2M4 13h3v7H5a1 1 0 0 1-1-1zm16 0h-3v7h2a1 1 0 0 0 1-1z" />
+          </svg>
+          <span className="max-w-full truncate px-1">{activeRoom}</span>
+        </button>
+      )}
       <InAppNotificationBell size="navigation" />
       <button
         type="button"

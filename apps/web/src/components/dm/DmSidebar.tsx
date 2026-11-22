@@ -10,7 +10,6 @@ import { useDmStore } from '@/stores/dm.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useReadStateStore } from '@/stores/readState.store'
 import { useFriendStore } from '@/stores/friend.store'
-import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { CountBadge } from '@/components/ui'
 import { resolveMediaUrl } from '@/lib/api'
 import { showToast } from '@/stores/toast.store'
@@ -35,7 +34,7 @@ export function DmSidebar() {
       isLoading: s.isConversationsLoading
     }))
   )
-  const { goToDm, goToFriends, goToChannel } = useAppNavigate()
+  const { goToDm, goToFriends } = useAppNavigate()
   const { onlineIds, realtimeStatuses } = useMemberStore(
     useShallow((s) => ({
       onlineIds: s.onlineUserIds,
@@ -85,20 +84,6 @@ export function DmSidebar() {
     },
     [user?.id, onlineIds, realtimeStatuses]
   )
-
-  const { voiceServerId, voiceChannelId } = useVoiceConnectionStore(
-    useShallow((s) => ({
-      voiceServerId: s.currentServerId ?? s.voiceNetworkDropout?.serverId ?? null,
-      voiceChannelId: s.currentChannelId ?? s.voiceNetworkDropout?.channelId ?? null
-    }))
-  )
-
-  const handleGoToVoiceRoom = useCallback(() => {
-    if (voiceServerId) {
-      useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
-      goToChannel(voiceServerId, voiceChannelId ?? '')
-    }
-  }, [voiceServerId, voiceChannelId, goToChannel])
 
   const [groupDmOpen, setGroupDmOpen] = useState(false)
   const [filter, setFilter] = useState('')
@@ -273,7 +258,7 @@ export function DmSidebar() {
         )}
       </SimpleBar>
 
-      {voiceChannelId && <VoicePanel onGoToVoiceRoom={handleGoToVoiceRoom} />}
+      <VoicePanel />
 
       {groupDmOpen && (
         <GroupDmModal

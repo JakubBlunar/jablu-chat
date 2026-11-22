@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MobileViewport } from './MobileViewport'
 import { MobileBottomNav } from './MobileBottomNav'
 
+jest.mock('@/lib/socket', () => ({ getSocket: () => null }))
 jest.mock('@/stores/auth.store', () => ({
   useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null })
 }))

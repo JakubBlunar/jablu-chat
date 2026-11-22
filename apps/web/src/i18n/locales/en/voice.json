@@ -69,6 +69,8 @@
   "reconnectBanner": "Connection interrupted — reconnecting automatically. If this lasts too long, disconnect and rejoin the channel.",
   "reconnectBannerShort": "Connection interrupted — reconnecting automatically.",
   "notConnected": "Not connected to a voice channel",
+  "returnToRoom": "Return to {{room}}",
+  "backToChannel": "Back to #{{channel}}",
   "goToVoiceRoom": "Go to voice room",
   "connecting": "Connecting…",
   "reconnecting": "Reconnecting…",

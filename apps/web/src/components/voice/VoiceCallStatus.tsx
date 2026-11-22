@@ -1,3 +1,4 @@
+import { openCallAudioSettings } from '@/lib/voiceRoomNavigation'
 import { useTranslation } from 'react-i18next'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 
@@ -31,7 +32,7 @@ export function VoiceCallStatus() {
           <button
             type="button"
             className="min-h-11 rounded-md px-3 underline"
-            onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'voice' }))}
+            onClick={openCallAudioSettings}
           >
             {t('audioSettings')}
           </button>
@@ -55,7 +56,7 @@ export function VoiceCallStatus() {
           <button
             type="button"
             className="min-h-11 px-2 underline"
-            onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'voice' }))}
+            onClick={openCallAudioSettings}
           >
             {t('audioSettings')}
           </button>

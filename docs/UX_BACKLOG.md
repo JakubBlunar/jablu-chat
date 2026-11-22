@@ -2,6 +2,17 @@
 
 Reviewed and implemented on 22 November 2026. The audit below records the original behavior, priorities and acceptance scenarios. The table tracks the delivered interactions and the evidence from the local release candidate.
 
+## Voice rooms and first-load author colors
+
+| Item | What changed | How to verify |
+| --- | --- | --- |
+| UX-29 · Stable author colors on first visit | Channel and thread history include the highest-priority colored role for each visible author and reply author. The server looks up the distinct authors on the page in one query. A completed roster takes over for live role changes and removals. | Hold the first roster response while opening a server. Check both author names before and after release. The PostgreSQL fixture also assigns the same user a higher role in another server. [Browser test](../tests/e2e/author-colors.spec.ts) · [Database test](../apps/server/src/messages/history-wire.integration.spec.ts) |
+| UX-30 · Reply in text during a call | The voice room links to the last available text channel visited in its server. The desktop call panel and phone navigation return directly to the connected room and update its URL. Narrow room headers put controls on a second row. | Send a message, return to voice, and check the route, connection and microphone publication. The browser test also checks the text shortcut at 360, 768, 1024 and 1280 px. [Voice journeys](../tests/e2e/voice-calls.spec.ts) |
+| UX-31 · Reach audio settings during a call | Audio settings are labeled in the room and available from the desktop call panel while chatting. On the phone, Back from call-specific settings returns to the originating view. Settings enumerate devices before requesting capture. | Open settings while connected. With device labels already available, Chrome's microphone capture count across join and settings went from two to one. Permission and cleanup tests exercise the fallback for missing labels. [Device tests](../apps/web/src/components/voice/hooks/useMediaDeviceSettings.test.ts) |
+| UX-32 · Keep the selected tile while replying | The live call remembers the selected participant, share or grid across channel switches. A dismissed share stays in the grid. A newly published share can still take focus when the grid is active. | Focus a participant, reply in text, and return. Also exercise share replacement, a participant leaving, and starting another call. [Focus tests](../apps/web/src/components/voice/voiceTileFocus.test.ts) · [Voice journeys](../tests/e2e/voice-calls.spec.ts) |
+
+The browser checks use local Chrome with simulated media devices. Physical iPhone Safari, hardware audio routing and the packaged desktop client remain device checks.
+
 ## Second pass · cache, gestures and shared UI
 
 This pass started from commit `69a2b8f`. The before/after probes used the same local Chrome fixtures, real React components and browser IndexedDB. The phone fixture was 390 × 844. The counts below measure work directly. Frame timing and battery use require separate device measurements.

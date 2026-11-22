@@ -465,3 +465,63 @@ test('keeps screen-share settings after a cancelled picker and retries in the sa
     await expect.poll(async()=> (await voiceState(page)).connected).toBe(true)
   }finally{await disconnect(page);await apiCall(page,'deleteServer',server.id)}
 })
+
+test('returns from a text reply to the same connected room on desktop and phone', async ({ context, page, request }) => {
+  await instrument(context)
+  await loginAs(page, 'admin')
+  const server = await createTestServer(page, request)
+  try {
+    await apiCall(page, 'post', '/api/servers/' + server.id + '/channels', { name: 'hangout', type: 'voice' })
+    const voice = await prepare(page, 'admin', server)
+    const text = server.channels.find((c: { type: string }) => c.type === 'text')
+    await join(page, voice.name)
+    await expect.poll(async () => (await voiceState(page)).microphones).toBe(1)
+    const captures = (await voiceState(page)).captured
+    const backToText = page.getByRole('button', { name: 'Back to #' + text.name, exact: true })
+    await page.getByRole('button', { name: 'Focus tile', exact: true }).click()
+    for (const width of [360, 768, 1024, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      const header = page.locator('header').filter({ has: backToText })
+      await expect(header).toBeVisible()
+      await backToText.click({ trial: true })
+      expect(await header.evaluate(el => {
+        const box = el.getBoundingClientRect()
+        return [...el.querySelectorAll('button')].every(button => {
+          const bounds = button.getBoundingClientRect()
+          return bounds.left >= box.left && bounds.right <= box.right + 1
+        })
+      })).toBe(true)
+    }
+    for (const width of [1280, 360]) {
+      await page.setViewportSize({ width, height: 800 })
+      await backToText.click()
+      const draft = page.locator('.chat-composer textarea')
+      await draft.fill('Voice round trip ' + width)
+      await draft.press('Enter')
+      await expect(page.locator('.chat-scroll').getByText('Voice round trip ' + width)).toBeVisible()
+      await draft.blur()
+      const returnButton = width === 360 ? 'Return to ' + voice.name : 'Go to voice room'
+      if (width === 1280) {
+        await page.getByRole('button', { name: 'Audio settings', exact: true }).click()
+        await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Microphone', exact: true })).toBeVisible()
+        await page.getByRole('button', { name: 'Close settings', exact: true }).click()
+      }
+      await page.getByRole('button', { name: returnButton, exact: true }).click()
+      await expect(page).toHaveURL(new RegExp('/channels/' + server.id + '/' + voice.id + '$'))
+      await expect(backToText).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Unfocus tile', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Audio settings', exact: true })).toBeVisible()
+      if (width === 360) {
+        await page.getByRole('button', { name: 'Audio settings', exact: true }).click()
+        await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Microphone', exact: true })).toBeVisible()
+        await page.evaluate(() => history.back())
+        await expect(page.getByRole('dialog')).toHaveCount(0)
+        await expect(backToText).toBeVisible()
+      }
+      expect(await voiceState(page)).toMatchObject({ connected: true, microphones: 1, captured: captures })
+    }
+  } finally {
+    await disconnect(page)
+    await apiCall(page, 'deleteServer', server.id)
+  }
+})

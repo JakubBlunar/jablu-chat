@@ -1,8 +1,12 @@
+import { openCallAudioSettings } from '@/lib/voiceRoomNavigation'
 import { IconButton } from '@/components/ui/IconButton'
 import { RoomEvent, Track, type Participant, type TrackPublication } from 'livekit-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { joinVoiceChannel } from '@/lib/voiceConnect'
+import { openConversation } from '@/lib/conversationNavigation'
+import { useNavHistoryStore } from '@/stores/navHistory.store'
+import { useChannelStore } from '@/stores/channel.store'
 import { useIsTablet } from '@/hooks/useMobile'
 import { useLayoutStore } from '@/stores/layout.store'
 import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
@@ -11,6 +15,7 @@ import { ParticipantTile } from './ParticipantTile'
 import { ScreenShareTile } from './ScreenShareTile'
 import { ScreenShareDialog } from './ScreenShareDialog'
 import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
+import { focusForRoom } from './voiceTileFocus'
 import { VoiceCallStatus } from './VoiceCallStatus'
 import { VoiceDiagnostics } from './VoiceDiagnostics'
 
@@ -28,7 +33,6 @@ export function VoiceRoom() {
   const [tiles, setTiles] = useState<TileEntry[]>([])
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [pendingFullscreen, setPendingFullscreen] = useState(false)
-  const prevScreenIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!room) return
@@ -45,13 +49,14 @@ export function VoiceRoom() {
         if (ssPub?.track) {
           newTiles.push({
             kind: 'screen',
-            id: `${p.identity}:screen`,
+            id: `screen:${ssPub.trackSid}`,
             participant: p,
             publication: ssPub
           })
         }
       }
 
+      setFocusedId(focusForRoom(room).update(newTiles))
       setTiles(newTiles)
     }
 
@@ -78,38 +83,18 @@ export function VoiceRoom() {
     }
   }, [room])
 
-  useEffect(() => {
-    if (focusedId && !tiles.some((t) => t.id === focusedId)) {
-      setFocusedId(null)
-    }
-  }, [tiles, focusedId])
+  const selectTile = useCallback(
+    (id: string | null, fullscreen = false) => {
+      if (!room) return
+      focusForRoom(room).selected = id
+      setFocusedId(id)
+      setPendingFullscreen(fullscreen)
+    },
+    [room]
+  )
 
-  // Auto-focus new screen shares
-  useEffect(() => {
-    const currentScreenIds = new Set(tiles.filter((t) => t.kind === 'screen').map((t) => t.id))
-    const prev = prevScreenIdsRef.current
-
-    if (!focusedId) {
-      for (const id of currentScreenIds) {
-        if (!prev.has(id)) {
-          setFocusedId(id)
-          break
-        }
-      }
-    }
-
-    prevScreenIdsRef.current = currentScreenIds
-  }, [tiles, focusedId])
-
-  const handleTileClick = useCallback((id: string) => {
-    setFocusedId((prev) => (prev === id ? null : id))
-    setPendingFullscreen(false)
-  }, [])
-
-  const handleTileFullscreen = useCallback((id: string) => {
-    setFocusedId(id)
-    setPendingFullscreen(true)
-  }, [])
+  const handleTileClick = (id: string) => selectTile(focusedId === id ? null : id)
+  const handleTileFullscreen = (id: string) => selectTile(id, true)
 
   if (!room) {
     if (voiceNetworkDropout) {
@@ -150,7 +135,7 @@ export function VoiceRoom() {
   const otherTiles = focusedTile ? tiles.filter((t) => t.id !== focusedId) : tiles
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="@container flex min-w-0 flex-1 flex-col overflow-hidden">
       <VoiceRoomHeader
         channelName={channelName}
         participantCount={tiles.filter((t) => t.kind === 'participant').length}
@@ -172,7 +157,7 @@ export function VoiceRoom() {
             focused={focusedTile}
             others={otherTiles}
             onTileClick={handleTileClick}
-            onUnfocus={() => setFocusedId(null)}
+            onUnfocus={() => selectTile(null)}
             autoFullscreen={pendingFullscreen}
             onFullscreenConsumed={() => setPendingFullscreen(false)}
           />
@@ -526,32 +511,55 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
   const { t: tA11y } = useTranslation('a11y')
   const vc = useVoiceControls()
   const compactNavigation = useIsTablet()
+  const serverId = useVoiceConnectionStore((s) => s.currentServerId)
+  const lastId = useNavHistoryStore((s) => (serverId ? s.lastChannelByServer[serverId] : null))
+  const lastChannel = useChannelStore((s) =>
+    s.channels.find((c) => c.serverId === serverId && c.id === lastId && c.type === 'text')
+  )
 
   return (
     <>
-      <div className="flex min-h-12 min-w-0 shrink-0 flex-wrap items-center border-b border-black/20 bg-surface px-2 md:flex-nowrap md:px-4">
-        {compactNavigation && (
-          <button
-            type="button"
-            aria-label={tA11y('openNavigationMenu')}
-            onClick={useLayoutStore.getState().openNavDrawer}
-            className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        )}
-        <svg className="mr-2 h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-        </svg>
-        <span className="min-w-0 truncate text-[15px] font-semibold text-white">{channelName}</span>
-        <span className="ml-2 hidden text-sm text-gray-400 md:inline">
-          {t('participantCount', { count: participantCount })}
-        </span>
-        <span className="ml-2 text-xs tabular-nums text-gray-500">{vc.timeStr}</span>
+      <header className="flex min-h-12 min-w-0 shrink-0 flex-col items-stretch border-b border-black/20 bg-surface px-2 @min-[48rem]:flex-row @min-[48rem]:items-center @min-[48rem]:px-4">
+        <div className="flex min-h-11 min-w-0 items-center @min-[48rem]:flex-1">
+          {compactNavigation && (
+            <button
+              type="button"
+              aria-label={tA11y('openNavigationMenu')}
+              onClick={useLayoutStore.getState().openNavDrawer}
+              className="mr-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-white/10 hover:text-white"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          )}
+          <svg className="mr-2 h-5 w-5 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+          </svg>
+          <span className="min-w-0 truncate text-[15px] font-semibold text-white">{channelName}</span>
+          <span className="ml-2 hidden shrink-0 text-sm text-gray-400 @min-[48rem]:inline">
+            {t('participantCount', { count: participantCount })}
+          </span>
+          <span className="ml-2 text-xs tabular-nums text-gray-500">{vc.timeStr}</span>
 
-        <div className="flex w-full flex-wrap items-center justify-evenly gap-1 border-t border-white/5 py-1 md:ml-auto md:w-auto md:flex-nowrap md:justify-end md:border-0 md:py-0">
+          {lastChannel && serverId && (
+            <button
+              type="button"
+              title={t('backToChannel', { channel: lastChannel.name })}
+              aria-label={t('backToChannel', { channel: lastChannel.name })}
+              onClick={() =>
+                void openConversation({
+                  target: { kind: 'channel', serverId, channelId: lastChannel.id },
+                  source: 'sidebar'
+                })
+              }
+              className="ml-2 min-h-11 max-w-[32%] shrink-0 truncate rounded px-2 text-sm text-primary hover:bg-white/10"
+            >
+              # {lastChannel.name}
+            </button>
+          )}
+        </div>
+        <div className="flex w-full flex-wrap items-center justify-evenly gap-1 border-t border-white/5 py-1 @min-[48rem]:ml-2 @min-[48rem]:w-auto @min-[48rem]:flex-nowrap @min-[48rem]:justify-end @min-[48rem]:border-0 @min-[48rem]:py-0">
           <button
             type="button"
             title={vc.isMuted ? t('unmute') : t('mute')}
@@ -641,8 +649,8 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             type="button"
             title={t('audioSettings')}
             aria-label={t('audioSettings')}
-            onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: 'voice' }))}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-white/10 hover:text-white"
+            onClick={openCallAudioSettings}
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-gray-300 hover:bg-white/10 hover:text-white"
           >
             <svg
               className="h-5 w-5"
@@ -654,6 +662,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             >
               <path d="M4 7h16M4 17h16M8 4v6m8 4v6" />
             </svg>
+            <span className="text-xs">{t('audioSettings')}</span>
           </button>
           <button
             type="button"
@@ -667,7 +676,7 @@ function VoiceRoomHeader({ channelName, participantCount }: { channelName: strin
             </svg>
           </button>
         </div>
-      </div>
+      </header>
 
       {vc.errorMsg && (
         <div role="alert" className="bg-red-500/10 px-4 py-1.5 text-center text-xs font-medium text-red-400">

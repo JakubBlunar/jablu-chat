@@ -8,8 +8,7 @@ import { useVoiceControls, supportsScreenShare } from './useVoiceControls'
 import { QuickVoiceDevices } from './QuickVoiceDevices'
 import { VoiceCallStatus } from './VoiceCallStatus'
 import { VoiceDiagnostics } from './VoiceDiagnostics'
-import { useAppNavigate } from '@/hooks/useAppNavigate'
-import { useLayoutStore } from '@/stores/layout.store'
+import { openCallAudioSettings, returnToVoiceRoom } from '@/lib/voiceRoomNavigation'
 function MicIcon({ muted }: { muted: boolean }) {
   if (muted) {
     return (
@@ -80,7 +79,7 @@ function DisconnectIcon() {
   )
 }
 
-export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void } = {}) {
+export function VoicePanel() {
   const { t } = useTranslation('voice')
   const { t: tCommon } = useTranslation('common')
   const channelId = useVoiceConnectionStore((s) => s.currentChannelId)
@@ -92,21 +91,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
   const viewingVoiceRoom = useVoiceConnectionStore((s) => s.viewingVoiceRoom)
 
   const vc = useVoiceControls()
-  const { goToDm } = useAppNavigate()
   const [devicesOpen, setDevicesOpen] = useState(false)
-
-  const handleShowVoiceRoom = useCallback(() => {
-    const state = useVoiceConnectionStore.getState()
-    if (state.currentDmCallId && state.currentChannelId) {
-      state.setViewingVoiceRoom(true)
-      goToDm(state.currentChannelId)
-      useLayoutStore.getState().closeNavDrawer()
-    } else if (onGoToVoiceRoom) {
-      onGoToVoiceRoom()
-    } else {
-      useVoiceConnectionStore.getState().setViewingVoiceRoom(true)
-    }
-  }, [onGoToVoiceRoom, goToDm])
 
   const handleRetryVoice = useCallback(() => {
     const d = useVoiceConnectionStore.getState().voiceNetworkDropout
@@ -177,7 +162,7 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
       )}
       <button
         type="button"
-        onClick={handleShowVoiceRoom}
+        onClick={returnToVoiceRoom}
         className="w-full text-left transition hover:opacity-80"
         title={t('goToVoiceRoom')}
         aria-label={t('goToVoiceRoom')}
@@ -281,14 +266,16 @@ export function VoicePanel({ onGoToVoiceRoom }: { onGoToVoiceRoom?: () => void }
         </button>
       </div>
 
-      <button
-        type="button"
-        aria-expanded={devicesOpen}
-        onClick={() => setDevicesOpen((open) => !open)}
-        className="mt-1 flex w-full items-center gap-1.5 rounded px-1 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white"
-      >
-        <GearIcon /> {t('quickDevices')}
-      </button>
+      <div className="mt-1 flex gap-1">
+        <button type="button" aria-expanded={devicesOpen} onClick={() => setDevicesOpen(open => !open)}
+          className="min-h-11 flex-1 rounded px-1 text-xs text-gray-300 hover:bg-white/10">
+          {t('quickDevices')}
+        </button>
+        {!viewingVoiceRoom && <button type="button" onClick={openCallAudioSettings}
+          className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded px-1 text-xs text-gray-300 hover:bg-white/10">
+          <GearIcon /> {t('audioSettings')}
+        </button>}
+      </div>
       {devicesOpen && <QuickVoiceDevices />}
       {!viewingVoiceRoom && <VoiceDiagnostics />}
 

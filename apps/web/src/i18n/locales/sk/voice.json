@@ -69,6 +69,8 @@
   "reconnectBanner": "Pripojenie prerušené — automaticky sa znova pripájam. Ak to trvá dlho, odpojte sa a znova sa pripojte ku kanálu.",
   "reconnectBannerShort": "Pripojenie prerušené — automaticky sa znova pripájam.",
   "notConnected": "Nepripojené k hlasovému kanálu",
+  "returnToRoom": "Späť do {{room}}",
+  "backToChannel": "Späť na #{{channel}}",
   "goToVoiceRoom": "Prejsť do hlasovej miestnosti",
   "connecting": "Pripájanie…",
   "reconnecting": "Obnovovanie pripojenia…",
