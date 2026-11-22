@@ -2,6 +2,24 @@
 
 Reviewed and implemented on 22 November 2026. The audit below records the original behavior, priorities and acceptance scenarios. The table tracks the delivered interactions and the evidence from the local release candidate.
 
+## Server and DM interactions and small-VPS performance
+
+| Item | Observed behavior | Delivered change and evidence |
+| --- | --- | --- |
+| UX-33 · Conversation controls | At 1280 px, Pins measured 36 × 36 CSS px in a server and 32 × 32 in a DM. The desktop DM sidebar hid Close conversation even when it had keyboard focus. | Equivalent header icons use the shared 44 × 44 header size. The DM sidebar reveals Close when focus enters a row. Chrome checks the actual button rectangles and pointer reachability at 360, 390, 1024 and 1280 px and checks keyboard visibility. [Browser test](../tests/e2e/conversation-controls.spec.ts) |
+| UX-34 · Switch between DM details and pins | With Pins open, clicking Conversation info closed the panel. Both triggers could look active at once. | Either button opens its own tab directly. Clicking the selected tab closes it. The selected state is also available to assistive technology. [Interaction tests](../apps/web/src/components/chat/MessageArea.test.tsx) |
+| UX-35 · DM sidebar previews | The ORM applied its nested one-message limit after fetching history. In a PostgreSQL fixture with 5,001 live messages in one conversation, the message query returned all 5,001 rows to the application. | The preview query now returns one row in that fixture, using the existing live-history index ordering and one bounded attachment lookup. Empty, favorite, closed, unrelated and attachment-only conversations have regression coverage. No new index or migration. [PostgreSQL regression](../apps/server/src/dm/dm-list.integration.spec.ts) |
+| UX-36 · Storage audit I/O | Completing an audit triggered another usage request that walked the upload tree again. Starting a background cleanup also triggered a usage request while the worker was measuring storage. Two-second progress polls could overlap on a slow response. | The dashboard uses the audit's measured snapshot and requests final statistics after execution. The progress timer waits for its previous request. A delayed-response test checks request counts, and the database suite checks the snapshot against actual fixture files. [Dashboard tests](../apps/web/src/pages/admin/tabs/StorageTab.safety-audit.test.tsx) · [Cleanup tests](../apps/server/src/cleanup/cleanup.safety-audit.integration.spec.ts) |
+| UX-37 · Server Insights | One report made four channel metadata queries for IDs, names, a count and a type breakdown. Messages from removed authors could also supply a null ID to the user lookup. | One channel query supplies the four values. Unattributed contributions retain the existing fallback label. [Service tests](../apps/server/src/servers/servers.service.spec.ts) |
+
+The standard suites passed 1,772 web tests and 1,346 server tests. The server runner skipped 92 opt-in tests. Separate PostgreSQL runs passed the 5,001-message preview regression and all 43 isolated cleanup safety cases. Four signed-in Chrome journeys passed, including opening Server Insights and reviewing storage with zero extra usage requests after the audit. The web production build and server typecheck passed. These are local measurements.
+
+### VPS follow-up measurements
+
+- **Cleanup worker.** The worker measures exact message and attachment counts before and after execution even though both call sites use only the total bytes. Measure the count-query time separately from the filesystem walk on a representative copy. If counts are material, split out a byte-only measurement for the worker and retain exact counts for the admin view. Verify the same before/after totals and pressure-stop decisions.
+- **Server Insights.** The day, channel and contributor charts each aggregate the same 30-day message window. Compare query plans, buffer reads and temporary-disk use for the three existing aggregates against one grouped query on a representative data distribution. These charts sit behind an admin action, so their request frequency matters alongside query time.
+- **Disk budget.** The configured 100 GiB is a soft Jablu budget, with a default cleanup target of 90 GiB. The measured scope includes uploads, the allocated PostgreSQL database and explicitly configured paths. Compare that total with free space on the volume, including WAL, Docker logs, Redis and other applications. Measure normal growth and peak free space during cleanup before changing retention or concurrency. [Storage accounting and retention](STORAGE_CLEANUP.md)
+
 ## Voice rooms and first-load author colors
 
 | Item | What changed | How to verify |
