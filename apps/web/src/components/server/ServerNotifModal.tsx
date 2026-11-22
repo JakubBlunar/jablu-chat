@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import type { Channel } from '@chat/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -156,18 +157,18 @@ export function ServerNotifModal({
                   className="flex items-center justify-between rounded px-3 py-1.5 hover:bg-white/[0.04]"
                 >
                   <span className="text-sm text-gray-300"># {ch.name}</span>
-                  <select
+                  <Select
                     aria-label={`# ${ch.name}`}
                     value={channelOverrides[ch.id] ?? channelPrefs[ch.id] ?? 'default'}
                     disabled={channelOverrides[ch.id] !== undefined}
                     onChange={(e) => void handleChannelOverride(ch.id, e.target.value as NotifLevel | 'default')}
-                    className="rounded border border-white/10 bg-surface-darkest px-2 py-1 text-xs text-white outline-none"
+                    size="sm"
                   >
                     <option value="default">{t('notifications.default')}</option>
                     <option value="all">{t('notifications.allMessages')}</option>
                     <option value="mentions">{t('notifications.mentions')}</option>
                     <option value="none">{t('notifications.muted')}</option>
-                  </select>
+                  </Select>
                 </div>
               ))}
             </div>

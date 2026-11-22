@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { useCallback, useEffect, useState } from 'react'
 import type { AdminServer, AuditLogEntry } from '../adminTypes'
 import { adminFetch } from '../adminApi'
@@ -63,10 +64,9 @@ export function AuditLogTab({ servers }: { servers: AdminServer[] }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <select
+        <Select
           value={filterServerId}
           onChange={(e) => setFilterServerId(e.target.value)}
-          className="rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
         >
           <option value="">All servers</option>
           {servers.map((s) => (
@@ -74,7 +74,7 @@ export function AuditLogTab({ servers }: { servers: AdminServer[] }) {
               {s.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {error && (

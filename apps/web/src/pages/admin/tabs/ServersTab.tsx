@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DndContext,
@@ -106,10 +107,9 @@ export function ServersTab({
                 className="py-2"
               />
             </div>
-            <select
+            <Select
               value={newOwnerId}
               onChange={(e) => setNewOwnerId(e.target.value)}
-              className="rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
             >
               <option value="">Select owner…</option>
               {users.map((u) => (
@@ -117,7 +117,7 @@ export function ServersTab({
                   {u.username} ({u.email})
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               type="button"
               variant="primary"
@@ -336,10 +336,10 @@ function ServerMembersPanel({
       )}
 
       <div className="mb-3 flex items-center gap-2">
-        <select
+        <Select
           value={addUserId}
           onChange={(e) => setAddUserId(e.target.value)}
-          className="min-w-0 flex-1 rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
+          wrapperClassName="min-w-0 flex-1"
         >
           <option value="">Add a user…</option>
           {nonMembers.map((u) => (
@@ -347,7 +347,7 @@ function ServerMembersPanel({
               {u.username} ({u.email})
             </option>
           ))}
-        </select>
+        </Select>
         <Button
           type="button"
           variant="primary"

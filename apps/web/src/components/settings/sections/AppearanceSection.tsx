@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ACCENT_OPTIONS } from '@/lib/accent'
@@ -48,19 +49,19 @@ export function AppearanceSection() {
         <label htmlFor="jablu-locale-select" className="sr-only">
           {t('appearance.language')}
         </label>
-        <select
+        <Select
           id="jablu-locale-select"
           value={locale}
           disabled={localeSaving}
           onChange={(e) => void changeLocale(e.target.value as AppLocale)}
-          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-2 focus:ring-primary"
+          wrapperClassName="max-w-xs"
         >
           {APP_LOCALES.map((code) => (
             <option key={code} value={code}>
               {LOCALE_LABELS[code]}
             </option>
           ))}
-        </select>
+        </Select>
         {localeSaveFailed && (
           <p role="alert" className="mt-2 text-sm text-red-300">
             {t('appearance.languageSaveFailed')}
@@ -74,18 +75,18 @@ export function AppearanceSection() {
         <label htmlFor="jablu-font-scale" className="sr-only">
           {t('appearance.textSize')}
         </label>
-        <select
+        <Select
           id="jablu-font-scale"
           value={fontScale}
           onChange={(event) => setFontScale(Number(event.target.value) as FontScale)}
-          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-white ring-1 ring-white/10"
+          wrapperClassName="max-w-xs"
         >
           {FONT_SCALES.map((scale) => (
             <option key={scale} value={scale}>
               {scale}%{scale === 100 ? ` — ${t('appearance.defaultSize')}` : ''}
             </option>
           ))}
-        </select>
+        </Select>
         <div className="mt-4 rounded-lg bg-surface-darkest p-4" aria-live="polite">
           <p className="text-base font-semibold text-white">{t('appearance.textPreview')}</p>
           <p className="mt-1 text-sm text-gray-300">{t('appearance.textPreviewBody')}</p>
@@ -133,12 +134,16 @@ export function AppearanceSection() {
         <h2 className="mb-1 text-base font-semibold text-white">{t('appearance.themeTitle')}</h2>
         <p className="mb-3 text-sm text-gray-400">{t('appearance.themeHint')}</p>
         <label htmlFor="jablu-theme" className="sr-only">{t('appearance.themeTitle')}</label>
-        <select id="jablu-theme" value={theme} onChange={(event) => setTheme(event.target.value as ThemePreference)}
-          className="w-full max-w-xs rounded-md bg-surface-darkest px-3 py-2 text-sm text-white ring-1 ring-white/10">
+        <Select
+          id="jablu-theme"
+          value={theme}
+          onChange={(event) => setTheme(event.target.value as ThemePreference)}
+          wrapperClassName="max-w-xs"
+        >
           {(['system', 'light', 'dark'] as const).map((value) => (
             <option key={value} value={value}>{t(`appearance.theme_${value}`)}</option>
           ))}
-        </select>
+        </Select>
       </div>
     </div>
   )

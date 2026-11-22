@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { horizontalGesture, isVerticalDrag, ownsHorizontalTouch } from '@/lib/horizontalGesture'
+import { useEffect, useRef, useState } from 'react'
+import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { useBackGestureClose } from '@/hooks/useBackGestureClose'
@@ -11,18 +11,21 @@ type Props = {
   onClose: () => void
   side: 'left' | 'right'
   width?: string
+  closeOnEscape?: boolean
   children: React.ReactNode
   'aria-label'?: string
 }
 
-export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'aria-label': label }: Props) {
+export function MobileDrawer({
+  open, onClose, side, width = 'w-72', closeOnEscape = true, children, 'aria-label': label
+}: Props) {
   const [visible, setVisible] = useState(false)
   const [animating, setAnimating] = useState(false)
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const swipe = useHorizontalSwipe(side, onClose)
   const drawerRef = useRef<HTMLDivElement>(null)
   const name = useDialogName(drawerRef, visible, children, label)
   useVisualViewport(drawerRef, visible)
-  useFocusTrap(drawerRef, open && visible, onClose)
+  useFocusTrap(drawerRef, open && visible, closeOnEscape ? onClose : undefined)
   useBackGestureClose(open, onClose)
 
   useEffect(() => {
@@ -42,24 +45,6 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'a
       return () => clearTimeout(t)
     }
   }, [open])
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const point = e.touches[0]
-    touchStartRef.current =
-      e.touches.length === 1 && !ownsHorizontalTouch(e.target, e.currentTarget as HTMLElement)
-        ? { x: point.clientX, y: point.clientY }
-        : null
-  }, [])
-
-  const handleTouchEnd = useCallback(
-    (event: React.TouchEvent) => {
-      const start = touchStartRef.current
-      const end = event.changedTouches[0]
-      touchStartRef.current = null
-      if (start && end && horizontalGesture(end.clientX - start.x, end.clientY - start.y, side)) onClose()
-    },
-    [side, onClose]
-  )
 
   if (!visible) return null
 
@@ -91,18 +76,7 @@ export function MobileDrawer({ open, onClose, side, width = 'w-72', children, 'a
           paddingTop: 'env(safe-area-inset-top, 0px)',
           paddingBottom: 'var(--keyboard-safe-area-bottom, env(safe-area-inset-bottom, 0px))'
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={(event) => {
-          const start = touchStartRef.current
-          const point = event.touches[0]
-          if (start && (event.touches.length !== 1 || isVerticalDrag(point.clientX - start.x, point.clientY - start.y))) {
-            touchStartRef.current = null
-          }
-        }}
-        onTouchCancel={() => {
-          touchStartRef.current = null
-        }}
-        onTouchEnd={handleTouchEnd}
+        {...swipe}
       >
         {children}
       </div>

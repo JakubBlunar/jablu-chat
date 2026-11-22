@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { MessageArea } from './MessageArea'
 import { useDmStore } from '@/stores/dm.store'
@@ -14,14 +14,19 @@ import { useVoiceConnectionStore } from '@/stores/voice-connection.store'
 import { useChannelAck } from './hooks/useChannelAck'
 import { MessageSurface } from './MessageSurface'
 import { UnifiedInput } from './UnifiedInput'
+import { useIsMobile } from '@/hooks/useMobile'
+import { getIsStandalone } from '@/hooks/usePwaInstall'
 
 // ── heavy sub-components ──────────────────────────────────────────────────────
+jest.mock('simplebar-react', () => ({ children }: { children: React.ReactNode }) => <div>{children}</div>)
 jest.mock('@/components/chat/MessageSurface', () => ({ MessageSurface: jest.fn(() => <div data-testid="messages" />) }))
 jest.mock('@/components/chat/UnifiedInput', () => ({ UnifiedInput: jest.fn(() => <textarea aria-label="Message" />) }))
 jest.mock('@/components/chat/PinnedPanel', () => ({ PinnedPanel: () => null }))
+jest.mock('@/components/chat/PinnedMessagesList', () => ({ PinnedMessagesList: () => null }))
+jest.mock('@/components/channel/ChannelMediaGrid', () => ({ ChannelMediaGrid: () => null }))
+jest.mock('@/components/channel/ChannelFilesList', () => ({ ChannelFilesList: () => null }))
 jest.mock('@/components/chat/ThreadPanel', () => ({ ThreadPanel: jest.fn(() => null) }))
 jest.mock('@/components/chat/PollCreator', () => ({ PollCreator: () => null }))
-jest.mock('@/components/chat/ChannelInfoPanel', () => ({ ChannelInfoPanel: () => null }))
 jest.mock('@/components/chat/ChannelInfoDrawer', () => ({ ChannelInfoDrawer: () => null }))
 jest.mock('@/components/dm/DmProfilePanel', () => ({
   DmProfilePanel: () => null,
@@ -64,7 +69,8 @@ jest.mock('@/hooks/useMessageStoreAdapter', () => ({
   }),
 }))
 
-jest.mock('@/hooks/useMobile', () => ({ useIsMobile: () => false }))
+jest.mock('@/hooks/useMobile', () => ({ useIsMobile: jest.fn(() => false) }))
+jest.mock('@/hooks/usePwaInstall', () => ({ getIsStandalone: jest.fn(() => false), getIsMobileDevice: () => true }))
 jest.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ has: () => false }), Permission: {} }))
 
 jest.mock('@/components/chat/hooks/useMessageScroll', () => ({
@@ -189,6 +195,51 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('MessageArea', () => {
+  describe('mobile channel info', () => {
+    const swipe = (target: HTMLElement, x: number, dx: number, dy = 0) => {
+      fireEvent.touchStart(target, { touches: [{ clientX: x, clientY: 100 }] })
+      fireEvent.touchEnd(target, { changedTouches: [{ clientX: x + dx, clientY: 100 + dy }] })
+    }
+
+    beforeEach(() => {
+      jest.mocked(useIsMobile).mockReturnValue(true)
+      useServerStore.setState({ servers: [{ id: 's1', name: 'Server' }] } as any)
+      useChannelStore.setState({ channels: [{ id: 'ch-1', serverId: 's1', name: 'general', type: 'text' }] } as any)
+    })
+    afterEach(() => {
+      jest.mocked(useIsMobile).mockReturnValue(false)
+      jest.mocked(getIsStandalone).mockReturnValue(false)
+    })
+
+    it('opens Members from the right edge, closes on a right swipe and reopens on Members from the header', async () => {
+      jest.mocked(getIsStandalone).mockReturnValue(true)
+      render(<MessageArea mode="channel" contextId="ch-1" />)
+      const history = screen.getByTestId('messages')
+      const edge = window.innerWidth - 32
+      swipe(history, edge - 120, -90)
+      swipe(history, edge, -80, 120)
+      expect(screen.queryByRole('dialog')).toBeNull()
+      swipe(history, edge, -80)
+      const panel = within(await screen.findByRole('dialog', { name: 'general' }))
+      expect(panel.getByRole('button', { name: 'channelInfoTabMembers' })).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(panel.getByRole('button', { name: 'channelInfoTabInfo' }))
+      swipe(panel.getByRole('heading', { name: /general/ }), 100, 80)
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: 'general' }))
+      expect(screen.getByRole('button', { name: 'channelInfoTabMembers' })).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(screen.getByRole('button', { name: /close/i }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    })
+
+    it('keeps the tap-open info sheet in a mobile browser tab', () => {
+      render(<MessageArea mode="channel" contextId="ch-1" />)
+      swipe(screen.getByTestId('messages'), window.innerWidth - 32, -80)
+      expect(screen.queryByRole('dialog')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'general' }))
+      expect(screen.getByRole('button', { name: 'channelInfoTabInfo' })).toHaveAttribute('aria-pressed', 'true')
+    })
+  })
+
   it('switches DM panel tabs and closes the active tab on a second click', () => {
     render(<MessageArea mode="dm" contextId="conv-1" />)
     const pins = screen.getByRole('button', { name: 'pinnedMessagesTitle' })

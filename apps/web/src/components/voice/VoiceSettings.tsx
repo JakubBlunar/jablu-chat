@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { type PttBinding } from '@/lib/micMode'
@@ -338,16 +339,14 @@ function DeviceSelect({
       <label htmlFor={selectId} className="mb-3 block text-sm font-semibold uppercase text-gray-400">
         {label}
       </label>
-      <select
+      <Select
         id={selectId}
         value={isMissing ? '__missing__' : value}
         onChange={(e) => {
           const v = e.target.value === '__missing__' ? '' : e.target.value
           onChange(v)
         }}
-        className={`w-full rounded-md bg-surface-darkest px-3 py-2 text-sm text-white outline-none ring-1 ${
-          isMissing ? 'ring-amber-500/50' : 'ring-white/10'
-        }`}
+        className={isMissing ? 'ring-amber-500/50' : undefined}
       >
         <option value="">{t('settings.defaultDevice')}</option>
         {isMissing && (
@@ -360,7 +359,7 @@ function DeviceSelect({
             {d.label}
           </option>
         ))}
-      </select>
+      </Select>
       {isMissing && <p className="mt-1 text-xs text-amber-400/80">{t('settings.missingDeviceHint')}</p>}
     </div>
   )

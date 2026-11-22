@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { ToggleRow } from '@/components/settings/ToggleRow'
 import { Button } from '@/components/ui'
 import { inputFieldClassNames } from '@/components/ui/Input'
@@ -92,12 +93,10 @@ export function PushDeliverySettings() {
             <label htmlFor={tzFieldId} className="mb-1 block text-xs font-medium text-gray-400">
               {t('pushDelivery.timezone')}
             </label>
-            {/* Native <select> so the menu is not clipped inside settings scroll (SimpleBar); datalist often fails there. */}
-            <select
+            <Select
               id={tzFieldId}
               value={tz}
               onChange={(e) => setTz(e.target.value)}
-              className={cn(inputFieldClassNames, 'w-full cursor-pointer')}
             >
               {!sortedZones.includes(tz) && tz ? (
                 <option value={tz}>{t('pushDelivery.timezoneUnlisted', { zone: tz })}</option>
@@ -107,7 +106,7 @@ export function PushDeliverySettings() {
                   {z}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">

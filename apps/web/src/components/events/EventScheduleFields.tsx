@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui'
@@ -125,13 +126,12 @@ export function EventScheduleFields({
 
         {mode === 'duration' ? (
           <div className="space-y-2">
-            <select
+            <Select
               value={String(durationSel)}
               onChange={(e) => {
                 const v = e.target.value
                 setDurationSel(v === 'none' || v === 'custom' ? v : Number(v))
               }}
-              className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
             >
               <option value="none">{t('scheduleFields.noEndTime')}</option>
               {DURATION_PRESETS.map((p) => (
@@ -140,7 +140,7 @@ export function EventScheduleFields({
                 </option>
               ))}
               <option value="custom">{t('scheduleFields.custom')}</option>
-            </select>
+            </Select>
 
             {durationSel === 'custom' && (
               <div className="flex items-center gap-2">

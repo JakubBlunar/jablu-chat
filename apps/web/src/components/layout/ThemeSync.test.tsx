@@ -113,6 +113,23 @@ it('rechecks browser appearance on resume when no media change was delivered', (
   expect(document.documentElement.dataset.theme).toBe('dark')
 })
 
+it('recovers a missed theme event in a foreground PWA without reopening it', () => {
+  jest.useFakeTimers()
+  try {
+    const { unmount } = view('/channels/@me')
+    light = true
+    act(() => jest.advanceTimersByTime(5_000))
+    expect(document.documentElement.dataset.theme).toBe('light')
+    light = false
+    act(() => jest.advanceTimersByTime(5_000))
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    unmount()
+    expect(jest.getTimerCount()).toBe(0)
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
 it('recovers a scheduled Windows switch when native events and WebView media stay stale', async () => {
   jest.useFakeTimers()
   Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} })

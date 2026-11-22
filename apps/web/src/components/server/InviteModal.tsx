@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import type { Invite } from '@chat/shared'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -114,10 +115,9 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
         )}
 
         <div className="mb-4 flex flex-wrap gap-2">
-          <select
+          <Select
             value={expiresIn}
             onChange={(e) => setExpiresIn(e.target.value)}
-            className="rounded bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none"
           >
             <option value="">{t('invite.neverExpires')}</option>
             <option value="30">{t('invite.30Minutes')}</option>
@@ -126,11 +126,10 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
             <option value="720">{t('invite.12Hours')}</option>
             <option value="1440">{t('invite.24Hours')}</option>
             <option value="10080">{t('invite.7Days')}</option>
-          </select>
-          <select
+          </Select>
+          <Select
             value={maxUses}
             onChange={(e) => setMaxUses(e.target.value)}
-            className="rounded bg-surface-darkest px-3 py-2 text-sm text-gray-200 outline-none"
           >
             <option value="">{t('invite.noUseLimit')}</option>
             <option value="1">{t('invite.1Use')}</option>
@@ -139,7 +138,7 @@ export function InviteModal({ serverId, serverName, vanityCode, onClose, overlay
             <option value="25">{t('invite.25Uses')}</option>
             <option value="50">{t('invite.50Uses')}</option>
             <option value="100">{t('invite.100Uses')}</option>
-          </select>
+          </Select>
           <Button
             type="button"
             variant="primary"

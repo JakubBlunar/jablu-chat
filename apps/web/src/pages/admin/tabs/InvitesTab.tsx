@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { useState } from 'react'
 import type { AdminInvite, AdminServer } from '../adminTypes'
 import { adminFetch } from '../adminApi'
@@ -113,10 +114,9 @@ export function InvitesTab({
                 className="py-2"
               />
             </div>
-            <select
+            <Select
               value={newServerId}
               onChange={(e) => setNewServerId(e.target.value)}
-              className="rounded-md bg-surface-darkest px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-primary"
             >
               <option value="">No auto-join server</option>
               {servers.map((s) => (
@@ -124,7 +124,7 @@ export function InvitesTab({
                   {s.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               type="button"
               variant="primary"

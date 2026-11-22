@@ -12,6 +12,9 @@ import { ThreadPanel } from '@/components/chat/ThreadPanel'
 import { ConversationInfoPanel, type ConversationInfoTab } from '@/components/dm/ConversationInfoPanel'
 import { FriendsPage } from '@/components/dm/FriendsPage'
 import { useIsMobile } from '@/hooks/useMobile'
+import { getIsMobileDevice, getIsStandalone } from '@/hooks/usePwaInstall'
+import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
+import { startsChannelDrawerSwipe } from '@/lib/horizontalGesture'
 import { useChatPanelLayout } from '@/hooks/useChatPanelLayout'
 import { ResponsivePanel } from '@/components/layout/ResponsivePanel'
 import { PanelResizeHandle } from '@/components/layout/PanelResizeHandle'
@@ -202,6 +205,11 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
   const [showPollCreator, setShowPollCreator] = useState(false)
   const [commandToast, setCommandToast] = useState<string | null>(null)
   const [channelInfoOpen, setChannelInfoOpen] = useState(false)
+  const mobileChannelDrawer = isMobile && !isDm && getIsMobileDevice() && getIsStandalone()
+  const edgeEnabled = mobileChannelDrawer && !!activeChannel && !!channelServer && !threadOpen && !searchOpen && !channelInfoOpen
+  const channelSwipe = useHorizontalSwipe('left', () => setChannelInfoOpen(true), (event) =>
+    startsChannelDrawerSwipe(event.target, event.touches[0].clientX)
+  )
   const [dmSheetOpen, setDmSheetOpen] = useState(false)
   const [dmInfoTab, setDmInfoTab] = useState<ConversationInfoTab>('details')
   const { pinnedOpen, setPinnedOpen } = pinned
@@ -518,6 +526,8 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
             <button
               type="button"
               onClick={() => setChannelInfoOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={channelInfoOpen}
               className="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left"
             >
               <h1 className="truncate text-base font-semibold text-white">{activeChannel.name}</h1>
@@ -784,7 +794,13 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
       {channelHeader}
 
       <div className="relative flex min-h-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{messageList}</div>
+        <div
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
+          data-channel-drawer-edge={edgeEnabled ? '' : undefined}
+          {...(edgeEnabled ? channelSwipe : {})}
+        >
+          {messageList}
+        </div>
         <ThreadPanel
           overlay={panels.overlay}
           maxWidth={panels.maxPanelWidth}
@@ -855,9 +871,11 @@ export function MessageArea({ mode, contextId, memberSidebar, compactNavigation 
           <EditChannelModal channel={activeChannel} onClose={() => setEditingChannel(false)} />
         </Suspense>
       )}
-      {isMobile && channelInfoOpen && activeChannel && channelServer && (
+      {isMobile && (mobileChannelDrawer || channelInfoOpen) && activeChannel && channelServer && (
         <ChannelInfoPanel
+          key={activeChannel.id}
           open={channelInfoOpen}
+          fullscreen={mobileChannelDrawer}
           onClose={() => setChannelInfoOpen(false)}
           channelName={activeChannel.name}
           channelDescription={activeChannel.description}

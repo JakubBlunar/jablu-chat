@@ -44,8 +44,10 @@ export function subscribeSystemTheme(listener: () => void): () => void {
     window.addEventListener('focus', refresh)
     window.addEventListener('pageshow', refresh)
     document.addEventListener('visibilitychange', refresh)
-    // A scheduled OS switch may deliver neither a native nor a media event.
-    const poll = shell ? window.setInterval(refresh, 30_000) : undefined
+    // An open PWA can miss the media event even when a fresh query has the new value.
+    const poll = window.setInterval(() => {
+      if (shell || document.visibilityState === 'visible') refresh()
+    }, shell ? 30_000 : 5_000)
     if (shell) {
       // Subscribe before the initial read, and ignore reads older than an event.
       void shell

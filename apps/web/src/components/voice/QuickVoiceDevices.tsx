@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { changeVoiceDevice, reportVoiceDeviceError } from '@/lib/voiceDevices'
@@ -61,9 +62,9 @@ export function QuickVoiceDevices() {
             <label htmlFor={`${id}-${kind}`} className="mb-1 block text-xs text-gray-300">
               {t(kind)}
             </label>
-            <select
+            <Select
               id={`${id}-${kind}`}
-              className="w-full rounded bg-surface px-2 py-1 text-xs text-white"
+              size="sm"
               value={values[kind]}
               disabled={busy}
               onChange={(event) => {
@@ -88,7 +89,7 @@ export function QuickVoiceDevices() {
                   {device.label || `${t(kind)} ${index + 1}`}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )
       })}

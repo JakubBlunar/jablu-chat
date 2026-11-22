@@ -2,6 +2,8 @@ import type { Message, UserStatus } from '@chat/shared'
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import SimpleBar from 'simplebar-react'
+import { MobileDrawer } from '@/components/layout/MobileDrawer'
+import { IconButton } from '@/components/ui/IconButton'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { NotifBellMenu } from '@/components/channel/NotifBellMenu'
 import { ProfileCard, type ProfileCardUser } from '@/components/ProfileCard'
@@ -23,6 +25,7 @@ type TabId = 'info' | 'members' | 'pins' | 'images' | 'files'
 
 export function ChannelInfoPanel({
   open,
+  fullscreen,
   onClose,
   channelName,
   channelDescription,
@@ -42,6 +45,7 @@ export function ChannelInfoPanel({
   onJumpToMessage
 }: {
   open: boolean
+  fullscreen: boolean
   onClose: () => void
   channelName: string
   channelDescription?: string | null
@@ -61,7 +65,8 @@ export function ChannelInfoPanel({
   onJumpToMessage: (messageId: string) => void
 }) {
   const { t } = useTranslation('chat')
-  const [tab, setTab] = useState<TabId>(channelType === 'text' ? 'info' : 'members')
+  const defaultTab = !fullscreen && channelType === 'text' ? 'info' : 'members'
+  const [tab, setTab] = useState<TabId>(defaultTab)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [cardUser, setCardUser] = useState<ProfileCardUser | null>(null)
   const [cardRect, setCardRect] = useState<DOMRect | null>(null)
@@ -77,11 +82,11 @@ export function ChannelInfoPanel({
 
   useEffect(() => {
     if (!open) {
-      setTab(showMedia ? 'info' : 'members')
+      setTab(defaultTab)
       setInviteOpen(false)
       setCardUser(null)
     }
-  }, [open, showMedia])
+  }, [open, defaultTab])
 
   useEffect(() => {
     if (open && tab === 'pins') {
@@ -118,139 +123,165 @@ export function ChannelInfoPanel({
     [onClose, onJumpToMessage]
   )
 
-  return (
-    <>
-      <BottomSheet
-        open={open}
-        onClose={onClose}
-        closeOnEscape={!inviteOpen && !cardUser}
-        zIndex={110}
-        maxHeightDvh={88}
-        bodyScrollable={false}
-      >
-        <div className="flex h-full min-h-0 flex-col px-1">
-          <div className="shrink-0 border-b border-black/20 px-3 pb-2 pt-0">
-            <h2 className="truncate text-lg font-semibold text-white">
-              <span className="text-gray-400"># </span>
-              {channelName}
-            </h2>
-          </div>
+  const content = (
+    <div className="flex h-full min-h-0 flex-col bg-surface-dark px-1">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/20 px-3 py-2">
+        <h2 className="truncate text-lg font-semibold text-white">
+          <span className="text-gray-400"># </span>
+          {channelName}
+        </h2>
+        {fullscreen && (
+          <IconButton label={t('common:close')} size="header" onClick={onClose}>
+            <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="m6 6 12 12M6 18 18 6" />
+            </svg>
+          </IconButton>
+        )}
+      </div>
 
-          <div className="shrink-0 border-b border-black/20 px-2 py-3">
-            <div className="flex flex-wrap justify-center gap-x-4 gap-y-3">
-              <ActionTile
-                label={t('channelInfoActionSearch')}
-                onClick={() => {
-                  onClose()
-                  onSearch()
-                }}
+      <div className="shrink-0 border-b border-black/20 px-2 py-3">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-3">
+          <ActionTile
+            label={t('channelInfoActionSearch')}
+            onClick={() => {
+              onClose()
+              onSearch()
+            }}
+          >
+            <SearchIcon className="h-6 w-6" strokeWidth={1.75} />
+          </ActionTile>
+          <div className="flex w-[4.5rem] flex-col items-center gap-1">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/[0.08]">
+              <NotifBellMenu channelId={channelId} serverId={serverId} />
+            </div>
+            <span className="text-center text-[11px] text-gray-400">{t('channelInfoActionNotifications')}</span>
+          </div>
+          {isAdmin && (
+            <ActionTile
+              label={t('channelInfoActionSettings')}
+              onClick={() => {
+                onClose()
+                onSettings()
+              }}
+            >
+              <SettingsCogIcon className="h-6 w-6" />
+            </ActionTile>
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto border-b border-black/20 px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {showMedia && (
+          <TabButton id="info" active={tab === 'info'} onSelect={setTab} label={t('channelInfoTabInfo')} />
+        )}
+        <TabButton id="members" active={tab === 'members'} onSelect={setTab} label={t('channelInfoTabMembers')} />
+        <TabButton
+          id="pins"
+          active={tab === 'pins'}
+          onSelect={setTab}
+          label={t('channelInfoTabPins')}
+          badge={pinnedCount > 0 ? (pinnedCount > 99 ? '99+' : String(pinnedCount)) : undefined}
+        />
+        {showMedia && (
+          <>
+            <TabButton id="images" active={tab === 'images'} onSelect={setTab} label={t('channelInfoTabImages')} />
+            <TabButton id="files" active={tab === 'files'} onSelect={setTab} label={t('channelInfoTabFiles')} />
+          </>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {tab === 'images' ? (
+          <ChannelMediaGrid serverId={serverId} channelId={channelId} />
+        ) : tab === 'files' ? (
+          <ChannelFilesList serverId={serverId} channelId={channelId} />
+        ) : tab === 'members' ? (
+          <div className="flex h-full min-h-0 flex-col px-2 py-3">
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="mb-3 flex w-full shrink-0 items-center gap-3 rounded-xl bg-white/[0.06] px-3 py-3 text-left transition hover:bg-white/[0.08]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-gray-300">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="8.5" cy="7" r="4" />
+                  <line x1="20" y1="8" x2="20" y2="14" />
+                  <line x1="23" y1="11" x2="17" y2="11" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1 font-medium text-white">{t('channelInfoInviteMembers')}</span>
+              <svg
+                className="h-4 w-4 shrink-0 text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
               >
-                <SearchIcon className="h-6 w-6" strokeWidth={1.75} />
-              </ActionTile>
-              <div className="flex w-[4.5rem] flex-col items-center gap-1">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/[0.08]">
-                  <NotifBellMenu channelId={channelId} serverId={serverId} />
-                </div>
-                <span className="text-center text-[11px] text-gray-400">{t('channelInfoActionNotifications')}</span>
-              </div>
-              {isAdmin && (
-                <ActionTile
-                  label={t('channelInfoActionSettings')}
-                  onClick={() => {
-                    onClose()
-                    onSettings()
-                  }}
-                >
-                  <SettingsCogIcon className="h-6 w-6" />
-                </ActionTile>
-              )}
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <MemberListPanel
+                members={listMembers}
+                onlineIds={onlineIds}
+                isLoading={membersLoading}
+                ownerId={ownerId}
+                onMemberClick={handleMemberClick}
+              />
             </div>
           </div>
-
-          <div className="flex shrink-0 flex-nowrap gap-1 overflow-x-auto border-b border-black/20 px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {showMedia && (
-              <TabButton id="info" active={tab === 'info'} onSelect={setTab} label={t('channelInfoTabInfo')} />
-            )}
-            <TabButton id="members" active={tab === 'members'} onSelect={setTab} label={t('channelInfoTabMembers')} />
-            <TabButton
-              id="pins"
-              active={tab === 'pins'}
-              onSelect={setTab}
-              label={t('channelInfoTabPins')}
-              badge={pinnedCount > 0 ? (pinnedCount > 99 ? '99+' : String(pinnedCount)) : undefined}
-            />
-            {showMedia && (
-              <>
-                <TabButton id="images" active={tab === 'images'} onSelect={setTab} label={t('channelInfoTabImages')} />
-                <TabButton id="files" active={tab === 'files'} onSelect={setTab} label={t('channelInfoTabFiles')} />
-              </>
-            )}
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {tab === 'images' ? (
-              <ChannelMediaGrid serverId={serverId} channelId={channelId} />
-            ) : tab === 'files' ? (
-              <ChannelFilesList serverId={serverId} channelId={channelId} />
+        ) : (
+          <SimpleBar className="h-full max-h-full" style={{ maxHeight: '100%' }}>
+            {tab === 'info' ? (
+              <ChannelDescriptionBlock
+                channelName={channelName}
+                description={channelDescription}
+                className="px-3 py-4"
+              />
             ) : (
-              <SimpleBar className="h-full max-h-full" style={{ maxHeight: '100%' }}>
-                {tab === 'info' ? (
-                  <ChannelDescriptionBlock
-                    channelName={channelName}
-                    description={channelDescription}
-                    className="px-3 py-4"
-                  />
-                ) : tab === 'members' ? (
-                  <div className="px-2 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setInviteOpen(true)}
-                      className="mb-3 flex w-full items-center gap-3 rounded-xl bg-white/[0.06] px-3 py-3 text-left transition hover:bg-white/[0.08]"
-                    >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-gray-300">
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                          <circle cx="8.5" cy="7" r="4" />
-                          <line x1="20" y1="8" x2="20" y2="14" />
-                          <line x1="23" y1="11" x2="17" y2="11" />
-                        </svg>
-                      </span>
-                      <span className="min-w-0 flex-1 font-medium text-white">{t('channelInfoInviteMembers')}</span>
-                      <svg
-                        className="h-4 w-4 shrink-0 text-gray-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path d="m9 18 6-6-6-6" />
-                      </svg>
-                    </button>
-                    <MemberListPanel
-                      members={listMembers}
-                      onlineIds={onlineIds}
-                      isLoading={membersLoading}
-                      ownerId={ownerId}
-                      onMemberClick={handleMemberClick}
-                    />
-                  </div>
-                ) : (
-                  <PinnedMessagesList
-                    messages={pinnedMessages}
-                    loading={pinnedLoading}
-                    canUnpin={canUnpin}
-                    channelId={channelId}
-                    onJump={handleJump}
-                    emptyLabel={t('pinnedEmptyChannel')}
-                    jumpLabel={t('jumpToMessage')}
-                    className="py-1"
-                  />
-                )}
-              </SimpleBar>
+              <PinnedMessagesList
+                messages={pinnedMessages}
+                loading={pinnedLoading}
+                canUnpin={canUnpin}
+                channelId={channelId}
+                onJump={handleJump}
+                emptyLabel={t('pinnedEmptyChannel')}
+                jumpLabel={t('jumpToMessage')}
+                className="py-1"
+              />
             )}
-          </div>
-        </div>
-      </BottomSheet>
+          </SimpleBar>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      {fullscreen ? (
+        <MobileDrawer
+          open={open}
+          onClose={onClose}
+          closeOnEscape={!inviteOpen && !cardUser}
+          side="right"
+          width="w-full"
+          aria-label={channelName}
+        >
+          {content}
+        </MobileDrawer>
+      ) : (
+        <BottomSheet
+          open={open}
+          onClose={onClose}
+          closeOnEscape={!inviteOpen && !cardUser}
+          zIndex={110}
+          maxHeightDvh={88}
+          bodyScrollable={false}
+        >
+          {content}
+        </BottomSheet>
+      )}
 
       {inviteOpen && (
         <Suspense fallback={null}>
@@ -284,6 +315,7 @@ function TabButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={() => onSelect(id)}
       className={`relative min-h-11 shrink-0 whitespace-nowrap px-4 py-2.5 text-center text-sm font-semibold transition ${
         active ? 'text-primary' : 'text-gray-400 hover:text-gray-200'

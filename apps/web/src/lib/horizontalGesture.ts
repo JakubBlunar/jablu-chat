@@ -6,6 +6,11 @@ export function isVerticalDrag(dx: number, dy: number) {
   return Math.abs(dy) > Math.abs(dx) + 8
 }
 
+// Reserve a narrow strip inside the system back-gesture edge for channel details.
+export function startsChannelDrawerSwipe(target: EventTarget | null, x: number) {
+  return x >= window.innerWidth - 48 && target instanceof Element && !!target.closest('[data-channel-drawer-edge]')
+}
+
 export function ownsHorizontalTouch(target: EventTarget | null, root: HTMLElement) {
   if (!(target instanceof Element)) return false
   if (target.closest('a, input, textarea, select, video, audio, [contenteditable=true], [role=slider]')) return true

@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/Select'
 import type { CreateEventInput, EventLocationType, RecurrenceRule } from '@chat/shared'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -162,17 +163,16 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
             {locationType === 'voice_channel' && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-400">{t('create.voiceChannel')}</label>
-                <select
+                <Select
                   value={channelId}
                   onChange={(e) => setChannelId(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
                 >
                   {voiceChannels.map((ch) => (
                     <option key={ch.id} value={ch.id}>
                       {ch.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
 
@@ -224,17 +224,16 @@ export function CreateEventWizard({ serverId, onClose, onBack }: Props) {
 
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-400">{t('create.repeat')}</label>
-              <select
+              <Select
                 value={recurrenceRule}
                 onChange={(e) => setRecurrenceRule(e.target.value as RecurrenceRule | '')}
-                className="w-full rounded-lg border border-white/10 bg-surface-dark px-3 py-2 text-sm text-white outline-none focus:border-primary"
               >
                 <option value="">{t('create.noRepeat')}</option>
                 <option value="daily">{t('recurrence.daily')}</option>
                 <option value="weekly">{t('recurrence.weekly')}</option>
                 <option value="biweekly">{t('recurrence.biweekly')}</option>
                 <option value="monthly">{t('recurrence.monthly')}</option>
-              </select>
+              </Select>
             </div>
           </div>
         )}
