@@ -59,7 +59,7 @@ function emit(key: CacheKey, entry: CachedContext | null) {
   }
 }
 
-function trimToPage(messages: Message[]): Message[] {
+export function trimToPage(messages: Message[]): Message[] {
   return messages.length > CACHE_PAGE_SIZE ? messages.slice(messages.length - CACHE_PAGE_SIZE) : messages
 }
 
@@ -68,7 +68,6 @@ function evictIfNeeded() {
     const oldest = cache.keys().next()
     if (oldest.done) return
     cache.delete(oldest.value)
-    emit(oldest.value, null)
   }
 }
 
@@ -116,6 +115,14 @@ export function hasContext(key: CacheKey): boolean {
   return cache.has(key)
 }
 
+export type ContextMutation = (entry: CachedContext) => CachedContext | null
+const diskMutations = new Set<(key: CacheKey, mutate: ContextMutation) => void>()
+
+export function onDiskContextMutation(listener: (key: CacheKey, mutate: ContextMutation) => void) {
+  diskMutations.add(listener)
+  return () => diskMutations.delete(listener)
+}
+
 /**
  * Apply a change to a cached context without promoting it. Used by socket
  * handlers so a channel the user is not looking at stays correct.
@@ -127,7 +134,10 @@ export function updateContext(
   mutate: (entry: CachedContext) => CachedContext | null
 ): boolean {
   const entry = cache.get(key)
-  if (!entry) return false
+  if (!entry) {
+    for (const listener of diskMutations) listener(key, mutate)
+    return false
+  }
 
   const next = mutate(entry)
   if (!next) return false
@@ -157,7 +167,7 @@ export function markAllStale(): void {
 }
 
 export function evictContext(key: CacheKey): void {
-  if (!cache.delete(key)) return
+  cache.delete(key)
   emit(key, null)
 }
 

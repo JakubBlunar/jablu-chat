@@ -1,5 +1,5 @@
 import type { LinkPreview, Message, Poll } from '@chat/shared'
-import { type CacheKey, cacheKeys, updateContext } from './messageCache'
+import { type CacheKey, cacheKeys, channelKey, dmKey, updateContext } from './messageCache'
 
 /**
  * Applies the same edits the visible stores apply, but to cached contexts the
@@ -34,8 +34,20 @@ export function cacheAddMessage(key: CacheKey, message: Message): void {
   })
 }
 
-export function cacheUpdateMessage(message: Message): void {
-  updateMessageAnywhere(message.id, () => message)
+export function cacheUpdateMessage(
+  message: Message,
+  key = message.channelId
+    ? channelKey(message.channelId)
+    : message.directConversationId
+      ? dmKey(message.directConversationId)
+      : null
+): void {
+  if (!key) return updateMessageAnywhere(message.id, () => message)
+  updateContext(key, (entry) =>
+    entry.messages.some((row) => row.id === message.id)
+      ? { ...entry, messages: entry.messages.map((row) => (row.id === message.id ? message : row)) }
+      : null
+  )
 }
 
 export function cacheRemoveMessage(key: CacheKey, messageId: string): void {
@@ -45,12 +57,7 @@ export function cacheRemoveMessage(key: CacheKey, messageId: string): void {
   })
 }
 
-export function cacheAddReaction(
-  messageId: string,
-  emoji: string,
-  userId: string,
-  isCustom = false
-): void {
+export function cacheAddReaction(messageId: string, emoji: string, userId: string, isCustom = false): void {
   updateMessageAnywhere(messageId, (msg) => {
     const reactions = msg.reactions ?? []
     const existing = reactions.find((r) => r.emoji === emoji)

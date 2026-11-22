@@ -1,3 +1,5 @@
+import { putContext, peekContext } from '@/lib/cache/messageCache'
+import { putPermissions, getPermissions } from '@/lib/cache/structureCache'
 import { createServerHandlers } from './serverHandlers'
 
 jest.mock('@/lib/notifications', () => ({
@@ -189,6 +191,7 @@ describe('onRoleDeleted', () => {
   })
 
   it('refetches channels/perms when deleted role belongs to current user', () => {
+    useMemberStore.setState({ removeRoleFromMembers: useMemberStore.getInitialState().removeRoleFromMembers })
     handlers.onRoleDeleted({ serverId: 's1', roleId: 'r1' })
 
     expect(useChannelStore.getState().fetchChannels).toHaveBeenCalledWith('s1', true)
@@ -273,4 +276,13 @@ describe('onChannelCreated / onChannelDeleted', () => {
 
     expect(useChannelStore.getState().removeChannel).toHaveBeenCalledWith('ch1')
   })
+})
+
+it('removes cached history after a background permission change without switching the active sidebar', () => {
+  putPermissions('other', { hidden: '1' })
+  putContext('ch:hidden', { messages: [], hasMore: false, hasNewer: false })
+  handlers.onChannelPermissionsUpdated({ serverId: 'other' })
+  expect(peekContext('ch:hidden')).toBeNull()
+  expect(getPermissions('other')).toBeNull()
+  expect(useChannelStore.getState().fetchChannels).not.toHaveBeenCalled()
 })

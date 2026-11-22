@@ -1,7 +1,9 @@
-import { permsToBigInt } from '@chat/shared'
+import { hasPermission, Permission, permsToBigInt } from '@chat/shared'
 import { create } from 'zustand'
+import { channelKey, evictContext } from '@/lib/cache/messageCache'
 import { api } from '@/lib/api'
-import { evictServer, getPermissions, putPermissions } from '@/lib/cache/structureCache'
+import { evictServer, forgetServerHistory, getPermissions, putPermissions } from '@/lib/cache/structureCache'
+import { useMessageStore } from './message.store'
 import { createActiveResourceRequest } from '@/lib/activeResourceRequest'
 
 const permissionRequests = createActiveResourceRequest<Record<string, string>>()
@@ -44,12 +46,19 @@ export const useChannelPermissionsStore = create<ChannelPermissionsState>((set) 
       permissionsMap: toBigIntMap(getPermissions(serverId)?.permissions ?? {}), loadedServerId: serverId
     } : {}) })),
     commit: (wire) => {
+      const permissionsMap = toBigIntMap(wire)
+      for (const [id, bits] of Object.entries(permissionsMap)) {
+        if (hasPermission(bits, Permission.VIEW_CHANNEL)) continue
+        evictContext(channelKey(id))
+        const history = useMessageStore.getState()
+        if (history.loadedForChannelId === id) history.clearMessages()
+      }
       putPermissions(serverId, wire)
-      set({ permissionsMap: toBigIntMap(wire), loadedServerId: serverId })
+      set({ permissionsMap, loadedServerId: serverId })
     },
     fail: (error) => {
       if ([401, 403, 404].includes((error as { status?: number })?.status ?? 0)) {
-        evictServer(serverId)
+        forgetServerHistory(serverId)
         set({ permissionsMap: {} })
       }
     },

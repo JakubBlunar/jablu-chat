@@ -7,7 +7,7 @@ import {
   cacheSetLinkPreviews,
   cacheUpdateMessage
 } from '@/lib/cache/contextMutations'
-import { dmKey, markStale } from '@/lib/cache/messageCache'
+import { dmKey, evictContext, markStale } from '@/lib/cache/messageCache'
 import type { MessageActivity } from '@chat/shared'
 import { useInboxStore } from '@/stores/inbox.store'
 import { showNotification } from '@/lib/notifications'
@@ -105,7 +105,11 @@ export function createDmHandlers() {
 
   const onMessageActivity = (activity: MessageActivity) => {
     if (activity.mode !== 'dm') return
-    markStale(dmKey(activity.contextId))
+    const key = dmKey(activity.contextId)
+    // Compact edit/delete hints carry no replacement row. Drop the obsolete page
+    // until a full history fetch can supply the authoritative contents.
+    if (activity.event === 'dm:edit' || activity.event === 'dm:delete') evictContext(key)
+    else markStale(key)
     useInboxStore.getState().bump()
     if (activity.message && activity.event === 'dm:new') {
       onDmNew({ ...activity.message, conversationId: activity.contextId, background: true } as unknown as Parameters<typeof onDmNew>[0])
@@ -116,18 +120,16 @@ export function createDmHandlers() {
     const currentConvId = useDmStore.getState().currentConversationId
     if (payload.conversationId === currentConvId) {
       useDmStore.getState().updateMessage(payload)
-    } else {
-      cacheUpdateMessage(payload)
     }
+    cacheUpdateMessage(payload, dmKey(payload.conversationId))
   }
 
   const onDmDelete = (payload: DmDeletePayload) => {
     const currentConvId = useDmStore.getState().currentConversationId
     if (payload.conversationId === currentConvId) {
       useDmStore.getState().removeMessage(payload.messageId)
-    } else {
-      cacheRemoveMessage(dmKey(payload.conversationId), payload.messageId)
     }
+    cacheRemoveMessage(dmKey(payload.conversationId), payload.messageId)
   }
 
   const onDmTyping = (_payload: DmTypingPayload) => {}

@@ -7,6 +7,7 @@ jest.mock('@/lib/api', () => ({
   }
 }))
 
+import { useMessageStore } from './message.store'
 import { api } from '@/lib/api'
 const mockGetAll = jest.mocked(api.getAllChannelPermissions)
 
@@ -38,6 +39,13 @@ describe('channel-permissions.store', () => {
       expect(permissionsMap.ch1).toBe(4096n)
       expect(permissionsMap.ch2).toBe(8192n)
       expect(loadedServerId).toBe('s1')
+    })
+
+    it('clears visible history so leaving a revoked channel cannot stash its rows again', async () => {
+      useMessageStore.setState({ loadedForChannelId: 'private' })
+      mockGetAll.mockResolvedValue({ private: '0' })
+      await useChannelPermissionsStore.getState().fetchChannelPermissions('s1')
+      expect(useMessageStore.getState().loadedForChannelId).toBeNull()
     })
 
     it('never carries another server permissions into a failed server switch', async () => {

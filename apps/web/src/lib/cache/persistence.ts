@@ -1,14 +1,14 @@
 import { getIsStandalone } from '@/hooks/usePwaInstall'
 import { isDesktop } from '@/lib/desktop'
-import { clearCacheDb, deleteMessages, deleteStructure, initCacheDb, retireCacheSession, writeMessages, writeStructure } from './db'
+import { clearCacheDb, deleteStructure, initCacheDb, retireCacheSession, writeStructure } from './db'
 import { isHydrating } from './hydrate'
-import { type CacheKey, onCacheChange, peekContext } from './messageCache'
+import { startMessageMirror } from './messageDiskMirror'
 import { getChannels, getPermissions, getServerList, onStructureChange, type StructureKind } from './structureCache'
 
 /** Longest a write may sit unflushed when the browser never goes idle. */
 const FLUSH_TIMEOUT_MS = 2000
 
-const pendingMessageKeys = new Set<CacheKey>()
+let messageMirror: ReturnType<typeof startMessageMirror> | null = null
 const pendingStructureKeys = new Set<string>()
 let flushHandle: number | null = null
 
@@ -34,26 +34,9 @@ function scheduleFlush() {
 
 async function flush() {
   const session = stopListening
-  const messageKeys = [...pendingMessageKeys]
+  messageMirror?.flushAll()
   const structureKeys = [...pendingStructureKeys]
-  pendingMessageKeys.clear()
   pendingStructureKeys.clear()
-
-  for (const key of messageKeys) {
-    if (session !== stopListening) return
-    const entry = peekContext(key)
-    if (!entry) {
-      await deleteMessages(key)
-      continue
-    }
-    await writeMessages({
-      key,
-      messages: entry.messages,
-      hasMore: entry.hasMore,
-      hasNewer: entry.hasNewer,
-      updatedAt: entry.updatedAt
-    })
-  }
 
   for (const key of structureKeys) {
     if (session !== stopListening) return
@@ -98,34 +81,37 @@ export async function startCachePersistence(userId: string | null): Promise<void
   // Requests can finish while IndexedDB is opening. Collect their keys immediately,
   // then flush only after the database has been bound to this session.
   let ready = false
-  const offCache = onCacheChange((key) => {
-    if (isHydrating()) return
-    pendingMessageKeys.add(key)
+  messageMirror = startMessageMirror(() => {
     if (ready) scheduleFlush()
-  })
-
-  const offStructure = onStructureChange((kind, serverId) => {
+  }, isHydrating)
+  const offStructure = onStructureChange((kind, serverId, value) => {
     if (isHydrating()) return
-    pendingStructureKeys.add(structureKey(kind, serverId))
+    const key = structureKey(kind, serverId)
+    if (value === null) {
+      pendingStructureKeys.delete(key)
+      void deleteStructure(key)
+      return
+    }
+    pendingStructureKeys.add(key)
     if (ready) scheduleFlush()
   })
 
   const unsubscribe = () => {
-    offCache()
+    messageMirror?.stop()
+    messageMirror = null
     offStructure()
   }
   stopListening = unsubscribe
   await initCacheDb(userId)
   if (stopListening !== unsubscribe) return
   ready = true
-  if (pendingMessageKeys.size || pendingStructureKeys.size) scheduleFlush()
+  scheduleFlush()
 }
 
 export function stopCachePersistence(): void {
   retireCacheSession()
   stopListening?.()
   stopListening = null
-  pendingMessageKeys.clear()
   pendingStructureKeys.clear()
   if (flushHandle === null) return
   if (typeof cancelIdleCallback === 'function') cancelIdleCallback(flushHandle)

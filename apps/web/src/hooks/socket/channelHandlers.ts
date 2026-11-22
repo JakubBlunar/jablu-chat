@@ -10,7 +10,7 @@ import {
   cacheUpdatePoll,
   cacheUpdateThreadCount
 } from '@/lib/cache/contextMutations'
-import { channelKey, markStale } from '@/lib/cache/messageCache'
+import { channelKey, evictContext, markStale } from '@/lib/cache/messageCache'
 import type { MessageActivity } from '@chat/shared'
 import { useInboxStore } from '@/stores/inbox.store'
 import { useThreadStore } from '@/stores/thread.store'
@@ -150,7 +150,11 @@ export function createChannelHandlers() {
 
   const onMessageActivity = (activity: MessageActivity) => {
     if (activity.mode !== 'channel') return
-    markStale(channelKey(activity.contextId))
+    const key = channelKey(activity.contextId)
+    // Compact edit/delete hints carry no replacement row. Drop the obsolete page
+    // until a full history fetch can supply the authoritative contents.
+    if (activity.event === 'message:edit' || activity.event === 'message:delete') evictContext(key)
+    else markStale(key)
     useInboxStore.getState().bump()
     if (activity.message && activity.event === 'message:new') {
       const myId = useAuthStore.getState().user?.id
@@ -169,9 +173,8 @@ export function createChannelHandlers() {
     const channelId = useChannelStore.getState().currentChannelId
     if (msg.channelId != null && msg.channelId === channelId) {
       useMessageStore.getState().updateMessage(msg)
-    } else {
-      cacheUpdateMessage(msg)
     }
+    cacheUpdateMessage(msg)
   }
 
   const onMessageDelete = (payload: MessageDeletePayload) => {
@@ -183,7 +186,8 @@ export function createChannelHandlers() {
     const channelId = useChannelStore.getState().currentChannelId
     if (payload.channelId === channelId) {
       useMessageStore.getState().removeMessage(payload.messageId)
-    } else if (payload.channelId) {
+    }
+    if (payload.channelId) {
       cacheRemoveMessage(channelKey(payload.channelId), payload.messageId)
     }
   }

@@ -61,7 +61,7 @@ it('invalidates edits and deletions without creating unread messages or duplicat
   const handlers = createChannelHandlers()
   handlers.onMessageActivity({ mode: 'channel', contextId: 'background', event: 'message:edit' })
   handlers.onMessageActivity({ mode: 'channel', contextId: 'background', event: 'message:delete' })
-  expect(peekContext(channelKey('background'))?.stale).toBe(true)
+  expect(peekContext(channelKey('background'))).toBeNull()
   expect(useReadStateStore.getState().channels.size).toBe(0)
   expect(showNotification).not.toHaveBeenCalled()
 })

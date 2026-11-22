@@ -1,4 +1,6 @@
 import type { Channel, ChannelCategory, Role, ServerEvent, ServerProfile } from '@chat/shared'
+import { forgetServerHistory } from '@/lib/cache/structureCache'
+import { channelKey, evictContext } from '@/lib/cache/messageCache'
 import i18n from 'i18next'
 import { showNotification } from '@/lib/notifications'
 import { useAuthStore } from '@/stores/auth.store'
@@ -8,6 +10,13 @@ import { useEventStore } from '@/stores/event.store'
 import { useFriendStore } from '@/stores/friend.store'
 import { useMemberStore } from '@/stores/member.store'
 import { useServerStore } from '@/stores/server.store'
+
+// The active sidebar only fetches permissions for the selected server.
+function invalidateBackgroundServer(serverId: string) {
+  if (serverId === useServerStore.getState().currentServerId) return false
+  forgetServerHistory(serverId)
+  return true
+}
 
 export function createServerHandlers() {
   const onEventCreated = (event: ServerEvent) => useEventStore.getState().addEvent(event)
@@ -32,7 +41,10 @@ export function createServerHandlers() {
 
   const onMemberUpdated = (payload: { serverId: string; userId: string; profile?: ServerProfile; roleIds?: string[]; roles?: Role[]; mutedUntil?: string | null; mutedReason?: string | null; mutedById?: string | null; onboardingCompleted?: boolean }) => {
     const currentServerId = useServerStore.getState().currentServerId
-    if (payload.serverId !== currentServerId) return
+    if (payload.serverId !== currentServerId) {
+      if (payload.roleIds && payload.userId === useAuthStore.getState().user?.id) forgetServerHistory(payload.serverId)
+      return
+    }
     if (payload.profile) {
       useMemberStore.getState().updateServerProfile(payload.serverId, payload.userId, payload.profile)
     }
@@ -82,29 +94,26 @@ export function createServerHandlers() {
   }
 
   const onRoleUpdated = (payload: { serverId: string; role: Role }) => {
-    const currentServerId = useServerStore.getState().currentServerId
-    if (payload.serverId === currentServerId) {
-      useMemberStore.getState().updateRoleInMembers(payload.role)
-      const myId = useAuthStore.getState().user?.id
-      const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
-      const isEveryoneRole = payload.role.isDefault
-      if (isEveryoneRole || member?.roleIds?.includes(payload.role.id)) {
-        void useChannelStore.getState().fetchChannels(payload.serverId, true).catch(() => {})
-        void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId, true)
-      }
+    if (invalidateBackgroundServer(payload.serverId)) return
+    useMemberStore.getState().updateRoleInMembers(payload.role)
+    const myId = useAuthStore.getState().user?.id
+    const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
+    const isEveryoneRole = payload.role.isDefault
+    if (isEveryoneRole || member?.roleIds?.includes(payload.role.id)) {
+      void useChannelStore.getState().fetchChannels(payload.serverId, true).catch(() => {})
+      void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId, true)
     }
   }
 
   const onRoleDeleted = (payload: { serverId: string; roleId: string }) => {
-    const currentServerId = useServerStore.getState().currentServerId
-    if (payload.serverId === currentServerId) {
-      useMemberStore.getState().removeRoleFromMembers(payload.serverId, payload.roleId)
-      const myId = useAuthStore.getState().user?.id
-      const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
-      if (member?.roleIds?.includes(payload.roleId)) {
-        void useChannelStore.getState().fetchChannels(payload.serverId, true).catch(() => {})
-        void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId, true)
-      }
+    if (invalidateBackgroundServer(payload.serverId)) return
+    const myId = useAuthStore.getState().user?.id
+    const member = useMemberStore.getState().members.find((m) => m.userId === myId && m.serverId === payload.serverId)
+    const lostRole = member?.roleIds?.includes(payload.roleId)
+    useMemberStore.getState().removeRoleFromMembers(payload.serverId, payload.roleId)
+    if (lostRole) {
+      void useChannelStore.getState().fetchChannels(payload.serverId, true).catch(() => {})
+      void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId, true)
     }
   }
 
@@ -117,11 +126,9 @@ export function createServerHandlers() {
   }
 
   const onChannelPermissionsUpdated = (payload: { serverId: string }) => {
-    const currentServerId = useServerStore.getState().currentServerId
-    if (payload.serverId === currentServerId) {
-      void useChannelStore.getState().fetchChannels(payload.serverId, true).catch(() => {})
-      void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId, true)
-    }
+    if (invalidateBackgroundServer(payload.serverId)) return
+    void useChannelStore.getState().fetchChannels(payload.serverId, true).catch(() => {})
+    void useChannelPermissionsStore.getState().fetchChannelPermissions(payload.serverId, true)
   }
 
   const onChannelCreated = (payload: { serverId: string; channel: Channel }) => {
@@ -139,6 +146,7 @@ export function createServerHandlers() {
   }
 
   const onChannelDeleted = (payload: { serverId: string; channelId: string }) => {
+    evictContext(channelKey(payload.channelId))
     const currentServerId = useServerStore.getState().currentServerId
     if (payload.serverId === currentServerId) {
       useChannelStore.getState().removeChannel(payload.channelId)

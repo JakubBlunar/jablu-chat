@@ -1,3 +1,5 @@
+import { cacheSession, readStructure } from './db'
+import { channelKey, evictContext } from './messageCache'
 import type { Channel, ChannelCategory } from '@chat/shared'
 
 /**
@@ -64,11 +66,7 @@ export function getChannels(serverId: string): CachedChannels | null {
   return channelsByServer.get(serverId) ?? null
 }
 
-export function putPermissions(
-  serverId: string,
-  permissions: Record<string, string>,
-  updatedAt = Date.now()
-): void {
+export function putPermissions(serverId: string, permissions: Record<string, string>, updatedAt = Date.now()): void {
   const entry: CachedPermissions = { permissions, updatedAt }
   permissionsByServer.set(serverId, entry)
   emit('permissions', serverId, entry)
@@ -80,8 +78,29 @@ export function getPermissions(serverId: string): CachedPermissions | null {
 
 /** Forget a server entirely, e.g. after leaving it or on a 403. */
 export function evictServer(serverId: string): void {
-  if (channelsByServer.delete(serverId)) emit('channels', serverId, null)
-  if (permissionsByServer.delete(serverId)) emit('permissions', serverId, null)
+  channelsByServer.delete(serverId)
+  emit('channels', serverId, null)
+  permissionsByServer.delete(serverId)
+  emit('permissions', serverId, null)
+}
+
+/** Called only after membership loss or a definitive access failure. */
+export function forgetServerHistory(serverId: string) {
+  const session = cacheSession()
+  const forget = (ids: Iterable<string>) => {
+    for (const id of ids) evictContext(channelKey(id))
+  }
+  forget(getChannels(serverId)?.channels.map((channel) => channel.id) ?? [])
+  forget(Object.keys(getPermissions(serverId)?.permissions ?? {}))
+  const stored = Promise.all([
+    readStructure<CachedChannels>('channels:' + serverId),
+    readStructure<Record<string, string>>('permissions:' + serverId)
+  ])
+  evictServer(serverId)
+  void stored.then(([channels, permissions]) => {
+    if (cacheSession() !== session || getPermissions(serverId)) return
+    forget(new Set([...(channels?.channels.map((channel) => channel.id) ?? []), ...Object.keys(permissions ?? {})]))
+  })
 }
 
 export function clearStructureCache(notify = true): void {

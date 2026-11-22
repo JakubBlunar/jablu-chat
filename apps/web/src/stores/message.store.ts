@@ -274,7 +274,8 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       // Access can be revoked while the app is closed, in which case the
       // cached copy is not just stale but forbidden. The sidebar is cached
       // too and will be showing a channel that is no longer there.
-      if (!isForbidden(e)) return
+      if (!isForbidden(e) || _msgFetchId !== fetchId) return
+      if (get().loadedForChannelId === channelId) get().clearMessages()
       evictContext(channelKey(channelId))
       const { loadedServerId, fetchChannels } = useChannelStore.getState()
       if (loadedServerId) {

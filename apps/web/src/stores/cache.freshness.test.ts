@@ -284,7 +284,8 @@ describe('access revoked while the app was closed', () => {
     api.failWith('/api/channels/a-general/messages', 403)
 
     await useMessageStore.getState().revalidate('a-general')
-
+    useMessageStore.getState().stashCurrent()
+    expect(useMessageStore.getState().messages).toEqual([])
     expect(peekContext(channelKey('a-general'))).toBeNull()
     expect(api.countFor('/api/servers/srv-a/channels')).toBe(1)
     expect(api.countFor('/api/servers/srv-a/channel-permissions')).toBe(1)

@@ -161,7 +161,7 @@ function fresh(updatedAt: number): boolean {
 
 export async function cacheOwnedBy(userId: string | null): Promise<boolean> {
   if (!userId) return false
-  const owner = await withStore(STORE_META, 'readonly', store => request<Owner | undefined>(store.get('owner')))
+  const owner = await withStore(STORE_META, 'readonly', (store) => request<Owner | undefined>(store.get('owner')))
   return owner?.userId === userId
 }
 
@@ -184,15 +184,21 @@ export async function initCacheDb(userId: string | null): Promise<void> {
       tx.objectStore(STORE_MESSAGES).clear()
       tx.objectStore(STORE_STRUCTURE).clear()
     }
-    const owner: Owner = { key: 'owner', userId: userId!, schema: SCHEMA_VERSION,
-      token: (matches && previous.token) || crypto.randomUUID() }
+    const owner: Owner = {
+      key: 'owner',
+      userId: userId!,
+      schema: SCHEMA_VERSION,
+      token: (matches && previous.token) || crypto.randomUUID()
+    }
     meta.put(owner)
     const cutoff = IDBKeyRange.upperBound(Date.now() - TTL_MS)
-    await Promise.all([STORE_MESSAGES, STORE_STRUCTURE].map(async name => {
-      const store = tx.objectStore(name)
-      const keys = await request(store.index(BY_UPDATED_AT).getAllKeys(cutoff))
-      for (const key of keys) store.delete(key)
-    }))
+    await Promise.all(
+      [STORE_MESSAGES, STORE_STRUCTURE].map(async (name) => {
+        const store = tx.objectStore(name)
+        const keys = await request(store.index(BY_UPDATED_AT).getAllKeys(cutoff))
+        for (const key of keys) store.delete(key)
+      })
+    )
     await transactionDone(tx)
     return owner
   }
@@ -210,7 +216,9 @@ export async function clearCacheDb(): Promise<void> {
     if (current?.token !== owner.token || (binding && binding !== session)) return
     for (const name of allStores) tx.objectStore(name).clear()
     await transactionDone(tx)
-  } catch { /* Disk storage is best effort. */ }
+  } catch {
+    /* Disk storage is best effort. */
+  }
 }
 
 async function deleteOldest(store: IDBObjectStore, count: number): Promise<void> {
@@ -247,9 +255,14 @@ export async function readMessages(key: string): Promise<StoredMessages | null> 
 export async function writeMessages(record: StoredMessages): Promise<void> {
   const session = binding
   const put = () =>
-    runStore(STORE_MESSAGES, 'readwrite', (store) => {
-      store.put(record)
-    }, session)
+    runStore(
+      STORE_MESSAGES,
+      'readwrite',
+      (store) => {
+        store.put(record)
+      },
+      session
+    )
 
   try {
     await put()
@@ -264,6 +277,15 @@ export async function writeMessages(record: StoredMessages): Promise<void> {
     }
   }
   if (binding === session) await enforceMessageCap()
+}
+
+export async function mutateMessages(key: string, mutate: (record: StoredMessages) => StoredMessages | null) {
+  await withStore(STORE_MESSAGES, 'readwrite', async (store) => {
+    const record: StoredMessages | undefined = await request(store.get(key))
+    if (!record || !fresh(record.updatedAt)) return
+    const next = mutate(record)
+    if (next) store.put(next)
+  })
 }
 
 export async function deleteMessages(key: string): Promise<void> {

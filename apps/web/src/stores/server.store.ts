@@ -1,7 +1,7 @@
 import type { Server as SharedServer } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
-import { getServerList, putServerList } from '@/lib/cache/structureCache'
+import { forgetServerHistory, getServerList, putServerList } from '@/lib/cache/structureCache'
 
 export type Server = SharedServer & { memberCount: number }
 
@@ -80,9 +80,11 @@ export const useServerStore = create<ServerState>((set, get) => ({
       servers: s.servers.map((srv) => (srv.id === id ? { ...srv, ...patch } : srv))
     })),
 
-  removeServer: (id) =>
+  removeServer: (id) => {
+    forgetServerHistory(id)
     set((s) => ({
       servers: s.servers.filter((srv) => srv.id !== id),
       currentServerId: s.currentServerId === id ? null : s.currentServerId
     }))
+  }
 }))

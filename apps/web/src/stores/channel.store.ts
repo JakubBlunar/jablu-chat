@@ -1,7 +1,7 @@
 import type { Channel, ChannelCategory } from '@chat/shared'
 import { create } from 'zustand'
 import { api } from '@/lib/api'
-import { evictServer, getChannels, putChannels } from '@/lib/cache/structureCache'
+import { evictServer, forgetServerHistory, getChannels, putChannels } from '@/lib/cache/structureCache'
 import { createActiveResourceRequest } from '@/lib/activeResourceRequest'
 
 const channelRequests = createActiveResourceRequest<{ channels: Channel[]; categories: ChannelCategory[] }>()
@@ -84,7 +84,7 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     },
     fail: (error) => {
       if ([401, 403, 404].includes((error as { status?: number })?.status ?? 0)) {
-        evictServer(serverId)
+        forgetServerHistory(serverId)
         set({ channels: [], categories: [] })
       }
       set({ isLoading: false })

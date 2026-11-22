@@ -139,8 +139,9 @@ export function MainLayout() {
 function MainLayoutContent() {
   const { t } = useTranslation('a11y')
   const { t: tCommon } = useTranslation('common')
-  useRouteSync()
+  // Offline routes read through the session binding established by bootstrap.
   useCacheBootstrap(useAuthStore((s) => s.user?.id ?? null))
+  useRouteSync()
   useServerResources()
 
   const { socket, isConnected } = useSocket()

@@ -246,7 +246,9 @@ export const useDmStore = create<DmState>((set, _get) => ({
       set({ messages: merged, hasMore: page.hasMore, messagesError: null })
       putContext(dmKey(conversationId), { messages: merged, hasMore: page.hasMore, hasNewer: false })
     } catch (e) {
-      if (isForbidden(e)) evictContext(dmKey(conversationId))
+      if (!isForbidden(e) || _dmFetchId !== fetchId) return
+      if (_get().loadedForConvId === conversationId) _get().clearMessages()
+      evictContext(dmKey(conversationId))
     }
   },
 
